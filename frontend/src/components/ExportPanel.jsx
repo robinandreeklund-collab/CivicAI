@@ -5,7 +5,7 @@ import yaml from 'js-yaml';
  * ExportPanel Component
  * Modern export panel with animations and visual feedback
  */
-export default function ExportPanel({ question, responses, metadata }) {
+export default function ExportPanel({ question, responses }) {
   const [isExporting, setIsExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
 
