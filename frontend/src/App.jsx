@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import AgentBubble from './components/AgentBubble';
 import ModernLoader from './components/ModernLoader';
 import ExportButtons from './components/ExportButtons';
+import AnimatedLogo from './components/AnimatedLogo';
 
 /**
  * Main CivicAI Application
@@ -96,9 +97,7 @@ function App() {
       <header className="relative border-b border-civic-dark-700/50 backdrop-blur-xl bg-civic-dark-800/50 flex-shrink-0 z-10">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-xl shadow-lg shadow-blue-500/20">
-              🧭
-            </div>
+            <AnimatedLogo size={40} animated={true} />
             <div>
               <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
                 CivicAI
@@ -119,8 +118,8 @@ function App() {
         <div className="max-w-4xl mx-auto px-4 py-6">
           {messages.length === 0 && !isLoading && (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-fade-in">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center text-4xl mb-6 animate-bounce-slow">
-                💬
+              <div className="mb-8">
+                <AnimatedLogo size={80} animated={true} />
               </div>
               <h2 className="text-2xl font-bold text-gray-100 mb-2">Välkommen till CivicAI</h2>
               <p className="text-gray-400 mb-8 max-w-md">
