@@ -1,4 +1,3 @@
-
 # 🧭 CivicAI
 
 **Beslut med insyn. AI med ansvar.**
@@ -9,7 +8,7 @@ CivicAI är en öppen plattform för att jämföra hur olika AI-modeller svarar 
 
 ## 📦 Projektstruktur
 
-
+```plaintext
 civicai/
 ├── README.md                  # Projektbeskrivning
 ├── manifest.yaml              # Vision, målgrupp, komponenter, värderingar
@@ -33,6 +32,8 @@ civicai/
 ├── firebase/                  # Databas (aktiveras efter MVP)
 ├── data/                      # Testfrågor, exports, profiler
 └── tests/                     # Enhetstester och mockdata
+
+```
 
 🛠 Teknikstack
 
@@ -132,13 +133,13 @@ Visar historik över frågor och exporthändelser
 
 🧪 Fas 1: MVP
 
-[x] Frågeruta + agentbubblor
+[ ] Frågeruta + agentbubblor
 
-[x] API-anrop till GPT-3.5 och Gemini
+[ ] API-anrop till GPT-3.5 och Gemini
 
-[x] YAML-export
+[ ] YAML-export
 
-[x] Grundläggande UI med mörkt tema
+[ ] Grundläggande UI med mörkt tema
 
 🔍 Fas 2: Analys & insyn
 
