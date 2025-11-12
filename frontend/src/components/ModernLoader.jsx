@@ -70,18 +70,7 @@ export default function ModernLoader({ message = "Hämtar svar från AI-modeller
           </div>
         </div>
 
-        <style>{`
-          @keyframes progress {
-            0%, 100% {
-              width: 30%;
-              opacity: 0.5;
-            }
-            50% {
-              width: 90%;
-              opacity: 1;
-            }
-          }
-        `}</style>
+        {/* The @keyframes 'progress' animation is now defined in a global CSS file */}
       </div>
     </div>
   );
