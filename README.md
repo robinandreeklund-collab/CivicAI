@@ -9,7 +9,7 @@ CivicAI är en öppen plattform för att jämföra hur olika AI-modeller svarar 
 
 ## 📦 Projektstruktur
 
-```plaintext
+
 civicai/
 ├── README.md                  # Projektbeskrivning
 ├── manifest.yaml              # Vision, målgrupp, komponenter, värderingar
