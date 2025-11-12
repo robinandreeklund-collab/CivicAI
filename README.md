@@ -6,13 +6,37 @@ CivicAI är en öppen plattform för att jämföra hur olika AI-modeller svarar 
 
 ---
 
-## 🎨 Chat-Interface som Copilot & Grok
+## 🎨 Grok-Inspirerad Design
 
-![CivicAI Chat Interface](https://github.com/user-attachments/assets/8e587888-c1be-42ec-a844-49171f3a1899)
-*Ren chat-interface med integrerad frågeruta precis som Copilot och Grok*
+CivicAI har nu en moderniserad design inspirerad av Grok med fokus på användarvänlighet och professionell estetik.
 
-![CivicAI Chat with Responses](https://github.com/user-attachments/assets/f5d01c85-69da-4f77-83a1-b9b62d0f31b6)
-*AI-svar i chat-bubblor med kompakta export-ikoner i headern*
+### Huvudfunktioner
+
+![CivicAI Huvudvy](https://github.com/user-attachments/assets/e5c29380-8140-4b7b-8af0-2eaa5f858341)
+*Grok-inspirerad layout med sidebar, centrerad chat och AI-tjänsteväljare*
+
+**✨ Nyckeldelar:**
+- **Sidebar**: Historia av konversationer, logo-placering och exportfunktioner
+- **AI-Tjänsteväljare**: Aktivera/deaktivera specifika AI-modeller innan frågan skickas
+- **Centrerad Chat**: Frågeruta och svar i mitten, precis som Grok
+- **Moderna Animationer**: Fade-ins, loaders och smooth transitions
+
+### AI-Tjänsteväljare
+
+![AI-Tjänsteväljare](https://github.com/user-attachments/assets/fa7d93ce-2937-448b-8871-117d7cb16da1)
+*Välj vilka AI-modeller som ska inkluderas i svaret*
+
+Användare kan nu välja vilka AI-tjänster de vill fråga:
+- 🤖 **GPT-3.5**: Snabb och effektiv
+- ✨ **Gemini**: Googles AI-modell
+- Toggle-switchar för enkel aktivering/deaktivering
+
+### Kollapsbar Sidebar
+
+![Kollapsad Sidebar](https://github.com/user-attachments/assets/28d135ed-3cb5-4967-9044-ae4163edfd2b)
+*Maximera arbetsytan genom att kollapsa sidebaren*
+
+Sidebaren kan enkelt kollapsa för att ge mer utrymme åt konversationen.
 
 ---
 
