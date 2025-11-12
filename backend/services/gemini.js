@@ -19,12 +19,12 @@ export async function getGeminiResponse(question) {
     console.warn('⚠️  Gemini API key not configured');
     return {
       response: '[MVP Demo] Detta är ett simulerat svar från Gemini. Konfigurera GEMINI_API_KEY i .env för riktiga svar.\n\nFrågan var: ' + question,
-      model: 'gemini-pro (simulated)',
+      model: 'gemini-1.5-flash (simulated)',
     };
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const prompt = `Du är en hjälpsam assistent som svarar på frågor på svenska med tydlighet och transparens. Ge balanserade och väl underbyggda svar.\n\nFråga: ${question}`;
 
@@ -34,7 +34,7 @@ export async function getGeminiResponse(question) {
 
     return {
       response: text,
-      model: 'gemini-pro',
+      model: 'gemini-1.5-flash',
     };
   } catch (error) {
     console.error('Gemini API Error:', error.message);
