@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import AgentBubble from './components/AgentBubble';
 import ModernLoader from './components/ModernLoader';
-import AnimatedLogo from './components/AnimatedLogo';
+import PulsatingLogo from './components/PulsatingLogo';
 import Sidebar from './components/Sidebar';
 import AIServiceToggle from './components/AIServiceToggle';
 import yaml from 'js-yaml';
@@ -245,13 +245,10 @@ function App() {
           <div className="max-w-4xl mx-auto px-4 py-6">
             {messages.length === 0 && !isLoading && (
               <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-fade-in">
-                <div className="mb-8">
-                  <AnimatedLogo size={80} animated={true} />
+                {/* Pulsating logo animation */}
+                <div className="mb-12">
+                  <PulsatingLogo size={120} />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-100 mb-2">Välkommen till CivicAI</h2>
-                <p className="text-gray-400 mb-8 max-w-md">
-                  Ställ dina frågor och få svar från flera AI-modeller samtidigt. Jämför perspektiv och fatta bättre beslut.
-                </p>
                 
                 {/* Quick suggestions */}
                 <div className="flex flex-wrap gap-2 justify-center">
@@ -317,8 +314,8 @@ function App() {
           </div>
         </div>
 
-        {/* Input Area - Fixed at bottom */}
-        <div className="relative border-t border-civic-dark-700/50 backdrop-blur-xl bg-civic-dark-800/50 flex-shrink-0">
+        {/* Input Area - Fixed at bottom, no separate background */}
+        <div className="relative flex-shrink-0">
           <div className="max-w-4xl mx-auto px-4 py-4">
             {/* AI Service Toggle */}
             <div className="flex justify-center mb-3">
@@ -330,7 +327,7 @@ function App() {
 
             <form onSubmit={handleSubmitQuestion} className="relative">
               <div className="relative flex items-end space-x-2">
-                <div className="flex-1 relative">
+                <div className="flex-1 relative group">
                   <textarea
                     value={question}
                     onChange={(e) => setQuestion(e.target.value)}
@@ -338,7 +335,7 @@ function App() {
                     placeholder="Ställ din fråga här..."
                     disabled={isLoading}
                     rows={1}
-                    className="w-full px-4 py-3 pr-12 rounded-2xl bg-civic-dark-700/50 border border-civic-dark-600 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 resize-none transition-all duration-200 disabled:opacity-50"
+                    className="w-full px-4 py-3 pr-12 rounded-2xl bg-civic-dark-700/50 border-2 border-civic-dark-600 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none transition-all duration-300 disabled:opacity-50 hover:border-blue-500/50 focus:shadow-[0_0_20px_rgba(59,130,246,0.3)]"
                     style={{
                       minHeight: '48px',
                       maxHeight: '200px',
@@ -349,11 +346,20 @@ function App() {
                     }}
                   />
                   
+                  {/* Pulsating border effect when not focused */}
+                  <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <div className="absolute inset-0 rounded-2xl animate-pulse-slow" style={{
+                      background: 'linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.3), transparent)',
+                      backgroundSize: '200% 100%',
+                      animation: 'shimmer 3s linear infinite'
+                    }}></div>
+                  </div>
+                  
                   {/* Send button inside input */}
                   <button
                     type="submit"
                     disabled={isLoading || !question.trim()}
-                    className="absolute right-2 bottom-2 w-8 h-8 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-civic-dark-600 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-200 hover:scale-105 disabled:hover:scale-100"
+                    className="absolute right-2 bottom-2 w-8 h-8 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-civic-dark-600 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-200 hover:scale-110 disabled:hover:scale-100 shadow-lg hover:shadow-blue-500/50"
                     title="Skicka (Enter)"
                   >
                     {isLoading ? (

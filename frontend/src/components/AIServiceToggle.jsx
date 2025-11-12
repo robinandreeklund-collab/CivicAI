@@ -42,9 +42,9 @@ export default function AIServiceToggle({ services, onServicesChange }) {
         </svg>
       </button>
 
-      {/* Services Panel */}
+      {/* Services Panel - Opens upward */}
       {isExpanded && (
-        <div className="absolute top-full mt-2 right-0 w-72 bg-civic-dark-800 rounded-lg shadow-xl border border-civic-dark-700 overflow-hidden animate-fade-in z-50">
+        <div className="absolute bottom-full mb-2 right-0 w-72 bg-civic-dark-800 rounded-lg shadow-xl border border-civic-dark-700 overflow-hidden animate-fade-in z-50">
           <div className="p-3 border-b border-civic-dark-700">
             <h3 className="text-sm font-semibold text-gray-200">Välj AI-tjänster</h3>
             <p className="text-xs text-gray-500 mt-1">
