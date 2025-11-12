@@ -1,0 +1,27 @@
+{
+  "name": "civicai",
+  "version": "0.1.0",
+  "description": "CivicAI - Beslut med insyn. AI med ansvar.",
+  "private": true,
+  "scripts": {
+    "install:frontend": "cd frontend && npm install",
+    "install:backend": "cd backend && npm install",
+    "install:all": "npm run install:frontend && npm run install:backend",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build:frontend": "cd frontend && npm run build",
+    "build": "npm run build:frontend"
+  },
+  "keywords": [
+    "ai",
+    "civic-tech",
+    "transparency",
+    "decision-support"
+  ],
+  "author": "Robin",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
