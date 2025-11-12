@@ -2,31 +2,33 @@ import { useState, useEffect } from 'react';
 
 /**
  * AgentBubble Component
- * Displays an AI model's response with modern design, animations, and visual effects
+ * Compact chat-style AI response bubbles
  */
 export default function AgentBubble({ agent, response, metadata, index = 0 }) {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     // Staggered animation entrance
-    const timer = setTimeout(() => setIsVisible(true), index * 150);
+    const timer = setTimeout(() => setIsVisible(true), index * 100);
     return () => clearTimeout(timer);
   }, [index]);
 
-  // Color schemes for different AI agents with gradients
+  // Color schemes for different AI agents
   const agentThemes = {
     'gpt-3.5': {
-      gradient: 'from-blue-500/20 to-cyan-500/20',
-      border: 'border-blue-500/40',
-      glow: 'shadow-blue-500/20',
+      bg: 'bg-civic-dark-800/80',
+      border: 'border-blue-500/30',
       icon: '🤖',
+      iconBg: 'bg-blue-500/20',
+      iconColor: 'text-blue-400',
       accentColor: 'bg-blue-500',
     },
     'gemini': {
-      gradient: 'from-purple-500/20 to-pink-500/20',
-      border: 'border-purple-500/40',
-      glow: 'shadow-purple-500/20',
+      bg: 'bg-civic-dark-800/80',
+      border: 'border-purple-500/30',
       icon: '✨',
+      iconBg: 'bg-purple-500/20',
+      iconColor: 'text-purple-400',
       accentColor: 'bg-purple-500',
     },
   };
@@ -37,10 +39,11 @@ export default function AgentBubble({ agent, response, metadata, index = 0 }) {
   };
 
   const theme = agentThemes[agent] || {
-    gradient: 'from-gray-500/20 to-gray-600/20',
-    border: 'border-gray-500/40',
-    glow: 'shadow-gray-500/20',
+    bg: 'bg-civic-dark-800/80',
+    border: 'border-gray-500/30',
     icon: '🔮',
+    iconBg: 'bg-gray-500/20',
+    iconColor: 'text-gray-400',
     accentColor: 'bg-gray-500',
   };
   
@@ -49,77 +52,53 @@ export default function AgentBubble({ agent, response, metadata, index = 0 }) {
   return (
     <div 
       className={`
-        agent-bubble relative overflow-hidden
-        ${theme.border} ${theme.glow}
-        transition-all duration-700 ease-out
-        ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}
+        flex space-x-3 transition-all duration-500 ease-out
+        ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
       `}
-      style={{
-        transitionDelay: `${index * 100}ms`,
-      }}
     >
-      {/* Gradient overlay */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${theme.gradient} opacity-50`}></div>
-      
-      {/* Animated shimmer effect on hover */}
-      <div className="absolute inset-0 opacity-0 hover:opacity-100 transition-opacity duration-500">
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent shimmer"></div>
+      {/* Agent Icon */}
+      <div className={`flex-shrink-0 w-8 h-8 rounded-lg ${theme.iconBg} flex items-center justify-center ${theme.iconColor} text-lg`}>
+        {theme.icon}
       </div>
 
-      {/* Content */}
-      <div className="relative z-10">
+      {/* Message Bubble */}
+      <div className={`flex-1 ${theme.bg} backdrop-blur-sm border ${theme.border} rounded-2xl rounded-tl-sm px-4 py-3 shadow-lg`}>
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            {/* Animated icon */}
-            <div className="relative">
-              <div className={`w-10 h-10 rounded-xl ${theme.accentColor} flex items-center justify-center text-xl animate-bounce-slow`}>
-                {theme.icon}
-              </div>
-              <div className={`absolute inset-0 rounded-xl ${theme.accentColor} opacity-20 blur-md animate-pulse-slow`}></div>
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-gray-100 tracking-tight">{displayName}</h3>
-              {metadata?.model && (
-                <p className="text-xs text-gray-500 mt-0.5">{metadata.model}</p>
-              )}
-            </div>
-          </div>
-          
-          {/* Status indicator */}
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-2">
-            {metadata?.timestamp && (
-              <span className="text-xs text-gray-500 px-3 py-1 rounded-full bg-civic-dark-700/50">
-                {new Date(metadata.timestamp).toLocaleTimeString('sv-SE')}
-              </span>
-            )}
-            <div className="relative">
-              <div className={`w-2 h-2 rounded-full ${theme.accentColor} animate-pulse-slow`}></div>
-              <div className={`absolute inset-0 w-2 h-2 rounded-full ${theme.accentColor} opacity-50 blur-sm`}></div>
-            </div>
+            <h3 className="text-sm font-semibold text-gray-100">{displayName}</h3>
+            <div className={`w-1.5 h-1.5 rounded-full ${theme.accentColor} animate-pulse`}></div>
           </div>
+          {metadata?.timestamp && (
+            <span className="text-xs text-gray-500">
+              {new Date(metadata.timestamp).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
         </div>
-        
-        {/* Divider with gradient */}
-        <div className={`h-px bg-gradient-to-r ${theme.gradient} mb-4`}></div>
 
-        {/* Response text with typing effect appearance */}
-        <div className="text-gray-200 leading-relaxed whitespace-pre-wrap animate-fade-in-up">
+        {/* Response */}
+        <div className="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap">
           {response || (
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 text-gray-500 italic">
               <div className="typing-indicator">
                 <span></span>
                 <span></span>
                 <span></span>
               </div>
-              <span className="text-gray-500 italic ml-2">Genererar svar...</span>
+              <span className="text-xs">Genererar svar...</span>
             </div>
           )}
         </div>
-      </div>
 
-      {/* Bottom accent line */}
-      <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${theme.gradient}`}></div>
+        {/* Model info */}
+        {metadata?.model && (
+          <div className="mt-2 pt-2 border-t border-civic-dark-700/50">
+            <span className="text-xs text-gray-500">
+              {metadata.model}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

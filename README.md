@@ -6,13 +6,13 @@ CivicAI är en öppen plattform för att jämföra hur olika AI-modeller svarar 
 
 ---
 
-## 🎨 Modern Design
+## 🎨 Chat-Interface som Copilot & Grok
 
-![CivicAI Interface](https://github.com/user-attachments/assets/28151ccd-95ec-447a-a54f-8f6370843e17)
-*Modernt Grok-inspirerat gränssnitt med imponerande animationer och visuella effekter*
+![CivicAI Chat Interface](https://github.com/user-attachments/assets/8e587888-c1be-42ec-a844-49171f3a1899)
+*Ren chat-interface med integrerad frågeruta precis som Copilot och Grok*
 
-![CivicAI With Responses](https://github.com/user-attachments/assets/15c4b13c-c8a5-4e79-b2a7-24e1a245e344)
-*AI-svar med färgkodade agentbubblor och elegant exportfunktion*
+![CivicAI Chat with Responses](https://github.com/user-attachments/assets/f5d01c85-69da-4f77-83a1-b9b62d0f31b6)
+*AI-svar i chat-bubblor med kompakta export-ikoner i headern*
 
 ---
 
