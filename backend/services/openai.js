@@ -20,6 +20,7 @@ export async function getOpenAIResponse(question) {
     return {
       response: '[MVP Demo] Detta är ett simulerat svar från GPT-3.5. Konfigurera OPENAI_API_KEY i .env för riktiga svar.\n\nFrågan var: ' + question,
       model: 'gpt-3.5-turbo (simulated)',
+      error: true,
     };
   }
 
