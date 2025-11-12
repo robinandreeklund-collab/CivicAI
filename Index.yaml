@@ -1,0 +1,102 @@
+project_index:
+  name: CivicAI
+  version: 0.1.0
+  modules:
+    frontend:
+      path: /frontend
+      description: >
+        React-baserad användargränssnitt för att skriva frågor, visa AI-svar, analysera ton/bias och exportera beslutsunderlag.
+      components:
+        AgentBubble:
+          path: /frontend/src/components/AgentBubble.jsx
+          description: Visar ett AI-svar med agentnamn, tonetikett och färgkodning.
+          depends_on: [ResponseAnalyzer, BiasIndicator]
+        BiasIndicator:
+          path: /frontend/src/components/BiasIndicator.jsx
+          description: Visualiserar bias i ett AI-svar (politisk, kommersiell, kulturell).
+          depends_on: [ResponseAnalyzer]
+        BattlePanel:
+          path: /frontend/src/components/BattlePanel.jsx
+          description: Låter användare rösta på bästa AI-svar i jämförelsevyn.
+          depends_on: [AgentBubble]
+        AgentProfileCard:
+          path: /frontend/src/components/AgentProfileCard.jsx
+          description: Visar varje AI-modells stil, ton, källpreferens och biashistorik.
+          depends_on: [ResponseAnalyzer]
+        ExportPanel:
+          path: /frontend/src/components/ExportPanel.jsx
+          description: Exporterar jämförelse till YAML, README eller PDF.
+          depends_on: [utils/generateYAML.js, markdown-it]
+        ComparisonPanel:
+          path: /frontend/src/components/ComparisonPanel.jsx
+          description: Huvudvy för att jämföra AI-svar med analys och metadata.
+          depends_on: [AgentBubble, BiasIndicator, ResponseAnalyzer]
+        QuestionInput:
+          path: /frontend/src/components/QuestionInput.jsx
+          description: Frågeruta som triggar query_dispatcher och visar svar.
+          depends_on: [backend/api/query_dispatcher]
+        ResponseAnalyzer:
+          path: /frontend/src/components/ResponseAnalyzer.jsx
+          description: Kör tonanalys, biasdetektion och faktakoll på AI-svar.
+          depends_on: [backend/utils/analyzeTone.js, backend/utils/checkFacts.js]
+        SettingsPanel:
+          path: /frontend/src/components/SettingsPanel.jsx
+          description: Låter användaren välja AI-modeller, språk och analysnivå.
+          depends_on: [Firebase (efter MVP)]
+        AuditTrailViewer:
+          path: /frontend/src/components/AuditTrailViewer.jsx
+          description: Visar historik över frågor, svar och exporthändelser.
+          depends_on: [Firebase]
+
+    backend:
+      path: /backend
+      description: >
+        API-endpoints, AI-router och analysmotorer för att hämta, normalisera och granska AI-svar.
+      modules:
+        query_dispatcher:
+          path: /backend/api/query_dispatcher.js
+          description: Skickar prompt till valda AI-modeller och returnerar svar.
+          depends_on: [services/openai.js, services/gemini.js]
+        analyzeTone:
+          path: /backend/utils/analyzeTone.js
+          description: Klassificerar ton (formell, empatisk, teknisk etc).
+          depends_on: [TextBlob, GPT-3.5]
+        detectBias:
+          path: /backend/utils/detectBias.js
+          description: Identifierar bias i AI-svar via semantisk analys.
+          depends_on: [spaCy, GPT-3.5]
+        checkFacts:
+          path: /backend/utils/checkFacts.js
+          description: Verifierar påståenden mot webbkällor.
+          depends_on: [Bing Search API]
+        generateYAML:
+          path: /backend/utils/generateYAML.js
+          description: Skapar YAML-export av svar, metadata och analys.
+          depends_on: [js-yaml]
+
+    firebase:
+      path: /firebase
+      description: >
+        Konfiguration för datalagring, användarprofil, audit trail och inställningar. Aktiveras efter MVP.
+      files:
+        - firebase.json
+        - firestore.rules
+        - authConfig.js
+
+    shared:
+      path: /data
+      description: >
+        Testfrågor, exempeldata, agentprofiler och exportfiler.
+      folders:
+        examples: Testfrågor och svar
+        exports: YAML- och PDF-exporter
+        profiles: Agentmetadata och stilbeskrivningar
+
+    tests:
+      path: /tests
+      description: >
+        Enhetstester och integrationstester för frontend, backend och analysmotorer.
+      folders:
+        frontend: Komponenttester
+        backend: API- och analysmodultester
+        mockdata: Simulerade AI-svar för test
