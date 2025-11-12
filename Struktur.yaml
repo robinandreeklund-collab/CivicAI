@@ -1,0 +1,49 @@
+civicai/
+├── README.md                  # Projektbeskrivning, syfte, teknik, faser
+├── manifest.yaml              # Vision, målgrupp, komponenter, värderingar
+├── index.yaml                 # Modulöversikt och navigering
+├── CONTRIBUTING.md            # Onboarding för utvecklare
+├── package.json               # Frontend beroenden
+├── requirements.txt           # Backend beroenden (om Python används)
+│
+├── frontend/                  # React-applikation
+│   ├── public/                # Ikoner, favicon, index.html
+│   ├── src/
+│   │   ├── components/        # UI-komponenter
+│   │   │   ├── AgentBubble.jsx
+│   │   │   ├── BiasIndicator.jsx
+│   │   │   ├── BattlePanel.jsx
+│   │   │   ├── AgentProfileCard.jsx
+│   │   │   ├── ExportPanel.jsx
+│   │   │   ├── ComparisonPanel.jsx
+│   │   │   ├── QuestionInput.jsx
+│   │   │   ├── ResponseAnalyzer.jsx
+│   │   │   ├── SettingsPanel.jsx
+│   │   │   └── AuditTrailViewer.jsx
+│   │   ├── hooks/             # Custom hooks (useAgentData, useBiasAnalysis)
+│   │   ├── utils/             # Normalisering, tokenräkning, YAML-export
+│   │   ├── pages/             # Vystrukturer (Home, ExportView, Settings)
+│   │   ├── styles/            # Tailwind-tema, typografi, färgpalett
+│   │   └── main.jsx           # App-entry
+│
+├── backend/                   # API och analysmotorer
+│   ├── api/                   # Endpoints (query_dispatcher, analyzer)
+│   ├── services/              # AI-integrationer (OpenAI, Gemini, HuggingFace)
+│   ├── schemas/              # JSON-schema för svar, metadata, export
+│   ├── utils/                 # Faktakoll, biasanalys, tonklassificering
+│   └── app.py / index.js      # Backend-entry (FastAPI eller Express)
+│
+├── data/                      # Testfrågor, svar, exportexempel
+│   ├── examples/
+│   ├── exports/
+│   └── profiles/
+│
+├── firebase/                  # Konfiguration (aktiveras efter MVP)
+│   ├── firebase.json
+│   ├── firestore.rules
+│   └── authConfig.js
+│
+└── tests/                     # Enhetstester och integrationstester
+    ├── frontend/
+    ├── backend/
+    └── mockdata/
