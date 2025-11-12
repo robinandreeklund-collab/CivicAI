@@ -75,6 +75,66 @@ Databas
 
 Firebase (kopplas på efter MVP)
 
+## 🚀 Kom igång
+
+### Backend Setup
+
+1. **Installera beroenden:**
+   ```bash
+   cd backend
+   npm install
+   ```
+
+2. **Konfigurera API-nycklar:**
+   
+   Skapa en `.env`-fil i `backend/`-mappen baserad på `.env.example`:
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Redigera `.env` och lägg till dina API-nycklar:
+   ```env
+   # OpenAI Configuration
+   OPENAI_API_KEY=your_openai_api_key_here
+   
+   # Google Gemini Configuration
+   GEMINI_API_KEY=your_gemini_api_key_here
+   
+   # Server Configuration
+   PORT=3001
+   ```
+
+3. **Starta backend-servern:**
+   ```bash
+   npm start
+   ```
+   
+   Servern startar på `http://localhost:3001` och visar debug-information om API-nycklar är konfigurerade:
+   ```
+   🚀 CivicAI Backend running on port 3001
+   🔗 Health check: http://localhost:3001/health
+   [DEBUG] OPENAI_API_KEY: ✓ Configured
+   [DEBUG] GEMINI_API_KEY: ✓ Configured
+   ```
+
+### API-nycklar och felsökning
+
+**Gemini API:**
+- Använder modell: `gemini-2.5-flash`
+- Hämta API-nyckel från: [Google AI Studio](https://aistudio.google.com/app/apikey)
+
+**OpenAI API:**
+- Använder modell: `gpt-3.5-turbo`
+- Hämta API-nyckel från: [OpenAI Platform](https://platform.openai.com/api-keys)
+- **Obs:** Kontrollera att du har tillgänglig kredit och inte har överskridit din kvot
+
+**Vanliga fel:**
+- `404 Not Found` (Gemini): Modellnamnet är inkorrekt eller inaktuellt. Använd `gemini-2.5-flash` eller `gemini-1.5-pro`.
+- `429 Quota Exceeded` (OpenAI): Du har överskridit din API-kvot. Kontrollera ditt konto och faktureringsdetaljer.
+- `401 Unauthorized`: API-nyckeln är ogiltig eller felaktig.
+
+**OBS:** Utan konfigurerade API-nycklar kommer applikationen att fungera med simulerade svar för demonstration.
+
 ✨ Funktioner
 
 🔄 Multi-agent svarsspegel
