@@ -18,6 +18,13 @@ router.post('/query', async (req, res) => {
         message: 'Question is required and must be a non-empty string' 
       });
     }
+    // Maximum length validation (e.g., 5000 characters)
+    if (question.length > 5000) {
+      return res.status(400).json({
+        error: 'Invalid request',
+        message: 'Question is too long. Maximum allowed length is 5000 characters.'
+      });
+    }
 
     console.log(`📝 Processing question: ${question.length > 50 ? question.substring(0, 50) + '...' : question}`);
 
