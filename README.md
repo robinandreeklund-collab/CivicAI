@@ -120,7 +120,7 @@ Firebase (kopplas på efter MVP)
 ### API-nycklar och felsökning
 
 **Gemini API:**
-- Använder modell: `gemini-1.5-flash`
+- Använder modell: `gemini-2.5-flash`
 - Hämta API-nyckel från: [Google AI Studio](https://makersuite.google.com/app/apikey)
 
 **OpenAI API:**
@@ -129,7 +129,7 @@ Firebase (kopplas på efter MVP)
 - **Obs:** Kontrollera att du har tillgänglig kredit och inte har överskridit din kvot
 
 **Vanliga fel:**
-- `404 Not Found` (Gemini): Modellnamnet är inkorrekt eller inaktuellt. Använd `gemini-1.5-flash` eller `gemini-1.5-pro`.
+- `404 Not Found` (Gemini): Modellnamnet är inkorrekt eller inaktuellt. Använd `gemini-2.5-flash` eller `gemini-1.5-pro`.
 - `429 Quota Exceeded` (OpenAI): Du har överskridit din API-kvot. Kontrollera ditt konto och faktureringsdetaljer.
 - `401 Unauthorized`: API-nyckeln är ogiltig eller felaktig.
 
