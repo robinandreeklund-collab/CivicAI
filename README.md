@@ -121,7 +121,7 @@ Firebase (kopplas på efter MVP)
 
 **Gemini API:**
 - Använder modell: `gemini-2.5-flash`
-- Hämta API-nyckel från: [Google AI Studio](https://makersuite.google.com/app/apikey)
+- Hämta API-nyckel från: [Google AI Studio](https://aistudio.google.com/app/apikey)
 
 **OpenAI API:**
 - Använder modell: `gpt-3.5-turbo`
