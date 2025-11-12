@@ -19,7 +19,7 @@ router.post('/query', async (req, res) => {
       });
     }
 
-    console.log(`📝 Processing question: ${question.substring(0, 50)}...`);
+    console.log(`📝 Processing question: ${question.length > 50 ? question.substring(0, 50) + '...' : question}`);
 
     // Call both AI services in parallel
     const [gptResponse, geminiResponse] = await Promise.allSettled([
