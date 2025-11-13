@@ -1,7 +1,7 @@
 /**
  * AnalysisComparison Component
  * Timeline-based visual comparison of analysis across all AI responses
- * Includes spaCy-like NLP, TextBlob-like sentiment, GPT-3.5 meta-review, and Bing Search fact-checking
+ * Includes spaCy-like NLP, TextBlob-like sentiment, GPT-3.5 meta-review, and Tavily Search fact-checking
  * Clean, modern list view with timestamps
  */
 export default function AnalysisComparison({ responses, metaReview, factCheckComparison }) {
@@ -66,19 +66,19 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
           <span>•</span>
           <span className="flex items-center space-x-1">
             <span>🔍</span>
-            <span>Bing Search Faktakoll</span>
+            <span>Tavily Search Faktakoll</span>
           </span>
         </div>
       </div>
 
-      {/* Bing Search Fact-Check Comparison */}
+      {/* Tavily Search Fact-Check Comparison */}
       {factCheckComparison && factCheckComparison.available && (
         <div className="mb-6 p-4 bg-gradient-to-r from-blue-900/20 to-cyan-900/20 border border-blue-500/30 rounded-xl">
           <div className="flex items-start space-x-3">
             <div className="text-2xl">🔍</div>
             <div className="flex-1">
               <h4 className="text-sm font-semibold text-blue-300 mb-2 flex items-center space-x-2">
-                <span>Bing Search Faktakoll</span>
+                <span>Tavily Search Faktakoll</span>
                 {factCheckComparison.bestAgent && (
                   <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-200">
                     Bäst: {factCheckComparison.bestAgent} ({factCheckComparison.bestScore}/10)
@@ -99,7 +99,7 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
                 <span className="font-medium text-green-300">
                   {factCheckComparison.totalVerified} av {factCheckComparison.totalClaims} påståenden verifierade
                 </span>
-                {' '}mot pålitliga webbkällor via Bing Search API
+                {' '}mot pålitliga webbkällor via Tavily Search API
               </div>
             </div>
           </div>
@@ -339,13 +339,13 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
                   </div>
                 )}
 
-                {/* Bing Search Fact-Check Results */}
+                {/* Tavily Search Fact-Check Results */}
                 {resp.bingFactCheck && resp.bingFactCheck.available && (
                   <div className="mt-3 pt-3 border-t border-civic-dark-600">
                     <div className="text-xs font-medium text-blue-300 mb-2 flex items-center justify-between">
                       <div className="flex items-center space-x-1">
                         <span>🔍</span>
-                        <span>Bing Search Faktakoll</span>
+                        <span>Tavily Search Faktakoll</span>
                       </div>
                       {resp.bingFactCheck.overallScore !== null && (
                         <span className={`px-2 py-0.5 rounded ${
