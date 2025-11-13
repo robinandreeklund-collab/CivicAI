@@ -3,6 +3,8 @@ import AgentBubble from './components/AgentBubble';
 import ModernLoader from './components/ModernLoader';
 import Sidebar from './components/Sidebar';
 import AIServiceToggle from './components/AIServiceToggle';
+import AnalysisComparison from './components/AnalysisComparison';
+import ResponseSummary from './components/ResponseSummary';
 import yaml from 'js-yaml';
 
 /**
@@ -295,6 +297,7 @@ function App() {
                 
                 {message.type === 'ai' && (
                   <div className="space-y-4">
+                    {/* Individual AI Responses */}
                     {message.responses.map((resp, idx) => (
                       <AgentBubble
                         key={idx}
@@ -305,6 +308,12 @@ function App() {
                         index={idx}
                       />
                     ))}
+
+                    {/* Analysis Comparison */}
+                    <AnalysisComparison responses={message.responses} />
+
+                    {/* Neutral Summary */}
+                    <ResponseSummary responses={message.responses} question={message.question} />
                   </div>
                 )}
                 
