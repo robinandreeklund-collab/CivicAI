@@ -350,7 +350,7 @@ function App() {
                   <textarea
                     value={question}
                     onChange={(e) => setQuestion(e.target.value)}
-                    onKeyPress={handleKeyPress}
+                    onKeyDown={handleKeyPress}
                     placeholder="Ställ din fråga här..."
                     disabled={isLoading}
                     rows={1}
