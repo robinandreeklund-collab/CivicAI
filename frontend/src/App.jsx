@@ -201,6 +201,7 @@ function App() {
         type: 'ai',
         question: userQuestion,
         responses: data.responses || [],
+        synthesizedSummary: data.synthesizedSummary || null,
         timestamp: new Date().toISOString(),
       };
       
@@ -313,7 +314,11 @@ function App() {
                     <AnalysisComparison responses={message.responses} />
 
                     {/* Neutral Summary */}
-                    <ResponseSummary responses={message.responses} question={message.question} />
+                    <ResponseSummary 
+                      responses={message.responses} 
+                      question={message.question}
+                      synthesizedSummary={message.synthesizedSummary}
+                    />
                   </div>
                 )}
                 

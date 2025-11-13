@@ -4,6 +4,7 @@ import { getGeminiResponse } from '../services/gemini.js';
 import { analyzeTone, getToneDescription } from '../utils/analyzeTone.js';
 import { detectBias } from '../utils/detectBias.js';
 import { checkFacts } from '../utils/checkFacts.js';
+import { generateSynthesizedSummary } from '../utils/generateSummary.js';
 
 const router = express.Router();
 
@@ -112,9 +113,13 @@ router.post('/query', async (req, res) => {
       });
     }
 
+    // Generate synthesized summary from all responses
+    const synthesizedSummary = generateSynthesizedSummary(responses, question);
+
     res.json({
       question,
       responses,
+      synthesizedSummary,
       timestamp: new Date().toISOString(),
     });
 
