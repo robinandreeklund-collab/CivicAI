@@ -205,7 +205,7 @@ where:
 - `backend/test-factcheck.js` - 133 lines (new file)
 - `backend/test-claim-extraction.js` - 171 lines (new file)
 
-**Total Changes:** 965 lines added across 5 files
+**Total Changes:** 1013 lines added across 6 files
 
 ## Technical Improvements
 
