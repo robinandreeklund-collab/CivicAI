@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import AnimatedLogo from './AnimatedLogo';
+import EnhancedExportPanel from './EnhancedExportPanel';
 
 /**
  * Sidebar Component - Grok-inspired
@@ -13,9 +14,11 @@ export default function Sidebar({
   onNewConversation,
   onExportConversations,
   isCollapsed = false,
-  onToggleCollapse
+  onToggleCollapse,
+  lastAiMessage = null
 }) {
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showExportPanel, setShowExportPanel] = useState(false);
   const location = useLocation();
 
   const handleExportYAML = () => {
@@ -152,52 +155,42 @@ export default function Sidebar({
         )}
       </div>
 
-      {/* Export Menu at Bottom */}
-      {!isCollapsed && conversations.length > 0 && (
+      {/* Export Panel at Bottom */}
+      {!isCollapsed && lastAiMessage && (
         <div className="p-3 border-t border-civic-dark-700/50">
-          <div className="relative">
-            <button
-              onClick={() => setShowExportMenu(!showExportMenu)}
-              className="w-full px-4 py-2 rounded-lg bg-civic-dark-800 hover:bg-civic-dark-700 text-gray-300 text-sm font-medium transition-all duration-200 flex items-center justify-between"
-            >
-              <span className="flex items-center space-x-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <span>Exportera</span>
-              </span>
-              <svg 
-                className={`w-4 h-4 transition-transform duration-200 ${showExportMenu ? 'rotate-180' : ''}`}
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
+          <button
+            onClick={() => setShowExportPanel(!showExportPanel)}
+            className="w-full px-4 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium transition-all duration-200 flex items-center justify-center space-x-2"
+          >
+            <span className="text-lg">📦</span>
+            <span>Exportera jämförelse</span>
+          </button>
+        </div>
+      )}
 
-            {showExportMenu && (
-              <div className="absolute bottom-full mb-2 left-0 right-0 bg-civic-dark-800 rounded-lg shadow-xl border border-civic-dark-700 overflow-hidden animate-fade-in">
-                <button
-                  onClick={handleExportYAML}
-                  className="w-full px-4 py-2.5 text-left text-sm text-gray-300 hover:bg-civic-dark-700 transition-colors flex items-center space-x-2"
-                >
-                  <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <span>Exportera som YAML</span>
-                </button>
-                <button
-                  onClick={handleExportJSON}
-                  className="w-full px-4 py-2.5 text-left text-sm text-gray-300 hover:bg-civic-dark-700 transition-colors flex items-center space-x-2"
-                >
-                  <svg className="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
-                  </svg>
-                  <span>Exportera som JSON</span>
-                </button>
-              </div>
-            )}
+      {/* Export Panel Modal */}
+      {showExportPanel && lastAiMessage && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="max-w-4xl w-full max-h-[90vh] overflow-y-auto bg-civic-dark-900 rounded-2xl border border-civic-dark-700 shadow-2xl">
+            <div className="sticky top-0 bg-civic-dark-900 border-b border-civic-dark-700 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-100">Exportera jämförelse</h2>
+              <button
+                onClick={() => setShowExportPanel(false)}
+                className="p-2 rounded-lg hover:bg-civic-dark-800 text-gray-400 hover:text-gray-200 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6">
+              <EnhancedExportPanel
+                question={lastAiMessage.question}
+                responses={lastAiMessage.responses}
+                synthesizedSummary={lastAiMessage.synthesizedSummary}
+                timestamp={lastAiMessage.timestamp}
+              />
+            </div>
           </div>
         </div>
       )}

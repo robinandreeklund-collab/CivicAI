@@ -132,46 +132,6 @@ export default function CleanResponseCarousel({ responses, question }) {
           })}
         </div>
       )}
-
-      {/* Quick Stats Overview - Minimal */}
-      {responses.length > 1 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 px-4">
-          {responses.map((resp, idx) => {
-            const respTheme = getAgentTheme(resp.agent);
-            const isActive = idx === currentIndex;
-            return (
-              <button
-                key={idx}
-                onClick={() => goToIndex(idx)}
-                className={`
-                  p-3 rounded-lg transition-all duration-200
-                  ${isActive
-                    ? 'ring-2 scale-105 shadow-lg'
-                    : 'hover:scale-102 opacity-60 hover:opacity-100'
-                  }
-                `}
-                style={{
-                  backgroundColor: `${respTheme.color}15`,
-                  borderColor: isActive ? respTheme.color : 'transparent',
-                  ringColor: isActive ? respTheme.color : 'transparent',
-                }}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xl">{respTheme.icon}</span>
-                  {resp.analysis?.confidence && (
-                    <span className="text-xs font-semibold" style={{ color: respTheme.color }}>
-                      {Math.round(resp.analysis.confidence * 100)}%
-                    </span>
-                  )}
-                </div>
-                <div className="text-xs font-medium text-gray-300 mt-1 truncate">
-                  {resp.metadata?.model || resp.agent}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

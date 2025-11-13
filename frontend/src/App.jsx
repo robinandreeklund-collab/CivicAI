@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import HomePage from './pages/HomePage';
 import PolicyQuestionBankPage from './pages/PolicyQuestionBankPage';
@@ -13,6 +13,8 @@ function AppContent() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
+  const [lastAiMessage, setLastAiMessage] = useState(null);
+  const location = useLocation();
 
   const handleNewConversation = () => {
     setCurrentConversationId(Date.now().toString());
@@ -27,6 +29,10 @@ function AppContent() {
     console.log('Export', format);
   };
 
+  const handleAiMessageUpdate = (message) => {
+    setLastAiMessage(message);
+  };
+
   return (
     <div className="flex h-screen bg-civic-dark-950 overflow-hidden">
       {/* Sidebar */}
@@ -38,6 +44,7 @@ function AppContent() {
         onExportConversations={handleExportConversations}
         isCollapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        lastAiMessage={location.pathname === '/' ? lastAiMessage : null}
       />
 
       {/* Main Content Area */}
@@ -48,7 +55,7 @@ function AppContent() {
         `}
       >
         <Routes>
-          <Route path="/" element={<HomePage />} />
+          <Route path="/" element={<HomePage onAiMessageUpdate={handleAiMessageUpdate} />} />
           <Route path="/policy-questions" element={<PolicyQuestionBankPage />} />
           <Route path="/audit-trail" element={<AuditTrailPage />} />
         </Routes>
