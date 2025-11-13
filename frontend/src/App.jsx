@@ -359,7 +359,7 @@ function App() {
                   <button
                     type="submit"
                     disabled={isLoading || !question.trim()}
-                    className="absolute right-2 bottom-2 w-8 h-8 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-civic-dark-600 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-200 hover:scale-110 disabled:hover:scale-100 shadow-lg hover:shadow-blue-500/50"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-civic-dark-600 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-200 hover:scale-110 disabled:hover:scale-100 shadow-lg hover:shadow-blue-500/50"
                     title="Skicka (Enter)"
                   >
                     {isLoading ? (
