@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub-stil Sökruta med Skottkärra-animation - CivicAI</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+            color: #e5e7eb;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 800px;
+        }
+        
+        .title {
+            text-align: center;
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 40px;
+            color: #3b82f6;
+        }
+        
+        /* GitHub-style textarea */
+        .input-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        
+        textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 12px 16px;
+            background: #141414;
+            border: 2px solid #2a2a2a;
+            border-radius: 8px;
+            color: #e5e7eb;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+            transition: all 0.2s;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+        
+        textarea::placeholder {
+            color: #6b7280;
+        }
+        
+        /* Bottom toolbar */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 8px;
+            padding: 0 8px;
+        }
+        
+        .hint-text {
+            font-size: 12px;
+            color: #6b7280;
+            font-style: italic;
+        }
+        
+        /* Simple gray arrow button */
+        .arrow-btn {
+            padding: 8px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            color: #6b7280;
+            transition: all 0.2s;
+            border-radius: 6px;
+        }
+        
+        .arrow-btn:hover:not(:disabled) {
+            color: #fff;
+            background: #1f1f1f;
+        }
+        
+        .arrow-btn:disabled {
+            color: #3a3a3a;
+            cursor: not-allowed;
+        }
+        
+        .arrow-icon {
+            width: 20px;
+            height: 20px;
+        }
+        
+        /* Animation area */
+        .animation-area {
+            position: relative;
+            height: 160px;
+            margin-top: 20px;
+            overflow: visible;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        /* Phase 1: Text slides down */
+        @keyframes slideDown {
+            0% { transform: translate(-50%, 0); opacity: 1; }
+            100% { transform: translate(-50%, 60px); opacity: 0.3; }
+        }
+        
+        .question-text {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(59, 130, 246, 0.2);
+            color: #93c5fd;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            white-space: nowrap;
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            animation: slideDown 0.4s ease-out forwards;
+        }
+        
+        /* Phase 2: Wheelbarrow moves */
+        @keyframes wheelbarrowMove {
+            0% { transform: translateX(0); opacity: 0; }
+            20% { transform: translateX(0); opacity: 1; }
+            100% { transform: translateX(calc(100vw - 500px)); opacity: 1; }
+        }
+        
+        .wheelbarrow-container {
+            position: absolute;
+            bottom: 48px;
+            left: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            animation: wheelbarrowMove 1s ease-in-out forwards;
+        }
+        
+        .man {
+            font-size: 32px;
+            filter: grayscale(100%);
+            opacity: 0.6;
+        }
+        
+        .cart {
+            font-size: 28px;
+            filter: grayscale(100%);
+            opacity: 0.6;
+        }
+        
+        .package {
+            background: rgba(59, 130, 246, 0.3);
+            color: #93c5fd;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* Phase 3 & 4: Arrow fills and flies */
+        @keyframes arrowFill {
+            0% { color: #6b7280; fill: none; }
+            100% { color: #fff; fill: currentColor; }
+        }
+        
+        @keyframes arrowFlyaway {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            50% { transform: translate(40px, -20px) scale(1.5); opacity: 0.8; }
+            100% { transform: translate(100px, -50px) scale(0.5); opacity: 0; }
+        }
+        
+        .arrow-container {
+            position: absolute;
+            bottom: 16px;
+            right: 48px;
+        }
+        
+        .arrow-container.filling .arrow-svg {
+            animation: arrowFill 0.5s ease-out forwards;
+            filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.9));
+        }
+        
+        .arrow-container.flying {
+            animation: arrowFlyaway 0.8s ease-in-out forwards;
+        }
+        
+        .arrow-svg {
+            width: 40px;
+            height: 40px;
+            color: #6b7280;
+            transition: all 0.3s;
+        }
+        
+        /* Quick suggestions */
+        .suggestions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 24px;
+        }
+        
+        .suggestion-btn {
+            padding: 6px 12px;
+            background: #1f1f1f;
+            border: 1px solid #2a2a2a;
+            border-radius: 20px;
+            color: #9ca3af;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .suggestion-btn:hover {
+            background: #2a2a2a;
+            color: #e5e7eb;
+            border-color: rgba(59, 130, 246, 0.4);
+            transform: scale(1.05);
+        }
+        
+        /* Success message */
+        .success-message {
+            text-align: center;
+            padding: 40px;
+            color: #10b981;
+            font-size: 18px;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">🔍 Förbättrad Sökruta - GitHub-inspirerad Design</h1>
+        
+        <div class="input-container">
+            <textarea 
+                id="questionInput" 
+                placeholder="Skriv din fråga här... (Tryck Enter för att skicka, Shift+Enter för ny rad)"
+            ></textarea>
+            
+            <div class="toolbar">
+                <div class="hint-text">
+                    Tryckning på Enter kommer att skicka frågan till AI-modellerna
+                </div>
+                
+                <button class="arrow-btn" id="submitBtn" title="Skicka fråga (Enter)">
+                    <svg class="arrow-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+        
+        <div class="animation-area hidden" id="animationArea">
+            <!-- Phase 1: Question text slides down -->
+            <div class="question-text hidden" id="questionText"></div>
+            
+            <!-- Phase 2: Wheelbarrow man delivers -->
+            <div class="wheelbarrow-container hidden" id="wheelbarrow">
+                <span class="man">🚶</span>
+                <span class="cart">🛒</span>
+                <div class="package">📦</div>
+            </div>
+            
+            <!-- Phase 3 & 4: Arrow fills and flies -->
+            <div class="arrow-container hidden" id="arrowContainer">
+                <svg class="arrow-svg" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+            </div>
+        </div>
+        
+        <div class="success-message hidden" id="successMessage">
+            ✅ Frågan skickades! Loader skulle starta här...
+        </div>
+        
+        <div class="suggestions" id="suggestions">
+            <button class="suggestion-btn" onclick="fillSuggestion('Demokrati och samhälle')">Demokrati och samhälle</button>
+            <button class="suggestion-btn" onclick="fillSuggestion('Hållbar utveckling')">Hållbar utveckling</button>
+            <button class="suggestion-btn" onclick="fillSuggestion('AI och etik')">AI och etik</button>
+        </div>
+    </div>
+    
+    <script>
+        const textarea = document.getElementById('questionInput');
+        const submitBtn = document.getElementById('submitBtn');
+        const animationArea = document.getElementById('animationArea');
+        const questionText = document.getElementById('questionText');
+        const wheelbarrow = document.getElementById('wheelbarrow');
+        const arrowContainer = document.getElementById('arrowContainer');
+        const successMessage = document.getElementById('successMessage');
+        const suggestions = document.getElementById('suggestions');
+        const inputContainer = document.querySelector('.input-container');
+        
+        let isSubmitting = false;
+        
+        // Handle Enter key
+        textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit();
+            }
+        });
+        
+        // Handle submit button
+        submitBtn.addEventListener('click', handleSubmit);
+        
+        // Update button state
+        textarea.addEventListener('input', () => {
+            submitBtn.disabled = !textarea.value.trim() || isSubmitting;
+        });
+        
+        async function handleSubmit() {
+            if (isSubmitting || !textarea.value.trim()) return;
+            
+            isSubmitting = true;
+            const question = textarea.value;
+            
+            // Hide input and suggestions
+            inputContainer.style.opacity = '0';
+            suggestions.classList.add('hidden');
+            
+            // Show animation area
+            animationArea.classList.remove('hidden');
+            
+            // Phase 1: Question text slides down (400ms)
+            questionText.textContent = question.length > 50 ? question.substring(0, 50) + '...' : question;
+            questionText.classList.remove('hidden');
+            await sleep(400);
+            questionText.classList.add('hidden');
+            
+            // Phase 2: Wheelbarrow moves (1000ms)
+            wheelbarrow.classList.remove('hidden');
+            arrowContainer.classList.remove('hidden');
+            await sleep(1000);
+            
+            // Phase 3: Arrow fills (500ms)
+            arrowContainer.classList.add('filling');
+            await sleep(500);
+            
+            // Phase 4: Arrow flies away (800ms)
+            arrowContainer.classList.add('flying');
+            await sleep(800);
+            
+            // Show success
+            animationArea.classList.add('hidden');
+            successMessage.classList.remove('hidden');
+            
+            // Reset after 3 seconds
+            await sleep(3000);
+            resetForm();
+        }
+        
+        function resetForm() {
+            isSubmitting = false;
+            textarea.value = '';
+            inputContainer.style.opacity = '1';
+            suggestions.classList.remove('hidden');
+            successMessage.classList.add('hidden');
+            wheelbarrow.classList.add('hidden');
+            arrowContainer.classList.remove('hidden', 'filling', 'flying');
+            submitBtn.disabled = true;
+        }
+        
+        function fillSuggestion(topic) {
+            textarea.value = `Vad är ${topic.toLowerCase()}?`;
+            textarea.focus();
+            submitBtn.disabled = false;
+        }
+        
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+        
+        // Initial button state
+        submitBtn.disabled = true;
+    </script>
+</body>
+</html>

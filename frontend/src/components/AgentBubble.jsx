@@ -67,37 +67,54 @@ export default function AgentBubble({ agent, response, metadata, analysis, index
   return (
     <div 
       className={`
-        flex space-x-3 transition-all duration-500 ease-out
-        ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}
+        relative transition-all duration-700 ease-out
+        ${isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'}
       `}
+      style={{ animationDelay: `${index * 150}ms` }}
     >
-      {/* Agent Icon */}
-      <div className={`flex-shrink-0 w-8 h-8 rounded-lg ${theme.iconBg} flex items-center justify-center ${theme.iconColor} text-lg`}>
-        {theme.icon}
-      </div>
-
-      {/* Message Bubble */}
-      <div className={`flex-1 ${theme.bg} backdrop-blur-sm border ${theme.border} rounded-2xl rounded-tl-sm shadow-lg overflow-hidden`}>
-        {/* Header - Always visible, clickable to expand/collapse */}
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full flex items-center justify-between px-4 py-3 hover:bg-civic-dark-700/30 transition-colors"
+      {/* Agent Icon - Positioned outside to the left */}
+      <div className="flex items-start space-x-3">
+        <div 
+          className={`
+            flex-shrink-0 w-10 h-10 rounded-xl ${theme.iconBg} 
+            flex items-center justify-center ${theme.iconColor} text-xl
+            shadow-lg transition-all duration-300 hover:scale-110
+            animate-fade-in-scale
+          `}
+          style={{ animationDelay: `${index * 150 + 100}ms` }}
         >
-          <div className="flex items-center space-x-2">
-            <h3 className="text-sm font-semibold text-gray-100">{displayName}</h3>
-            <div className={`w-1.5 h-1.5 rounded-full ${theme.accentColor} animate-pulse`}></div>
-          </div>
-          <div className="flex items-center space-x-2">
-            {metadata?.timestamp && (
-              <span className="text-xs text-gray-500">
-                {new Date(metadata.timestamp).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            )}
-            <svg
-              className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          {theme.icon}
+        </div>
+
+        {/* Message Bubble - Full width matching other cards */}
+        <div className={`
+          flex-1 ${theme.bg} backdrop-blur-sm border ${theme.border} 
+          rounded-2xl shadow-lg overflow-hidden
+          transition-all duration-300 hover:shadow-xl hover:border-opacity-50
+          animate-slide-in-right
+        `}
+        style={{ animationDelay: `${index * 150 + 200}ms` }}
+        >
+          {/* Header - Always visible, clickable to expand/collapse */}
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="w-full flex items-center justify-between px-5 py-4 hover:bg-civic-dark-700/30 transition-all duration-200 group"
+          >
+            <div className="flex items-center space-x-3">
+              <h3 className="text-sm font-semibold text-gray-100 group-hover:text-white transition-colors">{displayName}</h3>
+              <div className={`w-2 h-2 rounded-full ${theme.accentColor} animate-pulse`}></div>
+            </div>
+            <div className="flex items-center space-x-3">
+              {metadata?.timestamp && (
+                <span className="text-xs text-gray-500">
+                  {new Date(metadata.timestamp).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+              <svg
+                className={`w-5 h-5 text-gray-400 transition-transform duration-300 group-hover:text-gray-300 ${isExpanded ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
@@ -163,6 +180,7 @@ export default function AgentBubble({ agent, response, metadata, analysis, index
             )}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

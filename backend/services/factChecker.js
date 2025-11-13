@@ -44,6 +44,40 @@ const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 const TAVILY_SEARCH_ENDPOINT = 'https://api.tavily.com/search';
 
 /**
+ * Truncate text at sentence boundary to avoid cutting off mid-sentence
+ * Ensures snippets are readable and properly formatted for display
+ * @param {string} text - Text to truncate
+ * @param {number} maxLength - Maximum length in characters
+ * @returns {string} Truncated text ending at a sentence boundary
+ */
+function truncateAtSentenceBoundary(text, maxLength) {
+  if (!text || text.length <= maxLength) {
+    return text;
+  }
+  
+  // Find last sentence-ending punctuation within maxLength
+  const truncated = text.substring(0, maxLength);
+  const lastPeriod = truncated.lastIndexOf('.');
+  const lastExclamation = truncated.lastIndexOf('!');
+  const lastQuestion = truncated.lastIndexOf('?');
+  
+  const lastSentenceEnd = Math.max(lastPeriod, lastExclamation, lastQuestion);
+  
+  // If we found a sentence boundary, use it
+  if (lastSentenceEnd > maxLength * 0.6) { // At least 60% of maxLength
+    return truncated.substring(0, lastSentenceEnd + 1);
+  }
+  
+  // Otherwise, truncate at word boundary and add ellipsis
+  const lastSpace = truncated.lastIndexOf(' ');
+  if (lastSpace > 0) {
+    return truncated.substring(0, lastSpace) + '...';
+  }
+  
+  return truncated + '...';
+}
+
+/**
  * Search Tavily for fact verification
  * Queries the Tavily Search API to find external sources that can verify a claim
  * @param {string} claim - The claim to verify
@@ -422,20 +456,35 @@ export async function batchFactCheck(responses) {
 
 /**
  * Compare fact-check results across multiple AI agents
- * Analyzes and ranks agents based on their fact-checking scores
+ * Enhanced version with deep insights for neutral summary display
+ * 
+ * BERÄKNINGAR OCH ANALYS:
+ * - Typfördelning: Antal claims per typ (statistical, scientific, etc.)
+ * - Källtäthet: Genomsnittligt antal källor per claim
+ * - Osäkerhetsgrad: Procentandel av claims som är ej verifierade
+ * - Confidence-distribution: Spridning av confidence-scores
+ * - Bias mot neutralitet: Hur många svar har neutrala scores (7/10)
+ * 
+ * MOTIV FÖR NEUTRAL BEDÖMNING:
+ * När overallScore = 7, innebär det att inga verifierbara påståenden hittades.
+ * Detta är INTE negativt - det betyder att svaret är kvalitativt/åsiktsbaserat
+ * snarare än faktabaserat. Neutral = "Inget att verifiera" ≠ "Låg kvalitet"
+ * 
  * @param {Array<Object>} factCheckResults - Results from batchFactCheck
- * @returns {Object} Comparative analysis with best/worst agents and aggregated statistics
+ * @returns {Object} Comprehensive comparative analysis with all metadata
  */
 export function compareFactChecks(factCheckResults) {
   console.log(`[FactChecker] Comparing fact-checks across ${factCheckResults.length} agents`);
   
   const available = factCheckResults.some(r => r.available);
+  const timestamp = new Date().toISOString();
   
   if (!available) {
     console.warn('[FactChecker] No fact-check results available for comparison');
     return {
       available: false,
       message: 'Faktakoll inte tillgänglig',
+      timestamp,
     };
   }
 
@@ -447,9 +496,12 @@ export function compareFactChecks(factCheckResults) {
       available: true,
       bestAgent: null,
       message: 'Inga verifierbara resultat',
+      timestamp,
     };
   }
 
+  // ===== GRUNDLÄGGANDE STATISTIK =====
+  
   // Find agent with highest fact-check score
   const sorted = validResults.sort((a, b) => b.overallScore - a.overallScore);
   const best = sorted[0];
@@ -458,19 +510,200 @@ export function compareFactChecks(factCheckResults) {
   const avgScore = validResults.reduce((sum, r) => sum + r.overallScore, 0) / validResults.length;
   const totalClaims = validResults.reduce((sum, r) => sum + r.totalClaims, 0);
   const totalVerified = validResults.reduce((sum, r) => sum + r.verifiedCount, 0);
+  const totalUnverified = totalClaims - totalVerified;
 
-  console.log(`[FactChecker] Best: ${best.agent} (${best.overallScore}/10), Worst: ${worst.agent} (${worst.overallScore}/10), Avg: ${Math.round(avgScore * 10) / 10}/10`);
+  // ===== TYPFÖRDELNING (Claim Type Distribution) =====
+  // Räkna antal claims per typ över alla svar
+  const claimTypeDistribution = {};
+  const claimTypeVerificationRate = {}; // Verifieringsgrad per typ
+  
+  validResults.forEach(result => {
+    if (result.claims && result.claims.length > 0) {
+      result.claims.forEach(claim => {
+        const type = claim.claimType || 'unknown';
+        
+        // Räkna totalt per typ
+        if (!claimTypeDistribution[type]) {
+          claimTypeDistribution[type] = { count: 0, verified: 0 };
+        }
+        claimTypeDistribution[type].count++;
+        
+        // Räkna verifierade per typ
+        if (claim.verified) {
+          claimTypeDistribution[type].verified++;
+        }
+      });
+    }
+  });
+  
+  // Beräkna verifieringsgrad per typ
+  Object.keys(claimTypeDistribution).forEach(type => {
+    const dist = claimTypeDistribution[type];
+    claimTypeVerificationRate[type] = dist.count > 0 
+      ? Math.round((dist.verified / dist.count) * 100) 
+      : 0;
+  });
 
+  // ===== KÄLLTÄTHET (Source Density) =====
+  // Genomsnittligt antal källor per claim
+  let totalSourceCount = 0;
+  let claimsWithSources = 0;
+  
+  validResults.forEach(result => {
+    if (result.claims && result.claims.length > 0) {
+      result.claims.forEach(claim => {
+        if (claim.sourceCount !== undefined) {
+          totalSourceCount += claim.sourceCount;
+          claimsWithSources++;
+        }
+      });
+    }
+  });
+  
+  const averageSourcesPerClaim = claimsWithSources > 0 
+    ? Math.round((totalSourceCount / claimsWithSources) * 10) / 10 
+    : 0;
+
+  // ===== OSÄKERHETSGRAD (Uncertainty Level) =====
+  // Procentandel claims som INTE är verifierade
+  const uncertaintyRate = totalClaims > 0 
+    ? Math.round((totalUnverified / totalClaims) * 100) 
+    : 0;
+
+  // ===== CONFIDENCE DISTRIBUTION =====
+  // Hur fördelar sig confidence-scores?
+  const confidenceDistribution = {
+    high: 0,    // 6.7-10 (verified)
+    medium: 0,  // 3.3-6.6 (partially verified)
+    low: 0,     // 0-3.2 (unverified)
+  };
+  
+  validResults.forEach(result => {
+    if (result.claims && result.claims.length > 0) {
+      result.claims.forEach(claim => {
+        if (claim.confidence >= 6.7) {
+          confidenceDistribution.high++;
+        } else if (claim.confidence >= 3.3) {
+          confidenceDistribution.medium++;
+        } else {
+          confidenceDistribution.low++;
+        }
+      });
+    }
+  });
+
+  // ===== NEUTRAL SCORES ANALYS =====
+  // Räkna hur många svar har neutral score (7/10) - dvs inga claims
+  const neutralResults = validResults.filter(r => r.overallScore === 7);
+  const neutralCount = neutralResults.length;
+  const neutralRate = Math.round((neutralCount / validResults.length) * 100);
+  
+  // ===== CLAIMS PER AGENT DISTRIBUTION =====
+  const claimsPerAgent = validResults.map(r => ({
+    agent: r.agent,
+    claims: r.totalClaims || 0,
+    verified: r.verifiedCount || 0,
+    score: r.overallScore,
+  }));
+
+  // ===== MOTIV FÖR NEUTRAL BEDÖMNING =====
+  // Skapa human-readable motivering när score är neutral
+  let neutralAssessmentReason = null;
+  if (neutralRate >= 50) {
+    neutralAssessmentReason = `Majoriteten av svaren (${neutralRate}%) innehåller inga specifika verifierbara påståenden. Detta är vanligt för kvalitativa, åsiktsbaserade eller filosofiska svar där faktakoll inte är applicerbart.`;
+  } else if (neutralCount > 0) {
+    neutralAssessmentReason = `${neutralCount} av ${validResults.length} svar innehåller inga specifika verifierbara påståenden. Dessa svar fokuserar på kvalitativ analys snarare än faktapåståenden.`;
+  }
+
+  // ===== AGGREGERAD BIAS-SCORE (om tillgänglig) =====
+  // Om responses innehåller bias-data, aggregera det
+  let aggregatedBiasScore = null;
+  const biasScores = factCheckResults
+    .filter(r => r.biasScore !== undefined)
+    .map(r => r.biasScore);
+  
+  if (biasScores.length > 0) {
+    aggregatedBiasScore = Math.round(
+      (biasScores.reduce((sum, s) => sum + s, 0) / biasScores.length) * 10
+    ) / 10;
+  }
+
+  // ===== FÖRBÄTTRINGSFÖRSLAG =====
+  const improvementSuggestions = [];
+  
+  if (uncertaintyRate > 50) {
+    improvementSuggestions.push('Många påståenden är ej verifierade - överväg att be AI:n att ge mer konkreta, verifierbara påståenden.');
+  }
+  
+  if (averageSourcesPerClaim < 2) {
+    improvementSuggestions.push('Låg källtäthet - många claims har färre än 2 källor. Sök bredare eller mer specifika claims.');
+  }
+  
+  if (totalClaims < validResults.length * 2) {
+    improvementSuggestions.push('Få verifierbara påståenden totalt - svaren är mestadels kvalitativa. Detta är OK för vissa frågetyper.');
+  }
+
+  console.log(`[FactChecker] Enhanced comparison: Best: ${best.agent} (${best.overallScore}/10), Avg: ${Math.round(avgScore * 10) / 10}/10, Neutral: ${neutralRate}%`);
+
+  // ===== RETURNERA FULLSTÄNDIG ANALYS =====
   return {
+    // Grundläggande statistik
     available: true,
     bestAgent: best.agent,
     bestScore: best.overallScore,
     worstAgent: worst.agent,
     worstScore: worst.overallScore,
     averageScore: Math.round(avgScore * 10) / 10,
-    totalClaims: totalClaims,
-    totalVerified: totalVerified,
+    totalClaims,
+    totalVerified,
+    totalUnverified,
     summary: `Bäst: ${best.agent} (${best.overallScore}/10) • Genomsnitt: ${Math.round(avgScore * 10) / 10}/10`,
+    
+    // Ny meta-data
+    timestamp,
+    agentCount: validResults.length,
+    
+    // Typfördelning
+    claimTypeDistribution,
+    claimTypeVerificationRate,
+    
+    // Källanalys
+    averageSourcesPerClaim,
+    totalSourceCount,
+    sourceDensity: averageSourcesPerClaim >= 2 ? 'hög' : averageSourcesPerClaim >= 1 ? 'medel' : 'låg',
+    
+    // Osäkerhet
+    uncertaintyRate,
+    uncertaintyLevel: uncertaintyRate >= 50 ? 'hög' : uncertaintyRate >= 25 ? 'medel' : 'låg',
+    
+    // Confidence distribution
+    confidenceDistribution,
+    
+    // Neutral bedömning
+    neutralCount,
+    neutralRate,
+    neutralAssessmentReason,
+    
+    // Claims per agent
+    claimsPerAgent,
+    
+    // Bias
+    aggregatedBiasScore,
+    
+    // Förbättringar
+    improvementSuggestions,
+    
+    // Transparens-metadata
+    transparency: {
+      claimsAnalyzed: totalClaims,
+      claimsVerified: totalVerified,
+      claimsUnverified: totalUnverified,
+      averageConfidence: totalClaims > 0 
+        ? Math.round((validResults.reduce((sum, r) => {
+            return sum + (r.claims || []).reduce((s, c) => s + (c.confidence || 0), 0);
+          }, 0) / totalClaims) * 10) / 10
+        : 0,
+    },
   };
 }
 

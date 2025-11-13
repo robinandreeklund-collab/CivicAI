@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CivicAI - Förbättrad Processing Loader</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            color: #e5e7eb;
+            padding: 24px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        /* Three animated dots */
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .typing-indicator span {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #3b82f6;
+            animation: typing 1.4s infinite;
+        }
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.7; }
+            30% { transform: translateY(-10px); opacity: 1; }
+        }
+        
+        /* Steps container */
+        .steps {
+            margin-top: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 4px 8px;
+            transition: all 0.5s ease;
+            transform-origin: left center;
+        }
+        
+        .step.active {
+            transform: scale(1.1);
+        }
+        
+        .step-icon {
+            width: 24px;
+            height: 24px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .checkmark {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #10b981;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: scaleIn 0.3s ease;
+        }
+        
+        @keyframes scaleIn {
+            from { transform: scale(0); }
+            to { transform: scale(1); }
+        }
+        
+        .pulse-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #60a5fa;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+        
+        .step-text {
+            font-size: 14px;
+            transition: all 0.5s;
+        }
+        
+        .step-text.completed {
+            color: #6b7280;
+        }
+        
+        .step-text.active {
+            color: #e5e7eb;
+            font-weight: 600;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        .step-text.pending {
+            color: #4b5563;
+        }
+        
+        /* Zoom effect on active */
+        .zoom-effect {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%);
+            animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+            pointer-events: none;
+        }
+        
+        @keyframes ping {
+            75%, 100% {
+                transform: scale(2);
+                opacity: 0;
+            }
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 16px;
+            color: white;
+        }
+        
+        .description {
+            text-align: center;
+            color: #9ca3af;
+            margin-bottom: 48px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Förbättrad Processing Loader</h1>
+        <p class="description">Sekventiellt flöde • Grön bock • Zoom-effekt • Inga boxar</p>
+        
+        <div style="display: flex; flex-direction: column; align-items: center;">
+            <!-- Three animated dots -->
+            <div class="typing-indicator">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+            
+            <!-- Processing steps -->
+            <div class="steps" id="steps">
+                <!-- Steps will be inserted by JavaScript -->
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const steps = [
+            'Hämtar svar från AI-tjänster',
+            'Analyserar svaren',
+            'Faktakollar påståenden',
+            'Genomför sentiment-analys',
+            'Detekterar bias-mönster',
+            'Sammanställer resultat',
+            'Databearbetning klar',
+        ];
+        
+        let currentStep = 0;
+        const stepsContainer = document.getElementById('steps');
+        
+        // Create step elements
+        steps.forEach((stepText, index) => {
+            const stepDiv = document.createElement('div');
+            stepDiv.className = 'step';
+            stepDiv.id = `step-${index}`;
+            stepDiv.innerHTML = `
+                <div class="step-icon" id="icon-${index}"></div>
+                <p class="step-text pending" id="text-${index}">${stepText}</p>
+            `;
+            stepsContainer.appendChild(stepDiv);
+        });
+        
+        function updateStep() {
+            if (currentStep >= steps.length) {
+                return; // Stop when all steps complete
+            }
+            
+            const stepDiv = document.getElementById(`step-${currentStep}`);
+            const iconDiv = document.getElementById(`icon-${currentStep}`);
+            const textDiv = document.getElementById(`text-${currentStep}`);
+            
+            // Activate current step
+            stepDiv.classList.add('active');
+            iconDiv.innerHTML = '<div class="pulse-dot"></div>';
+            textDiv.className = 'step-text active';
+            
+            // After 2 seconds, mark as complete and move to next
+            setTimeout(() => {
+                stepDiv.classList.remove('active');
+                iconDiv.innerHTML = `
+                    <div class="checkmark">
+                        <svg width="16" height="16" fill="white" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                `;
+                textDiv.className = 'step-text completed';
+                
+                currentStep++;
+                if (currentStep < steps.length) {
+                    updateStep();
+                }
+            }, 2000);
+        }
+        
+        // Start the sequence
+        updateStep();
+    </script>
+</body>
+</html>

@@ -5,6 +5,7 @@ import CleanResponseCarousel from '../components/CleanResponseCarousel';
 import AnalysisComparison from '../components/AnalysisComparison';
 import ResponseSummary from '../components/ResponseSummary';
 import BattlePanel from '../components/BattlePanel';
+import QuestionInput from '../components/QuestionInput';
 
 /**
  * HomePage Component
@@ -54,9 +55,12 @@ export default function HomePage({ onAiMessageUpdate }) {
     scrollToBottom();
   }, [messages, isLoading]);
 
-  const handleSubmitQuestion = async (e) => {
-    e.preventDefault();
-    if (!question.trim() || isLoading) return;
+  const handleSubmitQuestion = async (questionText) => {
+    // If called from form (old way), extract from state
+    // If called from QuestionInput (new way), use parameter
+    const userQuestion = typeof questionText === 'string' ? questionText : question;
+    
+    if (!userQuestion.trim() || isLoading) return;
 
     const enabledServices = aiServices.filter(s => s.enabled);
     if (enabledServices.length === 0) {
@@ -64,17 +68,17 @@ export default function HomePage({ onAiMessageUpdate }) {
       return;
     }
 
-    const userQuestion = question.trim();
+    const trimmedQuestion = userQuestion.trim();
     
     // Add user message to chat
     const userMessage = {
       type: 'user',
-      content: userQuestion,
+      content: trimmedQuestion,
       timestamp: new Date().toISOString(),
     };
     
     setMessages(prev => [...prev, userMessage]);
-    setQuestion('');
+    setQuestion(''); // Clear old state if used
     setIsLoading(true);
 
     try {
@@ -85,7 +89,7 @@ export default function HomePage({ onAiMessageUpdate }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          question: userQuestion,
+          question: trimmedQuestion,
           services: enabledServices.map(s => s.id)
         }),
       });
@@ -103,6 +107,7 @@ export default function HomePage({ onAiMessageUpdate }) {
         responses: data.responses || [],
         synthesizedSummary: data.synthesizedSummary || null,
         metaReview: data.metaReview || null,
+        factCheckComparison: data.factCheckComparison || null,
         timestamp: new Date().toISOString(),
       };
       
@@ -122,13 +127,6 @@ export default function HomePage({ onAiMessageUpdate }) {
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmitQuestion(e);
     }
   };
 
@@ -245,6 +243,7 @@ export default function HomePage({ onAiMessageUpdate }) {
                     responses={message.responses} 
                     question={message.question}
                     synthesizedSummary={message.synthesizedSummary}
+                    factCheckComparison={message.factCheckComparison}
                   />
                 </div>
               )}
@@ -280,52 +279,11 @@ export default function HomePage({ onAiMessageUpdate }) {
             />
           </div>
 
-          <form onSubmit={handleSubmitQuestion} className="relative">
-            <div className="relative flex items-end space-x-2">
-              <div className="flex-1 relative group">
-                <textarea
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  onKeyDown={handleKeyPress}
-                  placeholder="Ställ din fråga här..."
-                  disabled={isLoading}
-                  rows={1}
-                  className="w-full px-4 py-3 pr-12 rounded-2xl bg-civic-dark-700/50 border-2 border-civic-dark-600 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none transition-all duration-300 disabled:opacity-50 hover:border-blue-500/50 focus:shadow-[0_0_20px_rgba(59,130,246,0.3)]"
-                  style={{
-                    minHeight: '48px',
-                    maxHeight: '200px',
-                  }}
-                  onInput={(e) => {
-                    e.target.style.height = 'auto';
-                    e.target.style.height = e.target.scrollHeight + 'px';
-                  }}
-                />
-                
-                {/* Send button inside input */}
-                <button
-                  type="submit"
-                  disabled={isLoading || !question.trim()}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-civic-dark-600 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-200 hover:scale-110 disabled:hover:scale-100 shadow-lg hover:shadow-blue-500/50"
-                  title="Skicka (Enter)"
-                >
-                  {isLoading ? (
-                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
-            
-            <p className="text-xs text-gray-500 mt-2 text-center">
-              Tryck Enter för att skicka, Shift+Enter för ny rad
-            </p>
-          </form>
+          {/* GitHub-inspired search box with stunning animations */}
+          <QuestionInput
+            onSubmit={handleSubmitQuestion}
+            isLoading={isLoading}
+          />
         </div>
       </div>
     </div>
