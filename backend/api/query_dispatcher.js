@@ -2,6 +2,7 @@ import express from 'express';
 import { getOpenAIResponse } from '../services/openai.js';
 import { getGeminiResponse } from '../services/gemini.js';
 import { getDeepSeekResponse } from '../services/deepseek.js';
+import { getGrokResponse } from '../services/grok.js';
 import { analyzeTone, getToneDescription } from '../utils/analyzeTone.js';
 import { detectBias } from '../utils/detectBias.js';
 import { checkFacts } from '../utils/checkFacts.js';
@@ -47,10 +48,11 @@ router.post('/query', async (req, res) => {
     });
 
     // Call all AI services in parallel
-    const [gptResponse, geminiResponse, deepseekResponse] = await Promise.allSettled([
+    const [gptResponse, geminiResponse, deepseekResponse, grokResponse] = await Promise.allSettled([
       getOpenAIResponse(question),
       getGeminiResponse(question),
       getDeepSeekResponse(question),
+      getGrokResponse(question),
     ]);
 
     // Process responses
@@ -166,6 +168,45 @@ router.post('/query', async (req, res) => {
       responses.push({
         agent: 'deepseek',
         response: 'Fel: Kunde inte hämta svar från DeepSeek. Kontrollera API-nyckeln.',
+        metadata: {
+          error: true,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+
+    if (grokResponse.status === 'fulfilled') {
+      const responseText = grokResponse.value.response;
+      const toneAnalysis = analyzeTone(responseText);
+      const biasAnalysis = detectBias(responseText, question);
+      const factCheck = checkFacts(responseText);
+      const metaAnalysis = performCompleteMetaAnalysis(responseText, question);
+
+      responses.push({
+        agent: 'grok',
+        response: responseText,
+        metadata: {
+          model: grokResponse.value.model,
+          timestamp: new Date().toISOString(),
+        },
+        analysis: {
+          tone: {
+            primary: toneAnalysis.primary,
+            description: getToneDescription(toneAnalysis.primary),
+            confidence: toneAnalysis.confidence,
+            characteristics: toneAnalysis.characteristics,
+          },
+          bias: biasAnalysis,
+          factCheck: factCheck,
+        },
+        metaAnalysis: metaAnalysis,
+        metaSummary: generateMetaAnalysisSummary(metaAnalysis),
+      });
+    } else {
+      console.error('Grok error:', grokResponse.reason);
+      responses.push({
+        agent: 'grok',
+        response: 'Fel: Kunde inte hämta svar från Grok. Kontrollera API-nyckeln.',
         metadata: {
           error: true,
           timestamp: new Date().toISOString(),

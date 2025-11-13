@@ -45,6 +45,14 @@ export default function HomePage({ onAiMessageUpdate }) {
       iconBg: 'bg-cyan-500/20',
       enabled: true,
     },
+    {
+      id: 'grok',
+      name: 'Grok',
+      description: 'Witty and insightful',
+      icon: '⚡',
+      iconBg: 'bg-orange-500/20',
+      enabled: true,
+    },
   ]);
 
   const scrollToBottom = () => {
@@ -245,13 +253,17 @@ export default function HomePage({ onAiMessageUpdate }) {
               )}
             </div>
           ))}
-
-          {/* Loading indicator */}
-          {isLoading && <ProcessingLoader />}
           
           <div ref={chatEndRef} />
         </div>
       </div>
+
+      {/* Loading indicator - centered in viewport under animated circles */}
+      {isLoading && (
+        <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-10">
+          <ProcessingLoader />
+        </div>
+      )}
 
       {/* Input Area - Fixed at bottom */}
       <div className="relative flex-shrink-0">
