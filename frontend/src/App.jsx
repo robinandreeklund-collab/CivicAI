@@ -160,7 +160,7 @@ function App() {
     if (!currentConversationId) {
       setCurrentConversationId(Date.now().toString());
     }
-  }, [currentConversationId]);
+  }, []);
 
   const handleSubmitQuestion = async (e) => {
     e.preventDefault();
