@@ -6,7 +6,12 @@
 /**
  * Analyze the tone of a text response
  * @param {string} text - The response text to analyze
- * @returns {Object} Tone analysis results
+ * @returns {{primary: string, confidence: number, characteristics: string[], wordCount?: number}} 
+ * An object containing:
+ *   - primary: The primary detected tone.
+ *   - confidence: Confidence score for the detected tone.
+ *   - characteristics: List of detected tone characteristics.
+ *   - wordCount: Number of words in the input text (optional).
  */
 export function analyzeTone(text) {
   if (!text || typeof text !== 'string') {
