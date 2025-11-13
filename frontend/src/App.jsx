@@ -92,10 +92,7 @@ function App() {
       m => m.type === 'ai' && Array.isArray(m.responses) && m.responses.length > 0
     );
     if (aiMessages.length === 0) {
-      // Show user-friendly error instead of just returning
-      if (typeof setError === 'function') {
-        setError('Inga AI-svar att exportera');
-      }
+      console.warn('Inga AI-svar att exportera');
       return;
     }
     try {
@@ -145,9 +142,6 @@ function App() {
       }
     } catch (error) {
       console.error('Export failed:', error);
-      if (typeof setError === 'function') {
-        setError('Export misslyckades');
-      }
     }
   };
 
@@ -156,7 +150,7 @@ function App() {
     if (!currentConversationId) {
       setCurrentConversationId(Date.now().toString());
     }
-  }, []);
+  }, [currentConversationId]);
 
   const handleSubmitQuestion = async (e) => {
     e.preventDefault();
@@ -307,6 +301,7 @@ function App() {
                         agent={resp.agent}
                         response={resp.response}
                         metadata={resp.metadata}
+                        analysis={resp.analysis}
                         index={idx}
                       />
                     ))}

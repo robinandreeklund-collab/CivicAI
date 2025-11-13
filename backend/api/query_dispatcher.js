@@ -1,6 +1,9 @@
 import express from 'express';
 import { getOpenAIResponse } from '../services/openai.js';
 import { getGeminiResponse } from '../services/gemini.js';
+import { analyzeTone, getToneDescription } from '../utils/analyzeTone.js';
+import { detectBias } from '../utils/detectBias.js';
+import { checkFacts } from '../utils/checkFacts.js';
 
 const router = express.Router();
 
@@ -38,12 +41,27 @@ router.post('/query', async (req, res) => {
     const responses = [];
 
     if (gptResponse.status === 'fulfilled') {
+      const responseText = gptResponse.value.response;
+      const toneAnalysis = analyzeTone(responseText);
+      const biasAnalysis = detectBias(responseText, question);
+      const factCheck = checkFacts(responseText);
+
       responses.push({
         agent: 'gpt-3.5',
-        response: gptResponse.value.response,
+        response: responseText,
         metadata: {
           model: gptResponse.value.model,
           timestamp: new Date().toISOString(),
+        },
+        analysis: {
+          tone: {
+            primary: toneAnalysis.primary,
+            description: getToneDescription(toneAnalysis.primary),
+            confidence: toneAnalysis.confidence,
+            characteristics: toneAnalysis.characteristics,
+          },
+          bias: biasAnalysis,
+          factCheck: factCheck,
         },
       });
     } else {
@@ -59,12 +77,27 @@ router.post('/query', async (req, res) => {
     }
 
     if (geminiResponse.status === 'fulfilled') {
+      const responseText = geminiResponse.value.response;
+      const toneAnalysis = analyzeTone(responseText);
+      const biasAnalysis = detectBias(responseText, question);
+      const factCheck = checkFacts(responseText);
+
       responses.push({
         agent: 'gemini',
-        response: geminiResponse.value.response,
+        response: responseText,
         metadata: {
           model: geminiResponse.value.model,
           timestamp: new Date().toISOString(),
+        },
+        analysis: {
+          tone: {
+            primary: toneAnalysis.primary,
+            description: getToneDescription(toneAnalysis.primary),
+            confidence: toneAnalysis.confidence,
+            characteristics: toneAnalysis.characteristics,
+          },
+          bias: biasAnalysis,
+          factCheck: factCheck,
         },
       });
     } else {

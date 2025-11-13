@@ -1,11 +1,16 @@
 import { useState, useEffect } from 'react';
+import ToneIndicator from './ToneIndicator';
+import BiasIndicator from './BiasIndicator';
+import FactCheckIndicator from './FactCheckIndicator';
+import AgentProfileCard from './AgentProfileCard';
 
 /**
  * AgentBubble Component
- * Compact chat-style AI response bubbles
+ * Compact chat-style AI response bubbles with Phase 2 analysis
  */
-export default function AgentBubble({ agent, response, metadata, index = 0 }) {
+export default function AgentBubble({ agent, response, metadata, analysis, index = 0 }) {
   const [isVisible, setIsVisible] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
   useEffect(() => {
     // Staggered animation entrance
@@ -90,8 +95,40 @@ export default function AgentBubble({ agent, response, metadata, index = 0 }) {
           )}
         </div>
 
-        {/* Model info */}
-        {metadata?.model && (
+        {/* Phase 2: Analysis Section */}
+        {analysis && (
+          <div className="mt-3 pt-3 border-t border-civic-dark-700/50 space-y-3">
+            {/* Tone Analysis */}
+            {analysis.tone && <ToneIndicator toneAnalysis={analysis.tone} />}
+
+            {/* Bias Detection */}
+            {analysis.bias && <BiasIndicator biasAnalysis={analysis.bias} />}
+
+            {/* Fact Checking */}
+            {analysis.factCheck && <FactCheckIndicator factCheck={analysis.factCheck} />}
+
+            {/* Agent Profile Toggle */}
+            <button
+              onClick={() => setShowProfile(!showProfile)}
+              className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center space-x-1"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{showProfile ? 'Dölj' : 'Visa'} agentprofil</span>
+            </button>
+
+            {/* Agent Profile */}
+            {showProfile && (
+              <div className="animate-fade-in">
+                <AgentProfileCard agent={agent} metadata={metadata} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Model info (shown if no analysis) */}
+        {!analysis && metadata?.model && (
           <div className="mt-2 pt-2 border-t border-civic-dark-700/50">
             <span className="text-xs text-gray-500">
               {metadata.model}
