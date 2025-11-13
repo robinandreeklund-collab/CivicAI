@@ -95,7 +95,7 @@ function extractCommonThemes(responses) {
   const stopWords = new Set([
     'är', 'och', 'att', 'det', 'som', 'för', 'på', 'med', 'en', 'av', 'till', 'i',
     'den', 'har', 'de', 'kan', 'inte', 'om', 'vara', 'eller', 'från', 'ett', 'vid',
-    'också', 'detta', 'detta', 'dessa', 'denna', 'detta', 'alla', 'mycket', 'samt'
+    'också', 'detta', 'dessa', 'denna', 'alla', 'mycket', 'samt'
   ]);
 
   const wordFrequency = {};
