@@ -7,7 +7,6 @@ import PDFDocument from 'pdfkit';
 import MarkdownIt from 'markdown-it';
 import yaml from 'js-yaml';
 
-const md = new MarkdownIt();
 
 /**
  * Generate README content from conversation data
