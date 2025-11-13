@@ -39,65 +39,68 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
   };
 
   return (
-    <div className="mt-6 p-6 bg-civic-dark-800/50 backdrop-blur-sm border border-civic-dark-600 rounded-2xl shadow-lg animate-fade-in">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-2">
-          <svg className="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
+    <div className="mt-6 p-6 bg-civic-dark-800/50 backdrop-blur-sm border border-civic-dark-600 rounded-2xl shadow-lg overflow-hidden animate-fade-in-up">
+      {/* Animated header with glow effect */}
+      <div className="flex items-center justify-between mb-6 animate-slide-in-right">
+        <div className="flex items-center space-x-3">
+          <div className="relative">
+            <svg className="w-6 h-6 text-cyan-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <div className="absolute inset-0 bg-cyan-400/20 blur-md rounded-full animate-glow-pulse"></div>
+          </div>
           <h3 className="text-lg font-semibold text-gray-100">Analysjämförelse</h3>
-          <span className="text-xs text-gray-500 ml-2">({analyzedResponses.length} AI-tjänster)</span>
+          <span className="text-xs text-gray-500 ml-2 px-2 py-1 bg-cyan-500/10 rounded-full border border-cyan-500/20 animate-fade-in-scale">
+            {analyzedResponses.length} AI-tjänster
+          </span>
         </div>
-        <div className="flex items-center space-x-2 text-xs text-gray-400">
-          <span className="flex items-center space-x-1">
-            <span>🧠</span>
-            <span>spaCy-NLP</span>
+        <div className="flex items-center flex-wrap gap-2 text-xs">
+          <span className="flex items-center space-x-1 px-2 py-1 bg-blue-500/10 rounded-full border border-blue-500/20 animate-fade-in-scale hover:bg-blue-500/20 transition-colors" style={{ animationDelay: '100ms' }}>
+            <span className="animate-wiggle">🧠</span>
+            <span className="text-gray-300">spaCy-NLP</span>
           </span>
-          <span>•</span>
-          <span className="flex items-center space-x-1">
-            <span>💭</span>
-            <span>TextBlob-Sentiment</span>
+          <span className="flex items-center space-x-1 px-2 py-1 bg-purple-500/10 rounded-full border border-purple-500/20 animate-fade-in-scale hover:bg-purple-500/20 transition-colors" style={{ animationDelay: '200ms' }}>
+            <span className="animate-wiggle" style={{ animationDelay: '0.2s' }}>💭</span>
+            <span className="text-gray-300">TextBlob-Sentiment</span>
           </span>
-          <span>•</span>
-          <span className="flex items-center space-x-1">
-            <span>🤖</span>
-            <span>GPT-3.5 Metagranskare</span>
+          <span className="flex items-center space-x-1 px-2 py-1 bg-cyan-500/10 rounded-full border border-cyan-500/20 animate-fade-in-scale hover:bg-cyan-500/20 transition-colors" style={{ animationDelay: '300ms' }}>
+            <span className="animate-wiggle" style={{ animationDelay: '0.4s' }}>🤖</span>
+            <span className="text-gray-300">GPT-3.5 Metagranskare</span>
           </span>
-          <span>•</span>
-          <span className="flex items-center space-x-1">
-            <span>🔍</span>
-            <span>Tavily Search Faktakoll</span>
+          <span className="flex items-center space-x-1 px-2 py-1 bg-orange-500/10 rounded-full border border-orange-500/20 animate-fade-in-scale hover:bg-orange-500/20 transition-colors" style={{ animationDelay: '400ms' }}>
+            <span className="animate-wiggle" style={{ animationDelay: '0.6s' }}>🔍</span>
+            <span className="text-gray-300">Tavily Search Faktakoll</span>
           </span>
         </div>
       </div>
 
       {/* Tavily Search Fact-Check Comparison */}
       {factCheckComparison && factCheckComparison.available && (
-        <div className="mb-6 p-4 bg-gradient-to-r from-blue-900/20 to-cyan-900/20 border border-blue-500/30 rounded-xl">
+        <div className="mb-6 p-4 bg-gradient-to-r from-blue-900/20 to-cyan-900/20 border border-blue-500/30 rounded-xl animate-fade-in-scale hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300">
           <div className="flex items-start space-x-3">
-            <div className="text-2xl">🔍</div>
+            <div className="text-2xl animate-bounce-slow">🔍</div>
             <div className="flex-1">
-              <h4 className="text-sm font-semibold text-blue-300 mb-2 flex items-center space-x-2">
+              <h4 className="text-sm font-semibold text-blue-300 mb-2 flex items-center flex-wrap gap-2">
                 <span>Tavily Search Faktakoll</span>
                 {factCheckComparison.bestAgent && (
-                  <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-200">
-                    Bäst: {factCheckComparison.bestAgent} ({factCheckComparison.bestScore}/10)
+                  <span className="text-xs px-2 py-1 rounded-full bg-blue-500/20 text-blue-200 border border-blue-500/30 animate-fade-in-scale hover:bg-blue-500/30 transition-colors">
+                    🏆 Bäst: {factCheckComparison.bestAgent} ({factCheckComparison.bestScore}/10)
                   </span>
                 )}
                 {factCheckComparison.averageScore && (
-                  <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-200">
-                    Snitt: {factCheckComparison.averageScore}/10
+                  <span className="text-xs px-2 py-1 rounded-full bg-cyan-500/20 text-cyan-200 border border-cyan-500/30 animate-fade-in-scale hover:bg-cyan-500/30 transition-colors">
+                    📊 Snitt: {factCheckComparison.averageScore}/10
                   </span>
                 )}
               </h4>
               
               {factCheckComparison.summary && (
-                <p className="text-sm text-gray-300 mb-2">{factCheckComparison.summary}</p>
+                <p className="text-sm text-gray-300 mb-2 animate-fade-in-up">{factCheckComparison.summary}</p>
               )}
               
-              <div className="text-xs text-gray-400">
+              <div className="text-xs text-gray-400 animate-fade-in-up">
                 <span className="font-medium text-green-300">
-                  {factCheckComparison.totalVerified} av {factCheckComparison.totalClaims} påståenden verifierade
+                  ✓ {factCheckComparison.totalVerified} av {factCheckComparison.totalClaims} påståenden verifierade
                 </span>
                 {' '}mot pålitliga webbkällor via Tavily Search API
               </div>
@@ -114,31 +117,31 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
 
       {/* GPT-3.5 Meta-Review Section */}
       {metaReview && metaReview.available && (
-        <div className="mb-6 p-4 bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-500/30 rounded-xl">
+        <div className="mb-6 p-4 bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-500/30 rounded-xl animate-fade-in-scale hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-300">
           <div className="flex items-start space-x-3">
-            <div className="text-2xl">🤖</div>
+            <div className="text-2xl animate-pulse">🤖</div>
             <div className="flex-1">
-              <h4 className="text-sm font-semibold text-purple-300 mb-2 flex items-center space-x-2">
+              <h4 className="text-sm font-semibold text-purple-300 mb-2 flex items-center flex-wrap gap-2">
                 <span>GPT-3.5 Meta-granskning</span>
                 {metaReview.consistency && (
-                  <span className="text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-200">
-                    Konsistens: {metaReview.consistency}/10
+                  <span className="text-xs px-2 py-1 rounded-full bg-purple-500/20 text-purple-200 border border-purple-500/30 animate-fade-in-scale hover:bg-purple-500/30 transition-colors">
+                    ⚖️ Konsistens: {metaReview.consistency}/10
                   </span>
                 )}
                 {metaReview.overallQuality && (
-                  <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-200">
-                    Kvalitet: {metaReview.overallQuality}/10
+                  <span className="text-xs px-2 py-1 rounded-full bg-blue-500/20 text-blue-200 border border-blue-500/30 animate-fade-in-scale hover:bg-blue-500/30 transition-colors">
+                    ⭐ Kvalitet: {metaReview.overallQuality}/10
                   </span>
                 )}
               </h4>
               
               {metaReview.metaSummary && (
-                <p className="text-sm text-gray-300 mb-3">{metaReview.metaSummary}</p>
+                <p className="text-sm text-gray-300 mb-3 animate-fade-in-up">{metaReview.metaSummary}</p>
               )}
               
               {metaReview.recommendedAgent && (
-                <div className="text-xs text-green-300 mb-2">
-                  <span className="font-medium">Rekommenderat svar:</span> {metaReview.recommendedAgent}
+                <div className="text-xs text-green-300 mb-2 animate-fade-in-up">
+                  <span className="font-medium">🎯 Rekommenderat svar:</span> {metaReview.recommendedAgent}
                   {metaReview.recommendationReason && (
                     <span className="text-gray-400"> - {metaReview.recommendationReason}</span>
                   )}
@@ -146,11 +149,11 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
               )}
               
               {metaReview.warnings && metaReview.warnings.length > 0 && (
-                <div className="mt-2 text-xs">
+                <div className="mt-2 text-xs animate-fade-in-up">
                   <span className="text-orange-300 font-medium">⚠️ Varningar:</span>
                   <ul className="list-disc list-inside text-gray-400 ml-4 mt-1">
                     {metaReview.warnings.map((warning, i) => (
-                      <li key={i}>{warning}</li>
+                      <li key={i} className="animate-fade-in-scale" style={{ animationDelay: `${i * 100}ms` }}>{warning}</li>
                     ))}
                   </ul>
                 </div>
@@ -160,7 +163,7 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   <span className="text-xs text-gray-400">Bias-mönster:</span>
                   {metaReview.biasPatterns.map((pattern, i) => (
-                    <span key={i} className="text-xs px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-300">
+                    <span key={i} className="text-xs px-2 py-1 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 animate-fade-in-scale hover:bg-yellow-500/30 transition-colors" style={{ animationDelay: `${i * 100}ms` }}>
                       {pattern}
                     </span>
                   ))}
@@ -180,24 +183,27 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
           return (
             <div
               key={idx}
-              className="relative pl-12 pb-6 last:pb-0 group"
+              className="relative pl-12 pb-6 last:pb-0 group animate-fade-in-scale"
+              style={{ animationDelay: `${idx * 100}ms` }}
             >
               {/* Timeline connector line */}
               {idx < analyzedResponses.length - 1 && (
                 <div 
-                  className="absolute left-6 top-12 bottom-0 w-0.5 bg-gradient-to-b from-civic-dark-600 to-transparent"
+                  className="absolute left-6 top-12 bottom-0 w-0.5 bg-gradient-to-b from-civic-dark-600 to-transparent animate-fade-in"
                   style={{ 
-                    backgroundImage: `linear-gradient(to bottom, ${theme.color}40, transparent)` 
+                    backgroundImage: `linear-gradient(to bottom, ${theme.color}40, transparent)`,
+                    animationDelay: `${idx * 100 + 50}ms`
                   }}
                 />
               )}
               
               {/* Timeline dot/stamp */}
               <div 
-                className="absolute left-0 top-0 w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-lg transition-transform group-hover:scale-110"
+                className="absolute left-0 top-0 w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-lg transition-all duration-300 hover:scale-110 animate-scale-in"
                 style={{ 
                   backgroundColor: `${theme.color}20`,
-                  border: `2px solid ${theme.color}60`
+                  border: `2px solid ${theme.color}60`,
+                  animationDelay: `${idx * 100 + 100}ms`
                 }}
               >
                 {theme.icon}
@@ -205,8 +211,13 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
 
               {/* Content card */}
               <div 
-                className="bg-civic-dark-700/30 rounded-xl border border-civic-dark-600 p-4 hover:border-civic-dark-500 transition-all group-hover:shadow-lg"
+                className="bg-civic-dark-700/30 rounded-xl border border-civic-dark-600 p-4 hover:border-civic-dark-500 transition-all duration-300 hover:shadow-lg hover:shadow-current/10 animate-slide-in-right"
                 style={{
+                  borderLeftColor: theme.color,
+                  borderLeftWidth: '3px',
+                  animationDelay: `${idx * 100 + 150}ms`
+                }}
+              >
                   borderLeftColor: theme.color,
                   borderLeftWidth: '3px'
                 }}
