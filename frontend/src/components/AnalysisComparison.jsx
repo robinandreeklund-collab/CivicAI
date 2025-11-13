@@ -273,19 +273,31 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
                     </div>
                   )}
 
-                  {/* Fact Check */}
-                  {resp.analysis?.factCheck && (
+                  {/* Fact Check - Use Tavily fact-check if available, otherwise original analysis */}
+                  {(resp.bingFactCheck?.available || resp.analysis?.factCheck) && (
                     <div className="space-y-1">
                       <div className="text-xs font-medium text-gray-400 flex items-center space-x-1">
                         <span>🔍</span>
                         <span>Fakta</span>
                       </div>
-                      <div className="text-sm text-gray-200">
-                        {resp.analysis.factCheck.claimsFound} påståenden
-                        {resp.analysis.factCheck.recommendVerification && (
-                          <span className="text-xs text-orange-400 ml-1">⚠️</span>
-                        )}
-                      </div>
+                      {resp.bingFactCheck?.available ? (
+                        <div className="text-sm">
+                          <span className={`font-medium ${
+                            resp.bingFactCheck.verifiedCount === resp.bingFactCheck.totalClaims ? 'text-green-400' :
+                            resp.bingFactCheck.verifiedCount > 0 ? 'text-yellow-400' :
+                            'text-red-400'
+                          }`}>
+                            {resp.bingFactCheck.verifiedCount}/{resp.bingFactCheck.totalClaims} verifierade
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-200">
+                          {resp.analysis.factCheck.claimsFound} påståenden
+                          {resp.analysis.factCheck.recommendVerification && (
+                            <span className="text-xs text-orange-400 ml-1">⚠️</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
