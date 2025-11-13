@@ -1,22 +1,19 @@
 import { useState } from 'react';
 
 /**
- * QuestionInput Component - GitHub Comment Box Style
+ * QuestionInput Component - Improved Design
  * 
- * Design mimics GitHub's "submitting will post a pull request comment" textarea
- * with a small gray arrow icon in the bottom-right corner.
- * 
- * Animation flow:
- * 1. Question text slides down to wheelbarrow area
- * 2. Grayscale wheelbarrow man delivers question to arrow
- * 3. Arrow fills from gray to white as it loads the question
- * 4. Arrow flies away with smooth animation → transition to loader
+ * Features:
+ * - Send arrow icon inside textarea at bottom right
+ * - Hint text inside textarea with thin white transparent divider
+ * - Simplified animation: text slides down to hint area, then animates to filled arrow (white)
+ * - Question suggestions only below textarea (not in center/top of dashboard)
  */
 export default function QuestionInput({ onSubmit, isLoading }) {
   const [question, setQuestion] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [animationPhase, setAnimationPhase] = useState('idle'); // idle, textDown, wheelbarrow, arrowFill, flyaway
+  const [animationPhase, setAnimationPhase] = useState('idle'); // idle, textDown, arrowFill
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -24,21 +21,13 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     
     setIsSubmitting(true);
     
-    // Phase 1: Text slides down (400ms)
+    // Phase 1: Text slides down to hint area (400ms)
     setAnimationPhase('textDown');
     await new Promise(resolve => setTimeout(resolve, 400));
     
-    // Phase 2: Wheelbarrow man moves to arrow (1000ms)
-    setAnimationPhase('wheelbarrow');
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Phase 3: Arrow fills from gray to white (500ms)
+    // Phase 2: Arrow fills from gray to white (500ms)
     setAnimationPhase('arrowFill');
     await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Phase 4: Arrow flies away (800ms)
-    setAnimationPhase('flyaway');
-    await new Promise(resolve => setTimeout(resolve, 800));
     
     // Submit the question
     await onSubmit(question);
@@ -52,12 +41,12 @@ export default function QuestionInput({ onSubmit, isLoading }) {
   return (
     <div className="w-full max-w-4xl mx-auto mb-12">
       <form onSubmit={handleSubmit} className="relative">
-        {/* Main input area - fades out during animation */}
+        {/* Main input area */}
         <div className={`
           transition-opacity duration-300
           ${animationPhase !== 'idle' ? 'opacity-0 pointer-events-none' : 'opacity-100'}
         `}>
-          {/* GitHub-style textarea */}
+          {/* Textarea with arrow icon inside */}
           <div className="relative">
             <textarea
               value={question}
@@ -70,10 +59,10 @@ export default function QuestionInput({ onSubmit, isLoading }) {
                   handleSubmit(e);
                 }
               }}
-              placeholder="Skriv din fråga här... (Tryck Enter för att skicka, Shift+Enter för ny rad)"
+              placeholder="Skriv din fråga här..."
               className={`
-                w-full min-h-[120px] max-h-[300px] resize-y
-                px-4 py-3
+                w-full min-h-[140px] max-h-[300px] resize-y
+                px-4 pt-3 pb-12
                 bg-civic-dark-800 text-gray-200
                 border-2 rounded-md
                 transition-all duration-200
@@ -91,20 +80,23 @@ export default function QuestionInput({ onSubmit, isLoading }) {
               }}
               disabled={isLoading || isSubmitting}
             />
-          </div>
-          
-          {/* Bottom area - GitHub style "submitting will post..." text + arrow icon */}
-          <div className="flex items-center justify-between mt-2 px-2">
-            {/* Left side text (like GitHub) */}
-            <div className="text-xs text-gray-600 italic">
-              Tryckning på Enter kommer att skicka frågan till AI-modellerna
+            
+            {/* Thin white transparent divider line */}
+            <div className="absolute bottom-10 left-4 right-4 h-px bg-white/10"></div>
+            
+            {/* Hint text at bottom of textarea */}
+            <div className="absolute bottom-3 left-4 right-16 flex items-center">
+              <div className="text-xs text-gray-600 italic">
+                Tryck Enter för att skicka, Shift+Enter för ny rad
+              </div>
             </div>
             
-            {/* Right side: Small gray arrow icon (no text, no button styling) */}
+            {/* Send arrow icon - anchored at bottom right inside textarea */}
             <button
               type="submit"
               disabled={isLoading || !question.trim() || isSubmitting}
               className={`
+                absolute bottom-2 right-2
                 p-2 rounded-md
                 transition-all duration-200
                 ${question.trim() && !isLoading && !isSubmitting
@@ -115,7 +107,6 @@ export default function QuestionInput({ onSubmit, isLoading }) {
               title="Skicka fråga (Enter)"
               aria-label="Skicka fråga"
             >
-              {/* Simple arrow/send icon */}
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
               </svg>
@@ -126,7 +117,7 @@ export default function QuestionInput({ onSubmit, isLoading }) {
         {/* Animation area - shown during submission */}
         {animationPhase !== 'idle' && (
           <div className="relative h-40 overflow-visible">
-            {/* Phase 1: Question text slides down */}
+            {/* Phase 1: Question text slides down to hint area */}
             {animationPhase === 'textDown' && (
               <div className="absolute top-0 left-1/2 -translate-x-1/2 animate-slide-down">
                 <div className="bg-blue-600/20 text-blue-200 text-sm px-4 py-2 rounded-md whitespace-nowrap max-w-md overflow-hidden text-ellipsis shadow-lg">
@@ -135,50 +126,24 @@ export default function QuestionInput({ onSubmit, isLoading }) {
               </div>
             )}
             
-            {/* Phase 2 & 3: Wheelbarrow man delivers question to arrow (grayscale) */}
-            {(animationPhase === 'wheelbarrow' || animationPhase === 'arrowFill') && (
-              <div className="absolute bottom-12 left-0 animate-wheelbarrow-move">
-                <div className="flex items-center space-x-2">
-                  {/* Grayscale man with wheelbarrow */}
-                  <span className="text-4xl opacity-60" style={{ filter: 'grayscale(100%)' }}>🚶</span>
-                  <span className="text-3xl opacity-60" style={{ filter: 'grayscale(100%)' }}>��</span>
-                  <div className="bg-blue-600/30 text-blue-300 text-xs px-2 py-1 rounded shadow">
-                    ��
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Phase 3 & 4: Arrow - fills from gray to white, then flies away */}
-            {(animationPhase === 'wheelbarrow' || animationPhase === 'arrowFill' || animationPhase === 'flyaway') && (
-              <div className={`
-                absolute bottom-4 right-12
-                transition-all duration-500
-                ${animationPhase === 'flyaway' ? 'animate-arrow-flyaway' : ''}
-              `}>
+            {/* Phase 2: Arrow fills from gray to white */}
+            {animationPhase === 'arrowFill' && (
+              <div className="absolute bottom-4 right-12">
                 <svg 
-                  className={`
-                    w-10 h-10 transition-all duration-500
-                    ${animationPhase === 'arrowFill' || animationPhase === 'flyaway' 
-                      ? 'text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.9)]' 
-                      : 'text-gray-600'
-                    }
-                  `} 
-                  fill={animationPhase === 'arrowFill' || animationPhase === 'flyaway' ? 'currentColor' : 'none'}
-                  stroke="currentColor" 
+                  className="w-10 h-10 text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.9)] transition-all duration-500" 
+                  fill="currentColor"
                   viewBox="0 0 24 24"
-                  strokeWidth={animationPhase === 'arrowFill' || animationPhase === 'flyaway' ? 0 : 2}
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  <path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                 </svg>
               </div>
             )}
           </div>
         )}
 
-        {/* Quick suggestions - NO character counter */}
+        {/* Quick suggestions - only below textarea */}
         {!isLoading && !isSubmitting && question.length === 0 && (
-          <div className="flex flex-wrap gap-2 mt-6">
+          <div className="flex flex-wrap gap-2 mt-4">
             {['Demokrati och samhälle', 'Hållbar utveckling', 'AI och etik'].map((suggestion, index) => (
               <button
                 key={index}
