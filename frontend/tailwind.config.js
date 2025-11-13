@@ -76,7 +76,7 @@ export default {
         wheelbarrowMove: {
           '0%': { transform: 'translateX(0)', opacity: '0' },
           '20%': { transform: 'translateX(0)', opacity: '1' },
-          '100%': { transform: 'translateX(calc(100vw - 200px))', opacity: '1' },
+          '100%': { transform: 'translateX(100%)', opacity: '1' },
         },
         glow: {
           '0%': { boxShadow: '0 0 5px rgba(59, 130, 246, 0.5), 0 0 10px rgba(59, 130, 246, 0.3)' },
