@@ -6,6 +6,13 @@ import { analyzeTone, getToneDescription } from '../utils/analyzeTone.js';
 import { detectBias } from '../utils/detectBias.js';
 import { checkFacts } from '../utils/checkFacts.js';
 import { generateSynthesizedSummary } from '../utils/generateSummary.js';
+import { logAuditEvent, AuditEventType } from '../services/auditTrail.js';
+import { 
+  performCompleteMetaAnalysis, 
+  performGPTMetaReview,
+  generateMetaAnalysisSummary 
+} from '../services/metaAnalysis.js';
+import { batchFactCheck, compareFactChecks } from '../services/factChecker.js';
 
 const router = express.Router();
 
@@ -33,6 +40,12 @@ router.post('/query', async (req, res) => {
 
     console.log(`📝 Processing question: ${question.length > 50 ? question.substring(0, 50) + '...' : question}`);
 
+    // Log audit event
+    logAuditEvent(AuditEventType.QUESTION_ASKED, {
+      question: question.substring(0, 100),
+      questionLength: question.length,
+    });
+
     // Call all AI services in parallel
     const [gptResponse, geminiResponse, deepseekResponse] = await Promise.allSettled([
       getOpenAIResponse(question),
@@ -48,6 +61,7 @@ router.post('/query', async (req, res) => {
       const toneAnalysis = analyzeTone(responseText);
       const biasAnalysis = detectBias(responseText, question);
       const factCheck = checkFacts(responseText);
+      const metaAnalysis = performCompleteMetaAnalysis(responseText, question);
 
       responses.push({
         agent: 'gpt-3.5',
@@ -66,6 +80,8 @@ router.post('/query', async (req, res) => {
           bias: biasAnalysis,
           factCheck: factCheck,
         },
+        metaAnalysis: metaAnalysis,
+        metaSummary: generateMetaAnalysisSummary(metaAnalysis),
       });
     } else {
       console.error('GPT-3.5 error:', gptResponse.reason);
@@ -84,6 +100,7 @@ router.post('/query', async (req, res) => {
       const toneAnalysis = analyzeTone(responseText);
       const biasAnalysis = detectBias(responseText, question);
       const factCheck = checkFacts(responseText);
+      const metaAnalysis = performCompleteMetaAnalysis(responseText, question);
 
       responses.push({
         agent: 'gemini',
@@ -102,6 +119,8 @@ router.post('/query', async (req, res) => {
           bias: biasAnalysis,
           factCheck: factCheck,
         },
+        metaAnalysis: metaAnalysis,
+        metaSummary: generateMetaAnalysisSummary(metaAnalysis),
       });
     } else {
       console.error('Gemini error:', geminiResponse.reason);
@@ -120,6 +139,7 @@ router.post('/query', async (req, res) => {
       const toneAnalysis = analyzeTone(responseText);
       const biasAnalysis = detectBias(responseText, question);
       const factCheck = checkFacts(responseText);
+      const metaAnalysis = performCompleteMetaAnalysis(responseText, question);
 
       responses.push({
         agent: 'deepseek',
@@ -138,6 +158,8 @@ router.post('/query', async (req, res) => {
           bias: biasAnalysis,
           factCheck: factCheck,
         },
+        metaAnalysis: metaAnalysis,
+        metaSummary: generateMetaAnalysisSummary(metaAnalysis),
       });
     } else {
       console.error('DeepSeek error:', deepseekResponse.reason);
@@ -151,6 +173,21 @@ router.post('/query', async (req, res) => {
       });
     }
 
+    // Perform GPT-3.5 meta-review of all responses
+    const gptMetaReview = await performGPTMetaReview(responses, question);
+
+    // Perform Bing Search fact-checking on all responses
+    console.log('🔍 Performing Bing Search fact-checking...');
+    const factCheckResults = await batchFactCheck(responses);
+    const factCheckComparison = compareFactChecks(factCheckResults);
+
+    // Add fact-check results to each response
+    responses.forEach((response, index) => {
+      if (factCheckResults[index]) {
+        response.bingFactCheck = factCheckResults[index];
+      }
+    });
+
     // Generate synthesized summary from all responses
     const synthesizedSummary = generateSynthesizedSummary(responses, question);
 
@@ -158,6 +195,8 @@ router.post('/query', async (req, res) => {
       question,
       responses,
       synthesizedSummary,
+      metaReview: gptMetaReview,
+      factCheckComparison: factCheckComparison,
       timestamp: new Date().toISOString(),
     });
 

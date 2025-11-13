@@ -117,4 +117,14 @@
     50% { width: 70%; }
     100% { width: 100%; }
   }
+
+  /* Hide scrollbar for horizontal tabs */
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
