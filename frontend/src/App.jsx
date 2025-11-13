@@ -38,6 +38,14 @@ function App() {
       iconBg: 'bg-purple-500/20',
       enabled: true,
     },
+    {
+      id: 'deepseek',
+      name: 'DeepSeek',
+      description: 'Technical precision',
+      icon: '🧠',
+      iconBg: 'bg-cyan-500/20',
+      enabled: true,
+    },
   ]);
 
   const scrollToBottom = () => {
