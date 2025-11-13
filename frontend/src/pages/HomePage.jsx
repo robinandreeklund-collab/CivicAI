@@ -245,6 +245,7 @@ export default function HomePage({ onAiMessageUpdate }) {
                     responses={message.responses} 
                     question={message.question}
                     synthesizedSummary={message.synthesizedSummary}
+                    factCheckComparison={message.factCheckComparison}
                   />
                 </div>
               )}

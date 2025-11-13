@@ -189,7 +189,7 @@ router.post('/query', async (req, res) => {
     });
 
     // Generate synthesized summary from all responses
-    const synthesizedSummary = generateSynthesizedSummary(responses, question);
+    const synthesizedSummary = generateSynthesizedSummary(responses, question, factCheckComparison);
 
     res.json({
       question,

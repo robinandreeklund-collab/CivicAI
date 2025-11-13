@@ -5,11 +5,14 @@
 
 /**
  * Generate a neutral summary from all AI responses
+ * Enhanced with fact-checking insights for transparency
+ * 
  * @param {Array} responses - Array of AI responses with their text
  * @param {string} question - The original question
- * @returns {string} A synthesized summary
+ * @param {Object} factCheckComparison - Optional fact-check comparison data
+ * @returns {string} A synthesized summary with fact-check insights
  */
-export function generateSynthesizedSummary(responses, question) {
+export function generateSynthesizedSummary(responses, question, factCheckComparison = null) {
   if (!responses || responses.length === 0) {
     return 'Ingen sammanfattning tillgänglig.';
   }
@@ -80,6 +83,52 @@ export function generateSynthesizedSummary(responses, question) {
       summary += '**Perspektiv:** AI-modellerna erbjuder olika perspektiv och betoningar, vilket ger en bredare bild av ämnet.';
     } else {
       summary += '**Balans:** AI-modellerna delar vissa gemensamma punkter men erbjuder också olika nyanser och perspektiv.';
+    }
+  }
+
+  // Add fact-checking insights if available
+  if (factCheckComparison && factCheckComparison.available) {
+    summary += '\n\n**Faktakoll och verifierbarhet:**\n';
+    
+    // Visa verifierad/ej verifierad statistik
+    if (factCheckComparison.totalClaims > 0) {
+      const verificationRate = Math.round((factCheckComparison.totalVerified / factCheckComparison.totalClaims) * 100);
+      summary += `${factCheckComparison.totalVerified} av ${factCheckComparison.totalClaims} påståenden verifierade (${verificationRate}%). `;
+      
+      // Källtäthet
+      if (factCheckComparison.averageSourcesPerClaim) {
+        summary += `Genomsnittlig källtäthet: ${factCheckComparison.averageSourcesPerClaim} källor per påstående. `;
+      }
+      
+      // Osäkerhetsnivå
+      if (factCheckComparison.uncertaintyLevel) {
+        const uncertaintyText = {
+          'hög': 'hög osäkerhet - många påståenden saknar tillräckliga källor',
+          'medel': 'viss osäkerhet - några påståenden kunde inte verifieras fullt ut',
+          'låg': 'låg osäkerhet - de flesta påståenden är väl underbyggda'
+        };
+        summary += `Osäkerhetsnivå: ${uncertaintyText[factCheckComparison.uncertaintyLevel]}.`;
+      }
+    } else if (factCheckComparison.neutralCount > 0) {
+      // Neutral bedömning - förklara varför
+      summary += `Svaren innehåller inga specifika verifierbara påståenden (${factCheckComparison.neutralCount} av ${factCheckComparison.agentCount} AI-modeller gav kvalitativa/åsiktsbaserade svar). `;
+      summary += 'Detta är normalt för frågor som handlar om åsikter, filosofi eller kvalitativa bedömningar där faktakoll inte är applicerbart.';
+    }
+    
+    // Typfördelning om tillgänglig
+    if (factCheckComparison.claimTypeDistribution && Object.keys(factCheckComparison.claimTypeDistribution).length > 0) {
+      summary += '\n\n**Påståendetyper:** ';
+      const typeDescriptions = {
+        statistical: 'statistiska',
+        scientific: 'vetenskapliga',
+        temporal: 'tidsbundna',
+        historical: 'historiska',
+        definitive: 'definitiva'
+      };
+      const types = Object.entries(factCheckComparison.claimTypeDistribution)
+        .map(([type, data]) => `${data.count} ${typeDescriptions[type] || type}`)
+        .join(', ');
+      summary += types + '.';
     }
   }
 
