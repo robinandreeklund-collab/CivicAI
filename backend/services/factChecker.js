@@ -1,6 +1,6 @@
 /**
  * Fact Checker Service
- * Integrates Bing Search API for real-time fact verification against web sources
+ * Integrates Tavily Search API for real-time fact verification against web sources
  */
 
 import axios from 'axios';
@@ -8,50 +8,54 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const BING_SEARCH_API_KEY = process.env.BING_SEARCH_API_KEY;
-const BING_SEARCH_ENDPOINT = 'https://api.bing.microsoft.com/v7.0/search';
+const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
+const TAVILY_SEARCH_ENDPOINT = 'https://api.tavily.com/search';
 
 /**
- * Search Bing for fact verification
+ * Search Tavily for fact verification
  * @param {string} claim - The claim to verify
  * @param {number} count - Number of results to retrieve (default: 5)
  * @returns {Promise<Object>} Search results with sources
  */
-async function searchBing(claim, count = 5) {
-  if (!BING_SEARCH_API_KEY) {
-    console.warn('[FactChecker] Bing Search API key not configured');
+async function searchTavily(claim, count = 5) {
+  if (!TAVILY_API_KEY) {
+    console.warn('[FactChecker] Tavily Search API key not configured');
     return { available: false, sources: [] };
   }
 
   try {
-    const response = await axios.get(BING_SEARCH_ENDPOINT, {
+    const response = await axios.post(TAVILY_SEARCH_ENDPOINT, {
+      api_key: TAVILY_API_KEY,
+      query: claim,
+      search_depth: 'basic', // 'basic' or 'advanced'
+      include_answer: false,
+      include_raw_content: false,
+      max_results: count,
+      include_domains: [],
+      exclude_domains: [],
+    }, {
       headers: {
-        'Ocp-Apim-Subscription-Key': BING_SEARCH_API_KEY,
-      },
-      params: {
-        q: claim,
-        count: count,
-        responseFilter: 'Webpages',
-        safeSearch: 'Moderate',
+        'Content-Type': 'application/json',
       },
       timeout: 5000, // 5 second timeout
     });
 
-    const webPages = response.data.webPages?.value || [];
+    const results = response.data.results || [];
     
     return {
       available: true,
-      sources: webPages.map(page => ({
-        title: page.name,
-        url: page.url,
-        snippet: page.snippet,
-        datePublished: page.datePublished,
-        displayUrl: page.displayUrl,
+      sources: results.map(result => ({
+        title: result.title,
+        url: result.url,
+        snippet: result.content,
+        datePublished: result.published_date,
+        displayUrl: result.url,
+        score: result.score, // Relevance score from Tavily
       })),
-      totalResults: response.data.webPages?.totalEstimatedMatches || 0,
+      totalResults: results.length,
     };
   } catch (error) {
-    console.error('[FactChecker] Bing Search API error:', error.message);
+    console.error('[FactChecker] Tavily Search API error:', error.message);
     return {
       available: false,
       error: error.message,
@@ -100,10 +104,10 @@ function extractClaims(text) {
  * @returns {Promise<Object>} Fact-check results with sources
  */
 export async function performFactCheck(responseText, agentName) {
-  if (!BING_SEARCH_API_KEY) {
+  if (!TAVILY_API_KEY) {
     return {
       available: false,
-      message: 'Bing Search API-nyckel saknas - faktakoll ej tillgänglig',
+      message: 'Tavily Search API-nyckel saknas - faktakoll ej tillgänglig',
       claims: [],
       overallScore: null,
     };
@@ -122,11 +126,11 @@ export async function performFactCheck(responseText, agentName) {
       };
     }
 
-    // Verify each claim using Bing Search
+    // Verify each claim using Tavily Search
     const verificationResults = [];
     
     for (const claim of claims) {
-      const searchResults = await searchBing(claim, 3);
+      const searchResults = await searchTavily(claim, 3);
       
       if (searchResults.available && searchResults.sources.length > 0) {
         // Calculate confidence based on number of sources found
