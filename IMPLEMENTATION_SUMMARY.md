@@ -120,7 +120,7 @@ where:
 - Show source count for transparency
 - Maintain existing expandable details and source links
 
-**Code Location:** `frontend/src/components/AnalysisComparison.jsx`, lines 382-440
+**Code Location:** `frontend/src/components/AnalysisComparison.jsx`, lines 390-412
 
 **Display Features:**
 ```jsx
