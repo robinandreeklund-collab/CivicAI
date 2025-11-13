@@ -387,6 +387,30 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
                               }`}>
                                 {claim.verified ? '✓' : '⚠️'} {claim.claim}
                               </div>
+                              
+                              {/* Claim metadata: type, confidence, source count */}
+                              <div className="text-gray-500 text-xs ml-4 mb-1 flex items-center space-x-2">
+                                {claim.claimType && (
+                                  <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">
+                                    {claim.claimDescription || claim.claimType}
+                                  </span>
+                                )}
+                                {claim.confidence !== undefined && (
+                                  <span className={`px-1.5 py-0.5 rounded ${
+                                    claim.confidence >= 6.7 ? 'bg-green-500/20 text-green-300' :
+                                    claim.confidence >= 3.3 ? 'bg-yellow-500/20 text-yellow-300' :
+                                    'bg-red-500/20 text-red-300'
+                                  }`}>
+                                    Förtroende: {claim.confidence}/10
+                                  </span>
+                                )}
+                                {claim.sourceCount !== undefined && (
+                                  <span className="text-gray-400">
+                                    {claim.sourceCount} {claim.sourceCount === 1 ? 'källa' : 'källor'}
+                                  </span>
+                                )}
+                              </div>
+                              
                               {claim.sources && claim.sources.length > 0 && (
                                 <div className="text-gray-500 space-y-1 ml-4">
                                   {claim.sources.slice(0, 2).map((source, srcIdx) => (
