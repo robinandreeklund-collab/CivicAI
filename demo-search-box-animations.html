@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Förbättrad Sökruta - GitHub-inspirerad Design med Animationer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #141414 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .demo-title {
+            text-align: center;
+            color: #e5e7eb;
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 40px;
+        }
+
+        .search-container {
+            transition: all 0.6s ease-in-out;
+            transform-origin: top;
+        }
+
+        .search-container.shrinking {
+            transform: scaleY(0);
+            opacity: 0;
+        }
+
+        .label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #9ca3af;
+            margin-bottom: 12px;
+            transition: all 0.3s;
+        }
+
+        .label.focused {
+            color: #3b82f6;
+        }
+
+        .textarea-container {
+            position: relative;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 120px;
+            max-height: 300px;
+            padding: 12px 16px;
+            background: #141414;
+            color: #e5e7eb;
+            border: 2px solid #2a2a2a;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.2);
+        }
+
+        textarea::placeholder {
+            color: #6b7280;
+        }
+
+        .glow-effect {
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            background: rgba(59, 130, 246, 0.05);
+            filter: blur(40px);
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .glow-effect.active {
+            opacity: 1;
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: #1a1a1a;
+            border: 2px solid #2a2a2a;
+            border-top: none;
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
+        }
+
+        .char-count {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .submit-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .submit-btn:hover {
+            background: #2563eb;
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: scale(0.9);
+        }
+
+        .submit-btn:disabled:hover {
+            background: #3b82f6;
+            transform: scale(0.9);
+        }
+
+        .arrow-icon {
+            transition: transform 0.3s;
+        }
+
+        .submit-btn:hover .arrow-icon {
+            transform: translateX(2px);
+        }
+
+        /* Flying arrow animation */
+        .flying-arrow {
+            position: fixed;
+            pointer-events: none;
+            z-index: 1000;
+            color: #3b82f6;
+            font-size: 32px;
+            animation: flyaway 0.8s ease-in-out forwards;
+        }
+
+        @keyframes flyaway {
+            0% {
+                transform: translate(0, 0) scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: translate(40px, -20px) scale(1.5);
+                opacity: 0.8;
+            }
+            100% {
+                transform: translate(100px, -50px) scale(0.5);
+                opacity: 0;
+            }
+        }
+
+        .thin-line {
+            height: 2px;
+            width: 100%;
+            background: linear-gradient(to right, transparent, #3b82f6, transparent);
+            animation: pulse 1s ease-in-out infinite;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .thin-line.visible {
+            opacity: 1;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 0.5;
+            }
+            50% {
+                opacity: 1;
+            }
+        }
+
+        .suggestions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .suggestion-pill {
+            padding: 6px 16px;
+            font-size: 12px;
+            color: #9ca3af;
+            background: #1f1f1f;
+            border: 1px solid #2a2a2a;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .suggestion-pill:hover {
+            color: #e5e7eb;
+            background: #2a2a2a;
+            border-color: rgba(59, 130, 246, 0.4);
+            transform: scale(1.05);
+        }
+
+        .loader {
+            display: none;
+            text-align: center;
+            margin-top: 40px;
+            animation: fadeIn 0.5s;
+        }
+
+        .loader.visible {
+            display: block;
+        }
+
+        .loader-dots {
+            display: inline-flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            background: #3b82f6;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .dot:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+
+        .dot:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+
+        @keyframes bounce {
+            0%, 80%, 100% {
+                transform: scale(0);
+            }
+            40% {
+                transform: scale(1);
+            }
+        }
+
+        .loader-text {
+            color: #9ca3af;
+            font-size: 14px;
+        }
+
+        .reset-btn {
+            margin-top: 20px;
+            padding: 10px 24px;
+            background: #2a2a2a;
+            color: #e5e7eb;
+            border: 1px solid #3a3a3a;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .reset-btn:hover {
+            background: #3a3a3a;
+            border-color: #4a4a4a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="demo-title">🔍 Förbättrad Sökruta - GitHub-inspirerad Design</h1>
+        
+        <div class="search-container" id="searchContainer">
+            <label class="label" id="label">
+                <span style="margin-right: 8px;">💭</span>
+                Ställ din fråga till AI-modellerna
+            </label>
+
+            <div class="textarea-container">
+                <div class="glow-effect" id="glowEffect"></div>
+                <textarea 
+                    id="questionInput"
+                    placeholder="Skriv din fråga här... (Tryck Enter för att skicka, Shift+Enter för ny rad)"
+                ></textarea>
+            </div>
+
+            <div class="toolbar">
+                <span class="char-count">
+                    <svg width="14" height="14" style="display: inline; vertical-align: middle; margin-right: 4px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span id="charCount">0</span> tecken
+                </span>
+                
+                <button class="submit-btn" id="submitBtn" disabled>
+                    <span>Skicka</span>
+                    <span class="arrow-icon">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                        </svg>
+                    </span>
+                </button>
+            </div>
+
+            <div class="suggestions" id="suggestions">
+                <button class="suggestion-pill" onclick="setSuggestion('Vad är demokrati och samhälle?')">Demokrati och samhälle</button>
+                <button class="suggestion-pill" onclick="setSuggestion('Vad är hållbar utveckling?')">Hållbar utveckling</button>
+                <button class="suggestion-pill" onclick="setSuggestion('Vad är AI och etik?')">AI och etik</button>
+            </div>
+        </div>
+
+        <div class="thin-line" id="thinLine"></div>
+
+        <div class="loader" id="loader">
+            <div class="loader-dots">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+            <div class="loader-text">Bearbetar din fråga...</div>
+            <button class="reset-btn" onclick="reset()">Återställ demo</button>
+        </div>
+    </div>
+
+    <script>
+        const questionInput = document.getElementById('questionInput');
+        const charCount = document.getElementById('charCount');
+        const submitBtn = document.getElementById('submitBtn');
+        const label = document.getElementById('label');
+        const glowEffect = document.getElementById('glowEffect');
+        const searchContainer = document.getElementById('searchContainer');
+        const thinLine = document.getElementById('thinLine');
+        const loader = document.getElementById('loader');
+        const suggestions = document.getElementById('suggestions');
+
+        // Update character count
+        questionInput.addEventListener('input', () => {
+            const length = questionInput.value.length;
+            charCount.textContent = length;
+            submitBtn.disabled = length === 0;
+            
+            // Hide suggestions when typing
+            if (length > 0) {
+                suggestions.style.display = 'none';
+            } else {
+                suggestions.style.display = 'flex';
+            }
+        });
+
+        // Focus/blur effects
+        questionInput.addEventListener('focus', () => {
+            label.classList.add('focused');
+            glowEffect.classList.add('active');
+        });
+
+        questionInput.addEventListener('blur', () => {
+            label.classList.remove('focused');
+            glowEffect.classList.remove('active');
+        });
+
+        // Handle Enter key
+        questionInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit();
+            }
+        });
+
+        // Handle submit
+        submitBtn.addEventListener('click', handleSubmit);
+
+        function handleSubmit() {
+            if (questionInput.value.trim() === '') return;
+
+            // Get button position for flying arrow
+            const btnRect = submitBtn.getBoundingClientRect();
+            
+            // Create flying arrow
+            const flyingArrow = document.createElement('div');
+            flyingArrow.className = 'flying-arrow';
+            flyingArrow.innerHTML = `
+                <svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                </svg>
+            `;
+            flyingArrow.style.left = `${btnRect.right - 32}px`;
+            flyingArrow.style.top = `${btnRect.top}px`;
+            document.body.appendChild(flyingArrow);
+
+            // Remove after animation
+            setTimeout(() => {
+                flyingArrow.remove();
+            }, 800);
+
+            // Shrink animation
+            searchContainer.classList.add('shrinking');
+            
+            // Show thin line
+            setTimeout(() => {
+                thinLine.classList.add('visible');
+            }, 300);
+
+            // Show loader
+            setTimeout(() => {
+                thinLine.classList.remove('visible');
+                loader.classList.add('visible');
+            }, 600);
+        }
+
+        function setSuggestion(text) {
+            questionInput.value = text;
+            questionInput.dispatchEvent(new Event('input'));
+            questionInput.focus();
+        }
+
+        function reset() {
+            searchContainer.classList.remove('shrinking');
+            loader.classList.remove('visible');
+            questionInput.value = '';
+            questionInput.dispatchEvent(new Event('input'));
+            suggestions.style.display = 'flex';
+        }
+    </script>
+</body>
+</html>
