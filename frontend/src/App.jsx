@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import AgentBubble from './components/AgentBubble';
 import ModernLoader from './components/ModernLoader';
-import PulsatingLogo from './components/PulsatingLogo';
 import Sidebar from './components/Sidebar';
 import AIServiceToggle from './components/AIServiceToggle';
 import yaml from 'js-yaml';
@@ -245,13 +244,8 @@ function App() {
           <div className="max-w-4xl mx-auto px-4 py-6">
             {messages.length === 0 && !isLoading && (
               <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-fade-in">
-                {/* Pulsating logo animation */}
-                <div className="mb-12">
-                  <PulsatingLogo size={120} />
-                </div>
-                
                 {/* Quick suggestions */}
-                <div className="flex flex-wrap gap-2 justify-center">
+                <div className="flex flex-wrap gap-3 justify-center">
                   {[
                     'Vad är demokrati?',
                     'Förklara hållbar utveckling',
@@ -260,9 +254,17 @@ function App() {
                     <button
                       key={index}
                       onClick={() => setQuestion(suggestion)}
-                      className="px-4 py-2 text-sm rounded-full bg-civic-dark-700/50 hover:bg-civic-dark-600 text-gray-400 hover:text-gray-200 transition-all duration-300 hover:scale-105 border border-civic-dark-600 hover:border-blue-500/30"
+                      className="relative px-4 py-2 text-sm rounded-full bg-civic-dark-700/50 hover:bg-civic-dark-600 text-gray-400 hover:text-gray-200 transition-all duration-300 hover:scale-105 border-2 border-civic-dark-600 hover:border-blue-500/50 group overflow-hidden"
                     >
-                      {suggestion}
+                      {/* Pulsating border effect */}
+                      <div className="absolute inset-0 rounded-full pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        <div className="absolute inset-0 rounded-full animate-pulse-slow" style={{
+                          background: 'linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.3), transparent)',
+                          backgroundSize: '200% 100%',
+                          animation: 'shimmer 3s linear infinite'
+                        }}></div>
+                      </div>
+                      <span className="relative z-10">{suggestion}</span>
                     </button>
                   ))}
                 </div>
