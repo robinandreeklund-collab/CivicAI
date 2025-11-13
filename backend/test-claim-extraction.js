@@ -13,7 +13,6 @@ const __dirname = dirname(__filename);
 
 // Read the factChecker.js file to test claim extraction logic
 // Since extractClaims is not exported, we'll read and evaluate it
-const factCheckerCode = fs.readFileSync(join(__dirname, 'services', 'factChecker.js'), 'utf-8');
 
 // Test responses with different types of claims
 const testResponses = [
