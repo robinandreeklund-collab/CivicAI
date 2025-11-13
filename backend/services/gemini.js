@@ -41,7 +41,7 @@ Globalt sett har antalet demokratier ökat från cirka 40 länder år 1950 till 
 
 2. Ekonomisk dimension: Skapande av välstånd och arbetsmöjligheter på ett sätt som är långsiktigt hållbart, inte bara för stora multinationella företag
 
-3. Social dimension: Säkerställa social rättvisa, jämlikhet och grundläggande behov för alla, speciellt för västerlä ndska samhällen som har större resurser
+3. Social dimension: Säkerställa social rättvisa, jämlikhet och grundläggande behov för alla, speciellt för västerländska samhällen som har större resurser
 
 FN:s Agenda 2030 innehåller 17 globala mål. Alla vet att internationellt samarbete är avgörande - ingen nation kan ensam lösa utmaningar som klimatförändringar.
 
