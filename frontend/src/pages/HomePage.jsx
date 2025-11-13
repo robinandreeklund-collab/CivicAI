@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import AgentBubble from '../components/AgentBubble';
 import ProcessingLoader from '../components/ProcessingLoader';
 import AIServiceToggle from '../components/AIServiceToggle';
+import MultiAgentResponseView from '../components/MultiAgentResponseView';
 import AnalysisComparison from '../components/AnalysisComparison';
 import ResponseSummary from '../components/ResponseSummary';
 import BattlePanel from '../components/BattlePanel';
@@ -171,17 +171,11 @@ export default function HomePage() {
               
               {message.type === 'ai' && (
                 <div className="space-y-4">
-                  {/* Individual AI Responses */}
-                  {message.responses.map((resp, idx) => (
-                    <AgentBubble
-                      key={idx}
-                      agent={resp.agent}
-                      response={resp.response}
-                      metadata={resp.metadata}
-                      analysis={resp.analysis}
-                      index={idx}
-                    />
-                  ))}
+                  {/* Multi-Agent Response View - Modern tabbed/grid interface */}
+                  <MultiAgentResponseView
+                    responses={message.responses}
+                    question={message.question}
+                  />
 
                   {/* Analysis Comparison */}
                   <AnalysisComparison responses={message.responses} />
