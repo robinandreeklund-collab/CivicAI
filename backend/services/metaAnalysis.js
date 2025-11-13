@@ -11,9 +11,17 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize OpenAI client only if API key is available
+let openai = null;
+if (process.env.OPENAI_API_KEY) {
+  try {
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  } catch (error) {
+    console.warn('Failed to initialize OpenAI client:', error.message);
+  }
+}
 
 const sentiment = new Sentiment();
 
@@ -23,25 +31,55 @@ const sentiment = new Sentiment();
  * @returns {Object} NLP analysis results
  */
 export function performNLPAnalysis(text) {
-  const doc = nlp(text);
-  
-  return {
-    sentences: doc.sentences().length,
-    words: doc.terms().length,
-    entities: {
-      people: doc.people().out('array'),
-      places: doc.places().out('array'),
-      organizations: doc.organizations().out('array'),
-      dates: doc.dates().out('array'),
-    },
-    topics: doc.topics().out('array'),
-    verbs: doc.verbs().out('array').slice(0, 10), // Top 10 verbs
-    nouns: doc.nouns().out('array').slice(0, 15), // Top 15 nouns
-    adjectives: doc.adjectives().out('array').slice(0, 10), // Top 10 adjectives
-    questions: doc.questions().length,
-    hasNegation: doc.has('#Negative'),
-    hasComparison: doc.has('#Comparative'),
-  };
+  try {
+    const doc = nlp(text);
+    
+    // Extract dates using compromise's date matching
+    let dates = [];
+    try {
+      // Try to match date patterns
+      const dateMatches = doc.match('#Date+');
+      if (dateMatches && dateMatches.found) {
+        dates = dateMatches.out('array');
+      }
+    } catch (e) {
+      // If date matching fails, just use empty array
+      dates = [];
+    }
+    
+    return {
+      sentences: doc.sentences().length,
+      words: doc.terms().length,
+      entities: {
+        people: doc.people().out('array') || [],
+        places: doc.places().out('array') || [],
+        organizations: doc.organizations().out('array') || [],
+        dates: dates,
+      },
+      topics: doc.topics().out('array') || [],
+      verbs: doc.verbs().out('array').slice(0, 10) || [], // Top 10 verbs
+      nouns: doc.nouns().out('array').slice(0, 15) || [], // Top 15 nouns
+      adjectives: doc.adjectives().out('array').slice(0, 10) || [], // Top 10 adjectives
+      questions: doc.questions().length || 0,
+      hasNegation: doc.has('#Negative') || false,
+      hasComparison: doc.has('#Comparative') || false,
+    };
+  } catch (error) {
+    console.error('Error in NLP analysis:', error);
+    // Return minimal structure on error
+    return {
+      sentences: 0,
+      words: 0,
+      entities: { people: [], places: [], organizations: [], dates: [] },
+      topics: [],
+      verbs: [],
+      nouns: [],
+      adjectives: [],
+      questions: 0,
+      hasNegation: false,
+      hasComparison: false,
+    };
+  }
 }
 
 /**
@@ -50,29 +88,49 @@ export function performNLPAnalysis(text) {
  * @returns {Object} Sentiment analysis results
  */
 export function performSentimentAnalysis(text) {
-  const result = sentiment.analyze(text);
-  
-  // Normalize score to -1 to 1 range for polarity
-  const polarity = Math.max(-1, Math.min(1, result.score / 10));
-  
-  // Calculate subjectivity based on comparative and superlative words
-  const doc = nlp(text);
-  const comparatives = doc.match('#Comparative').length;
-  const superlatives = doc.match('#Superlative').length;
-  const adjectives = doc.adjectives().length;
-  const subjectivity = adjectives > 0 ? 
-    Math.min(1, (comparatives + superlatives + adjectives * 0.5) / doc.terms().length * 5) : 
-    0.3;
-  
-  return {
-    polarity,  // -1 (negative) to 1 (positive)
-    score: result.score,
-    comparative: result.comparative,
-    subjectivity, // 0 (objective) to 1 (subjective)
-    positiveWords: result.positive,
-    negativeWords: result.negative,
-    sentiment: polarity > 0.1 ? 'positive' : polarity < -0.1 ? 'negative' : 'neutral',
-  };
+  try {
+    const result = sentiment.analyze(text);
+    
+    // Normalize score to -1 to 1 range for polarity
+    const polarity = Math.max(-1, Math.min(1, result.score / 10));
+    
+    // Calculate subjectivity based on comparative and superlative words
+    let subjectivity = 0.3; // default
+    try {
+      const doc = nlp(text);
+      const comparatives = doc.match('#Comparative').length || 0;
+      const superlatives = doc.match('#Superlative').length || 0;
+      const adjectives = doc.adjectives().length || 0;
+      const totalTerms = doc.terms().length || 1;
+      subjectivity = adjectives > 0 ? 
+        Math.min(1, (comparatives + superlatives + adjectives * 0.5) / totalTerms * 5) : 
+        0.3;
+    } catch (e) {
+      console.warn('Error calculating subjectivity:', e.message);
+    }
+    
+    return {
+      polarity,  // -1 (negative) to 1 (positive)
+      score: result.score || 0,
+      comparative: result.comparative || 0,
+      subjectivity, // 0 (objective) to 1 (subjective)
+      positiveWords: result.positive || [],
+      negativeWords: result.negative || [],
+      sentiment: polarity > 0.1 ? 'positive' : polarity < -0.1 ? 'negative' : 'neutral',
+    };
+  } catch (error) {
+    console.error('Error in sentiment analysis:', error);
+    // Return neutral sentiment on error
+    return {
+      polarity: 0,
+      score: 0,
+      comparative: 0,
+      subjectivity: 0.5,
+      positiveWords: [],
+      negativeWords: [],
+      sentiment: 'neutral',
+    };
+  }
 }
 
 /**
@@ -82,7 +140,7 @@ export function performSentimentAnalysis(text) {
  * @returns {Promise<Object>} Meta-analysis from GPT-3.5
  */
 export async function performGPTMetaReview(responses, question) {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!openai || !process.env.OPENAI_API_KEY) {
     console.warn('OpenAI API key not configured for meta-review');
     return {
       available: false,
