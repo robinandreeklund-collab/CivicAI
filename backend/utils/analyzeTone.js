@@ -47,7 +47,7 @@ export function analyzeTone(text) {
   const textLower = text.toLowerCase();
   
   // Count keyword occurrences for each tone
-  for (const [tone, data] of Object.entries(toneIndicators)) {
+  for (const [, data] of Object.entries(toneIndicators)) {
     data.keywords.forEach(keyword => {
       if (textLower.includes(keyword)) {
         data.score++;
