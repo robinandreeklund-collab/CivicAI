@@ -7,7 +7,15 @@
  * Detect potential biases in a text response
  * @param {string} text - The response text to analyze
  * @param {string} question - The original question for context
- * @returns {Object} Bias analysis results
+ * @returns {{overallBias: string, biasScore: number, detectedBiases: Array<{type: string, severity: string, direction?: string, description: string}>}} 
+ *   An object containing:
+ *     - overallBias: The overall bias detected ('neutral', 'left', 'right', etc.)
+ *     - biasScore: Numeric score representing the severity of bias
+ *     - detectedBiases: Array of detected bias objects, each with:
+ *         - type: Type of bias (e.g., 'political', 'commercial')
+ *         - severity: Severity level ('low', 'medium', 'high')
+ *         - direction: Direction of bias (if applicable, e.g., 'left', 'right')
+ *         - description: Description of the detected bias
  */
 export function detectBias(text, question = '') {
   if (!text || typeof text !== 'string') {
