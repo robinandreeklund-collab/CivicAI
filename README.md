@@ -29,6 +29,7 @@ CivicAI har nu en moderniserad design inspirerad av Grok med fokus på användar
 Användare kan nu välja vilka AI-tjänster de vill fråga:
 - 🤖 **GPT-3.5**: Snabb och effektiv
 - ✨ **Gemini**: Googles AI-modell
+- 🧠 **DeepSeek**: Teknisk precision och datadriven analys
 - Toggle-switchar för enkel aktivering/deaktivering
 
 ### Kollapsbar Sidebar
@@ -124,6 +125,9 @@ Firebase (kopplas på efter MVP)
    # Google Gemini Configuration
    GEMINI_API_KEY=your_gemini_api_key_here
    
+   # DeepSeek Configuration
+   DEEPSEEK_API_KEY=your_deepseek_api_key_here
+   
    # Server Configuration
    PORT=3001
    ```
@@ -143,14 +147,18 @@ Firebase (kopplas på efter MVP)
 
 ### API-nycklar och felsökning
 
-**Gemini API:**
-- Använder modell: `gemini-2.5-flash`
-- Hämta API-nyckel från: [Google AI Studio](https://aistudio.google.com/app/apikey)
-
 **OpenAI API:**
 - Använder modell: `gpt-3.5-turbo`
 - Hämta API-nyckel från: [OpenAI Platform](https://platform.openai.com/api-keys)
 - **Obs:** Kontrollera att du har tillgänglig kredit och inte har överskridit din kvot
+
+**Gemini API:**
+- Använder modell: `gemini-2.5-flash`
+- Hämta API-nyckel från: [Google AI Studio](https://aistudio.google.com/app/apikey)
+
+**DeepSeek API:**
+- Använder modell: `deepseek-chat`
+- Hämta API-nyckel från: [DeepSeek Platform](https://platform.deepseek.com/)
 
 **Vanliga fel:**
 - `404 Not Found` (Gemini): Modellnamnet är inkorrekt eller inaktuellt. Använd `gemini-2.5-flash` eller `gemini-1.5-pro`.
@@ -164,7 +172,7 @@ Firebase (kopplas på efter MVP)
 ### Implementerade funktioner (Fas 1 & 2) ✅
 
 #### 🔄 Multi-agent svarsspegel
-Ställ samma fråga till flera AI-modeller samtidigt och jämför deras svar i realtid. Stöd för GPT-3.5 och Gemini med möjlighet att välja vilka modeller som ska inkluderas.
+Ställ samma fråga till flera AI-modeller samtidigt och jämför deras svar i realtid. Stöd för GPT-3.5, Gemini och DeepSeek med möjlighet att välja vilka modeller som ska inkluderas.
 
 #### 🧠 Ton- och stilanalys
 Varje AI-svar analyseras automatiskt för:
@@ -254,8 +262,10 @@ Exportera konversationer och jämförelser till:
 | analyzeTone | ✅ | Klassificerar ton (formell, teknisk, empatisk, etc.) |
 | detectBias | ✅ | Identifierar bias i AI-svar via semantisk analys |
 | checkFacts | ✅ | Markerar verifierbara påståenden för faktakontroll |
+| generateSummary | ✅ | Skapar syntetiserad sammanfattning från alla AI-svar |
 | openai service | ✅ | Integration med OpenAI GPT-3.5 |
 | gemini service | ✅ | Integration med Google Gemini |
+| deepseek service | ✅ | Integration med DeepSeek AI |
 
 🚀 Utvecklingsfaser
 

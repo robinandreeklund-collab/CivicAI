@@ -1,6 +1,7 @@
 import express from 'express';
 import { getOpenAIResponse } from '../services/openai.js';
 import { getGeminiResponse } from '../services/gemini.js';
+import { getDeepSeekResponse } from '../services/deepseek.js';
 import { analyzeTone, getToneDescription } from '../utils/analyzeTone.js';
 import { detectBias } from '../utils/detectBias.js';
 import { checkFacts } from '../utils/checkFacts.js';
@@ -32,10 +33,11 @@ router.post('/query', async (req, res) => {
 
     console.log(`📝 Processing question: ${question.length > 50 ? question.substring(0, 50) + '...' : question}`);
 
-    // Call both AI services in parallel
-    const [gptResponse, geminiResponse] = await Promise.allSettled([
+    // Call all AI services in parallel
+    const [gptResponse, geminiResponse, deepseekResponse] = await Promise.allSettled([
       getOpenAIResponse(question),
       getGeminiResponse(question),
+      getDeepSeekResponse(question),
     ]);
 
     // Process responses
@@ -106,6 +108,42 @@ router.post('/query', async (req, res) => {
       responses.push({
         agent: 'gemini',
         response: 'Fel: Kunde inte hämta svar från Gemini. Kontrollera API-nyckeln.',
+        metadata: {
+          error: true,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
+
+    if (deepseekResponse.status === 'fulfilled') {
+      const responseText = deepseekResponse.value.response;
+      const toneAnalysis = analyzeTone(responseText);
+      const biasAnalysis = detectBias(responseText, question);
+      const factCheck = checkFacts(responseText);
+
+      responses.push({
+        agent: 'deepseek',
+        response: responseText,
+        metadata: {
+          model: deepseekResponse.value.model,
+          timestamp: new Date().toISOString(),
+        },
+        analysis: {
+          tone: {
+            primary: toneAnalysis.primary,
+            description: getToneDescription(toneAnalysis.primary),
+            confidence: toneAnalysis.confidence,
+            characteristics: toneAnalysis.characteristics,
+          },
+          bias: biasAnalysis,
+          factCheck: factCheck,
+        },
+      });
+    } else {
+      console.error('DeepSeek error:', deepseekResponse.reason);
+      responses.push({
+        agent: 'deepseek',
+        response: 'Fel: Kunde inte hämta svar från DeepSeek. Kontrollera API-nyckeln.',
         metadata: {
           error: true,
           timestamp: new Date().toISOString(),

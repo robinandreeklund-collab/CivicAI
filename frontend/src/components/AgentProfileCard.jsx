@@ -42,6 +42,25 @@ export default function AgentProfileCard({ agent, metadata }) {
         'Språkhantering': 85,
       },
     },
+    'deepseek': {
+      name: 'DeepSeek',
+      provider: 'DeepSeek AI',
+      icon: '🧠',
+      color: 'cyan',
+      description: 'Kraftfull AI-modell med fokus på teknisk precision och datadriven analys',
+      strengths: [
+        'Teknisk noggrannhet',
+        'Kvantitativa analyser',
+        'Systematisk struktur',
+        'Evidensbaserad',
+      ],
+      characteristics: {
+        'Kreativitet': 65,
+        'Precision': 95,
+        'Kontextförståelse': 88,
+        'Språkhantering': 82,
+      },
+    },
   };
 
   const profile = agentProfiles[agent] || {
@@ -66,6 +85,12 @@ export default function AgentProfileCard({ agent, metadata }) {
       border: 'border-purple-500/30',
       text: 'text-purple-300',
       progress: 'bg-purple-500',
+    },
+    cyan: {
+      bg: 'bg-cyan-500/10',
+      border: 'border-cyan-500/30',
+      text: 'text-cyan-300',
+      progress: 'bg-cyan-500',
     },
     gray: {
       bg: 'bg-gray-500/10',

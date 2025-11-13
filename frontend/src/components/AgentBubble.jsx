@@ -37,11 +37,20 @@ export default function AgentBubble({ agent, response, metadata, analysis, index
       iconColor: 'text-purple-400',
       accentColor: 'bg-purple-500',
     },
+    'deepseek': {
+      bg: 'bg-civic-dark-800/80',
+      border: 'border-cyan-500/30',
+      icon: '🧠',
+      iconBg: 'bg-cyan-500/20',
+      iconColor: 'text-cyan-400',
+      accentColor: 'bg-cyan-500',
+    },
   };
 
   const agentNames = {
     'gpt-3.5': 'GPT-3.5',
     'gemini': 'Gemini',
+    'deepseek': 'DeepSeek',
   };
 
   const theme = agentThemes[agent] || {
