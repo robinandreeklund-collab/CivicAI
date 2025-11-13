@@ -406,7 +406,7 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
                                 )}
                                 {claim.sourceCount !== undefined && (
                                   <span className="text-gray-400">
-                                    {claim.sourceCount} käll{claim.sourceCount === 1 ? 'a' : 'or'}
+                                    {claim.sourceCount} {claim.sourceCount === 1 ? 'källa' : 'källor'}
                                   </span>
                                 )}
                               </div>
