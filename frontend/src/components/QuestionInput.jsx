@@ -140,8 +140,8 @@ export default function QuestionInput({ onSubmit, isLoading }) {
               <div className="absolute bottom-12 left-0 animate-wheelbarrow-move">
                 <div className="flex items-center space-x-2">
                   {/* Grayscale man with wheelbarrow */}
-                  <span className="text-4xl grayscale opacity-60">🚶</span>
-                  <span className="text-3xl grayscale opacity-60">��</span>
+                  <span className="text-4xl opacity-60" style={{ filter: 'grayscale(100%)' }}>🚶</span>
+                  <span className="text-3xl opacity-60" style={{ filter: 'grayscale(100%)' }}>��</span>
                   <div className="bg-blue-600/30 text-blue-300 text-xs px-2 py-1 rounded shadow">
                     ��
                   </div>
