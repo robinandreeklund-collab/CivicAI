@@ -102,6 +102,7 @@ export default function HomePage({ onAiMessageUpdate }) {
         question: userQuestion,
         responses: data.responses || [],
         synthesizedSummary: data.synthesizedSummary || null,
+        metaReview: data.metaReview || null,
         timestamp: new Date().toISOString(),
       };
       
@@ -233,7 +234,10 @@ export default function HomePage({ onAiMessageUpdate }) {
                   />
 
                   {/* Analysis Comparison */}
-                  <AnalysisComparison responses={message.responses} />
+                  <AnalysisComparison 
+                    responses={message.responses} 
+                    metaReview={message.metaReview}
+                  />
 
                   {/* Neutral Summary */}
                   <ResponseSummary 

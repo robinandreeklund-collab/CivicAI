@@ -1,9 +1,10 @@
 /**
  * AnalysisComparison Component
  * Timeline-based visual comparison of analysis across all AI responses
+ * Includes spaCy-like NLP, TextBlob-like sentiment, and GPT-3.5 meta-review
  * Clean, modern list view with timestamps
  */
-export default function AnalysisComparison({ responses }) {
+export default function AnalysisComparison({ responses, metaReview }) {
   if (!responses || responses.length === 0) {
     return null;
   }
@@ -39,13 +40,90 @@ export default function AnalysisComparison({ responses }) {
 
   return (
     <div className="mt-6 p-6 bg-civic-dark-800/50 backdrop-blur-sm border border-civic-dark-600 rounded-2xl shadow-lg animate-fade-in">
-      <div className="flex items-center space-x-2 mb-6">
-        <svg className="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-        </svg>
-        <h3 className="text-lg font-semibold text-gray-100">Analysjämförelse</h3>
-        <span className="text-xs text-gray-500 ml-2">({analyzedResponses.length} AI-tjänster)</span>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-2">
+          <svg className="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+          <h3 className="text-lg font-semibold text-gray-100">Analysjämförelse</h3>
+          <span className="text-xs text-gray-500 ml-2">({analyzedResponses.length} AI-tjänster)</span>
+        </div>
+        <div className="flex items-center space-x-2 text-xs text-gray-400">
+          <span className="flex items-center space-x-1">
+            <span>🧠</span>
+            <span>spaCy-NLP</span>
+          </span>
+          <span>•</span>
+          <span className="flex items-center space-x-1">
+            <span>💭</span>
+            <span>TextBlob-Sentiment</span>
+          </span>
+          <span>•</span>
+          <span className="flex items-center space-x-1">
+            <span>🤖</span>
+            <span>GPT-3.5 Metagranskare</span>
+          </span>
+        </div>
       </div>
+
+      {/* GPT-3.5 Meta-Review Section */}
+      {metaReview && metaReview.available && (
+        <div className="mb-6 p-4 bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-500/30 rounded-xl">
+          <div className="flex items-start space-x-3">
+            <div className="text-2xl">🤖</div>
+            <div className="flex-1">
+              <h4 className="text-sm font-semibold text-purple-300 mb-2 flex items-center space-x-2">
+                <span>GPT-3.5 Meta-granskning</span>
+                {metaReview.consistency && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-200">
+                    Konsistens: {metaReview.consistency}/10
+                  </span>
+                )}
+                {metaReview.overallQuality && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-200">
+                    Kvalitet: {metaReview.overallQuality}/10
+                  </span>
+                )}
+              </h4>
+              
+              {metaReview.metaSummary && (
+                <p className="text-sm text-gray-300 mb-3">{metaReview.metaSummary}</p>
+              )}
+              
+              {metaReview.recommendedAgent && (
+                <div className="text-xs text-green-300 mb-2">
+                  <span className="font-medium">Rekommenderat svar:</span> {metaReview.recommendedAgent}
+                  {metaReview.recommendationReason && (
+                    <span className="text-gray-400"> - {metaReview.recommendationReason}</span>
+                  )}
+                </div>
+              )}
+              
+              {metaReview.warnings && metaReview.warnings.length > 0 && (
+                <div className="mt-2 text-xs">
+                  <span className="text-orange-300 font-medium">⚠️ Varningar:</span>
+                  <ul className="list-disc list-inside text-gray-400 ml-4 mt-1">
+                    {metaReview.warnings.map((warning, i) => (
+                      <li key={i}>{warning}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {metaReview.biasPatterns && metaReview.biasPatterns.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <span className="text-xs text-gray-400">Bias-mönster:</span>
+                  {metaReview.biasPatterns.map((pattern, i) => (
+                    <span key={i} className="text-xs px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-300">
+                      {pattern}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Timeline List View */}
       <div className="space-y-3">
@@ -165,6 +243,55 @@ export default function AnalysisComparison({ responses }) {
                     </div>
                   )}
                 </div>
+
+                {/* Meta-Analysis (spaCy NLP + TextBlob Sentiment) */}
+                {resp.metaAnalysis && (
+                  <div className="mt-3 pt-3 border-t border-civic-dark-600">
+                    <div className="text-xs font-medium text-cyan-300 mb-2 flex items-center space-x-1">
+                      <span>🧠</span>
+                      <span>Avancerad analys (NLP + Sentiment)</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {resp.metaAnalysis.nlp && (
+                        <div className="space-y-1">
+                          <div className="text-gray-400">
+                            📝 {resp.metaAnalysis.nlp.sentences} meningar, {resp.metaAnalysis.nlp.words} ord
+                          </div>
+                          {resp.metaAnalysis.nlp.entities && (
+                            <div className="text-gray-500">
+                              {resp.metaAnalysis.nlp.entities.people.length > 0 && (
+                                <span>👤 {resp.metaAnalysis.nlp.entities.people.length} personer</span>
+                              )}
+                              {resp.metaAnalysis.nlp.entities.organizations.length > 0 && (
+                                <span className="ml-2">🏢 {resp.metaAnalysis.nlp.entities.organizations.length} org</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {resp.metaAnalysis.sentiment && (
+                        <div className="space-y-1">
+                          <div className={`font-medium ${
+                            resp.metaAnalysis.sentiment.sentiment === 'positive' ? 'text-green-400' :
+                            resp.metaAnalysis.sentiment.sentiment === 'negative' ? 'text-red-400' :
+                            'text-gray-400'
+                          }`}>
+                            💭 Sentiment: {
+                              resp.metaAnalysis.sentiment.sentiment === 'positive' ? 'Positiv' :
+                              resp.metaAnalysis.sentiment.sentiment === 'negative' ? 'Negativ' :
+                              'Neutral'
+                            }
+                          </div>
+                          <div className="text-gray-500">
+                            Polaritet: {Math.round(resp.metaAnalysis.sentiment.polarity * 100) / 100} 
+                            {' • '}
+                            Subjektivitet: {Math.round(resp.metaAnalysis.sentiment.subjectivity * 100)}%
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Sentiment tags (if available) */}
                 {resp.analysis?.tone?.attributes && resp.analysis.tone.attributes.length > 0 && (
