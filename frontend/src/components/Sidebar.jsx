@@ -110,7 +110,11 @@ export default function Sidebar({
                     <div className="truncate">{conv.title || 'Untitled conversation'}</div>
                     {conv.timestamp && (
                       <div className="text-xs text-gray-600 mt-0.5">
-                        {new Date(conv.timestamp).toLocaleDateString('sv-SE')}
+                        {
+                          !isNaN(new Date(conv.timestamp).getTime())
+                            ? new Date(conv.timestamp).toLocaleDateString('sv-SE')
+                            : 'Invalid date'
+                        }
                       </div>
                     )}
                   </button>
