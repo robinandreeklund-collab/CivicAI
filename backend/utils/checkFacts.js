@@ -7,7 +7,12 @@
 /**
  * Check for factual claims in text that should be verified
  * @param {string} text - The response text to analyze
- * @returns {Object} Fact checking results
+ * @returns {{claimsFound: number, verifiableClaims: Array<Object>, recommendVerification: boolean, summary: string}} 
+ *   An object containing:
+ *     - claimsFound: Number of unique claims found in the text.
+ *     - verifiableClaims: Array of claim objects ({type, description, claim, context}).
+ *     - recommendVerification: Whether verification is recommended (boolean).
+ *     - summary: A summary string of the fact checking results.
  */
 export function checkFacts(text) {
   if (!text || typeof text !== 'string') {
