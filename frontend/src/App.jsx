@@ -254,7 +254,7 @@ function App() {
                     <button
                       key={index}
                       onClick={() => setQuestion(suggestion)}
-                      className="relative px-4 py-2 text-sm rounded-full bg-civic-dark-700/50 hover:bg-civic-dark-600 text-gray-400 hover:text-gray-200 transition-all duration-300 hover:scale-105 border-2 border-civic-dark-600 hover:border-blue-500/50 group overflow-hidden"
+                      className="relative px-4 py-2 text-sm rounded-full bg-civic-dark-700/50 hover:bg-civic-dark-600 text-gray-200 hover:text-gray-100 transition-all duration-300 hover:scale-105 border-2 border-civic-dark-600 hover:border-blue-500/50 group overflow-hidden"
                     >
                       {/* Pulsating border effect */}
                       <div className="absolute inset-0 rounded-full pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
