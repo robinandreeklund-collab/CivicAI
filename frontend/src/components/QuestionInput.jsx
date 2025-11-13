@@ -1,72 +1,65 @@
 import { useState } from 'react';
 
 /**
- * QuestionInput Component
- * GitHub-inspired design with stunning submit animations
+ * QuestionInput Component - GitHub Comment Box Style
  * 
- * Features:
- * - GitHub-style textarea with rounded corners and shadows
- * - Shrink animation from top-to-bottom on submit
- * - Arrow icon pops out and flies away
- * - Smooth fade-out transition to loader
+ * Design mimics GitHub's "submitting will post a pull request comment" textarea
+ * with a small gray arrow icon in the bottom-right corner.
+ * 
+ * Animation flow:
+ * 1. Question text slides down to wheelbarrow area
+ * 2. Grayscale wheelbarrow man delivers question to arrow
+ * 3. Arrow fills from gray to white as it loads the question
+ * 4. Arrow flies away with smooth animation → transition to loader
  */
 export default function QuestionInput({ onSubmit, isLoading }) {
   const [question, setQuestion] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showArrowFlyaway, setShowArrowFlyaway] = useState(false);
+  const [animationPhase, setAnimationPhase] = useState('idle'); // idle, textDown, wheelbarrow, arrowFill, flyaway
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (question.trim() && !isSubmitting) {
-      // Trigger animations
-      setIsSubmitting(true);
-      setShowArrowFlyaway(true);
-      
-      // Wait for shrink animation to complete before calling onSubmit
-      setTimeout(async () => {
-        await onSubmit(question);
-        // Reset states after submission completes
-        setTimeout(() => {
-          setIsSubmitting(false);
-          setShowArrowFlyaway(false);
-        }, 500);
-      }, 600); // Match animation duration
-    }
+    if (!question.trim() || isSubmitting || isLoading) return;
+    
+    setIsSubmitting(true);
+    
+    // Phase 1: Text slides down (400ms)
+    setAnimationPhase('textDown');
+    await new Promise(resolve => setTimeout(resolve, 400));
+    
+    // Phase 2: Wheelbarrow man moves to arrow (1000ms)
+    setAnimationPhase('wheelbarrow');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Phase 3: Arrow fills from gray to white (500ms)
+    setAnimationPhase('arrowFill');
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Phase 4: Arrow flies away (800ms)
+    setAnimationPhase('flyaway');
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // Submit the question
+    await onSubmit(question);
+    
+    // Reset
+    setQuestion('');
+    setAnimationPhase('idle');
+    setIsSubmitting(false);
   };
 
   return (
-    <div className={`
-      w-full max-w-4xl mx-auto mb-12
-      ${!isSubmitting ? 'animate-fade-in-up' : ''}
-      ${isSubmitting ? 'animate-fade-out' : ''}
-    `}>
+    <div className="w-full max-w-4xl mx-auto mb-12">
       <form onSubmit={handleSubmit} className="relative">
-        {/* GitHub-inspired container with shrink animation */}
+        {/* Main input area - fades out during animation */}
         <div className={`
-          relative
-          transition-all duration-600 ease-in-out origin-top
-          ${isSubmitting ? 'scale-y-0 opacity-0' : 'scale-y-100 opacity-100'}
+          transition-opacity duration-300
+          ${animationPhase !== 'idle' ? 'opacity-0 pointer-events-none' : 'opacity-100'}
         `}>
-          {/* Floating label */}
-          <label 
-            htmlFor="question" 
-            className={`
-              block font-medium mb-3 transition-all duration-300
-              ${isFocused ? 'text-blue-400' : 'text-gray-400'}
-              ${isSubmitting ? 'opacity-0' : 'opacity-100'}
-            `}
-          >
-            <span className="inline-flex items-center space-x-2 text-sm">
-              <span className="text-xl">💭</span>
-              <span>Ställ din fråga till AI-modellerna</span>
-            </span>
-          </label>
-          
-          {/* GitHub-style textarea container */}
-          <div className="relative group">
+          {/* GitHub-style textarea */}
+          <div className="relative">
             <textarea
-              id="question"
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               onFocus={() => setIsFocused(true)}
@@ -82,101 +75,110 @@ export default function QuestionInput({ onSubmit, isLoading }) {
                 w-full min-h-[120px] max-h-[300px] resize-y
                 px-4 py-3
                 bg-civic-dark-800 text-gray-200
-                border-2 rounded-lg
-                transition-all duration-300
+                border-2 rounded-md
+                transition-all duration-200
                 focus:outline-none
                 placeholder-gray-500
                 ${isFocused 
-                  ? 'border-blue-500 shadow-lg shadow-blue-500/20' 
+                  ? 'border-blue-500 shadow-[0_0_0_3px_rgba(59,130,246,0.15)]' 
                   : 'border-civic-dark-600 hover:border-civic-dark-500'
                 }
-                ${isSubmitting ? 'pointer-events-none' : ''}
               `}
               style={{
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif',
                 fontSize: '14px',
                 lineHeight: '1.5'
               }}
               disabled={isLoading || isSubmitting}
             />
-            
-            {/* Subtle glow effect on focus (GitHub-style) */}
-            {isFocused && !isSubmitting && (
-              <div className="absolute inset-0 -z-10 bg-blue-500/5 blur-xl rounded-lg"></div>
-            )}
-            
-            {/* Bottom toolbar (GitHub-style) */}
-            <div className={`
-              flex items-center justify-between
-              px-3 py-2
-              bg-civic-dark-750 border-t-2 border-civic-dark-600
-              rounded-b-lg
-              transition-all duration-300
-              ${isSubmitting ? 'opacity-0' : 'opacity-100'}
-            `}>
-              <div className="flex items-center space-x-3 text-xs text-gray-500">
-                <span className="inline-flex items-center space-x-1">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>{question.length} tecken</span>
-                </span>
-              </div>
-              
-              {/* Submit arrow button (GitHub-style) - pops out on submit */}
-              <button
-                type="submit"
-                disabled={isLoading || !question.trim() || isSubmitting}
-                className={`
-                  relative
-                  px-3 py-1.5 rounded-md
-                  bg-blue-600 hover:bg-blue-500
-                  text-white text-sm font-medium
-                  transition-all duration-300
-                  disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600
-                  ${!question.trim() ? 'scale-90 opacity-50' : 'scale-100 opacity-100'}
-                  hover:scale-105 hover:shadow-lg hover:shadow-blue-500/30
-                `}
-                title="Skicka fråga (Enter)"
-              >
-                <span className="inline-flex items-center space-x-1.5">
-                  <span>Skicka</span>
-                  <svg 
-                    className={`
-                      w-4 h-4 transition-transform duration-300
-                      ${isFocused && question.trim() ? 'translate-x-0.5' : ''}
-                    `} 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </span>
-              </button>
+          </div>
+          
+          {/* Bottom area - GitHub style "submitting will post..." text + arrow icon */}
+          <div className="flex items-center justify-between mt-2 px-2">
+            {/* Left side text (like GitHub) */}
+            <div className="text-xs text-gray-600 italic">
+              Tryckning på Enter kommer att skicka frågan till AI-modellerna
             </div>
+            
+            {/* Right side: Small gray arrow icon (no text, no button styling) */}
+            <button
+              type="submit"
+              disabled={isLoading || !question.trim() || isSubmitting}
+              className={`
+                p-2 rounded-md
+                transition-all duration-200
+                ${question.trim() && !isLoading && !isSubmitting
+                  ? 'text-gray-500 hover:text-white hover:bg-civic-dark-700' 
+                  : 'text-gray-700 cursor-not-allowed'
+                }
+              `}
+              title="Skicka fråga (Enter)"
+              aria-label="Skicka fråga"
+            >
+              {/* Simple arrow/send icon */}
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            </button>
           </div>
         </div>
 
-        {/* Flying arrow animation (pops out when submitting) */}
-        {showArrowFlyaway && (
-          <div className="absolute bottom-2 right-4 animate-arrow-flyaway pointer-events-none z-50">
-            <div className="text-blue-400 animate-ping-once">
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-              </svg>
-            </div>
+        {/* Animation area - shown during submission */}
+        {animationPhase !== 'idle' && (
+          <div className="relative h-40 overflow-visible">
+            {/* Phase 1: Question text slides down */}
+            {animationPhase === 'textDown' && (
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 animate-slide-down">
+                <div className="bg-blue-600/20 text-blue-200 text-sm px-4 py-2 rounded-md whitespace-nowrap max-w-md overflow-hidden text-ellipsis shadow-lg">
+                  {question.substring(0, 50)}{question.length > 50 ? '...' : ''}
+                </div>
+              </div>
+            )}
+            
+            {/* Phase 2 & 3: Wheelbarrow man delivers question to arrow (grayscale) */}
+            {(animationPhase === 'wheelbarrow' || animationPhase === 'arrowFill') && (
+              <div className="absolute bottom-12 left-0 animate-wheelbarrow-move">
+                <div className="flex items-center space-x-2">
+                  {/* Grayscale man with wheelbarrow */}
+                  <span className="text-4xl grayscale opacity-60">🚶</span>
+                  <span className="text-3xl grayscale opacity-60">��</span>
+                  <div className="bg-blue-600/30 text-blue-300 text-xs px-2 py-1 rounded shadow">
+                    ��
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Phase 3 & 4: Arrow - fills from gray to white, then flies away */}
+            {(animationPhase === 'wheelbarrow' || animationPhase === 'arrowFill' || animationPhase === 'flyaway') && (
+              <div className={`
+                absolute bottom-4 right-12
+                transition-all duration-500
+                ${animationPhase === 'flyaway' ? 'animate-arrow-flyaway' : ''}
+              `}>
+                <svg 
+                  className={`
+                    w-10 h-10 transition-all duration-500
+                    ${animationPhase === 'arrowFill' || animationPhase === 'flyaway' 
+                      ? 'text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.9)]' 
+                      : 'text-gray-600'
+                    }
+                  `} 
+                  fill={animationPhase === 'arrowFill' || animationPhase === 'flyaway' ? 'currentColor' : 'none'}
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                  strokeWidth={animationPhase === 'arrowFill' || animationPhase === 'flyaway' ? 0 : 2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Thin line effect after shrink */}
-        {isSubmitting && (
-          <div className="h-0.5 w-full bg-gradient-to-r from-transparent via-blue-500 to-transparent animate-pulse"></div>
-        )}
-
-        {/* Quick suggestions (GitHub-style pills) */}
+        {/* Quick suggestions - NO character counter */}
         {!isLoading && !isSubmitting && question.length === 0 && (
-          <div className="flex flex-wrap gap-2 mt-4 animate-fade-in">
+          <div className="flex flex-wrap gap-2 mt-6">
             {['Demokrati och samhälle', 'Hållbar utveckling', 'AI och etik'].map((suggestion, index) => (
               <button
                 key={index}
@@ -187,7 +189,7 @@ export default function QuestionInput({ onSubmit, isLoading }) {
                   bg-civic-dark-700 hover:bg-civic-dark-600
                   text-gray-400 hover:text-gray-200
                   border border-civic-dark-600 hover:border-blue-500/40
-                  transition-all duration-300 hover:scale-105
+                  transition-all duration-200 hover:scale-105
                 "
               >
                 {suggestion}
