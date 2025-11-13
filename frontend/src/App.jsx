@@ -87,50 +87,67 @@ function App() {
   };
 
   const handleExportConversations = (format) => {
-    const aiMessages = messages.filter(m => m.type === 'ai');
-    if (aiMessages.length === 0) return;
-
-    const exportData = {
-      conversations: aiMessages.map(msg => ({
-        question: msg.question,
-        timestamp: msg.timestamp,
-        responses: msg.responses.map(({ agent, response, metadata }) => ({
-          agent: agent,
-          model: metadata?.model || agent,
-          response: response,
-          timestamp: metadata?.timestamp || new Date().toISOString(),
-        })),
-      })),
-      metadata: {
-        exported_at: new Date().toISOString(),
-        version: '0.1.0',
-        tool: 'CivicAI',
-        total_conversations: aiMessages.length,
+    // Only include AI messages with a valid responses array
+    const aiMessages = messages.filter(
+      m => m.type === 'ai' && Array.isArray(m.responses) && m.responses.length > 0
+    );
+    if (aiMessages.length === 0) {
+      // Show user-friendly error instead of just returning
+      if (typeof setError === 'function') {
+        setError('Inga AI-svar att exportera');
       }
-    };
+      return;
+    }
+    try {
+      const exportData = {
+        conversations: aiMessages.map(msg => ({
+          question: msg.question || '',
+          timestamp: msg.timestamp || new Date().toISOString(),
+          responses: Array.isArray(msg.responses)
+            ? msg.responses.map(({ agent, response, metadata }) => ({
+                agent: agent || 'unknown',
+                model: metadata?.model || agent || 'unknown',
+                response: response || '',
+                timestamp: metadata?.timestamp || new Date().toISOString(),
+              }))
+            : [],
+        })),
+        metadata: {
+          exported_at: new Date().toISOString(),
+          version: '0.1.0',
+          tool: 'CivicAI',
+          total_conversations: aiMessages.length,
+        }
+      };
 
-    if (format === 'yaml') {
-      const yamlContent = yaml.dump(exportData, { indent: 2, lineWidth: -1 });
-      const blob = new Blob([yamlContent], { type: 'text/yaml' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `civicai-chat-${Date.now()}.yaml`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    } else if (format === 'json') {
-      const jsonContent = JSON.stringify(exportData, null, 2);
-      const blob = new Blob([jsonContent], { type: 'application/json' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `civicai-chat-${Date.now()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      if (format === 'yaml') {
+        const yamlContent = yaml.dump(exportData, { indent: 2, lineWidth: -1 });
+        const blob = new Blob([yamlContent], { type: 'text/yaml' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `civicai-chat-${Date.now()}.yaml`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      } else if (format === 'json') {
+        const jsonContent = JSON.stringify(exportData, null, 2);
+        const blob = new Blob([jsonContent], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `civicai-chat-${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error('Export failed:', error);
+      if (typeof setError === 'function') {
+        setError('Export misslyckades');
+      }
     }
   };
 
