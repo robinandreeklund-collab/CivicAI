@@ -35,7 +35,7 @@ const testResponses = [
 ];
 
 console.log('🧪 Testing Fact-Checking Module\n');
-console.log('=' .repeat(80));
+console.log('='.repeat(80));
 
 // Test 1: Single fact-check
 console.log('\n📝 Test 1: Single Fact-Check');
