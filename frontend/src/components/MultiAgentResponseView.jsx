@@ -9,7 +9,6 @@ import AgentBubble from './AgentBubble';
 export default function MultiAgentResponseView({ responses, question }) {
   const [viewMode, setViewMode] = useState('tabs'); // 'tabs' or 'grid'
   const [activeTab, setActiveTab] = useState(0);
-  const [compareMode, setCompareMode] = useState(false);
   const [selectedForCompare, setSelectedForCompare] = useState([]);
 
   if (!responses || responses.length === 0) {
