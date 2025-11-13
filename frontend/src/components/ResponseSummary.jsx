@@ -266,7 +266,7 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
                   )}
                   {factCheckComparison.confidenceDistribution.low > 0 && (
                     <div className="flex items-center space-x-2">
-                      <div className="w-20 text-xs text-gray-400">Låg (&lt;33%)</div>
+                      <div className="w-20 text-xs text-gray-400">Låg (<33%)</div>
                       <div className="flex-1 h-4 bg-civic-dark-700 rounded-full overflow-hidden">
                         <div 
                           className="h-full bg-red-500"
