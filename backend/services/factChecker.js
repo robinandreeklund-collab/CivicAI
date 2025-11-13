@@ -350,7 +350,7 @@ export async function performFactCheck(responseText, agentName) {
           sources: searchResults.sources.map(s => ({
             title: s.title,
             url: s.url,
-            snippet: s.snippet.substring(0, 200),
+            snippet: truncateAtSentenceBoundary(s.snippet, 200),
             score: s.score, // Relevance score from Tavily
           })),
           sourceCount: searchResults.sources.length,
