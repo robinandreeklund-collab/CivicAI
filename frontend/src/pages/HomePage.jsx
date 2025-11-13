@@ -103,6 +103,7 @@ export default function HomePage({ onAiMessageUpdate }) {
         responses: data.responses || [],
         synthesizedSummary: data.synthesizedSummary || null,
         metaReview: data.metaReview || null,
+        factCheckComparison: data.factCheckComparison || null,
         timestamp: new Date().toISOString(),
       };
       
