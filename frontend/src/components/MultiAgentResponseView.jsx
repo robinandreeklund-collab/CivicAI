@@ -34,13 +34,6 @@ export default function MultiAgentResponseView({ responses, question }) {
     return agentThemes[agentId] || { icon: '🤖', color: 'gray', gradient: 'from-gray-500 to-gray-600' };
   };
 
-  const toggleCompareSelection = (index) => {
-    if (selectedForCompare.includes(index)) {
-      setSelectedForCompare(selectedForCompare.filter(i => i !== index));
-    } else if (selectedForCompare.length < 3) {
-      setSelectedForCompare([...selectedForCompare, index]);
-    }
-  };
 
   // Tabbed View
   const TabsView = () => (
