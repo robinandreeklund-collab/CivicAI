@@ -1,6 +1,7 @@
 /**
  * AnalysisComparison Component
- * Visual comparison of analysis across all AI responses
+ * Timeline-based visual comparison of analysis across all AI responses
+ * Clean, modern list view with timestamps
  */
 export default function AnalysisComparison({ responses }) {
   if (!responses || responses.length === 0) {
@@ -14,6 +15,28 @@ export default function AnalysisComparison({ responses }) {
     return null;
   }
 
+  // Agent theme mapping
+  const agentThemes = {
+    'gpt-3.5': { icon: '🤖', color: '#3b82f6', name: 'GPT-3.5' },
+    'gemini': { icon: '✨', color: '#a855f7', name: 'Gemini' },
+    'deepseek': { icon: '🧠', color: '#06b6d4', name: 'DeepSeek' },
+    'claude': { icon: '🎭', color: '#f97316', name: 'Claude' },
+    'llama': { icon: '🦙', color: '#22c55e', name: 'Llama' },
+    'mistral': { icon: '🌪️', color: '#6366f1', name: 'Mistral' },
+    'palm': { icon: '🌴', color: '#10b981', name: 'PaLM' },
+    'cohere': { icon: '🔮', color: '#ec4899', name: 'Cohere' },
+    'anthropic': { icon: '🔬', color: '#14b8a6', name: 'Anthropic' },
+    'openai': { icon: '⚡', color: '#eab308', name: 'OpenAI' },
+  };
+
+  const getAgentTheme = (agentId) => {
+    return agentThemes[agentId] || { icon: '🤖', color: '#6b7280', name: agentId };
+  };
+
+  const getTimestamp = () => {
+    return new Date().toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
     <div className="mt-6 p-6 bg-civic-dark-800/50 backdrop-blur-sm border border-civic-dark-600 rounded-2xl shadow-lg animate-fade-in">
       <div className="flex items-center space-x-2 mb-6">
@@ -21,108 +44,162 @@ export default function AnalysisComparison({ responses }) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
         </svg>
         <h3 className="text-lg font-semibold text-gray-100">Analysjämförelse</h3>
+        <span className="text-xs text-gray-500 ml-2">({analyzedResponses.length} AI-tjänster)</span>
       </div>
 
-      <div className="space-y-6">
-        {/* Tone Comparison */}
-        <div>
-          <h4 className="text-sm font-semibold text-gray-300 mb-3 flex items-center space-x-2">
-            <span>💬</span>
-            <span>Ton och stil</span>
-          </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {analyzedResponses.map((resp, idx) => (
-              <div
-                key={idx}
-                className="p-3 bg-civic-dark-700/30 rounded-lg border border-civic-dark-600"
+      {/* Timeline List View */}
+      <div className="space-y-3">
+        {analyzedResponses.map((resp, idx) => {
+          const theme = getAgentTheme(resp.agent);
+          const timestamp = getTimestamp();
+          
+          return (
+            <div
+              key={idx}
+              className="relative pl-12 pb-6 last:pb-0 group"
+            >
+              {/* Timeline connector line */}
+              {idx < analyzedResponses.length - 1 && (
+                <div 
+                  className="absolute left-6 top-12 bottom-0 w-0.5 bg-gradient-to-b from-civic-dark-600 to-transparent"
+                  style={{ 
+                    backgroundImage: `linear-gradient(to bottom, ${theme.color}40, transparent)` 
+                  }}
+                />
+              )}
+              
+              {/* Timeline dot/stamp */}
+              <div 
+                className="absolute left-0 top-0 w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-lg transition-transform group-hover:scale-110"
+                style={{ 
+                  backgroundColor: `${theme.color}20`,
+                  border: `2px solid ${theme.color}60`
+                }}
               >
-                <div className="text-xs font-medium text-gray-400 mb-2">
-                  {resp.agent === 'gpt-3.5' ? '🤖 GPT-3.5' : '✨ Gemini'}
-                </div>
-                {resp.analysis?.tone && (
-                  <div className="space-y-1">
-                    <div className="text-sm text-gray-200">
-                      {resp.analysis.tone.description}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      Konfidens: {Math.round(resp.analysis.tone.confidence * 100)}%
+                {theme.icon}
+              </div>
+
+              {/* Content card */}
+              <div 
+                className="bg-civic-dark-700/30 rounded-xl border border-civic-dark-600 p-4 hover:border-civic-dark-500 transition-all group-hover:shadow-lg"
+                style={{
+                  borderLeftColor: theme.color,
+                  borderLeftWidth: '3px'
+                }}
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <h4 className="text-base font-semibold text-gray-200 flex items-center space-x-2">
+                      <span>{theme.name}</span>
+                      {resp.analysis?.confidence && (
+                        <span 
+                          className="text-xs font-medium px-2 py-0.5 rounded"
+                          style={{ 
+                            backgroundColor: `${theme.color}20`,
+                            color: theme.color
+                          }}
+                        >
+                          {Math.round(resp.analysis.confidence * 100)}%
+                        </span>
+                      )}
+                    </h4>
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      {resp.metadata?.model || resp.agent} • {timestamp}
                     </div>
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Bias Comparison */}
-        <div>
-          <h4 className="text-sm font-semibold text-gray-300 mb-3 flex items-center space-x-2">
-            <span>⚖️</span>
-            <span>Bias-detektion</span>
-          </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {analyzedResponses.map((resp, idx) => (
-              <div
-                key={idx}
-                className="p-3 bg-civic-dark-700/30 rounded-lg border border-civic-dark-600"
-              >
-                <div className="text-xs font-medium text-gray-400 mb-2">
-                  {resp.agent === 'gpt-3.5' ? '🤖 GPT-3.5' : '✨ Gemini'}
                 </div>
-                {resp.analysis?.bias && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-200">Bias-poäng:</span>
-                      <span className={`text-sm font-semibold ${
-                        resp.analysis.bias.biasScore > 5 ? 'text-red-400' :
-                        resp.analysis.bias.biasScore > 2 ? 'text-yellow-400' :
-                        'text-green-400'
-                      }`}>
-                        {resp.analysis.bias.biasScore}/10
+
+                {/* Analysis details in compact grid */}
+                <div className="grid grid-cols-3 gap-3 mt-3">
+                  {/* Tone */}
+                  {resp.analysis?.tone && (
+                    <div className="space-y-1">
+                      <div className="text-xs font-medium text-gray-400 flex items-center space-x-1">
+                        <span>💬</span>
+                        <span>Ton</span>
+                      </div>
+                      <div className="text-sm text-gray-200">
+                        {resp.analysis.tone.description}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Bias */}
+                  {resp.analysis?.bias && (
+                    <div className="space-y-1">
+                      <div className="text-xs font-medium text-gray-400 flex items-center space-x-1">
+                        <span>⚖️</span>
+                        <span>Bias</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className={`text-sm font-semibold ${
+                          resp.analysis.bias.biasScore > 5 ? 'text-red-400' :
+                          resp.analysis.bias.biasScore > 2 ? 'text-yellow-400' :
+                          'text-green-400'
+                        }`}>
+                          {resp.analysis.bias.biasScore}/10
+                        </span>
+                        {resp.analysis.bias.detectedBiases.length > 0 && (
+                          <span className="text-xs text-gray-500">
+                            ({resp.analysis.bias.detectedBiases.length})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fact Check */}
+                  {resp.analysis?.factCheck && (
+                    <div className="space-y-1">
+                      <div className="text-xs font-medium text-gray-400 flex items-center space-x-1">
+                        <span>🔍</span>
+                        <span>Fakta</span>
+                      </div>
+                      <div className="text-sm text-gray-200">
+                        {resp.analysis.factCheck.claimsFound} påståenden
+                        {resp.analysis.factCheck.recommendVerification && (
+                          <span className="text-xs text-orange-400 ml-1">⚠️</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Sentiment tags (if available) */}
+                {resp.analysis?.tone?.attributes && resp.analysis.tone.attributes.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-civic-dark-600">
+                    {resp.analysis.tone.attributes.map((attr, i) => (
+                      <span
+                        key={i}
+                        className="text-xs px-2 py-0.5 rounded-full bg-civic-dark-600/50 text-gray-400"
+                      >
+                        {attr}
                       </span>
-                    </div>
-                    {resp.analysis.bias.detectedBiases.length > 0 && (
-                      <div className="text-xs text-gray-400">
-                        {resp.analysis.bias.detectedBiases.length} bias{resp.analysis.bias.detectedBiases.length > 1 ? 'er' : ''} identifierad{resp.analysis.bias.detectedBiases.length > 1 ? 'e' : ''}
-                      </div>
-                    )}
+                    ))}
                   </div>
                 )}
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
+          );
+        })}
+      </div>
 
-        {/* Fact Check Comparison */}
-        <div>
-          <h4 className="text-sm font-semibold text-gray-300 mb-3 flex items-center space-x-2">
-            <span>🔍</span>
-            <span>Faktakontroll</span>
-          </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {analyzedResponses.map((resp, idx) => (
-              <div
-                key={idx}
-                className="p-3 bg-civic-dark-700/30 rounded-lg border border-civic-dark-600"
-              >
-                <div className="text-xs font-medium text-gray-400 mb-2">
-                  {resp.agent === 'gpt-3.5' ? '🤖 GPT-3.5' : '✨ Gemini'}
-                </div>
-                {resp.analysis?.factCheck && (
-                  <div className="space-y-1">
-                    <div className="text-sm text-gray-200">
-                      {resp.analysis.factCheck.claimsFound} verifierbar{resp.analysis.factCheck.claimsFound !== 1 ? 'a' : 't'} påstående{resp.analysis.factCheck.claimsFound !== 1 ? 'n' : ''}
-                    </div>
-                    {resp.analysis.factCheck.recommendVerification && (
-                      <div className="text-xs text-orange-400">
-                        ⚠️ Rekommenderar verifiering
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
+      {/* Summary footer */}
+      <div className="mt-6 pt-4 border-t border-civic-dark-600">
+        <div className="flex items-center justify-between text-xs text-gray-500">
+          <div className="flex items-center space-x-4">
+            <span>
+              Totalt analyserat: <span className="text-gray-400 font-medium">{analyzedResponses.length} svar</span>
+            </span>
+            <span>•</span>
+            <span>
+              Genomsnittlig konfidens: <span className="text-gray-400 font-medium">
+                {Math.round(analyzedResponses.reduce((acc, r) => acc + (r.analysis?.confidence || 0), 0) / analyzedResponses.length * 100)}%
+              </span>
+            </span>
           </div>
+          <span className="text-cyan-400">Tidslinje</span>
         </div>
       </div>
     </div>
