@@ -85,9 +85,19 @@ export function analyzeTone(text) {
     }
   }
 
-  // Calculate confidence based on word count
+  // Calculate confidence based on word count and score distribution
   const wordCount = text.split(/\s+/).length;
-  const confidence = Math.min(maxScore / Math.max(wordCount / 100, 1), 1);
+  const totalScores = Object.values(toneIndicators).reduce((sum, data) => sum + data.score, 0);
+  
+  // Base confidence on the ratio of max score to total scores (shows dominance)
+  const scoreRatio = totalScores > 0 ? maxScore / totalScores : 0;
+  
+  // Adjust for text length (longer texts give more confidence)
+  const lengthFactor = Math.min(wordCount / 200, 1); // Max confidence at 200 words
+  
+  // Calculate final confidence (0.5 to 0.95 range for realism)
+  const rawConfidence = scoreRatio * lengthFactor;
+  const confidence = Math.max(0.5, Math.min(0.95, 0.5 + (rawConfidence * 0.45)));
 
   return {
     primary: primaryTone,
