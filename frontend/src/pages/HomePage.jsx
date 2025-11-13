@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import ProcessingLoader from '../components/ProcessingLoader';
 import AIServiceToggle from '../components/AIServiceToggle';
-import MultiAgentResponseView from '../components/MultiAgentResponseView';
+import CleanResponseCarousel from '../components/CleanResponseCarousel';
 import AnalysisComparison from '../components/AnalysisComparison';
 import ResponseSummary from '../components/ResponseSummary';
 import BattlePanel from '../components/BattlePanel';
@@ -171,8 +171,8 @@ export default function HomePage() {
               
               {message.type === 'ai' && (
                 <div className="space-y-4">
-                  {/* Multi-Agent Response View - Modern tabbed/grid interface */}
-                  <MultiAgentResponseView
+                  {/* Clean Response Carousel - Minimal, elegant interface */}
+                  <CleanResponseCarousel
                     responses={message.responses}
                     question={message.question}
                   />
