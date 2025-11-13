@@ -3,7 +3,7 @@
  * Tests the new compareFactChecks function with all metadata
  */
 
-import { performFactCheck, batchFactCheck, compareFactChecks } from './services/factChecker.js';
+import { batchFactCheck, compareFactChecks } from './services/factChecker.js';
 
 console.log('🧪 Testing Enhanced Fact-Checking Module\n');
 console.log('='.repeat(80));
