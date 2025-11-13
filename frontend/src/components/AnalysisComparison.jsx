@@ -218,10 +218,6 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
                   animationDelay: `${idx * 100 + 150}ms`
                 }}
               >
-                  borderLeftColor: theme.color,
-                  borderLeftWidth: '3px'
-                }}
-              >
                 {/* Header */}
                 <div className="flex items-start justify-between mb-3">
                   <div>
