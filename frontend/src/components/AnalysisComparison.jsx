@@ -1,10 +1,10 @@
 /**
  * AnalysisComparison Component
  * Timeline-based visual comparison of analysis across all AI responses
- * Includes spaCy-like NLP, TextBlob-like sentiment, and GPT-3.5 meta-review
+ * Includes spaCy-like NLP, TextBlob-like sentiment, GPT-3.5 meta-review, and Bing Search fact-checking
  * Clean, modern list view with timestamps
  */
-export default function AnalysisComparison({ responses, metaReview }) {
+export default function AnalysisComparison({ responses, metaReview, factCheckComparison }) {
   if (!responses || responses.length === 0) {
     return null;
   }
@@ -63,8 +63,54 @@ export default function AnalysisComparison({ responses, metaReview }) {
             <span>🤖</span>
             <span>GPT-3.5 Metagranskare</span>
           </span>
+          <span>•</span>
+          <span className="flex items-center space-x-1">
+            <span>🔍</span>
+            <span>Bing Search Faktakoll</span>
+          </span>
         </div>
       </div>
+
+      {/* Bing Search Fact-Check Comparison */}
+      {factCheckComparison && factCheckComparison.available && (
+        <div className="mb-6 p-4 bg-gradient-to-r from-blue-900/20 to-cyan-900/20 border border-blue-500/30 rounded-xl">
+          <div className="flex items-start space-x-3">
+            <div className="text-2xl">🔍</div>
+            <div className="flex-1">
+              <h4 className="text-sm font-semibold text-blue-300 mb-2 flex items-center space-x-2">
+                <span>Bing Search Faktakoll</span>
+                {factCheckComparison.bestAgent && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-200">
+                    Bäst: {factCheckComparison.bestAgent} ({factCheckComparison.bestScore}/10)
+                  </span>
+                )}
+                {factCheckComparison.averageScore && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-200">
+                    Snitt: {factCheckComparison.averageScore}/10
+                  </span>
+                )}
+              </h4>
+              
+              {factCheckComparison.summary && (
+                <p className="text-sm text-gray-300 mb-2">{factCheckComparison.summary}</p>
+              )}
+              
+              <div className="text-xs text-gray-400">
+                <span className="font-medium text-green-300">
+                  {factCheckComparison.totalVerified} av {factCheckComparison.totalClaims} påståenden verifierade
+                </span>
+                {' '}mot pålitliga webbkällor via Bing Search API
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!factCheckComparison?.available && factCheckComparison?.message && (
+        <div className="mb-6 p-3 bg-yellow-900/10 border border-yellow-500/20 rounded-lg text-xs text-yellow-300">
+          ⚠️ {factCheckComparison.message}
+        </div>
+      )}
 
       {/* GPT-3.5 Meta-Review Section */}
       {metaReview && metaReview.available && (
@@ -290,6 +336,74 @@ export default function AnalysisComparison({ responses, metaReview }) {
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {/* Bing Search Fact-Check Results */}
+                {resp.bingFactCheck && resp.bingFactCheck.available && (
+                  <div className="mt-3 pt-3 border-t border-civic-dark-600">
+                    <div className="text-xs font-medium text-blue-300 mb-2 flex items-center justify-between">
+                      <div className="flex items-center space-x-1">
+                        <span>🔍</span>
+                        <span>Bing Search Faktakoll</span>
+                      </div>
+                      {resp.bingFactCheck.overallScore !== null && (
+                        <span className={`px-2 py-0.5 rounded ${
+                          resp.bingFactCheck.overallScore >= 7 ? 'bg-green-500/20 text-green-300' :
+                          resp.bingFactCheck.overallScore >= 4 ? 'bg-yellow-500/20 text-yellow-300' :
+                          'bg-red-500/20 text-red-300'
+                        }`}>
+                          {resp.bingFactCheck.overallScore}/10
+                        </span>
+                      )}
+                    </div>
+                    
+                    {resp.bingFactCheck.summary && (
+                      <div className="text-xs text-gray-400 mb-2">{resp.bingFactCheck.summary}</div>
+                    )}
+                    
+                    {resp.bingFactCheck.claims && resp.bingFactCheck.claims.length > 0 && (
+                      <details className="mt-2">
+                        <summary className="text-xs text-blue-400 cursor-pointer hover:text-blue-300">
+                          Visa {resp.bingFactCheck.claims.length} verifierade påståenden
+                        </summary>
+                        <div className="mt-2 space-y-2 pl-2 border-l-2 border-blue-500/30">
+                          {resp.bingFactCheck.claims.map((claim, claimIdx) => (
+                            <div key={claimIdx} className="text-xs">
+                              <div className={`font-medium mb-1 ${
+                                claim.verified ? 'text-green-400' : 'text-orange-400'
+                              }`}>
+                                {claim.verified ? '✓' : '⚠️'} {claim.claim}
+                              </div>
+                              {claim.sources && claim.sources.length > 0 && (
+                                <div className="text-gray-500 space-y-1 ml-4">
+                                  {claim.sources.slice(0, 2).map((source, srcIdx) => (
+                                    <div key={srcIdx} className="truncate">
+                                      <a 
+                                        href={source.url} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="text-blue-400 hover:text-blue-300 underline"
+                                      >
+                                        {source.title}
+                                      </a>
+                                    </div>
+                                  ))}
+                                  {claim.sources.length > 2 && (
+                                    <div className="text-gray-600">
+                                      +{claim.sources.length - 2} fler källor
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {claim.warning && (
+                                <div className="text-orange-400 ml-4 mt-1">{claim.warning}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
                   </div>
                 )}
 

@@ -237,6 +237,7 @@ export default function HomePage({ onAiMessageUpdate }) {
                   <AnalysisComparison 
                     responses={message.responses} 
                     metaReview={message.metaReview}
+                    factCheckComparison={message.factCheckComparison}
                   />
 
                   {/* Neutral Summary */}

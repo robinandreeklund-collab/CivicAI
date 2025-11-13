@@ -12,6 +12,7 @@ import {
   performGPTMetaReview,
   generateMetaAnalysisSummary 
 } from '../services/metaAnalysis.js';
+import { batchFactCheck, compareFactChecks } from '../services/factChecker.js';
 
 const router = express.Router();
 
@@ -175,6 +176,18 @@ router.post('/query', async (req, res) => {
     // Perform GPT-3.5 meta-review of all responses
     const gptMetaReview = await performGPTMetaReview(responses, question);
 
+    // Perform Bing Search fact-checking on all responses
+    console.log('🔍 Performing Bing Search fact-checking...');
+    const factCheckResults = await batchFactCheck(responses);
+    const factCheckComparison = compareFactChecks(factCheckResults);
+
+    // Add fact-check results to each response
+    responses.forEach((response, index) => {
+      if (factCheckResults[index]) {
+        response.bingFactCheck = factCheckResults[index];
+      }
+    });
+
     // Generate synthesized summary from all responses
     const synthesizedSummary = generateSynthesizedSummary(responses, question);
 
@@ -183,6 +196,7 @@ router.post('/query', async (req, res) => {
       responses,
       synthesizedSummary,
       metaReview: gptMetaReview,
+      factCheckComparison: factCheckComparison,
       timestamp: new Date().toISOString(),
     });
 
