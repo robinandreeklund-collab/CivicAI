@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import AgentBubble from './components/AgentBubble';
-import ModernLoader from './components/ModernLoader';
+import ProcessingLoader from './components/ProcessingLoader';
 import Sidebar from './components/Sidebar';
 import AIServiceToggle from './components/AIServiceToggle';
+import AnalysisComparison from './components/AnalysisComparison';
+import ResponseSummary from './components/ResponseSummary';
 import yaml from 'js-yaml';
 
 /**
@@ -34,6 +36,14 @@ function App() {
       description: 'Google\'s AI model',
       icon: '✨',
       iconBg: 'bg-purple-500/20',
+      enabled: true,
+    },
+    {
+      id: 'deepseek',
+      name: 'DeepSeek',
+      description: 'Technical precision',
+      icon: '🧠',
+      iconBg: 'bg-cyan-500/20',
       enabled: true,
     },
   ]);
@@ -92,10 +102,7 @@ function App() {
       m => m.type === 'ai' && Array.isArray(m.responses) && m.responses.length > 0
     );
     if (aiMessages.length === 0) {
-      // Show user-friendly error instead of just returning
-      if (typeof setError === 'function') {
-        setError('Inga AI-svar att exportera');
-      }
+      console.warn('Inga AI-svar att exportera');
       return;
     }
     try {
@@ -145,9 +152,6 @@ function App() {
       }
     } catch (error) {
       console.error('Export failed:', error);
-      if (typeof setError === 'function') {
-        setError('Export misslyckades');
-      }
     }
   };
 
@@ -205,6 +209,7 @@ function App() {
         type: 'ai',
         question: userQuestion,
         responses: data.responses || [],
+        synthesizedSummary: data.synthesizedSummary || null,
         timestamp: new Date().toISOString(),
       };
       
@@ -301,15 +306,27 @@ function App() {
                 
                 {message.type === 'ai' && (
                   <div className="space-y-4">
+                    {/* Individual AI Responses */}
                     {message.responses.map((resp, idx) => (
                       <AgentBubble
                         key={idx}
                         agent={resp.agent}
                         response={resp.response}
                         metadata={resp.metadata}
+                        analysis={resp.analysis}
                         index={idx}
                       />
                     ))}
+
+                    {/* Analysis Comparison */}
+                    <AnalysisComparison responses={message.responses} />
+
+                    {/* Neutral Summary */}
+                    <ResponseSummary 
+                      responses={message.responses} 
+                      question={message.question}
+                      synthesizedSummary={message.synthesizedSummary}
+                    />
                   </div>
                 )}
                 
@@ -327,7 +344,7 @@ function App() {
             ))}
 
             {/* Loading indicator */}
-            {isLoading && <ModernLoader />}
+            {isLoading && <ProcessingLoader />}
             
             <div ref={chatEndRef} />
           </div>

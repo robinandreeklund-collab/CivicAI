@@ -29,6 +29,7 @@ CivicAI har nu en moderniserad design inspirerad av Grok med fokus på användar
 Användare kan nu välja vilka AI-tjänster de vill fråga:
 - 🤖 **GPT-3.5**: Snabb och effektiv
 - ✨ **Gemini**: Googles AI-modell
+- 🧠 **DeepSeek**: Teknisk precision och datadriven analys
 - Toggle-switchar för enkel aktivering/deaktivering
 
 ### Kollapsbar Sidebar
@@ -124,6 +125,9 @@ Firebase (kopplas på efter MVP)
    # Google Gemini Configuration
    GEMINI_API_KEY=your_gemini_api_key_here
    
+   # DeepSeek Configuration
+   DEEPSEEK_API_KEY=your_deepseek_api_key_here
+   
    # Server Configuration
    PORT=3001
    ```
@@ -143,14 +147,18 @@ Firebase (kopplas på efter MVP)
 
 ### API-nycklar och felsökning
 
-**Gemini API:**
-- Använder modell: `gemini-2.5-flash`
-- Hämta API-nyckel från: [Google AI Studio](https://aistudio.google.com/app/apikey)
-
 **OpenAI API:**
 - Använder modell: `gpt-3.5-turbo`
 - Hämta API-nyckel från: [OpenAI Platform](https://platform.openai.com/api-keys)
 - **Obs:** Kontrollera att du har tillgänglig kredit och inte har överskridit din kvot
+
+**Gemini API:**
+- Använder modell: `gemini-2.5-flash`
+- Hämta API-nyckel från: [Google AI Studio](https://aistudio.google.com/app/apikey)
+
+**DeepSeek API:**
+- Använder modell: `deepseek-chat`
+- Hämta API-nyckel från: [DeepSeek Platform](https://platform.deepseek.com/)
 
 **Vanliga fel:**
 - `404 Not Found` (Gemini): Modellnamnet är inkorrekt eller inaktuellt. Använd `gemini-2.5-flash` eller `gemini-1.5-pro`.
@@ -159,93 +167,133 @@ Firebase (kopplas på efter MVP)
 
 **OBS:** Utan konfigurerade API-nycklar kommer applikationen att fungera med simulerade svar för demonstration.
 
-✨ Funktioner
+## ✨ Funktioner
 
-🔄 Multi-agent svarsspegel
+### Implementerade funktioner (Fas 1 & 2) ✅
 
-🧠 Ton- och stilanalys
+#### 🔄 Multi-agent svarsspegel
+Ställ samma fråga till flera AI-modeller samtidigt och jämför deras svar i realtid. Stöd för GPT-3.5, Gemini och DeepSeek med möjlighet att välja vilka modeller som ska inkluderas.
 
-🧭 Biasdetektion
+#### 🧠 Ton- och stilanalys
+Varje AI-svar analyseras automatiskt för:
+- **Primär ton**: Formell, informell, teknisk, empatisk, analytisk eller övertygande
+- **Sekundära karakteristika**: Ytterligare tondrag som identifierats i texten
+- **Konfidensnivå**: Hur säker analysen är på resultatet
 
-🔍 Faktakoll mot webbkällor
+#### 🧭 Biasdetektion
+Identifierar och markerar potentiella bias i AI-svar:
+- **Politisk bias**: Vänster- eller högerorienterade formuleringar
+- **Kommersiell bias**: Produktrekommendationer eller marknadsföring
+- **Kulturell bias**: Västerländska eller icke-västerländska perspektiv
+- **Bekräftelsebias**: Påståenden presenterade som självklara sanningar
+- **Recency bias**: Överfokus på nyhet över relevans
 
-🧬 Agentprofiler
+Varje identifierad bias får en svårighetsgrad (låg, medel, hög) och detaljerad beskrivning.
+
+#### 🔍 Faktakoll
+Identifierar verifierbara påståenden i AI-svar som bör kontrolleras:
+- **Statistiska påståenden**: Procentsatser och numerisk data
+- **Tidsbundna påståenden**: Referenser till specifika år eller perioder
+- **Vetenskapliga påståenden**: Hänvisningar till forskning eller studier
+- **Historiska påståenden**: Historiska fakta och händelser
+- **Definitiva påståenden**: Absoluta utsagor som kräver verifiering
+
+Systemet rekommenderar verifiering via externa källor när många påståenden identifieras.
+
+#### 🧬 Agentprofiler
+Varje AI-modell har en detaljerad profil som visar:
+- **Styrkor och svagheter**: Vad modellen är bra respektive mindre bra på
+- **Karakteristika**: Kreativitet, precision, kontextförståelse, språkhantering
+- **Beskrivning**: Information om leverantör och användningsområden
+
+#### 📤 Export
+Exportera konversationer och jämförelser till:
+- **YAML**: Strukturerad data för vidare analys
+- **JSON**: Kompatibel med andra verktyg och system
+
+#### 💬 Grok-inspirerad UI
+- **Sidebar**: Konversationshistorik med sök och navigering
+- **AI-tjänsteväljare**: Aktivera/deaktivera specifika modeller före fråga
+- **Moderna animationer**: Smooth transitions och fade-ins
+- **Mörkt tema**: Professionell och ögonvänlig design
+
+### Planerade funktioner (Fas 3 & 4)
 
 🗳 Battle mode
 
-📤 Export till YAML, README, PDF
-
 📚 Audit trail för transparens
 
-🧩 Komponentöversikt
+📤 Export till PDF och README-format
 
-Komponent
+🌐 API för externa appar
 
-Funktion
+👥 Crowdsourcing av feedback
 
-AgentBubble
+## 🧩 Komponentöversikt
 
-Visar AI-svar med agentnamn, tonetikett och färgkodning
+### Implementerade komponenter ✅
 
-BiasIndicator
+| Komponent | Status | Funktion |
+|-----------|--------|----------|
+| AgentBubble | ✅ | Visar AI-svar med agentnamn, metadata och komplett Fas 2-analys |
+| BiasIndicator | ✅ | Visualiserar bias (politisk, kommersiell, kulturell) med svårighetsgrad |
+| AgentProfileCard | ✅ | Visar AI-modellens styrkor, karakteristika och beskrivning |
+| ToneIndicator | ✅ | Visar ton och stil för AI-svar med visuella badges |
+| FactCheckIndicator | ✅ | Identifierar och listar verifierbara påståenden |
+| ExportPanel | ✅ | Exporterar jämförelse till YAML och JSON |
+| QuestionInput | ✅ | Frågeruta som triggar AI-anrop med stöd för Shift+Enter |
+| Sidebar | ✅ | Konversationshistorik, ny konversation, export och kollapsbar design |
+| AIServiceToggle | ✅ | Välj vilka AI-modeller som ska inkluderas i frågan |
+| ModernLoader | ✅ | Animerad laddningsindikator för pågående AI-anrop |
 
-Visualiserar bias (politisk, kommersiell, kulturell)
+### Planerade komponenter (Fas 3 & 4)
 
-BattlePanel
+| Komponent | Status | Funktion |
+|-----------|--------|----------|
+| BattlePanel | 📋 | Låter användare rösta på bästa AI-svar |
+| AuditTrailViewer | 📋 | Visar historik över frågor och exporthändelser |
+| SettingsPanel | 📋 | Avancerade inställningar för AI-modeller och analysnivå |
 
-Låter användare rösta på bästa AI-svar
+### Backend-moduler ✅
 
-AgentProfileCard
-
-Visar AI-modellens stil, ton och källpreferens
-
-ExportPanel
-
-Exporterar jämförelse till YAML, README eller PDF
-
-ComparisonPanel
-
-Huvudvy för AI-svar, analys och metadata
-
-QuestionInput
-
-Frågeruta som triggar AI-anrop
-
-ResponseAnalyzer
-
-Kör tonanalys, biasdetektion och faktakoll
-
-SettingsPanel
-
-Välj AI-modeller, språk och analysnivå
-
-AuditTrailViewer
-
-Visar historik över frågor och exporthändelser
+| Modul | Status | Funktion |
+|-------|--------|----------|
+| query_dispatcher | ✅ | Skickar frågor till valda AI-modeller och returnerar svar med analys |
+| analyzeTone | ✅ | Klassificerar ton (formell, teknisk, empatisk, etc.) |
+| detectBias | ✅ | Identifierar bias i AI-svar via semantisk analys |
+| checkFacts | ✅ | Markerar verifierbara påståenden för faktakontroll |
+| generateSummary | ✅ | Skapar syntetiserad sammanfattning från alla AI-svar |
+| openai service | ✅ | Integration med OpenAI GPT-3.5 |
+| gemini service | ✅ | Integration med Google Gemini |
+| deepseek service | ✅ | Integration med DeepSeek AI |
 
 🚀 Utvecklingsfaser
 
-🧪 Fas 1: MVP
+🧪 Fas 1: MVP ✅ KLAR
 
-[ ] Frågeruta + agentbubblor
+✅ Frågeruta + agentbubblor
 
-[ ] API-anrop till GPT-3.5 och Gemini
+✅ API-anrop till GPT-3.5 och Gemini
 
-[ ] YAML-export
+✅ YAML-export
 
-[ ] Grundläggande UI med mörkt tema
+✅ Grundläggande UI med mörkt tema
 
-🔍 Fas 2: Analys & insyn
+✅ Sidebar med konversationshistorik
 
-[ ] Ton- och stilanalys
+✅ AI-tjänsteväljare
 
-[ ] Biasindikatorer
+🔍 Fas 2: Analys & insyn ✅ KLAR
 
-[ ] Faktakoll via webbsök
+✅ Ton- och stilanalys
 
-[ ] Agentprofiler
+✅ Biasindikatorer
 
-[ ] 🔧 Koppla på Firebase som databas
+✅ Faktakoll (identifiering av verifierbara påståenden)
+
+✅ Agentprofiler
+
+[ ] 🔧 Koppla på Firebase som databas (Planerad för framtida version)
 
 🗳 Fas 3: Beslutsstöd
 
