@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import AnimatedLogo from './AnimatedLogo';
 
 /**
@@ -15,6 +16,7 @@ export default function Sidebar({
   onToggleCollapse
 }) {
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const location = useLocation();
 
   const handleExportYAML = () => {
     onExportConversations('yaml');
@@ -67,10 +69,11 @@ export default function Sidebar({
         )}
       </div>
 
-      {/* New Conversation Button */}
+      {/* Navigation Links */}
       {!isCollapsed && (
-        <div className="p-3">
-          <button
+        <div className="p-3 space-y-2">
+          <Link
+            to="/"
             onClick={onNewConversation}
             className="w-full px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-all duration-200 flex items-center justify-center space-x-2 hover:scale-[1.02] active:scale-[0.98]"
           >
@@ -78,7 +81,31 @@ export default function Sidebar({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
             <span>Ny konversation</span>
-          </button>
+          </Link>
+
+          <Link
+            to="/policy-questions"
+            className={`w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${
+              location.pathname === '/policy-questions'
+                ? 'bg-teal-600 text-white'
+                : 'bg-civic-dark-800 hover:bg-civic-dark-700 text-gray-300'
+            }`}
+          >
+            <span className="text-lg">📋</span>
+            <span>Policyfrågebank</span>
+          </Link>
+
+          <Link
+            to="/audit-trail"
+            className={`w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${
+              location.pathname === '/audit-trail'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-civic-dark-800 hover:bg-civic-dark-700 text-gray-300'
+            }`}
+          >
+            <span className="text-lg">📚</span>
+            <span>Audit Trail</span>
+          </Link>
         </div>
       )}
 
