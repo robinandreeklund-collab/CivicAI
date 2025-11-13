@@ -270,10 +270,10 @@ function calculateConfidence(sourceCount) {
  * - 50% weight: Average confidence across all claims
  * Result is scaled 0-10
  * @param {Array} verificationResults - Array of verification results
- * @returns {number} Overall score (0-10)
+ * @returns {number|null} Overall score (0-10), or null if no claims
  */
 function calculateOverallScore(verificationResults) {
-  if (verificationResults.length === 0) return 7; // Neutral score when no claims
+  if (verificationResults.length === 0) return null; // No verifiable claims
   
   const verifiedCount = verificationResults.filter(r => r.verified).length;
   const verificationRate = verifiedCount / verificationResults.length;
