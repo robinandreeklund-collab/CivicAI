@@ -58,27 +58,28 @@ export default function PulsatingLogo({ size = 120 }) {
             className={`absolute top-0 left-1/2 w-2 h-2 ${particle.color} rounded-full`}
             style={{
               marginLeft: '-4px',
-              animation: `orbit-${size} ${particle.duration} linear infinite ${particle.reverse ? 'reverse' : 'normal'}`,
+              animation: `orbit ${particle.duration} linear infinite ${particle.reverse ? 'reverse' : 'normal'}`,
               boxShadow: `0 0 10px ${particle.shadow}`,
-              animationDelay: particle.delay
+              animationDelay: particle.delay,
+              '--orbit-radius': `${size * 0.5}px`
             }}
           ></div>
         ))}
       </div>
 
-      {/* Inject keyframes animation */}
-      <style dangerouslySetInnerHTML={{
-        __html: `
-          @keyframes orbit-${size} {
+      {/* Static keyframes for orbit animation using CSS variable */}
+      <style>
+        {`
+          @keyframes orbit {
             from {
-              transform: rotate(0deg) translateX(${size * 0.5}px) rotate(0deg);
+              transform: rotate(0deg) translateX(var(--orbit-radius)) rotate(0deg);
             }
             to {
-              transform: rotate(360deg) translateX(${size * 0.5}px) rotate(-360deg);
+              transform: rotate(360deg) translateX(var(--orbit-radius)) rotate(-360deg);
             }
           }
-        `
-      }} />
+        `}
+      </style>
     </div>
   );
 }
