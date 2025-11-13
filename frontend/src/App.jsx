@@ -5,6 +5,10 @@ import Sidebar from './components/Sidebar';
 import AIServiceToggle from './components/AIServiceToggle';
 import AnalysisComparison from './components/AnalysisComparison';
 import ResponseSummary from './components/ResponseSummary';
+import BattlePanel from './components/BattlePanel';
+import AuditTrailViewer from './components/AuditTrailViewer';
+import PolicyQuestionBank from './components/PolicyQuestionBank';
+import EnhancedExportPanel from './components/EnhancedExportPanel';
 import yaml from 'js-yaml';
 
 /**
@@ -266,8 +270,14 @@ function App() {
           <div className="max-w-4xl mx-auto px-4 py-6">
             {messages.length === 0 && !isLoading && (
               <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-fade-in">
+                {/* Policy Question Bank - Phase 3 */}
+                <PolicyQuestionBank onSelectQuestion={setQuestion} />
+
+                {/* Audit Trail Viewer - Phase 3 */}
+                <AuditTrailViewer />
+
                 {/* Quick suggestions */}
-                <div className="flex flex-wrap gap-3 justify-center">
+                <div className="flex flex-wrap gap-3 justify-center mt-8">
                   {[
                     'Vad är demokrati?',
                     'Förklara hållbar utveckling',
@@ -326,6 +336,20 @@ function App() {
                       responses={message.responses} 
                       question={message.question}
                       synthesizedSummary={message.synthesizedSummary}
+                    />
+
+                    {/* Battle Panel - Phase 3 */}
+                    <BattlePanel
+                      question={message.question}
+                      responses={message.responses}
+                    />
+
+                    {/* Enhanced Export Panel - Phase 3 */}
+                    <EnhancedExportPanel
+                      question={message.question}
+                      responses={message.responses}
+                      synthesizedSummary={message.synthesizedSummary}
+                      timestamp={message.timestamp}
                     />
                   </div>
                 )}

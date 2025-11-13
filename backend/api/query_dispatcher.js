@@ -6,6 +6,7 @@ import { analyzeTone, getToneDescription } from '../utils/analyzeTone.js';
 import { detectBias } from '../utils/detectBias.js';
 import { checkFacts } from '../utils/checkFacts.js';
 import { generateSynthesizedSummary } from '../utils/generateSummary.js';
+import { logAuditEvent, AuditEventType } from '../services/auditTrail.js';
 
 const router = express.Router();
 
@@ -32,6 +33,12 @@ router.post('/query', async (req, res) => {
     }
 
     console.log(`📝 Processing question: ${question.length > 50 ? question.substring(0, 50) + '...' : question}`);
+
+    // Log audit event
+    logAuditEvent(AuditEventType.QUESTION_ASKED, {
+      question: question.substring(0, 100),
+      questionLength: question.length,
+    });
 
     // Call all AI services in parallel
     const [gptResponse, geminiResponse, deepseekResponse] = await Promise.allSettled([

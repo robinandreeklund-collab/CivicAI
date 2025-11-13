@@ -2,6 +2,10 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import queryDispatcher from './api/query_dispatcher.js';
+import auditRouter from './api/audit.js';
+import votesRouter from './api/votes.js';
+import policyQuestionsRouter from './api/policyQuestions.js';
+import exportRouter from './api/export.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -12,6 +16,10 @@ app.use(express.json());
 
 // Routes
 app.use('/api', queryDispatcher);
+app.use('/api/audit', auditRouter);
+app.use('/api/votes', votesRouter);
+app.use('/api/policy-questions', policyQuestionsRouter);
+app.use('/api/export', exportRouter);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
