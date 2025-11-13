@@ -1,4 +1,4 @@
-# CivicAI MVP - Utvecklingsguide
+# CivicAI - Utvecklingsguide
 
 ## 🚀 Kom igång
 
@@ -31,7 +31,7 @@ OPENAI_API_KEY=din_openai_nyckel
 GEMINI_API_KEY=din_gemini_nyckel
 ```
 
-**Obs:** För MVP-demo fungerar applikationen även utan API-nycklar (visar simulerade svar).
+**Obs:** Applikationen fungerar även utan API-nycklar (visar simulerade svar).
 
 ### Köra applikationen
 
@@ -63,48 +63,57 @@ civicai/
 ├── frontend/          # React + Vite + Tailwind
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── QuestionInput.jsx    # Frågeruta
-│   │   │   ├── AgentBubble.jsx      # AI-svarsbubblor
-│   │   │   └── ExportPanel.jsx      # YAML-export
+│   │   │   ├── QuestionInput.jsx         # Frågeruta
+│   │   │   ├── AgentBubble.jsx           # AI-svarsbubblor med Fas 2-analys
+│   │   │   ├── ToneIndicator.jsx         # ✨ Ton- och stilindikator
+│   │   │   ├── BiasIndicator.jsx         # ✨ Biasindikator
+│   │   │   ├── FactCheckIndicator.jsx    # ✨ Faktakontrollindikator
+│   │   │   ├── AgentProfileCard.jsx      # ✨ Agentprofilkort
+│   │   │   ├── ExportPanel.jsx           # YAML/JSON-export
+│   │   │   ├── Sidebar.jsx               # Konversationshistorik
+│   │   │   ├── AIServiceToggle.jsx       # AI-tjänsteväljare
+│   │   │   └── ModernLoader.jsx          # Laddningsanimation
 │   │   ├── styles/
-│   │   │   └── index.css            # Tailwind + mörkt tema
-│   │   ├── App.jsx                  # Huvudkomponent
-│   │   └── main.jsx                 # Entry point
+│   │   │   └── index.css                 # Tailwind + mörkt tema
+│   │   ├── App.jsx                       # Huvudkomponent
+│   │   └── main.jsx                      # Entry point
 │   └── package.json
 │
 ├── backend/           # Node.js + Express
 │   ├── api/
-│   │   └── query_dispatcher.js      # API endpoint
+│   │   └── query_dispatcher.js           # API endpoint med analysintegration
 │   ├── services/
-│   │   ├── openai.js                # GPT-3.5 integration
-│   │   └── gemini.js                # Gemini integration
-│   ├── index.js                     # Server setup
+│   │   ├── openai.js                     # GPT-3.5 integration
+│   │   └── gemini.js                     # Gemini integration
+│   ├── utils/                            # ✨ Fas 2-analysverktyg
+│   │   ├── analyzeTone.js                # Tonanalys
+│   │   ├── detectBias.js                 # Biasdetektion
+│   │   └── checkFacts.js                 # Faktakontroll
+│   ├── index.js                          # Server setup
 │   └── package.json
 │
 └── package.json       # Root scripts
 ```
 
-## ✨ MVP-funktioner
+## ✨ Implementerade funktioner
 
-### 1. Frågeruta + Agentbubblor ✅
-- QuestionInput-komponent tar emot användarfrågor
-- AgentBubble-komponenter visar svar från olika AI-modeller
-- Färgkodning och metadata per agent
+### Fas 1: MVP ✅
+- [x] QuestionInput-komponent tar emot användarfrågor
+- [x] AgentBubble-komponenter visar svar från olika AI-modeller
+- [x] Backend-API med `/api/query` endpoint
+- [x] Parallella anrop till GPT-3.5 och Gemini
+- [x] YAML och JSON export
+- [x] Mörkt tema med Tailwind CSS
+- [x] Sidebar med konversationshistorik
+- [x] AI-tjänsteväljare
 
-### 2. Backend-API ✅
-- `/api/query` endpoint för att skicka frågor
-- Parallella anrop till GPT-3.5 och Gemini
-- Felhantering och simulerade svar vid saknade API-nycklar
-
-### 3. YAML-export ✅
-- ExportPanel-komponent
-- js-yaml bibliotek för konvertering
-- Ladda ner jämförelser som YAML-filer
-
-### 4. Mörkt tema ✅
-- Tailwind CSS med custom dark theme
-- Civic-färgschema
-- Responsiv design
+### Fas 2: Analys & insyn ✅
+- [x] **Tonanalys**: Identifierar formell, informell, teknisk, empatisk, analytisk eller övertygande ton
+- [x] **Biasdetektion**: Upptäcker politisk, kommersiell, kulturell, bekräftelse- och recency bias
+- [x] **Faktakontroll**: Identifierar verifierbara påståenden (statistiska, vetenskapliga, historiska)
+- [x] **Agentprofiler**: Visar styrkor, svagheter och karakteristika för varje AI-modell
+- [x] Komplett integration i backend och frontend
+- [x] Visuella indikatorer för analys i användargränssnittet
 
 ## 🔧 Utveckling
 
@@ -112,24 +121,41 @@ civicai/
 - React 18 med hooks
 - Vite för snabb utveckling
 - Tailwind CSS för styling
-- js-yaml för export
+- js-yaml för YAML-export
 
 ### Backend
 - Express.js server
 - OpenAI SDK för GPT-3.5
 - Google Generative AI för Gemini
 - CORS-aktiverat för lokal utveckling
+- Custom analysverktyg för Fas 2-funktioner
 
-## 📝 Nästa steg (Post-MVP)
+### Linting och byggning
+```bash
+# Lint frontend
+cd frontend && npm run lint
 
-- [ ] Ton- och stilanalys
-- [ ] Biasindikatorer
-- [ ] Faktakoll via webbsök
-- [ ] Agentprofiler
-- [ ] Battle mode
-- [ ] Audit trail
-- [ ] Firebase-integration
+# Bygg frontend
+npm run build
+
+# Testa backend-syntax
+cd backend && node -c index.js
+```
+
+## 📝 Nästa steg (Post-Fas 2)
+
+### Fas 3: Beslutsstöd
+- [ ] Battle mode - Rösta på bästa svar
+- [ ] Audit trail - Historik över beslut
+- [ ] Policyfrågebank
 - [ ] PDF-export
+
+### Fas 4: Skalbarhet & öppenhet
+- [ ] Firebase-integration för datapersistens
+- [ ] API för externa appar
+- [ ] Crowdsourcing av feedback
+- [ ] Offentlig portal för medborgare
+- [ ] Fler AI-modeller via Together.ai eller HuggingFace
 
 ## 🤝 Bidra
 
