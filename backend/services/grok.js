@@ -125,7 +125,7 @@ export async function getGrokResponse(question) {
     }
 
     const completion = await grok.chat.completions.create({
-      model: 'grok-beta',
+      model: 'grok-4-fast-reasoning',
       messages: [
         {
           role: 'system',

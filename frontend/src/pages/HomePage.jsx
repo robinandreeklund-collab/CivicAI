@@ -53,6 +53,14 @@ export default function HomePage({ onAiMessageUpdate }) {
       iconBg: 'bg-orange-500/20',
       enabled: true,
     },
+    {
+      id: 'qwen',
+      name: 'Qwen',
+      description: 'Balanced and comprehensive',
+      icon: '🌟',
+      iconBg: 'bg-green-500/20',
+      enabled: true,
+    },
   ]);
 
   const scrollToBottom = () => {
