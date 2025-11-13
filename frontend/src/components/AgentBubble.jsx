@@ -11,7 +11,7 @@ import AgentProfileCard from './AgentProfileCard';
 export default function AgentBubble({ agent, response, metadata, analysis, index = 0 }) {
   const [isVisible, setIsVisible] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(index === 0);
 
   useEffect(() => {
     // Staggered animation entrance
