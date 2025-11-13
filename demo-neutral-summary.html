@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CivicAI - Förbättrad Neutral Sammanställning</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        .civic-dark-700 { background-color: #1e293b; }
+        .civic-dark-600 { border-color: #334155; }
+        .civic-dark-800 { background-color: #0f172a; }
+    </style>
+</head>
+<body class="min-h-screen p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold text-white mb-2">🎉 Förbättrad Neutral Sammanställning</h1>
+        <p class="text-gray-400 mb-8">Demo av nya funktioner för faktakoll och transparens</p>
+        
+        <!-- Neutral sammanställning -->
+        <div class="p-6 bg-gradient-to-br from-indigo-900/20 to-purple-900/20 backdrop-blur-sm border border-indigo-500/30 rounded-2xl shadow-lg">
+            <div class="flex items-center space-x-3 mb-4">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-xl shadow-lg">
+                    📊
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-100">Neutral sammanställning</h3>
+                    <p class="text-xs text-gray-400">Aggregerad insikt från alla AI-svar</p>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <!-- Enhanced Fact-Check Section -->
+                <div class="p-4 bg-gradient-to-br from-blue-900/20 to-cyan-900/20 rounded-lg border border-blue-500/30">
+                    <div class="flex items-center space-x-2 mb-3">
+                        <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div>
+                            <div class="text-sm font-semibold text-blue-300">Faktakoll och verifierbarhet</div>
+                            <div class="text-xs text-gray-400">Aggregerad från 4 AI-modeller</div>
+                        </div>
+                    </div>
+
+                    <!-- Stats Grid -->
+                    <div class="grid grid-cols-4 gap-3 mb-3">
+                        <div class="p-2 bg-slate-700/50 rounded-lg">
+                            <div class="text-xs text-gray-400 mb-1">Påståenden</div>
+                            <div class="text-xl font-bold text-blue-300">7</div>
+                            <div class="text-xs text-gray-500">totalt analyserade</div>
+                        </div>
+                        <div class="p-2 bg-slate-700/50 rounded-lg">
+                            <div class="text-xs text-gray-400 mb-1">Verifierade</div>
+                            <div class="text-xl font-bold text-yellow-400">5</div>
+                            <div class="text-xs text-gray-500">71%</div>
+                        </div>
+                        <div class="p-2 bg-slate-700/50 rounded-lg">
+                            <div class="text-xs text-gray-400 mb-1">Genomsnitt</div>
+                            <div class="text-xl font-bold text-green-400">7.4</div>
+                            <div class="text-xs text-gray-500">av 10</div>
+                        </div>
+                        <div class="p-2 bg-slate-700/50 rounded-lg">
+                            <div class="text-xs text-gray-400 mb-1">Källtäthet</div>
+                            <div class="text-xl font-bold text-green-400">2.1</div>
+                            <div class="text-xs text-gray-500">källor/påstående</div>
+                        </div>
+                    </div>
+
+                    <!-- Uncertainty Visualization -->
+                    <div class="mb-3">
+                        <div class="flex items-center justify-between text-xs text-gray-400 mb-1">
+                            <span>Osäkerhetsnivå: medel</span>
+                            <span>29% ej verifierade</span>
+                        </div>
+                        <div class="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                            <div class="h-full bg-yellow-500" style="width: 71%"></div>
+                        </div>
+                        <div class="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>Verifierade</span>
+                            <span>Ej verifierade</span>
+                        </div>
+                    </div>
+
+                    <!-- Confidence Distribution -->
+                    <div class="mb-3">
+                        <div class="text-xs font-medium text-gray-400 mb-2">Fördelning av konfidensgrad</div>
+                        <div class="space-y-2">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-20 text-xs text-gray-400">Hög (≥67%)</div>
+                                <div class="flex-1 h-4 bg-slate-700 rounded-full overflow-hidden">
+                                    <div class="h-full bg-green-500" style="width: 71%"></div>
+                                </div>
+                                <div class="w-8 text-xs text-green-400 text-right">5</div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-20 text-xs text-gray-400">Medel (33-66%)</div>
+                                <div class="flex-1 h-4 bg-slate-700 rounded-full overflow-hidden">
+                                    <div class="h-full bg-yellow-500" style="width: 14%"></div>
+                                </div>
+                                <div class="w-8 text-xs text-yellow-400 text-right">1</div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-20 text-xs text-gray-400">Låg (<33%)</div>
+                                <div class="flex-1 h-4 bg-slate-700 rounded-full overflow-hidden">
+                                    <div class="h-full bg-red-500" style="width: 14%"></div>
+                                </div>
+                                <div class="w-8 text-xs text-red-400 text-right">1</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Claim Type Distribution -->
+                    <div class="mb-3">
+                        <div class="text-xs font-medium text-gray-400 mb-2">Typfördelning av påståenden</div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="p-2 bg-slate-700/50 rounded-lg border border-slate-600">
+                                <div class="flex items-center space-x-1 mb-1">
+                                    <span class="text-sm">🔬</span>
+                                    <span class="text-xs text-gray-300">Vetenskapliga</span>
+                                </div>
+                                <div class="flex items-baseline space-x-1">
+                                    <span class="text-lg font-bold text-blue-300">2</span>
+                                    <span class="text-xs text-gray-500">(100% verif.)</span>
+                                </div>
+                            </div>
+                            <div class="p-2 bg-slate-700/50 rounded-lg border border-slate-600">
+                                <div class="flex items-center space-x-1 mb-1">
+                                    <span class="text-sm">📊</span>
+                                    <span class="text-xs text-gray-300">Statistiska</span>
+                                </div>
+                                <div class="flex items-baseline space-x-1">
+                                    <span class="text-lg font-bold text-blue-300">3</span>
+                                    <span class="text-xs text-gray-500">(33% verif.)</span>
+                                </div>
+                            </div>
+                            <div class="p-2 bg-slate-700/50 rounded-lg border border-slate-600">
+                                <div class="flex items-center space-x-1 mb-1">
+                                    <span class="text-sm">📜</span>
+                                    <span class="text-xs text-gray-300">Historiska</span>
+                                </div>
+                                <div class="flex items-baseline space-x-1">
+                                    <span class="text-lg font-bold text-blue-300">1</span>
+                                    <span class="text-xs text-gray-500">(100% verif.)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Neutral Assessment -->
+                    <div class="p-3 bg-indigo-500/10 border border-indigo-500/30 rounded-lg mb-3">
+                        <div class="flex items-start space-x-2">
+                            <span class="text-lg">💡</span>
+                            <div>
+                                <div class="text-xs font-medium text-indigo-300 mb-1">Motiv för neutral bedömning</div>
+                                <div class="text-xs text-gray-300 leading-relaxed">
+                                    1 av 4 svar innehåller inga specifika verifierbara påståenden. 
+                                    Dessa svar fokuserar på kvalitativ analys snarare än faktapåståenden.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Improvement Suggestions -->
+                    <div class="p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg mb-3">
+                        <div class="flex items-start space-x-2">
+                            <span class="text-lg">💡</span>
+                            <div>
+                                <div class="text-xs font-medium text-purple-300 mb-2">Förbättringsförslag</div>
+                                <ul class="space-y-1">
+                                    <li class="text-xs text-gray-300 leading-relaxed">
+                                        • Få verifierbara påståenden totalt - svaren är mestadels kvalitativa. Detta är OK för vissa frågetyper.
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Aggregated Bias -->
+                    <div class="p-2 bg-slate-700/50 rounded-lg flex items-center justify-between mb-3">
+                        <span class="text-xs text-gray-400">Aggregerad bias-score</span>
+                        <span class="text-sm font-bold text-green-400">1.9/10</span>
+                    </div>
+
+                    <!-- Metadata Footer -->
+                    <div class="pt-3 border-t border-blue-500/30">
+                        <div class="flex items-center justify-between text-xs text-gray-500">
+                            <span>Analyserad: 2025-11-13 16:13:11</span>
+                            <span>Transparens: 7 påståenden</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Original Summary Stats -->
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="p-3 civic-dark-700 rounded-lg border civic-dark-600">
+                        <div class="text-xs text-gray-400 mb-1">AI-modeller</div>
+                        <div class="text-2xl font-bold text-indigo-400">4</div>
+                    </div>
+                    <div class="p-3 civic-dark-700 rounded-lg border civic-dark-600">
+                        <div class="text-xs text-gray-400 mb-1">Genomsnittlig längd</div>
+                        <div class="text-2xl font-bold text-purple-400">850</div>
+                        <div class="text-xs text-gray-500">tecken</div>
+                    </div>
+                    <div class="p-3 civic-dark-700 rounded-lg border civic-dark-600">
+                        <div class="text-xs text-gray-400 mb-1">Gemensamma nyckelord</div>
+                        <div class="text-lg font-bold text-cyan-400">5</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feature Highlights -->
+        <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+                <h3 class="text-white font-semibold mb-2 flex items-center space-x-2">
+                    <span>📊</span>
+                    <span>Omfattande Statistik</span>
+                </h3>
+                <ul class="text-sm text-gray-300 space-y-1">
+                    <li>✓ Totalt antal påståenden</li>
+                    <li>✓ Verifieringsgrad (%)</li>
+                    <li>✓ Genomsnittlig score</li>
+                    <li>✓ Källtäthet per påstående</li>
+                </ul>
+            </div>
+
+            <div class="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+                <h3 class="text-white font-semibold mb-2 flex items-center space-x-2">
+                    <span>🎨</span>
+                    <span>Visuell Feedback</span>
+                </h3>
+                <ul class="text-sm text-gray-300 space-y-1">
+                    <li>✓ Progress bars för osäkerhet</li>
+                    <li>✓ Färgkodning (grön/gul/röd)</li>
+                    <li>✓ Confidence distribution</li>
+                    <li>✓ Ikoner för claim-typer</li>
+                </ul>
+            </div>
+
+            <div class="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+                <h3 class="text-white font-semibold mb-2 flex items-center space-x-2">
+                    <span>💡</span>
+                    <span>Transparens</span>
+                </h3>
+                <ul class="text-sm text-gray-300 space-y-1">
+                    <li>✓ Neutral bedömning förklarad</li>
+                    <li>✓ Förbättringsförslag</li>
+                    <li>✓ Typfördelning synlig</li>
+                    <li>✓ Metadata för audit trail</li>
+                </ul>
+            </div>
+
+            <div class="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+                <h3 class="text-white font-semibold mb-2 flex items-center space-x-2">
+                    <span>🔍</span>
+                    <span>Djup Analys</span>
+                </h3>
+                <ul class="text-sm text-gray-300 space-y-1">
+                    <li>✓ Claims per agent</li>
+                    <li>✓ Aggregerad bias-score</li>
+                    <li>✓ Source density klassificering</li>
+                    <li>✓ Uncertainty level beräkning</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="mt-8 p-4 bg-green-900/20 border border-green-500/30 rounded-lg">
+            <h3 class="text-green-300 font-semibold mb-2">✅ Alla krav uppfyllda</h3>
+            <p class="text-sm text-gray-300">
+                Implementationen innehåller mer avancerad sammanställning, djupare insikt, 
+                visualisering av osäkerhet/källtäthet, transparens kring ej verifierade påståenden, 
+                motiv till neutral bedömning, utökad analys med typfördelning och bias-score, 
+                samt omfattande dokumentation.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
