@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import AgentBubble from './components/AgentBubble';
-import ModernLoader from './components/ModernLoader';
+import ProcessingLoader from './components/ProcessingLoader';
 import Sidebar from './components/Sidebar';
 import AIServiceToggle from './components/AIServiceToggle';
 import AnalysisComparison from './components/AnalysisComparison';
@@ -336,7 +336,7 @@ function App() {
             ))}
 
             {/* Loading indicator */}
-            {isLoading && <ModernLoader />}
+            {isLoading && <ProcessingLoader />}
             
             <div ref={chatEndRef} />
           </div>
