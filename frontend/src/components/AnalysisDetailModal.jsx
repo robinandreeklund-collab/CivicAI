@@ -57,49 +57,49 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in">
-      {/* Modal Container */}
-      <div className="bg-civic-dark-800 border border-civic-dark-600 rounded-xl shadow-2xl max-w-5xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col animate-scale-in">
-        {/* Header */}
+      {/* Modal Container - More Compact */}
+      <div className="bg-civic-dark-800 border border-civic-dark-600 rounded-lg shadow-2xl max-w-4xl w-full mx-4 max-h-[85vh] overflow-hidden flex flex-col animate-scale-in">
+        {/* Header - Compact */}
         <div 
-          className="px-6 py-4 border-b border-civic-dark-600 flex items-center justify-between"
-          style={{ borderTopColor: theme.color, borderTopWidth: '3px' }}
+          className="px-4 py-3 border-b border-civic-dark-600 flex items-center justify-between"
+          style={{ borderTopColor: theme.color, borderTopWidth: '2px' }}
         >
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
             <div 
-              className="w-12 h-12 rounded-lg flex items-center justify-center text-2xl"
+              className="w-8 h-8 rounded-md flex items-center justify-center text-lg"
               style={{ 
                 backgroundColor: `${theme.color}20`,
-                border: `2px solid ${theme.color}60`,
+                border: `1px solid ${theme.color}60`,
               }}
             >
               {theme.icon}
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-gray-100">
+              <h2 className="text-lg font-bold text-gray-100">
                 Analysgenomgång: {theme.name}
               </h2>
-              <p className="text-sm text-gray-400 mt-1">
-                Transparent dokumentation av analysmetoder och beräkningar
+              <p className="text-xs text-gray-400">
+                Transparent dokumentation av analysmetoder
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-200 transition-colors p-2 hover:bg-civic-dark-700 rounded-lg"
+            className="text-gray-400 hover:text-gray-200 transition-colors p-1 hover:bg-civic-dark-700 rounded"
             aria-label="Stäng"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="px-6 py-3 border-b border-civic-dark-600 bg-civic-dark-750">
-          <div className="flex space-x-2">
+        {/* Tab Navigation - Compact */}
+        <div className="px-4 py-2 border-b border-civic-dark-600 bg-civic-dark-750">
+          <div className="flex space-x-1">
             <button
               onClick={() => setActiveTab('overview')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
                 activeTab === 'overview'
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
                   : 'text-gray-400 hover:text-gray-200 hover:bg-civic-dark-700'
@@ -109,7 +109,7 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
             </button>
             <button
               onClick={() => setActiveTab('tone')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
                 activeTab === 'tone'
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
                   : 'text-gray-400 hover:text-gray-200 hover:bg-civic-dark-700'
@@ -119,39 +119,39 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
             </button>
             <button
               onClick={() => setActiveTab('bias')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
                 activeTab === 'bias'
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
                   : 'text-gray-400 hover:text-gray-200 hover:bg-civic-dark-700'
               }`}
             >
-              ⚖️ Bias-detektion
+              ⚖️ Bias
             </button>
             <button
               onClick={() => setActiveTab('facts')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
                 activeTab === 'facts'
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
                   : 'text-gray-400 hover:text-gray-200 hover:bg-civic-dark-700'
               }`}
             >
-              🔍 Faktakoll
+              🔍 Fakta
             </button>
             <button
               onClick={() => setActiveTab('methodology')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
                 activeTab === 'methodology'
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
                   : 'text-gray-400 hover:text-gray-200 hover:bg-civic-dark-700'
               }`}
             >
-              📚 Metodologi
+              📚 Metod
             </button>
           </div>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        {/* Content - Compact */}
+        <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
@@ -163,55 +163,54 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
             <>
               {/* Overview Tab */}
               {activeTab === 'overview' && (
-                <div className="space-y-6">
-                  <div className="bg-gradient-to-r from-cyan-900/20 to-blue-900/20 border border-cyan-500/30 rounded-lg p-6">
-                    <h3 className="text-xl font-bold text-cyan-300 mb-4 flex items-center">
-                      <span className="text-2xl mr-2">📊</span>
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-r from-cyan-900/20 to-blue-900/20 border border-cyan-500/30 rounded-lg p-4">
+                    <h3 className="text-base font-bold text-cyan-300 mb-2 flex items-center">
+                      <span className="text-xl mr-2">📊</span>
                       Analysresultat för {theme.name}
                     </h3>
-                    <p className="text-gray-300 mb-4">
-                      Denna översikt visar de viktigaste resultaten från analysen av {theme.name}:s svar.
-                      Data som påverkar analysen mest markeras för att ge insyn i beslutsprocessen.
+                    <p className="text-sm text-gray-300">
+                      De viktigaste resultaten från analysen. Data som påverkar analysen mest markeras.
                     </p>
                   </div>
 
-                  {/* Tone Summary */}
+                  {/* Tone Summary - Compact */}
                   {analysis?.tone && (
-                    <div className="bg-civic-dark-700/50 border border-civic-dark-600 rounded-lg p-5">
-                      <h4 className="text-lg font-semibold text-blue-300 mb-3 flex items-center">
-                        <span className="mr-2">💬</span>
+                    <div className="bg-civic-dark-700/50 border border-civic-dark-600 rounded-lg p-3">
+                      <h4 className="text-sm font-semibold text-blue-300 mb-2 flex items-center">
+                        <span className="mr-1.5">💬</span>
                         Tonanalys
                       </h4>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <p className="text-sm text-gray-400 mb-1">Primär ton</p>
-                          <p className="text-lg font-medium text-gray-200">
+                          <p className="text-xs text-gray-400 mb-1">Primär ton</p>
+                          <p className="text-sm font-medium text-gray-200">
                             {analysis.tone.description}
                           </p>
                         </div>
                         <div>
-                          <p className="text-sm text-gray-400 mb-1">Konfidensval</p>
+                          <p className="text-xs text-gray-400 mb-1">Konfidensval</p>
                           <div className="flex items-center space-x-2">
-                            <div className="flex-1 bg-civic-dark-600 rounded-full h-3 overflow-hidden">
+                            <div className="flex-1 bg-civic-dark-600 rounded-full h-2 overflow-hidden">
                               <div 
                                 className="bg-gradient-to-r from-blue-500 to-cyan-500 h-full rounded-full transition-all duration-500"
                                 style={{ width: `${Math.round(analysis.tone.confidence * 100)}%` }}
                               ></div>
                             </div>
-                            <span className="text-lg font-bold text-cyan-300">
+                            <span className="text-sm font-bold text-cyan-300">
                               {Math.round(analysis.tone.confidence * 100)}%
                             </span>
                           </div>
                         </div>
                       </div>
                       {analysis.tone.characteristics && analysis.tone.characteristics.length > 0 && (
-                        <div className="mt-3">
-                          <p className="text-sm text-gray-400 mb-2">Sekundära karakteristika</p>
-                          <div className="flex flex-wrap gap-2">
+                        <div className="mt-2">
+                          <p className="text-xs text-gray-400 mb-1.5">Sekundära</p>
+                          <div className="flex flex-wrap gap-1.5">
                             {analysis.tone.characteristics.map((char, idx) => (
                               <span 
                                 key={idx}
-                                className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm border border-blue-500/30"
+                                className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs border border-blue-500/30"
                               >
                                 {char}
                               </span>
@@ -222,17 +221,17 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
                     </div>
                   )}
 
-                  {/* Bias Summary */}
+                  {/* Bias Summary - Compact */}
                   {analysis?.bias && (
-                    <div className="bg-civic-dark-700/50 border border-civic-dark-600 rounded-lg p-5">
-                      <h4 className="text-lg font-semibold text-yellow-300 mb-3 flex items-center">
-                        <span className="mr-2">⚖️</span>
+                    <div className="bg-civic-dark-700/50 border border-civic-dark-600 rounded-lg p-3">
+                      <h4 className="text-sm font-semibold text-yellow-300 mb-2 flex items-center">
+                        <span className="mr-1.5">⚖️</span>
                         Bias-detektion
                       </h4>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <p className="text-sm text-gray-400 mb-1">Bias-poäng</p>
-                          <p className={`text-2xl font-bold ${
+                          <p className="text-xs text-gray-400 mb-1">Bias-poäng</p>
+                          <p className={`text-xl font-bold ${
                             analysis.bias.biasScore > 5 ? 'text-red-400' :
                             analysis.bias.biasScore > 2 ? 'text-yellow-400' :
                             'text-green-400'
@@ -241,8 +240,8 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
                           </p>
                         </div>
                         <div>
-                          <p className="text-sm text-gray-400 mb-1">Status</p>
-                          <p className={`text-lg font-medium ${
+                          <p className="text-xs text-gray-400 mb-1">Status</p>
+                          <p className={`text-sm font-medium ${
                             analysis.bias.overallBias === 'minimal' ? 'text-green-400' : 'text-yellow-400'
                           }`}>
                             {analysis.bias.overallBias === 'minimal' ? 'Minimal bias' : 'Bias detekterad'}
@@ -250,13 +249,13 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
                         </div>
                       </div>
                       {analysis.bias.detectedBiases && analysis.bias.detectedBiases.length > 0 && (
-                        <div className="mt-4">
-                          <p className="text-sm text-gray-400 mb-2">Detekterade bias-typer</p>
-                          <div className="space-y-2">
+                        <div className="mt-3">
+                          <p className="text-xs text-gray-400 mb-1.5">Detekterade bias-typer</p>
+                          <div className="space-y-1.5">
                             {analysis.bias.detectedBiases.map((bias, idx) => (
                               <div 
                                 key={idx}
-                                className={`p-3 rounded-lg border ${
+                                className={`p-2 rounded text-xs border ${
                                   bias.severity === 'high' ? 'bg-red-500/10 border-red-500/30' :
                                   bias.severity === 'medium' ? 'bg-yellow-500/10 border-yellow-500/30' :
                                   'bg-green-500/10 border-green-500/30'
@@ -266,7 +265,7 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
                                   <span className="font-medium text-gray-200">
                                     {bias.description}
                                   </span>
-                                  <span className={`text-xs px-2 py-1 rounded ${
+                                  <span className={`text-xs px-1.5 py-0.5 rounded ${
                                     bias.severity === 'high' ? 'bg-red-500/20 text-red-300' :
                                     bias.severity === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
                                     'bg-green-500/20 text-green-300'
@@ -282,32 +281,32 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
                     </div>
                   )}
 
-                  {/* Fact Check Summary */}
+                  {/* Fact Check Summary - Compact */}
                   {analysis?.factCheck && (
-                    <div className="bg-civic-dark-700/50 border border-civic-dark-600 rounded-lg p-5">
-                      <h4 className="text-lg font-semibold text-green-300 mb-3 flex items-center">
-                        <span className="mr-2">🔍</span>
+                    <div className="bg-civic-dark-700/50 border border-civic-dark-600 rounded-lg p-3">
+                      <h4 className="text-sm font-semibold text-green-300 mb-2 flex items-center">
+                        <span className="mr-1.5">🔍</span>
                         Faktakoll
                       </h4>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <p className="text-sm text-gray-400 mb-1">Påståenden identifierade</p>
-                          <p className="text-2xl font-bold text-cyan-300">
+                          <p className="text-xs text-gray-400 mb-1">Påståenden</p>
+                          <p className="text-xl font-bold text-cyan-300">
                             {analysis.factCheck.claimsFound}
                           </p>
                         </div>
                         <div>
-                          <p className="text-sm text-gray-400 mb-1">Behöver verifiering</p>
-                          <p className={`text-lg font-medium ${
+                          <p className="text-xs text-gray-400 mb-1">Verifiering</p>
+                          <p className={`text-sm font-medium ${
                             analysis.factCheck.needsVerification ? 'text-yellow-400' : 'text-green-400'
                           }`}>
-                            {analysis.factCheck.needsVerification ? 'Ja' : 'Nej'}
+                            {analysis.factCheck.needsVerification ? 'Behövs' : 'Ej nödvändig'}
                           </p>
                         </div>
                       </div>
                       {analysis.factCheck.recommendation && (
-                        <div className="mt-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded">
-                          <p className="text-sm text-yellow-300">
+                        <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded">
+                          <p className="text-xs text-yellow-300">
                             💡 {analysis.factCheck.recommendation}
                           </p>
                         </div>
@@ -315,25 +314,25 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
                     </div>
                   )}
 
-                  {/* Meta-Analysis Summary */}
+                  {/* Meta-Analysis Summary - Compact */}
                   {metaAnalysis && (
-                    <div className="bg-civic-dark-700/50 border border-civic-dark-600 rounded-lg p-5">
-                      <h4 className="text-lg font-semibold text-purple-300 mb-3 flex items-center">
-                        <span className="mr-2">🧠</span>
-                        Meta-analys (NLP + Sentiment)
+                    <div className="bg-civic-dark-700/50 border border-civic-dark-600 rounded-lg p-3">
+                      <h4 className="text-sm font-semibold text-purple-300 mb-2 flex items-center">
+                        <span className="mr-1.5">🧠</span>
+                        Meta-analys
                       </h4>
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-3 gap-3">
                         {metaAnalysis.nlp && (
                           <>
                             <div>
-                              <p className="text-sm text-gray-400 mb-1">Meningar</p>
-                              <p className="text-xl font-bold text-gray-200">
+                              <p className="text-xs text-gray-400 mb-1">Meningar</p>
+                              <p className="text-base font-bold text-gray-200">
                                 {metaAnalysis.nlp.sentences}
                               </p>
                             </div>
                             <div>
-                              <p className="text-sm text-gray-400 mb-1">Ord</p>
-                              <p className="text-xl font-bold text-gray-200">
+                              <p className="text-xs text-gray-400 mb-1">Ord</p>
+                              <p className="text-base font-bold text-gray-200">
                                 {metaAnalysis.nlp.words}
                               </p>
                             </div>
@@ -341,8 +340,8 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
                         )}
                         {metaAnalysis.sentiment && (
                           <div>
-                            <p className="text-sm text-gray-400 mb-1">Sentiment</p>
-                            <p className={`text-xl font-bold ${
+                            <p className="text-xs text-gray-400 mb-1">Sentiment</p>
+                            <p className={`text-base font-bold ${
                               metaAnalysis.sentiment.sentiment === 'positive' ? 'text-green-400' :
                               metaAnalysis.sentiment.sentiment === 'negative' ? 'text-red-400' :
                               'text-gray-400'
@@ -395,14 +394,14 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-civic-dark-600 bg-civic-dark-750 flex justify-between items-center">
+        {/* Footer - Compact */}
+        <div className="px-4 py-2 border-t border-civic-dark-600 bg-civic-dark-750 flex justify-between items-center">
           <p className="text-xs text-gray-500">
-            CivicAI Transparency System • Alla analysmetoder är öppna och dokumenterade
+            CivicAI Transparency • Öppna analysmetoder
           </p>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded-lg transition-colors border border-cyan-500/30"
+            className="px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded text-xs transition-colors border border-cyan-500/30"
           >
             Stäng
           </button>
@@ -416,37 +415,37 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
 
 function ToneAnalysisDetail({ methodology }) {
   return (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/30 rounded-lg p-6">
-        <h3 className="text-xl font-bold text-blue-300 mb-2">{methodology.name}</h3>
-        <p className="text-gray-300">{methodology.description}</p>
+    <div className="space-y-4">
+      <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/30 rounded-lg p-4">
+        <h3 className="text-base font-bold text-blue-300 mb-1">{methodology.name}</h3>
+        <p className="text-sm text-gray-300">{methodology.description}</p>
       </div>
 
-      {/* Methodology Steps */}
-      <div className="bg-civic-dark-700/50 border border-civic-dark-600 rounded-lg p-5">
-        <h4 className="text-lg font-semibold text-cyan-300 mb-4">Beräkningsmetod</h4>
-        <p className="text-gray-300 mb-4">
+      {/* Methodology Steps - Compact */}
+      <div className="bg-civic-dark-700/50 border border-civic-dark-600 rounded-lg p-4">
+        <h4 className="text-sm font-semibold text-cyan-300 mb-3">Beräkningsmetod</h4>
+        <p className="text-sm text-gray-300 mb-3">
           <strong>Approach:</strong> {methodology.methodology.approach}
         </p>
-        <div className="space-y-4">
+        <div className="space-y-3">
           {methodology.methodology.steps.map((step, idx) => (
-            <div key={idx} className="border-l-2 border-cyan-500/50 pl-4">
-              <h5 className="font-semibold text-gray-200 mb-1">
+            <div key={idx} className="border-l-2 border-cyan-500/50 pl-3">
+              <h5 className="font-semibold text-gray-200 text-sm mb-1">
                 Steg {step.step}: {step.name}
               </h5>
-              <p className="text-sm text-gray-400 mb-2">{step.description}</p>
+              <p className="text-xs text-gray-400 mb-1">{step.description}</p>
               {step.formula && (
-                <code className="text-xs bg-civic-dark-900 px-2 py-1 rounded text-cyan-300 block">
+                <code className="text-xs bg-civic-dark-900 px-2 py-1 rounded text-cyan-300 block mt-1">
                   {step.formula}
                 </code>
               )}
               {step.example && (
                 <p className="text-xs text-gray-500 mt-1 italic">
-                  Exempel: {step.example}
+                  Ex: {step.example}
                 </p>
               )}
               {step.details && (
-                <ul className="text-sm text-gray-400 list-disc list-inside mt-2">
+                <ul className="text-xs text-gray-400 list-disc list-inside mt-1">
                   {step.details.map((detail, i) => (
                     <li key={i}>{detail}</li>
                   ))}
@@ -457,16 +456,16 @@ function ToneAnalysisDetail({ methodology }) {
         </div>
       </div>
 
-      {/* Tone Categories */}
-      <div className="bg-civic-dark-700/50 border border-civic-dark-600 rounded-lg p-5">
-        <h4 className="text-lg font-semibold text-cyan-300 mb-4">Ton-kategorier och nyckelord</h4>
-        <div className="grid grid-cols-2 gap-4">
+      {/* Tone Categories - Compact */}
+      <div className="bg-civic-dark-700/50 border border-civic-dark-600 rounded-lg p-4">
+        <h4 className="text-sm font-semibold text-cyan-300 mb-3">Ton-kategorier</h4>
+        <div className="grid grid-cols-2 gap-2">
           {methodology.methodology.categories.map((cat, idx) => (
-            <div key={idx} className="p-3 bg-civic-dark-800 rounded border border-civic-dark-600">
-              <h5 className="font-medium text-gray-200 mb-2 capitalize">{cat.tone}</h5>
+            <div key={idx} className="p-2 bg-civic-dark-800 rounded border border-civic-dark-600">
+              <h5 className="font-medium text-gray-200 mb-1.5 capitalize text-xs">{cat.tone}</h5>
               <div className="flex flex-wrap gap-1">
                 {cat.keywords.map((kw, i) => (
-                  <span key={i} className="text-xs px-2 py-1 bg-blue-500/20 text-blue-300 rounded">
+                  <span key={i} className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded">
                     {kw}
                   </span>
                 ))}
@@ -476,13 +475,13 @@ function ToneAnalysisDetail({ methodology }) {
         </div>
       </div>
 
-      {/* Limitations */}
-      <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-5">
-        <h4 className="text-lg font-semibold text-yellow-300 mb-3">⚠️ Begränsningar</h4>
-        <ul className="space-y-2">
+      {/* Limitations - Compact */}
+      <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-3">
+        <h4 className="text-sm font-semibold text-yellow-300 mb-2">⚠️ Begränsningar</h4>
+        <ul className="space-y-1">
           {methodology.limitations.map((limit, idx) => (
-            <li key={idx} className="text-gray-300 flex items-start">
-              <span className="mr-2">•</span>
+            <li key={idx} className="text-xs text-gray-300 flex items-start">
+              <span className="mr-1.5">•</span>
               <span>{limit}</span>
             </li>
           ))}
