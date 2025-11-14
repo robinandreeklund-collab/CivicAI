@@ -14,18 +14,24 @@ import { generateBERTSummary } from '../services/bertSummarizer.js';
  * @param {Array} responses - Array of AI responses with their text
  * @param {string} question - The original question
  * @param {Object} factCheckComparison - Optional fact-check comparison data
- * @returns {Promise<string>} A synthesized summary with fact-check insights
+ * @returns {Promise<Object>} Object containing summary text and metadata
  */
 export async function generateSynthesizedSummary(responses, question, factCheckComparison = null) {
   if (!responses || responses.length === 0) {
-    return 'Ingen sammanfattning tillgänglig.';
+    return {
+      text: 'Ingen sammanfattning tillgänglig.',
+      usedBERT: false
+    };
   }
 
   // Filter out error responses
   const validResponses = responses.filter(r => r && r.response && !r.metadata?.error);
   
   if (validResponses.length === 0) {
-    return 'Kunde inte generera sammanfattning från tillgängliga svar.';
+    return {
+      text: 'Kunde inte generera sammanfattning från tillgängliga svar.',
+      usedBERT: false
+    };
   }
 
   let summaryText = '';
@@ -68,7 +74,10 @@ export async function generateSynthesizedSummary(responses, question, factCheckC
     summaryText += '\n\n' + generateFactCheckSection(factCheckComparison);
   }
 
-  return summaryText;
+  return {
+    text: summaryText,
+    usedBERT: usedBERT
+  };
 }
 
 /**

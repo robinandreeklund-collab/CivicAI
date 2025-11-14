@@ -4,7 +4,7 @@ import { useState } from 'react';
  * EnhancedExportPanel Component
  * Export to PDF, README, YAML, and JSON
  */
-export default function EnhancedExportPanel({ question, responses, synthesizedSummary, timestamp }) {
+export default function EnhancedExportPanel({ question, responses, synthesizedSummary, synthesizedSummaryMetadata, timestamp }) {
   const [isExporting, setIsExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
   const [exportFormat, setExportFormat] = useState('');
@@ -23,6 +23,7 @@ export default function EnhancedExportPanel({ question, responses, synthesizedSu
         question,
         responses,
         synthesizedSummary,
+        synthesizedSummaryMetadata,
         timestamp: timestamp || new Date().toISOString(),
       };
 
