@@ -69,7 +69,9 @@ Returns neutral summary ← ← ← ← ← ← ←
    ```bash
    cd backend
    cp .env.example .env
-   # Edit .env and set PYTHON_ENABLED=true
+   # Edit .env and set:
+   # PYTHON_ENABLED=true
+   # PYTHON_PATH=python3  (or your preferred Python path)
    ```
 
 ### Testing
@@ -108,6 +110,10 @@ Expected output:
 
 - `PYTHON_ENABLED=true`: Enable BERT summarizer
 - If false or unset, falls back to keyword-based summarization
+- `PYTHON_PATH`: Path to Python executable (e.g., `/usr/bin/python3`, `python3`)
+  - If not set, defaults to `python`
+  - Allows using specific Python versions or virtual environments
+  - Examples: `PYTHON_PATH=/usr/local/bin/python3.11` or `PYTHON_PATH=/path/to/venv/bin/python`
 
 ## Benefits
 

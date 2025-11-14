@@ -11,24 +11,29 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
- * Try to spawn Python process with fallback to different Python commands
+ * Get Python executable path from environment variable or use default
+ * @returns {string} Python executable path
+ */
+function getPythonPath() {
+  // Use PYTHON_PATH environment variable if set, otherwise default to "python"
+  return process.env.PYTHON_PATH || 'python';
+}
+
+/**
+ * Spawn Python process using configured Python path
  * @param {string} pythonScript - Path to Python script
  * @returns {Object|null} Spawned process or null
  */
-function trySpawnPython(pythonScript) {
-  const pythonCommands = ['python3', 'python'];
-  
-  for (const cmd of pythonCommands) {
-    try {
-      // Use shell: true for Windows compatibility to resolve commands from PATH
-      const process = spawn(cmd, [pythonScript], { shell: true });
-      return { process, command: cmd };
-    } catch (error) {
-      console.log(`[BERT Summarizer] Failed to spawn ${cmd}, trying next...`);
-    }
+function spawnPython(pythonScript) {
+  try {
+    const pythonPath = getPythonPath();
+    // Use shell: true for Windows compatibility to resolve commands from PATH
+    const process = spawn(pythonPath, [pythonScript], { shell: true });
+    return { process, command: pythonPath };
+  } catch (error) {
+    console.error(`[BERT Summarizer] Failed to spawn Python process: ${error.message}`);
+    return null;
   }
-  
-  return null;
 }
 
 /**
@@ -43,14 +48,14 @@ export async function generateBERTSummary(responses, question, minLength = 100, 
   return new Promise((resolve, reject) => {
     const pythonScript = join(__dirname, '..', 'python_services', 'bert_summarizer.py');
     
-    // Try to spawn Python process with multiple commands
-    const spawnResult = trySpawnPython(pythonScript);
+    // Spawn Python process using configured Python path
+    const spawnResult = spawnPython(pythonScript);
     
     if (!spawnResult) {
-      console.error('[BERT Summarizer] Could not find Python executable (tried python3, python)');
+      console.error('[BERT Summarizer] Could not spawn Python process');
       resolve({
         success: false,
-        error: 'Python executable not found',
+        error: 'Failed to spawn Python process',
         fallback: true
       });
       return;
