@@ -268,7 +268,7 @@ export default function HomePage({ onAiMessageUpdate }) {
             title={`${bestResponse.metadata?.model || bestResponse.agent} Rekommendation`}
             content={
               <div className="space-y-3">
-                {bestResponse.content || 'Inget svar tillgängligt'}
+                {bestResponse.response || bestResponse.content || 'Inget svar tillgängligt'}
               </div>
             }
             metadata={[
@@ -282,7 +282,7 @@ export default function HomePage({ onAiMessageUpdate }) {
               { label: 'Kvalitetspoäng', value: bestResponse.metadata?.quality ? `${bestResponse.metadata.quality}/100` : 'N/A' }
             ]}
             actions={[
-              { icon: '📋', title: 'Kopiera', onClick: () => navigator.clipboard.writeText(bestResponse.content) },
+              { icon: '📋', title: 'Kopiera', onClick: () => navigator.clipboard.writeText(bestResponse.response || bestResponse.content || '') },
               { icon: '🔗', title: 'Dela', onClick: () => {} },
               { icon: '⭐', title: 'Favorit', onClick: () => {} }
             ]}
@@ -470,7 +470,7 @@ export default function HomePage({ onAiMessageUpdate }) {
               title={`${response.metadata?.model || response.agent} Svar`}
               content={
                 <div className="space-y-3">
-                  {response.content || 'Inget svar tillgängligt'}
+                  {response.response || response.content || 'Inget svar tillgängligt'}
                 </div>
               }
               metadata={[
@@ -484,7 +484,7 @@ export default function HomePage({ onAiMessageUpdate }) {
                 { label: 'Temperatur', value: response.metadata?.temperature !== undefined ? response.metadata.temperature : 'N/A' }
               ]}
               actions={[
-                { icon: '📋', title: 'Kopiera', onClick: () => navigator.clipboard.writeText(response.content) },
+                { icon: '📋', title: 'Kopiera', onClick: () => navigator.clipboard.writeText(response.response || response.content || '') },
                 { icon: '🔗', title: 'Dela', onClick: () => {} }
               ]}
             />
