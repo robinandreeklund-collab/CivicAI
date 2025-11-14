@@ -12,7 +12,7 @@
  * - Meta-data (tidsstämpel, AI-agent, claims distribution)
  * - Förslag till förbättrad formulering vid neutralbedömningar
  */
-export default function ResponseSummary({ responses, question, synthesizedSummary, factCheckComparison }) {
+export default function ResponseSummary({ responses, question, synthesizedSummary, synthesizedSummaryMetadata, factCheckComparison }) {
   if (!responses || responses.length === 0) {
     return null;
   }
@@ -440,8 +440,22 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
               <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <div className="text-sm font-semibold text-emerald-300">Syntetiserad sammanfattning</div>
+              <div className="text-sm font-semibold text-emerald-300">
+                {synthesizedSummaryMetadata?.usedBERT 
+                  ? 'Syntetiserad sammanfattning (BERT)' 
+                  : 'Syntetiserad sammanfattning'}
+              </div>
             </div>
+            {synthesizedSummaryMetadata?.usedBERT && (
+              <div className="mb-3 p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                <div className="flex items-start space-x-2">
+                  <span className="text-base">🤖</span>
+                  <div className="text-xs text-emerald-200">
+                    <span className="font-medium">Texten nedan är genererad med BERT</span> - en AI-modell för extraktiv sammanfattning som väljer ut de viktigaste meningarna från alla AI-svar.
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="text-sm text-gray-200 leading-relaxed space-y-2">
               {formattedSummary.map((part, idx) => {
                 if (part.type === 'header') {

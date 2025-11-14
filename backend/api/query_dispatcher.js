@@ -272,12 +272,15 @@ router.post('/query', async (req, res) => {
 
     // Generate synthesized summary from all responses using BERT
     console.log('📝 Generating synthesized summary with BERT...');
-    const synthesizedSummary = await generateSynthesizedSummary(responses, question, factCheckComparison);
+    const summaryResult = await generateSynthesizedSummary(responses, question, factCheckComparison);
 
     res.json({
       question,
       responses,
-      synthesizedSummary,
+      synthesizedSummary: summaryResult.text,
+      synthesizedSummaryMetadata: {
+        usedBERT: summaryResult.usedBERT
+      },
       metaReview: gptMetaReview,
       factCheckComparison: factCheckComparison,
       timestamp: new Date().toISOString(),

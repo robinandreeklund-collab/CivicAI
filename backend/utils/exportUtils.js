@@ -14,7 +14,7 @@ import yaml from 'js-yaml';
  * @returns {string} README markdown content
  */
 export function generateReadme(data) {
-  const { question, responses, synthesizedSummary, timestamp } = data;
+  const { question, responses, synthesizedSummary, synthesizedSummaryMetadata, timestamp } = data;
   
   let readme = `# CivicAI Jämförelse\n\n`;
   readme += `**Genererad:** ${new Date(timestamp).toLocaleString('sv-SE')}\n\n`;
@@ -58,7 +58,15 @@ export function generateReadme(data) {
   
   // Add synthesized summary if available
   if (synthesizedSummary) {
-    readme += `## Syntetiserad sammanfattning\n\n`;
+    const summaryTitle = synthesizedSummaryMetadata?.usedBERT 
+      ? 'Syntetiserad sammanfattning (BERT)' 
+      : 'Syntetiserad sammanfattning';
+    readme += `## ${summaryTitle}\n\n`;
+    
+    if (synthesizedSummaryMetadata?.usedBERT) {
+      readme += `> **Texten nedan är genererad med BERT** - en AI-modell för extraktiv sammanfattning som väljer ut de viktigaste meningarna från alla AI-svar.\n\n`;
+    }
+    
     readme += `${synthesizedSummary}\n\n`;
     readme += `---\n\n`;
   }
@@ -77,7 +85,7 @@ export function generateReadme(data) {
 export function generatePDF(data) {
   return new Promise((resolve, reject) => {
     try {
-      const { question, responses, synthesizedSummary, timestamp } = data;
+      const { question, responses, synthesizedSummary, synthesizedSummaryMetadata, timestamp } = data;
       
       const doc = new PDFDocument({
         size: 'A4',
@@ -149,8 +157,21 @@ export function generatePDF(data) {
           doc.addPage();
         }
         
-        doc.fontSize(16).font('Helvetica-Bold').text('Syntetiserad sammanfattning');
+        const summaryTitle = synthesizedSummaryMetadata?.usedBERT 
+          ? 'Syntetiserad sammanfattning (BERT)' 
+          : 'Syntetiserad sammanfattning';
+        doc.fontSize(16).font('Helvetica-Bold').text(summaryTitle);
         doc.moveDown(0.5);
+        
+        if (synthesizedSummaryMetadata?.usedBERT) {
+          doc.fontSize(9).font('Helvetica-Oblique').fillColor('#059669').text(
+            'Texten nedan är genererad med BERT - en AI-modell för extraktiv sammanfattning som väljer ut de viktigaste meningarna från alla AI-svar.',
+            { align: 'justify' }
+          );
+          doc.fillColor('#000000');
+          doc.moveDown(0.5);
+        }
+        
         doc.fontSize(11).font('Helvetica').text(synthesizedSummary, { align: 'justify' });
         doc.moveDown(2);
       }
@@ -187,6 +208,7 @@ export function generateYAML(data) {
       analysis,
     })),
     synthesizedSummary: data.synthesizedSummary,
+    synthesizedSummaryMetadata: data.synthesizedSummaryMetadata,
     metadata: {
       exported_at: new Date().toISOString(),
       version: '0.1.0',
@@ -214,6 +236,7 @@ export function generateJSON(data) {
       analysis,
     })),
     synthesizedSummary: data.synthesizedSummary,
+    synthesizedSummaryMetadata: data.synthesizedSummaryMetadata,
     metadata: {
       exported_at: new Date().toISOString(),
       version: '0.1.0',

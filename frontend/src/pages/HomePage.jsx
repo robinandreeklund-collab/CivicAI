@@ -122,6 +122,7 @@ export default function HomePage({ onAiMessageUpdate }) {
         question: userQuestion,
         responses: data.responses || [],
         synthesizedSummary: data.synthesizedSummary || null,
+        synthesizedSummaryMetadata: data.synthesizedSummaryMetadata || null,
         metaReview: data.metaReview || null,
         factCheckComparison: data.factCheckComparison || null,
         timestamp: new Date().toISOString(),
@@ -244,6 +245,7 @@ export default function HomePage({ onAiMessageUpdate }) {
                     responses={message.responses} 
                     question={message.question}
                     synthesizedSummary={message.synthesizedSummary}
+                    synthesizedSummaryMetadata={message.synthesizedSummaryMetadata}
                     factCheckComparison={message.factCheckComparison}
                   />
                 </div>

@@ -188,6 +188,7 @@ export default function Sidebar({
                 question={lastAiMessage.question}
                 responses={lastAiMessage.responses}
                 synthesizedSummary={lastAiMessage.synthesizedSummary}
+                synthesizedSummaryMetadata={lastAiMessage.synthesizedSummaryMetadata}
                 timestamp={lastAiMessage.timestamp}
               />
             </div>
