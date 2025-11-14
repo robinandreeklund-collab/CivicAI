@@ -9,7 +9,7 @@ import QuestionInput from '../components/QuestionInput';
 
 /**
  * HomePage Component
- * Main chat interface for CivicAI
+ * Main chat interface for OneSeek.AI
  */
 export default function HomePage({ onAiMessageUpdate }) {
   const [messages, setMessages] = useState([]);

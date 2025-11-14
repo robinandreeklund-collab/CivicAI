@@ -1,7 +1,7 @@
 # Meta-Analysis System Documentation
 
 ## Overview
-The CivicAI meta-analysis system provides advanced NLP and sentiment analysis for AI responses using three key technologies:
+The OneSeek.AI meta-analysis system provides advanced NLP and sentiment analysis for AI responses using three key technologies:
 
 1. **spaCy-like NLP** (via Compromise.js)
 2. **TextBlob-like Sentiment Analysis** (via Sentiment.js)  

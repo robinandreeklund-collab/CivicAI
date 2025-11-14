@@ -27,7 +27,7 @@ export default function ExportButtons({ messages }) {
       metadata: {
         exported_at: new Date().toISOString(),
         version: '0.1.0',
-        tool: 'CivicAI',
+        tool: 'OneSeek.AI',
         total_conversations: messages.length,
       }
     };
@@ -43,7 +43,7 @@ export default function ExportButtons({ messages }) {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `civicai-chat-${Date.now()}.yaml`;
+    a.download = `oneseek-ai-chat-${Date.now()}.yaml`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -65,7 +65,7 @@ export default function ExportButtons({ messages }) {
       metadata: {
         exported_at: new Date().toISOString(),
         version: '0.1.0',
-        tool: 'CivicAI',
+        tool: 'OneSeek.AI',
       }
     };
 
@@ -74,7 +74,7 @@ export default function ExportButtons({ messages }) {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `civicai-chat-${Date.now()}.json`;
+    a.download = `oneseek-ai-chat-${Date.now()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

@@ -1,4 +1,4 @@
-# Python Services for CivicAI
+# Python Services for OneSeek.AI
 
 This directory contains Python-based services that enhance the backend functionality.
 

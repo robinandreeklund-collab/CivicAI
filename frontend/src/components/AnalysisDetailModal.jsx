@@ -397,7 +397,7 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
         {/* Footer - Compact */}
         <div className="px-4 py-2 border-t border-civic-dark-600 bg-civic-dark-750 flex justify-between items-center">
           <p className="text-xs text-gray-500">
-            CivicAI Transparency • Öppna analysmetoder
+            OneSeek.AI Transparency • Öppna analysmetoder
           </p>
           <button
             onClick={onClose}

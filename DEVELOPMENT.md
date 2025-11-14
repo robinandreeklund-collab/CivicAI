@@ -1,4 +1,4 @@
-# CivicAI - Utvecklingsguide
+# OneSeek.AI - Utvecklingsguide
 
 ## 🚀 Kom igång
 
@@ -59,7 +59,7 @@ Applikationen öppnas på:
 ## 📁 Projektstruktur
 
 ```
-civicai/
+oneseek-ai/
 ├── frontend/          # React + Vite + Tailwind
 │   ├── src/
 │   │   ├── components/

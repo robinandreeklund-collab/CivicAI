@@ -48,7 +48,7 @@ export default function EnhancedExportPanel({ question, responses, synthesizedSu
         const a = document.createElement('a');
         a.href = url;
         const extension = format === 'pdf' ? 'pdf' : 'md';
-        a.download = `civicai-export-${Date.now()}.${extension}`;
+        a.download = `oneseek-ai-export-${Date.now()}.${extension}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -73,7 +73,7 @@ export default function EnhancedExportPanel({ question, responses, synthesizedSu
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `civicai-export-${Date.now()}.${extension}`;
+        a.download = `oneseek-ai-export-${Date.now()}.${extension}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
