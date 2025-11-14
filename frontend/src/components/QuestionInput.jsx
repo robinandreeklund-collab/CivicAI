@@ -230,9 +230,9 @@ export default function QuestionInput({ onSubmit, isLoading }) {
           </div>
         </div>
 
-        {/* Advanced Processing loader - shown during processing phase */}
+        {/* Clean Processing loader - shown during processing phase */}
         {animationPhase === 'processing' && (
-          <div className="flex flex-col items-center justify-center space-y-6 py-8 animate-fade-in">
+          <div className="flex flex-col items-center justify-center space-y-4 py-8 animate-fade-in">
             {/* Thin line loader */}
             <div className="w-96 h-0.5 bg-civic-dark-700 rounded-full overflow-hidden">
               <div 
@@ -244,69 +244,33 @@ export default function QuestionInput({ onSubmit, isLoading }) {
               ></div>
             </div>
             
-            {/* Processing steps with visual hierarchy */}
-            <div className="space-y-1 min-h-[200px] w-full max-w-md">
+            {/* Processing steps - clean one-at-a-time display */}
+            <div className="space-y-3 min-h-[80px]">
               {processingSteps.map((step, index) => {
                 const isActive = step.status === 'active';
                 const isComplete = step.status === 'complete';
-                const isPending = step.status === 'pending';
+                
+                // Only show active or just completed step
+                if (!isActive && !isComplete) return null;
                 
                 return (
                   <div 
                     key={step.id}
-                    className={`
-                      flex items-center justify-between px-4 py-2.5 rounded-lg
-                      transition-all duration-500 ease-out
-                      ${isActive ? 'bg-civic-dark-700/50 scale-105 shadow-lg' : ''}
-                      ${isComplete ? 'bg-transparent scale-95 opacity-40' : ''}
-                      ${isPending ? 'opacity-30' : ''}
-                    `}
-                    style={{
-                      transform: isActive 
-                        ? 'translateY(0) scale(1.05)' 
-                        : isComplete 
-                        ? 'translateY(-8px) scale(0.95)' 
-                        : 'translateY(0)',
-                      transformOrigin: 'center',
-                    }}
+                    className="flex items-center space-x-3 animate-fade-in"
                   >
-                    {/* Icon/Status */}
-                    <div className="flex items-center space-x-3 flex-1">
-                      {isComplete && (
-                        <div className="flex-shrink-0">
-                          <svg className="w-5 h-5 text-civic-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                      )}
-                      
-                      {isActive && (
-                        <div className="flex-shrink-0">
-                          <div className="w-5 h-5 border-2 border-gray-300 border-t-transparent rounded-full animate-spin"></div>
-                        </div>
-                      )}
-                      
-                      {isPending && (
-                        <div className="flex-shrink-0 w-5 h-5"></div>
-                      )}
-                      
-                      {/* Step text */}
-                      <span 
-                        className={`
-                          text-sm transition-all duration-500
-                          ${isActive ? 'text-gray-100 font-semibold' : ''}
-                          ${isComplete ? 'text-gray-600 font-normal' : ''}
-                          ${isPending ? 'text-gray-700' : ''}
-                        `}
-                      >
-                        {step.text}
-                      </span>
-                    </div>
-                    
-                    {/* Duration - only for completed steps */}
+                    {isActive ? (
+                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <svg className="w-4 h-4 text-civic-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                    <span className={`text-sm ${isActive ? 'text-gray-300' : 'text-gray-500'}`}>
+                      {step.text}
+                    </span>
                     {isComplete && step.duration > 0 && (
-                      <span className="text-xs text-gray-600 ml-3">
-                        {step.duration}s
+                      <span className="text-xs text-gray-600">
+                        Färdigt, åtgång: {step.duration} sekunder
                       </span>
                     )}
                   </div>
