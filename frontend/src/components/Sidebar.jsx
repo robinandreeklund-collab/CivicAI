@@ -46,8 +46,8 @@ export default function Sidebar({
             <div className="flex items-center space-x-3">
               <AnimatedLogo size={32} animated={true} />
               <div>
-                <h1 className="text-sm font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
-                  CivicAI
+                <h1 className="text-sm font-bold bg-gradient-to-r from-gray-400 via-gray-100 to-gray-400 bg-clip-text text-transparent">
+                  OneSeek.AI
                 </h1>
               </div>
             </div>

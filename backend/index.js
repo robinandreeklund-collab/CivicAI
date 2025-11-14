@@ -25,7 +25,7 @@ app.use('/api/analysis-transparency', analysisTransparencyRouter);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'CivicAI Backend is running' });
+  res.json({ status: 'ok', message: 'OneSeek.AI Backend is running' });
 });
 
 // Error handling middleware
@@ -38,7 +38,7 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 CivicAI Backend running on port ${PORT}`);
+  console.log(`🚀 OneSeek.AI Backend running on port ${PORT}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   console.log('[DEBUG] OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? '✓ Configured' : '✗ Not configured');
   console.log('[DEBUG] GEMINI_API_KEY:', process.env.GEMINI_API_KEY ? '✓ Configured' : '✗ Not configured');
