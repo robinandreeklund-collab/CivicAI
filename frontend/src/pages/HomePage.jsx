@@ -266,14 +266,20 @@ export default function HomePage({ onAiMessageUpdate }) {
           <RichContentCard
             badge={{ text: 'Bästa svar', icon: '⭐', primary: true }}
             title={`${bestResponse.metadata?.model || bestResponse.agent} Rekommendation`}
-            content={bestResponse.content}
+            content={
+              <div className="space-y-3">
+                {bestResponse.content || 'Inget svar tillgängligt'}
+              </div>
+            }
             metadata={[
-              { label: 'Modell', value: bestResponse.metadata?.model || bestResponse.agent },
+              { label: 'Modell', value: bestResponse.metadata?.model || bestResponse.agent || 'N/A' },
               { label: 'Svarstid', value: `${bestResponse.metadata?.responseTime || 0}ms` },
+              { label: 'Tokens', value: bestResponse.metadata?.tokens || 'N/A' },
               { label: 'Säkerhet', value: bestResponse.analysis?.confidence ? `${Math.round(bestResponse.analysis.confidence * 100)}%` : 'N/A' },
               { label: 'Tonalitet', value: bestResponse.analysis?.toneSummary || 'Neutral' },
               { label: 'Bias-poäng', value: bestResponse.analysis?.biasScore ? `${bestResponse.analysis.biasScore}/10` : 'N/A' },
-              { label: 'Faktakollad', value: bestResponse.analysis?.factCheck ? '✓ Ja' : '- Nej' }
+              { label: 'Faktakollad', value: bestResponse.analysis?.factCheck ? '✓ Ja' : '- Nej' },
+              { label: 'Kvalitetspoäng', value: bestResponse.metadata?.quality ? `${bestResponse.metadata.quality}/100` : 'N/A' }
             ]}
             actions={[
               { icon: '📋', title: 'Kopiera', onClick: () => navigator.clipboard.writeText(bestResponse.content) },
@@ -284,15 +290,37 @@ export default function HomePage({ onAiMessageUpdate }) {
         ) : null;
 
       case 'bert-summary':
+        const bertText = aiMessage.synthesizedSummary || aiMessage.bertSummary || 'Ingen sammanfattning tillgänglig';
+        // Format BERT summary with proper paragraphs and line breaks
+        const formattedBert = bertText.split('\n\n').map((paragraph, idx) => (
+          <p key={idx} className="mb-3 last:mb-0">
+            {paragraph.split('\n').map((line, lineIdx) => (
+              <span key={lineIdx}>
+                {line}
+                {lineIdx < paragraph.split('\n').length - 1 && <br />}
+              </span>
+            ))}
+          </p>
+        ));
+
         return (
           <RichContentCard
             badge={{ text: 'BERT-sammanfattning', icon: '📝' }}
             title="AI-genererad sammanfattning"
-            content={aiMessage.synthesizedSummary || aiMessage.bertSummary || 'Ingen sammanfattning tillgänglig'}
+            content={<div className="space-y-3">{formattedBert}</div>}
             metadata={aiMessage.synthesizedSummaryMetadata ? [
               { label: 'Typ', value: aiMessage.synthesizedSummaryMetadata.type || 'Automatisk' },
-              { label: 'Källor', value: `${aiMessage.synthesizedSummaryMetadata.sourcesCount || aiMessage.responses?.length || 0} AI-modeller` }
-            ] : []}
+              { label: 'Källor', value: `${aiMessage.synthesizedSummaryMetadata.sourcesCount || aiMessage.responses?.length || 0} AI-modeller` },
+              { label: 'Längd', value: `${bertText.length} tecken` },
+              { label: 'Genererad', value: new Date().toLocaleTimeString('sv-SE') }
+            ] : [
+              { label: 'Källor', value: `${aiMessage.responses?.length || 0} AI-modeller` },
+              { label: 'Längd', value: `${bertText.length} tecken` }
+            ]}
+            actions={[
+              { icon: '📋', title: 'Kopiera', onClick: () => navigator.clipboard.writeText(bertText) },
+              { icon: '🔗', title: 'Dela', onClick: () => {} }
+            ]}
           />
         );
 
@@ -301,11 +329,25 @@ export default function HomePage({ onAiMessageUpdate }) {
           <RichContentCard
             badge={{ text: 'Tonanalys', icon: '🎭' }}
             title="Sentiment & Språkton"
-            content={aiMessage.toneAnalysis.summary || 'Tonanalys genomförd'}
+            content={
+              <div className="space-y-4">
+                <p>{aiMessage.toneAnalysis.summary || 'Tonanalys genomförd på samtliga AI-svar för att identifiera språklig ton, sentiment och kommunikationsstil.'}</p>
+                {aiMessage.toneAnalysis.details && (
+                  <div className="bg-civic-dark-900/50 rounded-lg p-4 space-y-2">
+                    <div className="text-sm text-civic-gray-400">
+                      {aiMessage.toneAnalysis.details}
+                    </div>
+                  </div>
+                )}
+              </div>
+            }
             metadata={[
               { label: 'Dominant ton', value: aiMessage.toneAnalysis.dominantTone || 'Neutral' },
               { label: 'Sentiment', value: aiMessage.toneAnalysis.sentiment || 'Neutral' },
-              { label: 'Formalitet', value: aiMessage.toneAnalysis.formality || 'Medel' }
+              { label: 'Formalitet', value: aiMessage.toneAnalysis.formality || 'Medel' },
+              { label: 'Emotionalitet', value: aiMessage.toneAnalysis.emotionality || 'Låg' },
+              { label: 'Objektivitet', value: aiMessage.toneAnalysis.objectivity || 'Hög' },
+              { label: 'Analyserade svar', value: `${aiMessage.responses?.length || 0} st` }
             ]}
           />
         ) : null;
@@ -315,25 +357,63 @@ export default function HomePage({ onAiMessageUpdate }) {
           <RichContentCard
             badge={{ text: 'Bias-detektion', icon: '⚖️' }}
             title="Analys av förutfattade meningar"
-            content={aiMessage.biasDetection.summary || 'Bias-analys genomförd'}
+            content={
+              <div className="space-y-4">
+                <p>{aiMessage.biasDetection.summary || 'Systematisk genomgång av AI-svaren för att identifiera potentiella bias-mönster, politisk lutning, eller förutfattade meningar.'}</p>
+                {aiMessage.biasDetection.patterns && aiMessage.biasDetection.patterns.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-civic-gray-500 uppercase tracking-wide">Identifierade mönster:</div>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-civic-gray-400">
+                      {aiMessage.biasDetection.patterns.map((pattern, idx) => (
+                        <li key={idx}>{pattern}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            }
             metadata={[
               { label: 'Bias-nivå', value: aiMessage.biasDetection.level || 'Låg' },
               { label: 'Poäng', value: `${aiMessage.biasDetection.score || 0}/10` },
-              { label: 'Typ', value: aiMessage.biasDetection.types?.join(', ') || 'Ingen' }
+              { label: 'Typ', value: aiMessage.biasDetection.types?.join(', ') || 'Ingen' },
+              { label: 'Politisk lutning', value: aiMessage.biasDetection.political || 'Neutral' },
+              { label: 'Mönster', value: `${aiMessage.biasDetection.patterns?.length || 0} st` },
+              { label: 'Säkerhet', value: aiMessage.biasDetection.confidence ? `${Math.round(aiMessage.biasDetection.confidence * 100)}%` : 'N/A' }
             ]}
           />
         ) : null;
 
       case 'meta-review':
+        const metaContent = typeof aiMessage.metaReview === 'string' 
+          ? aiMessage.metaReview 
+          : aiMessage.metaReview?.summary || 'GPT-3.5 har granskat kvaliteten på alla AI-svar och bedömt deras innehåll, konsekvens och användbarhet.';
+        
         return aiMessage.metaReview ? (
           <RichContentCard
             badge={{ text: 'GPT Metagranskning', icon: '🔍' }}
             title="Kvalitetskontroll av AI-svar"
-            content={aiMessage.metaReview.summary || aiMessage.metaReview}
+            content={
+              <div className="space-y-4">
+                <p>{metaContent}</p>
+                {aiMessage.metaReview.recommendations && aiMessage.metaReview.recommendations.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-civic-gray-500 uppercase tracking-wide">Rekommendationer:</div>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-civic-gray-400">
+                      {aiMessage.metaReview.recommendations.map((rec, idx) => (
+                        <li key={idx}>{rec}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            }
             metadata={[
-              { label: 'Kvalitet', value: aiMessage.metaReview.quality || 'Hög' },
-              { label: 'Konsekvens', value: aiMessage.metaReview.consistency || 'God' },
-              { label: 'Fullständighet', value: aiMessage.metaReview.completeness || 'Fullständig' }
+              { label: 'Kvalitet', value: typeof aiMessage.metaReview === 'object' ? (aiMessage.metaReview.quality || 'Hög') : 'Hög' },
+              { label: 'Konsekvens', value: typeof aiMessage.metaReview === 'object' ? (aiMessage.metaReview.consistency || 'God') : 'God' },
+              { label: 'Fullständighet', value: typeof aiMessage.metaReview === 'object' ? (aiMessage.metaReview.completeness || 'Fullständig') : 'Fullständig' },
+              { label: 'Relevans', value: typeof aiMessage.metaReview === 'object' ? (aiMessage.metaReview.relevance || 'Hög') : 'Hög' },
+              { label: 'Granskare', value: 'GPT-3.5 Turbo' },
+              { label: 'Svar granskade', value: `${aiMessage.responses?.length || 0} st` }
             ]}
           />
         ) : null;
@@ -343,11 +423,38 @@ export default function HomePage({ onAiMessageUpdate }) {
           <RichContentCard
             badge={{ text: 'Tavily Faktakoll', icon: '✓' }}
             title="Verifiering av fakta och påståenden"
-            content={aiMessage.factCheckComparison.summary || 'Faktakoll genomförd'}
+            content={
+              <div className="space-y-4">
+                <p>{aiMessage.factCheckComparison.summary || 'Tavily Search har verifierat fakta och påståenden i AI-svaren mot pålitliga källor på internet.'}</p>
+                {aiMessage.factCheckComparison.findings && aiMessage.factCheckComparison.findings.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="text-xs font-medium text-civic-gray-500 uppercase tracking-wide">Verifierade påståenden:</div>
+                    {aiMessage.factCheckComparison.findings.map((finding, idx) => (
+                      <div key={idx} className="bg-civic-dark-900/50 rounded-lg p-3">
+                        <div className="flex items-start gap-2">
+                          <span className="text-base">{finding.verified ? '✓' : '⚠️'}</span>
+                          <div className="flex-1 text-sm text-civic-gray-400">
+                            <div className="font-medium text-civic-gray-300 mb-1">{finding.claim}</div>
+                            {finding.source && (
+                              <div className="text-xs text-civic-gray-500">
+                                Källa: {finding.source}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            }
             metadata={[
               { label: 'Verifierade', value: `${aiMessage.factCheckComparison.verified || 0} påståenden` },
               { label: 'Källor', value: `${aiMessage.factCheckComparison.sources || 0} st` },
-              { label: 'Säkerhet', value: aiMessage.factCheckComparison.confidence || 'Hög' }
+              { label: 'Säkerhet', value: aiMessage.factCheckComparison.confidence || 'Hög' },
+              { label: 'Icke-verifierade', value: `${aiMessage.factCheckComparison.unverified || 0} st` },
+              { label: 'Sökmotor', value: 'Tavily Search API' },
+              { label: 'Söktid', value: `${aiMessage.factCheckComparison.searchTime || 0}ms` }
             ]}
           />
         ) : null;
@@ -361,12 +468,20 @@ export default function HomePage({ onAiMessageUpdate }) {
             <RichContentCard
               badge={{ text: response.metadata?.model || response.agent, icon: getAgentIcon(response.agent) }}
               title={`${response.metadata?.model || response.agent} Svar`}
-              content={response.content}
+              content={
+                <div className="space-y-3">
+                  {response.content || 'Inget svar tillgängligt'}
+                </div>
+              }
               metadata={[
-                { label: 'Modell', value: response.metadata?.model || response.agent },
+                { label: 'Modell', value: response.metadata?.model || response.agent || 'N/A' },
                 { label: 'Svarstid', value: `${response.metadata?.responseTime || 0}ms` },
                 { label: 'Tokens', value: response.metadata?.tokens || 'N/A' },
-                { label: 'Säkerhet', value: response.analysis?.confidence ? `${Math.round(response.analysis.confidence * 100)}%` : 'N/A' }
+                { label: 'Säkerhet', value: response.analysis?.confidence ? `${Math.round(response.analysis.confidence * 100)}%` : 'N/A' },
+                { label: 'Tonalitet', value: response.analysis?.toneSummary || 'Neutral' },
+                { label: 'Bias-poäng', value: response.analysis?.biasScore !== undefined ? `${response.analysis.biasScore}/10` : 'N/A' },
+                { label: 'Provider', value: response.metadata?.provider || 'N/A' },
+                { label: 'Temperatur', value: response.metadata?.temperature !== undefined ? response.metadata.temperature : 'N/A' }
               ]}
               actions={[
                 { icon: '📋', title: 'Kopiera', onClick: () => navigator.clipboard.writeText(response.content) },
@@ -391,7 +506,7 @@ export default function HomePage({ onAiMessageUpdate }) {
   };
 
   return (
-    <div className="flex h-screen" style={{ background: '#0a0a0a' }}>
+    <div className="flex h-screen" style={{ background: '#1a1a1a' }}>
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
         {/* Messages Area */}
