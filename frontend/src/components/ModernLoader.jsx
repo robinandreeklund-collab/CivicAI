@@ -10,25 +10,25 @@ export default function ModernLoader({ message = "Hämtar svar från AI-modeller
         <div className="relative w-32 h-32">
           {/* Center pulse */}
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-4 h-4 bg-blue-500 rounded-full animate-pulse-slow"></div>
+            <div className="w-4 h-4 bg-civic-gray-500 rounded-full animate-pulse-slow"></div>
           </div>
           
           {/* Orbiting circles */}
           <div className="absolute inset-0 animate-spin" style={{ animationDuration: '3s' }}>
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3 h-3 bg-blue-500 rounded-full shadow-lg shadow-blue-500/50"></div>
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3 h-3 bg-civic-gray-500 rounded-full shadow-lg shadow-blue-500/50"></div>
           </div>
           <div className="absolute inset-0 animate-spin" style={{ animationDuration: '2s', animationDirection: 'reverse' }}>
-            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3 h-3 bg-purple-500 rounded-full shadow-lg shadow-purple-500/50"></div>
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3 h-3 bg-civic-gray-500 rounded-full shadow-lg shadow-purple-500/50"></div>
           </div>
           <div className="absolute inset-0 animate-spin" style={{ animationDuration: '2.5s' }}>
             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-cyan-500 rounded-full shadow-lg shadow-cyan-500/50"></div>
           </div>
           <div className="absolute inset-0 animate-spin" style={{ animationDuration: '2.5s', animationDirection: 'reverse' }}>
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-green-500 rounded-full shadow-lg shadow-green-500/50"></div>
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-civic-gray-500 rounded-full shadow-lg shadow-green-500/50"></div>
           </div>
           
           {/* Outer ring */}
-          <div className="absolute inset-0 border-2 border-blue-500/20 rounded-full animate-pulse-slow"></div>
+          <div className="absolute inset-0 border-2 border-civic-gray-500/20 rounded-full animate-pulse-slow"></div>
           <div className="absolute inset-2 border-2 border-purple-500/20 rounded-full animate-pulse-slow" style={{ animationDelay: '0.5s' }}></div>
         </div>
 

@@ -26,7 +26,7 @@ export default function HomePage({ onAiMessageUpdate }) {
       name: 'GPT-3.5',
       description: 'Fast and efficient',
       icon: '🤖',
-      iconBg: 'bg-blue-500/20',
+      iconBg: 'bg-civic-gray-600/20',
       enabled: true,
     },
     {
@@ -34,7 +34,7 @@ export default function HomePage({ onAiMessageUpdate }) {
       name: 'Gemini',
       description: 'Google\'s AI model',
       icon: '✨',
-      iconBg: 'bg-purple-500/20',
+      iconBg: 'bg-civic-gray-700/20',
       enabled: true,
     },
     {
@@ -42,7 +42,7 @@ export default function HomePage({ onAiMessageUpdate }) {
       name: 'DeepSeek',
       description: 'Technical precision',
       icon: '🧠',
-      iconBg: 'bg-cyan-500/20',
+      iconBg: 'bg-civic-gray-500/20',
       enabled: true,
     },
     {
@@ -50,7 +50,7 @@ export default function HomePage({ onAiMessageUpdate }) {
       name: 'Grok',
       description: 'Witty and insightful',
       icon: '⚡',
-      iconBg: 'bg-orange-500/20',
+      iconBg: 'bg-civic-gray-600/20',
       enabled: true,
     },
     {
@@ -58,7 +58,7 @@ export default function HomePage({ onAiMessageUpdate }) {
       name: 'Qwen',
       description: 'Balanced and comprehensive',
       icon: '🌟',
-      iconBg: 'bg-green-500/20',
+      iconBg: 'bg-civic-gray-700/20',
       enabled: true,
     },
   ]);
@@ -151,9 +151,9 @@ export default function HomePage({ onAiMessageUpdate }) {
     <div className="flex-1 flex flex-col relative overflow-hidden">
       {/* Animated background gradients */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl animate-pulse-slow"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '1s' }}></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '2s' }}></div>
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-civic-gray-600/10 rounded-full blur-3xl animate-pulse-slow"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-civic-gray-700/10 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-civic-gray-500/5 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '2s' }}></div>
       </div>
 
       {/* Battle Mode Icon - Top Right */}
@@ -170,10 +170,10 @@ export default function HomePage({ onAiMessageUpdate }) {
                 setShowBattlePanel(true);
               }
             }}
-            className="p-3 rounded-full bg-civic-dark-800/90 hover:bg-civic-dark-700 border border-civic-dark-600 hover:border-purple-500/50 transition-all duration-200 hover:scale-110 shadow-lg group"
+            className="p-3 rounded-full bg-civic-dark-800/90 hover:bg-civic-dark-700 border border-civic-dark-600 hover:border-civic-gray-500/50 transition-all duration-200 hover:scale-110 shadow-lg group"
             title="Battle Mode - Rösta på bästa AI-svar"
           >
-            <svg className="w-6 h-6 text-purple-400 group-hover:text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6 text-gray-400 group-hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
             </svg>
           </button>
@@ -253,7 +253,7 @@ export default function HomePage({ onAiMessageUpdate }) {
               
               {message.type === 'error' && (
                 <div className="flex justify-start">
-                  <div className="max-w-[80%] bg-red-900/30 border border-red-500/40 text-red-300 rounded-2xl rounded-tl-sm px-5 py-3">
+                  <div className="max-w-[80%] bg-gray-900/30 border border-red-500/40 text-red-300 rounded-2xl rounded-tl-sm px-5 py-3">
                     <div className="flex items-start space-x-2">
                       <span className="text-xl">⚠️</span>
                       <p>{message.content}</p>

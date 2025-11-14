@@ -78,7 +78,7 @@ export default function Sidebar({
           <Link
             to="/"
             onClick={onNewConversation}
-            className="w-full px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-all duration-200 flex items-center justify-center space-x-2 hover:scale-[1.02] active:scale-[0.98]"
+            className="w-full px-4 py-2.5 rounded-lg bg-civic-gray-700 hover:bg-civic-gray-600 text-white text-sm font-medium transition-all duration-200 flex items-center justify-center space-x-2 hover:scale-[1.02] active:scale-[0.98]"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -90,7 +90,7 @@ export default function Sidebar({
             to="/policy-questions"
             className={`w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${
               location.pathname === '/policy-questions'
-                ? 'bg-teal-600 text-white'
+                ? 'bg-civic-gray-600 text-white'
                 : 'bg-civic-dark-800 hover:bg-civic-dark-700 text-gray-300'
             }`}
           >
@@ -102,7 +102,7 @@ export default function Sidebar({
             to="/audit-trail"
             className={`w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${
               location.pathname === '/audit-trail'
-                ? 'bg-indigo-600 text-white'
+                ? 'bg-civic-gray-600 text-white'
                 : 'bg-civic-dark-800 hover:bg-civic-dark-700 text-gray-300'
             }`}
           >
@@ -160,7 +160,7 @@ export default function Sidebar({
         <div className="p-3 border-t border-civic-dark-700/50">
           <button
             onClick={() => setShowExportPanel(!showExportPanel)}
-            className="w-full px-4 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium transition-all duration-200 flex items-center justify-center space-x-2"
+            className="w-full px-4 py-2 rounded-lg bg-civic-gray-700 hover:bg-civic-gray-600 text-white text-sm font-medium transition-all duration-200 flex items-center justify-center space-x-2"
           >
             <span className="text-lg">📦</span>
             <span>Exportera jämförelse</span>

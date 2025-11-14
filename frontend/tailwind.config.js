@@ -7,22 +7,27 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Dark theme colors inspired by Grok
+        // Grayscale theme colors - minimalist and clean
         'civic-dark': {
-          950: '#000000',
-          900: '#0a0a0a',
-          800: '#141414',
-          750: '#1a1a1a',
-          700: '#1f1f1f',
-          600: '#2a2a2a',
-          500: '#3a3a3a',
+          950: '#0a0a0a',
+          900: '#1a1a1a',
+          800: '#2a2a2a',
+          750: '#3a3a3a',
+          700: '#4a4a4a',
+          600: '#505050',
+          500: '#666666',
         },
-        'civic-accent': {
-          blue: '#3b82f6',
-          purple: '#8b5cf6',
-          green: '#10b981',
-          orange: '#f97316',
-          cyan: '#06b6d4',
+        // Grayscale accents for different UI states
+        'civic-gray': {
+          100: '#f5f5f5',
+          200: '#e0e0e0',
+          300: '#c0c0c0',
+          400: '#a0a0a0',
+          500: '#888888',
+          600: '#666666',
+          700: '#505050',
+          800: '#3a3a3a',
+          900: '#2a2a2a',
         }
       },
       animation: {
@@ -79,12 +84,12 @@ export default {
           '100%': { transform: 'translateX(100%)', opacity: '1' },
         },
         glow: {
-          '0%': { boxShadow: '0 0 5px rgba(59, 130, 246, 0.5), 0 0 10px rgba(59, 130, 246, 0.3)' },
-          '100%': { boxShadow: '0 0 20px rgba(59, 130, 246, 0.8), 0 0 30px rgba(59, 130, 246, 0.5)' },
+          '0%': { boxShadow: '0 0 5px rgba(255, 255, 255, 0.2), 0 0 10px rgba(255, 255, 255, 0.1)' },
+          '100%': { boxShadow: '0 0 20px rgba(255, 255, 255, 0.4), 0 0 30px rgba(255, 255, 255, 0.2)' },
         },
         glowPulse: {
-          '0%, 100%': { boxShadow: '0 0 5px rgba(59, 130, 246, 0.3)' },
-          '50%': { boxShadow: '0 0 20px rgba(59, 130, 246, 0.6), 0 0 30px rgba(59, 130, 246, 0.3)' },
+          '0%, 100%': { boxShadow: '0 0 5px rgba(255, 255, 255, 0.2)' },
+          '50%': { boxShadow: '0 0 20px rgba(255, 255, 255, 0.3), 0 0 30px rgba(255, 255, 255, 0.2)' },
         },
         shimmer: {
           '0%': { backgroundPosition: '-1000px 0' },

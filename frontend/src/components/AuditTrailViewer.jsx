@@ -45,15 +45,15 @@ export default function AuditTrailViewer() {
   };
 
   const eventTypeLabels = {
-    question_asked: { label: 'Fråga ställd', icon: '❓', color: 'text-blue-400' },
-    export_yaml: { label: 'YAML-export', icon: '📄', color: 'text-green-400' },
-    export_json: { label: 'JSON-export', icon: '📋', color: 'text-green-400' },
-    export_pdf: { label: 'PDF-export', icon: '📊', color: 'text-red-400' },
-    export_readme: { label: 'README-export', icon: '📝', color: 'text-purple-400' },
+    question_asked: { label: 'Fråga ställd', icon: '❓', color: 'text-gray-400' },
+    export_yaml: { label: 'YAML-export', icon: '📄', color: 'text-gray-400' },
+    export_json: { label: 'JSON-export', icon: '📋', color: 'text-gray-400' },
+    export_pdf: { label: 'PDF-export', icon: '📊', color: 'text-gray-400' },
+    export_readme: { label: 'README-export', icon: '📝', color: 'text-gray-400' },
     vote_cast: { label: 'Röst avlagd', icon: '🗳️', color: 'text-orange-400' },
     policy_question_created: { label: 'Policyfråga skapad', icon: '➕', color: 'text-cyan-400' },
-    policy_question_updated: { label: 'Policyfråga uppdaterad', icon: '✏️', color: 'text-yellow-400' },
-    policy_question_deleted: { label: 'Policyfråga borttagen', icon: '🗑️', color: 'text-red-400' },
+    policy_question_updated: { label: 'Policyfråga uppdaterad', icon: '✏️', color: 'text-gray-400' },
+    policy_question_deleted: { label: 'Policyfråga borttagen', icon: '🗑️', color: 'text-gray-400' },
   };
 
   const formatTimestamp = (timestamp) => {
@@ -75,7 +75,7 @@ export default function AuditTrailViewer() {
           className="w-full px-6 py-4 bg-civic-dark-800/50 hover:bg-civic-dark-700/50 border border-civic-dark-600 rounded-2xl transition-all duration-300 flex items-center justify-between group"
         >
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+            <div className="w-10 h-10 rounded-lg bg-civic-gray-500/20 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
               📚
             </div>
             <div className="text-left">
@@ -143,7 +143,7 @@ export default function AuditTrailViewer() {
                 onClick={() => setFilter('all')}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   filter === 'all'
-                    ? 'bg-indigo-500 text-white'
+                    ? 'bg-civic-gray-500 text-white'
                     : 'bg-civic-dark-700/50 text-gray-300 hover:bg-civic-dark-600'
                 }`}
               >
@@ -157,7 +157,7 @@ export default function AuditTrailViewer() {
                     onClick={() => setFilter(type)}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                       filter === type
-                        ? 'bg-indigo-500 text-white'
+                        ? 'bg-civic-gray-500 text-white'
                         : 'bg-civic-dark-700/50 text-gray-300 hover:bg-civic-dark-600'
                     }`}
                   >
@@ -170,7 +170,7 @@ export default function AuditTrailViewer() {
             {/* Events list */}
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
-                <svg className="animate-spin h-8 w-8 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin h-8 w-8 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
@@ -226,7 +226,7 @@ export default function AuditTrailViewer() {
               <button
                 onClick={fetchAuditData}
                 disabled={isLoading}
-                className="w-full px-4 py-3 bg-indigo-500 hover:bg-indigo-600 disabled:bg-civic-dark-600 text-white font-medium rounded-xl transition-all duration-200 flex items-center justify-center space-x-2"
+                className="w-full px-4 py-3 bg-civic-gray-500 hover:bg-civic-gray-600 disabled:bg-civic-dark-600 text-white font-medium rounded-xl transition-all duration-200 flex items-center justify-center space-x-2"
               >
                 <svg className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />

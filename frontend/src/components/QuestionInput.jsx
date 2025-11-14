@@ -69,7 +69,7 @@ export default function QuestionInput({ onSubmit, isLoading }) {
                 focus:outline-none
                 placeholder-gray-500
                 ${isFocused 
-                  ? 'border-blue-500 shadow-[0_0_0_3px_rgba(59,130,246,0.15)]' 
+                  ? 'border-civic-gray-500 shadow-[0_0_0_3px_rgba(59,130,246,0.15)]' 
                   : 'border-civic-dark-600 hover:border-civic-dark-500'
                 }
               `}
@@ -120,7 +120,7 @@ export default function QuestionInput({ onSubmit, isLoading }) {
             {/* Phase 1: Question text slides down to hint area */}
             {animationPhase === 'textDown' && (
               <div className="absolute top-0 left-1/2 -translate-x-1/2 animate-slide-down">
-                <div className="bg-blue-600/20 text-blue-200 text-sm px-4 py-2 rounded-md whitespace-nowrap max-w-md overflow-hidden text-ellipsis shadow-lg">
+                <div className="bg-civic-gray-600/20 text-gray-200 text-sm px-4 py-2 rounded-md whitespace-nowrap max-w-md overflow-hidden text-ellipsis shadow-lg">
                   {question.substring(0, 50)}{question.length > 50 ? '...' : ''}
                 </div>
               </div>
@@ -153,7 +153,7 @@ export default function QuestionInput({ onSubmit, isLoading }) {
                   px-3 py-1.5 text-xs rounded-full
                   bg-civic-dark-700 hover:bg-civic-dark-600
                   text-gray-400 hover:text-gray-200
-                  border border-civic-dark-600 hover:border-blue-500/40
+                  border border-civic-dark-600 hover:border-civic-gray-500/40
                   transition-all duration-200 hover:scale-105
                 "
               >

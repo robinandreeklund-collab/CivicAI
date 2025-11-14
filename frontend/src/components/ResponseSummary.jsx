@@ -107,11 +107,11 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <div className="p-3 bg-civic-dark-700/30 rounded-lg border border-civic-dark-600">
             <div className="text-xs text-gray-400 mb-1">AI-modeller</div>
-            <div className="text-2xl font-bold text-indigo-400">{summary.responseCount}</div>
+            <div className="text-2xl font-bold text-gray-400">{summary.responseCount}</div>
           </div>
           <div className="p-3 bg-civic-dark-700/30 rounded-lg border border-civic-dark-600">
             <div className="text-xs text-gray-400 mb-1">Genomsnittlig längd</div>
-            <div className="text-2xl font-bold text-purple-400">{summary.averageLength}</div>
+            <div className="text-2xl font-bold text-gray-400">{summary.averageLength}</div>
             <div className="text-xs text-gray-500">tecken</div>
           </div>
           <div className="p-3 bg-civic-dark-700/30 rounded-lg border border-civic-dark-600 col-span-2 md:col-span-1">
@@ -128,7 +128,7 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
               {summary.commonKeywords.map((keyword, idx) => (
                 <span
                   key={idx}
-                  className="px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-sm border border-indigo-500/30"
+                  className="px-3 py-1 bg-civic-gray-500/20 text-gray-300 rounded-full text-sm border border-indigo-500/30"
                 >
                   {keyword}
                 </span>
@@ -139,13 +139,13 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
 
         {/* Enhanced Fact-Check Comparison Section */}
         {factCheckComparison && factCheckComparison.available && (
-          <div className="p-4 bg-gradient-to-br from-blue-900/20 to-cyan-900/20 rounded-lg border border-blue-500/30">
+          <div className="p-4 bg-gradient-to-br from-blue-900/20 to-cyan-900/20 rounded-lg border border-civic-gray-500/30">
             <div className="flex items-center space-x-2 mb-3">
-              <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <div>
-                <div className="text-sm font-semibold text-blue-300">Faktakoll och verifierbarhet</div>
+                <div className="text-sm font-semibold text-gray-300">Faktakoll och verifierbarhet</div>
                 <div className="text-xs text-gray-400">Aggregerad från {factCheckComparison.agentCount} AI-modeller</div>
               </div>
             </div>
@@ -155,7 +155,7 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
               {/* Total Claims */}
               <div className="p-2 bg-civic-dark-700/50 rounded-lg">
                 <div className="text-xs text-gray-400 mb-1">Påståenden</div>
-                <div className="text-xl font-bold text-blue-300">{factCheckComparison.totalClaims}</div>
+                <div className="text-xl font-bold text-gray-300">{factCheckComparison.totalClaims}</div>
                 <div className="text-xs text-gray-500">totalt analyserade</div>
               </div>
 
@@ -163,9 +163,9 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
               <div className="p-2 bg-civic-dark-700/50 rounded-lg">
                 <div className="text-xs text-gray-400 mb-1">Verifierade</div>
                 <div className={`text-xl font-bold ${
-                  factCheckComparison.totalVerified === factCheckComparison.totalClaims ? 'text-green-400' :
-                  factCheckComparison.totalVerified > 0 ? 'text-yellow-400' :
-                  'text-red-400'
+                  factCheckComparison.totalVerified === factCheckComparison.totalClaims ? 'text-gray-400' :
+                  factCheckComparison.totalVerified > 0 ? 'text-gray-400' :
+                  'text-gray-400'
                 }`}>
                   {factCheckComparison.totalVerified}
                 </div>
@@ -180,9 +180,9 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
               <div className="p-2 bg-civic-dark-700/50 rounded-lg">
                 <div className="text-xs text-gray-400 mb-1">Genomsnitt</div>
                 <div className={`text-xl font-bold ${
-                  factCheckComparison.averageScore >= 7 ? 'text-green-400' :
-                  factCheckComparison.averageScore >= 4 ? 'text-yellow-400' :
-                  'text-red-400'
+                  factCheckComparison.averageScore >= 7 ? 'text-gray-400' :
+                  factCheckComparison.averageScore >= 4 ? 'text-gray-400' :
+                  'text-gray-400'
                 }`}>
                   {factCheckComparison.averageScore}
                 </div>
@@ -193,9 +193,9 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
               <div className="p-2 bg-civic-dark-700/50 rounded-lg">
                 <div className="text-xs text-gray-400 mb-1">Källtäthet</div>
                 <div className={`text-xl font-bold ${
-                  factCheckComparison.averageSourcesPerClaim >= 2 ? 'text-green-400' :
-                  factCheckComparison.averageSourcesPerClaim >= 1 ? 'text-yellow-400' :
-                  'text-red-400'
+                  factCheckComparison.averageSourcesPerClaim >= 2 ? 'text-gray-400' :
+                  factCheckComparison.averageSourcesPerClaim >= 1 ? 'text-gray-400' :
+                  'text-gray-400'
                 }`}>
                   {factCheckComparison.averageSourcesPerClaim}
                 </div>
@@ -213,9 +213,9 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
                 <div className="w-full h-2 bg-civic-dark-700 rounded-full overflow-hidden">
                   <div 
                     className={`h-full transition-all ${
-                      factCheckComparison.uncertaintyRate < 25 ? 'bg-green-500' :
-                      factCheckComparison.uncertaintyRate < 50 ? 'bg-yellow-500' :
-                      'bg-red-500'
+                      factCheckComparison.uncertaintyRate < 25 ? 'bg-civic-gray-500' :
+                      factCheckComparison.uncertaintyRate < 50 ? 'bg-gray-500' :
+                      'bg-gray-500'
                     }`}
                     style={{ width: `${100 - factCheckComparison.uncertaintyRate}%` }}
                   />
@@ -237,13 +237,13 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
                       <div className="w-20 text-xs text-gray-400">Hög (≥67%)</div>
                       <div className="flex-1 h-4 bg-civic-dark-700 rounded-full overflow-hidden">
                         <div 
-                          className="h-full bg-green-500"
+                          className="h-full bg-civic-gray-500"
                           style={{ 
                             width: `${(factCheckComparison.confidenceDistribution.high / factCheckComparison.totalClaims) * 100}%` 
                           }}
                         />
                       </div>
-                      <div className="w-8 text-xs text-green-400 text-right">
+                      <div className="w-8 text-xs text-gray-400 text-right">
                         {factCheckComparison.confidenceDistribution.high}
                       </div>
                     </div>
@@ -253,13 +253,13 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
                       <div className="w-20 text-xs text-gray-400">Medel (33-66%)</div>
                       <div className="flex-1 h-4 bg-civic-dark-700 rounded-full overflow-hidden">
                         <div 
-                          className="h-full bg-yellow-500"
+                          className="h-full bg-gray-500"
                           style={{ 
                             width: `${(factCheckComparison.confidenceDistribution.medium / factCheckComparison.totalClaims) * 100}%` 
                           }}
                         />
                       </div>
-                      <div className="w-8 text-xs text-yellow-400 text-right">
+                      <div className="w-8 text-xs text-gray-400 text-right">
                         {factCheckComparison.confidenceDistribution.medium}
                       </div>
                     </div>
@@ -269,13 +269,13 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
                       <div className="w-20 text-xs text-gray-400">Låg (&lt;33%)</div>
                       <div className="flex-1 h-4 bg-civic-dark-700 rounded-full overflow-hidden">
                         <div 
-                          className="h-full bg-red-500"
+                          className="h-full bg-gray-500"
                           style={{ 
                             width: `${(factCheckComparison.confidenceDistribution.low / factCheckComparison.totalClaims) * 100}%` 
                           }}
                         />
                       </div>
-                      <div className="w-8 text-xs text-red-400 text-right">
+                      <div className="w-8 text-xs text-gray-400 text-right">
                         {factCheckComparison.confidenceDistribution.low}
                       </div>
                     </div>
@@ -313,7 +313,7 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
                           <span className="text-xs text-gray-300">{typeNames[type] || type}</span>
                         </div>
                         <div className="flex items-baseline space-x-1">
-                          <span className="text-lg font-bold text-blue-300">{data.count}</span>
+                          <span className="text-lg font-bold text-gray-300">{data.count}</span>
                           <span className="text-xs text-gray-500">
                             ({verificationRate}% verif.)
                           </span>
@@ -328,7 +328,7 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
             {/* Claims per Agent Distribution */}
             {factCheckComparison.claimsPerAgent && factCheckComparison.claimsPerAgent.length > 0 && (
               <details className="mb-3">
-                <summary className="text-xs text-blue-400 cursor-pointer hover:text-blue-300 mb-2">
+                <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-300 mb-2">
                   Visa fördelning per AI-modell ({factCheckComparison.claimsPerAgent.length} modeller)
                 </summary>
                 <div className="space-y-2 mt-2">
@@ -338,16 +338,16 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
                       <div className="flex items-center space-x-3">
                         <span className="text-gray-400">{agentData.claims} påståenden</span>
                         <span className={`font-medium ${
-                          agentData.verified === agentData.claims ? 'text-green-400' :
-                          agentData.verified > 0 ? 'text-yellow-400' :
-                          'text-red-400'
+                          agentData.verified === agentData.claims ? 'text-gray-400' :
+                          agentData.verified > 0 ? 'text-gray-400' :
+                          'text-gray-400'
                         }`}>
                           {agentData.verified} verif.
                         </span>
                         <span className={`font-bold ${
-                          agentData.score >= 7 ? 'text-green-400' :
-                          agentData.score >= 4 ? 'text-yellow-400' :
-                          'text-red-400'
+                          agentData.score >= 7 ? 'text-gray-400' :
+                          agentData.score >= 4 ? 'text-gray-400' :
+                          'text-gray-400'
                         }`}>
                           {agentData.score}/10
                         </span>
@@ -360,11 +360,11 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
 
             {/* Neutral Assessment Reason */}
             {factCheckComparison.neutralAssessmentReason && (
-              <div className="p-3 bg-indigo-500/10 border border-indigo-500/30 rounded-lg">
+              <div className="p-3 bg-civic-gray-500/10 border border-indigo-500/30 rounded-lg">
                 <div className="flex items-start space-x-2">
                   <span className="text-lg">💡</span>
                   <div>
-                    <div className="text-xs font-medium text-indigo-300 mb-1">Motiv för neutral bedömning</div>
+                    <div className="text-xs font-medium text-gray-300 mb-1">Motiv för neutral bedömning</div>
                     <div className="text-xs text-gray-300 leading-relaxed">
                       {factCheckComparison.neutralAssessmentReason}
                     </div>
@@ -375,11 +375,11 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
 
             {/* Improvement Suggestions */}
             {factCheckComparison.improvementSuggestions && factCheckComparison.improvementSuggestions.length > 0 && (
-              <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+              <div className="p-3 bg-civic-gray-500/10 border border-purple-500/30 rounded-lg">
                 <div className="flex items-start space-x-2">
                   <span className="text-lg">💡</span>
                   <div>
-                    <div className="text-xs font-medium text-purple-300 mb-2">Förbättringsförslag</div>
+                    <div className="text-xs font-medium text-gray-300 mb-2">Förbättringsförslag</div>
                     <ul className="space-y-1">
                       {factCheckComparison.improvementSuggestions.map((suggestion, idx) => (
                         <li key={idx} className="text-xs text-gray-300 leading-relaxed">
@@ -397,9 +397,9 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
               <div className="p-2 bg-civic-dark-700/50 rounded-lg flex items-center justify-between">
                 <span className="text-xs text-gray-400">Aggregerad bias-score</span>
                 <span className={`text-sm font-bold ${
-                  factCheckComparison.aggregatedBiasScore < 3 ? 'text-green-400' :
-                  factCheckComparison.aggregatedBiasScore < 6 ? 'text-yellow-400' :
-                  'text-red-400'
+                  factCheckComparison.aggregatedBiasScore < 3 ? 'text-gray-400' :
+                  factCheckComparison.aggregatedBiasScore < 6 ? 'text-gray-400' :
+                  'text-gray-400'
                 }`}>
                   {factCheckComparison.aggregatedBiasScore}/10
                 </span>
@@ -408,7 +408,7 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
 
             {/* Metadata */}
             {factCheckComparison.timestamp && (
-              <div className="mt-3 pt-3 border-t border-blue-500/30">
+              <div className="mt-3 pt-3 border-t border-civic-gray-500/30">
                 <div className="flex items-center justify-between text-xs text-gray-500">
                   <span>Analyserad: {new Date(factCheckComparison.timestamp).toLocaleString('sv-SE')}</span>
                   <span>Transparens: {factCheckComparison.transparency?.claimsAnalyzed || 0} påståenden</span>
@@ -420,12 +420,12 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
 
         {/* No fact-check available message */}
         {factCheckComparison && !factCheckComparison.available && (
-          <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+          <div className="p-3 bg-gray-500/10 border border-yellow-500/30 rounded-lg">
             <div className="flex items-start space-x-2">
-              <svg className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
-              <div className="text-xs text-yellow-300">
+              <div className="text-xs text-gray-300">
                 <span className="font-medium">Faktakoll ej tillgänglig: </span>
                 {factCheckComparison.message || 'Tavily API-nyckel saknas'}
               </div>
@@ -489,11 +489,11 @@ export default function ResponseSummary({ responses, question, synthesizedSummar
         )}
 
         {/* Disclaimer */}
-        <div className="flex items-start space-x-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-          <svg className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="flex items-start space-x-2 p-3 bg-gray-500/10 border border-yellow-500/30 rounded-lg">
+          <svg className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <div className="text-xs text-yellow-300">
+          <div className="text-xs text-gray-300">
             Detta är en automatiskt genererad sammanställning baserad på alla AI-svar. 
             Granska de individuella svaren för fullständig kontext och detaljer.
           </div>
