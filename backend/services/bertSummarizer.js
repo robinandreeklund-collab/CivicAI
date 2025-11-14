@@ -20,7 +20,8 @@ function trySpawnPython(pythonScript) {
   
   for (const cmd of pythonCommands) {
     try {
-      const process = spawn(cmd, [pythonScript]);
+      // Use shell: true for Windows compatibility to resolve commands from PATH
+      const process = spawn(cmd, [pythonScript], { shell: true });
       return { process, command: cmd };
     } catch (error) {
       console.log(`[BERT Summarizer] Failed to spawn ${cmd}, trying next...`);
