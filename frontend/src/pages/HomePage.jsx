@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react';
-import ProcessingLoader from '../components/ProcessingLoader';
 import AIServiceToggle from '../components/AIServiceToggle';
 import CleanResponseCarousel from '../components/CleanResponseCarousel';
 import AnalysisComparison from '../components/AnalysisComparison';
@@ -292,17 +291,10 @@ export default function HomePage({ onAiMessageUpdate }) {
         </div>
       </div>
 
-      {/* Loading indicator - centered in viewport under animated circles */}
-      {isLoading && (
-        <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-10">
-          <ProcessingLoader />
-        </div>
-      )}
-
       {/* Input Area - Fixed at bottom */}
       <div className="relative flex-shrink-0">
         <div className="max-w-4xl mx-auto px-4 py-4">
-          {/* GitHub-inspired search box with stunning animations */}
+          {/* Clean search box with collapse/expand animation */}
           <QuestionInput
             onSubmit={handleSubmitQuestion}
             isLoading={isLoading}

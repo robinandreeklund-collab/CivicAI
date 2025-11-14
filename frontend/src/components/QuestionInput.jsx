@@ -1,13 +1,13 @@
 import { useState } from 'react';
 
 /**
- * QuestionInput Component - Enhanced with sophisticated search animation
+ * QuestionInput Component - Based on full-ui-demo.html
  * 
  * Features:
- * - Search field collapses from sides to center after submit
- * - Shows step-by-step loader with actual processing times
- * - Expands back when complete
- * - Clean, minimalist design
+ * - Simple, clean input field with send button
+ * - Collapses from sides to center after submit
+ * - Step-by-step loader showing actual processing times
+ * - Expands back smoothly when done
  */
 export default function QuestionInput({ onSubmit, isLoading }) {
   const [question, setQuestion] = useState('');
@@ -88,9 +88,9 @@ export default function QuestionInput({ onSubmit, isLoading }) {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto mb-12">
+    <div className="w-full max-w-4xl mx-auto mb-8">
       <form onSubmit={handleSubmit} className="relative">
-        {/* Main search field */}
+        {/* Main search field - from full-ui-demo.html design */}
         <div 
           className={`
             transition-all duration-600 ease-in-out
@@ -115,55 +115,48 @@ export default function QuestionInput({ onSubmit, isLoading }) {
                 }
               }}
               placeholder="Ställ en fråga till AI-modellerna..."
+              rows={1}
               className={`
-                w-full min-h-[140px] max-h-[300px] resize-y
-                px-6 pt-4 pb-14
+                w-full
+                px-5 py-4 pr-24
                 bg-civic-dark-800 text-gray-200
-                border-2 rounded-xl
-                transition-all duration-200
+                border border-civic-dark-600 rounded-xl
+                transition-all duration-300
                 focus:outline-none
-                placeholder-gray-500
+                placeholder-gray-600
+                resize-none
                 ${isFocused 
-                  ? 'border-civic-gray-500 shadow-[0_0_20px_rgba(255,255,255,0.1)]' 
-                  : 'border-civic-dark-600 hover:border-civic-dark-500'
+                  ? 'border-civic-gray-600 bg-civic-dark-750 shadow-[0_4px_12px_rgba(0,0,0,0.3)]' 
+                  : 'hover:border-civic-dark-500'
                 }
               `}
               style={{
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif',
+                fontFamily: 'inherit',
                 fontSize: '15px',
-                lineHeight: '1.6'
+                lineHeight: '1.5'
               }}
               disabled={isLoading || animationPhase !== 'idle'}
             />
             
-            {/* Divider line */}
-            <div className="absolute bottom-12 left-6 right-6 h-px bg-white/5"></div>
-            
-            {/* Hint text */}
-            <div className="absolute bottom-4 left-6 right-20 flex items-center">
-              <div className="text-xs text-gray-600">
-                Tryck Enter för att skicka, Shift+Enter för ny rad
-              </div>
-            </div>
-            
-            {/* Send button */}
+            {/* Send button - positioned absolutely inside input */}
             <button
               type="submit"
               disabled={isLoading || !question.trim() || animationPhase !== 'idle'}
               className={`
-                absolute bottom-3 right-3
-                p-2.5 rounded-lg
-                transition-all duration-200
+                absolute right-3 bottom-3
+                px-4 py-2 rounded-lg
+                transition-all duration-300
                 ${question.trim() && !isLoading && animationPhase === 'idle'
-                  ? 'text-gray-400 hover:text-white hover:bg-civic-dark-700' 
-                  : 'text-gray-700 cursor-not-allowed'
+                  ? 'bg-gradient-to-br from-civic-gray-700 to-civic-gray-800 hover:from-civic-gray-600 hover:to-civic-gray-700 text-gray-100 border border-civic-gray-600' 
+                  : 'bg-civic-dark-700 text-gray-700 cursor-not-allowed border border-civic-dark-600'
                 }
               `}
-              title="Skicka"
+              style={{
+                fontSize: '13px',
+                fontWeight: 500
+              }}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
+              Skicka
             </button>
           </div>
         </div>
@@ -173,7 +166,10 @@ export default function QuestionInput({ onSubmit, isLoading }) {
           <div className="flex flex-col items-center justify-center space-y-4 py-8 animate-fade-in">
             {/* Thin line loader */}
             <div className="w-96 h-0.5 bg-civic-dark-700 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-gray-600 via-gray-400 to-gray-600 animate-shimmer"></div>
+              <div className="h-full bg-gradient-to-r from-gray-600 via-gray-400 to-gray-600 animate-shimmer" style={{
+                backgroundSize: '200% 100%',
+                animation: 'shimmer 2s linear infinite'
+              }}></div>
             </div>
             
             {/* Processing steps */}
