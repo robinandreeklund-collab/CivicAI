@@ -31,24 +31,31 @@ export async function generateSynthesizedSummary(responses, question, factCheckC
   let summaryText = '';
   let usedBERT = false;
 
-  // Try to use BERT Extractive Summarizer for maximum neutrality
-  try {
-    const responseTexts = validResponses.map(r => r.response);
-    const bertResult = await generateBERTSummary(responseTexts, question, 100, 500);
-    
-    if (bertResult.success) {
-      summaryText = bertResult.summary;
-      usedBERT = true;
-      console.log('[Summary] Using BERT Extractive Summarization');
-      console.log('[Summary] Compression ratio:', bertResult.metadata.compression_ratio);
-    } else if (!bertResult.fallback) {
-      // BERT failed but not a fallback scenario
-      console.warn('[Summary] BERT summarization failed:', bertResult.error);
+  // Check if Python/BERT is enabled via environment variable
+  const pythonEnabled = process.env.PYTHON_ENABLED === 'true';
+
+  // Try to use BERT Extractive Summarizer for maximum neutrality (only if enabled)
+  if (pythonEnabled) {
+    try {
+      const responseTexts = validResponses.map(r => r.response);
+      const bertResult = await generateBERTSummary(responseTexts, question, 100, 500);
+      
+      if (bertResult.success) {
+        summaryText = bertResult.summary;
+        usedBERT = true;
+        console.log('[Summary] Using BERT Extractive Summarization');
+        console.log('[Summary] Compression ratio:', bertResult.metadata.compression_ratio);
+      } else if (!bertResult.fallback) {
+        // BERT failed but not a fallback scenario
+        console.warn('[Summary] BERT summarization failed:', bertResult.error);
+        console.log('[Summary] Falling back to keyword-based extraction');
+      }
+    } catch (error) {
+      console.warn('[Summary] BERT summarization error:', error.message);
       console.log('[Summary] Falling back to keyword-based extraction');
     }
-  } catch (error) {
-    console.warn('[Summary] BERT summarization error:', error.message);
-    console.log('[Summary] Falling back to keyword-based extraction');
+  } else {
+    console.log('[Summary] BERT summarization disabled (PYTHON_ENABLED not set to true)');
   }
 
   // Fallback to keyword-based extraction if BERT not available or failed
