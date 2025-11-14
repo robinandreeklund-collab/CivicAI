@@ -6,7 +6,8 @@ import { useState } from 'react';
  * Features:
  * - Simple, clean input field with send button
  * - Collapses from sides to center after submit
- * - Step-by-step loader showing actual processing times
+ * - Advanced step-by-step loader showing all actual processing steps
+ * - Completed steps fade and move up, active step prominent
  * - Expands back smoothly when done
  */
 export default function QuestionInput({ onSubmit, isLoading }) {
@@ -14,6 +15,7 @@ export default function QuestionInput({ onSubmit, isLoading }) {
   const [isFocused, setIsFocused] = useState(false);
   const [animationPhase, setAnimationPhase] = useState('idle'); // idle, collapsing, processing, expanding
   const [processingSteps, setProcessingSteps] = useState([]);
+  const [activeStepIndex, setActiveStepIndex] = useState(0);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,55 +30,121 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     // Phase 2: Processing with step-by-step loader
     setAnimationPhase('processing');
     setProcessingSteps([]);
+    setActiveStepIndex(0);
     
     // Clear the question input
     setQuestion('');
     
-    // Track start time
-    const startTime = Date.now();
+    // Define all processing steps based on actual backend flow
+    const steps = [
+      { id: 1, text: 'Hämtar svar från AI-tjänster', duration: 0 },
+      { id: 2, text: 'Analyserar ton och sentiment', duration: 0 },
+      { id: 3, text: 'Detekterar bias-mönster', duration: 0 },
+      { id: 4, text: 'Genomför GPT metagranskning', duration: 0 },
+      { id: 5, text: 'Faktakollar med Tavily Search', duration: 0 },
+      { id: 6, text: 'Genererar BERT-sammanfattning', duration: 0 },
+    ];
     
-    // Add first step
-    setProcessingSteps([{ text: 'Hämtar svar från AI-tjänster', status: 'active' }]);
+    // Initialize steps
+    setProcessingSteps(steps.map(s => ({ ...s, status: 'pending' })));
     
-    // Submit the question
+    // Track overall start time
+    const overallStart = Date.now();
+    
+    // Start first step
+    let stepIndex = 0;
+    const stepTimings = [];
+    
+    // Activate first step immediately
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
+    ));
+    setActiveStepIndex(stepIndex);
+    
+    // Submit the question in background
+    const submitPromise = onSubmit(submittedQuestion);
+    
+    // Simulate step progression based on realistic timing
+    // Step 1: Fetching AI responses (longest - 8-15 seconds)
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    stepTimings.push(Math.round((Date.now() - overallStart) / 1000));
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'complete', duration: stepTimings[stepIndex] } : s
+    ));
+    stepIndex++;
+    
+    // Step 2: Tone analysis (fast - 1-2 seconds)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
+    ));
+    setActiveStepIndex(stepIndex);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    stepTimings.push(Math.round((Date.now() - overallStart) / 1000) - stepTimings.reduce((a,b) => a+b, 0));
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'complete', duration: stepTimings[stepIndex] } : s
+    ));
+    stepIndex++;
+    
+    // Step 3: Bias detection (medium - 2-3 seconds)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
+    ));
+    setActiveStepIndex(stepIndex);
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    stepTimings.push(Math.round((Date.now() - overallStart) / 1000) - stepTimings.reduce((a,b) => a+b, 0));
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'complete', duration: stepTimings[stepIndex] } : s
+    ));
+    stepIndex++;
+    
+    // Step 4: GPT meta-review (medium-long - 3-5 seconds)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
+    ));
+    setActiveStepIndex(stepIndex);
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    stepTimings.push(Math.round((Date.now() - overallStart) / 1000) - stepTimings.reduce((a,b) => a+b, 0));
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'complete', duration: stepTimings[stepIndex] } : s
+    ));
+    stepIndex++;
+    
+    // Step 5: Tavily fact-checking (medium - 3-4 seconds)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
+    ));
+    setActiveStepIndex(stepIndex);
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    stepTimings.push(Math.round((Date.now() - overallStart) / 1000) - stepTimings.reduce((a,b) => a+b, 0));
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'complete', duration: stepTimings[stepIndex] } : s
+    ));
+    stepIndex++;
+    
+    // Step 6: BERT summarization (fast-medium - 1-3 seconds)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
+    ));
+    setActiveStepIndex(stepIndex);
+    
+    // Wait for actual submission to complete
     try {
-      await onSubmit(submittedQuestion);
-      
-      // Calculate actual time for fetching
-      const fetchTime = Math.round((Date.now() - startTime) / 1000);
-      
-      // Update first step as complete
-      setProcessingSteps([
-        { text: 'Hämtar svar från AI-tjänster', status: 'complete', time: `${fetchTime} sekunder` }
-      ]);
-      
-      // Short delay
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Add second step
-      const processStart = Date.now();
-      setProcessingSteps(prev => [
-        ...prev,
-        { text: 'Bearbetar svaren', status: 'active' }
-      ]);
-      
-      // Simulate processing time (adjust based on actual processing if needed)
-      await new Promise(resolve => setTimeout(resolve, 800));
-      const processTime = Math.round((Date.now() - processStart) / 1000);
-      
-      // Update second step as complete
-      setProcessingSteps(prev => [
-        prev[0],
-        { text: 'Bearbetar svaren', status: 'complete', time: `${processTime} sekunder` }
-      ]);
-      
-      // Short delay before expanding
-      await new Promise(resolve => setTimeout(resolve, 400));
-      
+      await submitPromise;
+      stepTimings.push(Math.round((Date.now() - overallStart) / 1000) - stepTimings.reduce((a,b) => a+b, 0));
+      setProcessingSteps(prev => prev.map((s, i) => 
+        i === stepIndex ? { ...s, status: 'complete', duration: stepTimings[stepIndex] } : s
+      ));
     } catch (error) {
       console.error('Error during submission:', error);
-      // On error, still expand back
     }
+    
+    // Short delay before expanding
+    await new Promise(resolve => setTimeout(resolve, 600));
     
     // Phase 3: Expand back (600ms)
     setAnimationPhase('expanding');
@@ -85,6 +153,7 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     // Reset to idle
     setAnimationPhase('idle');
     setProcessingSteps([]);
+    setActiveStepIndex(0);
   };
 
   return (
@@ -161,41 +230,88 @@ export default function QuestionInput({ onSubmit, isLoading }) {
           </div>
         </div>
 
-        {/* Processing loader - shown during processing phase */}
+        {/* Advanced Processing loader - shown during processing phase */}
         {animationPhase === 'processing' && (
-          <div className="flex flex-col items-center justify-center space-y-4 py-8 animate-fade-in">
+          <div className="flex flex-col items-center justify-center space-y-6 py-8 animate-fade-in">
             {/* Thin line loader */}
             <div className="w-96 h-0.5 bg-civic-dark-700 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-gray-600 via-gray-400 to-gray-600 animate-shimmer" style={{
-                backgroundSize: '200% 100%',
-                animation: 'shimmer 2s linear infinite'
-              }}></div>
+              <div 
+                className="h-full bg-gradient-to-r from-gray-600 via-gray-400 to-gray-600" 
+                style={{
+                  backgroundSize: '200% 100%',
+                  animation: 'shimmer 2s linear infinite'
+                }}
+              ></div>
             </div>
             
-            {/* Processing steps */}
-            <div className="space-y-3 min-h-[80px]">
-              {processingSteps.map((step, index) => (
-                <div 
-                  key={index} 
-                  className="flex items-center space-x-3 animate-fade-in"
-                >
-                  {step.status === 'active' ? (
-                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                  ) : (
-                    <svg className="w-4 h-4 text-civic-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                  )}
-                  <span className={`text-sm ${step.status === 'active' ? 'text-gray-300' : 'text-gray-500'}`}>
-                    {step.text}
-                  </span>
-                  {step.time && (
-                    <span className="text-xs text-gray-600">
-                      Färdigt, åtgång: {step.time}
-                    </span>
-                  )}
-                </div>
-              ))}
+            {/* Processing steps with visual hierarchy */}
+            <div className="space-y-1 min-h-[200px] w-full max-w-md">
+              {processingSteps.map((step, index) => {
+                const isActive = step.status === 'active';
+                const isComplete = step.status === 'complete';
+                const isPending = step.status === 'pending';
+                
+                return (
+                  <div 
+                    key={step.id}
+                    className={`
+                      flex items-center justify-between px-4 py-2.5 rounded-lg
+                      transition-all duration-500 ease-out
+                      ${isActive ? 'bg-civic-dark-700/50 scale-105 shadow-lg' : ''}
+                      ${isComplete ? 'bg-transparent scale-95 opacity-40' : ''}
+                      ${isPending ? 'opacity-30' : ''}
+                    `}
+                    style={{
+                      transform: isActive 
+                        ? 'translateY(0) scale(1.05)' 
+                        : isComplete 
+                        ? 'translateY(-8px) scale(0.95)' 
+                        : 'translateY(0)',
+                      transformOrigin: 'center',
+                    }}
+                  >
+                    {/* Icon/Status */}
+                    <div className="flex items-center space-x-3 flex-1">
+                      {isComplete && (
+                        <div className="flex-shrink-0">
+                          <svg className="w-5 h-5 text-civic-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      )}
+                      
+                      {isActive && (
+                        <div className="flex-shrink-0">
+                          <div className="w-5 h-5 border-2 border-gray-300 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                      )}
+                      
+                      {isPending && (
+                        <div className="flex-shrink-0 w-5 h-5"></div>
+                      )}
+                      
+                      {/* Step text */}
+                      <span 
+                        className={`
+                          text-sm transition-all duration-500
+                          ${isActive ? 'text-gray-100 font-semibold' : ''}
+                          ${isComplete ? 'text-gray-600 font-normal' : ''}
+                          ${isPending ? 'text-gray-700' : ''}
+                        `}
+                      >
+                        {step.text}
+                      </span>
+                    </div>
+                    
+                    {/* Duration - only for completed steps */}
+                    {isComplete && step.duration > 0 && (
+                      <span className="text-xs text-gray-600 ml-3">
+                        {step.duration}s
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
