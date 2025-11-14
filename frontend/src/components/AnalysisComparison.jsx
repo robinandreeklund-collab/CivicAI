@@ -1,13 +1,20 @@
 import { useState } from 'react';
+import AnalysisDetailModal from './AnalysisDetailModal';
 
 /**
  * AnalysisComparison Component
  * Timeline-based visual comparison of analysis across all AI responses
  * Includes spaCy-like NLP, TextBlob-like sentiment, GPT-3.5 meta-review, and Tavily Search fact-checking
  * Clean, modern list view with timestamps
+ * 
+ * TRANSPARENCY FEATURE:
+ * Each AI card is clickable to show a detailed breakdown of analysis methods,
+ * calculation approaches, and standout data that influenced the analysis.
  */
 export default function AnalysisComparison({ responses, metaReview, factCheckComparison }) {
   const [gridColumns, setGridColumns] = useState(2); // 2 or 3 columns
+  const [selectedAgent, setSelectedAgent] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   if (!responses || responses.length === 0) {
     return null;
@@ -38,8 +45,16 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
     return agentThemes[agentId] || { icon: '🤖', color: '#6b7280', name: agentId };
   };
 
-  const getTimestamp = () => {
-    return new Date().toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+  // Handle card click to show detail modal
+  const handleCardClick = (resp) => {
+    setSelectedAgent(resp);
+    setShowDetailModal(true);
+  };
+
+  // Close detail modal
+  const handleCloseModal = () => {
+    setShowDetailModal(false);
+    setSelectedAgent(null);
   };
 
   return (
@@ -210,22 +225,37 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
       <div className={`grid ${gridColumns === 3 ? 'grid-cols-3' : 'grid-cols-2'} gap-3`}>
         {analyzedResponses.map((resp, idx) => {
           const theme = getAgentTheme(resp.agent);
-          const timestamp = getTimestamp();
           
           return (
             <div
               key={idx}
-              className="relative group animate-fade-in-scale"
+              className="relative group animate-fade-in-scale cursor-pointer"
               style={{ animationDelay: `${idx * 100}ms` }}
+              onClick={() => handleCardClick(resp)}
+              role="button"
+              tabIndex={0}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  handleCardClick(resp);
+                }
+              }}
+              aria-label={`Visa detaljer för ${theme.name}`}
             >
               {/* Compact content card */}
               <div 
-                className="bg-civic-dark-700/30 rounded-lg border border-civic-dark-600 p-3 hover:border-civic-dark-500 transition-all duration-300 h-full"
+                className="bg-civic-dark-700/30 rounded-lg border border-civic-dark-600 p-3 hover:border-cyan-500/50 hover:bg-civic-dark-700/50 transition-all duration-300 h-full hover:shadow-lg hover:shadow-cyan-500/10"
                 style={{
                   borderLeftColor: theme.color,
                   borderLeftWidth: '2px',
                 }}
               >
+                {/* Hover indicator */}
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="bg-cyan-500/20 text-cyan-300 px-2 py-1 rounded text-xs flex items-center space-x-1 border border-cyan-500/30">
+                    <span>🔍</span>
+                    <span>Visa detaljer</span>
+                  </div>
+                </div>
                 {/* Compact header with icon */}
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center space-x-2">
@@ -387,6 +417,17 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
           </span>
         </div>
       </div>
+
+      {/* Analysis Detail Modal */}
+      {showDetailModal && selectedAgent && (
+        <AnalysisDetailModal
+          isOpen={showDetailModal}
+          onClose={handleCloseModal}
+          agent={selectedAgent.agent}
+          analysis={selectedAgent.analysis}
+          metaAnalysis={selectedAgent.metaAnalysis}
+        />
+      )}
     </div>
   );
 }

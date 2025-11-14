@@ -6,6 +6,7 @@ import auditRouter from './api/audit.js';
 import votesRouter from './api/votes.js';
 import policyQuestionsRouter from './api/policyQuestions.js';
 import exportRouter from './api/export.js';
+import analysisTransparencyRouter from './api/analysis_transparency.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -20,6 +21,7 @@ app.use('/api/audit', auditRouter);
 app.use('/api/votes', votesRouter);
 app.use('/api/policy-questions', policyQuestionsRouter);
 app.use('/api/export', exportRouter);
+app.use('/api/analysis-transparency', analysisTransparencyRouter);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
