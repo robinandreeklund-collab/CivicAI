@@ -1,18 +1,22 @@
 /**
  * Summary Generation Utility
  * Creates a synthesized summary from multiple AI responses
+ * Enhanced with BERT Extractive Summarization for maximum neutrality and precision
  */
+
+import { generateBERTSummary } from '../services/bertSummarizer.js';
 
 /**
  * Generate a neutral summary from all AI responses
- * Enhanced with fact-checking insights for transparency
+ * Uses BERT Extractive Summarization when available for maximum neutrality
+ * Falls back to keyword-based extraction if BERT is not available
  * 
  * @param {Array} responses - Array of AI responses with their text
  * @param {string} question - The original question
  * @param {Object} factCheckComparison - Optional fact-check comparison data
- * @returns {string} A synthesized summary with fact-check insights
+ * @returns {Promise<string>} A synthesized summary with fact-check insights
  */
-export function generateSynthesizedSummary(responses, question, factCheckComparison = null) {
+export async function generateSynthesizedSummary(responses, question, factCheckComparison = null) {
   if (!responses || responses.length === 0) {
     return 'Ingen sammanfattning tillgänglig.';
   }
@@ -24,6 +28,49 @@ export function generateSynthesizedSummary(responses, question, factCheckCompari
     return 'Kunde inte generera sammanfattning från tillgängliga svar.';
   }
 
+  let summaryText = '';
+  let usedBERT = false;
+
+  // Try to use BERT Extractive Summarizer for maximum neutrality
+  try {
+    const responseTexts = validResponses.map(r => r.response);
+    const bertResult = await generateBERTSummary(responseTexts, question, 100, 500);
+    
+    if (bertResult.success) {
+      summaryText = bertResult.summary;
+      usedBERT = true;
+      console.log('[Summary] Using BERT Extractive Summarization');
+      console.log('[Summary] Compression ratio:', bertResult.metadata.compression_ratio);
+    } else if (!bertResult.fallback) {
+      // BERT failed but not a fallback scenario
+      console.warn('[Summary] BERT summarization failed:', bertResult.error);
+      console.log('[Summary] Falling back to keyword-based extraction');
+    }
+  } catch (error) {
+    console.warn('[Summary] BERT summarization error:', error.message);
+    console.log('[Summary] Falling back to keyword-based extraction');
+  }
+
+  // Fallback to keyword-based extraction if BERT not available or failed
+  if (!usedBERT) {
+    summaryText = generateKeywordBasedSummary(validResponses, question);
+  }
+
+  // Add fact-checking insights if available
+  if (factCheckComparison && factCheckComparison.available) {
+    summaryText += '\n\n' + generateFactCheckSection(factCheckComparison);
+  }
+
+  return summaryText;
+}
+
+/**
+ * Generate keyword-based summary (fallback method)
+ * @param {Array} validResponses - Valid responses
+ * @param {string} question - The original question
+ * @returns {string} Generated summary
+ */
+function generateKeywordBasedSummary(validResponses, question) {
   // Extract key points from each response
   const allPoints = [];
   validResponses.forEach(resp => {
@@ -86,53 +133,59 @@ export function generateSynthesizedSummary(responses, question, factCheckCompari
     }
   }
 
-  // Add fact-checking insights if available
-  if (factCheckComparison && factCheckComparison.available) {
-    summary += '\n\n**Faktakoll och verifierbarhet:**\n';
+  return summary;
+}
+
+/**
+ * Generate fact-check section for summary
+ * @param {Object} factCheckComparison - Fact-check comparison data
+ * @returns {string} Fact-check section text
+ */
+function generateFactCheckSection(factCheckComparison) {
+  let section = '**Faktakoll och verifierbarhet:**\n';
+  
+  // Visa verifierad/ej verifierad statistik
+  if (factCheckComparison.totalClaims > 0) {
+    const verificationRate = Math.round((factCheckComparison.totalVerified / factCheckComparison.totalClaims) * 100);
+    section += `${factCheckComparison.totalVerified} av ${factCheckComparison.totalClaims} påståenden verifierade (${verificationRate}%). `;
     
-    // Visa verifierad/ej verifierad statistik
-    if (factCheckComparison.totalClaims > 0) {
-      const verificationRate = Math.round((factCheckComparison.totalVerified / factCheckComparison.totalClaims) * 100);
-      summary += `${factCheckComparison.totalVerified} av ${factCheckComparison.totalClaims} påståenden verifierade (${verificationRate}%). `;
-      
-      // Källtäthet
-      if (factCheckComparison.averageSourcesPerClaim) {
-        summary += `Genomsnittlig källtäthet: ${factCheckComparison.averageSourcesPerClaim} källor per påstående. `;
-      }
-      
-      // Osäkerhetsnivå
-      if (factCheckComparison.uncertaintyLevel) {
-        const uncertaintyText = {
-          'hög': 'hög osäkerhet - många påståenden saknar tillräckliga källor',
-          'medel': 'viss osäkerhet - några påståenden kunde inte verifieras fullt ut',
-          'låg': 'låg osäkerhet - de flesta påståenden är väl underbyggda'
-        };
-        summary += `Osäkerhetsnivå: ${uncertaintyText[factCheckComparison.uncertaintyLevel]}.`;
-      }
-    } else if (factCheckComparison.neutralCount > 0) {
-      // Neutral bedömning - förklara varför
-      summary += `Svaren innehåller inga specifika verifierbara påståenden (${factCheckComparison.neutralCount} av ${factCheckComparison.agentCount} AI-modeller gav kvalitativa/åsiktsbaserade svar). `;
-      summary += 'Detta är normalt för frågor som handlar om åsikter, filosofi eller kvalitativa bedömningar där faktakoll inte är applicerbart.';
+    // Källtäthet
+    if (factCheckComparison.averageSourcesPerClaim) {
+      section += `Genomsnittlig källtäthet: ${factCheckComparison.averageSourcesPerClaim} källor per påstående. `;
     }
     
-    // Typfördelning om tillgänglig
-    if (factCheckComparison.claimTypeDistribution && Object.keys(factCheckComparison.claimTypeDistribution).length > 0) {
-      summary += '\n\n**Påståendetyper:** ';
-      const typeDescriptions = {
-        statistical: 'statistiska',
-        scientific: 'vetenskapliga',
-        temporal: 'tidsbundna',
-        historical: 'historiska',
-        definitive: 'definitiva'
+    // Osäkerhetsnivå
+    if (factCheckComparison.uncertaintyLevel) {
+      const uncertaintyText = {
+        'hög': 'hög osäkerhet - många påståenden saknar tillräckliga källor',
+        'medel': 'viss osäkerhet - några påståenden kunde inte verifieras fullt ut',
+        'låg': 'låg osäkerhet - de flesta påståenden är väl underbyggda'
       };
-      const types = Object.entries(factCheckComparison.claimTypeDistribution)
-        .map(([type, data]) => `${data.count} ${typeDescriptions[type] || type}`)
-        .join(', ');
-      summary += types + '.';
+      section += `Osäkerhetsnivå: ${uncertaintyText[factCheckComparison.uncertaintyLevel]}.`;
     }
+  } else if (factCheckComparison.neutralCount > 0) {
+    // Neutral bedömning - förklara varför
+    section += `Svaren innehåller inga specifika verifierbara påståenden (${factCheckComparison.neutralCount} av ${factCheckComparison.agentCount} AI-modeller gav kvalitativa/åsiktsbaserade svar). `;
+    section += 'Detta är normalt för frågor som handlar om åsikter, filosofi eller kvalitativa bedömningar där faktakoll inte är applicerbart.';
+  }
+  
+  // Typfördelning om tillgänglig
+  if (factCheckComparison.claimTypeDistribution && Object.keys(factCheckComparison.claimTypeDistribution).length > 0) {
+    section += '\n\n**Påståendetyper:** ';
+    const typeDescriptions = {
+      statistical: 'statistiska',
+      scientific: 'vetenskapliga',
+      temporal: 'tidsbundna',
+      historical: 'historiska',
+      definitive: 'definitiva'
+    };
+    const types = Object.entries(factCheckComparison.claimTypeDistribution)
+      .map(([type, data]) => `${data.count} ${typeDescriptions[type] || type}`)
+      .join(', ');
+    section += types + '.';
   }
 
-  return summary;
+  return section;
 }
 
 /**
