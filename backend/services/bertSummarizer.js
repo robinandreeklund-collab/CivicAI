@@ -11,6 +11,26 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
+ * Try to spawn Python process with fallback to different Python commands
+ * @param {string} pythonScript - Path to Python script
+ * @returns {Object|null} Spawned process or null
+ */
+function trySpawnPython(pythonScript) {
+  const pythonCommands = ['python3', 'python'];
+  
+  for (const cmd of pythonCommands) {
+    try {
+      const process = spawn(cmd, [pythonScript]);
+      return { process, command: cmd };
+    } catch (error) {
+      console.log(`[BERT Summarizer] Failed to spawn ${cmd}, trying next...`);
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Call Python BERT Extractive Summarizer to generate neutral summary
  * @param {Array<string>} responses - Array of response texts
  * @param {string} question - The original question
@@ -22,8 +42,21 @@ export async function generateBERTSummary(responses, question, minLength = 100, 
   return new Promise((resolve, reject) => {
     const pythonScript = join(__dirname, '..', 'python_services', 'bert_summarizer.py');
     
-    // Spawn Python process
-    const pythonProcess = spawn('python3', [pythonScript]);
+    // Try to spawn Python process with multiple commands
+    const spawnResult = trySpawnPython(pythonScript);
+    
+    if (!spawnResult) {
+      console.error('[BERT Summarizer] Could not find Python executable (tried python3, python)');
+      resolve({
+        success: false,
+        error: 'Python executable not found',
+        fallback: true
+      });
+      return;
+    }
+    
+    const pythonProcess = spawnResult.process;
+    console.log(`[BERT Summarizer] Using Python command: ${spawnResult.command}`);
     
     let outputData = '';
     let errorData = '';
