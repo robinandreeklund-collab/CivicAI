@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 /**
  * AnalysisComparison Component
  * Timeline-based visual comparison of analysis across all AI responses
@@ -5,6 +7,8 @@
  * Clean, modern list view with timestamps
  */
 export default function AnalysisComparison({ responses, metaReview, factCheckComparison }) {
+  const [gridColumns, setGridColumns] = useState(2); // 2 or 3 columns
+
   if (!responses || responses.length === 0) {
     return null;
   }
@@ -64,6 +68,42 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
             <span>🔍</span>
             <span className="text-gray-400">Faktakoll</span>
           </span>
+        </div>
+      </div>
+
+      {/* Column Toggle Button */}
+      <div className="flex justify-end mb-3">
+        <div className="inline-flex items-center bg-civic-dark-700/50 rounded-lg p-1 border border-civic-dark-600">
+          <button
+            onClick={() => setGridColumns(2)}
+            className={`
+              px-3 py-1 text-xs rounded transition-all duration-200
+              ${gridColumns === 2 
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' 
+                : 'text-gray-400 hover:text-gray-300 hover:bg-civic-dark-600/50'
+              }
+            `}
+            title="2 kolumner"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 4H5a1 1 0 00-1 1v14a1 1 0 001 1h4m0-16v16m0-16h6m-6 16h6m0-16h4a1 1 0 011 1v14a1 1 0 01-1 1h-4m0-16v16" />
+            </svg>
+          </button>
+          <button
+            onClick={() => setGridColumns(3)}
+            className={`
+              px-3 py-1 text-xs rounded transition-all duration-200
+              ${gridColumns === 3 
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' 
+                : 'text-gray-400 hover:text-gray-300 hover:bg-civic-dark-600/50'
+              }
+            `}
+            title="3 kolumner"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 4H5a1 1 0 00-1 1v14a1 1 0 001 1h4m0-16v16m0-16h6m-6 16h6m0-16v16m0-16h4a1 1 0 011 1v14a1 1 0 01-1 1h-4m0-16v16M9 8h6m-6 4h6m-6 4h6" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -166,8 +206,8 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
         </div>
       )}
 
-      {/* Compact Timeline List View - Two Column Grid */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Compact Timeline List View - Dynamic Column Grid */}
+      <div className={`grid ${gridColumns === 3 ? 'grid-cols-3' : 'grid-cols-2'} gap-3`}>
         {analyzedResponses.map((resp, idx) => {
           const theme = getAgentTheme(resp.agent);
           const timestamp = getTimestamp();
