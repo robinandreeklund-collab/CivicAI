@@ -166,8 +166,8 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
         </div>
       )}
 
-      {/* Compact Timeline List View */}
-      <div className="space-y-2">
+      {/* Compact Timeline List View - Two Column Grid */}
+      <div className="grid grid-cols-2 gap-3">
         {analyzedResponses.map((resp, idx) => {
           const theme = getAgentTheme(resp.agent);
           const timestamp = getTimestamp();
@@ -175,57 +175,47 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
           return (
             <div
               key={idx}
-              className="relative pl-10 pb-4 last:pb-0 group animate-fade-in-scale"
+              className="relative group animate-fade-in-scale"
               style={{ animationDelay: `${idx * 100}ms` }}
             >
-              {/* Timeline connector line */}
-              {idx < analyzedResponses.length - 1 && (
-                <div 
-                  className="absolute left-5 top-10 bottom-0 w-0.5 bg-gradient-to-b from-civic-dark-600 to-transparent"
-                  style={{ 
-                    backgroundImage: `linear-gradient(to bottom, ${theme.color}40, transparent)`,
-                  }}
-                />
-              )}
-              
-              {/* Compact timeline dot */}
-              <div 
-                className="absolute left-0 top-0 w-10 h-10 rounded-lg flex items-center justify-center text-xl shadow transition-all duration-300 hover:scale-110"
-                style={{ 
-                  backgroundColor: `${theme.color}20`,
-                  border: `2px solid ${theme.color}60`,
-                }}
-              >
-                {theme.icon}
-              </div>
-
               {/* Compact content card */}
               <div 
-                className="bg-civic-dark-700/30 rounded-lg border border-civic-dark-600 p-3 hover:border-civic-dark-500 transition-all duration-300"
+                className="bg-civic-dark-700/30 rounded-lg border border-civic-dark-600 p-3 hover:border-civic-dark-500 transition-all duration-300 h-full"
                 style={{
                   borderLeftColor: theme.color,
                   borderLeftWidth: '2px',
                 }}
               >
-                {/* Compact header */}
+                {/* Compact header with icon */}
                 <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-200 flex items-center space-x-1.5">
-                      <span>{theme.name}</span>
-                      {resp.analysis?.confidence && (
-                        <span 
-                          className="text-xs font-medium px-1.5 py-0.5 rounded"
-                          style={{ 
-                            backgroundColor: `${theme.color}20`,
-                            color: theme.color
-                          }}
-                        >
-                          {Math.round(resp.analysis.confidence * 100)}%
-                        </span>
-                      )}
-                    </h4>
-                    <div className="text-xs text-gray-500 mt-0.5">
-                      {resp.metadata?.model || resp.agent}
+                  <div className="flex items-center space-x-2">
+                    <div 
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
+                      style={{ 
+                        backgroundColor: `${theme.color}20`,
+                        border: `1px solid ${theme.color}60`,
+                      }}
+                    >
+                      {theme.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-semibold text-gray-200 flex items-center space-x-1.5 flex-wrap">
+                        <span>{theme.name}</span>
+                        {resp.analysis?.confidence && (
+                          <span 
+                            className="text-xs font-medium px-1.5 py-0.5 rounded"
+                            style={{ 
+                              backgroundColor: `${theme.color}20`,
+                              color: theme.color
+                            }}
+                          >
+                            {Math.round(resp.analysis.confidence * 100)}%
+                          </span>
+                        )}
+                      </h4>
+                      <div className="text-xs text-gray-500 mt-0.5 truncate">
+                        {resp.metadata?.model || resp.agent}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -239,7 +229,7 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
                         <span>💬</span>
                         <span>Ton</span>
                       </div>
-                      <div className="text-xs text-gray-200">
+                      <div className="text-xs text-gray-200 truncate">
                         {resp.analysis.tone.description}
                       </div>
                     </div>
@@ -304,12 +294,12 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
                     </div>
                     <div className="grid grid-cols-2 gap-1.5 text-xs">
                       {resp.metaAnalysis.nlp && (
-                        <div className="text-gray-400">
+                        <div className="text-gray-400 truncate">
                           📝 {resp.metaAnalysis.nlp.sentences} m, {resp.metaAnalysis.nlp.words} ord
                         </div>
                       )}
                       {resp.metaAnalysis.sentiment && (
-                        <div className={`${
+                        <div className={`truncate ${
                           resp.metaAnalysis.sentiment.sentiment === 'positive' ? 'text-green-400' :
                           resp.metaAnalysis.sentiment.sentiment === 'negative' ? 'text-red-400' :
                           'text-gray-400'
