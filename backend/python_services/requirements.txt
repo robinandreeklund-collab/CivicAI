@@ -1,0 +1,6 @@
+# BERT Extractive Summarizer
+bert-extractive-summarizer==0.10.1
+
+# Required dependencies
+transformers>=4.0.0
+torch>=1.7.0

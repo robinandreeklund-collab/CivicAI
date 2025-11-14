@@ -45,6 +45,22 @@ export default function HomePage({ onAiMessageUpdate }) {
       iconBg: 'bg-cyan-500/20',
       enabled: true,
     },
+    {
+      id: 'grok',
+      name: 'Grok',
+      description: 'Witty and insightful',
+      icon: '⚡',
+      iconBg: 'bg-orange-500/20',
+      enabled: true,
+    },
+    {
+      id: 'qwen',
+      name: 'Qwen',
+      description: 'Balanced and comprehensive',
+      icon: '🌟',
+      iconBg: 'bg-green-500/20',
+      enabled: true,
+    },
   ]);
 
   const scrollToBottom = () => {
@@ -193,22 +209,7 @@ export default function HomePage({ onAiMessageUpdate }) {
         <div className="max-w-4xl mx-auto px-4 py-6">
           {messages.length === 0 && !isLoading && (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-fade-in">
-              {/* Quick suggestions */}
-              <div className="flex flex-wrap gap-3 justify-center mt-8">
-                {[
-                  'Vad är demokrati?',
-                  'Förklara hållbar utveckling',
-                  'AI och etik - vad behöver jag veta?'
-                ].map((suggestion, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setQuestion(suggestion)}
-                    className="relative px-4 py-2 text-sm rounded-full bg-civic-dark-700/50 hover:bg-civic-dark-600 text-gray-200 hover:text-gray-100 transition-all duration-300 hover:scale-105 border-2 border-civic-dark-600 hover:border-blue-500/50 group overflow-hidden"
-                  >
-                    <span className="relative z-10">{suggestion}</span>
-                  </button>
-                ))}
-              </div>
+              {/* Empty state - no suggestions here anymore, they're in QuestionInput */}
             </div>
           )}
 
@@ -260,24 +261,30 @@ export default function HomePage({ onAiMessageUpdate }) {
               )}
             </div>
           ))}
-
-          {/* Loading indicator */}
-          {isLoading && <ProcessingLoader />}
           
           <div ref={chatEndRef} />
         </div>
       </div>
 
+      {/* Loading indicator - centered in viewport under animated circles */}
+      {isLoading && (
+        <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-10">
+          <ProcessingLoader />
+        </div>
+      )}
+
       {/* Input Area - Fixed at bottom */}
       <div className="relative flex-shrink-0">
         <div className="max-w-4xl mx-auto px-4 py-4">
-          {/* AI Service Toggle */}
-          <div className="flex justify-center mb-3">
-            <AIServiceToggle 
-              services={aiServices}
-              onServicesChange={setAiServices}
-            />
-          </div>
+          {/* AI Service Toggle - Hidden when loading */}
+          {!isLoading && (
+            <div className="flex justify-center mb-3">
+              <AIServiceToggle 
+                services={aiServices}
+                onServicesChange={setAiServices}
+              />
+            </div>
+          )}
 
           {/* GitHub-inspired search box with stunning animations */}
           <QuestionInput
