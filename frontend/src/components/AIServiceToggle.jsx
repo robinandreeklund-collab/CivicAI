@@ -24,7 +24,7 @@ export default function AIServiceToggle({ services, onServicesChange }) {
       {/* Toggle Button */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-civic-dark-800/50 border border-civic-dark-600 hover:border-civic-gray-600 text-gray-300 hover:text-gray-100 transition-all duration-200 hover:scale-105"
+        className="flex items-center space-x-2 px-4 py-2.5 rounded-lg bg-civic-dark-800 border border-civic-dark-600 hover:border-civic-gray-600 text-gray-300 hover:text-gray-100 transition-all duration-200 hover:scale-105 shadow-lg"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -42,9 +42,9 @@ export default function AIServiceToggle({ services, onServicesChange }) {
         </svg>
       </button>
 
-      {/* Services Panel - Opens upward */}
+      {/* Services Panel - Opens downward from top-right */}
       {isExpanded && (
-        <div className="absolute bottom-full mb-2 right-0 w-72 bg-civic-dark-800 rounded-lg shadow-xl border border-civic-dark-700 overflow-hidden animate-fade-in z-50">
+        <div className="absolute top-full mt-2 right-0 w-72 bg-civic-dark-800 rounded-lg shadow-xl border border-civic-dark-700 overflow-hidden animate-fade-in z-50">
           <div className="p-3 border-b border-civic-dark-700">
             <h3 className="text-sm font-semibold text-gray-200">Välj AI-tjänster</h3>
             <p className="text-xs text-gray-500 mt-1">

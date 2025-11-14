@@ -148,37 +148,14 @@ export default function HomePage({ onAiMessageUpdate }) {
   };
 
   return (
-    <div className="flex-1 flex flex-col relative overflow-hidden">
-      {/* Animated background gradients */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-civic-gray-600/10 rounded-full blur-3xl animate-pulse-slow"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-civic-gray-700/10 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '1s' }}></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-civic-gray-500/5 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '2s' }}></div>
+    <div className="flex-1 flex flex-col relative overflow-hidden" style={{ background: '#1a1a1a' }}>
+      {/* AI Service Toggle - Top Right as dropdown */}
+      <div className="absolute top-6 right-6 z-20">
+        <AIServiceToggle 
+          services={aiServices}
+          onServicesChange={setAiServices}
+        />
       </div>
-
-      {/* Battle Mode Icon - Top Right */}
-      {messages.some(m => m.type === 'ai') && (
-        <div className="absolute top-4 right-4 z-20">
-          <button
-            onClick={() => {
-              const lastAiMessage = messages.filter(m => m.type === 'ai').pop();
-              if (lastAiMessage) {
-                setCurrentBattleData({
-                  question: lastAiMessage.question,
-                  responses: lastAiMessage.responses
-                });
-                setShowBattlePanel(true);
-              }
-            }}
-            className="p-3 rounded-full bg-civic-dark-800/90 hover:bg-civic-dark-700 border border-civic-dark-600 hover:border-civic-gray-500/50 transition-all duration-200 hover:scale-110 shadow-lg group"
-            title="Battle Mode - Rösta på bästa AI-svar"
-          >
-            <svg className="w-6 h-6 text-gray-400 group-hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-            </svg>
-          </button>
-        </div>
-      )}
 
       {/* Battle Panel Modal */}
       {showBattlePanel && currentBattleData && (
@@ -210,7 +187,54 @@ export default function HomePage({ onAiMessageUpdate }) {
         <div className="max-w-4xl mx-auto px-4 py-6">
           {messages.length === 0 && !isLoading && (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-fade-in">
-              {/* Empty state - no suggestions here anymore, they're in QuestionInput */}
+              {/* Typing Effect Logo */}
+              <div className="mb-6">
+                <style>
+                  {`
+                    @keyframes typing {
+                      0%, 100% {
+                        width: 0;
+                      }
+                      50%, 90% {
+                        width: 100%;
+                      }
+                    }
+                    @keyframes blink {
+                      50% {
+                        border-color: transparent;
+                      }
+                    }
+                  `}
+                </style>
+                <div
+                  style={{
+                    fontSize: '72px',
+                    fontWeight: 700,
+                    color: '#f5f5f5',
+                    letterSpacing: '-2px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    borderRight: '3px solid #888',
+                    animation: 'typing 4s steps(11) infinite, blink 0.75s step-end infinite',
+                    display: 'inline-block',
+                    maxWidth: '100%',
+                  }}
+                >
+                  OneSeek.AI
+                </div>
+              </div>
+              
+              {/* Tagline */}
+              <p className="text-lg text-gray-400 font-light mb-2" style={{ letterSpacing: '1px' }}>
+                Beslut med insyn. AI med ansvar.
+              </p>
+              
+              {/* Description */}
+              <p className="text-sm text-gray-600 max-w-lg leading-relaxed">
+                Jämför hur olika AI-modeller svarar på samma fråga. 
+                Transparent analys av ton, bias och fakta. 
+                Minimalistisk design, maximalt fokus på innehåll.
+              </p>
             </div>
           )}
 
@@ -278,16 +302,6 @@ export default function HomePage({ onAiMessageUpdate }) {
       {/* Input Area - Fixed at bottom */}
       <div className="relative flex-shrink-0">
         <div className="max-w-4xl mx-auto px-4 py-4">
-          {/* AI Service Toggle - Hidden when loading */}
-          {!isLoading && (
-            <div className="flex justify-center mb-3">
-              <AIServiceToggle 
-                services={aiServices}
-                onServicesChange={setAiServices}
-              />
-            </div>
-          )}
-
           {/* GitHub-inspired search box with stunning animations */}
           <QuestionInput
             onSubmit={handleSubmitQuestion}
