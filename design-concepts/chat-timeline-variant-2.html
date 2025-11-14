@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timeline Variant 2: Vertical Progress Bar - OneSeek.AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #f5f5f5;
+            overflow-x: hidden;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        /* Chat Area - Same as Concept 3 */
+        .chat-area {
+            flex: 1;
+            padding: 40px;
+            overflow-y: auto;
+        }
+        
+        .response-card {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 32px;
+            margin-bottom: 24px;
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+        
+        .best-answer-badge {
+            background: linear-gradient(135deg, #4a4a4a 0%, #666 100%);
+            color: #fff;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        
+        .confidence-score {
+            color: #aaa;
+            font-size: 14px;
+        }
+        
+        .response-content {
+            line-height: 1.8;
+            color: #e0e0e0;
+            margin-bottom: 24px;
+        }
+        
+        .summary-section {
+            background: #1a1a1a;
+            border-left: 3px solid #555;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 24px;
+        }
+        
+        .summary-title {
+            color: #999;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+        
+        .summary-text {
+            color: #ccc;
+            line-height: 1.6;
+        }
+        
+        /* Vertical Progress Timeline */
+        .progress-timeline {
+            width: 80px;
+            background: #1a1a1a;
+            border-left: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            padding: 40px 0;
+            position: relative;
+        }
+        
+        .progress-track {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 3px;
+            top: 40px;
+            bottom: 40px;
+            background: #333;
+        }
+        
+        .progress-fill {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 60%;
+            background: linear-gradient(180deg, #666 0%, #888 100%);
+            transition: height 0.6s ease;
+        }
+        
+        .progress-steps {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100%;
+        }
+        
+        .progress-step {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .step-indicator {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #2a2a2a;
+            border: 2px solid #444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .progress-step.completed .step-indicator {
+            background: #666;
+            border-color: #888;
+        }
+        
+        .progress-step.active .step-indicator {
+            background: #f5f5f5;
+            border-color: #f5f5f5;
+            color: #0a0a0a;
+            font-weight: bold;
+            box-shadow: 0 0 16px rgba(245, 245, 245, 0.3);
+        }
+        
+        .progress-step:hover .step-indicator {
+            transform: scale(1.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Chat Area -->
+        <div class="chat-area">
+            <div class="response-card">
+                <div class="card-header">
+                    <div class="best-answer-badge">⭐ BÄSTA SVAR</div>
+                    <div class="confidence-score">Tillförlitlighet: 94%</div>
+                </div>
+                
+                <div class="response-content">
+                    <p>Efter att ha analyserat svaren från 5 AI-modeller kan jag ge dig en balanserad sammanfattning...</p>
+                    <p style="margin-top: 16px;">Baserat på faktakontroll och metagranskning är detta den mest korrekta informationen med högst tillförlitlighet.</p>
+                </div>
+                
+                <div class="summary-section">
+                    <div class="summary-title">🤖 BERT-SAMMANFATTNING</div>
+                    <div class="summary-text">
+                        Konsensusbedömning från alla AI-tjänster visar enighet kring huvudpunkterna. Faktaverifiering bekräftar källornas trovärdighet. Bias-analys indikerar neutral framställning.
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Progress Timeline -->
+        <div class="progress-timeline">
+            <div class="progress-track">
+                <div class="progress-fill"></div>
+            </div>
+            <div class="progress-steps">
+                <div class="progress-step completed">
+                    <div class="step-indicator">✓</div>
+                </div>
+                <div class="progress-step completed">
+                    <div class="step-indicator">✓</div>
+                </div>
+                <div class="progress-step completed">
+                    <div class="step-indicator">✓</div>
+                </div>
+                <div class="progress-step active">
+                    <div class="step-indicator">4</div>
+                </div>
+                <div class="progress-step">
+                    <div class="step-indicator">5</div>
+                </div>
+                <div class="progress-step">
+                    <div class="step-indicator">6</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
