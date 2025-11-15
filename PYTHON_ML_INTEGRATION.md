@@ -46,18 +46,29 @@ CivicAI now includes a comprehensive Python-based ML pipeline that provides adva
 
 ### Step 1: Install Python Dependencies
 
+**Linux / macOS:**
+
 ```bash
 cd backend/python_services
 ./setup.sh
 ```
 
+**Windows (PowerShell):**
+
+```powershell
+cd backend\python_services
+.\setup_windows.ps1
+```
+
 This script will:
 1. Create a Python virtual environment
-2. Install all required packages (spaCy, Detoxify, BERTopic, etc.)
+2. Install all required packages (spaCy, Detoxify, Gensim, etc.)
 3. Download spaCy language models (Swedish and/or English)
 4. Download TextBlob corpora
 
-**Alternative manual installation:**
+**Note for Windows users:** BERTopic may fail to install due to compilation requirements (hdbscan, umap-learn). This is normal - the system will automatically use Gensim LDA for topic modeling instead.
+
+**Alternative manual installation (Linux/macOS):**
 
 ```bash
 cd backend/python_services
@@ -68,11 +79,32 @@ python -m spacy download sv_core_news_sm
 python -m textblob.download_corpora
 ```
 
+**Alternative manual installation (Windows):**
+
+```powershell
+cd backend\python_services
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python -m spacy download sv_core_news_sm
+python -m textblob.download_corpora
+```
+
 ### Step 2: Start Python NLP Service
+
+**Linux / macOS:**
 
 ```bash
 cd backend/python_services
 source venv/bin/activate
+python nlp_pipeline.py
+```
+
+**Windows (PowerShell):**
+
+```powershell
+cd backend\python_services
+.\venv\Scripts\Activate.ps1
 python nlp_pipeline.py
 ```
 
@@ -199,20 +231,23 @@ const result = await classifyIdeologyWithTransformers('Text...');
 // Returns: classification, confidence, left/center/right scores
 ```
 
-### 6. Topic Modeling (BERTopic)
+### 6. Topic Modeling (BERTopic / Gensim)
 
-**Tool:** BERTopic v0.16.0  
-**Model:** Transformer-based with clustering
+**Primary Tool:** BERTopic v0.16.0 (Optional - requires compilation on Windows)  
+**Fallback Tool:** Gensim v4.3.2 LDA (Always available)  
+**Model:** Transformer-based with clustering (BERTopic) or LDA (Gensim)
 
 **Capabilities:**
 - Automatic topic extraction
 - Topic clustering
-- Hierarchical topics
+- Hierarchical topics (BERTopic)
 - Dynamic topic modeling
 
 **API Endpoint:** `POST /topic-modeling`
 
 **Requires:** Multiple texts (minimum 3)
+
+**Windows Note:** BERTopic may not install on Windows due to hdbscan/umap-learn compilation requirements. The system automatically uses Gensim LDA for topic modeling when BERTopic is unavailable - this provides excellent topic modeling without compilation issues.
 
 **Example:**
 ```javascript
@@ -221,6 +256,7 @@ import { topicModelingWithBERTopic } from './services/pythonNLPClient.js';
 const texts = ['Text 1...', 'Text 2...', 'Text 3...'];
 const result = await topicModelingWithBERTopic(texts);
 // Returns: topics, topic assignments, topic info
+// Uses BERTopic if available, otherwise Gensim LDA
 ```
 
 ### 7. Semantic Similarity (Gensim)

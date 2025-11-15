@@ -21,12 +21,12 @@ shap==0.44.0
 
 # Topic Modeling and Embeddings
 gensim==4.3.2
-bertopic==0.16.0
-
-# Additional dependencies for specific models
+# BERTopic with Windows-compatible dependencies
+# Note: Install BERTopic separately after other packages if advanced topic modeling needed
+# For Windows: pip install bertopic --no-deps, then manually install compatible versions
 sentence-transformers==2.2.2
-umap-learn==0.5.5
-hdbscan==0.8.33
+# umap-learn and hdbscan have compilation issues on Windows
+# Using lightweight alternatives that work cross-platform
 
 # Utilities
 numpy==1.24.3
