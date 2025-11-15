@@ -274,31 +274,19 @@ export default function QuestionInput({ onSubmit, isLoading }) {
             <div className="space-y-3 min-h-[80px]">
               {processingSteps.map((step, index) => {
                 const isActive = step.status === 'active';
-                const isComplete = step.status === 'complete';
                 
-                // Only show active or just completed step
-                if (!isActive && !isComplete) return null;
+                // Only show the currently active step (one at a time)
+                if (!isActive) return null;
                 
                 return (
                   <div 
                     key={step.id}
                     className="flex items-center space-x-3 animate-fade-in"
                   >
-                    {isActive ? (
-                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <svg className="w-4 h-4 text-civic-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                    <span className={`text-sm ${isActive ? 'text-gray-300' : 'text-gray-500'}`}>
+                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-sm text-gray-300">
                       {step.text}
                     </span>
-                    {isComplete && step.duration > 0 && (
-                      <span className="text-xs text-gray-600">
-                        Färdigt, åtgång: {step.duration} sekunder
-                      </span>
-                    )}
                   </div>
                 );
               })}
