@@ -35,14 +35,16 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     // Clear the question input
     setQuestion('');
     
-    // Define all processing steps based on actual backend flow
+    // Define all processing steps based on comprehensive analysis pipeline
     const steps = [
       { id: 1, text: 'Hämtar svar från AI-tjänster', duration: 0 },
-      { id: 2, text: 'Analyserar ton och sentiment', duration: 0 },
-      { id: 3, text: 'Detekterar bias-mönster', duration: 0 },
-      { id: 4, text: 'Genomför GPT metagranskning', duration: 0 },
-      { id: 5, text: 'Faktakollar med Tavily Search', duration: 0 },
-      { id: 6, text: 'Genererar BERT-sammanfattning', duration: 0 },
+      { id: 2, text: 'Förbearbetar text och extraherar nyckelord', duration: 0 },
+      { id: 3, text: 'Analyserar sentiment och emotionell ton', duration: 0 },
+      { id: 4, text: 'Detekterar bias-mönster', duration: 0 },
+      { id: 5, text: 'Klassificerar ideologisk inriktning', duration: 0 },
+      { id: 6, text: 'Genomför GPT metagranskning', duration: 0 },
+      { id: 7, text: 'Faktakollar med Tavily Search', duration: 0 },
+      { id: 8, text: 'Genererar neutral sammanfattning', duration: 0 },
     ];
     
     // Initialize steps
@@ -64,7 +66,7 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     // Submit the question in background
     const submitPromise = onSubmit(submittedQuestion);
     
-    // Simulate step progression based on realistic timing
+    // Simulate step progression based on comprehensive analysis pipeline timing
     // Step 1: Fetching AI responses (longest - 8-15 seconds)
     await new Promise(resolve => setTimeout(resolve, 3000));
     stepTimings.push(Math.round((Date.now() - overallStart) / 1000));
@@ -73,7 +75,20 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     ));
     stepIndex++;
     
-    // Step 2: Tone analysis (fast - 1-2 seconds)
+    // Step 2: Text preprocessing (fast - 0.5-1 seconds)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
+    ));
+    setActiveStepIndex(stepIndex);
+    await new Promise(resolve => setTimeout(resolve, 800));
+    stepTimings.push(Math.round((Date.now() - overallStart) / 1000) - stepTimings.reduce((a,b) => a+b, 0));
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'complete', duration: stepTimings[stepIndex] } : s
+    ));
+    stepIndex++;
+    
+    // Step 3: Sentiment analysis (fast - 1-2 seconds)
     await new Promise(resolve => setTimeout(resolve, 500));
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
@@ -86,20 +101,33 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     ));
     stepIndex++;
     
-    // Step 3: Bias detection (medium - 2-3 seconds)
+    // Step 4: Bias detection (medium - 1-2 seconds)
     await new Promise(resolve => setTimeout(resolve, 500));
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
     ));
     setActiveStepIndex(stepIndex);
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise(resolve => setTimeout(resolve, 1200));
     stepTimings.push(Math.round((Date.now() - overallStart) / 1000) - stepTimings.reduce((a,b) => a+b, 0));
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'complete', duration: stepTimings[stepIndex] } : s
     ));
     stepIndex++;
     
-    // Step 4: GPT meta-review (medium-long - 3-5 seconds)
+    // Step 5: Ideological classification (fast - 1-2 seconds)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
+    ));
+    setActiveStepIndex(stepIndex);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    stepTimings.push(Math.round((Date.now() - overallStart) / 1000) - stepTimings.reduce((a,b) => a+b, 0));
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'complete', duration: stepTimings[stepIndex] } : s
+    ));
+    stepIndex++;
+    
+    // Step 6: GPT meta-review (medium-long - 3-5 seconds)
     await new Promise(resolve => setTimeout(resolve, 500));
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
@@ -112,7 +140,7 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     ));
     stepIndex++;
     
-    // Step 5: Tavily fact-checking (medium - 3-4 seconds)
+    // Step 7: Tavily fact-checking (medium - 3-4 seconds)
     await new Promise(resolve => setTimeout(resolve, 500));
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
@@ -125,7 +153,7 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     ));
     stepIndex++;
     
-    // Step 6: BERT summarization (fast-medium - 1-3 seconds)
+    // Step 8: Generate neutral summary (fast-medium - 1-3 seconds)
     await new Promise(resolve => setTimeout(resolve, 500));
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
@@ -187,22 +215,23 @@ export default function QuestionInput({ onSubmit, isLoading }) {
               rows={1}
               className={`
                 w-full
-                px-5 py-4 pr-24
-                bg-civic-dark-800 text-gray-200
-                border border-civic-dark-600 rounded-xl
+                px-6 py-5 pr-28
+                bg-civic-dark-800 text-gray-100
+                border-2 rounded-xl
                 transition-all duration-300
                 focus:outline-none
-                placeholder-gray-600
+                placeholder-gray-500
                 resize-none
+                text-base
                 ${isFocused 
-                  ? 'border-civic-gray-600 bg-civic-dark-750 shadow-[0_4px_12px_rgba(0,0,0,0.3)]' 
-                  : 'hover:border-civic-dark-500'
+                  ? 'border-civic-gray-500 bg-civic-dark-750 shadow-[0_8px_24px_rgba(0,0,0,0.4)] scale-[1.01]' 
+                  : 'border-civic-gray-700 hover:border-civic-gray-600 hover:bg-civic-dark-750'
                 }
               `}
               style={{
                 fontFamily: 'inherit',
-                fontSize: '15px',
-                lineHeight: '1.5'
+                fontSize: '16px',
+                lineHeight: '1.6'
               }}
               disabled={isLoading || animationPhase !== 'idle'}
             />
@@ -212,18 +241,15 @@ export default function QuestionInput({ onSubmit, isLoading }) {
               type="submit"
               disabled={isLoading || !question.trim() || animationPhase !== 'idle'}
               className={`
-                absolute right-3 bottom-3
-                px-4 py-2 rounded-lg
+                absolute right-4 bottom-4
+                px-5 py-2.5 rounded-lg
                 transition-all duration-300
+                font-medium text-sm
                 ${question.trim() && !isLoading && animationPhase === 'idle'
-                  ? 'bg-gradient-to-br from-civic-gray-700 to-civic-gray-800 hover:from-civic-gray-600 hover:to-civic-gray-700 text-gray-100 border border-civic-gray-600' 
-                  : 'bg-civic-dark-700 text-gray-700 cursor-not-allowed border border-civic-dark-600'
+                  ? 'bg-gradient-to-br from-civic-gray-600 to-civic-gray-700 hover:from-civic-gray-500 hover:to-civic-gray-600 text-gray-50 border-2 border-civic-gray-500 hover:shadow-lg hover:scale-105' 
+                  : 'bg-civic-dark-700 text-gray-700 cursor-not-allowed border-2 border-civic-dark-600'
                 }
               `}
-              style={{
-                fontSize: '13px',
-                fontWeight: 500
-              }}
             >
               Skicka
             </button>
@@ -248,31 +274,19 @@ export default function QuestionInput({ onSubmit, isLoading }) {
             <div className="space-y-3 min-h-[80px]">
               {processingSteps.map((step, index) => {
                 const isActive = step.status === 'active';
-                const isComplete = step.status === 'complete';
                 
-                // Only show active or just completed step
-                if (!isActive && !isComplete) return null;
+                // Only show the currently active step (one at a time)
+                if (!isActive) return null;
                 
                 return (
                   <div 
                     key={step.id}
                     className="flex items-center space-x-3 animate-fade-in"
                   >
-                    {isActive ? (
-                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <svg className="w-4 h-4 text-civic-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                    <span className={`text-sm ${isActive ? 'text-gray-300' : 'text-gray-500'}`}>
+                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-sm text-gray-300">
                       {step.text}
                     </span>
-                    {isComplete && step.duration > 0 && (
-                      <span className="text-xs text-gray-600">
-                        Färdigt, åtgång: {step.duration} sekunder
-                      </span>
-                    )}
                   </div>
                 );
               })}

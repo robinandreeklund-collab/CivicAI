@@ -17,7 +17,10 @@ function AppContent() {
   const location = useLocation();
 
   const handleNewConversation = () => {
-    setCurrentConversationId(Date.now().toString());
+    const newConvId = Date.now().toString();
+    setCurrentConversationId(newConvId);
+    // Clear any existing conversation data when starting new
+    setLastAiMessage(null);
   };
 
   const handleSelectConversation = (conversationId) => {
@@ -31,6 +34,32 @@ function AppContent() {
 
   const handleAiMessageUpdate = (message) => {
     setLastAiMessage(message);
+    
+    // Add conversation to history if it has a question
+    if (message && message.question && currentConversationId) {
+      setConversations(prev => {
+        // Check if conversation already exists
+        const existingIndex = prev.findIndex(c => c.id === currentConversationId);
+        
+        if (existingIndex >= 0) {
+          // Update existing conversation
+          const updated = [...prev];
+          updated[existingIndex] = {
+            ...updated[existingIndex],
+            title: message.question.substring(0, 50) + (message.question.length > 50 ? '...' : ''),
+            timestamp: new Date().toISOString(),
+          };
+          return updated;
+        } else {
+          // Add new conversation
+          return [{
+            id: currentConversationId,
+            title: message.question.substring(0, 50) + (message.question.length > 50 ? '...' : ''),
+            timestamp: new Date().toISOString(),
+          }, ...prev];
+        }
+      });
+    }
   };
 
   return (
