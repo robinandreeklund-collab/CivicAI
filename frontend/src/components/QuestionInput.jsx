@@ -187,22 +187,23 @@ export default function QuestionInput({ onSubmit, isLoading }) {
               rows={1}
               className={`
                 w-full
-                px-5 py-4 pr-24
-                bg-civic-dark-800 text-gray-200
-                border border-civic-dark-600 rounded-xl
+                px-6 py-5 pr-28
+                bg-civic-dark-800 text-gray-100
+                border-2 rounded-xl
                 transition-all duration-300
                 focus:outline-none
-                placeholder-gray-600
+                placeholder-gray-500
                 resize-none
+                text-base
                 ${isFocused 
-                  ? 'border-civic-gray-600 bg-civic-dark-750 shadow-[0_4px_12px_rgba(0,0,0,0.3)]' 
-                  : 'hover:border-civic-dark-500'
+                  ? 'border-civic-gray-500 bg-civic-dark-750 shadow-[0_8px_24px_rgba(0,0,0,0.4)] scale-[1.01]' 
+                  : 'border-civic-gray-700 hover:border-civic-gray-600 hover:bg-civic-dark-750'
                 }
               `}
               style={{
                 fontFamily: 'inherit',
-                fontSize: '15px',
-                lineHeight: '1.5'
+                fontSize: '16px',
+                lineHeight: '1.6'
               }}
               disabled={isLoading || animationPhase !== 'idle'}
             />
@@ -212,18 +213,15 @@ export default function QuestionInput({ onSubmit, isLoading }) {
               type="submit"
               disabled={isLoading || !question.trim() || animationPhase !== 'idle'}
               className={`
-                absolute right-3 bottom-3
-                px-4 py-2 rounded-lg
+                absolute right-4 bottom-4
+                px-5 py-2.5 rounded-lg
                 transition-all duration-300
+                font-medium text-sm
                 ${question.trim() && !isLoading && animationPhase === 'idle'
-                  ? 'bg-gradient-to-br from-civic-gray-700 to-civic-gray-800 hover:from-civic-gray-600 hover:to-civic-gray-700 text-gray-100 border border-civic-gray-600' 
-                  : 'bg-civic-dark-700 text-gray-700 cursor-not-allowed border border-civic-dark-600'
+                  ? 'bg-gradient-to-br from-civic-gray-600 to-civic-gray-700 hover:from-civic-gray-500 hover:to-civic-gray-600 text-gray-50 border-2 border-civic-gray-500 hover:shadow-lg hover:scale-105' 
+                  : 'bg-civic-dark-700 text-gray-700 cursor-not-allowed border-2 border-civic-dark-600'
                 }
               `}
-              style={{
-                fontSize: '13px',
-                fontWeight: 500
-              }}
             >
               Skicka
             </button>
