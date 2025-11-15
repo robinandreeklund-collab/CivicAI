@@ -199,9 +199,10 @@ export default function HomePage({ onAiMessageUpdate }) {
       }
     ];
 
-    // Add detailed pipeline steps to Processing section
-    if (aiMessage.pipelineAnalysis && aiMessage.pipelineAnalysis.timeline && aiMessage.pipelineAnalysis.timeline.length > 0) {
-      const pipelineItems = aiMessage.pipelineAnalysis.timeline.map((step, idx) => {
+    // Add detailed pipeline steps to Processing section from first available response
+    const firstResponseWithPipeline = aiMessage.responses?.find(r => r.pipelineAnalysis && r.pipelineAnalysis.timeline);
+    if (firstResponseWithPipeline && firstResponseWithPipeline.pipelineAnalysis.timeline.length > 0) {
+      const pipelineItems = firstResponseWithPipeline.pipelineAnalysis.timeline.map((step, idx) => {
         // Create friendly titles for each step
         const stepTitles = {
           'spacy_preprocessing': 'spaCy Preprocessing',
