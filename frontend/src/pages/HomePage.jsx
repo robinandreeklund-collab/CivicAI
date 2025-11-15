@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import TimelineNavigator from '../components/TimelineNavigator';
 import RichContentCard from '../components/RichContentCard';
 import QuestionInput from '../components/QuestionInput';
+import ModelDivergencePanel from '../components/ModelDivergencePanel';
+import ModelPerspectiveCard from '../components/ModelPerspectiveCard';
 
 /**
  * HomePage Component
@@ -141,6 +143,7 @@ export default function HomePage({ onAiMessageUpdate }) {
         synthesizedSummaryMetadata: data.synthesizedSummaryMetadata || null,
         metaReview: data.metaReview || null,
         factCheckComparison: data.factCheckComparison || null,
+        modelSynthesis: data.modelSynthesis || null,
         toneAnalysis: data.toneAnalysis || null,
         biasDetection: data.biasDetection || null,
         bertSummary: data.bertSummary || null,
@@ -238,6 +241,13 @@ export default function HomePage({ onAiMessageUpdate }) {
         id: 'fact-check',
         title: 'Tavily Faktakoll',
         meta: 'Verifiering av fakta'
+      });
+    }
+    if (aiMessage.modelSynthesis) {
+      analysisItems.push({
+        id: 'model-synthesis',
+        title: 'Modellsyntes',
+        meta: 'Jämförelse mellan AI-modeller'
       });
     }
 
@@ -459,6 +469,48 @@ export default function HomePage({ onAiMessageUpdate }) {
           />
         ) : null;
 
+      case 'model-synthesis':
+        return aiMessage.modelSynthesis ? (
+          <RichContentCard
+            badge={{ text: 'Modellsyntes', icon: '🔬' }}
+            title="Jämförelse mellan AI-modeller"
+            content={
+              <div className="space-y-6">
+                <p className="text-civic-gray-400">
+                  Syntetiserad analys som jämför och kontrasterar svar från olika AI-modeller för att identifiera 
+                  konsensus, skillnader och motsägelser.
+                </p>
+                
+                {/* Model Perspective Cards */}
+                {aiMessage.modelSynthesis.modelCards && aiMessage.modelSynthesis.modelCards.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-civic-gray-400 mb-3">Modellperspektiv</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {aiMessage.modelSynthesis.modelCards.map((card, idx) => (
+                        <ModelPerspectiveCard key={idx} card={card} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Divergences and Contradictions */}
+                <div>
+                  <h4 className="text-sm font-medium text-civic-gray-400 mb-3">Skillnader & Konsensus</h4>
+                  <ModelDivergencePanel modelSynthesis={aiMessage.modelSynthesis} />
+                </div>
+              </div>
+            }
+            metadata={[
+              { label: 'Modeller analyserade', value: `${aiMessage.modelSynthesis.modelCards?.length || 0} st` },
+              { label: 'Konsensus', value: `${aiMessage.modelSynthesis.consensus?.overallConsensus || 0}%` },
+              { label: 'Skillnader', value: `${aiMessage.modelSynthesis.divergences?.divergenceCount || 0} st` },
+              { label: 'Motsägelser', value: `${aiMessage.modelSynthesis.contradictions?.contradictionCount || 0} st` },
+              { label: 'Gemensamma ämnen', value: `${aiMessage.modelSynthesis.insights?.consensusTopics?.length || 0} st` },
+              { label: 'Tidsstämpel', value: aiMessage.modelSynthesis.metadata?.synthesizedAt ? new Date(aiMessage.modelSynthesis.metadata.synthesizedAt).toLocaleTimeString('sv-SE') : 'N/A' }
+            ]}
+          />
+        ) : null;
+
       default:
         // AI response
         if (sectionId.startsWith('ai-')) {
@@ -576,9 +628,19 @@ export default function HomePage({ onAiMessageUpdate }) {
                   </div>
                 )}
                 
-                {message.type === 'ai' && activeSection && (
-                  <div id={`section-${activeSection}`}>
-                    {renderContent(message, activeSection)}
+                {message.type === 'ai' && (
+                  <div className="space-y-6">
+                    {/* Always show BERT summary first */}
+                    <div id="section-bert-summary">
+                      {renderContent(message, 'bert-summary')}
+                    </div>
+                    
+                    {/* Always show Model synthesis second if available */}
+                    {message.modelSynthesis && (
+                      <div id="section-model-synthesis">
+                        {renderContent(message, 'model-synthesis')}
+                      </div>
+                    )}
                   </div>
                 )}
                 

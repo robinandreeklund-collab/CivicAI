@@ -3,15 +3,17 @@ import ToneIndicator from './ToneIndicator';
 import BiasIndicator from './BiasIndicator';
 import FactCheckIndicator from './FactCheckIndicator';
 import AgentProfileCard from './AgentProfileCard';
+import EnhancedAnalysisPanel from './EnhancedAnalysisPanel';
 
 /**
  * AgentBubble Component
- * Compact chat-style AI response bubbles with Phase 2 analysis
+ * Compact chat-style AI response bubbles with Phase 2 analysis + Enhanced Analysis
  */
-export default function AgentBubble({ agent, response, metadata, analysis, index = 0 }) {
+export default function AgentBubble({ agent, response, metadata, analysis, enhancedAnalysis, index = 0 }) {
   const [isVisible, setIsVisible] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [isExpanded, setIsExpanded] = useState(index === 0);
+  const [showEnhancedAnalysis, setShowEnhancedAnalysis] = useState(false);
 
   useEffect(() => {
     // Staggered animation entrance
@@ -166,6 +168,28 @@ export default function AgentBubble({ agent, response, metadata, analysis, index
                   <div className="animate-fade-in">
                     <AgentProfileCard agent={agent} metadata={metadata} />
                   </div>
+                )}
+
+                {/* Enhanced Analysis Toggle */}
+                {enhancedAnalysis && (
+                  <>
+                    <button
+                      onClick={() => setShowEnhancedAnalysis(!showEnhancedAnalysis)}
+                      className="text-xs text-gray-400 hover:text-gray-300 transition-colors flex items-center space-x-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                      <span>{showEnhancedAnalysis ? 'Dölj' : 'Visa'} utökad analys</span>
+                    </button>
+
+                    {/* Enhanced Analysis Panel */}
+                    {showEnhancedAnalysis && (
+                      <div className="animate-fade-in">
+                        <EnhancedAnalysisPanel enhancedAnalysis={enhancedAnalysis} agentName={agent} />
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
