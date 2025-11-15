@@ -558,6 +558,54 @@ export default function HomePage({ onAiMessageUpdate }) {
         ) : null;
 
       default:
+        // Pipeline step details
+        if (sectionId.startsWith('pipeline-')) {
+          const stepId = sectionId.replace('pipeline-', '');
+          // Find the response with pipeline analysis
+          const responseWithPipeline = aiMessage.responses?.find(r => r.pipelineAnalysis?.timeline);
+          const stepData = responseWithPipeline?.pipelineAnalysis?.timeline?.find(s => s.step === stepId);
+          
+          if (stepData) {
+            const isPython = stepData.usingPython;
+            const icon = isPython ? '🐍' : '⚙️';
+            
+            return (
+              <RichContentCard
+                badge={{ text: stepData.model || stepId, icon: icon }}
+                title={`${stepData.step} - ${stepData.model || 'Processing Step'}`}
+                content={
+                  <div className="space-y-4">
+                    <div className="text-civic-gray-300">
+                      <p className="mb-2"><strong>Steg:</strong> {stepData.step}</p>
+                      <p className="mb-2"><strong>Metod:</strong> {stepData.method || 'N/A'}</p>
+                      <p className="mb-2"><strong>Typ:</strong> {isPython ? 'Python ML' : 'JavaScript'}</p>
+                      {stepData.version && <p className="mb-2"><strong>Version:</strong> {stepData.version}</p>}
+                      {stepData.fallback && <p className="mb-2 text-yellow-400"><strong>⚠️ Fallback användes</strong></p>}
+                    </div>
+                    
+                    {/* Show step results if available */}
+                    {responseWithPipeline?.pipelineAnalysis && (
+                      <div className="mt-4 p-4 bg-civic-dark-800/50 rounded-lg">
+                        <h4 className="text-sm font-semibold text-civic-gray-200 mb-2">Resultat från detta steg:</h4>
+                        <pre className="text-xs text-civic-gray-400 overflow-auto max-h-64">
+                          {JSON.stringify(stepData, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                }
+                metadata={[
+                  { label: 'Varaktighet', value: `${stepData.durationMs}ms` },
+                  { label: 'Modell', value: stepData.model || 'N/A' },
+                  { label: 'Typ', value: isPython ? 'Python ML' : 'JavaScript' },
+                  { label: 'Starttid', value: stepData.startTime ? new Date(stepData.startTime).toLocaleTimeString('sv-SE') : 'N/A' },
+                  { label: 'Sluttid', value: stepData.endTime ? new Date(stepData.endTime).toLocaleTimeString('sv-SE') : 'N/A' }
+                ]}
+              />
+            );
+          }
+        }
+        
         // AI response
         if (sectionId.startsWith('ai-')) {
           const agent = sectionId.replace('ai-', '');
