@@ -662,6 +662,27 @@ export default function HomePage({ onAiMessageUpdate }) {
                         {renderContent(message, 'model-synthesis')}
                       </div>
                     )}
+                    
+                    {/* Render best-answer section if it's the active section */}
+                    {activeSection === 'best-answer' && (
+                      <div id="section-best-answer" className="mt-6">
+                        {renderContent(message, 'best-answer')}
+                      </div>
+                    )}
+                    
+                    {/* Render AI response sections when selected */}
+                    {activeSection && activeSection.startsWith('ai-') && (
+                      <div id={`section-${activeSection}`} className="mt-6">
+                        {renderContent(message, activeSection)}
+                      </div>
+                    )}
+                    
+                    {/* Render analysis sections when selected */}
+                    {activeSection && ['tone-analysis', 'bias-detection', 'meta-review', 'fact-check'].includes(activeSection) && (
+                      <div id={`section-${activeSection}`} className="mt-6">
+                        {renderContent(message, activeSection)}
+                      </div>
+                    )}
                   </div>
                 )}
                 
