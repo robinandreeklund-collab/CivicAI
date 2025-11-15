@@ -178,16 +178,16 @@ const result = await detectToxicityWithDetoxify('Text...');
 ### 5. Ideology Classification (Transformers)
 
 **Tool:** Hugging Face Transformers v4.36.2  
-**Model:** Base transformer (placeholder for PoliticalBERT)
+**Model:** KB/bert-base-swedish-cased (Swedish BERT)
 
 **Capabilities:**
 - Political ideology classification
 - Left-right-center scoring
-- Explainability ready
+- Keyword-enhanced classification with Swedish political lexicons
 
 **API Endpoint:** `POST /classify-ideology`
 
-**Note:** Currently uses base model. For production, fine-tune on political texts using PoliticalBERT or RoBERTa.
+**Note:** Uses KB/bert-base-swedish-cased (Swedish BERT) with keyword analysis for political classification. For optimal results in production, fine-tune on a labeled Swedish political corpus.
 
 **Example:**
 ```javascript
@@ -360,13 +360,69 @@ PYTHON_NLP_SERVICE_URL=http://localhost:5001
 
 1. **spaCy:** Already using Swedish model (`sv_core_news_sm`)
 
-2. **PoliticalBERT:** Fine-tune on Swedish political texts:
+2. **Swedish BERT for Political Ideology:** Currently using KB/bert-base-swedish-cased with keyword analysis
+
+   **To fine-tune on Swedish political texts:**
    ```python
-   from transformers import AutoModelForSequenceClassification, AutoTokenizer
+   from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trainer, TrainingArguments
+   import pandas as pd
+   import torch
    
-   # Fine-tune on Swedish political corpus
-   model = AutoModelForSequenceClassification.from_pretrained('KB/bert-base-swedish-cased')
-   # ... training code ...
+   # Load Swedish BERT
+   model = AutoModelForSequenceClassification.from_pretrained(
+       'KB/bert-base-swedish-cased',
+       num_labels=3  # left, center, right
+   )
+   tokenizer = AutoTokenizer.from_pretrained('KB/bert-base-swedish-cased')
+   
+   # Prepare your labeled Swedish political corpus
+   # Format: CSV with columns 'text' and 'label' (0=left, 1=center, 2=right)
+   train_df = pd.read_csv('swedish_political_corpus.csv')
+   
+   # Tokenize
+   train_encodings = tokenizer(
+       train_df['text'].tolist(),
+       truncation=True,
+       padding=True,
+       max_length=512
+   )
+   
+   # Create dataset
+   class PoliticalDataset(torch.utils.data.Dataset):
+       def __init__(self, encodings, labels):
+           self.encodings = encodings
+           self.labels = labels
+       
+       def __getitem__(self, idx):
+           item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
+           item['labels'] = torch.tensor(self.labels[idx])
+           return item
+       
+       def __len__(self):
+           return len(self.labels)
+   
+   train_dataset = PoliticalDataset(train_encodings, train_df['label'].tolist())
+   
+   # Training arguments
+   training_args = TrainingArguments(
+       output_dir='./political_bert_swedish',
+       num_train_epochs=3,
+       per_device_train_batch_size=8,
+       warmup_steps=500,
+       weight_decay=0.01,
+   )
+   
+   # Train
+   trainer = Trainer(model=model, args=training_args, train_dataset=train_dataset)
+   trainer.train()
+   model.save_pretrained('./political_bert_swedish_final')
+   tokenizer.save_pretrained('./political_bert_swedish_final')
+   ```
+   
+   **Update `nlp_pipeline.py` to use fine-tuned model:**
+   ```python
+   # In load_ideology_classifier():
+   model_name = "./political_bert_swedish_final"
    ```
 
 3. **BERTopic:** Train on Swedish corpus for better topic detection

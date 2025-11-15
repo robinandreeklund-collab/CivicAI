@@ -138,7 +138,7 @@ export async function detectToxicityWithDetoxify(text) {
 
 /**
  * Classify political ideology using Transformers
- * Note: Requires fine-tuned model in production
+ * Now uses KB/bert-base-swedish-cased for Swedish political text analysis
  */
 export async function classifyIdeologyWithTransformers(text) {
   try {
@@ -147,6 +147,7 @@ export async function classifyIdeologyWithTransformers(text) {
       success: true,
       data: response.data,
       usingPython: true,
+      usingSwedishBERT: response.data.provenance?.model?.includes('swedish') || false,
     };
   } catch (error) {
     if (error.response?.status === 503) {

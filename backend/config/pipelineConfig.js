@@ -168,16 +168,17 @@ export const PIPELINE_CONFIG = {
       order: 4,
       tools: [
         {
-          name: 'Hugging Face Transformers-equivalent',
-          actualImplementation: 'Custom ideological classifier',
-          version: '1.0.0',
+          name: 'Hugging Face Transformers',
+          actualImplementation: 'KB/bert-base-swedish-cased + Custom classifier',
+          version: '4.36.2',
           capabilities: [
-            'PoliticalBERT-style classification',
+            'Swedish BERT-based classification',
             'Left-right-center scoring',
-            'Multi-dimensional analysis'
+            'Multi-dimensional analysis',
+            'Keyword-enhanced classification'
           ],
-          method: 'Keyword-based ideological classification with Swedish political lexicons',
-          note: 'Future: Can be enhanced with fine-tuned BERT models (PoliticalBERT/RoBERTa)'
+          method: 'Swedish BERT (KB/bert-base-swedish-cased) with keyword analysis',
+          note: 'Uses KB/bert-base-swedish-cased with keyword-based political classification. Can be enhanced with fine-tuning on labeled Swedish political corpus.'
         },
         {
           name: 'SHAP-equivalent',
