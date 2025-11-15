@@ -4,12 +4,12 @@ CivicAI Python NLP Pipeline Service
 This service provides advanced NLP capabilities using Python ML libraries:
 - spaCy: Tokenization, POS-tagging, dependency parsing
 - TextBlob: Polarity and subjectivity analysis
-- Polyglot: Multi-language detection
+- langdetect: Multi-language detection (55+ languages)
 - Detoxify: Toxicity and aggression detection
-- Transformers: Political ideology classification
+- Transformers: Political ideology classification (Swedish BERT)
 - SHAP: Model explainability
-- Gensim: Semantic analysis and topic modeling
-- BERTopic: Advanced topic modeling
+- Gensim: Semantic analysis and topic modeling (LDA)
+- BERTopic: Advanced topic modeling (optional)
 
 The service runs as a Flask API that the Node.js backend can call.
 """
@@ -650,7 +650,7 @@ if __name__ == '__main__':
     print("\nAvailable models:")
     print(f"  spaCy:        {'✓' if SPACY_AVAILABLE else '✗'}")
     print(f"  TextBlob:     {'✓' if TEXTBLOB_AVAILABLE else '✗'}")
-    print(f"  Polyglot:     {'✓' if POLYGLOT_AVAILABLE else '✗'}")
+    print(f"  langdetect:   {'✓' if LANGDETECT_AVAILABLE else '✗'}")
     print(f"  Detoxify:     {'✓' if DETOXIFY_AVAILABLE else '✗'}")
     print(f"  Transformers: {'✓' if TRANSFORMERS_AVAILABLE else '✗'}")
     print(f"  SHAP:         {'✓' if SHAP_AVAILABLE else '✗'}")
