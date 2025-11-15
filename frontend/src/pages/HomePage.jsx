@@ -185,25 +185,21 @@ export default function HomePage({ onAiMessageUpdate }) {
 
     const sections = [];
 
-    // Processing Section
-    sections.push({
-      title: 'Processering',
-      group: 'processing',
-      items: [
-        {
-          id: 'best-answer',
-          title: 'Bästa svar',
-          meta: 'Utvald rekommendation'
-        },
-        {
-          id: 'bert-summary',
-          title: 'BERT-sammanfattning',
-          meta: 'AI-genererad sammanfattning'
-        }
-      ]
-    });
+    // Processing Section - includes basic results AND detailed pipeline steps
+    const processingItems = [
+      {
+        id: 'best-answer',
+        title: 'Bästa svar',
+        meta: 'Utvald rekommendation'
+      },
+      {
+        id: 'bert-summary',
+        title: 'BERT-sammanfattning',
+        meta: 'AI-genererad sammanfattning'
+      }
+    ];
 
-    // Pipeline Steps Section - NEW: Show detailed Python ML pipeline steps
+    // Add detailed pipeline steps to Processing section
     if (aiMessage.pipelineAnalysis && aiMessage.pipelineAnalysis.timeline && aiMessage.pipelineAnalysis.timeline.length > 0) {
       const pipelineItems = aiMessage.pipelineAnalysis.timeline.map((step, idx) => {
         // Create friendly titles for each step
@@ -235,12 +231,15 @@ export default function HomePage({ onAiMessageUpdate }) {
         };
       });
 
-      sections.push({
-        title: `Pipeline Steps (${pipelineItems.length})`,
-        group: 'pipelineSteps',
-        items: pipelineItems
-      });
+      // Add all pipeline steps to processing items
+      processingItems.push(...pipelineItems);
     }
+
+    sections.push({
+      title: `Processering (${processingItems.length})`,
+      group: 'processing',
+      items: processingItems
+    });
 
     // AI Responses Section
     if (aiMessage.responses && aiMessage.responses.length > 0) {

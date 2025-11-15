@@ -14,8 +14,7 @@ export default function TimelineNavigator({
   onServiceToggle
 }) {
   const [expandedGroups, setExpandedGroups] = useState({
-    processing: true,
-    pipelineSteps: true,  // NEW: Expanded by default to show detailed pipeline steps
+    processing: true,  // Expanded by default to show all processing steps including Python ML pipeline
     aiResponses: true,
     analysis: true,
     aiServices: false
