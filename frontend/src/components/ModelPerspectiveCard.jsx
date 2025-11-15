@@ -75,7 +75,7 @@ export default function ModelPerspectiveCard({ card }) {
           <div className="flex items-center gap-2">
             <div className="w-24 h-1.5 bg-civic-dark-800 rounded-full overflow-hidden">
               <div 
-                className="h-full bg-red-500 transition-all"
+                className="h-full bg-civic-gray-500 transition-all"
                 style={{ width: `${Math.min(card.ratings?.biasScore || 0, 10) * 10}%` }}
               />
             </div>
@@ -90,7 +90,7 @@ export default function ModelPerspectiveCard({ card }) {
           <div className="flex items-center gap-2">
             <div className="w-24 h-1.5 bg-civic-dark-800 rounded-full overflow-hidden">
               <div 
-                className="h-full bg-green-500 transition-all"
+                className="h-full bg-civic-gray-400 transition-all"
                 style={{ width: `${(card.ratings?.confidence || 0) * 100}%` }}
               />
             </div>
