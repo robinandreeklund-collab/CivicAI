@@ -29,6 +29,7 @@ import { analyzeTone, getToneDescription } from '../utils/analyzeTone.js';
 import { checkFacts } from '../utils/checkFacts.js';
 import { performCompleteEnhancedAnalysis } from '../utils/nlpProcessors.js';
 import { PIPELINE_CONFIG, generatePipelineMetadata, getPipelineStepsInOrder } from '../config/pipelineConfig.js';
+import * as pythonNLP from './pythonNLPClient.js';
 
 /**
  * Execute the complete analysis pipeline on a text
@@ -41,7 +42,7 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
   const pipelineStartTime = Date.now();
   const timeline = [];
   
-  // Helper function to track each step
+  // Helper function to track each step (synchronous)
   const trackStep = (stepName, stepFunction, ...args) => {
     const stepStartTime = Date.now();
     const result = stepFunction(...args);
@@ -73,24 +74,96 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     return result;
   };
 
+  // Helper function to track async steps (for Python ML tools)
+  const trackAsyncStep = async (stepName, stepFunction, ...args) => {
+    const stepStartTime = Date.now();
+    const result = await stepFunction(...args);
+    const stepEndTime = Date.now();
+    
+    // Extract provenance from result
+    let provenance = result?.provenance || result?.data?.provenance || {};
+    
+    timeline.push({
+      step: stepName,
+      startTime: new Date(stepStartTime).toISOString(),
+      endTime: new Date(stepEndTime).toISOString(),
+      durationMs: stepEndTime - stepStartTime,
+      model: provenance.model || 'Unknown',
+      version: provenance.version || 'Unknown',
+      method: provenance.method || 'Unknown',
+      usingPython: result?.usingPython || false,
+      fallback: result?.fallback || false,
+    });
+    
+    return result;
+  };
+
   console.log(`🔬 Starting analysis pipeline for text (${text.length} characters)`);
 
-  // Step 1: Text Preprocessing
-  console.log('📝 Step 1/6: Text Preprocessing...');
+  // Step 1: Enhanced Text Preprocessing with Python ML tools
+  console.log('📝 Step 1: Text Preprocessing with Python ML...');
+  
+  // 1a: Try spaCy preprocessing
+  const spacyResult = await trackAsyncStep(
+    'spacy_preprocessing',
+    pythonNLP.preprocessWithSpacy,
+    text
+  );
+  
+  // 1b: Try TextBlob subjectivity
+  const textBlobResult = await trackAsyncStep(
+    'textblob_subjectivity',
+    pythonNLP.analyzeSentimentWithTextBlob,
+    text
+  );
+  
+  // 1c: Language detection with langdetect
+  const langDetectResult = await trackAsyncStep(
+    'langdetect_language',
+    pythonNLP.detectLanguageWithPolyglot,
+    text
+  );
+  
+  // 1d: Standard preprocessing (JavaScript fallback/enhancement)
   const preprocessing = trackStep(
-    'preprocessing',
+    'preprocessing_javascript',
     performCompletePreprocessing,
     text
   );
 
-  // Step 2: Bias Detection (Enhanced)
-  console.log('🎯 Step 2/6: Bias Detection...');
+  // Merge Python ML results into preprocessing if available
+  if (spacyResult.success) {
+    preprocessing.spacy = spacyResult.data;
+  }
+  if (textBlobResult.success) {
+    preprocessing.textblob = textBlobResult.data;
+  }
+  if (langDetectResult.success) {
+    preprocessing.langdetect = langDetectResult.data;
+  }
+
+  // Step 2: Bias Detection with Detoxify (Enhanced)
+  console.log('🎯 Step 2: Bias Detection with Detoxify...');
+  
+  // 2a: Try Detoxify for toxicity detection
+  const detoxifyResult = await trackAsyncStep(
+    'detoxify_toxicity',
+    pythonNLP.detectToxicityWithDetoxify,
+    text
+  );
+  
+  // 2b: Standard bias detection
   const biasAnalysis = trackStep(
-    'bias_detection',
+    'bias_detection_javascript',
     detectBias,
     text,
     question
   );
+
+  // Merge Detoxify results if available
+  if (detoxifyResult.success) {
+    biasAnalysis.detoxify = detoxifyResult.data;
+  }
 
   // Add per-sentence bias analysis
   const sentenceBiasAnalysis = analyzeSentenceBias(text, question);
@@ -104,35 +177,50 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     method: 'Per-sentence bias detection',
   });
 
-  // Step 3: Sentiment Analysis (VADER + extras)
-  console.log('💭 Step 3/6: Sentiment Analysis...');
+  // Step 3: Sentiment Analysis (VADER + TextBlob extras)
+  console.log('💭 Step 3: Sentiment Analysis...');
   const sentimentAnalysis = trackStep(
-    'sentiment_analysis',
+    'sentiment_analysis_javascript',
     performCompleteSentimentAnalysis,
     text
   );
 
-  // Step 4: Ideological Classification
-  console.log('🏛️ Step 4/6: Ideological Classification...');
+  // Step 4: Ideological Classification with Swedish BERT
+  console.log('🏛️ Step 4: Ideological Classification with Swedish BERT...');
+  
+  // 4a: Try Transformers (Swedish BERT) for ideology
+  const transformersResult = await trackAsyncStep(
+    'swedish_bert_ideology',
+    pythonNLP.classifyIdeologyWithTransformers,
+    text
+  );
+  
+  // 4b: Standard ideological classification
   const ideologicalClassification = trackStep(
-    'ideological_classification',
+    'ideology_classification_javascript',
     performCompleteIdeologicalClassification,
     text,
     question
   );
 
+  // Merge Swedish BERT results if available
+  if (transformersResult.success) {
+    ideologicalClassification.swedishBERT = transformersResult.data;
+    ideologicalClassification.usingSwedishBERT = transformersResult.usingSwedishBERT;
+  }
+
   // Step 5: Tone Analysis
-  console.log('🎵 Step 5/6: Tone Analysis...');
+  console.log('🎵 Step 5: Tone Analysis...');
   const toneAnalysis = trackStep(
-    'tone_analysis',
+    'tone_analysis_javascript',
     analyzeTone,
     text
   );
 
   // Step 6: Fact Checking
-  console.log('✅ Step 6/6: Fact Checking...');
+  console.log('✅ Step 6: Fact Checking...');
   const factCheck = trackStep(
-    'fact_checking',
+    'fact_checking_javascript',
     checkFacts,
     text
   );
@@ -140,9 +228,9 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
   // Optional: Enhanced NLP Analysis (if requested)
   let enhancedNLP = null;
   if (options.includeEnhancedNLP !== false) {
-    console.log('🧠 Bonus: Enhanced NLP Analysis...');
+    console.log('🧠 Step 7: Enhanced NLP Analysis...');
     enhancedNLP = trackStep(
-      'enhanced_nlp',
+      'enhanced_nlp_javascript',
       performCompleteEnhancedAnalysis,
       text,
       question,
@@ -151,6 +239,22 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
   }
 
   const pipelineEndTime = Date.now();
+
+  // Log detailed timeline summary
+  console.log(`\n✅ Pipeline completed in ${pipelineEndTime - pipelineStartTime}ms`);
+  console.log(`📊 Timeline Summary:`);
+  console.log(`   - Total steps: ${timeline.length}`);
+  console.log(`   - Python ML steps: ${timeline.filter(t => t.usingPython).length}`);
+  console.log(`   - JavaScript fallback steps: ${timeline.filter(t => t.fallback || !t.usingPython).length}`);
+  
+  // Log each Python ML tool used
+  const pythonSteps = timeline.filter(t => t.usingPython);
+  if (pythonSteps.length > 0) {
+    console.log(`\n🐍 Python ML Tools Used:`);
+    pythonSteps.forEach(step => {
+      console.log(`   ✓ ${step.step}: ${step.model} (${step.durationMs}ms)`);
+    });
+  }
 
   // Generate aggregated insights
   const insights = generateAggregatedInsights({
@@ -180,6 +284,15 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
   const pipelineMetadata = generatePipelineMetadata();
   const pipelineSteps = getPipelineStepsInOrder();
 
+  // Count Python ML usage
+  const pythonMLStats = {
+    totalSteps: timeline.length,
+    pythonSteps: timeline.filter(t => t.usingPython).length,
+    fallbackSteps: timeline.filter(t => t.fallback).length,
+    javascriptSteps: timeline.filter(t => !t.usingPython && !t.fallback).length,
+    toolsUsed: [...new Set(timeline.map(t => t.model))],
+  };
+
   return {
     // Individual analysis results
     preprocessing,
@@ -197,6 +310,7 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     
     // Transparency data
     timeline,
+    pythonMLStats,  // New: Statistics about Python ML usage
     metadata: {
       totalProcessingTimeMs: pipelineEndTime - pipelineStartTime,
       pipelineStartTime: new Date(pipelineStartTime).toISOString(),
@@ -204,6 +318,7 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
       textLength: text.length,
       questionLength: question.length,
       stepsCompleted: timeline.length,
+      pythonMLEnabled: pythonMLStats.pythonSteps > 0,
     },
     
     // Pipeline configuration
