@@ -35,14 +35,16 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     // Clear the question input
     setQuestion('');
     
-    // Define all processing steps based on actual backend flow
+    // Define all processing steps based on comprehensive analysis pipeline
     const steps = [
       { id: 1, text: 'Hämtar svar från AI-tjänster', duration: 0 },
-      { id: 2, text: 'Analyserar ton och sentiment', duration: 0 },
-      { id: 3, text: 'Detekterar bias-mönster', duration: 0 },
-      { id: 4, text: 'Genomför GPT metagranskning', duration: 0 },
-      { id: 5, text: 'Faktakollar med Tavily Search', duration: 0 },
-      { id: 6, text: 'Genererar BERT-sammanfattning', duration: 0 },
+      { id: 2, text: 'Förbearbetar text och extraherar nyckelord', duration: 0 },
+      { id: 3, text: 'Analyserar sentiment och emotionell ton', duration: 0 },
+      { id: 4, text: 'Detekterar bias-mönster', duration: 0 },
+      { id: 5, text: 'Klassificerar ideologisk inriktning', duration: 0 },
+      { id: 6, text: 'Genomför GPT metagranskning', duration: 0 },
+      { id: 7, text: 'Faktakollar med Tavily Search', duration: 0 },
+      { id: 8, text: 'Genererar neutral sammanfattning', duration: 0 },
     ];
     
     // Initialize steps
@@ -64,7 +66,7 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     // Submit the question in background
     const submitPromise = onSubmit(submittedQuestion);
     
-    // Simulate step progression based on realistic timing
+    // Simulate step progression based on comprehensive analysis pipeline timing
     // Step 1: Fetching AI responses (longest - 8-15 seconds)
     await new Promise(resolve => setTimeout(resolve, 3000));
     stepTimings.push(Math.round((Date.now() - overallStart) / 1000));
@@ -73,7 +75,20 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     ));
     stepIndex++;
     
-    // Step 2: Tone analysis (fast - 1-2 seconds)
+    // Step 2: Text preprocessing (fast - 0.5-1 seconds)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
+    ));
+    setActiveStepIndex(stepIndex);
+    await new Promise(resolve => setTimeout(resolve, 800));
+    stepTimings.push(Math.round((Date.now() - overallStart) / 1000) - stepTimings.reduce((a,b) => a+b, 0));
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'complete', duration: stepTimings[stepIndex] } : s
+    ));
+    stepIndex++;
+    
+    // Step 3: Sentiment analysis (fast - 1-2 seconds)
     await new Promise(resolve => setTimeout(resolve, 500));
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
@@ -86,20 +101,33 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     ));
     stepIndex++;
     
-    // Step 3: Bias detection (medium - 2-3 seconds)
+    // Step 4: Bias detection (medium - 1-2 seconds)
     await new Promise(resolve => setTimeout(resolve, 500));
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
     ));
     setActiveStepIndex(stepIndex);
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise(resolve => setTimeout(resolve, 1200));
     stepTimings.push(Math.round((Date.now() - overallStart) / 1000) - stepTimings.reduce((a,b) => a+b, 0));
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'complete', duration: stepTimings[stepIndex] } : s
     ));
     stepIndex++;
     
-    // Step 4: GPT meta-review (medium-long - 3-5 seconds)
+    // Step 5: Ideological classification (fast - 1-2 seconds)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
+    ));
+    setActiveStepIndex(stepIndex);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    stepTimings.push(Math.round((Date.now() - overallStart) / 1000) - stepTimings.reduce((a,b) => a+b, 0));
+    setProcessingSteps(prev => prev.map((s, i) => 
+      i === stepIndex ? { ...s, status: 'complete', duration: stepTimings[stepIndex] } : s
+    ));
+    stepIndex++;
+    
+    // Step 6: GPT meta-review (medium-long - 3-5 seconds)
     await new Promise(resolve => setTimeout(resolve, 500));
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
@@ -112,7 +140,7 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     ));
     stepIndex++;
     
-    // Step 5: Tavily fact-checking (medium - 3-4 seconds)
+    // Step 7: Tavily fact-checking (medium - 3-4 seconds)
     await new Promise(resolve => setTimeout(resolve, 500));
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
@@ -125,7 +153,7 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     ));
     stepIndex++;
     
-    // Step 6: BERT summarization (fast-medium - 1-3 seconds)
+    // Step 8: Generate neutral summary (fast-medium - 1-3 seconds)
     await new Promise(resolve => setTimeout(resolve, 500));
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
