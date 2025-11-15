@@ -17,6 +17,7 @@ import {
 import { batchFactCheck, compareFactChecks } from '../services/factChecker.js';
 import { performCompleteEnhancedAnalysis } from '../utils/nlpProcessors.js';
 import { synthesizeModelResponses } from '../services/modelSynthesis.js';
+import { executeAnalysisPipeline } from '../services/analysisPipeline.js';
 
 const router = express.Router();
 
@@ -70,6 +71,10 @@ router.post('/query', async (req, res) => {
       const factCheck = checkFacts(responseText);
       const metaAnalysis = performCompleteMetaAnalysis(responseText, question);
       const enhancedAnalysis = performCompleteEnhancedAnalysis(responseText, question, startTime);
+      
+      // NEW: Complete analysis pipeline
+      console.log('🔬 Running complete analysis pipeline for GPT-3.5...');
+      const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
 
       responses.push({
         agent: 'gpt-3.5',
@@ -91,6 +96,7 @@ router.post('/query', async (req, res) => {
         metaAnalysis: metaAnalysis,
         metaSummary: generateMetaAnalysisSummary(metaAnalysis),
         enhancedAnalysis: enhancedAnalysis,
+        pipelineAnalysis: pipelineAnalysis,
       });
     } else {
       console.error('GPT-3.5 error:', gptResponse.reason);
