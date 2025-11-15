@@ -4,6 +4,7 @@ import RichContentCard from '../components/RichContentCard';
 import QuestionInput from '../components/QuestionInput';
 import ModelDivergencePanel from '../components/ModelDivergencePanel';
 import ModelPerspectiveCard from '../components/ModelPerspectiveCard';
+import PipelineAnalysisPanel from '../components/PipelineAnalysisPanel';
 
 /**
  * HomePage Component
@@ -206,9 +207,11 @@ export default function HomePage({ onAiMessageUpdate }) {
         items: aiMessage.responses.map((resp, idx) => ({
           id: `ai-${resp.agent || idx}`,
           title: resp.metadata?.model || resp.agent || `AI ${idx + 1}`,
-          meta: resp.analysis?.confidence 
-            ? `${Math.round(resp.analysis.confidence * 100)}% säkerhet` 
-            : 'Fullständigt svar'
+          meta: resp.pipelineAnalysis 
+            ? 'Med pipeline-analys' 
+            : (resp.analysis?.confidence 
+                ? `${Math.round(resp.analysis.confidence * 100)}% säkerhet` 
+                : 'Fullständigt svar')
         }))
       });
     }
@@ -517,29 +520,47 @@ export default function HomePage({ onAiMessageUpdate }) {
           const agent = sectionId.replace('ai-', '');
           const response = aiMessage.responses?.find(r => r.agent === agent);
           return response ? (
-            <RichContentCard
-              badge={{ text: response.metadata?.model || response.agent, icon: getAgentIcon(response.agent) }}
-              title={`${response.metadata?.model || response.agent} Svar`}
-              content={
-                <div className="space-y-3">
-                  {response.response || response.content || 'Inget svar tillgängligt'}
+            <div className="space-y-4">
+              <RichContentCard
+                badge={{ text: response.metadata?.model || response.agent, icon: getAgentIcon(response.agent) }}
+                title={`${response.metadata?.model || response.agent} Svar`}
+                content={
+                  <div className="space-y-3">
+                    {response.response || response.content || 'Inget svar tillgängligt'}
+                  </div>
+                }
+                metadata={[
+                  { label: 'Modell', value: response.metadata?.model || response.agent || 'N/A' },
+                  { label: 'Svarstid', value: `${response.metadata?.responseTime || 0}ms` },
+                  { label: 'Tokens', value: response.metadata?.tokens || 'N/A' },
+                  { label: 'Säkerhet', value: response.analysis?.confidence ? `${Math.round(response.analysis.confidence * 100)}%` : 'N/A' },
+                  { label: 'Tonalitet', value: response.analysis?.toneSummary || 'Neutral' },
+                  { label: 'Bias-poäng', value: response.analysis?.biasScore !== undefined ? `${response.analysis.biasScore}/10` : 'N/A' },
+                  { label: 'Provider', value: response.metadata?.provider || 'N/A' },
+                  { label: 'Temperatur', value: response.metadata?.temperature !== undefined ? response.metadata.temperature : 'N/A' }
+                ]}
+                actions={[
+                  { icon: '📋', title: 'Kopiera', onClick: () => navigator.clipboard.writeText(response.response || response.content || '') },
+                  { icon: '🔗', title: 'Dela', onClick: () => {} }
+                ]}
+              />
+              
+              {/* Pipeline Analysis Panel */}
+              {response.pipelineAnalysis && (
+                <div className="mt-6">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                      <span>🔬</span>
+                      Komplett Pipeline-analys
+                    </h3>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Djupgående analys av detta AI-svar med förbearbetning, sentiment, ideologi och transparens
+                    </p>
+                  </div>
+                  <PipelineAnalysisPanel pipelineAnalysis={response.pipelineAnalysis} />
                 </div>
-              }
-              metadata={[
-                { label: 'Modell', value: response.metadata?.model || response.agent || 'N/A' },
-                { label: 'Svarstid', value: `${response.metadata?.responseTime || 0}ms` },
-                { label: 'Tokens', value: response.metadata?.tokens || 'N/A' },
-                { label: 'Säkerhet', value: response.analysis?.confidence ? `${Math.round(response.analysis.confidence * 100)}%` : 'N/A' },
-                { label: 'Tonalitet', value: response.analysis?.toneSummary || 'Neutral' },
-                { label: 'Bias-poäng', value: response.analysis?.biasScore !== undefined ? `${response.analysis.biasScore}/10` : 'N/A' },
-                { label: 'Provider', value: response.metadata?.provider || 'N/A' },
-                { label: 'Temperatur', value: response.metadata?.temperature !== undefined ? response.metadata.temperature : 'N/A' }
-              ]}
-              actions={[
-                { icon: '📋', title: 'Kopiera', onClick: () => navigator.clipboard.writeText(response.response || response.content || '') },
-                { icon: '🔗', title: 'Dela', onClick: () => {} }
-              ]}
-            />
+              )}
+            </div>
           ) : null;
         }
         return null;

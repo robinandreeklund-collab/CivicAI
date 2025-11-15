@@ -103,6 +103,8 @@ export default function CleanResponseCarousel({ responses, question }) {
           response={currentResponse.response}
           metadata={currentResponse.metadata}
           analysis={currentResponse.analysis}
+          enhancedAnalysis={currentResponse.enhancedAnalysis}
+          pipelineAnalysis={currentResponse.pipelineAnalysis}
           index={0}
         />
       </div>
