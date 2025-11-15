@@ -15,6 +15,8 @@ import {
   generateMetaAnalysisSummary 
 } from '../services/metaAnalysis.js';
 import { batchFactCheck, compareFactChecks } from '../services/factChecker.js';
+import { performCompleteEnhancedAnalysis } from '../utils/nlpProcessors.js';
+import { synthesizeModelResponses } from '../services/modelSynthesis.js';
 
 const router = express.Router();
 
@@ -59,6 +61,7 @@ router.post('/query', async (req, res) => {
 
     // Process responses
     const responses = [];
+    const startTime = Date.now();
 
     if (gptResponse.status === 'fulfilled') {
       const responseText = gptResponse.value.response;
@@ -66,6 +69,7 @@ router.post('/query', async (req, res) => {
       const biasAnalysis = detectBias(responseText, question);
       const factCheck = checkFacts(responseText);
       const metaAnalysis = performCompleteMetaAnalysis(responseText, question);
+      const enhancedAnalysis = performCompleteEnhancedAnalysis(responseText, question, startTime);
 
       responses.push({
         agent: 'gpt-3.5',
@@ -86,6 +90,7 @@ router.post('/query', async (req, res) => {
         },
         metaAnalysis: metaAnalysis,
         metaSummary: generateMetaAnalysisSummary(metaAnalysis),
+        enhancedAnalysis: enhancedAnalysis,
       });
     } else {
       console.error('GPT-3.5 error:', gptResponse.reason);
@@ -105,6 +110,7 @@ router.post('/query', async (req, res) => {
       const biasAnalysis = detectBias(responseText, question);
       const factCheck = checkFacts(responseText);
       const metaAnalysis = performCompleteMetaAnalysis(responseText, question);
+      const enhancedAnalysis = performCompleteEnhancedAnalysis(responseText, question, startTime);
 
       responses.push({
         agent: 'gemini',
@@ -125,6 +131,7 @@ router.post('/query', async (req, res) => {
         },
         metaAnalysis: metaAnalysis,
         metaSummary: generateMetaAnalysisSummary(metaAnalysis),
+        enhancedAnalysis: enhancedAnalysis,
       });
     } else {
       console.error('Gemini error:', geminiResponse.reason);
@@ -144,6 +151,7 @@ router.post('/query', async (req, res) => {
       const biasAnalysis = detectBias(responseText, question);
       const factCheck = checkFacts(responseText);
       const metaAnalysis = performCompleteMetaAnalysis(responseText, question);
+      const enhancedAnalysis = performCompleteEnhancedAnalysis(responseText, question, startTime);
 
       responses.push({
         agent: 'deepseek',
@@ -164,6 +172,7 @@ router.post('/query', async (req, res) => {
         },
         metaAnalysis: metaAnalysis,
         metaSummary: generateMetaAnalysisSummary(metaAnalysis),
+        enhancedAnalysis: enhancedAnalysis,
       });
     } else {
       console.error('DeepSeek error:', deepseekResponse.reason);
@@ -183,6 +192,7 @@ router.post('/query', async (req, res) => {
       const biasAnalysis = detectBias(responseText, question);
       const factCheck = checkFacts(responseText);
       const metaAnalysis = performCompleteMetaAnalysis(responseText, question);
+      const enhancedAnalysis = performCompleteEnhancedAnalysis(responseText, question, startTime);
 
       responses.push({
         agent: 'grok',
@@ -203,6 +213,7 @@ router.post('/query', async (req, res) => {
         },
         metaAnalysis: metaAnalysis,
         metaSummary: generateMetaAnalysisSummary(metaAnalysis),
+        enhancedAnalysis: enhancedAnalysis,
       });
     } else {
       console.error('Grok error:', grokResponse.reason);
@@ -222,6 +233,7 @@ router.post('/query', async (req, res) => {
       const biasAnalysis = detectBias(responseText, question);
       const factCheck = checkFacts(responseText);
       const metaAnalysis = performCompleteMetaAnalysis(responseText, question);
+      const enhancedAnalysis = performCompleteEnhancedAnalysis(responseText, question, startTime);
 
       responses.push({
         agent: 'qwen',
@@ -242,6 +254,7 @@ router.post('/query', async (req, res) => {
         },
         metaAnalysis: metaAnalysis,
         metaSummary: generateMetaAnalysisSummary(metaAnalysis),
+        enhancedAnalysis: enhancedAnalysis,
       });
     } else {
       console.error('Qwen error:', qwenResponse.reason);
@@ -274,6 +287,10 @@ router.post('/query', async (req, res) => {
     console.log('📝 Generating synthesized summary with BERT...');
     const summaryResult = await generateSynthesizedSummary(responses, question, factCheckComparison);
 
+    // Synthesize model responses for comparative analysis
+    console.log('🔬 Synthesizing multi-model analysis...');
+    const modelSynthesis = synthesizeModelResponses(responses);
+
     res.json({
       question,
       responses,
@@ -283,6 +300,7 @@ router.post('/query', async (req, res) => {
       },
       metaReview: gptMetaReview,
       factCheckComparison: factCheckComparison,
+      modelSynthesis: modelSynthesis,
       timestamp: new Date().toISOString(),
     });
 
