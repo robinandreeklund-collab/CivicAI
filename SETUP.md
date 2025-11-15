@@ -1,4 +1,4 @@
-# CivicAI - Setup Instructions
+# OneSeek.AI - Setup Instructions
 
 ## Installation
 

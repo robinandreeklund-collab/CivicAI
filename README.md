@@ -1,18 +1,18 @@
-# 🧭 CivicAI
+# 🧭 OneSeek.AI
 
 **Beslut med insyn. AI med ansvar.**
 
-CivicAI är en öppen plattform för att jämföra hur olika AI-modeller svarar på samma fråga. Genom att synliggöra skillnader i fakta, ton, bias och källor hjälper CivicAI beslutsfattare att fatta mer informerade och transparenta beslut.
+OneSeek.AI är en öppen plattform för att jämföra hur olika AI-modeller svarar på samma fråga. Genom att synliggöra skillnader i fakta, ton, bias och källor hjälper OneSeek.AI beslutsfattare att fatta mer informerade och transparenta beslut.
 
 ---
 
 ## 🎨 Grok-Inspirerad Design
 
-CivicAI har nu en moderniserad design inspirerad av Grok med fokus på användarvänlighet och professionell estetik.
+OneSeek.AI har nu en moderniserad design inspirerad av Grok med fokus på användarvänlighet och professionell estetik.
 
 ### Huvudfunktioner
 
-![CivicAI Huvudvy](https://github.com/user-attachments/assets/e5c29380-8140-4b7b-8af0-2eaa5f858341)
+![OneSeek.AI Huvudvy](https://github.com/user-attachments/assets/e5c29380-8140-4b7b-8af0-2eaa5f858341)
 *Grok-inspirerad layout med sidebar, centrerad chat och AI-tjänsteväljare*
 
 **✨ Nyckeldelar:**
@@ -44,7 +44,7 @@ Sidebaren kan enkelt kollapsa för att ge mer utrymme åt konversationen.
 ## 📦 Projektstruktur
 
 ```plaintext
-civicai/
+oneseek-ai/
 ├── README.md                  # Projektbeskrivning
 ├── manifest.yaml              # Vision, målgrupp, komponenter, värderingar
 ├── index.yaml                 # Modulöversikt och navigering
@@ -139,7 +139,7 @@ Firebase (kopplas på efter MVP)
    
    Servern startar på `http://localhost:3001` och visar debug-information om API-nycklar är konfigurerade:
    ```
-   🚀 CivicAI Backend running on port 3001
+   🚀 OneSeek.AI Backend running on port 3001
    🔗 Health check: http://localhost:3001/health
    [DEBUG] OPENAI_API_KEY: ✓ Configured
    [DEBUG] GEMINI_API_KEY: ✓ Configured
@@ -321,7 +321,7 @@ MIT — fritt att använda, förbättra och sprida med attribution.
 
 🤝 Bidra
 
-CivicAI är ett samhällsprojekt. Vi välkomnar bidrag från utvecklare, forskare, beslutsfattare och etiker. Se CONTRIBUTING.md för riktlinjer.
+OneSeek.AI är ett samhällsprojekt. Vi välkomnar bidrag från utvecklare, forskare, beslutsfattare och etiker. Se CONTRIBUTING.md för riktlinjer.
 
 🧠 Kontakt
 

@@ -75,16 +75,16 @@ export default function AgentProfileCard({ agent, metadata }) {
 
   const colorClasses = {
     blue: {
-      bg: 'bg-blue-500/10',
-      border: 'border-blue-500/30',
-      text: 'text-blue-300',
-      progress: 'bg-blue-500',
+      bg: 'bg-civic-gray-500/10',
+      border: 'border-civic-gray-500/30',
+      text: 'text-gray-300',
+      progress: 'bg-civic-gray-500',
     },
     purple: {
-      bg: 'bg-purple-500/10',
+      bg: 'bg-civic-gray-500/10',
       border: 'border-purple-500/30',
-      text: 'text-purple-300',
-      progress: 'bg-purple-500',
+      text: 'text-gray-300',
+      progress: 'bg-civic-gray-500',
     },
     cyan: {
       bg: 'bg-cyan-500/10',

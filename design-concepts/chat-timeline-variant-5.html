@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timeline Variant 5: Bottom Drawer - OneSeek.AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #f5f5f5;
+            overflow: hidden;
+        }
+        
+        .container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Chat Area - Same as Concept 3 */
+        .chat-area {
+            flex: 1;
+            padding: 40px;
+            overflow-y: auto;
+        }
+        
+        .response-card {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 32px;
+            margin-bottom: 24px;
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+        
+        .best-answer-badge {
+            background: linear-gradient(135deg, #4a4a4a 0%, #666 100%);
+            color: #fff;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        
+        .confidence-score {
+            color: #aaa;
+            font-size: 14px;
+        }
+        
+        .response-content {
+            line-height: 1.8;
+            color: #e0e0e0;
+            margin-bottom: 24px;
+        }
+        
+        .summary-section {
+            background: #1a1a1a;
+            border-left: 3px solid #555;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 24px;
+        }
+        
+        .summary-title {
+            color: #999;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+        
+        .summary-text {
+            color: #ccc;
+            line-height: 1.6;
+        }
+        
+        /* Bottom Drawer */
+        .bottom-drawer {
+            height: 80px;
+            background: #1a1a1a;
+            border-top: 1px solid #333;
+            transition: height 0.3s ease;
+            overflow: hidden;
+        }
+        
+        .bottom-drawer:hover {
+            height: 240px;
+        }
+        
+        .drawer-handle {
+            padding: 16px;
+            text-align: center;
+            cursor: pointer;
+        }
+        
+        .handle-bar {
+            width: 40px;
+            height: 4px;
+            background: #444;
+            margin: 0 auto;
+            border-radius: 2px;
+        }
+        
+        .drawer-content {
+            padding: 0 40px 20px;
+        }
+        
+        .drawer-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 16px;
+        }
+        
+        .drawer-item {
+            background: #222;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .drawer-item:hover {
+            background: #2a2a2a;
+            border-color: #444;
+            transform: translateY(-2px);
+        }
+        
+        .drawer-item.active {
+            background: #2a2a2a;
+            border-color: #666;
+        }
+        
+        .drawer-item.completed .item-status {
+            color: #888;
+        }
+        
+        .drawer-item.active .item-status {
+            color: #fff;
+        }
+        
+        .item-status {
+            font-size: 20px;
+            margin-bottom: 8px;
+        }
+        
+        .item-name {
+            font-size: 11px;
+            color: #999;
+            text-align: center;
+        }
+        
+        .drawer-item.active .item-name {
+            color: #ccc;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Chat Area -->
+        <div class="chat-area">
+            <div class="response-card">
+                <div class="card-header">
+                    <div class="best-answer-badge">⭐ BÄSTA SVAR</div>
+                    <div class="confidence-score">Tillförlitlighet: 94%</div>
+                </div>
+                
+                <div class="response-content">
+                    <p>Efter att ha analyserat svaren från 5 AI-modeller kan jag ge dig en balanserad sammanfattning...</p>
+                    <p style="margin-top: 16px;">Baserat på faktakontroll och metagranskning är detta den mest korrekta informationen med högst tillförlitlighet.</p>
+                </div>
+                
+                <div class="summary-section">
+                    <div class="summary-title">🤖 BERT-SAMMANFATTNING</div>
+                    <div class="summary-text">
+                        Konsensusbedömning från alla AI-tjänster visar enighet kring huvudpunkterna. Faktaverifiering bekräftar källornas trovärdighet. Bias-analys indikerar neutral framställning.
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Bottom Drawer -->
+        <div class="bottom-drawer">
+            <div class="drawer-handle">
+                <div class="handle-bar"></div>
+            </div>
+            <div class="drawer-content">
+                <div class="drawer-grid">
+                    <div class="drawer-item completed">
+                        <div class="item-status">✓</div>
+                        <div class="item-name">AI-tjänster</div>
+                    </div>
+                    <div class="drawer-item completed">
+                        <div class="item-status">✓</div>
+                        <div class="item-name">Sentiment</div>
+                    </div>
+                    <div class="drawer-item completed">
+                        <div class="item-status">✓</div>
+                        <div class="item-name">Bias</div>
+                    </div>
+                    <div class="drawer-item active">
+                        <div class="item-status">→</div>
+                        <div class="item-name">Metagranskning</div>
+                    </div>
+                    <div class="drawer-item">
+                        <div class="item-status">⋯</div>
+                        <div class="item-name">Faktakoll</div>
+                    </div>
+                    <div class="drawer-item">
+                        <div class="item-status">⋯</div>
+                        <div class="item-name">BERT</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -16,7 +16,7 @@ import yaml from 'js-yaml';
 export function generateReadme(data) {
   const { question, responses, synthesizedSummary, synthesizedSummaryMetadata, timestamp } = data;
   
-  let readme = `# CivicAI Jämförelse\n\n`;
+  let readme = `# OneSeek.AI Jämförelse\n\n`;
   readme += `**Genererad:** ${new Date(timestamp).toLocaleString('sv-SE')}\n\n`;
   readme += `## Fråga\n\n${question}\n\n`;
   readme += `---\n\n`;
@@ -72,7 +72,7 @@ export function generateReadme(data) {
   }
   
   // Add footer
-  readme += `\n*Genererad av [CivicAI](https://github.com/robinandreeklund-collab/CivicAI) - Beslut med insyn. AI med ansvar.*\n`;
+  readme += `\n*Genererad av [OneSeek.AI](https://github.com/robinandreeklund-collab/CivicAI) - Beslut med insyn. AI med ansvar.*\n`;
   
   return readme;
 }
@@ -98,7 +98,7 @@ export function generatePDF(data) {
       doc.on('error', reject);
       
       // Header
-      doc.fontSize(24).font('Helvetica-Bold').text('CivicAI Jämförelse', { align: 'center' });
+      doc.fontSize(24).font('Helvetica-Bold').text('OneSeek.AI Jämförelse', { align: 'center' });
       doc.moveDown(0.5);
       doc.fontSize(10).font('Helvetica').text(`Genererad: ${new Date(timestamp).toLocaleString('sv-SE')}`, { align: 'center' });
       doc.moveDown(2);
@@ -178,7 +178,7 @@ export function generatePDF(data) {
       
       // Footer
       doc.fontSize(8).font('Helvetica-Oblique').text(
-        'Genererad av CivicAI - Beslut med insyn. AI med ansvar.',
+        'Genererad av OneSeek.AI - Beslut med insyn. AI med ansvar.',
         50,
         doc.page.height - 50,
         { align: 'center' }
@@ -212,7 +212,7 @@ export function generateYAML(data) {
     metadata: {
       exported_at: new Date().toISOString(),
       version: '0.1.0',
-      tool: 'CivicAI',
+      tool: 'OneSeek.AI',
     }
   };
   
@@ -240,7 +240,7 @@ export function generateJSON(data) {
     metadata: {
       exported_at: new Date().toISOString(),
       version: '0.1.0',
-      tool: 'CivicAI',
+      tool: 'OneSeek.AI',
     }
   };
   

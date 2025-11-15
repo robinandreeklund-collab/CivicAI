@@ -135,7 +135,7 @@ export default function PolicyQuestionBank({ onSelectQuestion }) {
           className="w-full px-6 py-4 bg-civic-dark-800/50 hover:bg-civic-dark-700/50 border border-civic-dark-600 rounded-2xl transition-all duration-300 flex items-center justify-between group"
         >
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-lg bg-teal-500/20 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+            <div className="w-10 h-10 rounded-lg bg-civic-gray-500/20 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
               📋
             </div>
             <div className="text-left">
@@ -156,7 +156,7 @@ export default function PolicyQuestionBank({ onSelectQuestion }) {
           <div className="absolute inset-0 bg-gradient-to-br from-teal-500/10 to-emerald-500/10 rounded-2xl"></div>
 
           {/* Main content */}
-          <div className="relative backdrop-blur-sm bg-civic-dark-800/50 rounded-2xl border border-teal-500/20 p-8 shadow-2xl">
+          <div className="relative backdrop-blur-sm bg-civic-dark-800/50 rounded-2xl border border-civic-gray-500/20 p-8 shadow-2xl">
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-3">
@@ -185,7 +185,7 @@ export default function PolicyQuestionBank({ onSelectQuestion }) {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Sök frågor..."
-                className="w-full px-4 py-3 rounded-xl bg-civic-dark-700/50 border-2 border-civic-dark-600 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-teal-500 transition-all duration-300"
+                className="w-full px-4 py-3 rounded-xl bg-civic-dark-700/50 border-2 border-civic-dark-600 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-civic-gray-500 transition-all duration-300"
               />
 
               {/* Category filter */}
@@ -194,7 +194,7 @@ export default function PolicyQuestionBank({ onSelectQuestion }) {
                   onClick={() => setSelectedCategory('all')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                     selectedCategory === 'all'
-                      ? 'bg-teal-500 text-white'
+                      ? 'bg-civic-gray-500 text-white'
                       : 'bg-civic-dark-700/50 text-gray-300 hover:bg-civic-dark-600'
                   }`}
                 >
@@ -206,7 +206,7 @@ export default function PolicyQuestionBank({ onSelectQuestion }) {
                     onClick={() => setSelectedCategory(category)}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                       selectedCategory === category
-                        ? 'bg-teal-500 text-white'
+                        ? 'bg-civic-gray-500 text-white'
                         : 'bg-civic-dark-700/50 text-gray-300 hover:bg-civic-dark-600'
                     }`}
                   >
@@ -220,7 +220,7 @@ export default function PolicyQuestionBank({ onSelectQuestion }) {
             <div className="mb-6">
               <button
                 onClick={() => setShowCreateForm(!showCreateForm)}
-                className="w-full px-4 py-3 bg-teal-500 hover:bg-teal-600 text-white font-medium rounded-xl transition-all duration-200 flex items-center justify-center space-x-2"
+                className="w-full px-4 py-3 bg-civic-gray-500 hover:bg-civic-gray-600 text-white font-medium rounded-xl transition-all duration-200 flex items-center justify-center space-x-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -239,7 +239,7 @@ export default function PolicyQuestionBank({ onSelectQuestion }) {
                     value={newQuestion.question}
                     onChange={(e) => setNewQuestion({ ...newQuestion, question: e.target.value })}
                     placeholder="Skriv din policyfråga..."
-                    className="w-full px-4 py-2 rounded-lg bg-civic-dark-600 border border-civic-dark-500 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-teal-500"
+                    className="w-full px-4 py-2 rounded-lg bg-civic-dark-600 border border-civic-dark-500 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-civic-gray-500"
                     required
                   />
                 </div>
@@ -248,7 +248,7 @@ export default function PolicyQuestionBank({ onSelectQuestion }) {
                   <select
                     value={newQuestion.category}
                     onChange={(e) => setNewQuestion({ ...newQuestion, category: e.target.value })}
-                    className="w-full px-4 py-2 rounded-lg bg-civic-dark-600 border border-civic-dark-500 text-gray-100 focus:outline-none focus:border-teal-500"
+                    className="w-full px-4 py-2 rounded-lg bg-civic-dark-600 border border-civic-dark-500 text-gray-100 focus:outline-none focus:border-civic-gray-500"
                     required
                   >
                     <option value="">Välj kategori</option>
@@ -266,7 +266,7 @@ export default function PolicyQuestionBank({ onSelectQuestion }) {
                     onChange={(e) => setNewQuestion({ ...newQuestion, description: e.target.value })}
                     placeholder="Valfri beskrivning..."
                     rows={2}
-                    className="w-full px-4 py-2 rounded-lg bg-civic-dark-600 border border-civic-dark-500 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-teal-500 resize-none"
+                    className="w-full px-4 py-2 rounded-lg bg-civic-dark-600 border border-civic-dark-500 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-civic-gray-500 resize-none"
                   />
                 </div>
                 <div>
@@ -276,12 +276,12 @@ export default function PolicyQuestionBank({ onSelectQuestion }) {
                     value={newQuestion.tags}
                     onChange={(e) => setNewQuestion({ ...newQuestion, tags: e.target.value })}
                     placeholder="tag1, tag2, tag3"
-                    className="w-full px-4 py-2 rounded-lg bg-civic-dark-600 border border-civic-dark-500 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-teal-500"
+                    className="w-full px-4 py-2 rounded-lg bg-civic-dark-600 border border-civic-dark-500 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-civic-gray-500"
                   />
                 </div>
                 <button
                   type="submit"
-                  className="w-full px-4 py-3 bg-teal-500 hover:bg-teal-600 text-white font-medium rounded-lg transition-all duration-200"
+                  className="w-full px-4 py-3 bg-civic-gray-500 hover:bg-civic-gray-600 text-white font-medium rounded-lg transition-all duration-200"
                 >
                   Skapa fråga
                 </button>
@@ -291,7 +291,7 @@ export default function PolicyQuestionBank({ onSelectQuestion }) {
             {/* Questions list */}
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
-                <svg className="animate-spin h-8 w-8 text-teal-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin h-8 w-8 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
@@ -329,7 +329,7 @@ export default function PolicyQuestionBank({ onSelectQuestion }) {
                             {question.tags.map((tag, idx) => (
                               <span
                                 key={idx}
-                                className="text-xs px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-400"
+                                className="text-xs px-2 py-0.5 rounded-full bg-civic-gray-500/20 text-gray-400"
                               >
                                 #{tag}
                               </span>
@@ -339,7 +339,7 @@ export default function PolicyQuestionBank({ onSelectQuestion }) {
                       </div>
                       <button
                         onClick={() => handleUseQuestion(question)}
-                        className="flex-shrink-0 px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium rounded-lg transition-all duration-200"
+                        className="flex-shrink-0 px-4 py-2 bg-civic-gray-500 hover:bg-civic-gray-600 text-white text-sm font-medium rounded-lg transition-all duration-200"
                       >
                         Använd
                       </button>

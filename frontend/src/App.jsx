@@ -6,7 +6,7 @@ import PolicyQuestionBankPage from './pages/PolicyQuestionBankPage';
 import AuditTrailPage from './pages/AuditTrailPage';
 
 /**
- * Main CivicAI Application
+ * Main OneSeek.AI Application
  * Grok-inspired chat interface with sidebar and routing
  */
 function AppContent() {

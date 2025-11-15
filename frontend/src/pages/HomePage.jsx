@@ -1,22 +1,19 @@
 import { useState, useRef, useEffect } from 'react';
-import ProcessingLoader from '../components/ProcessingLoader';
-import AIServiceToggle from '../components/AIServiceToggle';
-import CleanResponseCarousel from '../components/CleanResponseCarousel';
-import AnalysisComparison from '../components/AnalysisComparison';
-import ResponseSummary from '../components/ResponseSummary';
-import BattlePanel from '../components/BattlePanel';
+import TimelineNavigator from '../components/TimelineNavigator';
+import RichContentCard from '../components/RichContentCard';
 import QuestionInput from '../components/QuestionInput';
 
 /**
  * HomePage Component
- * Main chat interface for CivicAI
+ * Main chat interface for OneSeek.AI with Timeline Navigator (Concept 3)
+ * Clean, minimalist design with card stack navigation
  */
 export default function HomePage({ onAiMessageUpdate }) {
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showBattlePanel, setShowBattlePanel] = useState(false);
-  const [currentBattleData, setCurrentBattleData] = useState(null);
+  const [activeSection, setActiveSection] = useState(null);
+  const [exploredSections, setExploredSections] = useState(new Set());
   const chatEndRef = useRef(null);
 
   // AI Services configuration
@@ -26,7 +23,7 @@ export default function HomePage({ onAiMessageUpdate }) {
       name: 'GPT-3.5',
       description: 'Fast and efficient',
       icon: '🤖',
-      iconBg: 'bg-blue-500/20',
+      iconBg: 'bg-civic-gray-600/20',
       enabled: true,
     },
     {
@@ -34,7 +31,7 @@ export default function HomePage({ onAiMessageUpdate }) {
       name: 'Gemini',
       description: 'Google\'s AI model',
       icon: '✨',
-      iconBg: 'bg-purple-500/20',
+      iconBg: 'bg-civic-gray-700/20',
       enabled: true,
     },
     {
@@ -42,7 +39,7 @@ export default function HomePage({ onAiMessageUpdate }) {
       name: 'DeepSeek',
       description: 'Technical precision',
       icon: '🧠',
-      iconBg: 'bg-cyan-500/20',
+      iconBg: 'bg-civic-gray-500/20',
       enabled: true,
     },
     {
@@ -50,7 +47,7 @@ export default function HomePage({ onAiMessageUpdate }) {
       name: 'Grok',
       description: 'Witty and insightful',
       icon: '⚡',
-      iconBg: 'bg-orange-500/20',
+      iconBg: 'bg-civic-gray-600/20',
       enabled: true,
     },
     {
@@ -58,18 +55,37 @@ export default function HomePage({ onAiMessageUpdate }) {
       name: 'Qwen',
       description: 'Balanced and comprehensive',
       icon: '🌟',
-      iconBg: 'bg-green-500/20',
+      iconBg: 'bg-civic-gray-700/20',
       enabled: true,
     },
   ]);
 
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Track section exploration
+  useEffect(() => {
+    if (activeSection) {
+      setExploredSections(prev => new Set([...prev, activeSection]));
+    }
+  }, [activeSection]);
+
+  const scrollToSection = (sectionId) => {
+    const element = document.getElementById(`section-${sectionId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isLoading]);
+  const handleSectionChange = (sectionId) => {
+    setActiveSection(sectionId);
+    scrollToSection(sectionId);
+  };
+
+  const handleServiceToggle = (serviceId) => {
+    setAiServices(services => 
+      services.map(s => 
+        s.id === serviceId ? { ...s, enabled: !s.enabled } : s
+      )
+    );
+  };
 
   const handleSubmitQuestion = async (questionText) => {
     // If called from form (old way), extract from state
@@ -119,16 +135,24 @@ export default function HomePage({ onAiMessageUpdate }) {
       // Add AI responses to chat
       const aiMessage = {
         type: 'ai',
-        question: userQuestion,
+        question: trimmedQuestion,
         responses: data.responses || [],
         synthesizedSummary: data.synthesizedSummary || null,
         synthesizedSummaryMetadata: data.synthesizedSummaryMetadata || null,
         metaReview: data.metaReview || null,
         factCheckComparison: data.factCheckComparison || null,
+        toneAnalysis: data.toneAnalysis || null,
+        biasDetection: data.biasDetection || null,
+        bertSummary: data.bertSummary || null,
         timestamp: new Date().toISOString(),
       };
       
       setMessages(prev => [...prev, aiMessage]);
+      
+      // Set first section as active
+      if (data.responses && data.responses.length > 0) {
+        setActiveSection('best-answer');
+      }
       
       // Update parent with last AI message for export panel
       if (onAiMessageUpdate) {
@@ -147,154 +171,457 @@ export default function HomePage({ onAiMessageUpdate }) {
     }
   };
 
-  return (
-    <div className="flex-1 flex flex-col relative overflow-hidden">
-      {/* Animated background gradients */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl animate-pulse-slow"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '1s' }}></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '2s' }}></div>
-      </div>
+  // Build timeline sections from latest AI message
+  const buildTimelineSections = (aiMessage) => {
+    if (!aiMessage || aiMessage.type !== 'ai') return [];
 
-      {/* Battle Mode Icon - Top Right */}
-      {messages.some(m => m.type === 'ai') && (
-        <div className="absolute top-4 right-4 z-20">
-          <button
-            onClick={() => {
-              const lastAiMessage = messages.filter(m => m.type === 'ai').pop();
-              if (lastAiMessage) {
-                setCurrentBattleData({
-                  question: lastAiMessage.question,
-                  responses: lastAiMessage.responses
-                });
-                setShowBattlePanel(true);
-              }
-            }}
-            className="p-3 rounded-full bg-civic-dark-800/90 hover:bg-civic-dark-700 border border-civic-dark-600 hover:border-purple-500/50 transition-all duration-200 hover:scale-110 shadow-lg group"
-            title="Battle Mode - Rösta på bästa AI-svar"
-          >
-            <svg className="w-6 h-6 text-purple-400 group-hover:text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-            </svg>
-          </button>
-        </div>
-      )}
+    const sections = [];
 
-      {/* Battle Panel Modal */}
-      {showBattlePanel && currentBattleData && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div className="max-w-4xl w-full max-h-[90vh] overflow-y-auto bg-civic-dark-900 rounded-2xl border border-civic-dark-700 shadow-2xl">
-            <div className="sticky top-0 bg-civic-dark-900 border-b border-civic-dark-700 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-100">Battle Mode - Rösta på bästa AI-svar</h2>
-              <button
-                onClick={() => setShowBattlePanel(false)}
-                className="p-2 rounded-lg hover:bg-civic-dark-800 text-gray-400 hover:text-gray-200 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="p-6">
-              <BattlePanel
-                question={currentBattleData.question}
-                responses={currentBattleData.responses}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+    // Processing Section
+    sections.push({
+      title: 'Processering',
+      group: 'processing',
+      items: [
+        {
+          id: 'best-answer',
+          title: 'Bästa svar',
+          meta: 'Utvald rekommendation'
+        },
+        {
+          id: 'bert-summary',
+          title: 'BERT-sammanfattning',
+          meta: 'AI-genererad sammanfattning'
+        }
+      ]
+    });
 
-      {/* Chat Area */}
-      <div className="flex-1 overflow-y-auto relative">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          {messages.length === 0 && !isLoading && (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-fade-in">
-              {/* Empty state - no suggestions here anymore, they're in QuestionInput */}
-            </div>
-          )}
+    // AI Responses Section
+    if (aiMessage.responses && aiMessage.responses.length > 0) {
+      sections.push({
+        title: 'AI-svar',
+        group: 'aiResponses',
+        items: aiMessage.responses.map((resp, idx) => ({
+          id: `ai-${resp.agent || idx}`,
+          title: resp.metadata?.model || resp.agent || `AI ${idx + 1}`,
+          meta: resp.analysis?.confidence 
+            ? `${Math.round(resp.analysis.confidence * 100)}% säkerhet` 
+            : 'Fullständigt svar'
+        }))
+      });
+    }
 
-          {/* Message history */}
-          {messages.map((message, index) => (
-            <div key={index} className="mb-6 animate-fade-in-up">
-              {message.type === 'user' && (
-                <div className="flex justify-end">
-                  <div className="max-w-[80%] bg-blue-600 text-white rounded-2xl rounded-tr-sm px-5 py-3 shadow-lg">
-                    <p className="whitespace-pre-wrap">{message.content}</p>
-                  </div>
-                </div>
-              )}
-              
-              {message.type === 'ai' && (
-                <div className="space-y-4">
-                  {/* Clean Response Carousel - Minimal, elegant interface */}
-                  <CleanResponseCarousel
-                    responses={message.responses}
-                    question={message.question}
-                  />
+    // Analysis Section
+    const analysisItems = [];
+    if (aiMessage.toneAnalysis) {
+      analysisItems.push({
+        id: 'tone-analysis',
+        title: 'Tonanalys',
+        meta: 'Sentiment & språkton'
+      });
+    }
+    if (aiMessage.biasDetection) {
+      analysisItems.push({
+        id: 'bias-detection',
+        title: 'Bias-detektion',
+        meta: 'Förutfattade meningar'
+      });
+    }
+    if (aiMessage.metaReview) {
+      analysisItems.push({
+        id: 'meta-review',
+        title: 'GPT Metagranskning',
+        meta: 'Kvalitetskontroll'
+      });
+    }
+    if (aiMessage.factCheckComparison) {
+      analysisItems.push({
+        id: 'fact-check',
+        title: 'Tavily Faktakoll',
+        meta: 'Verifiering av fakta'
+      });
+    }
 
-                  {/* Analysis Comparison */}
-                  <AnalysisComparison 
-                    responses={message.responses} 
-                    metaReview={message.metaReview}
-                    factCheckComparison={message.factCheckComparison}
-                  />
+    if (analysisItems.length > 0) {
+      sections.push({
+        title: 'Analyser',
+        group: 'analysis',
+        items: analysisItems
+      });
+    }
 
-                  {/* Neutral Summary */}
-                  <ResponseSummary 
-                    responses={message.responses} 
-                    question={message.question}
-                    synthesizedSummary={message.synthesizedSummary}
-                    synthesizedSummaryMetadata={message.synthesizedSummaryMetadata}
-                    factCheckComparison={message.factCheckComparison}
-                  />
-                </div>
-              )}
-              
-              {message.type === 'error' && (
-                <div className="flex justify-start">
-                  <div className="max-w-[80%] bg-red-900/30 border border-red-500/40 text-red-300 rounded-2xl rounded-tl-sm px-5 py-3">
-                    <div className="flex items-start space-x-2">
-                      <span className="text-xl">⚠️</span>
-                      <p>{message.content}</p>
+    return sections;
+  };
+
+  const latestAiMessage = messages.filter(m => m.type === 'ai').pop();
+  const timelineSections = buildTimelineSections(latestAiMessage);
+
+  // Render content based on active section
+  const renderContent = (aiMessage, sectionId) => {
+    if (!aiMessage) return null;
+
+    switch (sectionId) {
+      case 'best-answer':
+        const bestResponse = aiMessage.responses?.[0];
+        return bestResponse ? (
+          <RichContentCard
+            badge={{ text: 'Bästa svar', icon: '⭐', primary: true }}
+            title={`${bestResponse.metadata?.model || bestResponse.agent} Rekommendation`}
+            content={
+              <div className="space-y-3">
+                {bestResponse.response || bestResponse.content || 'Inget svar tillgängligt'}
+              </div>
+            }
+            metadata={[
+              { label: 'Modell', value: bestResponse.metadata?.model || bestResponse.agent || 'N/A' },
+              { label: 'Svarstid', value: `${bestResponse.metadata?.responseTime || 0}ms` },
+              { label: 'Tokens', value: bestResponse.metadata?.tokens || 'N/A' },
+              { label: 'Säkerhet', value: bestResponse.analysis?.confidence ? `${Math.round(bestResponse.analysis.confidence * 100)}%` : 'N/A' },
+              { label: 'Tonalitet', value: bestResponse.analysis?.toneSummary || 'Neutral' },
+              { label: 'Bias-poäng', value: bestResponse.analysis?.biasScore ? `${bestResponse.analysis.biasScore}/10` : 'N/A' },
+              { label: 'Faktakollad', value: bestResponse.analysis?.factCheck ? '✓ Ja' : '- Nej' },
+              { label: 'Kvalitetspoäng', value: bestResponse.metadata?.quality ? `${bestResponse.metadata.quality}/100` : 'N/A' }
+            ]}
+            actions={[
+              { icon: '📋', title: 'Kopiera', onClick: () => navigator.clipboard.writeText(bestResponse.response || bestResponse.content || '') },
+              { icon: '🔗', title: 'Dela', onClick: () => {} },
+              { icon: '⭐', title: 'Favorit', onClick: () => {} }
+            ]}
+          />
+        ) : null;
+
+      case 'bert-summary':
+        const bertText = aiMessage.synthesizedSummary || aiMessage.bertSummary || 'Ingen sammanfattning tillgänglig';
+        // Format BERT summary with proper paragraphs and line breaks
+        const formattedBert = bertText.split('\n\n').map((paragraph, idx) => (
+          <p key={idx} className="mb-3 last:mb-0">
+            {paragraph.split('\n').map((line, lineIdx) => (
+              <span key={lineIdx}>
+                {line}
+                {lineIdx < paragraph.split('\n').length - 1 && <br />}
+              </span>
+            ))}
+          </p>
+        ));
+
+        return (
+          <RichContentCard
+            badge={{ text: 'BERT-sammanfattning', icon: '📝' }}
+            title="AI-genererad sammanfattning"
+            content={<div className="space-y-3">{formattedBert}</div>}
+            metadata={aiMessage.synthesizedSummaryMetadata ? [
+              { label: 'Typ', value: aiMessage.synthesizedSummaryMetadata.type || 'Automatisk' },
+              { label: 'Källor', value: `${aiMessage.synthesizedSummaryMetadata.sourcesCount || aiMessage.responses?.length || 0} AI-modeller` },
+              { label: 'Längd', value: `${bertText.length} tecken` },
+              { label: 'Genererad', value: new Date().toLocaleTimeString('sv-SE') }
+            ] : [
+              { label: 'Källor', value: `${aiMessage.responses?.length || 0} AI-modeller` },
+              { label: 'Längd', value: `${bertText.length} tecken` }
+            ]}
+            actions={[
+              { icon: '📋', title: 'Kopiera', onClick: () => navigator.clipboard.writeText(bertText) },
+              { icon: '🔗', title: 'Dela', onClick: () => {} }
+            ]}
+          />
+        );
+
+      case 'tone-analysis':
+        return aiMessage.toneAnalysis ? (
+          <RichContentCard
+            badge={{ text: 'Tonanalys', icon: '🎭' }}
+            title="Sentiment & Språkton"
+            content={
+              <div className="space-y-4">
+                <p>{aiMessage.toneAnalysis.summary || 'Tonanalys genomförd på samtliga AI-svar för att identifiera språklig ton, sentiment och kommunikationsstil.'}</p>
+                {aiMessage.toneAnalysis.details && (
+                  <div className="bg-civic-dark-900/50 rounded-lg p-4 space-y-2">
+                    <div className="text-sm text-civic-gray-400">
+                      {aiMessage.toneAnalysis.details}
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
-          ))}
-          
-          <div ref={chatEndRef} />
-        </div>
-      </div>
-
-      {/* Loading indicator - centered in viewport under animated circles */}
-      {isLoading && (
-        <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-10">
-          <ProcessingLoader />
-        </div>
-      )}
-
-      {/* Input Area - Fixed at bottom */}
-      <div className="relative flex-shrink-0">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          {/* AI Service Toggle - Hidden when loading */}
-          {!isLoading && (
-            <div className="flex justify-center mb-3">
-              <AIServiceToggle 
-                services={aiServices}
-                onServicesChange={setAiServices}
-              />
-            </div>
-          )}
-
-          {/* GitHub-inspired search box with stunning animations */}
-          <QuestionInput
-            onSubmit={handleSubmitQuestion}
-            isLoading={isLoading}
+                )}
+              </div>
+            }
+            metadata={[
+              { label: 'Dominant ton', value: aiMessage.toneAnalysis.dominantTone || 'Neutral' },
+              { label: 'Sentiment', value: aiMessage.toneAnalysis.sentiment || 'Neutral' },
+              { label: 'Formalitet', value: aiMessage.toneAnalysis.formality || 'Medel' },
+              { label: 'Emotionalitet', value: aiMessage.toneAnalysis.emotionality || 'Låg' },
+              { label: 'Objektivitet', value: aiMessage.toneAnalysis.objectivity || 'Hög' },
+              { label: 'Analyserade svar', value: `${aiMessage.responses?.length || 0} st` }
+            ]}
           />
+        ) : null;
+
+      case 'bias-detection':
+        return aiMessage.biasDetection ? (
+          <RichContentCard
+            badge={{ text: 'Bias-detektion', icon: '⚖️' }}
+            title="Analys av förutfattade meningar"
+            content={
+              <div className="space-y-4">
+                <p>{aiMessage.biasDetection.summary || 'Systematisk genomgång av AI-svaren för att identifiera potentiella bias-mönster, politisk lutning, eller förutfattade meningar.'}</p>
+                {aiMessage.biasDetection.patterns && aiMessage.biasDetection.patterns.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-civic-gray-500 uppercase tracking-wide">Identifierade mönster:</div>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-civic-gray-400">
+                      {aiMessage.biasDetection.patterns.map((pattern, idx) => (
+                        <li key={idx}>{pattern}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            }
+            metadata={[
+              { label: 'Bias-nivå', value: aiMessage.biasDetection.level || 'Låg' },
+              { label: 'Poäng', value: `${aiMessage.biasDetection.score || 0}/10` },
+              { label: 'Typ', value: aiMessage.biasDetection.types?.join(', ') || 'Ingen' },
+              { label: 'Politisk lutning', value: aiMessage.biasDetection.political || 'Neutral' },
+              { label: 'Mönster', value: `${aiMessage.biasDetection.patterns?.length || 0} st` },
+              { label: 'Säkerhet', value: aiMessage.biasDetection.confidence ? `${Math.round(aiMessage.biasDetection.confidence * 100)}%` : 'N/A' }
+            ]}
+          />
+        ) : null;
+
+      case 'meta-review':
+        const metaContent = typeof aiMessage.metaReview === 'string' 
+          ? aiMessage.metaReview 
+          : aiMessage.metaReview?.summary || 'GPT-3.5 har granskat kvaliteten på alla AI-svar och bedömt deras innehåll, konsekvens och användbarhet.';
+        
+        return aiMessage.metaReview ? (
+          <RichContentCard
+            badge={{ text: 'GPT Metagranskning', icon: '🔍' }}
+            title="Kvalitetskontroll av AI-svar"
+            content={
+              <div className="space-y-4">
+                <p>{metaContent}</p>
+                {aiMessage.metaReview.recommendations && aiMessage.metaReview.recommendations.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-civic-gray-500 uppercase tracking-wide">Rekommendationer:</div>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-civic-gray-400">
+                      {aiMessage.metaReview.recommendations.map((rec, idx) => (
+                        <li key={idx}>{rec}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            }
+            metadata={[
+              { label: 'Kvalitet', value: typeof aiMessage.metaReview === 'object' ? (aiMessage.metaReview.quality || 'Hög') : 'Hög' },
+              { label: 'Konsekvens', value: typeof aiMessage.metaReview === 'object' ? (aiMessage.metaReview.consistency || 'God') : 'God' },
+              { label: 'Fullständighet', value: typeof aiMessage.metaReview === 'object' ? (aiMessage.metaReview.completeness || 'Fullständig') : 'Fullständig' },
+              { label: 'Relevans', value: typeof aiMessage.metaReview === 'object' ? (aiMessage.metaReview.relevance || 'Hög') : 'Hög' },
+              { label: 'Granskare', value: 'GPT-3.5 Turbo' },
+              { label: 'Svar granskade', value: `${aiMessage.responses?.length || 0} st` }
+            ]}
+          />
+        ) : null;
+
+      case 'fact-check':
+        return aiMessage.factCheckComparison ? (
+          <RichContentCard
+            badge={{ text: 'Tavily Faktakoll', icon: '✓' }}
+            title="Verifiering av fakta och påståenden"
+            content={
+              <div className="space-y-4">
+                <p>{aiMessage.factCheckComparison.summary || 'Tavily Search har verifierat fakta och påståenden i AI-svaren mot pålitliga källor på internet.'}</p>
+                {aiMessage.factCheckComparison.findings && aiMessage.factCheckComparison.findings.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="text-xs font-medium text-civic-gray-500 uppercase tracking-wide">Verifierade påståenden:</div>
+                    {aiMessage.factCheckComparison.findings.map((finding, idx) => (
+                      <div key={idx} className="bg-civic-dark-900/50 rounded-lg p-3">
+                        <div className="flex items-start gap-2">
+                          <span className="text-base">{finding.verified ? '✓' : '⚠️'}</span>
+                          <div className="flex-1 text-sm text-civic-gray-400">
+                            <div className="font-medium text-civic-gray-300 mb-1">{finding.claim}</div>
+                            {finding.source && (
+                              <div className="text-xs text-civic-gray-500">
+                                Källa: {finding.source}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            }
+            metadata={[
+              { label: 'Verifierade', value: `${aiMessage.factCheckComparison.verified || 0} påståenden` },
+              { label: 'Källor', value: `${aiMessage.factCheckComparison.sources || 0} st` },
+              { label: 'Säkerhet', value: aiMessage.factCheckComparison.confidence || 'Hög' },
+              { label: 'Icke-verifierade', value: `${aiMessage.factCheckComparison.unverified || 0} st` },
+              { label: 'Sökmotor', value: 'Tavily Search API' },
+              { label: 'Söktid', value: `${aiMessage.factCheckComparison.searchTime || 0}ms` }
+            ]}
+          />
+        ) : null;
+
+      default:
+        // AI response
+        if (sectionId.startsWith('ai-')) {
+          const agent = sectionId.replace('ai-', '');
+          const response = aiMessage.responses?.find(r => r.agent === agent);
+          return response ? (
+            <RichContentCard
+              badge={{ text: response.metadata?.model || response.agent, icon: getAgentIcon(response.agent) }}
+              title={`${response.metadata?.model || response.agent} Svar`}
+              content={
+                <div className="space-y-3">
+                  {response.response || response.content || 'Inget svar tillgängligt'}
+                </div>
+              }
+              metadata={[
+                { label: 'Modell', value: response.metadata?.model || response.agent || 'N/A' },
+                { label: 'Svarstid', value: `${response.metadata?.responseTime || 0}ms` },
+                { label: 'Tokens', value: response.metadata?.tokens || 'N/A' },
+                { label: 'Säkerhet', value: response.analysis?.confidence ? `${Math.round(response.analysis.confidence * 100)}%` : 'N/A' },
+                { label: 'Tonalitet', value: response.analysis?.toneSummary || 'Neutral' },
+                { label: 'Bias-poäng', value: response.analysis?.biasScore !== undefined ? `${response.analysis.biasScore}/10` : 'N/A' },
+                { label: 'Provider', value: response.metadata?.provider || 'N/A' },
+                { label: 'Temperatur', value: response.metadata?.temperature !== undefined ? response.metadata.temperature : 'N/A' }
+              ]}
+              actions={[
+                { icon: '📋', title: 'Kopiera', onClick: () => navigator.clipboard.writeText(response.response || response.content || '') },
+                { icon: '🔗', title: 'Dela', onClick: () => {} }
+              ]}
+            />
+          ) : null;
+        }
+        return null;
+    }
+  };
+
+  const getAgentIcon = (agent) => {
+    const icons = {
+      'gpt-3.5': '🤖',
+      'gemini': '✨',
+      'deepseek': '🧠',
+      'grok': '⚡',
+      'qwen': '🌟'
+    };
+    return icons[agent] || '🤖';
+  };
+
+  return (
+    <div className="flex h-screen" style={{ background: '#1a1a1a' }}>
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col">
+        {/* Messages Area */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="px-10 py-10">
+            {messages.length === 0 && !isLoading && (
+              <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-fade-in">
+                {/* Typing Effect Logo */}
+                <div className="mb-6">
+                  <style>
+                    {`
+                      @keyframes typing {
+                        0%, 100% {
+                          width: 0;
+                        }
+                        50%, 90% {
+                          width: 100%;
+                        }
+                      }
+                      @keyframes blink {
+                        50% {
+                          border-color: transparent;
+                        }
+                      }
+                    `}
+                  </style>
+                  <div
+                    style={{
+                      fontSize: '72px',
+                      fontWeight: 700,
+                      color: '#f5f5f5',
+                      letterSpacing: '-2px',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      borderRight: '3px solid #888',
+                      animation: 'typing 4s steps(11) infinite, blink 0.75s step-end infinite',
+                      display: 'inline-block',
+                      maxWidth: '100%',
+                    }}
+                  >
+                    OneSeek.AI
+                  </div>
+                </div>
+                
+                {/* Tagline */}
+                <p className="text-lg text-gray-400 font-light mb-2" style={{ letterSpacing: '1px' }}>
+                  Beslut med insyn. AI med ansvar.
+                </p>
+                
+                {/* Description */}
+                <p className="text-sm text-gray-600 max-w-lg leading-relaxed">
+                  Jämför hur olika AI-modeller svarar på samma fråga. 
+                  Transparent analys av ton, bias och fakta. 
+                  Minimalistisk design, maximalt fokus på innehåll.
+                </p>
+              </div>
+            )}
+
+            {/* Message history */}
+            {messages.map((message, index) => (
+              <div key={index} className="mb-6 animate-fade-in-up">
+                {message.type === 'user' && (
+                  <div className="mb-8">
+                    <div className="text-xl font-light text-civic-gray-100 leading-relaxed">
+                      {message.content}
+                    </div>
+                  </div>
+                )}
+                
+                {message.type === 'ai' && activeSection && (
+                  <div id={`section-${activeSection}`}>
+                    {renderContent(message, activeSection)}
+                  </div>
+                )}
+                
+                {message.type === 'error' && (
+                  <div className="flex justify-start">
+                    <div className="max-w-[80%] bg-civic-dark-900/30 border border-red-500/40 text-red-300 rounded-xl px-5 py-3">
+                      <div className="flex items-start space-x-2">
+                        <span className="text-xl">⚠️</span>
+                        <p>{message.content}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+            
+            <div ref={chatEndRef} />
+          </div>
+        </div>
+
+        {/* Input Area - Fixed at bottom */}
+        <div className="flex-shrink-0 border-t border-civic-dark-800">
+          <div className="px-10 py-4">
+            {/* Clean search box with collapse/expand animation */}
+            <QuestionInput
+              onSubmit={handleSubmitQuestion}
+              isLoading={isLoading}
+            />
+          </div>
         </div>
       </div>
+
+      {/* Timeline Navigator - Right Sidebar */}
+      {latestAiMessage && (
+        <TimelineNavigator
+          sections={timelineSections}
+          activeSection={activeSection}
+          onSectionChange={handleSectionChange}
+          exploredCount={exploredSections.size}
+          aiServices={aiServices}
+          onServiceToggle={handleServiceToggle}
+        />
+      )}
     </div>
   );
 }

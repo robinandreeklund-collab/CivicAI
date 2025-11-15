@@ -177,7 +177,7 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
                   {/* Tone Summary - Compact */}
                   {analysis?.tone && (
                     <div className="bg-civic-dark-700/50 border border-civic-dark-600 rounded-lg p-3">
-                      <h4 className="text-sm font-semibold text-blue-300 mb-2 flex items-center">
+                      <h4 className="text-sm font-semibold text-gray-300 mb-2 flex items-center">
                         <span className="mr-1.5">💬</span>
                         Tonanalys
                       </h4>
@@ -210,7 +210,7 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
                             {analysis.tone.characteristics.map((char, idx) => (
                               <span 
                                 key={idx}
-                                className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs border border-blue-500/30"
+                                className="px-2 py-0.5 bg-civic-gray-500/20 text-gray-300 rounded text-xs border border-civic-gray-500/30"
                               >
                                 {char}
                               </span>
@@ -224,7 +224,7 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
                   {/* Bias Summary - Compact */}
                   {analysis?.bias && (
                     <div className="bg-civic-dark-700/50 border border-civic-dark-600 rounded-lg p-3">
-                      <h4 className="text-sm font-semibold text-yellow-300 mb-2 flex items-center">
+                      <h4 className="text-sm font-semibold text-gray-300 mb-2 flex items-center">
                         <span className="mr-1.5">⚖️</span>
                         Bias-detektion
                       </h4>
@@ -232,9 +232,9 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
                         <div>
                           <p className="text-xs text-gray-400 mb-1">Bias-poäng</p>
                           <p className={`text-xl font-bold ${
-                            analysis.bias.biasScore > 5 ? 'text-red-400' :
-                            analysis.bias.biasScore > 2 ? 'text-yellow-400' :
-                            'text-green-400'
+                            analysis.bias.biasScore > 5 ? 'text-gray-400' :
+                            analysis.bias.biasScore > 2 ? 'text-gray-400' :
+                            'text-gray-400'
                           }`}>
                             {analysis.bias.biasScore}/10
                           </p>
@@ -242,7 +242,7 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
                         <div>
                           <p className="text-xs text-gray-400 mb-1">Status</p>
                           <p className={`text-sm font-medium ${
-                            analysis.bias.overallBias === 'minimal' ? 'text-green-400' : 'text-yellow-400'
+                            analysis.bias.overallBias === 'minimal' ? 'text-gray-400' : 'text-gray-400'
                           }`}>
                             {analysis.bias.overallBias === 'minimal' ? 'Minimal bias' : 'Bias detekterad'}
                           </p>
@@ -256,9 +256,9 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
                               <div 
                                 key={idx}
                                 className={`p-2 rounded text-xs border ${
-                                  bias.severity === 'high' ? 'bg-red-500/10 border-red-500/30' :
-                                  bias.severity === 'medium' ? 'bg-yellow-500/10 border-yellow-500/30' :
-                                  'bg-green-500/10 border-green-500/30'
+                                  bias.severity === 'high' ? 'bg-gray-500/10 border-gray-500/30' :
+                                  bias.severity === 'medium' ? 'bg-gray-500/10 border-yellow-500/30' :
+                                  'bg-civic-gray-500/10 border-civic-gray-500/30'
                                 }`}
                               >
                                 <div className="flex items-center justify-between">
@@ -266,9 +266,9 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
                                     {bias.description}
                                   </span>
                                   <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                    bias.severity === 'high' ? 'bg-red-500/20 text-red-300' :
-                                    bias.severity === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
-                                    'bg-green-500/20 text-green-300'
+                                    bias.severity === 'high' ? 'bg-gray-500/20 text-gray-300' :
+                                    bias.severity === 'medium' ? 'bg-gray-500/20 text-gray-300' :
+                                    'bg-civic-gray-500/20 text-gray-300'
                                   }`}>
                                     {bias.severity}
                                   </span>
@@ -284,7 +284,7 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
                   {/* Fact Check Summary - Compact */}
                   {analysis?.factCheck && (
                     <div className="bg-civic-dark-700/50 border border-civic-dark-600 rounded-lg p-3">
-                      <h4 className="text-sm font-semibold text-green-300 mb-2 flex items-center">
+                      <h4 className="text-sm font-semibold text-gray-300 mb-2 flex items-center">
                         <span className="mr-1.5">🔍</span>
                         Faktakoll
                       </h4>
@@ -298,15 +298,15 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
                         <div>
                           <p className="text-xs text-gray-400 mb-1">Verifiering</p>
                           <p className={`text-sm font-medium ${
-                            analysis.factCheck.needsVerification ? 'text-yellow-400' : 'text-green-400'
+                            analysis.factCheck.needsVerification ? 'text-gray-400' : 'text-gray-400'
                           }`}>
                             {analysis.factCheck.needsVerification ? 'Behövs' : 'Ej nödvändig'}
                           </p>
                         </div>
                       </div>
                       {analysis.factCheck.recommendation && (
-                        <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded">
-                          <p className="text-xs text-yellow-300">
+                        <div className="mt-2 p-2 bg-gray-500/10 border border-yellow-500/30 rounded">
+                          <p className="text-xs text-gray-300">
                             💡 {analysis.factCheck.recommendation}
                           </p>
                         </div>
@@ -317,7 +317,7 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
                   {/* Meta-Analysis Summary - Compact */}
                   {metaAnalysis && (
                     <div className="bg-civic-dark-700/50 border border-civic-dark-600 rounded-lg p-3">
-                      <h4 className="text-sm font-semibold text-purple-300 mb-2 flex items-center">
+                      <h4 className="text-sm font-semibold text-gray-300 mb-2 flex items-center">
                         <span className="mr-1.5">🧠</span>
                         Meta-analys
                       </h4>
@@ -342,8 +342,8 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
                           <div>
                             <p className="text-xs text-gray-400 mb-1">Sentiment</p>
                             <p className={`text-base font-bold ${
-                              metaAnalysis.sentiment.sentiment === 'positive' ? 'text-green-400' :
-                              metaAnalysis.sentiment.sentiment === 'negative' ? 'text-red-400' :
+                              metaAnalysis.sentiment.sentiment === 'positive' ? 'text-gray-400' :
+                              metaAnalysis.sentiment.sentiment === 'negative' ? 'text-gray-400' :
                               'text-gray-400'
                             }`}>
                               {metaAnalysis.sentiment.sentiment === 'positive' ? 'Positiv' :
@@ -397,7 +397,7 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
         {/* Footer - Compact */}
         <div className="px-4 py-2 border-t border-civic-dark-600 bg-civic-dark-750 flex justify-between items-center">
           <p className="text-xs text-gray-500">
-            CivicAI Transparency • Öppna analysmetoder
+            OneSeek.AI Transparency • Öppna analysmetoder
           </p>
           <button
             onClick={onClose}
@@ -416,8 +416,8 @@ export default function AnalysisDetailModal({ isOpen, onClose, agent, analysis, 
 function ToneAnalysisDetail({ methodology }) {
   return (
     <div className="space-y-4">
-      <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/30 rounded-lg p-4">
-        <h3 className="text-base font-bold text-blue-300 mb-1">{methodology.name}</h3>
+      <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-civic-gray-500/30 rounded-lg p-4">
+        <h3 className="text-base font-bold text-gray-300 mb-1">{methodology.name}</h3>
         <p className="text-sm text-gray-300">{methodology.description}</p>
       </div>
 
@@ -465,7 +465,7 @@ function ToneAnalysisDetail({ methodology }) {
               <h5 className="font-medium text-gray-200 mb-1.5 capitalize text-xs">{cat.tone}</h5>
               <div className="flex flex-wrap gap-1">
                 {cat.keywords.map((kw, i) => (
-                  <span key={i} className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded">
+                  <span key={i} className="text-xs px-1.5 py-0.5 bg-civic-gray-500/20 text-gray-300 rounded">
                     {kw}
                   </span>
                 ))}
@@ -476,8 +476,8 @@ function ToneAnalysisDetail({ methodology }) {
       </div>
 
       {/* Limitations - Compact */}
-      <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-3">
-        <h4 className="text-sm font-semibold text-yellow-300 mb-2">⚠️ Begränsningar</h4>
+      <div className="bg-gray-900/20 border border-yellow-500/30 rounded-lg p-3">
+        <h4 className="text-sm font-semibold text-gray-300 mb-2">⚠️ Begränsningar</h4>
         <ul className="space-y-1">
           {methodology.limitations.map((limit, idx) => (
             <li key={idx} className="text-xs text-gray-300 flex items-start">
@@ -495,7 +495,7 @@ function BiasDetectionDetail({ methodology }) {
   return (
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 border border-yellow-500/30 rounded-lg p-6">
-        <h3 className="text-xl font-bold text-yellow-300 mb-2">{methodology.name}</h3>
+        <h3 className="text-xl font-bold text-gray-300 mb-2">{methodology.name}</h3>
         <p className="text-gray-300">{methodology.description}</p>
       </div>
 
@@ -513,7 +513,7 @@ function BiasDetectionDetail({ methodology }) {
                   <p className="text-xs text-gray-500 mb-1">Vänster-nyckelord:</p>
                   <div className="flex flex-wrap gap-1">
                     {biasType.leftKeywords.map((kw, i) => (
-                      <span key={i} className="text-xs px-2 py-1 bg-red-500/20 text-red-300 rounded">
+                      <span key={i} className="text-xs px-2 py-1 bg-gray-500/20 text-gray-300 rounded">
                         {kw}
                       </span>
                     ))}
@@ -526,7 +526,7 @@ function BiasDetectionDetail({ methodology }) {
                   <p className="text-xs text-gray-500 mb-1">Höger-nyckelord:</p>
                   <div className="flex flex-wrap gap-1">
                     {biasType.rightKeywords.map((kw, i) => (
-                      <span key={i} className="text-xs px-2 py-1 bg-blue-500/20 text-blue-300 rounded">
+                      <span key={i} className="text-xs px-2 py-1 bg-civic-gray-500/20 text-gray-300 rounded">
                         {kw}
                       </span>
                     ))}
@@ -539,7 +539,7 @@ function BiasDetectionDetail({ methodology }) {
                   <p className="text-xs text-gray-500 mb-1">Nyckelord:</p>
                   <div className="flex flex-wrap gap-1">
                     {biasType.keywords.map((kw, i) => (
-                      <span key={i} className="text-xs px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded">
+                      <span key={i} className="text-xs px-2 py-1 bg-gray-500/20 text-gray-300 rounded">
                         {kw}
                       </span>
                     ))}
@@ -569,9 +569,9 @@ function BiasDetectionDetail({ methodology }) {
             <div 
               key={idx} 
               className={`p-3 rounded border ${
-                level.severity === 'high' ? 'bg-red-500/10 border-red-500/30' :
-                level.severity === 'medium' ? 'bg-yellow-500/10 border-yellow-500/30' :
-                'bg-green-500/10 border-green-500/30'
+                level.severity === 'high' ? 'bg-gray-500/10 border-gray-500/30' :
+                level.severity === 'medium' ? 'bg-gray-500/10 border-yellow-500/30' :
+                'bg-civic-gray-500/10 border-civic-gray-500/30'
               }`}
             >
               <h5 className="font-medium text-gray-200 capitalize mb-1">{level.severity}</h5>
@@ -607,8 +607,8 @@ function BiasDetectionDetail({ methodology }) {
       </div>
 
       {/* Limitations */}
-      <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-5">
-        <h4 className="text-lg font-semibold text-yellow-300 mb-3">⚠️ Begränsningar</h4>
+      <div className="bg-gray-900/20 border border-yellow-500/30 rounded-lg p-5">
+        <h4 className="text-lg font-semibold text-gray-300 mb-3">⚠️ Begränsningar</h4>
         <ul className="space-y-2">
           {methodology.limitations.map((limit, idx) => (
             <li key={idx} className="text-gray-300 flex items-start">
@@ -625,8 +625,8 @@ function BiasDetectionDetail({ methodology }) {
 function FactCheckingDetail({ methodology }) {
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-green-900/20 to-blue-900/20 border border-green-500/30 rounded-lg p-6">
-        <h3 className="text-xl font-bold text-green-300 mb-2">{methodology.name}</h3>
+      <div className="bg-gradient-to-r from-green-900/20 to-blue-900/20 border border-civic-gray-500/30 rounded-lg p-6">
+        <h3 className="text-xl font-bold text-gray-300 mb-2">{methodology.name}</h3>
         <p className="text-gray-300">{methodology.description}</p>
       </div>
 
@@ -642,7 +642,7 @@ function FactCheckingDetail({ methodology }) {
                 <p className="text-xs text-gray-500 mb-1">Mönster:</p>
                 <div className="flex flex-wrap gap-1">
                   {claimType.patterns.map((pattern, i) => (
-                    <span key={i} className="text-xs px-2 py-1 bg-green-500/20 text-green-300 rounded font-mono">
+                    <span key={i} className="text-xs px-2 py-1 bg-civic-gray-500/20 text-gray-300 rounded font-mono">
                       {pattern}
                     </span>
                   ))}
@@ -666,15 +666,15 @@ function FactCheckingDetail({ methodology }) {
       </div>
 
       {/* External Verification */}
-      <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-5">
-        <h4 className="text-lg font-semibold text-blue-300 mb-3">🔍 Extern verifiering</h4>
+      <div className="bg-civic-gray-900/20 border border-civic-gray-500/30 rounded-lg p-5">
+        <h4 className="text-lg font-semibold text-gray-300 mb-3">🔍 Extern verifiering</h4>
         <p className="text-gray-300 mb-2">{methodology.externalVerification.description}</p>
         <p className="text-sm text-gray-400 italic">{methodology.externalVerification.note}</p>
       </div>
 
       {/* Limitations */}
-      <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-5">
-        <h4 className="text-lg font-semibold text-yellow-300 mb-3">⚠️ Begränsningar</h4>
+      <div className="bg-gray-900/20 border border-yellow-500/30 rounded-lg p-5">
+        <h4 className="text-lg font-semibold text-gray-300 mb-3">⚠️ Begränsningar</h4>
         <ul className="space-y-2">
           {methodology.limitations.map((limit, idx) => (
             <li key={idx} className="text-gray-300 flex items-start">
@@ -692,7 +692,7 @@ function MethodologyOverview({ standoutData, dataSync }) {
   return (
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-500/30 rounded-lg p-6">
-        <h3 className="text-xl font-bold text-purple-300 mb-2">📚 Komplett metodologi</h3>
+        <h3 className="text-xl font-bold text-gray-300 mb-2">📚 Komplett metodologi</h3>
         <p className="text-gray-300">
           Denna sektion ger en övergripande förklaring av alla analysmetoder och hur data hålls synkroniserad.
         </p>
@@ -729,8 +729,8 @@ function MethodologyOverview({ standoutData, dataSync }) {
             </div>
           ))}
         </div>
-        <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded">
-          <p className="text-sm text-yellow-300">
+        <div className="mt-4 p-3 bg-gray-500/10 border border-yellow-500/30 rounded">
+          <p className="text-sm text-gray-300">
             💡 <strong>Rekommendation:</strong> {dataSync.recommendation}
           </p>
         </div>

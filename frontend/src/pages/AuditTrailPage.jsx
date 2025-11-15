@@ -42,9 +42,9 @@ export default function AuditTrailPage() {
   };
 
   const eventTypeLabels = {
-    question_asked: { label: 'Fråga ställd', icon: '❓', color: 'text-blue-400', bgColor: 'bg-blue-500/20' },
-    export_yaml: { label: 'YAML-export', icon: '📄', color: 'text-green-400', bgColor: 'bg-green-500/20' },
-    export_json: { label: 'JSON-export', icon: '📋', color: 'text-green-400', bgColor: 'bg-green-500/20' },
+    question_asked: { label: 'Fråga ställd', icon: '❓', color: 'text-gray-400', bgColor: 'bg-civic-gray-500/20' },
+    export_yaml: { label: 'YAML-export', icon: '📄', color: 'text-gray-400', bgColor: 'bg-civic-gray-500/20' },
+    export_json: { label: 'JSON-export', icon: '📋', color: 'text-gray-400', bgColor: 'bg-civic-gray-500/20' },
     export_pdf: { label: 'PDF-export', icon: '📊', color: 'text-red-400', bgColor: 'bg-red-500/20' },
     export_readme: { label: 'README-export', icon: '📝', color: 'text-purple-400', bgColor: 'bg-purple-500/20' },
     vote_cast: { label: 'Röst avlagd', icon: '🗳️', color: 'text-orange-400', bgColor: 'bg-orange-500/20' },

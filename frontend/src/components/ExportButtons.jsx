@@ -27,7 +27,7 @@ export default function ExportButtons({ messages }) {
       metadata: {
         exported_at: new Date().toISOString(),
         version: '0.1.0',
-        tool: 'CivicAI',
+        tool: 'OneSeek.AI',
         total_conversations: messages.length,
       }
     };
@@ -43,7 +43,7 @@ export default function ExportButtons({ messages }) {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `civicai-chat-${Date.now()}.yaml`;
+    a.download = `oneseek-ai-chat-${Date.now()}.yaml`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -65,7 +65,7 @@ export default function ExportButtons({ messages }) {
       metadata: {
         exported_at: new Date().toISOString(),
         version: '0.1.0',
-        tool: 'CivicAI',
+        tool: 'OneSeek.AI',
       }
     };
 
@@ -74,7 +74,7 @@ export default function ExportButtons({ messages }) {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `civicai-chat-${Date.now()}.json`;
+    a.download = `oneseek-ai-chat-${Date.now()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -92,10 +92,10 @@ export default function ExportButtons({ messages }) {
           onClick={handleExportYAML}
           onMouseEnter={() => setShowTooltip('yaml')}
           onMouseLeave={() => setShowTooltip(null)}
-          className="w-9 h-9 rounded-lg bg-civic-dark-700/50 hover:bg-civic-dark-600 flex items-center justify-center transition-all duration-200 hover:scale-110 group border border-civic-dark-600 hover:border-blue-500/30"
+          className="w-9 h-9 rounded-lg bg-civic-dark-700/50 hover:bg-civic-dark-600 flex items-center justify-center transition-all duration-200 hover:scale-110 group border border-civic-dark-600 hover:border-civic-gray-500/30"
           title="Exportera som YAML"
         >
-          <svg className="w-4 h-4 text-gray-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 text-gray-400 group-hover:text-gray-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
         </button>
@@ -115,7 +115,7 @@ export default function ExportButtons({ messages }) {
           className="w-9 h-9 rounded-lg bg-civic-dark-700/50 hover:bg-civic-dark-600 flex items-center justify-center transition-all duration-200 hover:scale-110 group border border-civic-dark-600 hover:border-purple-500/30"
           title="Exportera som JSON"
         >
-          <svg className="w-4 h-4 text-gray-400 group-hover:text-purple-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 text-gray-400 group-hover:text-gray-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
           </svg>
         </button>
@@ -128,7 +128,7 @@ export default function ExportButtons({ messages }) {
 
       {/* Success indicator */}
       {exportSuccess && (
-        <div className="absolute top-full mt-2 right-0 px-3 py-2 bg-green-500/20 text-green-300 text-xs rounded-lg border border-green-500/40 animate-fade-in shadow-lg">
+        <div className="absolute top-full mt-2 right-0 px-3 py-2 bg-civic-gray-500/20 text-gray-300 text-xs rounded-lg border border-civic-gray-500/40 animate-fade-in shadow-lg">
           ✓ Exporterad!
         </div>
       )}

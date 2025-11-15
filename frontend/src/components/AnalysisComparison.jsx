@@ -71,11 +71,11 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
           </span>
         </div>
         <div className="flex items-center flex-wrap gap-1.5 text-xs">
-          <span className="flex items-center space-x-1 px-1.5 py-0.5 bg-blue-500/10 rounded border border-blue-500/20">
+          <span className="flex items-center space-x-1 px-1.5 py-0.5 bg-civic-gray-500/10 rounded border border-civic-gray-500/20">
             <span>🧠</span>
             <span className="text-gray-400">NLP</span>
           </span>
-          <span className="flex items-center space-x-1 px-1.5 py-0.5 bg-purple-500/10 rounded border border-purple-500/20">
+          <span className="flex items-center space-x-1 px-1.5 py-0.5 bg-civic-gray-500/10 rounded border border-purple-500/20">
             <span>💭</span>
             <span className="text-gray-400">Sentiment</span>
           </span>
@@ -124,14 +124,14 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
 
       {/* Tavily Search Fact-Check Comparison - Compact */}
       {factCheckComparison && factCheckComparison.available && (
-        <div className="mb-3 p-3 bg-gradient-to-r from-blue-900/20 to-cyan-900/20 border border-blue-500/30 rounded-lg">
+        <div className="mb-3 p-3 bg-gradient-to-r from-blue-900/20 to-cyan-900/20 border border-civic-gray-500/30 rounded-lg">
           <div className="flex items-start space-x-2">
             <div className="text-lg">🔍</div>
             <div className="flex-1 text-xs">
-              <h4 className="font-semibold text-blue-300 mb-1 flex items-center flex-wrap gap-1.5">
+              <h4 className="font-semibold text-gray-300 mb-1 flex items-center flex-wrap gap-1.5">
                 <span>Tavily Search Faktakoll</span>
                 {factCheckComparison.bestAgent && (
-                  <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-200 border border-blue-500/30">
+                  <span className="px-1.5 py-0.5 rounded bg-civic-gray-500/20 text-gray-200 border border-civic-gray-500/30">
                     🏆 {factCheckComparison.bestAgent} ({factCheckComparison.bestScore}/10)
                   </span>
                 )}
@@ -147,7 +147,7 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
               )}
               
               <div className="text-gray-400">
-                <span className="font-medium text-green-300">
+                <span className="font-medium text-gray-300">
                   ✓ {factCheckComparison.totalVerified} av {factCheckComparison.totalClaims} verifierade
                 </span>
               </div>
@@ -157,7 +157,7 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
       )}
 
       {!factCheckComparison?.available && factCheckComparison?.message && (
-        <div className="mb-3 p-2 bg-yellow-900/10 border border-yellow-500/20 rounded text-xs text-yellow-300">
+        <div className="mb-3 p-2 bg-gray-900/10 border border-yellow-500/20 rounded text-xs text-gray-300">
           ⚠️ {factCheckComparison.message}
         </div>
       )}
@@ -168,15 +168,15 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
           <div className="flex items-start space-x-2">
             <div className="text-lg">🤖</div>
             <div className="flex-1 text-xs">
-              <h4 className="font-semibold text-purple-300 mb-1 flex items-center flex-wrap gap-1.5">
+              <h4 className="font-semibold text-gray-300 mb-1 flex items-center flex-wrap gap-1.5">
                 <span>GPT-3.5 Meta-granskning</span>
                 {metaReview.consistency && (
-                  <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-200 border border-purple-500/30">
+                  <span className="px-1.5 py-0.5 rounded bg-civic-gray-500/20 text-gray-200 border border-purple-500/30">
                     ⚖️ {metaReview.consistency}/10
                   </span>
                 )}
                 {metaReview.overallQuality && (
-                  <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-200 border border-blue-500/30">
+                  <span className="px-1.5 py-0.5 rounded bg-civic-gray-500/20 text-gray-200 border border-civic-gray-500/30">
                     ⭐ {metaReview.overallQuality}/10
                   </span>
                 )}
@@ -187,7 +187,7 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
               )}
               
               {metaReview.recommendedAgent && (
-                <div className="text-green-300 mb-1">
+                <div className="text-gray-300 mb-1">
                   <span className="font-medium">🎯 Rekommenderat:</span> {metaReview.recommendedAgent}
                   {metaReview.recommendationReason && (
                     <span className="text-gray-400"> - {metaReview.recommendationReason}</span>
@@ -210,7 +210,7 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
                 <div className="mt-1 flex flex-wrap gap-1">
                   <span className="text-gray-400">Bias:</span>
                   {metaReview.biasPatterns.map((pattern, i) => (
-                    <span key={i} className="px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">
+                    <span key={i} className="px-1.5 py-0.5 rounded bg-gray-500/20 text-gray-300 border border-yellow-500/30">
                       {pattern}
                     </span>
                   ))}
@@ -314,9 +314,9 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
                       </div>
                       <div className="flex items-center space-x-1.5">
                         <span className={`text-xs font-semibold ${
-                          resp.analysis.bias.biasScore > 5 ? 'text-red-400' :
-                          resp.analysis.bias.biasScore > 2 ? 'text-yellow-400' :
-                          'text-green-400'
+                          resp.analysis.bias.biasScore > 5 ? 'text-gray-400' :
+                          resp.analysis.bias.biasScore > 2 ? 'text-gray-400' :
+                          'text-gray-400'
                         }`}>
                           {resp.analysis.bias.biasScore}/10
                         </span>
@@ -339,9 +339,9 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
                       {resp.bingFactCheck?.available ? (
                         <div className="text-xs">
                           <span className={`font-medium ${
-                            resp.bingFactCheck.verifiedCount === resp.bingFactCheck.totalClaims ? 'text-green-400' :
-                            resp.bingFactCheck.verifiedCount > 0 ? 'text-yellow-400' :
-                            'text-red-400'
+                            resp.bingFactCheck.verifiedCount === resp.bingFactCheck.totalClaims ? 'text-gray-400' :
+                            resp.bingFactCheck.verifiedCount > 0 ? 'text-gray-400' :
+                            'text-gray-400'
                           }`}>
                             {resp.bingFactCheck.verifiedCount}/{resp.bingFactCheck.totalClaims}
                           </span>
@@ -370,8 +370,8 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
                       )}
                       {resp.metaAnalysis.sentiment && (
                         <div className={`truncate ${
-                          resp.metaAnalysis.sentiment.sentiment === 'positive' ? 'text-green-400' :
-                          resp.metaAnalysis.sentiment.sentiment === 'negative' ? 'text-red-400' :
+                          resp.metaAnalysis.sentiment.sentiment === 'positive' ? 'text-gray-400' :
+                          resp.metaAnalysis.sentiment.sentiment === 'negative' ? 'text-gray-400' :
                           'text-gray-400'
                         }`}>
                           💭 {
@@ -388,15 +388,15 @@ export default function AnalysisComparison({ responses, metaReview, factCheckCom
                 {/* Compact Tavily Search Fact-Check Results */}
                 {resp.bingFactCheck && resp.bingFactCheck.available && resp.bingFactCheck.overallScore !== null && (
                   <div className="mt-2 pt-2 border-t border-civic-dark-600">
-                    <div className="text-xs font-medium text-blue-300 flex items-center justify-between">
+                    <div className="text-xs font-medium text-gray-300 flex items-center justify-between">
                       <div className="flex items-center space-x-1">
                         <span>🔍</span>
                         <span>Tavily</span>
                       </div>
                       <span className={`px-1.5 py-0.5 rounded ${
-                        resp.bingFactCheck.overallScore >= 7 ? 'bg-green-500/20 text-green-300' :
-                        resp.bingFactCheck.overallScore >= 4 ? 'bg-yellow-500/20 text-yellow-300' :
-                        'bg-red-500/20 text-red-300'
+                        resp.bingFactCheck.overallScore >= 7 ? 'bg-civic-gray-500/20 text-gray-300' :
+                        resp.bingFactCheck.overallScore >= 4 ? 'bg-gray-500/20 text-gray-300' :
+                        'bg-gray-500/20 text-gray-300'
                       }`}>
                         {resp.bingFactCheck.overallScore}/10
                       </span>

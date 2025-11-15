@@ -127,7 +127,7 @@ export default function PolicyQuestionBankPage() {
     <div className="flex-1 flex flex-col relative overflow-hidden">
       {/* Animated background gradients */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl animate-pulse-slow"></div>
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-civic-gray-500/10 rounded-full blur-3xl animate-pulse-slow"></div>
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '1s' }}></div>
       </div>
 
@@ -136,7 +136,7 @@ export default function PolicyQuestionBankPage() {
           {/* Header */}
           <div className="mb-8">
             <div className="flex items-center space-x-4 mb-4">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-500 flex items-center justify-center text-4xl shadow-lg shadow-teal-500/30">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-civic-gray-600 to-civic-gray-700 flex items-center justify-center text-4xl shadow-lg shadow-gray-500/30">
                 📋
               </div>
               <div>
@@ -153,7 +153,7 @@ export default function PolicyQuestionBankPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Sök frågor..."
-              className="w-full px-6 py-4 rounded-2xl bg-civic-dark-800/50 border-2 border-civic-dark-600 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-teal-500 transition-all duration-300 text-lg"
+              className="w-full px-6 py-4 rounded-2xl bg-civic-dark-800/50 border-2 border-civic-dark-600 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-civic-gray-500 transition-all duration-300 text-lg"
             />
 
             {/* Category filter */}
@@ -162,7 +162,7 @@ export default function PolicyQuestionBankPage() {
                 onClick={() => setSelectedCategory('all')}
                 className={`px-6 py-3 rounded-xl text-sm font-medium transition-all ${
                   selectedCategory === 'all'
-                    ? 'bg-teal-500 text-white shadow-lg'
+                    ? 'bg-civic-gray-500 text-white shadow-lg'
                     : 'bg-civic-dark-800/50 text-gray-300 hover:bg-civic-dark-700'
                 }`}
               >
@@ -174,7 +174,7 @@ export default function PolicyQuestionBankPage() {
                   onClick={() => setSelectedCategory(category)}
                   className={`px-6 py-3 rounded-xl text-sm font-medium transition-all ${
                     selectedCategory === category
-                      ? 'bg-teal-500 text-white shadow-lg'
+                      ? 'bg-civic-gray-500 text-white shadow-lg'
                       : 'bg-civic-dark-800/50 text-gray-300 hover:bg-civic-dark-700'
                   }`}
                 >
@@ -188,7 +188,7 @@ export default function PolicyQuestionBankPage() {
           <div className="mb-8">
             <button
               onClick={() => setShowCreateForm(!showCreateForm)}
-              className="w-full px-6 py-4 bg-teal-500 hover:bg-teal-600 text-white font-semibold rounded-2xl transition-all duration-200 flex items-center justify-center space-x-3 shadow-lg hover:shadow-teal-500/50"
+              className="w-full px-6 py-4 bg-civic-gray-500 hover:bg-civic-gray-600 text-white font-semibold rounded-2xl transition-all duration-200 flex items-center justify-center space-x-3 shadow-lg hover:shadow-gray-500/50"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -207,7 +207,7 @@ export default function PolicyQuestionBankPage() {
                   value={newQuestion.question}
                   onChange={(e) => setNewQuestion({ ...newQuestion, question: e.target.value })}
                   placeholder="Skriv din policyfråga..."
-                  className="w-full px-4 py-3 rounded-xl bg-civic-dark-700 border border-civic-dark-500 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-teal-500"
+                  className="w-full px-4 py-3 rounded-xl bg-civic-dark-700 border border-civic-dark-500 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-civic-gray-500"
                   required
                 />
               </div>
@@ -216,7 +216,7 @@ export default function PolicyQuestionBankPage() {
                 <select
                   value={newQuestion.category}
                   onChange={(e) => setNewQuestion({ ...newQuestion, category: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl bg-civic-dark-700 border border-civic-dark-500 text-gray-100 focus:outline-none focus:border-teal-500"
+                  className="w-full px-4 py-3 rounded-xl bg-civic-dark-700 border border-civic-dark-500 text-gray-100 focus:outline-none focus:border-civic-gray-500"
                   required
                 >
                   <option value="">Välj kategori</option>
@@ -234,7 +234,7 @@ export default function PolicyQuestionBankPage() {
                   onChange={(e) => setNewQuestion({ ...newQuestion, description: e.target.value })}
                   placeholder="Valfri beskrivning..."
                   rows={3}
-                  className="w-full px-4 py-3 rounded-xl bg-civic-dark-700 border border-civic-dark-500 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-teal-500 resize-none"
+                  className="w-full px-4 py-3 rounded-xl bg-civic-dark-700 border border-civic-dark-500 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-civic-gray-500 resize-none"
                 />
               </div>
               <div>
@@ -244,12 +244,12 @@ export default function PolicyQuestionBankPage() {
                   value={newQuestion.tags}
                   onChange={(e) => setNewQuestion({ ...newQuestion, tags: e.target.value })}
                   placeholder="tag1, tag2, tag3"
-                  className="w-full px-4 py-3 rounded-xl bg-civic-dark-700 border border-civic-dark-500 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-teal-500"
+                  className="w-full px-4 py-3 rounded-xl bg-civic-dark-700 border border-civic-dark-500 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-civic-gray-500"
                 />
               </div>
               <button
                 type="submit"
-                className="w-full px-6 py-4 bg-teal-500 hover:bg-teal-600 text-white font-semibold rounded-xl transition-all duration-200"
+                className="w-full px-6 py-4 bg-civic-gray-500 hover:bg-civic-gray-600 text-white font-semibold rounded-xl transition-all duration-200"
               >
                 Skapa fråga
               </button>
@@ -259,7 +259,7 @@ export default function PolicyQuestionBankPage() {
           {/* Questions list */}
           {isLoading ? (
             <div className="flex items-center justify-center py-20">
-              <svg className="animate-spin h-12 w-12 text-teal-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin h-12 w-12 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
@@ -273,7 +273,7 @@ export default function PolicyQuestionBankPage() {
               {questions.map((question) => (
                 <div
                   key={question.id}
-                  className="p-6 rounded-2xl bg-civic-dark-800/50 border border-civic-dark-600 hover:bg-civic-dark-800/70 hover:border-teal-500/50 transition-all duration-200"
+                  className="p-6 rounded-2xl bg-civic-dark-800/50 border border-civic-dark-600 hover:bg-civic-dark-800/70 hover:border-civic-gray-500/50 transition-all duration-200"
                 >
                   <div className="flex items-start justify-between space-x-4">
                     <div className="flex-1 min-w-0">
@@ -297,7 +297,7 @@ export default function PolicyQuestionBankPage() {
                           {question.tags.map((tag, idx) => (
                             <span
                               key={idx}
-                              className="text-xs px-3 py-1 rounded-full bg-teal-500/20 text-teal-400"
+                              className="text-xs px-3 py-1 rounded-full bg-civic-gray-500/20 text-gray-400"
                             >
                               #{tag}
                             </span>
@@ -307,7 +307,7 @@ export default function PolicyQuestionBankPage() {
                     </div>
                     <button
                       onClick={() => handleUseQuestion(question)}
-                      className="flex-shrink-0 px-6 py-3 bg-teal-500 hover:bg-teal-600 text-white text-sm font-semibold rounded-xl transition-all duration-200 hover:scale-105"
+                      className="flex-shrink-0 px-6 py-3 bg-civic-gray-500 hover:bg-civic-gray-600 text-white text-sm font-semibold rounded-xl transition-all duration-200 hover:scale-105"
                     >
                       Använd
                     </button>

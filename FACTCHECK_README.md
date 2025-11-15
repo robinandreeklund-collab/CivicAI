@@ -2,7 +2,7 @@
 
 ## Overview
 
-The CivicAI fact-checking module provides automated verification of AI-generated responses using the Tavily Search API. This system extracts verifiable claims from text, searches for external sources, and calculates confidence scores to ensure transparency and accuracy.
+The OneSeek.AI fact-checking module provides automated verification of AI-generated responses using the Tavily Search API. This system extracts verifiable claims from text, searches for external sources, and calculates confidence scores to ensure transparency and accuracy.
 
 ## Workflow
 

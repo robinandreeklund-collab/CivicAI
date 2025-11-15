@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneSeek.AI - Grafisk Profil Koncept</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1f1f1f 0%, #2a2a2a 100%);
+            padding: 80px 40px;
+            text-align: center;
+            border-bottom: 1px solid #3a3a3a;
+        }
+
+        .header h1 {
+            font-size: 48px;
+            font-weight: 300;
+            letter-spacing: 3px;
+            color: #f5f5f5;
+            margin-bottom: 20px;
+        }
+
+        .header .tagline {
+            font-size: 18px;
+            color: #888;
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+
+        .section {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 60px 40px;
+        }
+
+        .section-title {
+            font-size: 32px;
+            font-weight: 300;
+            letter-spacing: 2px;
+            color: #e0e0e0;
+            margin-bottom: 40px;
+            border-bottom: 1px solid #2a2a2a;
+            padding-bottom: 20px;
+        }
+
+        .color-palette {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .color-card {
+            background: #1f1f1f;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid #3a3a3a;
+            transition: all 0.3s ease;
+        }
+
+        .color-card:hover {
+            border-color: #505050;
+            transform: translateY(-5px);
+        }
+
+        .color-swatch {
+            width: 100%;
+            height: 150px;
+        }
+
+        .color-info {
+            padding: 20px;
+        }
+
+        .color-name {
+            font-size: 16px;
+            font-weight: 500;
+            color: #e0e0e0;
+            margin-bottom: 8px;
+        }
+
+        .color-value {
+            font-size: 13px;
+            color: #888;
+            font-family: 'Courier New', monospace;
+            margin-bottom: 4px;
+        }
+
+        .usage {
+            font-size: 12px;
+            color: #666;
+            margin-top: 8px;
+        }
+
+        /* Typography Section */
+        .typography-showcase {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-top: 40px;
+        }
+
+        .type-example {
+            background: #1f1f1f;
+            border-radius: 16px;
+            padding: 30px;
+            border: 1px solid #3a3a3a;
+        }
+
+        .type-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+        }
+
+        .h1-example {
+            font-size: 48px;
+            font-weight: 300;
+            letter-spacing: 2px;
+            color: #f5f5f5;
+        }
+
+        .h2-example {
+            font-size: 32px;
+            font-weight: 300;
+            letter-spacing: 1px;
+            color: #e0e0e0;
+        }
+
+        .body-example {
+            font-size: 16px;
+            font-weight: 400;
+            color: #c0c0c0;
+            line-height: 1.7;
+        }
+
+        .small-example {
+            font-size: 13px;
+            font-weight: 400;
+            color: #888;
+        }
+
+        /* UI Components Showcase */
+        .ui-components {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .component-card {
+            background: #1f1f1f;
+            border-radius: 16px;
+            padding: 30px;
+            border: 1px solid #3a3a3a;
+        }
+
+        .component-title {
+            font-size: 16px;
+            color: #a0a0a0;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        /* Button Examples */
+        .btn-primary {
+            background: linear-gradient(135deg, #4a4a4a 0%, #3a3a3a 100%);
+            color: #f5f5f5;
+            padding: 12px 28px;
+            border-radius: 8px;
+            border: 1px solid #505050;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #555 0%, #444 100%);
+            box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: #c0c0c0;
+            padding: 12px 28px;
+            border-radius: 8px;
+            border: 1px solid #3a3a3a;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+
+        .btn-secondary:hover {
+            border-color: #505050;
+            background: #2a2a2a;
+        }
+
+        /* Input Examples */
+        .input-field {
+            width: 100%;
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: #e0e0e0;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            margin-bottom: 15px;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #555;
+            background: #2f2f2f;
+        }
+
+        .input-field::placeholder {
+            color: #666;
+        }
+
+        /* Card Examples */
+        .card-example {
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .card-example:hover {
+            border-color: #505050;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-header {
+            font-size: 16px;
+            font-weight: 500;
+            color: #e0e0e0;
+            margin-bottom: 8px;
+        }
+
+        .card-text {
+            font-size: 14px;
+            color: #a0a0a0;
+            line-height: 1.6;
+        }
+
+        /* Badge Examples */
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            margin: 5px;
+        }
+
+        .badge-high {
+            background: #505050;
+            color: #f5f5f5;
+        }
+
+        .badge-medium {
+            background: #3a3a3a;
+            color: #d0d0d0;
+        }
+
+        .badge-low {
+            background: #2a2a2a;
+            color: #a0a0a0;
+            border: 1px solid #3a3a3a;
+        }
+
+        /* Layout Example */
+        .layout-preview {
+            background: #1f1f1f;
+            border-radius: 16px;
+            border: 1px solid #3a3a3a;
+            overflow: hidden;
+            margin-top: 40px;
+        }
+
+        .layout-header {
+            background: #2a2a2a;
+            padding: 20px;
+            border-bottom: 1px solid #3a3a3a;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .layout-logo {
+            font-size: 20px;
+            font-weight: 700;
+            color: #f5f5f5;
+            letter-spacing: -0.5px;
+        }
+
+        .layout-content {
+            display: flex;
+        }
+
+        .layout-sidebar {
+            width: 250px;
+            background: #252525;
+            border-right: 1px solid #3a3a3a;
+            padding: 20px;
+        }
+
+        .layout-main {
+            flex: 1;
+            padding: 30px;
+        }
+
+        .sidebar-item {
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            color: #a0a0a0;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .sidebar-item:hover {
+            background: #2a2a2a;
+            color: #e0e0e0;
+        }
+
+        .sidebar-item.active {
+            background: #3a3a3a;
+            color: #f5f5f5;
+        }
+
+        .design-principles {
+            background: #1f1f1f;
+            border-radius: 16px;
+            padding: 40px;
+            border: 1px solid #3a3a3a;
+            margin-top: 40px;
+        }
+
+        .principle {
+            margin-bottom: 30px;
+        }
+
+        .principle-title {
+            font-size: 18px;
+            font-weight: 500;
+            color: #e0e0e0;
+            margin-bottom: 10px;
+        }
+
+        .principle-text {
+            font-size: 14px;
+            color: #a0a0a0;
+            line-height: 1.7;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>OneSeek.AI</h1>
+        <p class="tagline">Grafisk Profil - Minimalistisk & Grayscale</p>
+    </div>
+
+    <!-- Color Palette Section -->
+    <div class="section">
+        <h2 class="section-title">Färgpalett - Endast Gråtoner</h2>
+        <div class="color-palette">
+            <div class="color-card">
+                <div class="color-swatch" style="background: #1a1a1a;"></div>
+                <div class="color-info">
+                    <div class="color-name">Djup Svart</div>
+                    <div class="color-value">#1a1a1a</div>
+                    <div class="usage">Bakgrund, primary surface</div>
+                </div>
+            </div>
+            <div class="color-card">
+                <div class="color-swatch" style="background: #2a2a2a;"></div>
+                <div class="color-info">
+                    <div class="color-name">Mörk Grå</div>
+                    <div class="color-value">#2a2a2a</div>
+                    <div class="usage">Sekundär bakgrund, cards</div>
+                </div>
+            </div>
+            <div class="color-card">
+                <div class="color-swatch" style="background: #3a3a3a;"></div>
+                <div class="color-info">
+                    <div class="color-name">Medium Grå</div>
+                    <div class="color-value">#3a3a3a</div>
+                    <div class="usage">Borders, dividers</div>
+                </div>
+            </div>
+            <div class="color-card">
+                <div class="color-swatch" style="background: #505050;"></div>
+                <div class="color-info">
+                    <div class="color-name">Ljus Grå</div>
+                    <div class="color-value">#505050</div>
+                    <div class="usage">Hover states, accents</div>
+                </div>
+            </div>
+            <div class="color-card">
+                <div class="color-swatch" style="background: #888888;"></div>
+                <div class="color-info">
+                    <div class="color-name">Silver</div>
+                    <div class="color-value">#888888</div>
+                    <div class="usage">Sekundär text, subtitles</div>
+                </div>
+            </div>
+            <div class="color-card">
+                <div class="color-swatch" style="background: #c0c0c0;"></div>
+                <div class="color-info">
+                    <div class="color-name">Ljus Silver</div>
+                    <div class="color-value">#c0c0c0</div>
+                    <div class="usage">Body text</div>
+                </div>
+            </div>
+            <div class="color-card">
+                <div class="color-swatch" style="background: #e0e0e0;"></div>
+                <div class="color-info">
+                    <div class="color-name">Ljusgrå</div>
+                    <div class="color-value">#e0e0e0</div>
+                    <div class="usage">Primary text, headings</div>
+                </div>
+            </div>
+            <div class="color-card">
+                <div class="color-swatch" style="background: #f5f5f5;"></div>
+                <div class="color-info">
+                    <div class="color-name">Nästan Vit</div>
+                    <div class="color-value">#f5f5f5</div>
+                    <div class="usage">Highlights, brand elements</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Typography Section -->
+    <div class="section" style="background: #1f1f1f;">
+        <h2 class="section-title">Typografi</h2>
+        <div class="typography-showcase">
+            <div class="type-example">
+                <div class="type-label">Heading 1</div>
+                <div class="h1-example">OneSeek.AI</div>
+                <div class="color-value" style="margin-top: 10px;">48px, Font Weight: 300, Letter Spacing: 2px</div>
+            </div>
+            <div class="type-example">
+                <div class="type-label">Heading 2</div>
+                <div class="h2-example">Beslut med insyn</div>
+                <div class="color-value" style="margin-top: 10px;">32px, Font Weight: 300, Letter Spacing: 1px</div>
+            </div>
+            <div class="type-example">
+                <div class="type-label">Body Text</div>
+                <div class="body-example">En minimalistisk plattform för att jämföra AI-modeller med fokus på transparens och användarupplevelse.</div>
+                <div class="color-value" style="margin-top: 10px;">16px, Font Weight: 400, Line Height: 1.7</div>
+            </div>
+            <div class="type-example">
+                <div class="type-label">Small Text</div>
+                <div class="small-example">Sekundär information och metadata</div>
+                <div class="color-value" style="margin-top: 10px;">13px, Font Weight: 400</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- UI Components Section -->
+    <div class="section">
+        <h2 class="section-title">UI Komponenter</h2>
+        <div class="ui-components">
+            <div class="component-card">
+                <div class="component-title">Buttons</div>
+                <button class="btn-primary">Primary Button</button>
+                <button class="btn-secondary">Secondary Button</button>
+            </div>
+
+            <div class="component-card">
+                <div class="component-title">Input Fields</div>
+                <input type="text" class="input-field" placeholder="Ställ en fråga...">
+                <input type="text" class="input-field" placeholder="Sök i historik...">
+            </div>
+
+            <div class="component-card">
+                <div class="component-title">Cards</div>
+                <div class="card-example">
+                    <div class="card-header">AI Response</div>
+                    <div class="card-text">Ett exempel på ett svarskort med clean design och läsbar text.</div>
+                </div>
+            </div>
+
+            <div class="component-card">
+                <div class="component-title">Badges</div>
+                <span class="badge badge-high">Hög</span>
+                <span class="badge badge-medium">Medel</span>
+                <span class="badge badge-low">Låg</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Layout Preview -->
+    <div class="section" style="background: #1f1f1f;">
+        <h2 class="section-title">Layout Exempel</h2>
+        <div class="layout-preview">
+            <div class="layout-header">
+                <div class="layout-logo">OneSeek.AI</div>
+                <div style="color: #888; font-size: 14px;">Beslut med insyn. AI med ansvar.</div>
+            </div>
+            <div class="layout-content">
+                <div class="layout-sidebar">
+                    <div class="sidebar-item active">Hem</div>
+                    <div class="sidebar-item">Historik</div>
+                    <div class="sidebar-item">Policyfrågor</div>
+                    <div class="sidebar-item">Audit Trail</div>
+                    <div class="sidebar-item">Exportera</div>
+                </div>
+                <div class="layout-main">
+                    <div class="card-example">
+                        <div class="card-header">Välkommen till OneSeek.AI</div>
+                        <div class="card-text">En minimalistisk och professionell plattform för AI-jämförelser.</div>
+                    </div>
+                    <div class="card-example">
+                        <div class="card-header">Ställ din fråga</div>
+                        <div class="card-text">Jämför AI-modellers svar med transparent analys.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Design Principles -->
+    <div class="section">
+        <h2 class="section-title">Designprinciper</h2>
+        <div class="design-principles">
+            <div class="principle">
+                <div class="principle-title">1. Minimalism först</div>
+                <div class="principle-text">Varje element måste ha ett syfte. Ta bort allt onödigt. Fokus på innehåll och funktion.</div>
+            </div>
+            <div class="principle">
+                <div class="principle-title">2. Endast gråtoner</div>
+                <div class="principle-text">Inga färger används. Olika nyanser av grått skapar hierarki och visuell struktur.</div>
+            </div>
+            <div class="principle">
+                <div class="principle-title">3. Generöst med whitespace</div>
+                <div class="principle-text">Låt element andas. Använd marginal och padding för att skapa lugn och överskådlighet.</div>
+            </div>
+            <div class="principle">
+                <div class="principle-title">4. Subtila animationer</div>
+                <div class="principle-text">Animationer ska förstärka användarupplevelsen, inte distrahera. Smooth transitions och fade-effekter.</div>
+            </div>
+            <div class="principle">
+                <div class="principle-title">5. Typografi som hierarki</div>
+                <div class="principle-text">Använd font size, weight och letter spacing för att skapa tydlig visuell hierarki.</div>
+            </div>
+            <div class="principle">
+                <div class="principle-title">6. Konsekvent spacing</div>
+                <div class="principle-text">Använd ett spacing-system (8px, 16px, 24px, 32px, 40px) för harmonisk layout.</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

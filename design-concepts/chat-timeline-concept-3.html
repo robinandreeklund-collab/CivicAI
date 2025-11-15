@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OneSeek.AI - Chat Timeline Concept 3: Card Stack Navigator</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+      background: #0a0a0a;
+      color: #e5e5e5;
+      overflow: hidden;
+    }
+
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* Main Chat Area */
+    .chat-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 40px;
+      overflow-y: auto;
+    }
+
+    .question-header {
+      margin-bottom: 30px;
+    }
+
+    .question {
+      font-size: 20px;
+      font-weight: 300;
+      color: #f5f5f5;
+      line-height: 1.6;
+    }
+
+    /* Content Cards */
+    .content-card {
+      background: linear-gradient(135deg, #1a1a1a 0%, #141414 100%);
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 35px;
+      margin-bottom: 25px;
+      transition: all 0.3s ease;
+    }
+
+    .content-card:hover {
+      border-color: #333;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .card-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: #2a2a2a;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #d4d4d4;
+    }
+
+    .card-badge.primary {
+      background: linear-gradient(135deg, #444 0%, #333 100%);
+      color: #f5f5f5;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .card-action-btn {
+      width: 32px;
+      height: 32px;
+      background: #222;
+      border: 1px solid #333;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 14px;
+    }
+
+    .card-action-btn:hover {
+      background: #2a2a2a;
+      border-color: #444;
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 500;
+      color: #f5f5f5;
+      margin-bottom: 18px;
+    }
+
+    .card-content {
+      font-size: 15px;
+      line-height: 1.8;
+      color: #d4d4d4;
+      margin-bottom: 20px;
+    }
+
+    .card-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      padding-top: 20px;
+      border-top: 1px solid #222;
+    }
+
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .meta-label {
+      font-size: 11px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .meta-value {
+      font-size: 13px;
+      color: #d4d4d4;
+      font-weight: 500;
+    }
+
+    /* Card Stack Sidebar */
+    .card-stack-sidebar {
+      width: 280px;
+      background: #0f0f0f;
+      border-left: 1px solid #1a1a1a;
+      display: flex;
+      flex-direction: column;
+      padding: 30px 16px;
+    }
+
+    .stack-header {
+      margin-bottom: 24px;
+      padding: 0 8px;
+    }
+
+    .stack-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+
+    .stack-subtitle {
+      font-size: 11px;
+      color: #666;
+    }
+
+    /* Stack Navigator */
+    .stack-navigator {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 8px;
+    }
+
+    .stack-section {
+      margin-bottom: 24px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 500;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      padding-left: 4px;
+    }
+
+    /* Mini Cards */
+    .mini-card {
+      background: #1a1a1a;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .mini-card::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: transparent;
+      border-radius: 8px 0 0 8px;
+      transition: all 0.2s ease;
+    }
+
+    .mini-card:hover {
+      background: #222;
+      border-color: #333;
+      transform: translateX(4px);
+    }
+
+    .mini-card.active {
+      background: #2a2a2a;
+      border-color: #444;
+    }
+
+    .mini-card.active::before {
+      background: linear-gradient(180deg, #666 0%, #444 100%);
+    }
+
+    .mini-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .mini-card-icon {
+      font-size: 16px;
+    }
+
+    .mini-card-status {
+      width: 6px;
+      height: 6px;
+      background: #444;
+      border-radius: 50%;
+    }
+
+    .mini-card.active .mini-card-status {
+      background: #888;
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+    }
+
+    .mini-card-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: #d4d4d4;
+      margin-bottom: 4px;
+    }
+
+    .mini-card-meta {
+      font-size: 11px;
+      color: #666;
+    }
+
+    /* Progress Indicator */
+    .progress-section {
+      margin-top: auto;
+      padding-top: 20px;
+      border-top: 1px solid #1a1a1a;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      font-size: 11px;
+    }
+
+    .progress-label {
+      color: #888;
+    }
+
+    .progress-value {
+      color: #d4d4d4;
+      font-weight: 500;
+    }
+
+    .progress-bar {
+      height: 6px;
+      background: #1a1a1a;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #666 0%, #888 100%);
+      border-radius: 3px;
+      width: 70%;
+      transition: width 0.3s ease;
+    }
+
+    /* Comparison Grid */
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 16px;
+      padding: 16px;
+      background: #151515;
+      border-radius: 8px;
+    }
+
+    .comparison-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .comparison-label {
+      font-size: 11px;
+      color: #666;
+    }
+
+    .comparison-bar {
+      height: 4px;
+      background: #222;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .comparison-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #444 0%, #666 100%);
+      border-radius: 2px;
+    }
+
+    .comparison-value {
+      font-size: 12px;
+      color: #d4d4d4;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Main Chat Area -->
+    <div class="chat-area">
+      <div class="question-header">
+        <div class="question">
+          Vilka är de största utmaningarna med artificiell intelligens för demokratin?
+        </div>
+      </div>
+
+      <!-- Best Answer Card -->
+      <div class="content-card">
+        <div class="card-header">
+          <div class="card-badge primary">
+            <span>⭐</span>
+            <span>Bästa svaret • Gemini</span>
+          </div>
+          <div class="card-actions">
+            <div class="card-action-btn" title="Dela">📤</div>
+            <div class="card-action-btn" title="Spara">🔖</div>
+            <div class="card-action-btn" title="Mer">⋯</div>
+          </div>
+        </div>
+        <div class="card-title">Sammanvägd analys med högsta bedömning</div>
+        <div class="card-content">
+          Artificiell intelligens utgör flera utmaningar för demokratiska system. För det första riskerar algoritmer för innehållsrekommendation att skapa filter-bubblor och förstärka polarisering genom att servera användare innehåll som bekräftar deras befintliga åsikter. För det andra möjliggör AI-genererat innehåll (deepfakes, desinformation) manipulation av den offentliga opinionen i stor skala. Tredje är frågan om algoritmisk bias där AI-system kan förstärka samhälleliga fördomar i beslutsfattande. Fjärde är övervakning och kontrollfrågor där AI kan användas för att begränsa demokratiska fri- och rättigheter. Slutligen finns utmaningar kring transparens och ansvarsutkrävande när kritiska beslut fattas av svårtolkade AI-system...
+        </div>
+        <div class="card-meta-grid">
+          <div class="meta-item">
+            <div class="meta-label">Modell</div>
+            <div class="meta-value">Google Gemini Pro</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Bedömning</div>
+            <div class="meta-value">96/100 (Neutral, faktakorrekt)</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Längd</div>
+            <div class="meta-value">289 ord • ~2 min läsning</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Källor</div>
+            <div class="meta-value">12 verifierade referenser</div>
+          </div>
+        </div>
+
+        <!-- Comparison Grid -->
+        <div class="comparison-grid">
+          <div class="comparison-item">
+            <div class="comparison-label">Faktakorrekthet</div>
+            <div class="comparison-bar">
+              <div class="comparison-bar-fill" style="width: 96%"></div>
+            </div>
+            <div class="comparison-value">96%</div>
+          </div>
+          <div class="comparison-item">
+            <div class="comparison-label">Neutralitet</div>
+            <div class="comparison-bar">
+              <div class="comparison-bar-fill" style="width: 94%"></div>
+            </div>
+            <div class="comparison-value">94%</div>
+          </div>
+          <div class="comparison-item">
+            <div class="comparison-label">Djup analys</div>
+            <div class="comparison-bar">
+              <div class="comparison-bar-fill" style="width: 91%"></div>
+            </div>
+            <div class="comparison-value">91%</div>
+          </div>
+          <div class="comparison-item">
+            <div class="comparison-label">Klarhet</div>
+            <div class="comparison-bar">
+              <div class="comparison-bar-fill" style="width: 88%"></div>
+            </div>
+            <div class="comparison-value">88%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BERT Summary Card -->
+      <div class="content-card">
+        <div class="card-header">
+          <div class="card-badge">
+            <span>🔬</span>
+            <span>BERT-sammanfattning</span>
+          </div>
+        </div>
+        <div class="card-title">Extraktiv syntes av alla AI-perspektiv</div>
+        <div class="card-content">
+          Samtliga modeller betonar risker med filter-bubblor och desinformation. GPT-3.5 och Gemini fokuserar på polarisering, medan DeepSeek lyfter övervakningsrisker. Qwen diskuterar utbildning och digital kompetens. Grok betonar behovet av AI-reglering. Konsensus: AI-teknik kräver demokratisk övervakning och transparenta system.
+        </div>
+        <div class="card-meta-grid">
+          <div class="meta-item">
+            <div class="meta-label">Källmaterial</div>
+            <div class="meta-value">5 AI-svar • 1 472 ord</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Kompression</div>
+            <div class="meta-value">71% (428 → 124 ord)</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Metod</div>
+            <div class="meta-value">BERT sentence scoring</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Konsensus</div>
+            <div class="meta-value">Hög (84% överensstämmelse)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card Stack Sidebar -->
+    <div class="card-stack-sidebar">
+      <div class="stack-header">
+        <div class="stack-title">Navigator</div>
+        <div class="stack-subtitle">13 komponenter • 7 visade</div>
+      </div>
+
+      <div class="stack-navigator">
+        <!-- Processing Section -->
+        <div class="stack-section">
+          <div class="section-title">Processering (12.4s)</div>
+          
+          <div class="mini-card">
+            <div class="mini-card-header">
+              <span class="mini-card-icon">⚡</span>
+              <span class="mini-card-status"></span>
+            </div>
+            <div class="mini-card-title">AI-anrop</div>
+            <div class="mini-card-meta">5 modeller • 3.2s</div>
+          </div>
+
+          <div class="mini-card">
+            <div class="mini-card-header">
+              <span class="mini-card-icon">📊</span>
+              <span class="mini-card-status"></span>
+            </div>
+            <div class="mini-card-title">Tonanalys</div>
+            <div class="mini-card-meta">Sentiment • 0.8s</div>
+          </div>
+
+          <div class="mini-card">
+            <div class="mini-card-header">
+              <span class="mini-card-icon">⚖️</span>
+              <span class="mini-card-status"></span>
+            </div>
+            <div class="mini-card-title">Bias-detektion</div>
+            <div class="mini-card-meta">Mönster • 1.1s</div>
+          </div>
+
+          <div class="mini-card">
+            <div class="mini-card-header">
+              <span class="mini-card-icon">🔍</span>
+              <span class="mini-card-status"></span>
+            </div>
+            <div class="mini-card-title">Metagranskning</div>
+            <div class="mini-card-meta">GPT-3.5 • 2.4s</div>
+          </div>
+
+          <div class="mini-card">
+            <div class="mini-card-header">
+              <span class="mini-card-icon">✓</span>
+              <span class="mini-card-status"></span>
+            </div>
+            <div class="mini-card-title">Faktakoll</div>
+            <div class="mini-card-meta">Tavily • 3.1s</div>
+          </div>
+
+          <div class="mini-card">
+            <div class="mini-card-header">
+              <span class="mini-card-icon">📝</span>
+              <span class="mini-card-status"></span>
+            </div>
+            <div class="mini-card-title">BERT-syntes</div>
+            <div class="mini-card-meta">Extraktiv • 1.8s</div>
+          </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="stack-section">
+          <div class="section-title">Resultat</div>
+          
+          <div class="mini-card active">
+            <div class="mini-card-header">
+              <span class="mini-card-icon">⭐</span>
+              <span class="mini-card-status"></span>
+            </div>
+            <div class="mini-card-title">Bästa svaret</div>
+            <div class="mini-card-meta">Gemini • 289 ord</div>
+          </div>
+
+          <div class="mini-card">
+            <div class="mini-card-header">
+              <span class="mini-card-icon">🤖</span>
+              <span class="mini-card-status"></span>
+            </div>
+            <div class="mini-card-title">GPT-3.5</div>
+            <div class="mini-card-meta">342 ord</div>
+          </div>
+
+          <div class="mini-card">
+            <div class="mini-card-header">
+              <span class="mini-card-icon">🤖</span>
+              <span class="mini-card-status"></span>
+            </div>
+            <div class="mini-card-title">DeepSeek</div>
+            <div class="mini-card-meta">412 ord</div>
+          </div>
+
+          <div class="mini-card">
+            <div class="mini-card-header">
+              <span class="mini-card-icon">🤖</span>
+              <span class="mini-card-status"></span>
+            </div>
+            <div class="mini-card-title">Grok</div>
+            <div class="mini-card-meta">267 ord</div>
+          </div>
+
+          <div class="mini-card">
+            <div class="mini-card-header">
+              <span class="mini-card-icon">🤖</span>
+              <span class="mini-card-status"></span>
+            </div>
+            <div class="mini-card-title">Qwen</div>
+            <div class="mini-card-meta">321 ord</div>
+          </div>
+        </div>
+
+        <!-- Analysis Section -->
+        <div class="stack-section">
+          <div class="section-title">Analyser</div>
+          
+          <div class="mini-card">
+            <div class="mini-card-header">
+              <span class="mini-card-icon">📊</span>
+              <span class="mini-card-status"></span>
+            </div>
+            <div class="mini-card-title">Jämförelse</div>
+            <div class="mini-card-meta">AI vs AI</div>
+          </div>
+
+          <div class="mini-card">
+            <div class="mini-card-header">
+              <span class="mini-card-icon">📈</span>
+              <span class="mini-card-status"></span>
+            </div>
+            <div class="mini-card-title">Bedömningar</div>
+            <div class="mini-card-meta">Ton, bias, fakta</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress Indicator -->
+      <div class="progress-section">
+        <div class="progress-header">
+          <span class="progress-label">Utforskad</span>
+          <span class="progress-value">7/13</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: 54%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

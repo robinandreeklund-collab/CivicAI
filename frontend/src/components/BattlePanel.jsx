@@ -13,15 +13,15 @@ export default function BattlePanel({ question, responses, onVote }) {
 
   const agentThemes = {
     'gpt-3.5': {
-      bg: 'bg-blue-500',
-      hoverBg: 'hover:bg-blue-600',
-      borderColor: 'border-blue-500',
+      bg: 'bg-civic-gray-500',
+      hoverBg: 'hover:bg-civic-gray-600',
+      borderColor: 'border-civic-gray-500',
       icon: '🤖',
       name: 'GPT-3.5',
     },
     'gemini': {
-      bg: 'bg-purple-500',
-      hoverBg: 'hover:bg-purple-600',
+      bg: 'bg-civic-gray-500',
+      hoverBg: 'hover:bg-civic-gray-600',
       borderColor: 'border-purple-500',
       icon: '✨',
       name: 'Gemini',
@@ -131,7 +131,7 @@ export default function BattlePanel({ question, responses, onVote }) {
                       <span className="text-4xl">{theme.icon}</span>
                       <span className="text-lg font-semibold text-gray-100">{theme.name}</span>
                       {isSelected && (
-                        <div className="flex items-center space-x-1 text-sm text-green-400">
+                        <div className="flex items-center space-x-1 text-sm text-gray-400">
                           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                           </svg>
@@ -205,7 +205,7 @@ export default function BattlePanel({ question, responses, onVote }) {
             {/* Success message */}
             <div className="text-center py-6">
               <div className="text-6xl mb-4 animate-bounce-slow">✓</div>
-              <h3 className="text-2xl font-bold text-green-400 mb-2">Tack för din röst!</h3>
+              <h3 className="text-2xl font-bold text-gray-400 mb-2">Tack för din röst!</h3>
               <p className="text-gray-300 mb-6">
                 Du röstade på <span className="font-semibold text-orange-400">
                   {agentThemes[selectedWinner]?.name}

@@ -23,19 +23,19 @@ export default function AgentBubble({ agent, response, metadata, analysis, index
   const agentThemes = {
     'gpt-3.5': {
       bg: 'bg-civic-dark-800/80',
-      border: 'border-blue-500/30',
+      border: 'border-civic-gray-500/30',
       icon: '🤖',
-      iconBg: 'bg-blue-500/20',
-      iconColor: 'text-blue-400',
-      accentColor: 'bg-blue-500',
+      iconBg: 'bg-civic-gray-500/20',
+      iconColor: 'text-gray-400',
+      accentColor: 'bg-civic-gray-500',
     },
     'gemini': {
       bg: 'bg-civic-dark-800/80',
       border: 'border-purple-500/30',
       icon: '✨',
-      iconBg: 'bg-purple-500/20',
-      iconColor: 'text-purple-400',
-      accentColor: 'bg-purple-500',
+      iconBg: 'bg-civic-gray-500/20',
+      iconColor: 'text-gray-400',
+      accentColor: 'bg-civic-gray-500',
     },
     'deepseek': {
       bg: 'bg-civic-dark-800/80',
@@ -153,7 +153,7 @@ export default function AgentBubble({ agent, response, metadata, analysis, index
                 {/* Agent Profile Toggle */}
                 <button
                   onClick={() => setShowProfile(!showProfile)}
-                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center space-x-1"
+                  className="text-xs text-gray-400 hover:text-gray-300 transition-colors flex items-center space-x-1"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

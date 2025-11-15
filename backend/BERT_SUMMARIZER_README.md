@@ -1,6 +1,6 @@
 # BERT Extractive Summarizer Integration
 
-This document explains how the BERT Extractive Summarizer is integrated into CivicAI to provide neutral, high-precision summaries of AI responses.
+This document explains how the BERT Extractive Summarizer is integrated into OneSeek.AI to provide neutral, high-precision summaries of AI responses.
 
 ## Overview
 

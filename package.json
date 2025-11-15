@@ -1,7 +1,7 @@
 {
-  "name": "civicai",
+  "name": "oneseek-ai",
   "version": "0.1.0",
-  "description": "CivicAI - Beslut med insyn. AI med ansvar.",
+  "description": "OneSeek.AI - Beslut med insyn. AI med ansvar.",
   "private": true,
   "scripts": {
     "install:frontend": "cd frontend && npm install",

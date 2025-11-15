@@ -73,7 +73,7 @@ export default function MultiAgentResponseView({ responses, question }) {
           <button
             onClick={() => setViewMode('tabs')}
             className={`p-2 rounded-lg transition-colors ${
-              viewMode === 'tabs' ? 'bg-blue-500 text-white' : 'bg-civic-dark-800 text-gray-400 hover:text-gray-300'
+              viewMode === 'tabs' ? 'bg-civic-gray-500 text-white' : 'bg-civic-dark-800 text-gray-400 hover:text-gray-300'
             }`}
             title="Tab View"
           >
@@ -84,7 +84,7 @@ export default function MultiAgentResponseView({ responses, question }) {
           <button
             onClick={() => setViewMode('grid')}
             className={`p-2 rounded-lg transition-colors ${
-              viewMode === 'grid' ? 'bg-blue-500 text-white' : 'bg-civic-dark-800 text-gray-400 hover:text-gray-300'
+              viewMode === 'grid' ? 'bg-civic-gray-500 text-white' : 'bg-civic-dark-800 text-gray-400 hover:text-gray-300'
             }`}
             title="Grid View"
           >
@@ -150,7 +150,7 @@ export default function MultiAgentResponseView({ responses, question }) {
           <button
             onClick={() => setViewMode('tabs')}
             className={`p-2 rounded-lg transition-colors ${
-              viewMode === 'tabs' ? 'bg-blue-500 text-white' : 'bg-civic-dark-800 text-gray-400 hover:text-gray-300'
+              viewMode === 'tabs' ? 'bg-civic-gray-500 text-white' : 'bg-civic-dark-800 text-gray-400 hover:text-gray-300'
             }`}
             title="Tab View"
           >
@@ -161,7 +161,7 @@ export default function MultiAgentResponseView({ responses, question }) {
           <button
             onClick={() => setViewMode('grid')}
             className={`p-2 rounded-lg transition-colors ${
-              viewMode === 'grid' ? 'bg-blue-500 text-white' : 'bg-civic-dark-800 text-gray-400 hover:text-gray-300'
+              viewMode === 'grid' ? 'bg-civic-gray-500 text-white' : 'bg-civic-dark-800 text-gray-400 hover:text-gray-300'
             }`}
             title="Grid View"
           >

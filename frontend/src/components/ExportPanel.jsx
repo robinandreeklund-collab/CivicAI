@@ -32,7 +32,7 @@ export default function ExportPanel({ question, responses }) {
       metadata: {
         exported_at: new Date().toISOString(),
         version: '0.1.0',
-        tool: 'CivicAI',
+        tool: 'OneSeek.AI',
       }
     };
 
@@ -47,7 +47,7 @@ export default function ExportPanel({ question, responses }) {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `civicai-export-${Date.now()}.yaml`;
+    a.download = `oneseek-ai-export-${Date.now()}.yaml`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -66,7 +66,7 @@ export default function ExportPanel({ question, responses }) {
       <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-blue-500/10 rounded-2xl"></div>
       
       {/* Main content */}
-      <div className="relative backdrop-blur-sm bg-civic-dark-800/50 rounded-2xl border border-green-500/20 p-8 shadow-2xl">
+      <div className="relative backdrop-blur-sm bg-civic-dark-800/50 rounded-2xl border border-civic-gray-500/20 p-8 shadow-2xl">
         {/* Header with icon */}
         <div className="flex items-center space-x-3 mb-4">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-blue-500 flex items-center justify-center text-2xl shadow-lg shadow-green-500/30 animate-bounce-slow">
@@ -80,7 +80,7 @@ export default function ExportPanel({ question, responses }) {
         
         {/* Description */}
         <p className="text-gray-300 mb-6 leading-relaxed">
-          Exportera dina AI-svar och metadata till <span className="font-semibold text-green-400">YAML-format</span> för 
+          Exportera dina AI-svar och metadata till <span className="font-semibold text-gray-400">YAML-format</span> för 
           dokumentation, versionshantering och djupare analys.
         </p>
 
@@ -168,8 +168,8 @@ export default function ExportPanel({ question, responses }) {
 
         {/* Success message */}
         {exportSuccess && (
-          <div className="mt-4 p-3 rounded-xl bg-green-500/20 border border-green-500/40 animate-fade-in">
-            <p className="text-sm text-green-300 flex items-center space-x-2">
+          <div className="mt-4 p-3 rounded-xl bg-civic-gray-500/20 border border-civic-gray-500/40 animate-fade-in">
+            <p className="text-sm text-gray-300 flex items-center space-x-2">
               <span className="text-xl">✓</span>
               <span>Filen har laddats ner till din enhet</span>
             </p>

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The CivicAI platform integrates Tavily Search API (tavily.com) for real-time fact verification against web sources. Tavily is a search API specifically designed for AI applications, providing high-quality, relevant results optimized for fact-checking and research.
+The OneSeek.AI platform integrates Tavily Search API (tavily.com) for real-time fact verification against web sources. Tavily is a search API specifically designed for AI applications, providing high-quality, relevant results optimized for fact-checking and research.
 
 ## Why Tavily?
 
@@ -49,7 +49,7 @@ npm run dev
 
 You should see:
 ```
-🚀 CivicAI Backend running on port 3001
+🚀 OneSeek.AI Backend running on port 3001
 [DEBUG] TAVILY_API_KEY: ✓ Configured
 ```
 
