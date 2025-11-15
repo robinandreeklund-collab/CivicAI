@@ -101,6 +101,8 @@ export default function MultiAgentResponseView({ responses, question }) {
         response={responses[activeTab].response}
         metadata={responses[activeTab].metadata}
         analysis={responses[activeTab].analysis}
+        enhancedAnalysis={responses[activeTab].enhancedAnalysis}
+        pipelineAnalysis={responses[activeTab].pipelineAnalysis}
         index={0}
       />
 
@@ -181,6 +183,8 @@ export default function MultiAgentResponseView({ responses, question }) {
               response={resp.response}
               metadata={resp.metadata}
               analysis={resp.analysis}
+              enhancedAnalysis={resp.enhancedAnalysis}
+              pipelineAnalysis={resp.pipelineAnalysis}
               index={idx}
             />
           </div>

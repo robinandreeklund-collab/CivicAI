@@ -17,6 +17,7 @@ import {
 import { batchFactCheck, compareFactChecks } from '../services/factChecker.js';
 import { performCompleteEnhancedAnalysis } from '../utils/nlpProcessors.js';
 import { synthesizeModelResponses } from '../services/modelSynthesis.js';
+import { executeAnalysisPipeline } from '../services/analysisPipeline.js';
 
 const router = express.Router();
 
@@ -70,6 +71,10 @@ router.post('/query', async (req, res) => {
       const factCheck = checkFacts(responseText);
       const metaAnalysis = performCompleteMetaAnalysis(responseText, question);
       const enhancedAnalysis = performCompleteEnhancedAnalysis(responseText, question, startTime);
+      
+      // NEW: Complete analysis pipeline
+      console.log('🔬 Running complete analysis pipeline for GPT-3.5...');
+      const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
 
       responses.push({
         agent: 'gpt-3.5',
@@ -91,6 +96,7 @@ router.post('/query', async (req, res) => {
         metaAnalysis: metaAnalysis,
         metaSummary: generateMetaAnalysisSummary(metaAnalysis),
         enhancedAnalysis: enhancedAnalysis,
+        pipelineAnalysis: pipelineAnalysis,
       });
     } else {
       console.error('GPT-3.5 error:', gptResponse.reason);
@@ -111,6 +117,10 @@ router.post('/query', async (req, res) => {
       const factCheck = checkFacts(responseText);
       const metaAnalysis = performCompleteMetaAnalysis(responseText, question);
       const enhancedAnalysis = performCompleteEnhancedAnalysis(responseText, question, startTime);
+      
+      // Complete analysis pipeline
+      console.log('🔬 Running complete analysis pipeline for Gemini...');
+      const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
 
       responses.push({
         agent: 'gemini',
@@ -132,6 +142,7 @@ router.post('/query', async (req, res) => {
         metaAnalysis: metaAnalysis,
         metaSummary: generateMetaAnalysisSummary(metaAnalysis),
         enhancedAnalysis: enhancedAnalysis,
+        pipelineAnalysis: pipelineAnalysis,
       });
     } else {
       console.error('Gemini error:', geminiResponse.reason);
@@ -152,6 +163,10 @@ router.post('/query', async (req, res) => {
       const factCheck = checkFacts(responseText);
       const metaAnalysis = performCompleteMetaAnalysis(responseText, question);
       const enhancedAnalysis = performCompleteEnhancedAnalysis(responseText, question, startTime);
+      
+      // Complete analysis pipeline
+      console.log('🔬 Running complete analysis pipeline for DeepSeek...');
+      const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
 
       responses.push({
         agent: 'deepseek',
@@ -173,6 +188,7 @@ router.post('/query', async (req, res) => {
         metaAnalysis: metaAnalysis,
         metaSummary: generateMetaAnalysisSummary(metaAnalysis),
         enhancedAnalysis: enhancedAnalysis,
+        pipelineAnalysis: pipelineAnalysis,
       });
     } else {
       console.error('DeepSeek error:', deepseekResponse.reason);
@@ -193,6 +209,10 @@ router.post('/query', async (req, res) => {
       const factCheck = checkFacts(responseText);
       const metaAnalysis = performCompleteMetaAnalysis(responseText, question);
       const enhancedAnalysis = performCompleteEnhancedAnalysis(responseText, question, startTime);
+      
+      // Complete analysis pipeline
+      console.log('🔬 Running complete analysis pipeline for Grok...');
+      const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
 
       responses.push({
         agent: 'grok',
@@ -214,6 +234,7 @@ router.post('/query', async (req, res) => {
         metaAnalysis: metaAnalysis,
         metaSummary: generateMetaAnalysisSummary(metaAnalysis),
         enhancedAnalysis: enhancedAnalysis,
+        pipelineAnalysis: pipelineAnalysis,
       });
     } else {
       console.error('Grok error:', grokResponse.reason);
@@ -234,6 +255,10 @@ router.post('/query', async (req, res) => {
       const factCheck = checkFacts(responseText);
       const metaAnalysis = performCompleteMetaAnalysis(responseText, question);
       const enhancedAnalysis = performCompleteEnhancedAnalysis(responseText, question, startTime);
+      
+      // Complete analysis pipeline
+      console.log('🔬 Running complete analysis pipeline for Qwen...');
+      const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
 
       responses.push({
         agent: 'qwen',
@@ -255,6 +280,7 @@ router.post('/query', async (req, res) => {
         metaAnalysis: metaAnalysis,
         metaSummary: generateMetaAnalysisSummary(metaAnalysis),
         enhancedAnalysis: enhancedAnalysis,
+        pipelineAnalysis: pipelineAnalysis,
       });
     } else {
       console.error('Qwen error:', qwenResponse.reason);

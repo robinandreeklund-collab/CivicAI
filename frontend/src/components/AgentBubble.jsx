@@ -4,16 +4,18 @@ import BiasIndicator from './BiasIndicator';
 import FactCheckIndicator from './FactCheckIndicator';
 import AgentProfileCard from './AgentProfileCard';
 import EnhancedAnalysisPanel from './EnhancedAnalysisPanel';
+import PipelineAnalysisPanel from './PipelineAnalysisPanel';
 
 /**
  * AgentBubble Component
- * Compact chat-style AI response bubbles with Phase 2 analysis + Enhanced Analysis
+ * Compact chat-style AI response bubbles with Phase 2 analysis + Enhanced Analysis + Pipeline Analysis
  */
-export default function AgentBubble({ agent, response, metadata, analysis, enhancedAnalysis, index = 0 }) {
+export default function AgentBubble({ agent, response, metadata, analysis, enhancedAnalysis, pipelineAnalysis, index = 0 }) {
   const [isVisible, setIsVisible] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [isExpanded, setIsExpanded] = useState(index === 0);
   const [showEnhancedAnalysis, setShowEnhancedAnalysis] = useState(false);
+  const [showPipelineAnalysis, setShowPipelineAnalysis] = useState(false);
 
   useEffect(() => {
     // Staggered animation entrance
@@ -187,6 +189,28 @@ export default function AgentBubble({ agent, response, metadata, analysis, enhan
                     {showEnhancedAnalysis && (
                       <div className="animate-fade-in">
                         <EnhancedAnalysisPanel enhancedAnalysis={enhancedAnalysis} agentName={agent} />
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Pipeline Analysis Toggle */}
+                {pipelineAnalysis && (
+                  <>
+                    <button
+                      onClick={() => setShowPipelineAnalysis(!showPipelineAnalysis)}
+                      className="text-xs text-gray-400 hover:text-gray-300 transition-colors flex items-center space-x-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      <span>{showPipelineAnalysis ? 'Dölj' : 'Visa'} komplett pipeline-analys</span>
+                    </button>
+
+                    {/* Pipeline Analysis Panel */}
+                    {showPipelineAnalysis && (
+                      <div className="animate-fade-in mt-4">
+                        <PipelineAnalysisPanel pipelineAnalysis={pipelineAnalysis} />
                       </div>
                     )}
                   </>
