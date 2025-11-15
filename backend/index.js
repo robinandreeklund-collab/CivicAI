@@ -8,6 +8,7 @@ import policyQuestionsRouter from './api/policyQuestions.js';
 import exportRouter from './api/export.js';
 import analysisTransparencyRouter from './api/analysis_transparency.js';
 import analysisPipelineRouter from './api/analysis_pipeline.js';
+import { logPythonServiceStatus } from './services/pythonNLPClient.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -39,11 +40,16 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 OneSeek.AI Backend running on port ${PORT}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   console.log('[DEBUG] OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? '✓ Configured' : '✗ Not configured');
   console.log('[DEBUG] GEMINI_API_KEY:', process.env.GEMINI_API_KEY ? '✓ Configured' : '✗ Not configured');
   console.log('[DEBUG] XAI_API_KEY:', process.env.XAI_API_KEY ? '✓ Configured' : '✗ Not configured');
   console.log('[DEBUG] QWEN_API_KEY:', process.env.QWEN_API_KEY ? '✓ Configured' : '✗ Not configured');
+  
+  // Check Python NLP service status
+  console.log('');
+  await logPythonServiceStatus();
+  console.log('');
 });

@@ -28,6 +28,7 @@ import { performCompleteIdeologicalClassification } from '../utils/ideologicalCl
 import { analyzeTone, getToneDescription } from '../utils/analyzeTone.js';
 import { checkFacts } from '../utils/checkFacts.js';
 import { performCompleteEnhancedAnalysis } from '../utils/nlpProcessors.js';
+import { PIPELINE_CONFIG, generatePipelineMetadata, getPipelineStepsInOrder } from '../config/pipelineConfig.js';
 
 /**
  * Execute the complete analysis pipeline on a text
@@ -175,6 +176,10 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
 
   console.log(`✅ Pipeline completed in ${pipelineEndTime - pipelineStartTime}ms`);
 
+  // Get pipeline configuration metadata
+  const pipelineMetadata = generatePipelineMetadata();
+  const pipelineSteps = getPipelineStepsInOrder();
+
   return {
     // Individual analysis results
     preprocessing,
@@ -199,6 +204,16 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
       textLength: text.length,
       questionLength: question.length,
       stepsCompleted: timeline.length,
+    },
+    
+    // Pipeline configuration
+    pipelineConfig: {
+      version: pipelineMetadata.pipelineVersion,
+      description: pipelineMetadata.pipelineDescription,
+      workflow: PIPELINE_CONFIG.workflow,
+      steps: pipelineSteps,
+      transparencyLayer: PIPELINE_CONFIG.transparency_layer,
+      timestamp: pipelineMetadata.timestamp,
     },
   };
 }
