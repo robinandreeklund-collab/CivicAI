@@ -36,11 +36,11 @@ except ImportError:
     print("WARNING: TextBlob not available")
 
 try:
-    from polyglot.detect import Detector
-    POLYGLOT_AVAILABLE = True
+    from langdetect import detect, detect_langs
+    LANGDETECT_AVAILABLE = True
 except ImportError:
-    POLYGLOT_AVAILABLE = False
-    print("WARNING: Polyglot not available")
+    LANGDETECT_AVAILABLE = False
+    print("WARNING: langdetect not available")
 
 try:
     from detoxify import Detoxify
@@ -186,7 +186,7 @@ def health_check():
         'available_models': {
             'spacy': SPACY_AVAILABLE,
             'textblob': TEXTBLOB_AVAILABLE,
-            'polyglot': POLYGLOT_AVAILABLE,
+            'langdetect': LANGDETECT_AVAILABLE,
             'detoxify': DETOXIFY_AVAILABLE,
             'transformers': TRANSFORMERS_AVAILABLE,
             'shap': SHAP_AVAILABLE,
@@ -298,8 +298,8 @@ def analyze_sentiment():
 @app.route('/detect-language', methods=['POST'])
 def detect_language():
     """
-    Language detection using Polyglot
-    - Supports multiple languages
+    Language detection using langdetect
+    - Supports 55+ languages
     """
     data = request.json
     text = data.get('text', '')
@@ -307,24 +307,37 @@ def detect_language():
     if not text:
         return jsonify({'error': 'No text provided'}), 400
     
-    if not POLYGLOT_AVAILABLE:
+    if not LANGDETECT_AVAILABLE:
         return jsonify({
-            'error': 'Polyglot not available',
+            'error': 'langdetect not available',
             'fallback': True
         }), 503
     
     try:
-        detector = Detector(text)
+        # Get language with probabilities
+        lang_probs = detect_langs(text)
+        
+        # Primary language
+        primary_lang = lang_probs[0]
+        
+        # Language name mapping (common languages)
+        lang_names = {
+            'sv': 'Swedish', 'en': 'English', 'de': 'German', 'fr': 'French',
+            'es': 'Spanish', 'it': 'Italian', 'pt': 'Portuguese', 'nl': 'Dutch',
+            'no': 'Norwegian', 'da': 'Danish', 'fi': 'Finnish', 'pl': 'Polish',
+            'ru': 'Russian', 'ar': 'Arabic', 'zh-cn': 'Chinese', 'ja': 'Japanese',
+            'ko': 'Korean', 'tr': 'Turkish', 'he': 'Hebrew', 'hi': 'Hindi'
+        }
         
         result = {
-            'language': detector.language.code,
-            'language_name': detector.language.name,
-            'confidence': detector.language.confidence,
-            'reliable': detector.reliable,
+            'language': primary_lang.lang,
+            'language_name': lang_names.get(primary_lang.lang, primary_lang.lang.upper()),
+            'confidence': float(primary_lang.prob),
+            'reliable': primary_lang.prob > 0.9,
             'provenance': {
-                'model': 'Polyglot',
-                'version': '16.7.4',
-                'method': 'CLD2-based language detection',
+                'model': 'langdetect',
+                'version': '1.0.9',
+                'method': 'Character n-gram-based language detection',
                 'timestamp': datetime.utcnow().isoformat()
             }
         }

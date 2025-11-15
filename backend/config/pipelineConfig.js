@@ -57,7 +57,7 @@ export const PIPELINE_CONFIG = {
           note: 'Custom implementation provides polarity and subjectivity similar to TextBlob'
         },
         {
-          name: 'Polyglot-equivalent',
+          name: 'langdetect-equivalent',
           actualImplementation: 'Built-in language detection',
           version: '1.0.0',
           capabilities: [
@@ -65,7 +65,7 @@ export const PIPELINE_CONFIG = {
             'Multispråkstöd (svenska/engelska)'
           ],
           method: 'Pattern-based language detection',
-          note: 'Basic language detection for Swedish/English content'
+          note: 'Basic language detection for Swedish/English content (Windows-compatible)'
         }
       ],
       outputs: [

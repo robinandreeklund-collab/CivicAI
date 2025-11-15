@@ -82,7 +82,7 @@ Användarens fråga
 │  🔧 Verktyg:                                            │
 │     • spaCy - Tokenisering, POS-tagging, NER           │
 │     • TextBlob - Polaritet och subjektivitet           │
-│     • Polyglot - Språkdetektion (100+ språk)           │
+│     • langdetect - Språkdetektion (55+ språk, Windows-kompatibel) │
 │                                                         │
 │  📊 Output: Tokens, meningar, entiteter,               │
 │            språk, subjektivitetspoäng                   │
@@ -187,7 +187,7 @@ CivicAI använder en **dubbel-tjänst arkitektur** som säkerställer att system
         │  Flask API med:  │   │  compromise.js  │
         │  • spaCy 3.7     │   │  sentiment lib  │
         │  • TextBlob      │   │  custom bias    │
-        │  • Polyglot      │   │  custom ideology│
+        │  • langdetect    │   │  custom ideology│
         │  • Detoxify      │   │  topic extract  │
         │  • BERTopic      │   │                 │
         │  • Transformers  │   │                 │
@@ -343,7 +343,7 @@ civicai/
 
 | Steg | JavaScript (Standard) | Python ML (Valfritt) |
 |------|----------------------|---------------------|
-| **Preprocessing** | compromise.js | spaCy 3.7.2, TextBlob, Polyglot |
+| **Preprocessing** | compromise.js | spaCy 3.7.2, TextBlob, langdetect |
 | **Bias Detection** | Custom keyword-based | Custom + Detoxify 0.5.2 |
 | **Sentiment** | sentiment library (VADER) | VADER + TextBlob |
 | **Ideology** | Custom keyword classifier | Transformers 4.36.2 (PoliticalBERT-ready) |

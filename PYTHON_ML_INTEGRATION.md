@@ -25,7 +25,7 @@ CivicAI now includes a comprehensive Python-based ML pipeline that provides adva
 │  Python NLP Service (Port 5001)   │                          │
 │  ├── spaCy (Tokenization, POS, NER)                         │
 │  ├── TextBlob (Sentiment, Subjectivity)                     │
-│  ├── Polyglot (Language Detection)                          │
+│  ├── langdetect (Language Detection - Windows-compatible)   │
 │  ├── Detoxify (Toxicity Detection)                          │
 │  ├── Transformers (Ideology Classification)                 │
 │  ├── SHAP (Explainability)                                  │
@@ -133,14 +133,14 @@ const result = await analyzeSentimentWithTextBlob('Text...');
 // Returns: polarity, subjectivity, classification
 ```
 
-### 3. Language Detection (Polyglot)
+### 3. Language Detection (langdetect)
 
-**Tool:** Polyglot v16.7.4 with CLD2
+**Tool:** langdetect v1.0.9
 
 **Capabilities:**
-- Multi-language detection
+- Multi-language detection (55+ languages)
 - Confidence scoring
-- Support for 100+ languages
+- Windows-compatible (replaces Polyglot)
 
 **API Endpoint:** `POST /detect-language`
 
@@ -151,6 +151,8 @@ import { detectLanguageWithPolyglot } from './services/pythonNLPClient.js';
 const result = await detectLanguageWithPolyglot('Text...');
 // Returns: language code, name, confidence
 ```
+
+**Note:** Uses langdetect instead of Polyglot for better Windows compatibility.
 
 ### 4. Toxicity Detection (Detoxify)
 

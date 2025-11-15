@@ -4,7 +4,9 @@ bert-extractive-summarizer==0.10.1
 # Core NLP Libraries
 spacy==3.7.2
 textblob==0.17.1
-polyglot==16.7.4
+
+# Language Detection (Windows-compatible alternative to Polyglot)
+langdetect==1.0.9
 
 # Toxicity and Bias Detection
 detoxify==0.5.2
@@ -25,11 +27,6 @@ bertopic==0.16.0
 sentence-transformers==2.2.2
 umap-learn==0.5.5
 hdbscan==0.8.33
-
-# Language support for Polyglot
-pycld2==0.41
-morfessor==2.0.6
-pyicu==2.12
 
 # Utilities
 numpy==1.24.3
