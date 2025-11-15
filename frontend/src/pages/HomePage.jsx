@@ -152,9 +152,9 @@ export default function HomePage({ onAiMessageUpdate }) {
       
       setMessages(prev => [...prev, aiMessage]);
       
-      // Set first section as active
+      // Set BERT summary as active section by default
       if (data.responses && data.responses.length > 0) {
-        setActiveSection('best-answer');
+        setActiveSection('bert-summary');
       }
       
       // Update parent with last AI message for export panel
@@ -180,22 +180,35 @@ export default function HomePage({ onAiMessageUpdate }) {
 
     const sections = [];
 
-    // Processing Section
+    // Processing Section - BERT summary first, then Model synthesis
+    const processingItems = [
+      {
+        id: 'bert-summary',
+        title: 'BERT-sammanfattning',
+        meta: 'AI-genererad sammanfattning'
+      }
+    ];
+
+    // Add Model synthesis right after BERT summary if available
+    if (aiMessage.modelSynthesis) {
+      processingItems.push({
+        id: 'model-synthesis',
+        title: 'Modellsyntes',
+        meta: 'Jämförelse mellan AI-modeller'
+      });
+    }
+
+    // Add Best answer after
+    processingItems.push({
+      id: 'best-answer',
+      title: 'Bästa svar',
+      meta: 'Utvald rekommendation'
+    });
+
     sections.push({
       title: 'Processering',
       group: 'processing',
-      items: [
-        {
-          id: 'best-answer',
-          title: 'Bästa svar',
-          meta: 'Utvald rekommendation'
-        },
-        {
-          id: 'bert-summary',
-          title: 'BERT-sammanfattning',
-          meta: 'AI-genererad sammanfattning'
-        }
-      ]
+      items: processingItems
     });
 
     // AI Responses Section
@@ -243,13 +256,7 @@ export default function HomePage({ onAiMessageUpdate }) {
         meta: 'Verifiering av fakta'
       });
     }
-    if (aiMessage.modelSynthesis) {
-      analysisItems.push({
-        id: 'model-synthesis',
-        title: 'Modellsyntes',
-        meta: 'Jämförelse mellan AI-modeller'
-      });
-    }
+    // Model synthesis moved to Processing section
 
     if (analysisItems.length > 0) {
       sections.push({
