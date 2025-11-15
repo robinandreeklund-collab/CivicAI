@@ -203,6 +203,45 @@ export default function HomePage({ onAiMessageUpdate }) {
       ]
     });
 
+    // Pipeline Steps Section - NEW: Show detailed Python ML pipeline steps
+    if (aiMessage.pipelineAnalysis && aiMessage.pipelineAnalysis.timeline && aiMessage.pipelineAnalysis.timeline.length > 0) {
+      const pipelineItems = aiMessage.pipelineAnalysis.timeline.map((step, idx) => {
+        // Create friendly titles for each step
+        const stepTitles = {
+          'spacy_preprocessing': 'spaCy Preprocessing',
+          'textblob_subjectivity': 'TextBlob Subjectivity',
+          'langdetect_language': 'Language Detection',
+          'detoxify_toxicity': 'Detoxify Toxicity',
+          'swedish_bert_ideology': 'Swedish BERT Ideology',
+          'preprocessing_javascript': 'Text Preprocessing',
+          'bias_detection_javascript': 'Bias Detection',
+          'sentiment_analysis_javascript': 'Sentiment Analysis',
+          'ideology_classification_javascript': 'Ideology Classification',
+          'tone_analysis_javascript': 'Tone Analysis',
+          'fact_checking_javascript': 'Fact Checking',
+          'enhanced_nlp_javascript': 'Enhanced NLP',
+          'sentence_bias_analysis': 'Sentence Bias Analysis',
+        };
+
+        const title = stepTitles[step.step] || step.step.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        const meta = step.usingPython 
+          ? `🐍 ${step.model} (${step.durationMs}ms)` 
+          : `⚙️ ${step.model} (${step.durationMs}ms)`;
+
+        return {
+          id: `pipeline-${step.step}-${idx}`,
+          title: title,
+          meta: meta
+        };
+      });
+
+      sections.push({
+        title: `Pipeline Steps (${pipelineItems.length})`,
+        group: 'pipelineSteps',
+        items: pipelineItems
+      });
+    }
+
     // AI Responses Section
     if (aiMessage.responses && aiMessage.responses.length > 0) {
       sections.push({
