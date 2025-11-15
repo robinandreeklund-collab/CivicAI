@@ -19,14 +19,8 @@ sentencepiece==0.1.99
 # Explainability
 shap==0.44.0
 
-# Topic Modeling and Embeddings
+# Topic Modeling (Gensim LDA - Windows-compatible, no compilation required)
 gensim==4.3.2
-# BERTopic with Windows-compatible dependencies
-# Note: Install BERTopic separately after other packages if advanced topic modeling needed
-# For Windows: pip install bertopic --no-deps, then manually install compatible versions
-sentence-transformers==2.2.2
-# umap-learn and hdbscan have compilation issues on Windows
-# Using lightweight alternatives that work cross-platform
 
 # Utilities
 numpy==1.24.3
@@ -36,3 +30,22 @@ pandas==2.1.4
 # API Service
 flask==3.0.0
 flask-cors==4.0.0
+
+# ========================================
+# OPTIONAL COMPONENTS (Not Required for Core Functionality)
+# ========================================
+# 
+# Advanced Topic Modeling with BERTopic (Linux/macOS or Windows with C++ Build Tools):
+# Uncomment and install only if you have Microsoft C++ Build Tools installed on Windows
+# 
+# sentence-transformers==2.2.2
+# hdbscan==0.8.33
+# umap-learn==0.5.5
+# bertopic==0.16.0
+#
+# Installation on Windows (advanced users only):
+# 1. Install Microsoft C++ Build Tools from https://visualstudio.microsoft.com/downloads/
+# 2. pip install hdbscan umap-learn
+# 3. pip install sentence-transformers bertopic
+#
+# Note: Gensim LDA provides excellent topic modeling without these dependencies
