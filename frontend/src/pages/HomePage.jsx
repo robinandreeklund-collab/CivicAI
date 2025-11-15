@@ -152,9 +152,9 @@ export default function HomePage({ onAiMessageUpdate }) {
       
       setMessages(prev => [...prev, aiMessage]);
       
-      // Set BERT summary as active section by default
+      // Set first section as active
       if (data.responses && data.responses.length > 0) {
-        setActiveSection('bert-summary');
+        setActiveSection('best-answer');
       }
       
       // Update parent with last AI message for export panel
@@ -180,35 +180,22 @@ export default function HomePage({ onAiMessageUpdate }) {
 
     const sections = [];
 
-    // Processing Section - BERT summary first, then Model synthesis
-    const processingItems = [
-      {
-        id: 'bert-summary',
-        title: 'BERT-sammanfattning',
-        meta: 'AI-genererad sammanfattning'
-      }
-    ];
-
-    // Add Model synthesis right after BERT summary if available
-    if (aiMessage.modelSynthesis) {
-      processingItems.push({
-        id: 'model-synthesis',
-        title: 'Modellsyntes',
-        meta: 'Jämförelse mellan AI-modeller'
-      });
-    }
-
-    // Add Best answer after
-    processingItems.push({
-      id: 'best-answer',
-      title: 'Bästa svar',
-      meta: 'Utvald rekommendation'
-    });
-
+    // Processing Section
     sections.push({
       title: 'Processering',
       group: 'processing',
-      items: processingItems
+      items: [
+        {
+          id: 'best-answer',
+          title: 'Bästa svar',
+          meta: 'Utvald rekommendation'
+        },
+        {
+          id: 'bert-summary',
+          title: 'BERT-sammanfattning',
+          meta: 'AI-genererad sammanfattning'
+        }
+      ]
     });
 
     // AI Responses Section
@@ -256,7 +243,13 @@ export default function HomePage({ onAiMessageUpdate }) {
         meta: 'Verifiering av fakta'
       });
     }
-    // Model synthesis moved to Processing section
+    if (aiMessage.modelSynthesis) {
+      analysisItems.push({
+        id: 'model-synthesis',
+        title: 'Modellsyntes',
+        meta: 'Jämförelse mellan AI-modeller'
+      });
+    }
 
     if (analysisItems.length > 0) {
       sections.push({
@@ -635,9 +628,19 @@ export default function HomePage({ onAiMessageUpdate }) {
                   </div>
                 )}
                 
-                {message.type === 'ai' && activeSection && (
-                  <div id={`section-${activeSection}`}>
-                    {renderContent(message, activeSection)}
+                {message.type === 'ai' && (
+                  <div className="space-y-6">
+                    {/* Always show BERT summary first */}
+                    <div id="section-bert-summary">
+                      {renderContent(message, 'bert-summary')}
+                    </div>
+                    
+                    {/* Always show Model synthesis second if available */}
+                    {message.modelSynthesis && (
+                      <div id="section-model-synthesis">
+                        {renderContent(message, 'model-synthesis')}
+                      </div>
+                    )}
                   </div>
                 )}
                 
