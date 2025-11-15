@@ -140,7 +140,7 @@ export default function TimelineNavigator({
                       key={item.id}
                       onClick={() => onSectionChange(item.id)}
                       className={`
-                        w-full bg-civic-dark-800 border rounded-lg p-3 text-left transition-all relative
+                        w-full bg-civic-dark-800 border rounded-lg p-2.5 text-left transition-all relative
                         ${isActive 
                           ? 'bg-civic-dark-750 border-civic-dark-500 translate-x-1' 
                           : 'border-civic-dark-700 hover:bg-civic-dark-750 hover:border-civic-dark-600 hover:translate-x-1'
@@ -153,8 +153,8 @@ export default function TimelineNavigator({
                         ${isActive ? 'bg-gradient-to-b from-civic-gray-400 to-civic-gray-600' : 'bg-transparent'}
                       `}></div>
 
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-base">{getIcon(item.title)}</span>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm">{getIcon(item.title)}</span>
                         <div className={`
                           w-1.5 h-1.5 rounded-full transition-all
                           ${isActive 
@@ -164,14 +164,14 @@ export default function TimelineNavigator({
                         `}></div>
                       </div>
 
-                      <div className={`text-[13px] font-medium mb-1 transition-colors ${
+                      <div className={`text-[12px] font-medium mb-0.5 transition-colors ${
                         isActive ? 'text-civic-gray-200' : 'text-civic-gray-300'
                       }`}>
                         {item.title}
                       </div>
 
                       {item.meta && (
-                        <div className="text-[11px] text-civic-gray-600">
+                        <div className="text-[10px] text-civic-gray-600">
                           {item.meta}
                         </div>
                       )}

@@ -5,6 +5,7 @@ import QuestionInput from '../components/QuestionInput';
 import ModelDivergencePanel from '../components/ModelDivergencePanel';
 import ModelPerspectiveCard from '../components/ModelPerspectiveCard';
 import PipelineAnalysisPanel from '../components/PipelineAnalysisPanel';
+import { formatMarkdown } from '../utils/formatMarkdown';
 
 /**
  * HomePage Component
@@ -71,10 +72,13 @@ export default function HomePage({ onAiMessageUpdate }) {
   }, [activeSection]);
 
   const scrollToSection = (sectionId) => {
-    const element = document.getElementById(`section-${sectionId}`);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    // Use setTimeout to ensure the section is rendered before scrolling
+    setTimeout(() => {
+      const element = document.getElementById(`section-${sectionId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
   };
 
   const handleSectionChange = (sectionId) => {
@@ -525,9 +529,12 @@ export default function HomePage({ onAiMessageUpdate }) {
                 badge={{ text: response.metadata?.model || response.agent, icon: getAgentIcon(response.agent) }}
                 title={`${response.metadata?.model || response.agent} Svar`}
                 content={
-                  <div className="space-y-3">
-                    {response.response || response.content || 'Inget svar tillgängligt'}
-                  </div>
+                  <div 
+                    className="space-y-3 prose prose-invert max-w-none"
+                    dangerouslySetInnerHTML={{ 
+                      __html: formatMarkdown(response.response || response.content || 'Inget svar tillgängligt') 
+                    }}
+                  />
                 }
                 metadata={[
                   { label: 'Modell', value: response.metadata?.model || response.agent || 'N/A' },
