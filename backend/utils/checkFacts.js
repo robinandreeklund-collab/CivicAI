@@ -115,6 +115,12 @@ export function checkFacts(text) {
     verifiableClaims: uniqueClaims.slice(0, 5), // Limit to 5 most relevant
     recommendVerification: uniqueClaims.length > 2,
     summary: generateSummary(uniqueClaims),
+    provenance: {
+      model: 'Fact Checker',
+      version: '1.0.0',
+      method: 'Pattern-based claim detection',
+      timestamp: new Date().toISOString(),
+    },
   };
 }
 

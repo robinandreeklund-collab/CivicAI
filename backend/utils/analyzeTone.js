@@ -144,6 +144,12 @@ export function analyzeTone(text) {
       .slice(0, 3)
       .map(c => c.tone),
     wordCount,
+    provenance: {
+      model: 'Tone Analyzer',
+      version: '1.0.0',
+      method: 'Keyword-based semantic tone classification',
+      timestamp: new Date().toISOString(),
+    },
   };
 }
 

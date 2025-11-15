@@ -46,14 +46,27 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     const result = stepFunction(...args);
     const stepEndTime = Date.now();
     
+    // Extract provenance from nested structure
+    let provenance = result.provenance || {};
+    
+    // For composite results, try to find provenance in first-level nested objects
+    if (!provenance.model) {
+      const firstKey = Object.keys(result).find(key => 
+        result[key] && typeof result[key] === 'object' && result[key].provenance
+      );
+      if (firstKey) {
+        provenance = result[firstKey].provenance;
+      }
+    }
+    
     timeline.push({
       step: stepName,
       startTime: new Date(stepStartTime).toISOString(),
       endTime: new Date(stepEndTime).toISOString(),
       durationMs: stepEndTime - stepStartTime,
-      model: result.provenance?.model || result.metadata?.model || 'Unknown',
-      version: result.provenance?.version || result.metadata?.version || 'Unknown',
-      method: result.provenance?.method || result.metadata?.method || 'Unknown',
+      model: provenance.model || 'Unknown',
+      version: provenance.version || 'Unknown',
+      method: provenance.method || 'Unknown',
     });
     
     return result;
