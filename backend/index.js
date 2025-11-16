@@ -8,6 +8,7 @@ import policyQuestionsRouter from './api/policyQuestions.js';
 import exportRouter from './api/export.js';
 import analysisTransparencyRouter from './api/analysis_transparency.js';
 import analysisPipelineRouter from './api/analysis_pipeline.js';
+import debateRouter from './api/debate.js';
 import { logPythonServiceStatus } from './services/pythonNLPClient.js';
 
 const app = express();
@@ -15,7 +16,8 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Increased limit for debate initiation with full response data
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Routes
 app.use('/api', queryDispatcher);
@@ -25,6 +27,7 @@ app.use('/api/policy-questions', policyQuestionsRouter);
 app.use('/api/export', exportRouter);
 app.use('/api/analysis-transparency', analysisTransparencyRouter);
 app.use('/api/analysis-pipeline', analysisPipelineRouter);
+app.use('/api/debate', debateRouter);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

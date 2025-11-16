@@ -6,6 +6,7 @@ import ModelDivergencePanel from '../components/ModelDivergencePanel';
 import ModelPerspectiveCard from '../components/ModelPerspectiveCard';
 import PipelineAnalysisPanel from '../components/PipelineAnalysisPanel';
 import HighlightedText from '../components/HighlightedText';
+import ConsensusDebateCard from '../components/ConsensusDebateCard';
 import { formatMarkdown } from '../utils/formatMarkdown';
 
 /**
@@ -307,6 +308,15 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
       });
     }
 
+    // Add Consensus Debate - always show when model synthesis exists
+    if (aiMessage.modelSynthesis) {
+      analysisItems.push({
+        id: 'consensus-debate',
+        title: 'Konsensus Live Debatt',
+        meta: 'AI-agenter debatterar för konsensus'
+      });
+    }
+
     if (analysisItems.length > 0) {
       sections.push({
         title: 'Analyser',
@@ -568,6 +578,19 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
                   <h4 className="text-sm font-medium text-civic-gray-400 mb-3">Skillnader & Konsensus</h4>
                   <ModelDivergencePanel modelSynthesis={aiMessage.modelSynthesis} />
                 </div>
+
+                {/* Consensus Debate - Always show when model synthesis exists */}
+                {aiMessage.modelSynthesis && (
+                  <div>
+                    <h4 className="text-sm font-medium text-civic-gray-400 mb-3">Konsensus Live Debatt</h4>
+                    <ConsensusDebateCard
+                      questionId={aiMessage.question}
+                      question={aiMessage.question}
+                      modelSynthesis={aiMessage.modelSynthesis}
+                      responses={aiMessage.responses}
+                    />
+                  </div>
+                )}
               </div>
             }
             metadata={[
@@ -577,6 +600,37 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
               { label: 'Motsägelser', value: `${aiMessage.modelSynthesis.contradictions?.contradictionCount || 0} st` },
               { label: 'Gemensamma ämnen', value: `${aiMessage.modelSynthesis.insights?.consensusTopics?.length || 0} st` },
               { label: 'Tidsstämpel', value: aiMessage.modelSynthesis.metadata?.synthesizedAt ? new Date(aiMessage.modelSynthesis.metadata.synthesizedAt).toLocaleTimeString('sv-SE') : 'N/A' }
+            ]}
+          />
+        ) : null;
+      }
+
+      case 'consensus-debate': {
+        return aiMessage.modelSynthesis ? (
+          <RichContentCard
+            badge={{ text: 'Konsensus Live Debatt', icon: '🎯', primary: true }}
+            title="AI-agenter debatterar för konsensus"
+            content={
+              <div className="space-y-4">
+                <p className="text-civic-gray-400">
+                  Starta en live-debatt där AI-agenter presenterar sina perspektiv, 
+                  svarar på varandras argument och röstar på det bästa svaret.
+                </p>
+                
+                <ConsensusDebateCard
+                  questionId={aiMessage.question}
+                  question={aiMessage.question}
+                  modelSynthesis={aiMessage.modelSynthesis}
+                  responses={aiMessage.responses}
+                />
+              </div>
+            }
+            metadata={[
+              { label: 'Konsensus', value: `${aiMessage.modelSynthesis.consensus?.overallConsensus || 0}%` },
+              { label: 'Skillnader', value: `${aiMessage.modelSynthesis.divergences?.divergenceCount || 0} st` },
+              { label: 'Tröskelvärde', value: '60% konsensus' },
+              { label: 'Max agenter', value: '5 st' },
+              { label: 'Max rundor', value: '5 rundor' },
             ]}
           />
         ) : null;

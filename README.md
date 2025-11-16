@@ -18,6 +18,13 @@ CivicAI är en öppen, transparent plattform för att jämföra och analysera hu
 - 🏷️ **Ämnesmodellering** - Identifierar dominerande teman och nyckelord
 - ✅ **Faktakontroll** - Markerar verifierbara påståenden som bör kontrolleras
 
+**Konsensus Live Debatt:** När AI-modeller visar hög divergens (konsensus < 60%), kan användaren starta en live-debatt där:
+- 🎯 **AI-agenter debatterar** - Max 5 agenter i max 5 live-följbara rundor baserat på RAW svar
+- 🗳️ **AI-agenter röstar** - Varje agent röstar på bästa svaret (får inte rösta på sig själv)
+- 🏆 **Vinnare utses** - Agent med flest röster vinner, med fullständig röstfördelning och motiveringar
+- 🔬 **Automatisk analys** - Vinnande svar analyseras automatiskt med komplett pipeline
+- 📊 **Timeline-integration** - Hela debatten visas steg-för-steg i timelinen med dedikerad vy
+
 **Full Transparens:** Varje analysresultat inkluderar provenance-data (vilken modell, version, metod) så att användaren alltid kan förstå hur slutsatser dragits.
 
 **Flexibel Export:** Exportera kompletta analyser och jämförelser till YAML, JSON, PDF eller README-format.
@@ -702,12 +709,22 @@ Exportera konversationer och jämförelser till:
 - ✅ Provenance tracking för varje datapoint
 - ✅ Audit trail logging
 
+**Konsensus & Debatt:**
+- ✅ Konsensus Live Debatt - Manuell start med knapp vid hög divergens
+- ✅ Multi-round AI-agent debatter (max 5 rundor, live-följbar)
+- ✅ Debatt baserad på RAW AI-svar utan analyser
+- ✅ AI-agent röstning utan självröstning
+- ✅ Vinnare-bestämning baserat på röster
+- ✅ Automatisk pipeline-analys av vinnande svar
+- ✅ Full timeline-integration med dedikerad vy
+
 **Dokumentation:**
 - ✅ Omfattande README (denna fil)
 - ✅ Python ML Integration Guide
 - ✅ Pipeline Visual Guide
 - ✅ Pipeline Integration Summary
 - ✅ Quick Start Guide
+- ✅ Consensus Debate Documentation
 
 ### 🚧 Pågående arbete
 
@@ -736,12 +753,13 @@ Exportera konversationer och jämförelser till:
 
 ## 🔬 Pipeline-detaljer
 
-För djupare teknisk information om pipelinen, se:
+För djupare teknisk information om pipelinen och andra funktioner, se:
 
 - **[PIPELINE_INTEGRATION_GUIDE.md](PIPELINE_INTEGRATION_GUIDE.md)** - Snabbguide för att komma igång
 - **[PYTHON_ML_INTEGRATION.md](PYTHON_ML_INTEGRATION.md)** - Teknisk guide för ML-integration
 - **[PIPELINE_VISUAL_GUIDE.md](PIPELINE_VISUAL_GUIDE.md)** - Arkitekturdiagram och dataflöde
 - **[PIPELINE_INTEGRATION_SUMMARY.md](PIPELINE_INTEGRATION_SUMMARY.md)** - Implementationsdetaljer
+- **[CONSENSUS_DEBATE_README.md](CONSENSUS_DEBATE_README.md)** - Konsensus Live Debatt funktionsbeskrivning
 
 ### Pipeline API-endpoints
 
@@ -765,6 +783,41 @@ GET http://localhost:5001/health
 POST http://localhost:5001/preprocess
 POST http://localhost:5001/detect-toxicity
 POST http://localhost:5001/topic-modeling
+```
+
+### Consensus Debate API-endpoints
+
+```bash
+# Kontrollera om debatt ska triggas
+POST /api/debate/check-trigger
+{
+  "modelSynthesis": { /* synthesis result */ }
+}
+
+# Starta ny debatt
+POST /api/debate/initiate
+{
+  "questionId": "unique-question-id",
+  "question": "Frågan som debatteras",
+  "agents": ["gpt-3.5", "gemini", "deepseek"],
+  "initialResponses": [ /* array of responses */ ],
+  "modelSynthesis": { /* synthesis result */ }
+}
+
+# Genomför nästa debattrunda
+POST /api/debate/:debateId/round
+
+# Genomför AI-röstning
+POST /api/debate/:debateId/vote
+
+# Hämta debatt
+GET /api/debate/:debateId
+
+# Hämta alla debatter (eller filtrera per fråga)
+GET /api/debate?questionId=xxx
+
+# Hämta debatt-konfiguration
+GET /api/debate/config
 ```
 
 ---

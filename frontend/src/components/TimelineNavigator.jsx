@@ -44,6 +44,8 @@ export default function TimelineNavigator({
     'GPT Metagranskning': '🔍',
     'Tavily Faktakoll': '✓',
     'BERT Summering': '📋',
+    'Modellsyntes': '🔬',
+    'Konsensus Live Debatt': '🎯',
     // Python ML Pipeline Steps
     'spacy_preprocessing': '🔬',
     'textblob_subjectivity': '💭',

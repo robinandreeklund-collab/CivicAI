@@ -3,7 +3,6 @@ import { getOpenAIResponse } from '../services/openai.js';
 import { getGeminiResponse } from '../services/gemini.js';
 import { getDeepSeekResponse } from '../services/deepseek.js';
 import { getGrokResponse } from '../services/grok.js';
-import { getQwenResponse } from '../services/qwen.js';
 import { analyzeTone, getToneDescription } from '../utils/analyzeTone.js';
 import { detectBias } from '../utils/detectBias.js';
 import { checkFacts } from '../utils/checkFacts.js';
@@ -18,6 +17,7 @@ import { batchFactCheck, compareFactChecks } from '../services/factChecker.js';
 import { performCompleteEnhancedAnalysis } from '../utils/nlpProcessors.js';
 import { synthesizeModelResponses } from '../services/modelSynthesis.js';
 import { executeAnalysisPipeline } from '../services/analysisPipeline.js';
+import { shouldTriggerDebate } from '../services/consensusDebate.js';
 
 const router = express.Router();
 
@@ -52,12 +52,11 @@ router.post('/query', async (req, res) => {
     });
 
     // Call all AI services in parallel
-    const [gptResponse, geminiResponse, deepseekResponse, grokResponse, qwenResponse] = await Promise.allSettled([
+    const [gptResponse, geminiResponse, deepseekResponse, grokResponse] = await Promise.allSettled([
       getOpenAIResponse(question),
       getGeminiResponse(question),
       getDeepSeekResponse(question),
       getGrokResponse(question),
-      getQwenResponse(question),
     ]);
 
     // Process responses
@@ -248,52 +247,6 @@ router.post('/query', async (req, res) => {
       });
     }
 
-    if (qwenResponse.status === 'fulfilled') {
-      const responseText = qwenResponse.value.response;
-      const toneAnalysis = analyzeTone(responseText);
-      const biasAnalysis = detectBias(responseText, question);
-      const factCheck = checkFacts(responseText);
-      const metaAnalysis = performCompleteMetaAnalysis(responseText, question);
-      const enhancedAnalysis = performCompleteEnhancedAnalysis(responseText, question, startTime);
-      
-      // Complete analysis pipeline
-      console.log('🔬 Running complete analysis pipeline for Qwen...');
-      const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
-
-      responses.push({
-        agent: 'qwen',
-        response: responseText,
-        metadata: {
-          model: qwenResponse.value.model,
-          timestamp: new Date().toISOString(),
-        },
-        analysis: {
-          tone: {
-            primary: toneAnalysis.primary,
-            description: getToneDescription(toneAnalysis.primary),
-            confidence: toneAnalysis.confidence,
-            characteristics: toneAnalysis.characteristics,
-          },
-          bias: biasAnalysis,
-          factCheck: factCheck,
-        },
-        metaAnalysis: metaAnalysis,
-        metaSummary: generateMetaAnalysisSummary(metaAnalysis),
-        enhancedAnalysis: enhancedAnalysis,
-        pipelineAnalysis: pipelineAnalysis,
-      });
-    } else {
-      console.error('Qwen error:', qwenResponse.reason);
-      responses.push({
-        agent: 'qwen',
-        response: 'Fel: Kunde inte hämta svar från Qwen. Kontrollera API-nyckeln.',
-        metadata: {
-          error: true,
-          timestamp: new Date().toISOString(),
-        },
-      });
-    }
-
     // Perform GPT-3.5 meta-review of all responses
     const gptMetaReview = await performGPTMetaReview(responses, question);
 
@@ -317,6 +270,10 @@ router.post('/query', async (req, res) => {
     console.log('🔬 Synthesizing multi-model analysis...');
     const modelSynthesis = synthesizeModelResponses(responses);
 
+    // Check if consensus debate should be triggered
+    const debateTrigger = shouldTriggerDebate(modelSynthesis);
+    console.log('🎯 Debate trigger check:', debateTrigger ? 'YES - High divergence detected' : 'NO - Consensus acceptable');
+
     res.json({
       question,
       responses,
@@ -327,6 +284,7 @@ router.post('/query', async (req, res) => {
       metaReview: gptMetaReview,
       factCheckComparison: factCheckComparison,
       modelSynthesis: modelSynthesis,
+      debateTrigger: debateTrigger,
       timestamp: new Date().toISOString(),
     });
 
