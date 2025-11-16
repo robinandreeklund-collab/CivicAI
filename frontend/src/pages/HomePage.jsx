@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import TimelineNavigator from '../components/TimelineNavigator';
 import RichContentCard from '../components/RichContentCard';
 import QuestionInput from '../components/QuestionInput';
@@ -20,6 +21,20 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
   const [activeSection, setActiveSection] = useState(null);
   const [exploredSections, setExploredSections] = useState(new Set());
   const chatEndRef = useRef(null);
+  const location = useLocation();
+
+  // Handle initial question from landing page
+  useEffect(() => {
+    if (location.state?.initialQuestion) {
+      setQuestion(location.state.initialQuestion);
+      // Auto-submit the question
+      setTimeout(() => {
+        handleSubmitQuestion(location.state.initialQuestion);
+      }, 100);
+      // Clear the state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   // Reset messages when conversationId changes (new conversation)
   useEffect(() => {
@@ -711,7 +726,7 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
   };
 
   return (
-    <div className="flex h-screen" style={{ background: '#1a1a1a' }}>
+    <div className="flex h-screen" style={{ background: '#0a0a0a' }}>
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
         {/* Messages Area */}
