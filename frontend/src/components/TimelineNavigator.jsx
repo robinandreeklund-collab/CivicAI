@@ -14,7 +14,7 @@ export default function TimelineNavigator({
   onServiceToggle
 }) {
   const [expandedGroups, setExpandedGroups] = useState({
-    processing: true,
+    processing: true,  // Expanded by default to show all processing steps including Python ML pipeline
     aiResponses: true,
     analysis: true,
     aiServices: false
@@ -44,6 +44,20 @@ export default function TimelineNavigator({
     'GPT Metagranskning': '🔍',
     'Tavily Faktakoll': '✓',
     'BERT Summering': '📋',
+    // Python ML Pipeline Steps
+    'spacy_preprocessing': '🔬',
+    'textblob_subjectivity': '💭',
+    'langdetect_language': '🌍',
+    'detoxify_toxicity': '🛡️',
+    'swedish_bert_ideology': '🇸🇪',
+    'preprocessing_javascript': '⚙️',
+    'bias_detection_javascript': '⚖️',
+    'sentiment_analysis_javascript': '😊',
+    'ideology_classification_javascript': '🏛️',
+    'tone_analysis_javascript': '🎵',
+    'fact_checking_javascript': '✓',
+    'enhanced_nlp_javascript': '🧠',
+    'sentence_bias_analysis': '📊',
   };
 
   const getIcon = (title) => {

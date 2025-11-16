@@ -6,10 +6,12 @@
  * - Pipeline timeline visualization
  * - Multi-dimensional analysis results
  * - Analysis transparency and audit trail
+ * - Pipeline configuration and metadata
  */
 
 import express from 'express';
 import { executeAnalysisPipeline, executeBatchAnalysisPipeline } from '../services/analysisPipeline.js';
+import { PIPELINE_CONFIG, getPipelineStepsInOrder } from '../config/pipelineConfig.js';
 
 const router = express.Router();
 
@@ -157,6 +159,48 @@ router.get('/info', (req, res) => {
       provenance: 'Every datapoint includes model, version, method, and timestamp',
       auditTrail: 'Complete audit trail of all processing steps',
     },
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
+ * GET /api/analysis-pipeline/config
+ * Get complete pipeline configuration including tool mappings
+ */
+router.get('/config', (req, res) => {
+  res.json({
+    success: true,
+    config: {
+      version: PIPELINE_CONFIG.version,
+      description: PIPELINE_CONFIG.description,
+      workflow: PIPELINE_CONFIG.workflow,
+      steps: getPipelineStepsInOrder(),
+      transparencyLayer: PIPELINE_CONFIG.transparency_layer,
+      integrationPoints: PIPELINE_CONFIG.integration_points,
+      dataVisibility: PIPELINE_CONFIG.data_visibility,
+      provenanceTracking: PIPELINE_CONFIG.provenance_tracking,
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
+ * GET /api/analysis-pipeline/steps
+ * Get detailed information about pipeline steps and tools
+ */
+router.get('/steps', (req, res) => {
+  const steps = getPipelineStepsInOrder();
+  
+  res.json({
+    success: true,
+    steps: steps.map(step => ({
+      name: step.name,
+      description: step.description,
+      order: step.order,
+      tools: step.tools,
+      outputs: step.outputs,
+    })),
+    totalSteps: steps.length,
     timestamp: new Date().toISOString(),
   });
 });

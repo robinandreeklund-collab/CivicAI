@@ -1,6 +1,51 @@
-# BERT Extractive Summarizer
+# BERT Extractive Summarizer (existing)
 bert-extractive-summarizer==0.10.1
 
-# Required dependencies
-transformers>=4.0.0
-torch>=1.7.0
+# Core NLP Libraries
+spacy==3.7.2
+textblob==0.17.1
+
+# Language Detection (Windows-compatible alternative to Polyglot)
+langdetect==1.0.9
+
+# Toxicity and Bias Detection
+detoxify==0.5.2
+
+# Transformer Models
+transformers==4.36.2
+torch==2.1.2
+sentencepiece==0.1.99
+
+# Explainability
+shap==0.44.0
+
+# Topic Modeling (Gensim LDA - Windows-compatible, no compilation required)
+gensim==4.3.2
+
+# Utilities
+numpy==1.24.3
+scikit-learn==1.3.2
+pandas==2.1.4
+
+# API Service
+flask==3.0.0
+flask-cors==4.0.0
+
+# ========================================
+# OPTIONAL COMPONENTS (Not Required for Core Functionality)
+# ========================================
+# 
+# Advanced Topic Modeling with BERTopic (Linux/macOS or Windows with C++ Build Tools):
+# Uncomment and install only if you have Microsoft C++ Build Tools installed on Windows
+# 
+# sentence-transformers==2.2.2
+# hdbscan==0.8.33
+# umap-learn==0.5.5
+# bertopic==0.16.0
+#
+# Installation on Windows (advanced users only):
+# 1. Install Microsoft C++ Build Tools from https://visualstudio.microsoft.com/downloads/
+# 2. pip install hdbscan umap-learn
+# 3. pip install sentence-transformers bertopic
+#
+# Note: Gensim LDA provides excellent topic modeling without these dependencies

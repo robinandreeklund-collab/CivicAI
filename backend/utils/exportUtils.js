@@ -53,6 +53,38 @@ export function generateReadme(data) {
       readme += `\n`;
     }
     
+    // Add pipeline analysis summary if available
+    if (resp.pipelineAnalysis) {
+      readme += `**Pipeline-analys:**\n`;
+      
+      if (resp.pipelineAnalysis.summary) {
+        readme += `- ${resp.pipelineAnalysis.summary.text}\n`;
+      }
+      
+      if (resp.pipelineAnalysis.insights) {
+        const insights = resp.pipelineAnalysis.insights;
+        
+        if (insights.qualityIndicators) {
+          readme += `- **Kvalitet:** Objektivitet ${Math.round(insights.qualityIndicators.objectivity * 100)}%, `;
+          readme += `Klarhet ${Math.round(insights.qualityIndicators.clarity * 100)}%\n`;
+        }
+        
+        if (insights.riskFlags) {
+          const risks = [];
+          if (insights.riskFlags.highBias) risks.push('hög bias');
+          if (insights.riskFlags.highSubjectivity) risks.push('hög subjektivitet');
+          if (insights.riskFlags.hasAggression) risks.push('aggression');
+          if (insights.riskFlags.manyUnverifiedClaims) risks.push('många overifierade påståenden');
+          
+          if (risks.length > 0) {
+            readme += `- **Riskflaggor:** ${risks.join(', ')}\n`;
+          }
+        }
+      }
+      
+      readme += `\n`;
+    }
+    
     readme += `---\n\n`;
   });
   
