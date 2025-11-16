@@ -21,6 +21,11 @@ if (Test-Path "venv") {
     Remove-Item -Recurse -Force venv
 }
 python -m venv venv
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: Failed to create virtual environment." -ForegroundColor Red
+    Write-Host "Make sure Python is installed correctly and added to PATH." -ForegroundColor Yellow
+    exit 1
+}
 Write-Host "Virtual environment created" -ForegroundColor Green
 Write-Host ""
 
@@ -42,6 +47,7 @@ Write-Host ""
 
 # Install core dependencies
 Write-Host "Installing core Python dependencies..." -ForegroundColor Yellow
+Write-Host "NOTE: This may take several minutes as PyTorch and other packages are large..." -ForegroundColor Yellow
 pip install -r requirements.txt
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Failed to install some dependencies" -ForegroundColor Red
@@ -74,8 +80,9 @@ Write-Host "NOTE: BERTopic is optional and may not work on Windows due to compil
 Write-Host "The system will use Gensim LDA for topic modeling instead." -ForegroundColor Yellow
 Write-Host ""
 Write-Host "=== Next Steps ===" -ForegroundColor Cyan
-Write-Host "1. Start Python service: python nlp_pipeline.py" -ForegroundColor White
-Write-Host "2. Open new terminal for backend: cd ..\.. && npm start" -ForegroundColor White
-Write-Host "3. Open new terminal for frontend: cd ..\..\frontend && npm run dev" -ForegroundColor White
+Write-Host "1. Ensure virtual environment is active: .\venv\Scripts\Activate.ps1" -ForegroundColor White
+Write-Host "2. Start Python service: python nlp_pipeline.py" -ForegroundColor White
+Write-Host "3. Open new terminal for backend: cd ..\.. && npm start" -ForegroundColor White
+Write-Host "4. Open new terminal for frontend: cd ..\..\frontend && npm run dev" -ForegroundColor White
 Write-Host ""
 Write-Host "Installation complete! 🎉" -ForegroundColor Green
