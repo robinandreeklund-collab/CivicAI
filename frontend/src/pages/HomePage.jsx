@@ -237,7 +237,7 @@ export default function HomePage({ onAiMessageUpdate }) {
     }
 
     sections.push({
-      title: `Processering (${processingItems.length})`,
+      title: 'Processering',
       group: 'processing',
       items: processingItems
     });
@@ -560,7 +560,10 @@ export default function HomePage({ onAiMessageUpdate }) {
       default:
         // Pipeline step details
         if (sectionId.startsWith('pipeline-')) {
-          const stepId = sectionId.replace('pipeline-', '');
+          // Extract step name from ID format: pipeline-{stepName}-{index}
+          const match = sectionId.match(/^pipeline-(.+)-\d+$/);
+          const stepId = match ? match[1] : sectionId.replace('pipeline-', '').split('-').slice(0, -1).join('-');
+          
           // Find the response with pipeline analysis
           const responseWithPipeline = aiMessage.responses?.find(r => r.pipelineAnalysis?.timeline);
           const stepData = responseWithPipeline?.pipelineAnalysis?.timeline?.find(s => s.step === stepId);
@@ -773,6 +776,13 @@ export default function HomePage({ onAiMessageUpdate }) {
                     
                     {/* Render analysis sections when selected */}
                     {activeSection && ['tone-analysis', 'bias-detection', 'meta-review', 'fact-check'].includes(activeSection) && (
+                      <div id={`section-${activeSection}`} className="mt-6">
+                        {renderContent(message, activeSection)}
+                      </div>
+                    )}
+                    
+                    {/* Render pipeline sections when selected */}
+                    {activeSection && activeSection.startsWith('pipeline-') && (
                       <div id={`section-${activeSection}`} className="mt-6">
                         {renderContent(message, activeSection)}
                       </div>
