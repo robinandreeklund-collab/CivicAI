@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneSeek.AI - Variation 4: Split Panel</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            height: 100vh;
+        }
+        .sidebar {
+            background: #0f0f0f;
+            border-right: 1px solid #151515;
+            overflow-y: auto;
+            padding: 30px 20px;
+        }
+        .header-text {
+            font-size: 18px;
+            font-weight: 300;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #151515;
+        }
+        .list-item {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .list-item:hover {
+            background: #1a1a1a;
+            border-color: #2a2a2a;
+        }
+        .list-item.active {
+            background: #1f1f1f;
+            border-color: #2a2a2a;
+        }
+        .item-title {
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        .item-meta {
+            font-size: 11px;
+            color: #666;
+        }
+        .detail-panel {
+            padding: 40px;
+            overflow-y: auto;
+        }
+        .detail-card {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 30px;
+        }
+        .detail-badge {
+            background: #2a2a2a;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            display: inline-block;
+            margin-bottom: 16px;
+        }
+        .detail-title {
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+        .detail-content {
+            font-size: 15px;
+            line-height: 1.8;
+            color: #b3b3b3;
+        }
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid #1a1a1a;
+        }
+        .meta-item {
+            text-align: center;
+        }
+        .meta-label {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 6px;
+        }
+        .meta-value {
+            font-size: 18px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar with List -->
+        <div class="sidebar">
+            <div class="header-text">Hur kan AI bidra till mer transparenta beslutsprocesser?</div>
+            
+            <div class="list-item active" onclick="showDetail('bert')">
+                <div class="item-title">📊 BERT-sammanfattning</div>
+                <div class="item-meta">Extraerande • Klar</div>
+            </div>
+            
+            <div class="list-item" onclick="showDetail('synthesis')">
+                <div class="item-title">🔬 Modellsyntes</div>
+                <div class="item-meta">Jämförande • Klar</div>
+            </div>
+            
+            <div class="list-item" onclick="showDetail('gpt')">
+                <div class="item-title">🤖 GPT-3.5 Turbo</div>
+                <div class="item-meta">Med pipeline-analys</div>
+            </div>
+            
+            <div class="list-item" onclick="showDetail('gemini')">
+                <div class="item-title">🤖 Gemini Pro</div>
+                <div class="item-meta">Med pipeline-analys</div>
+            </div>
+            
+            <div class="list-item" onclick="showDetail('deepseek')">
+                <div class="item-title">🤖 DeepSeek</div>
+                <div class="item-meta">Med pipeline-analys</div>
+            </div>
+            
+            <div class="list-item" onclick="showDetail('grok')">
+                <div class="item-title">🤖 Grok</div>
+                <div class="item-meta">Med pipeline-analys</div>
+            </div>
+            
+            <div class="list-item" onclick="showDetail('qwen')">
+                <div class="item-title">🤖 Qwen</div>
+                <div class="item-meta">Med pipeline-analys</div>
+            </div>
+            
+            <div class="list-item" onclick="showDetail('facts')">
+                <div class="item-title">✓ Faktakoll</div>
+                <div class="item-meta">Tavily API</div>
+            </div>
+            
+            <div class="list-item" onclick="showDetail('bias')">
+                <div class="item-title">⚖️ Bias-detektion</div>
+                <div class="item-meta">Automatisk</div>
+            </div>
+        </div>
+
+        <!-- Detail Panel -->
+        <div class="detail-panel">
+            <div class="detail-card">
+                <span class="detail-badge">📊 BERT-SAMMANFATTNING</span>
+                <div class="detail-title">Extraerande sammanfattning</div>
+                <div class="detail-content">
+                    <p>AI kan bidra till mer transparenta beslutsprocesser genom att automatisera informationsinsamling, analysera stora datamängder objektivt och visualisera komplexa beslutskriterier. Genom maskininlärning kan beslutsunderlag kvalitetssäkras och potentiella bias identifieras.</p>
+                    <p style="margin-top: 16px;">Tekniken möjliggör även spårbarhet där varje steg i beslutsprocessen dokumenteras automatiskt, vilket ökar ansvarsutkrävandet och minskar risken för godtyckliga beslut.</p>
+                </div>
+                <div class="meta-grid">
+                    <div class="meta-item">
+                        <div class="meta-label">Metod</div>
+                        <div class="meta-value">BERT</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Extraktivitet</div>
+                        <div class="meta-value">Hög</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Tillförlitlighet</div>
+                        <div class="meta-value">94%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showDetail(type) {
+            // Update active state
+            document.querySelectorAll('.list-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+            
+            // In a real implementation, this would load different content
+            console.log('Showing detail for:', type);
+        }
+    </script>
+</body>
+</html>
