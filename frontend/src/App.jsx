@@ -84,7 +84,15 @@ function AppContent() {
         `}
       >
         <Routes>
-          <Route path="/" element={<HomePage onAiMessageUpdate={handleAiMessageUpdate} />} />
+          <Route 
+            path="/" 
+            element={
+              <HomePage 
+                onAiMessageUpdate={handleAiMessageUpdate} 
+                conversationId={currentConversationId}
+              />
+            } 
+          />
           <Route path="/policy-questions" element={<PolicyQuestionBankPage />} />
           <Route path="/audit-trail" element={<AuditTrailPage />} />
         </Routes>

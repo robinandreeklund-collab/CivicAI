@@ -67,10 +67,25 @@ export default function BiasIndicator({ biasAnalysis }) {
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="font-medium mb-1">{bias.description}</div>
-                  <div className="text-xs opacity-80 capitalize">
+                  <div className="text-xs opacity-80 capitalize mb-2">
                     Typ: {bias.type} | Svårighetsgrad: {bias.severity}
                     {bias.direction && ` | Riktning: ${bias.direction}`}
                   </div>
+                  {bias.words && bias.words.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-civic-dark-700/50">
+                      <div className="text-xs opacity-70 mb-1">Identifierade ord:</div>
+                      <div className="flex flex-wrap gap-1">
+                        {bias.words.map((word, wordIdx) => (
+                          <span 
+                            key={wordIdx}
+                            className="px-2 py-0.5 bg-civic-dark-900/50 rounded text-xs border border-civic-dark-700"
+                          >
+                            {word}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
