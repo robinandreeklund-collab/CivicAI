@@ -22,7 +22,26 @@ export default function ConsensusDebateCard({
   const [winningAnalysis, setWinningAnalysis] = useState(null);
   const [error, setError] = useState(null);
 
-  // Manual initiation only - no auto-start
+  // Auto-progress through rounds after debate starts
+  useEffect(() => {
+    if (debate && debate.status === 'initiated' && !isRunningRound && debate.currentRound < 5) {
+      // Auto-run next round after a brief delay for smooth UX
+      const timer = setTimeout(() => {
+        runNextRound();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [debate, isRunningRound]);
+
+  // Auto-trigger voting when max rounds reached
+  useEffect(() => {
+    if (debate && debate.status === 'voting' && !isVoting && !debate.winner) {
+      const timer = setTimeout(() => {
+        startVoting();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [debate, isVoting]);
 
   const initiateDebate = async () => {
     setIsInitiating(true);
@@ -230,9 +249,9 @@ export default function ConsensusDebateCard({
     const shouldRecommend = consensus < 60;
     
     return (
-      <div className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 rounded-lg border border-purple-500/30 p-6">
+      <div className="bg-civic-dark-900/30 rounded-lg border border-civic-dark-700 p-6">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+          <div className="w-2 h-2 bg-civic-gray-500 rounded-full"></div>
           <h3 className="text-lg font-semibold text-civic-gray-100">
             Konsensus Live Debatt
           </h3>
@@ -240,15 +259,15 @@ export default function ConsensusDebateCard({
         
         {/* Recommendation banner when consensus is low */}
         {shouldRecommend && (
-          <div className="mb-4 bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-3 flex items-start gap-3">
-            <svg className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          <div className="mb-4 bg-civic-dark-800/50 border border-civic-dark-600 rounded-lg p-3 flex items-start gap-3">
+            <svg className="w-5 h-5 text-civic-gray-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div>
-              <div className="text-sm font-medium text-yellow-300 mb-1">
+              <div className="text-sm font-medium text-civic-gray-300 mb-1">
                 Live debatt rekommenderas för att hitta konsensus
               </div>
-              <div className="text-xs text-yellow-400/80">
+              <div className="text-xs text-civic-gray-500">
                 Låg konsensus ({consensus}%) detekterad mellan AI-modellernas svar. En debatt kan hjälpa till att klargöra skillnader och nå bättre överensstämmelse.
               </div>
             </div>
@@ -265,7 +284,7 @@ export default function ConsensusDebateCard({
             <div className="grid grid-cols-2 gap-4 text-xs">
               <div>
                 <div className="text-civic-gray-500 mb-1">Konsensus:</div>
-                <div className={`font-medium ${shouldRecommend ? 'text-yellow-400' : 'text-civic-gray-200'}`}>
+                <div className={`font-medium ${shouldRecommend ? 'text-civic-gray-300' : 'text-civic-gray-200'}`}>
                   {consensus}%
                 </div>
               </div>
@@ -287,12 +306,12 @@ export default function ConsensusDebateCard({
           <button
             onClick={initiateDebate}
             disabled={isInitiating}
-            className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-900/50 text-white rounded-lg transition-colors font-medium text-sm flex items-center gap-2 mx-auto"
+            className="px-6 py-3 bg-civic-dark-700 hover:bg-civic-dark-600 disabled:bg-civic-dark-800 text-civic-gray-100 rounded-lg transition-colors font-medium text-sm flex items-center gap-2 mx-auto border border-civic-dark-600 hover:border-civic-dark-500"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
-            <span>Starta Live Debatt</span>
+            <span>Starta Konsensus Live Debatt</span>
           </button>
         </div>
       </div>
@@ -300,25 +319,27 @@ export default function ConsensusDebateCard({
   }
 
   return (
-    <div className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 rounded-lg border border-purple-500/30 p-6 space-y-6">
+    <div className="bg-civic-dark-900/30 rounded-lg border border-civic-dark-700 p-6 space-y-4">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
+          <div className="w-2 h-2 bg-civic-gray-500 rounded-full animate-pulse"></div>
           <div>
             <h3 className="text-lg font-semibold text-civic-gray-100">
               Konsensus Live Debatt
             </h3>
             <p className="text-xs text-civic-gray-500 mt-1">
-              Hög divergens detekterad - AI-agenter debatterar för att nå konsensus
+              {debate.status === 'initiated' && 'Pågående debatt...'}
+              {debate.status === 'voting' && 'Röstning pågår...'}
+              {debate.status === 'completed' && 'Debatt avslutad'}
             </p>
           </div>
         </div>
         <div className="flex flex-col items-end gap-1">
-          <div className="px-2.5 py-1 bg-purple-500/20 text-purple-300 rounded text-xs font-medium capitalize">
-            {debate.status === 'initiated' && 'Initierad'}
+          <div className="px-2.5 py-1 bg-civic-dark-800/50 text-civic-gray-400 rounded text-xs font-medium border border-civic-dark-600">
+            {debate.status === 'initiated' && 'Pågår'}
             {debate.status === 'voting' && 'Röstning'}
-            {debate.status === 'completed' && 'Avslutad'}
+            {debate.status === 'completed' && 'Klar'}
           </div>
           <div className="text-xs text-civic-gray-500">
             Runda {debate.currentRound} / 5
@@ -327,13 +348,13 @@ export default function ConsensusDebateCard({
       </div>
 
       {/* Participants */}
-      <div className="bg-civic-dark-900/50 rounded-lg border border-civic-dark-700 p-4">
-        <h4 className="text-sm font-medium text-civic-gray-300 mb-3">Deltagare</h4>
+      <div className="bg-civic-dark-900/50 rounded-lg border border-civic-dark-700 p-3">
+        <h4 className="text-xs font-medium text-civic-gray-400 mb-2">Deltagare</h4>
         <div className="flex flex-wrap gap-2">
           {debate.participants.map((agent, idx) => (
             <span 
               key={idx}
-              className="px-3 py-1.5 bg-civic-dark-800/50 text-civic-gray-300 rounded-full text-xs font-medium border border-civic-dark-600"
+              className="px-2 py-1 bg-civic-dark-800/50 text-civic-gray-300 rounded text-xs font-medium border border-civic-dark-600"
             >
               {agent}
             </span>
@@ -341,40 +362,29 @@ export default function ConsensusDebateCard({
         </div>
       </div>
 
-      {/* Divergences Summary */}
-      <div className="bg-civic-dark-900/50 rounded-lg border border-civic-dark-700 p-4">
-        <h4 className="text-sm font-medium text-civic-gray-300 mb-3">Identifierade Skillnader</h4>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-civic-gray-400">Konsensus:</span>
-            <span className="font-medium text-civic-gray-200">{debate.consensus.overallConsensus}%</span>
-          </div>
-          {debate.divergences.severityCounts && (
-            <div className="flex gap-4 text-xs">
-              <div className="flex items-center gap-1">
-                <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-                <span className="text-civic-gray-400">Hög: {debate.divergences.severityCounts.high}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
-                <span className="text-civic-gray-400">Medel: {debate.divergences.severityCounts.medium}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                <span className="text-civic-gray-400">Låg: {debate.divergences.severityCounts.low}</span>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Debate Rounds */}
+      {/* Debate Rounds - with live chat animation */}
       {debate.rounds.length > 0 && (
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium text-civic-gray-300">Debattrundor</h4>
+        <div className="space-y-2">
+          <h4 className="text-xs font-medium text-civic-gray-400 mb-2">Debattrundor</h4>
           {debate.rounds.map((round, idx) => (
-            <DebateRoundDisplay key={idx} round={round} />
+            <DebateRoundDisplay key={idx} round={round} isLatest={idx === debate.rounds.length - 1} />
           ))}
+        </div>
+      )}
+
+      {/* Loading indicator when running round */}
+      {isRunningRound && (
+        <div className="flex items-center gap-2 text-xs text-civic-gray-500 py-2">
+          <div className="w-1.5 h-1.5 bg-civic-gray-500 rounded-full animate-pulse"></div>
+          <span>Agenter formulerar svar...</span>
+        </div>
+      )}
+
+      {/* Voting indicator */}
+      {isVoting && (
+        <div className="flex items-center gap-2 text-xs text-civic-gray-500 py-2">
+          <div className="w-1.5 h-1.5 bg-civic-gray-500 rounded-full animate-pulse"></div>
+          <span>Agenter röstar...</span>
         </div>
       )}
 
@@ -385,19 +395,19 @@ export default function ConsensusDebateCard({
 
       {/* Winning Answer Analysis */}
       {debate.status === 'completed' && (isAnalyzing || winningAnalysis) && (
-        <div className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 rounded-lg border border-blue-500/30 p-4 space-y-4">
-          <div className="flex items-center gap-2 mb-3">
-            <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="bg-civic-dark-900/50 rounded-lg border border-civic-dark-700 p-4 space-y-3">
+          <div className="flex items-center gap-2 mb-2">
+            <svg className="w-4 h-4 text-civic-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
             </svg>
             <h4 className="text-sm font-medium text-civic-gray-300">Analys av Vinnande Svar</h4>
           </div>
 
           {isAnalyzing ? (
-            <div className="flex items-center justify-center py-6">
+            <div className="flex items-center justify-center py-4">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto mb-3"></div>
-                <p className="text-xs text-civic-gray-400">Analyserar vinnande svar med komplett pipeline...</p>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-civic-gray-500 mx-auto mb-2"></div>
+                <p className="text-xs text-civic-gray-400">Analyserar vinnande svar...</p>
               </div>
             </div>
           ) : winningAnalysis && (
@@ -440,55 +450,6 @@ export default function ConsensusDebateCard({
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Action Buttons */}
-      {debate.status === 'initiated' && (
-        <div className="flex justify-center">
-          <button
-            onClick={runNextRound}
-            disabled={isRunningRound}
-            className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-900/50 text-white rounded-lg transition-colors font-medium text-sm flex items-center gap-2"
-          >
-            {isRunningRound ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                <span>Genomför runda {debate.currentRound + 1}...</span>
-              </>
-            ) : (
-              <>
-                <span>Kör nästa runda</span>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-              </>
-            )}
-          </button>
-        </div>
-      )}
-
-      {debate.status === 'voting' && !debate.winner && (
-        <div className="flex justify-center">
-          <button
-            onClick={startVoting}
-            disabled={isVoting}
-            className="px-6 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-green-900/50 text-white rounded-lg transition-colors font-medium text-sm flex items-center gap-2"
-          >
-            {isVoting ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                <span>Genomför röstning...</span>
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                </svg>
-                <span>Starta AI-röstning</span>
-              </>
-            )}
-          </button>
         </div>
       )}
     </div>
