@@ -18,6 +18,7 @@ import { getDeepSeekResponse } from './deepseek.js';
 import { getGrokResponse } from './grok.js';
 import { getQwenResponse } from './qwen.js';
 import { logAuditEvent, AuditEventType } from './auditTrail.js';
+import { executeAnalysisPipeline } from './analysisPipeline.js';
 
 // In-memory storage for debates (replace with database in production)
 const debates = new Map();
@@ -219,14 +220,12 @@ function buildDebateContext(debate) {
   context += `Initial Positions:\n`;
   debate.initialResponses.forEach(resp => {
     if (!resp.metadata?.error) {
+      // Use raw response only, no analysis
       context += `- ${resp.agent}: ${resp.response.substring(0, 200)}...\n`;
     }
   });
   
-  context += `\nIdentified Divergences:\n`;
-  debate.divergences.divergences?.forEach(div => {
-    context += `- ${div.type}: ${div.description}\n`;
-  });
+  // Remove divergence information - let agents debate based on raw responses only
   
   if (debate.rounds.length > 0) {
     context += `\nPrevious Debate Rounds:\n`;
@@ -470,4 +469,57 @@ export function getDebatesByQuestion(questionId) {
  */
 export function getDebateConfig() {
   return { ...DEBATE_CONFIG };
+}
+
+/**
+ * Get the winning answer from the last round and analyze it
+ * @param {string} debateId - The debate ID
+ * @returns {Promise<object>} Winning response with full analysis
+ */
+export async function analyzeWinningAnswer(debateId) {
+  const debate = debates.get(debateId);
+  
+  if (!debate) {
+    throw new Error('Debate not found');
+  }
+  
+  if (debate.status !== 'completed' || !debate.winner) {
+    throw new Error('Debate not completed or no winner determined');
+  }
+  
+  console.log(`🔬 Analyzing winning answer from ${debate.winner.agent}...`);
+  
+  // Find the winning agent's last response
+  const lastRound = debate.rounds[debate.rounds.length - 1];
+  const winningResponse = lastRound.responses.find(r => r.agent === debate.winner.agent);
+  
+  if (!winningResponse || winningResponse.error) {
+    throw new Error('Winning response not found or has error');
+  }
+  
+  // Run complete analysis pipeline on the winning answer
+  const pipelineAnalysis = await executeAnalysisPipeline(
+    winningResponse.response, 
+    debate.question, 
+    { includeEnhancedNLP: true }
+  );
+  
+  // Store analysis with the debate
+  debate.winningAnalysis = {
+    agent: debate.winner.agent,
+    response: winningResponse.response,
+    pipelineAnalysis: pipelineAnalysis,
+    analyzedAt: new Date().toISOString(),
+  };
+  
+  debates.set(debateId, debate);
+  
+  // Log audit event
+  logAuditEvent(AuditEventType.ANALYSIS_COMPLETED, {
+    eventType: 'debate_winner_analyzed',
+    debateId,
+    winningAgent: debate.winner.agent,
+  });
+  
+  return debate.winningAnalysis;
 }

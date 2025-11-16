@@ -18,14 +18,11 @@ export default function ConsensusDebateCard({
   const [isInitiating, setIsInitiating] = useState(false);
   const [isRunningRound, setIsRunningRound] = useState(false);
   const [isVoting, setIsVoting] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [winningAnalysis, setWinningAnalysis] = useState(null);
   const [error, setError] = useState(null);
 
-  // Auto-initiate debate if not already started
-  useEffect(() => {
-    if (!debate && !isInitiating && modelSynthesis) {
-      initiateDebate();
-    }
-  }, [modelSynthesis]);
+  // Manual initiation only - no auto-start
 
   const initiateDebate = async () => {
     setIsInitiating(true);
@@ -126,6 +123,9 @@ export default function ConsensusDebateCard({
       setDebate(updatedDebate);
       console.log('✅ Voting completed, winner:', updatedDebate.winner?.agent);
 
+      // Automatically trigger analysis of winning answer
+      setTimeout(() => analyzeWinner(updatedDebate.id), 1000);
+
       if (onDebateComplete) {
         onDebateComplete(updatedDebate);
       }
@@ -134,6 +134,33 @@ export default function ConsensusDebateCard({
       setError('Kunde inte genomföra röstning: ' + err.message);
     } finally {
       setIsVoting(false);
+    }
+  };
+
+  const analyzeWinner = async (debateId) => {
+    setIsAnalyzing(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/debate/${debateId}/analyze-winner`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze winning answer');
+      }
+
+      const analysis = await response.json();
+      setWinningAnalysis(analysis);
+      console.log('✅ Winning answer analyzed');
+    } catch (err) {
+      console.error('Error analyzing winning answer:', err);
+      setError('Kunde inte analysera vinnande svar: ' + err.message);
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -177,7 +204,56 @@ export default function ConsensusDebateCard({
   }
 
   if (!debate) {
-    return null;
+    // Show button to start debate manually
+    return (
+      <div className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 rounded-lg border border-purple-500/30 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+          <h3 className="text-lg font-semibold text-civic-gray-100">
+            Konsensus Live Debatt
+          </h3>
+        </div>
+        
+        <div className="text-center py-6">
+          <p className="text-sm text-civic-gray-400 mb-6">
+            Hög divergens detekterad mellan AI-modellernas svar. Starta en live-debatt där AI-agenter 
+            presenterar sina perspektiv, svarar på varandras argument och röstar på det bästa svaret.
+          </p>
+          
+          <div className="mb-6 bg-civic-dark-900/50 rounded-lg border border-civic-dark-700 p-4">
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <div className="text-civic-gray-500 mb-1">Konsensus:</div>
+                <div className="text-civic-gray-200 font-medium">{modelSynthesis.consensus?.overallConsensus || 0}%</div>
+              </div>
+              <div>
+                <div className="text-civic-gray-500 mb-1">Skillnader:</div>
+                <div className="text-civic-gray-200 font-medium">{modelSynthesis.divergences?.divergenceCount || 0} st</div>
+              </div>
+              <div>
+                <div className="text-civic-gray-500 mb-1">Max agenter:</div>
+                <div className="text-civic-gray-200 font-medium">5 st</div>
+              </div>
+              <div>
+                <div className="text-civic-gray-500 mb-1">Max rundor:</div>
+                <div className="text-civic-gray-200 font-medium">5 rundor</div>
+              </div>
+            </div>
+          </div>
+          
+          <button
+            onClick={initiateDebate}
+            disabled={isInitiating}
+            className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-900/50 text-white rounded-lg transition-colors font-medium text-sm flex items-center gap-2 mx-auto"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            <span>Starta Live Debatt</span>
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -262,6 +338,66 @@ export default function ConsensusDebateCard({
       {/* Voting Panel */}
       {debate.status === 'completed' && debate.winner && (
         <DebateVotingPanel votes={debate.votes} winner={debate.winner} />
+      )}
+
+      {/* Winning Answer Analysis */}
+      {debate.status === 'completed' && (isAnalyzing || winningAnalysis) && (
+        <div className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 rounded-lg border border-blue-500/30 p-4 space-y-4">
+          <div className="flex items-center gap-2 mb-3">
+            <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+            <h4 className="text-sm font-medium text-civic-gray-300">Analys av Vinnande Svar</h4>
+          </div>
+
+          {isAnalyzing ? (
+            <div className="flex items-center justify-center py-6">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500 mx-auto mb-3"></div>
+                <p className="text-xs text-civic-gray-400">Analyserar vinnande svar med komplett pipeline...</p>
+              </div>
+            </div>
+          ) : winningAnalysis && (
+            <div className="space-y-3">
+              <div className="bg-civic-dark-900/50 rounded-lg border border-civic-dark-700 p-3">
+                <div className="text-xs text-civic-gray-500 mb-2">Agent:</div>
+                <div className="text-sm font-medium text-civic-gray-200">{winningAnalysis.agent}</div>
+              </div>
+
+              <div className="bg-civic-dark-900/50 rounded-lg border border-civic-dark-700 p-3">
+                <div className="text-xs text-civic-gray-500 mb-2">Svar:</div>
+                <div className="text-sm text-civic-gray-300 leading-relaxed">{winningAnalysis.response}</div>
+              </div>
+
+              {winningAnalysis.pipelineAnalysis && (
+                <div className="bg-civic-dark-900/50 rounded-lg border border-civic-dark-700 p-3">
+                  <div className="text-xs text-civic-gray-500 mb-3">Pipeline-analys:</div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-civic-gray-400">Steg:</span>
+                      <span className="text-civic-gray-200">{winningAnalysis.pipelineAnalysis.timeline?.length || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-civic-gray-400">Total tid:</span>
+                      <span className="text-civic-gray-200">
+                        {winningAnalysis.pipelineAnalysis.timeline?.reduce((sum, step) => sum + (step.durationMs || 0), 0) || 0}ms
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-civic-dark-700">
+                    <div className="text-xs text-civic-gray-500">
+                      ✅ Komplett analys genomförd med alla pipeline-steg
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="text-xs text-civic-gray-600 italic">
+                Analyserat: {new Date(winningAnalysis.analyzedAt).toLocaleString('sv-SE')}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Action Buttons */}

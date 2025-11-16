@@ -13,6 +13,7 @@ import {
   getAllDebates,
   getDebatesByQuestion,
   getDebateConfig,
+  analyzeWinningAnswer,
 } from '../services/consensusDebate.js';
 import { logAuditEvent, AuditEventType } from '../services/auditTrail.js';
 
@@ -172,6 +173,48 @@ router.post('/:debateId/vote', async (req, res) => {
     }
     
     if (error.message.includes('not in voting stage')) {
+      return res.status(400).json({
+        error: 'Invalid request',
+        message: error.message,
+      });
+    }
+    
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/debate/:debateId/analyze-winner
+ * Analyze the winning answer with full pipeline
+ */
+router.post('/:debateId/analyze-winner', async (req, res) => {
+  try {
+    const { debateId } = req.params;
+    
+    if (!debateId) {
+      return res.status(400).json({
+        error: 'Invalid request',
+        message: 'debateId is required',
+      });
+    }
+    
+    const winningAnalysis = await analyzeWinningAnswer(debateId);
+    
+    res.json(winningAnalysis);
+  } catch (error) {
+    console.error('Error analyzing winning answer:', error);
+    
+    if (error.message.includes('not found')) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: error.message,
+      });
+    }
+    
+    if (error.message.includes('not completed')) {
       return res.status(400).json({
         error: 'Invalid request',
         message: error.message,

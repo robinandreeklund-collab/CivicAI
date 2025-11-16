@@ -18,10 +18,11 @@ CivicAI är en öppen, transparent plattform för att jämföra och analysera hu
 - 🏷️ **Ämnesmodellering** - Identifierar dominerande teman och nyckelord
 - ✅ **Faktakontroll** - Markerar verifierbara påståenden som bör kontrolleras
 
-**Konsensus Live Debatt:** När AI-modeller visar hög divergens (konsensus < 60%), triggas automatiskt en live-debatt där:
-- 🎯 **AI-agenter debatterar** - Max 5 agenter i max 5 rundor presenterar och försvarar sina perspektiv
+**Konsensus Live Debatt:** När AI-modeller visar hög divergens (konsensus < 60%), kan användaren starta en live-debatt där:
+- 🎯 **AI-agenter debatterar** - Max 5 agenter i max 5 live-följbara rundor baserat på RAW svar
 - 🗳️ **AI-agenter röstar** - Varje agent röstar på bästa svaret (får inte rösta på sig själv)
 - 🏆 **Vinnare utses** - Agent med flest röster vinner, med fullständig röstfördelning och motiveringar
+- 🔬 **Automatisk analys** - Vinnande svar analyseras automatiskt med komplett pipeline
 - 📊 **Timeline-integration** - Hela debatten visas steg-för-steg i timelinen med dedikerad vy
 
 **Full Transparens:** Varje analysresultat inkluderar provenance-data (vilken modell, version, metod) så att användaren alltid kan förstå hur slutsatser dragits.
@@ -709,10 +710,12 @@ Exportera konversationer och jämförelser till:
 - ✅ Audit trail logging
 
 **Konsensus & Debatt:**
-- ✅ Konsensus Live Debatt - Automatisk trigger vid hög divergens
-- ✅ Multi-round AI-agent debatter (max 5 rundor)
+- ✅ Konsensus Live Debatt - Manuell start med knapp vid hög divergens
+- ✅ Multi-round AI-agent debatter (max 5 rundor, live-följbar)
+- ✅ Debatt baserad på RAW AI-svar utan analyser
 - ✅ AI-agent röstning utan självröstning
 - ✅ Vinnare-bestämning baserat på röster
+- ✅ Automatisk pipeline-analys av vinnande svar
 - ✅ Full timeline-integration med dedikerad vy
 
 **Dokumentation:**

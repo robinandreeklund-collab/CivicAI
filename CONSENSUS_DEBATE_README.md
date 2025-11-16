@@ -2,31 +2,30 @@
 
 ## Översikt
 
-Konsensus Live Debatt är en avancerad funktion i CivicAI-plattformen som automatiskt triggas när AI-modellernas svar visar hög divergens. Funktionen låter AI-agenterna själva debattera sina perspektiv och rösta fram det bästa svaret.
+Konsensus Live Debatt är en avancerad funktion i CivicAI-plattformen som tillåter användare att starta en live-debatt mellan AI-modeller när svar visar hög divergens. Funktionen låter AI-agenterna debattera baserat på sina råa svar, rösta fram det bästa svaret, och sedan analysera vinnaren med full pipeline.
 
 ## Funktionsflöde
 
-### 1. Trigga Debatt
+### 1. Indikator för Debatt
 
-Debatten startar automatiskt när:
-- **Låg konsensus**: Övergripande konsensus < 60%
-- **Hög divergens**: 2 eller fler skillnader med hög svårighetsgrad
-
-```javascript
-// Backend kontrollerar automatiskt i query_dispatcher.js
-const debateTrigger = shouldTriggerDebate(modelSynthesis);
-```
+När divergens är hög (konsensus < 60% eller 2+ high-severity skillnader):
+- **Manuell start**: Användaren ser en knapp "Starta Live Debatt"
+- **Debatt-indikator**: Visar konsensus-nivå och antal skillnader
+- **Ingen automatisk trigger**: Användaren bestämmer själv när debatten ska starta
 
 ### 2. Debattens Faser
 
-#### Fas 1: Initiering
+#### Fas 1: Initiering (Manuell)
+- Användaren klickar på "Starta Live Debatt"-knappen
 - Max 5 AI-agenter deltar (GPT-3.5, Gemini, DeepSeek, Grok, Qwen)
-- Initial divergensanalys visas
 - Debatt-kort skapas i UI
+- **Använder RAW svar** - inga analyser eller divergens-information
 
-#### Fas 2: Debattrundor (Max 5 rundor)
+#### Fas 2: Debattrundor (Max 5 rundor, live-följbar)
 - Varje agent får 5 rundor att presentera sitt perspektiv
-- Agenter svarar på tidigare argument
+- Agenter debatterar baserat på RAW svar från initial fråga
+- Agenter svarar på tidigare debattrundor
+- Användaren kan följa debatten live och klicka "Kör nästa runda"
 - Rundorna visas i realtid i UI med agent-namn och tidsstämpel
 
 #### Fas 3: Röstning
@@ -34,22 +33,24 @@ const debateTrigger = shouldTriggerDebate(modelSynthesis);
 - Varje agent röstar på bästa svaret (får INTE rösta på sig själv)
 - AI genererar motivering för sin röst
 
-#### Fas 4: Vinnare
+#### Fas 4: Vinnare & Analys
 - Agent med flest röster vinner
 - Röstfördelning visas med diagram
 - Motiveringar från alla agenter visas
+- **NYT**: Komplett pipeline-analys körs automatiskt på vinnande svar
+- Pipeline-resultat visas med timing och steg-information
 
 ## API-Endpoints
 
 ### Backend (Node.js)
 
 ```javascript
-// Kontrollera om debatt ska triggas
+// Kontrollera om debatt ska triggas (används för indikator)
 POST /api/debate/check-trigger
 Body: { modelSynthesis }
 Response: { shouldTrigger: boolean, reason: string }
 
-// Starta debatt
+// Starta debatt (manuellt)
 POST /api/debate/initiate
 Body: { questionId, question, agents, initialResponses, modelSynthesis }
 Response: Debate object
@@ -62,9 +63,13 @@ Response: Updated debate with new round
 POST /api/debate/:debateId/vote
 Response: Updated debate with votes and winner
 
+// Analysera vinnande svar (NYT - körs automatiskt efter röstning)
+POST /api/debate/:debateId/analyze-winner
+Response: { agent, response, pipelineAnalysis, analyzedAt }
+
 // Hämta debatt
 GET /api/debate/:debateId
-Response: Debate object
+Response: Debate object (inkluderar winningAnalysis om analys genomförd)
 
 // Hämta alla debatter (eller filtrera per fråga)
 GET /api/debate?questionId=xxx
@@ -79,9 +84,12 @@ Response: { maxAgents: 5, maxRoundsPerAgent: 5, divergenceThreshold: 60, ... }
 
 ### ConsensusDebateCard
 Huvudkomponent för debattvisualisering:
-- Auto-initierar debatt när hög divergens detekteras
-- Visar deltagare, divergens-sammanfattning
+- **Manuell start** via "Starta Live Debatt"-knapp
+- Visar deltagare, konsensus och skillnader innan start
 - Knappar för att genomföra rundor och röstning
+- **Live-följbar**: Användaren ser varje runda innan nästa körs
+- **Automatisk analys**: Vinnande svar analyseras automatiskt efter röstning
+- Visar pipeline-analys med timing och steg-information
 - Laddningsindikatorer och felhantering
 
 ```jsx
