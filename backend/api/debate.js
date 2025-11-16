@@ -76,14 +76,32 @@ router.post('/initiate', (req, res) => {
   try {
     const { questionId, question, agents, initialResponses, modelSynthesis } = req.body;
     
+    console.log('📝 Debate initiation request:', {
+      questionId: questionId ? 'present' : 'missing',
+      question: question ? 'present' : 'missing',
+      agents: agents ? `${agents.length} agents` : 'missing',
+      initialResponses: initialResponses ? `${initialResponses.length} responses` : 'missing',
+      modelSynthesis: modelSynthesis ? 'present' : 'missing',
+    });
+    
     if (!questionId || !question || !agents || !initialResponses || !modelSynthesis) {
+      const missing = [];
+      if (!questionId) missing.push('questionId');
+      if (!question) missing.push('question');
+      if (!agents) missing.push('agents');
+      if (!initialResponses) missing.push('initialResponses');
+      if (!modelSynthesis) missing.push('modelSynthesis');
+      
+      console.error('❌ Missing required fields:', missing.join(', '));
+      
       return res.status(400).json({
         error: 'Invalid request',
-        message: 'questionId, question, agents, initialResponses, and modelSynthesis are required',
+        message: `Missing required fields: ${missing.join(', ')}`,
       });
     }
     
     if (!Array.isArray(agents) || agents.length === 0) {
+      console.error('❌ Invalid agents array');
       return res.status(400).json({
         error: 'Invalid request',
         message: 'agents must be a non-empty array',
@@ -91,10 +109,11 @@ router.post('/initiate', (req, res) => {
     }
     
     const debate = initiateDebate(questionId, question, agents, initialResponses, modelSynthesis);
+    console.log('✅ Debate initiated successfully:', debate.id);
     
     res.status(201).json(debate);
   } catch (error) {
-    console.error('Error initiating debate:', error);
+    console.error('❌ Error initiating debate:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: error.message,

@@ -29,10 +29,19 @@ export default function ConsensusDebateCard({
     setError(null);
 
     try {
+      // Validate required data
+      if (!modelSynthesis || !modelSynthesis.consensus || !modelSynthesis.divergences) {
+        throw new Error('Modellsyntes data saknas eller är ofullständig');
+      }
+
       // Get list of agents that responded successfully
       const agents = responses
         .filter(r => !r.metadata?.error)
         .map(r => r.agent);
+
+      if (agents.length === 0) {
+        throw new Error('Inga tillgängliga agenter för debatt');
+      }
 
       const response = await fetch('http://localhost:3001/api/debate/initiate', {
         method: 'POST',
@@ -49,7 +58,8 @@ export default function ConsensusDebateCard({
       });
 
       if (!response.ok) {
-        throw new Error('Failed to initiate debate');
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        throw new Error(errorData.message || `Server error: ${response.status}`);
       }
 
       const debateData = await response.json();
