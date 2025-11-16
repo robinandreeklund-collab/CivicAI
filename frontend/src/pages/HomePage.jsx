@@ -5,6 +5,7 @@ import QuestionInput from '../components/QuestionInput';
 import ModelDivergencePanel from '../components/ModelDivergencePanel';
 import ModelPerspectiveCard from '../components/ModelPerspectiveCard';
 import PipelineAnalysisPanel from '../components/PipelineAnalysisPanel';
+import HighlightedText from '../components/HighlightedText';
 import { formatMarkdown } from '../utils/formatMarkdown';
 
 /**
@@ -333,7 +334,15 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
             title={`${bestResponse.metadata?.model || bestResponse.agent} Rekommendation`}
             content={
               <div className="space-y-3">
-                {bestResponse.response || bestResponse.content || 'Inget svar tillgängligt'}
+                {bestResponse.pipelineAnalysis ? (
+                  <HighlightedText 
+                    text={bestResponse.response || bestResponse.content || 'Inget svar tillgängligt'}
+                    analysisData={bestResponse.pipelineAnalysis}
+                    enableHighlighting={true}
+                  />
+                ) : (
+                  <div>{bestResponse.response || bestResponse.content || 'Inget svar tillgängligt'}</div>
+                )}
               </div>
             }
             metadata={[
@@ -628,12 +637,22 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
                 badge={{ text: response.metadata?.model || response.agent, icon: getAgentIcon(response.agent) }}
                 title={`${response.metadata?.model || response.agent} Svar`}
                 content={
-                  <div 
-                    className="space-y-3 prose prose-invert max-w-none"
-                    dangerouslySetInnerHTML={{ 
-                      __html: formatMarkdown(response.response || response.content || 'Inget svar tillgängligt') 
-                    }}
-                  />
+                  response.pipelineAnalysis ? (
+                    <div className="space-y-3">
+                      <HighlightedText 
+                        text={response.response || response.content || 'Inget svar tillgängligt'}
+                        analysisData={response.pipelineAnalysis}
+                        enableHighlighting={true}
+                      />
+                    </div>
+                  ) : (
+                    <div 
+                      className="space-y-3 prose prose-invert max-w-none"
+                      dangerouslySetInnerHTML={{ 
+                        __html: formatMarkdown(response.response || response.content || 'Inget svar tillgängligt') 
+                      }}
+                    />
+                  )
                 }
                 metadata={[
                   { label: 'Modell', value: response.metadata?.model || response.agent || 'N/A' },

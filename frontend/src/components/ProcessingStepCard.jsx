@@ -106,8 +106,20 @@ const ProcessingStepCard = ({ step, stepData, stepIndex }) => {
       });
     }
 
-    // For sentiment, extract key sentiment terms
+    // For sentiment, extract positive and negative words
     if (step.step.includes('sentiment') && stepData?.vaderSentiment) {
+      if (stepData.vaderSentiment.positive && stepData.vaderSentiment.positive.length > 0) {
+        features.push({
+          label: 'Positiva ord',
+          items: stepData.vaderSentiment.positive.slice(0, 10)
+        });
+      }
+      if (stepData.vaderSentiment.negative && stepData.vaderSentiment.negative.length > 0) {
+        features.push({
+          label: 'Negativa ord',
+          items: stepData.vaderSentiment.negative.slice(0, 10)
+        });
+      }
       features.push({
         label: 'Sentiment',
         items: [stepData.vaderSentiment.classification]
@@ -136,12 +148,41 @@ const ProcessingStepCard = ({ step, stepData, stepIndex }) => {
       }
     }
 
-    // For ideology, extract classification
-    if (step.step.includes('ideology') && stepData?.ideology?.classification) {
-      features.push({
-        label: 'Klassificering',
-        items: [stepData.ideology.classification]
-      });
+    // For ideology, extract markers by dimension
+    if (step.step.includes('ideology') && stepData?.ideology) {
+      if (stepData.ideology.classification) {
+        features.push({
+          label: 'Klassificering',
+          items: [stepData.ideology.classification]
+        });
+      }
+      
+      // Extract markers if available
+      if (stepData.ideology.markers && stepData.ideology.markers.length > 0) {
+        const economicMarkers = stepData.ideology.markers
+          .filter(m => m.dimension === 'economic')
+          .map(m => `${m.keyword} (${m.orientation})`)
+          .slice(0, 5);
+        
+        const socialMarkers = stepData.ideology.markers
+          .filter(m => m.dimension === 'social')
+          .map(m => `${m.keyword} (${m.orientation})`)
+          .slice(0, 5);
+        
+        if (economicMarkers.length > 0) {
+          features.push({
+            label: 'Ekonomiska markörer',
+            items: economicMarkers
+          });
+        }
+        
+        if (socialMarkers.length > 0) {
+          features.push({
+            label: 'Sociala markörer',
+            items: socialMarkers
+          });
+        }
+      }
     }
 
     return features;
