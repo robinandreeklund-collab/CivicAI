@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { highlightWords, extractHighlightWords } from '../utils/highlightWords';
+import { highlightWords, extractHighlightWords } from '../utils/highlightWords.jsx';
 
 const HighlightedText = ({ text, analysisData, enableHighlighting = true }) => {
   if (!text) return null;

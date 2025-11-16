@@ -11,7 +11,7 @@
  * - Detailed processing steps with library information
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import AnalysisPipelineTimeline from './AnalysisPipelineTimeline';
 import SentimentAnalysisPanel from './SentimentAnalysisPanel';
 import IdeologicalClassificationPanel from './IdeologicalClassificationPanel';

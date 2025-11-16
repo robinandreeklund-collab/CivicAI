@@ -326,7 +326,7 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
     if (!aiMessage) return null;
 
     switch (sectionId) {
-      case 'best-answer':
+      case 'best-answer': {
         const bestResponse = aiMessage.responses?.[0];
         return bestResponse ? (
           <RichContentCard
@@ -362,8 +362,9 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
             ]}
           />
         ) : null;
+      }
 
-      case 'bert-summary':
+      case 'bert-summary': {
         const bertText = aiMessage.synthesizedSummary || aiMessage.bertSummary || 'Ingen sammanfattning tillgänglig';
         // Format BERT summary with proper paragraphs and line breaks
         const formattedBert = bertText.split('\n\n').map((paragraph, idx) => (
@@ -397,8 +398,9 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
             ]}
           />
         );
+      }
 
-      case 'tone-analysis':
+      case 'tone-analysis': {
         return aiMessage.toneAnalysis ? (
           <RichContentCard
             badge={{ text: 'Tonanalys', icon: '🎭' }}
@@ -425,8 +427,9 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
             ]}
           />
         ) : null;
+      }
 
-      case 'bias-detection':
+      case 'bias-detection': {
         return aiMessage.biasDetection ? (
           <RichContentCard
             badge={{ text: 'Bias-detektion', icon: '⚖️' }}
@@ -456,8 +459,9 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
             ]}
           />
         ) : null;
+      }
 
-      case 'meta-review':
+      case 'meta-review': {
         const metaContent = typeof aiMessage.metaReview === 'string' 
           ? aiMessage.metaReview 
           : aiMessage.metaReview?.summary || 'GPT-3.5 har granskat kvaliteten på alla AI-svar och bedömt deras innehåll, konsekvens och användbarhet.';
@@ -491,8 +495,9 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
             ]}
           />
         ) : null;
+      }
 
-      case 'fact-check':
+      case 'fact-check': {
         return aiMessage.factCheckComparison ? (
           <RichContentCard
             badge={{ text: 'Tavily Faktakoll', icon: '✓' }}
@@ -532,8 +537,9 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
             ]}
           />
         ) : null;
+      }
 
-      case 'model-synthesis':
+      case 'model-synthesis': {
         return aiMessage.modelSynthesis ? (
           <RichContentCard
             badge={{ text: 'Modellsyntes', icon: '🔬' }}
@@ -574,6 +580,7 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
             ]}
           />
         ) : null;
+      }
 
       default:
         // Pipeline step details

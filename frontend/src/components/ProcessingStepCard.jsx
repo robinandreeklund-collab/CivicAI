@@ -8,9 +8,9 @@
  * - Status (Python ML or JavaScript fallback)
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 
-const ProcessingStepCard = ({ step, stepData, stepIndex }) => {
+const ProcessingStepCard = ({ step, stepData }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (!step) return null;
