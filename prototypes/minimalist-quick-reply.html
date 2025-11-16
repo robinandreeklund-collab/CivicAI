@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CivicAI - Minimalist Quick Reply</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .demo-header {
+            margin-bottom: 40px;
+        }
+
+        .demo-title {
+            font-size: 28px;
+            font-weight: 300;
+            color: #e7e7e7;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+
+        .demo-subtitle {
+            font-size: 14px;
+            color: #666;
+            letter-spacing: 1px;
+        }
+
+        /* Chat Messages */
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+
+        .message {
+            margin-bottom: 24px;
+            animation: messageSlide 0.4s ease;
+        }
+
+        @keyframes messageSlide {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .message-content {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 20px;
+            color: #c0c0c0;
+            line-height: 1.7;
+        }
+
+        .ai-message .message-content {
+            background: linear-gradient(135deg, #151515 0%, #1a1a1a 100%);
+        }
+
+        /* Input Area */
+        .input-area {
+            position: relative;
+        }
+
+        .input-container {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 16px;
+            padding: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .input-container:focus-within {
+            border-color: #2a2a2a;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .input-field {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: #e7e7e7;
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            resize: none;
+            min-height: 24px;
+            max-height: 150px;
+        }
+
+        .input-field::placeholder {
+            color: #444;
+        }
+
+        .input-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #1a1a1a;
+        }
+
+        .quick-reply-trigger {
+            background: transparent;
+            border: 1px solid #1a1a1a;
+            border-radius: 8px;
+            padding: 8px 16px;
+            color: #666;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .quick-reply-trigger:hover {
+            background: #1a1a1a;
+            border-color: #2a2a2a;
+            color: #99c2ff;
+        }
+
+        .quick-reply-trigger.active {
+            background: #1a1a1a;
+            border-color: #99c2ff;
+            color: #99c2ff;
+        }
+
+        .send-button {
+            background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            padding: 8px 20px;
+            color: #666;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .send-button:hover {
+            background: linear-gradient(135deg, #99c2ff 0%, #31deac 100%);
+            border-color: transparent;
+            color: #0a0a0a;
+            box-shadow: 0 4px 16px rgba(153, 194, 255, 0.3);
+        }
+
+        .send-button:active {
+            transform: scale(0.95);
+        }
+
+        /* Quick Reply Panel */
+        .quick-reply-panel {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            right: 0;
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 16px;
+            margin-bottom: 12px;
+            padding: 20px;
+            box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.6);
+            transform-origin: bottom center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0;
+            transform: translateY(20px) scale(0.95);
+            pointer-events: none;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .quick-reply-panel.active {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            pointer-events: all;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #1a1a1a;
+        }
+
+        .panel-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #e7e7e7;
+            letter-spacing: 0.5px;
+        }
+
+        .panel-close {
+            background: transparent;
+            border: none;
+            color: #666;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .panel-close:hover {
+            background: #1a1a1a;
+            color: #e7e7e7;
+        }
+
+        .quick-replies {
+            display: grid;
+            gap: 8px;
+        }
+
+        .quick-reply-item {
+            background: #1a1a1a;
+            border: 1px solid #1a1a1a;
+            border-radius: 10px;
+            padding: 14px 16px;
+            color: #c0c0c0;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideInUp 0.3s ease forwards;
+            opacity: 0;
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .quick-reply-item:nth-child(1) { animation-delay: 0.05s; }
+        .quick-reply-item:nth-child(2) { animation-delay: 0.1s; }
+        .quick-reply-item:nth-child(3) { animation-delay: 0.15s; }
+        .quick-reply-item:nth-child(4) { animation-delay: 0.2s; }
+        .quick-reply-item:nth-child(5) { animation-delay: 0.25s; }
+        .quick-reply-item:nth-child(6) { animation-delay: 0.3s; }
+
+        .quick-reply-icon {
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .quick-reply-text {
+            flex: 1;
+        }
+
+        .quick-reply-item:hover {
+            background: #2a2a2a;
+            border-color: #99c2ff;
+            color: #e7e7e7;
+            transform: translateX(4px);
+        }
+
+        .quick-reply-item:active {
+            transform: scale(0.98);
+        }
+
+        /* Categories */
+        .category-section {
+            margin-bottom: 20px;
+        }
+
+        .category-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .category-title {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .category-badge {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #99c2ff;
+        }
+
+        /* Scrollbar styling */
+        .quick-reply-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .quick-reply-panel::-webkit-scrollbar-track {
+            background: #0a0a0a;
+            border-radius: 3px;
+        }
+
+        .quick-reply-panel::-webkit-scrollbar-thumb {
+            background: #2a2a2a;
+            border-radius: 3px;
+        }
+
+        .quick-reply-panel::-webkit-scrollbar-thumb:hover {
+            background: #3a3a3a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="demo-header">
+            <h1 class="demo-title">Minimalist Quick Reply</h1>
+            <p class="demo-subtitle">Snabbsvar med animerad panel</p>
+        </div>
+
+        <!-- Chat Messages -->
+        <div class="chat-messages">
+            <div class="message ai-message">
+                <div class="message-label">AI-Svar</div>
+                <div class="message-content">
+                    Hej! Jag kan hjälpa dig att ställa frågor om demokrati, samhälle och politik. Du kan skriva din egen fråga eller välja ett av de fördefinierade alternativen genom att klicka på "Snabbsvar" knappen.
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+            <!-- Quick Reply Panel -->
+            <div class="quick-reply-panel" id="quickReplyPanel">
+                <div class="panel-header">
+                    <div class="panel-title">Snabbsvar</div>
+                    <button class="panel-close" onclick="toggleQuickReply()">×</button>
+                </div>
+
+                <div class="category-section">
+                    <div class="category-title">
+                        <span class="category-badge"></span>
+                        Demokrati & Transparens
+                    </div>
+                    <div class="quick-replies">
+                        <button class="quick-reply-item" onclick="selectQuickReply(this)">
+                            <span class="quick-reply-icon">🗳️</span>
+                            <span class="quick-reply-text">Hur kan vi öka valdeltagandet i Sverige?</span>
+                        </button>
+                        <button class="quick-reply-item" onclick="selectQuickReply(this)">
+                            <span class="quick-reply-icon">👁️</span>
+                            <span class="quick-reply-text">Vilka verktyg finns för medborgarinsyn i politiken?</span>
+                        </button>
+                        <button class="quick-reply-item" onclick="selectQuickReply(this)">
+                            <span class="quick-reply-icon">⚖️</span>
+                            <span class="quick-reply-text">Hur kan AI stödja demokratiska beslutsprocesser?</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="category-section">
+                    <div class="category-title">
+                        <span class="category-badge" style="background: #31deac;"></span>
+                        Klimat & Miljö
+                    </div>
+                    <div class="quick-replies">
+                        <button class="quick-reply-item" onclick="selectQuickReply(this)">
+                            <span class="quick-reply-icon">🌍</span>
+                            <span class="quick-reply-text">Vilka klimatåtgärder är mest kostnadseffektiva?</span>
+                        </button>
+                        <button class="quick-reply-item" onclick="selectQuickReply(this)">
+                            <span class="quick-reply-icon">♻️</span>
+                            <span class="quick-reply-text">Hur kan cirkulär ekonomi implementeras i Sverige?</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="category-section">
+                    <div class="category-title">
+                        <span class="category-badge" style="background: #666;"></span>
+                        Utbildning & Forskning
+                    </div>
+                    <div class="quick-replies">
+                        <button class="quick-reply-item" onclick="selectQuickReply(this)">
+                            <span class="quick-reply-icon">📚</span>
+                            <span class="quick-reply-text">Hur kan vi minska skillnaderna i skolresultat?</span>
+                        </button>
+                        <button class="quick-reply-item" onclick="selectQuickReply(this)">
+                            <span class="quick-reply-icon">🔬</span>
+                            <span class="quick-reply-text">Vilka satsningar behövs för att stärka forskningen?</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Container -->
+            <div class="input-container">
+                <textarea 
+                    class="input-field" 
+                    placeholder="Skriv din fråga här..."
+                    id="messageInput"
+                    rows="1"
+                ></textarea>
+                <div class="input-actions">
+                    <button class="quick-reply-trigger" id="quickReplyBtn" onclick="toggleQuickReply()">
+                        <span>⚡</span>
+                        <span>Snabbsvar</span>
+                    </button>
+                    <button class="send-button" onclick="sendMessage()">Skicka</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleQuickReply() {
+            const panel = document.getElementById('quickReplyPanel');
+            const btn = document.getElementById('quickReplyBtn');
+            
+            panel.classList.toggle('active');
+            btn.classList.toggle('active');
+        }
+
+        function selectQuickReply(element) {
+            const text = element.querySelector('.quick-reply-text').textContent;
+            const input = document.getElementById('messageInput');
+            
+            input.value = text;
+            input.focus();
+            
+            // Close panel with delay
+            setTimeout(() => {
+                toggleQuickReply();
+            }, 200);
+            
+            // Animate input
+            const container = input.closest('.input-container');
+            container.style.transform = 'scale(0.98)';
+            setTimeout(() => {
+                container.style.transform = 'scale(1)';
+            }, 100);
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            if (!input.value.trim()) return;
+            
+            // Create new message
+            const messagesContainer = document.querySelector('.chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            messageDiv.innerHTML = `
+                <div class="message-label">Du</div>
+                <div class="message-content">${input.value}</div>
+            `;
+            messagesContainer.appendChild(messageDiv);
+            
+            // Clear input
+            input.value = '';
+            input.style.height = 'auto';
+            
+            // Scroll to bottom
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            // Simulate AI response
+            setTimeout(() => {
+                const aiMessageDiv = document.createElement('div');
+                aiMessageDiv.className = 'message ai-message';
+                aiMessageDiv.innerHTML = `
+                    <div class="message-label">AI-Svar</div>
+                    <div class="message-content">Tack för din fråga! Den analyseras nu av våra AI-modeller. Du kan följa processen i tidslinjen ovan.</div>
+                `;
+                messagesContainer.appendChild(aiMessageDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }, 1000);
+        }
+
+        // Auto-resize textarea
+        const textarea = document.getElementById('messageInput');
+        textarea.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 150) + 'px';
+        });
+
+        // Enter to send
+        textarea.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Close panel on outside click
+        document.addEventListener('click', function(e) {
+            const panel = document.getElementById('quickReplyPanel');
+            const btn = document.getElementById('quickReplyBtn');
+            const inputArea = document.querySelector('.input-area');
+            
+            if (panel.classList.contains('active') && 
+                !inputArea.contains(e.target)) {
+                toggleQuickReply();
+            }
+        });
+    </script>
+</body>
+</html>

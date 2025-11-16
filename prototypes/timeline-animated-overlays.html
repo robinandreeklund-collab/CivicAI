@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CivicAI - Timeline Animated Overlays</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .title {
+            font-size: 32px;
+            font-weight: 300;
+            color: #e7e7e7;
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: #666;
+            letter-spacing: 1px;
+        }
+
+        /* Timeline Container */
+        .timeline-container {
+            position: relative;
+            padding: 40px 0;
+        }
+
+        .timeline-line {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: linear-gradient(180deg, transparent 0%, #1a1a1a 10%, #2a2a2a 50%, #1a1a1a 90%, transparent 100%);
+            transform: translateX(-50%);
+        }
+
+        .timeline-events {
+            position: relative;
+        }
+
+        /* Timeline Event */
+        .timeline-event {
+            position: relative;
+            margin-bottom: 60px;
+            opacity: 0;
+            animation: fadeInEvent 0.6s ease forwards;
+        }
+
+        @keyframes fadeInEvent {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .timeline-event:nth-child(1) { animation-delay: 0.1s; }
+        .timeline-event:nth-child(2) { animation-delay: 0.2s; }
+        .timeline-event:nth-child(3) { animation-delay: 0.3s; }
+        .timeline-event:nth-child(4) { animation-delay: 0.4s; }
+        .timeline-event:nth-child(5) { animation-delay: 0.5s; }
+
+        .timeline-event.left .event-content {
+            margin-right: 50%;
+            padding-right: 60px;
+        }
+
+        .timeline-event.right .event-content {
+            margin-left: 50%;
+            padding-left: 60px;
+        }
+
+        /* Event Dot */
+        .event-dot {
+            position: absolute;
+            left: 50%;
+            top: 20px;
+            width: 20px;
+            height: 20px;
+            background: #151515;
+            border: 3px solid #2a2a2a;
+            border-radius: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .timeline-event:hover .event-dot {
+            border-color: #99c2ff;
+            box-shadow: 0 0 25px rgba(153, 194, 255, 0.4);
+            transform: translateX(-50%) scale(1.3);
+        }
+
+        .timeline-event.active .event-dot {
+            background: linear-gradient(135deg, #99c2ff 0%, #31deac 100%);
+            border-color: #99c2ff;
+            box-shadow: 0 0 30px rgba(153, 194, 255, 0.5);
+            animation: dotPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes dotPulse {
+            0%, 100% {
+                box-shadow: 0 0 30px rgba(153, 194, 255, 0.5);
+            }
+            50% {
+                box-shadow: 0 0 40px rgba(153, 194, 255, 0.7), 0 0 60px rgba(49, 222, 172, 0.3);
+            }
+        }
+
+        /* Event Content */
+        .event-content {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 16px;
+            padding: 24px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .timeline-event:hover .event-content {
+            background: #1a1a1a;
+            border-color: #2a2a2a;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .timeline-event.active .event-content {
+            background: linear-gradient(135deg, #1a1a1a 0%, #151515 100%);
+            border-color: #99c2ff;
+            box-shadow: 0 0 40px rgba(153, 194, 255, 0.2);
+        }
+
+        .event-time {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .event-title {
+            font-size: 18px;
+            font-weight: 500;
+            color: #e7e7e7;
+            margin-bottom: 12px;
+        }
+
+        .event-description {
+            font-size: 14px;
+            color: #999;
+            line-height: 1.7;
+        }
+
+        .event-meta {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #1a1a1a;
+        }
+
+        .meta-badge {
+            padding: 4px 12px;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            font-size: 11px;
+            color: #666;
+        }
+
+        .timeline-event.active .meta-badge {
+            border-color: #99c2ff;
+            color: #99c2ff;
+        }
+
+        /* Overlay */
+        .event-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .event-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .overlay-content {
+            background: linear-gradient(135deg, #151515 0%, #1a1a1a 100%);
+            border: 1px solid #2a2a2a;
+            border-radius: 24px;
+            padding: 48px;
+            max-width: 700px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            transform: scale(0.9);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8);
+        }
+
+        .event-overlay.active .overlay-content {
+            transform: scale(1);
+        }
+
+        .overlay-close {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            width: 40px;
+            height: 40px;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 24px;
+            color: #666;
+            transition: all 0.3s ease;
+        }
+
+        .overlay-close:hover {
+            background: #2a2a2a;
+            border-color: #99c2ff;
+            color: #99c2ff;
+            transform: rotate(90deg);
+        }
+
+        .overlay-header {
+            margin-bottom: 32px;
+        }
+
+        .overlay-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            background: linear-gradient(135deg, #99c2ff 0%, #31deac 100%);
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #0a0a0a;
+            margin-bottom: 16px;
+        }
+
+        .overlay-title {
+            font-size: 28px;
+            font-weight: 300;
+            color: #e7e7e7;
+            margin-bottom: 12px;
+            letter-spacing: 1px;
+        }
+
+        .overlay-subtitle {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .overlay-body {
+            margin-bottom: 32px;
+        }
+
+        .detail-section {
+            margin-bottom: 24px;
+        }
+
+        .detail-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .detail-value {
+            font-size: 15px;
+            color: #c0c0c0;
+            line-height: 1.7;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 24px;
+        }
+
+        .detail-card {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .detail-card-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: #e7e7e7;
+            margin-bottom: 8px;
+        }
+
+        .detail-card-value {
+            font-size: 12px;
+            color: #999;
+        }
+
+        /* Progress indicator */
+        .progress-ring {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 32px;
+            height: 32px;
+        }
+
+        .progress-ring circle {
+            fill: none;
+            stroke: #2a2a2a;
+            stroke-width: 3;
+        }
+
+        .progress-ring .progress {
+            stroke: #99c2ff;
+            stroke-dasharray: 94.2;
+            stroke-dashoffset: 94.2;
+            transition: stroke-dashoffset 0.5s ease;
+        }
+
+        .timeline-event.active .progress-ring .progress {
+            stroke-dashoffset: 0;
+            animation: progressSpin 2s linear infinite;
+        }
+
+        @keyframes progressSpin {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">Timeline Animated Overlays</h1>
+            <p class="subtitle">Interaktiv timeline med detaljerade event-overlays</p>
+        </div>
+
+        <div class="timeline-container">
+            <div class="timeline-line"></div>
+            <div class="timeline-events">
+                <!-- Event 1 -->
+                <div class="timeline-event left" onclick="showOverlay(0)">
+                    <div class="event-dot"></div>
+                    <div class="event-content">
+                        <div class="event-time">Steg 1 • 0.2s</div>
+                        <div class="event-title">Fråga mottagen</div>
+                        <div class="event-description">
+                            Din fråga har analyserats och förberetts för distribution till AI-modellerna.
+                        </div>
+                        <div class="event-meta">
+                            <span class="meta-badge">✓ Klar</span>
+                            <span class="meta-badge">Validerad</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Event 2 -->
+                <div class="timeline-event right" onclick="showOverlay(1)">
+                    <div class="event-dot"></div>
+                    <div class="event-content">
+                        <div class="event-time">Steg 2 • 3.4s</div>
+                        <div class="event-title">AI-modeller svarar</div>
+                        <div class="event-description">
+                            5 AI-modeller (GPT-3.5, Gemini, DeepSeek, Grok, Qwen) har genererat svar.
+                        </div>
+                        <div class="event-meta">
+                            <span class="meta-badge">✓ Klar</span>
+                            <span class="meta-badge">5 modeller</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Event 3 -->
+                <div class="timeline-event left active" onclick="showOverlay(2)">
+                    <div class="event-dot">
+                        <svg class="progress-ring" viewBox="0 0 32 32">
+                            <circle cx="16" cy="16" r="15"></circle>
+                            <circle class="progress" cx="16" cy="16" r="15"></circle>
+                        </svg>
+                    </div>
+                    <div class="event-content">
+                        <div class="event-time">Steg 3 • Pågår</div>
+                        <div class="event-title">Tonanalys & Bias-detektion</div>
+                        <div class="event-description">
+                            Analyserar sentiment, ton och potentiell bias i alla AI-svar.
+                        </div>
+                        <div class="event-meta">
+                            <span class="meta-badge">⟳ Pågår</span>
+                            <span class="meta-badge">3 av 5 klara</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Event 4 -->
+                <div class="timeline-event right" onclick="showOverlay(3)">
+                    <div class="event-dot"></div>
+                    <div class="event-content">
+                        <div class="event-time">Steg 4 • Väntar</div>
+                        <div class="event-title">Faktakoll med Tavily</div>
+                        <div class="event-description">
+                            Verifierar fakta och påståenden mot aktuella källor.
+                        </div>
+                        <div class="event-meta">
+                            <span class="meta-badge">○ Väntar</span>
+                            <span class="meta-badge">Tavily API</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Event 5 -->
+                <div class="timeline-event left" onclick="showOverlay(4)">
+                    <div class="event-dot"></div>
+                    <div class="event-content">
+                        <div class="event-time">Steg 5 • Väntar</div>
+                        <div class="event-title">BERT-sammanfattning</div>
+                        <div class="event-description">
+                            Extraktiv sammanfattning av alla AI-svar för enkel översikt.
+                        </div>
+                        <div class="event-meta">
+                            <span class="meta-badge">○ Väntar</span>
+                            <span class="meta-badge">NLP</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overlay -->
+    <div class="event-overlay" id="overlay">
+        <div class="overlay-content" onclick="event.stopPropagation()">
+            <button class="overlay-close" onclick="hideOverlay()">×</button>
+            
+            <div class="overlay-header">
+                <span class="overlay-badge" id="overlayBadge">Steg 1</span>
+                <h2 class="overlay-title" id="overlayTitle">Event Title</h2>
+                <p class="overlay-subtitle" id="overlaySubtitle">Event subtitle</p>
+            </div>
+
+            <div class="overlay-body">
+                <div class="detail-section">
+                    <div class="detail-label">Beskrivning</div>
+                    <div class="detail-value" id="overlayDescription">
+                        Event description goes here
+                    </div>
+                </div>
+
+                <div class="detail-section">
+                    <div class="detail-label">Detaljer</div>
+                    <div class="detail-grid" id="overlayDetails">
+                        <!-- Details will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const eventData = [
+            {
+                badge: "Steg 1",
+                title: "Fråga mottagen",
+                subtitle: "Tidsstämpel: 14:32:15 • Status: Klar",
+                description: "Din fråga har mottagits och förberetts för analys. Systemet har validerat input, identifierat språk (Svenska), och initierat parallell distribution till AI-modellerna.",
+                details: [
+                    { title: "Processingstid", value: "0.2 sekunder" },
+                    { title: "Teckenlängd", value: "127 tecken" },
+                    { title: "Språk", value: "Svenska (sv-SE)" },
+                    { title: "Validering", value: "✓ Godkänd" }
+                ]
+            },
+            {
+                badge: "Steg 2",
+                title: "AI-modeller svarar",
+                subtitle: "Tidsstämpel: 14:32:19 • Status: Klar",
+                description: "Parallell körning av 5 AI-modeller har slutförts. Alla modeller har genererat kompletta svar som nu är redo för analys och jämförelse.",
+                details: [
+                    { title: "GPT-3.5", value: "342 ord • 2.1s" },
+                    { title: "Gemini", value: "289 ord • 1.8s" },
+                    { title: "DeepSeek", value: "412 ord • 3.4s" },
+                    { title: "Grok", value: "267 ord • 1.9s" },
+                    { title: "Qwen", value: "321 ord • 2.2s" }
+                ]
+            },
+            {
+                badge: "Steg 3",
+                title: "Tonanalys & Bias-detektion",
+                subtitle: "Tidsstämpel: 14:32:21 • Status: Pågår (60%)",
+                description: "Sentiment-analys och bias-detektion genomförs på alla AI-svar. Detta inkluderar tonalitet, emotionellt innehåll, och identifiering av potentiella snedvridningar.",
+                details: [
+                    { title: "GPT-3.5", value: "✓ Neutral • Låg bias" },
+                    { title: "Gemini", value: "✓ Formell • Låg bias" },
+                    { title: "DeepSeek", value: "✓ Analytisk • Medel bias" },
+                    { title: "Grok", value: "⟳ Analyserar..." },
+                    { title: "Qwen", value: "○ Väntar..." }
+                ]
+            },
+            {
+                badge: "Steg 4",
+                title: "Faktakoll med Tavily",
+                subtitle: "Tidsstämpel: Väntar • Status: I kö",
+                description: "Tavily Search API kommer att verifiera påståenden och fakta mot uppdaterade källor. Detta säkerställer att informationen är korrekt och aktuell.",
+                details: [
+                    { title: "Källor att kontrollera", value: "12 påståenden" },
+                    { title: "Beräknad tid", value: "~3.1 sekunder" },
+                    { title: "API-status", value: "✓ Tillgänglig" },
+                    { title: "Cache", value: "2 träffar" }
+                ]
+            },
+            {
+                badge: "Steg 5",
+                title: "BERT-sammanfattning",
+                subtitle: "Tidsstämpel: Väntar • Status: I kö",
+                description: "Extraktiv sammanfattning kommer att genereras med BERT-modellen för att ge en koncis översikt av alla AI-svars nyckelpunkter och gemensamma teman.",
+                details: [
+                    { title: "Metod", value: "Extraktiv NLP" },
+                    { title: "Målord", value: "~150 ord" },
+                    { title: "Beräknad tid", value: "~1.8 sekunder" },
+                    { title: "Kompression", value: "~90%" }
+                ]
+            }
+        ];
+
+        function showOverlay(index) {
+            const data = eventData[index];
+            const overlay = document.getElementById('overlay');
+            
+            document.getElementById('overlayBadge').textContent = data.badge;
+            document.getElementById('overlayTitle').textContent = data.title;
+            document.getElementById('overlaySubtitle').textContent = data.subtitle;
+            document.getElementById('overlayDescription').textContent = data.description;
+            
+            const detailsContainer = document.getElementById('overlayDetails');
+            detailsContainer.innerHTML = data.details.map(detail => `
+                <div class="detail-card">
+                    <div class="detail-card-title">${detail.title}</div>
+                    <div class="detail-card-value">${detail.value}</div>
+                </div>
+            `).join('');
+            
+            overlay.classList.add('active');
+        }
+
+        function hideOverlay() {
+            document.getElementById('overlay').classList.remove('active');
+        }
+
+        // Close overlay on background click
+        document.getElementById('overlay').addEventListener('click', hideOverlay);
+
+        // Close overlay on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                hideOverlay();
+            }
+        });
+
+        // Simulate progress
+        let progress = 0;
+        setInterval(() => {
+            if (progress < 100) {
+                progress += 2;
+                const progressCircle = document.querySelector('.progress');
+                if (progressCircle) {
+                    const offset = 94.2 - (94.2 * progress / 100);
+                    progressCircle.style.strokeDashoffset = offset;
+                }
+            }
+        }, 100);
+    </script>
+</body>
+</html>

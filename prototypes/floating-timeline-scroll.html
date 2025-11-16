@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CivicAI - Floating Timeline Scroll</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Floating Timeline Container */
+        .timeline-container {
+            position: sticky;
+            top: 0;
+            background: linear-gradient(180deg, #151515 0%, #0a0a0a 100%);
+            border-bottom: 1px solid #1a1a1a;
+            padding: 20px 0;
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .timeline-wrapper {
+            overflow-x: auto;
+            overflow-y: hidden;
+            scroll-snap-type: x mandatory;
+            scroll-behavior: smooth;
+            padding: 0 40px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Hide scrollbar but keep functionality */
+        .timeline-wrapper::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .timeline-wrapper::-webkit-scrollbar-track {
+            background: #151515;
+            border-radius: 3px;
+        }
+
+        .timeline-wrapper::-webkit-scrollbar-thumb {
+            background: #2a2a2a;
+            border-radius: 3px;
+        }
+
+        .timeline-wrapper::-webkit-scrollbar-thumb:hover {
+            background: #3a3a3a;
+        }
+
+        .timeline {
+            display: flex;
+            gap: 16px;
+            min-width: max-content;
+            position: relative;
+            padding-bottom: 10px;
+        }
+
+        /* Timeline connecting line */
+        .timeline::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #1a1a1a 0%, #2a2a2a 50%, #1a1a1a 100%);
+            z-index: 0;
+        }
+
+        .timeline-event {
+            scroll-snap-align: start;
+            min-width: 200px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .timeline-event:hover {
+            transform: translateY(-4px);
+        }
+
+        .timeline-dot {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #151515;
+            border: 3px solid #2a2a2a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 12px;
+            position: relative;
+            z-index: 1;
+            transition: all 0.3s ease;
+        }
+
+        .timeline-event:hover .timeline-dot {
+            border-color: #99c2ff;
+            box-shadow: 0 0 20px rgba(153, 194, 255, 0.3);
+            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+        }
+
+        .timeline-event.active .timeline-dot {
+            border-color: #31deac;
+            background: linear-gradient(135deg, #31deac 0%, #2a9d8f 100%);
+            box-shadow: 0 0 25px rgba(49, 222, 172, 0.4);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 0 25px rgba(49, 222, 172, 0.4);
+            }
+            50% {
+                box-shadow: 0 0 35px rgba(49, 222, 172, 0.6);
+            }
+        }
+
+        .timeline-icon {
+            font-size: 18px;
+            color: #e7e7e7;
+        }
+
+        .timeline-event.active .timeline-icon {
+            color: #0a0a0a;
+        }
+
+        .timeline-content {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .timeline-event:hover .timeline-content {
+            background: #1a1a1a;
+            border-color: #2a2a2a;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .timeline-event.active .timeline-content {
+            background: linear-gradient(135deg, #1a1a1a 0%, #151515 100%);
+            border-color: #31deac;
+            box-shadow: 0 0 20px rgba(49, 222, 172, 0.2);
+        }
+
+        .timeline-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: #e7e7e7;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+        }
+
+        .timeline-meta {
+            font-size: 11px;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .timeline-status {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #2a2a2a;
+        }
+
+        .timeline-event.completed .timeline-status {
+            background: #31deac;
+        }
+
+        .timeline-event.active .timeline-status {
+            background: #99c2ff;
+            animation: blink 1.5s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* Chat Area */
+        .chat-area {
+            flex: 1;
+            padding: 40px;
+            max-width: 900px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .chat-header {
+            margin-bottom: 30px;
+        }
+
+        .chat-title {
+            font-size: 14px;
+            font-weight: 400;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .question {
+            font-size: 24px;
+            font-weight: 300;
+            color: #e7e7e7;
+            line-height: 1.6;
+        }
+
+        .response-card {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 24px;
+            animation: fadeInUp 0.5s ease;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 14px;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #99c2ff;
+            margin-bottom: 16px;
+        }
+
+        .response-text {
+            font-size: 15px;
+            line-height: 1.8;
+            color: #c0c0c0;
+        }
+
+        /* Navigation buttons */
+        .nav-buttons {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            transform: translateY(-50%);
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            padding: 0 10px;
+        }
+
+        .nav-btn {
+            width: 32px;
+            height: 32px;
+            background: #151515;
+            border: 1px solid #2a2a2a;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            pointer-events: all;
+            transition: all 0.3s ease;
+            color: #e7e7e7;
+        }
+
+        .nav-btn:hover {
+            background: #1a1a1a;
+            border-color: #99c2ff;
+            box-shadow: 0 0 15px rgba(153, 194, 255, 0.3);
+        }
+
+        .nav-btn:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+    <!-- Floating Timeline -->
+    <div class="timeline-container">
+        <div class="timeline-wrapper" id="timelineWrapper">
+            <div class="timeline">
+                <div class="timeline-event completed" data-event="0">
+                    <div class="timeline-dot">
+                        <span class="timeline-icon">📝</span>
+                    </div>
+                    <div class="timeline-content">
+                        <div class="timeline-label">Fråga mottagen</div>
+                        <div class="timeline-meta">
+                            <span class="timeline-status"></span>
+                            <span>0.1s</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="timeline-event completed" data-event="1">
+                    <div class="timeline-dot">
+                        <span class="timeline-icon">🔍</span>
+                    </div>
+                    <div class="timeline-content">
+                        <div class="timeline-label">AI-modeller</div>
+                        <div class="timeline-meta">
+                            <span class="timeline-status"></span>
+                            <span>5 modeller • 3.2s</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="timeline-event completed" data-event="2">
+                    <div class="timeline-dot">
+                        <span class="timeline-icon">📊</span>
+                    </div>
+                    <div class="timeline-content">
+                        <div class="timeline-label">Tonanalys</div>
+                        <div class="timeline-meta">
+                            <span class="timeline-status"></span>
+                            <span>Sentiment • 0.8s</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="timeline-event active" data-event="3">
+                    <div class="timeline-dot">
+                        <span class="timeline-icon">🎯</span>
+                    </div>
+                    <div class="timeline-content">
+                        <div class="timeline-label">Bias-detektion</div>
+                        <div class="timeline-meta">
+                            <span class="timeline-status"></span>
+                            <span>Analys pågår...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="timeline-event" data-event="4">
+                    <div class="timeline-dot">
+                        <span class="timeline-icon">✓</span>
+                    </div>
+                    <div class="timeline-content">
+                        <div class="timeline-label">Faktakoll</div>
+                        <div class="timeline-meta">
+                            <span class="timeline-status"></span>
+                            <span>Tavily • Väntar</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="timeline-event" data-event="5">
+                    <div class="timeline-dot">
+                        <span class="timeline-icon">📑</span>
+                    </div>
+                    <div class="timeline-content">
+                        <div class="timeline-label">BERT-sammanfattning</div>
+                        <div class="timeline-meta">
+                            <span class="timeline-status"></span>
+                            <span>Extraktiv • Väntar</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="timeline-event" data-event="6">
+                    <div class="timeline-dot">
+                        <span class="timeline-icon">🎨</span>
+                    </div>
+                    <div class="timeline-content">
+                        <div class="timeline-label">Metagranskning</div>
+                        <div class="timeline-meta">
+                            <span class="timeline-status"></span>
+                            <span>GPT-3.5 • Väntar</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="nav-buttons">
+            <button class="nav-btn" id="prevBtn" onclick="scrollTimeline(-1)">‹</button>
+            <button class="nav-btn" id="nextBtn" onclick="scrollTimeline(1)">›</button>
+        </div>
+    </div>
+
+    <!-- Chat Area -->
+    <div class="chat-area">
+        <div class="chat-header">
+            <div class="chat-title">Din fråga</div>
+            <div class="question">
+                Hur kan AI bidra till mer transparenta beslutsprocesser i demokratiska samhällen?
+            </div>
+        </div>
+
+        <div class="response-card">
+            <span class="badge">AI-Analys Pågår</span>
+            <div class="response-text">
+                Vänligen vänta medan våra AI-modeller analyserar din fråga. Du kan följa progressen i tidslinjen ovan där varje steg i processen visas i realtid. Klicka på valfri händelse för att se mer detaljer.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Smooth scroll timeline navigation
+        function scrollTimeline(direction) {
+            const wrapper = document.getElementById('timelineWrapper');
+            const scrollAmount = 220; // width of one event + gap
+            wrapper.scrollBy({
+                left: scrollAmount * direction,
+                behavior: 'smooth'
+            });
+        }
+
+        // Click event to scroll to timeline event
+        document.querySelectorAll('.timeline-event').forEach((event, index) => {
+            event.addEventListener('click', function() {
+                const wrapper = document.getElementById('timelineWrapper');
+                const eventElement = this;
+                const offsetLeft = eventElement.offsetLeft - 40; // account for padding
+                
+                wrapper.scrollTo({
+                    left: offsetLeft,
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Simulate timeline progression
+        let currentStep = 3;
+        setInterval(() => {
+            if (currentStep < 7) {
+                // Mark current as completed
+                const current = document.querySelector(`[data-event="${currentStep}"]`);
+                if (current) {
+                    current.classList.remove('active');
+                    current.classList.add('completed');
+                }
+                
+                currentStep++;
+                
+                // Mark next as active
+                const next = document.querySelector(`[data-event="${currentStep}"]`);
+                if (next) {
+                    next.classList.add('active');
+                    
+                    // Auto-scroll to active event
+                    const wrapper = document.getElementById('timelineWrapper');
+                    const offsetLeft = next.offsetLeft - 40;
+                    wrapper.scrollTo({
+                        left: offsetLeft,
+                        behavior: 'smooth'
+                    });
+                }
+            }
+        }, 3000);
+    </script>
+</body>
+</html>
