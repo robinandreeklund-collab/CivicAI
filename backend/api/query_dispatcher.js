@@ -18,6 +18,7 @@ import { batchFactCheck, compareFactChecks } from '../services/factChecker.js';
 import { performCompleteEnhancedAnalysis } from '../utils/nlpProcessors.js';
 import { synthesizeModelResponses } from '../services/modelSynthesis.js';
 import { executeAnalysisPipeline } from '../services/analysisPipeline.js';
+import { shouldTriggerDebate } from '../services/consensusDebate.js';
 
 const router = express.Router();
 
@@ -317,6 +318,10 @@ router.post('/query', async (req, res) => {
     console.log('🔬 Synthesizing multi-model analysis...');
     const modelSynthesis = synthesizeModelResponses(responses);
 
+    // Check if consensus debate should be triggered
+    const debateTrigger = shouldTriggerDebate(modelSynthesis);
+    console.log('🎯 Debate trigger check:', debateTrigger ? 'YES - High divergence detected' : 'NO - Consensus acceptable');
+
     res.json({
       question,
       responses,
@@ -327,6 +332,7 @@ router.post('/query', async (req, res) => {
       metaReview: gptMetaReview,
       factCheckComparison: factCheckComparison,
       modelSynthesis: modelSynthesis,
+      debateTrigger: debateTrigger,
       timestamp: new Date().toISOString(),
     });
 

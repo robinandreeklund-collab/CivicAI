@@ -6,6 +6,7 @@ import ModelDivergencePanel from '../components/ModelDivergencePanel';
 import ModelPerspectiveCard from '../components/ModelPerspectiveCard';
 import PipelineAnalysisPanel from '../components/PipelineAnalysisPanel';
 import HighlightedText from '../components/HighlightedText';
+import ConsensusDebateCard from '../components/ConsensusDebateCard';
 import { formatMarkdown } from '../utils/formatMarkdown';
 
 /**
@@ -568,6 +569,19 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
                   <h4 className="text-sm font-medium text-civic-gray-400 mb-3">Skillnader & Konsensus</h4>
                   <ModelDivergencePanel modelSynthesis={aiMessage.modelSynthesis} />
                 </div>
+
+                {/* Consensus Debate - Only show if debate should be triggered */}
+                {aiMessage.debateTrigger && (
+                  <div>
+                    <h4 className="text-sm font-medium text-civic-gray-400 mb-3">Konsensus Live Debatt</h4>
+                    <ConsensusDebateCard
+                      questionId={aiMessage.question}
+                      question={aiMessage.question}
+                      modelSynthesis={aiMessage.modelSynthesis}
+                      responses={aiMessage.responses}
+                    />
+                  </div>
+                )}
               </div>
             }
             metadata={[
