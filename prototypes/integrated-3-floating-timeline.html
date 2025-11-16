@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneSeek.AI - Integrated View 3: Floating Timeline</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a; color: #e7e7e7; height: 100vh; overflow: hidden;
+        }
+        .container { height: 100vh; display: flex; flex-direction: column; padding: 32px; max-width: 1400px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+        .logo { font-size: 32px; font-weight: 300; letter-spacing: 2px; }
+        .features-row { display: flex; gap: 24px; font-size: 12px; color: #666; }
+        .timeline-float { background: #151515; border: 1px solid #1a1a1a; border-radius: 16px; padding: 20px 24px; margin-bottom: 24px; display: flex; gap: 16px; overflow-x: auto; }
+        .timeline-step { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 12px; white-space: nowrap; transition: all 0.2s ease; }
+        .timeline-step:hover { background: #1a1a1a; border-color: #2a2a2a; }
+        .step-dot { width: 8px; height: 8px; background: #2a2a2a; border-radius: 50%; }
+        .step-dot.active { background: #99c2ff; box-shadow: 0 0 10px #99c2ff; }
+        .step-dot.complete { background: #31deac; }
+        .step-text { font-size: 13px; }
+        .main-area { flex: 1; display: grid; grid-template-columns: 450px 1fr; gap: 24px; overflow: hidden; }
+        .info-panel { background: #151515; border: 1px solid #1a1a1a; border-radius: 16px; padding: 24px; overflow-y: auto; }
+        .panel-title { font-size: 14px; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; }
+        .info-item { padding: 16px 0; border-bottom: 1px solid #1a1a1a; }
+        .info-label { font-size: 13px; color: #666; margin-bottom: 8px; }
+        .info-value { font-size: 14px; color: #e7e7e7; }
+        .chat-panel { display: flex; flex-direction: column; }
+        .messages { flex: 1; background: #151515; border: 1px solid #1a1a1a; border-radius: 16px; padding: 24px; overflow-y: auto; margin-bottom: 16px; }
+        .welcome { text-align: center; padding: 60px 20px; }
+        .welcome h2 { font-size: 28px; font-weight: 300; margin-bottom: 16px; }
+        .welcome p { color: #666; margin-bottom: 32px; }
+        .examples { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+        .example-chip { background: #1a1a1a; border: 1px solid #2a2a2a; padding: 10px 20px; border-radius: 20px; font-size: 13px; cursor: pointer; transition: all 0.2s ease; }
+        .example-chip:hover { background: #2a2a2a; }
+        .message { background: #1a1a1a; padding: 16px; border-radius: 12px; margin-bottom: 12px; }
+        .msg-header { font-size: 12px; color: #666; margin-bottom: 8px; }
+        .msg-content { color: #e7e7e7; line-height: 1.6; }
+        .input-area { background: #151515; border: 1px solid #1a1a1a; border-radius: 12px; padding: 6px; display: flex; }
+        .input-area input { flex: 1; background: transparent; border: none; padding: 14px 16px; color: #e7e7e7; font-size: 15px; outline: none; }
+        .input-area input::placeholder { color: #444; }
+        .input-area button { background: #e7e7e7; color: #0a0a0a; border: none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; margin: 4px; }
+        .input-area button:hover { background: #fff; }
+        @media (max-width: 968px) { .main-area { grid-template-columns: 1fr; } .info-panel { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">OneSeek.AI</div>
+            <div class="features-row">
+                <span>✓ 5 AI-Modeller</span>
+                <span>✓ Bias-Detektion</span>
+                <span>✓ Faktakoll</span>
+            </div>
+        </div>
+        <div class="timeline-float">
+            <div class="timeline-step"><div class="step-dot"></div><span class="step-text">Fråga mottagen</span></div>
+            <div class="timeline-step"><div class="step-dot"></div><span class="step-text">Tonanalys</span></div>
+            <div class="timeline-step"><div class="step-dot"></div><span class="step-text">Bias-detektion</span></div>
+            <div class="timeline-step"><div class="step-dot"></div><span class="step-text">Faktakoll</span></div>
+            <div class="timeline-step"><div class="step-dot"></div><span class="step-text">AI-modeller</span></div>
+            <div class="timeline-step"><div class="step-dot"></div><span class="step-text">Sammanfattning</span></div>
+        </div>
+        <div class="main-area">
+            <div class="info-panel">
+                <div class="panel-title">Plattformsinformation</div>
+                <div class="info-item"><div class="info-label">AI-Modeller</div><div class="info-value">GPT-3.5, Gemini, DeepSeek, Grok, Qwen</div></div>
+                <div class="info-item"><div class="info-label">Bias-Detektion</div><div class="info-value">Automatisk tonanalys och bias-identifiering</div></div>
+                <div class="info-item"><div class="info-label">Faktakontroll</div><div class="info-value">Tavily Search API för verifiering</div></div>
+                <div class="info-item"><div class="info-label">Sammanfattning</div><div class="info-value">BERT extraktiv sammanfattning</div></div>
+                <div class="info-item"><div class="info-label">Transparens</div><div class="info-value">Full insyn i varje steg</div></div>
+            </div>
+            <div class="chat-panel">
+                <div class="messages" id="messages">
+                    <div class="welcome">
+                        <h2>Välkommen</h2>
+                        <p>Ställ en fråga och följ analysen i tidslinje ovan</p>
+                        <div class="examples">
+                            <div class="example-chip" onclick="ask('Demokrati & AI')">Demokrati & AI</div>
+                            <div class="example-chip" onclick="ask('Klimatpolitik')">Klimatpolitik</div>
+                            <div class="example-chip" onclick="ask('Utbildning')">Utbildning</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="input-area">
+                    <input type="text" id="input" placeholder="Ställ en fråga..." onkeypress="if(event.key==='Enter') submit()">
+                    <button onclick="submit()">Analysera</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        function ask(q) { document.getElementById('input').value = q; submit(); }
+        function submit() {
+            const input = document.getElementById('input');
+            const q = input.value.trim();
+            if (!q) return;
+            document.getElementById('messages').innerHTML = `
+                <div class="message"><div class="msg-header">Du · Just nu</div><div class="msg-content">${q}</div></div>
+                <div class="message"><div class="msg-header">OneSeek.AI · Analyserar</div><div class="msg-content">Följ analysen i tidslinje ovan</div></div>
+            `;
+            input.value = '';
+            animateTimeline();
+        }
+        function animateTimeline() {
+            const dots = document.querySelectorAll('.step-dot');
+            dots.forEach((dot, i) => {
+                setTimeout(() => {
+                    dot.classList.add('active');
+                    setTimeout(() => { dot.classList.remove('active'); dot.classList.add('complete'); }, 600);
+                }, i * 800);
+            });
+        }
+    </script>
+</body>
+</html>
