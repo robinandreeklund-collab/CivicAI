@@ -43,6 +43,17 @@ export default function ConsensusDebateCard({
         throw new Error('Inga tillgängliga agenter för debatt');
       }
 
+      // Extract only necessary data from responses to reduce payload size
+      const lightweightResponses = responses.map(r => ({
+        agent: r.agent,
+        response: r.response,
+        metadata: {
+          model: r.metadata?.model,
+          timestamp: r.metadata?.timestamp,
+          error: r.metadata?.error
+        }
+      }));
+
       const response = await fetch('http://localhost:3001/api/debate/initiate', {
         method: 'POST',
         headers: {
@@ -52,7 +63,7 @@ export default function ConsensusDebateCard({
           questionId,
           question,
           agents,
-          initialResponses: responses,
+          initialResponses: lightweightResponses,
           modelSynthesis,
         }),
       });
