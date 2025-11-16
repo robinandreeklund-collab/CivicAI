@@ -15,7 +15,6 @@ export default function QuestionInput({ onSubmit, isLoading }) {
   const [isFocused, setIsFocused] = useState(false);
   const [animationPhase, setAnimationPhase] = useState('idle'); // idle, collapsing, processing, expanding
   const [processingSteps, setProcessingSteps] = useState([]);
-  const [activeStepIndex, setActiveStepIndex] = useState(0);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,7 +29,6 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     // Phase 2: Processing with step-by-step loader
     setAnimationPhase('processing');
     setProcessingSteps([]);
-    setActiveStepIndex(0);
     
     // Clear the question input
     setQuestion('');
@@ -61,7 +59,6 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
     ));
-    setActiveStepIndex(stepIndex);
     
     // Submit the question in background
     const submitPromise = onSubmit(submittedQuestion);
@@ -80,7 +77,6 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
     ));
-    setActiveStepIndex(stepIndex);
     await new Promise(resolve => setTimeout(resolve, 800));
     stepTimings.push(Math.round((Date.now() - overallStart) / 1000) - stepTimings.reduce((a,b) => a+b, 0));
     setProcessingSteps(prev => prev.map((s, i) => 
@@ -93,7 +89,6 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
     ));
-    setActiveStepIndex(stepIndex);
     await new Promise(resolve => setTimeout(resolve, 1000));
     stepTimings.push(Math.round((Date.now() - overallStart) / 1000) - stepTimings.reduce((a,b) => a+b, 0));
     setProcessingSteps(prev => prev.map((s, i) => 
@@ -106,7 +101,6 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
     ));
-    setActiveStepIndex(stepIndex);
     await new Promise(resolve => setTimeout(resolve, 1200));
     stepTimings.push(Math.round((Date.now() - overallStart) / 1000) - stepTimings.reduce((a,b) => a+b, 0));
     setProcessingSteps(prev => prev.map((s, i) => 
@@ -119,7 +113,6 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
     ));
-    setActiveStepIndex(stepIndex);
     await new Promise(resolve => setTimeout(resolve, 1000));
     stepTimings.push(Math.round((Date.now() - overallStart) / 1000) - stepTimings.reduce((a,b) => a+b, 0));
     setProcessingSteps(prev => prev.map((s, i) => 
@@ -132,7 +125,6 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
     ));
-    setActiveStepIndex(stepIndex);
     await new Promise(resolve => setTimeout(resolve, 2000));
     stepTimings.push(Math.round((Date.now() - overallStart) / 1000) - stepTimings.reduce((a,b) => a+b, 0));
     setProcessingSteps(prev => prev.map((s, i) => 
@@ -145,7 +137,6 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
     ));
-    setActiveStepIndex(stepIndex);
     await new Promise(resolve => setTimeout(resolve, 2000));
     stepTimings.push(Math.round((Date.now() - overallStart) / 1000) - stepTimings.reduce((a,b) => a+b, 0));
     setProcessingSteps(prev => prev.map((s, i) => 
@@ -158,7 +149,6 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     setProcessingSteps(prev => prev.map((s, i) => 
       i === stepIndex ? { ...s, status: 'active', startTime: Date.now() } : s
     ));
-    setActiveStepIndex(stepIndex);
     
     // Wait for actual submission to complete
     try {
@@ -181,7 +171,6 @@ export default function QuestionInput({ onSubmit, isLoading }) {
     // Reset to idle
     setAnimationPhase('idle');
     setProcessingSteps([]);
-    setActiveStepIndex(0);
   };
 
   return (
@@ -216,16 +205,16 @@ export default function QuestionInput({ onSubmit, isLoading }) {
               className={`
                 w-full
                 px-6 py-5 pr-28
-                bg-civic-dark-800 text-gray-100
+                bg-[#151515] text-[#e7e7e7]
                 border-2 rounded-xl
                 transition-all duration-300
                 focus:outline-none
-                placeholder-gray-500
+                placeholder-[#666]
                 resize-none
                 text-base
                 ${isFocused 
-                  ? 'border-civic-gray-500 bg-civic-dark-750 shadow-[0_8px_24px_rgba(0,0,0,0.4)] scale-[1.01]' 
-                  : 'border-civic-gray-700 hover:border-civic-gray-600 hover:bg-civic-dark-750'
+                  ? 'border-[#3a3a3a] bg-[#1a1a1a] shadow-[0_8px_24px_rgba(0,0,0,0.4)] scale-[1.01]' 
+                  : 'border-[#2a2a2a] hover:border-[#3a3a3a] hover:bg-[#1a1a1a]'
                 }
               `}
               style={{
@@ -246,8 +235,8 @@ export default function QuestionInput({ onSubmit, isLoading }) {
                 transition-all duration-300
                 font-medium text-sm
                 ${question.trim() && !isLoading && animationPhase === 'idle'
-                  ? 'bg-gradient-to-br from-civic-gray-600 to-civic-gray-700 hover:from-civic-gray-500 hover:to-civic-gray-600 text-gray-50 border-2 border-civic-gray-500 hover:shadow-lg hover:scale-105' 
-                  : 'bg-civic-dark-700 text-gray-700 cursor-not-allowed border-2 border-civic-dark-600'
+                  ? 'bg-[#e7e7e7] hover:bg-white text-[#0a0a0a] border-2 border-[#e7e7e7] hover:shadow-lg hover:scale-105' 
+                  : 'bg-[#2a2a2a] text-[#666] cursor-not-allowed border-2 border-[#2a2a2a]'
                 }
               `}
             >
@@ -260,9 +249,9 @@ export default function QuestionInput({ onSubmit, isLoading }) {
         {animationPhase === 'processing' && (
           <div className="flex flex-col items-center justify-center space-y-4 py-8 animate-fade-in">
             {/* Thin line loader */}
-            <div className="w-96 h-0.5 bg-civic-dark-700 rounded-full overflow-hidden">
+            <div className="w-96 h-0.5 bg-[#2a2a2a] rounded-full overflow-hidden">
               <div 
-                className="h-full bg-gradient-to-r from-gray-600 via-gray-400 to-gray-600" 
+                className="h-full bg-gradient-to-r from-[#666] via-[#888] to-[#666]" 
                 style={{
                   backgroundSize: '200% 100%',
                   animation: 'shimmer 2s linear infinite'
@@ -272,7 +261,7 @@ export default function QuestionInput({ onSubmit, isLoading }) {
             
             {/* Processing steps - clean one-at-a-time display */}
             <div className="space-y-3 min-h-[80px]">
-              {processingSteps.map((step, index) => {
+              {processingSteps.map((step) => {
                 const isActive = step.status === 'active';
                 
                 // Only show the currently active step (one at a time)
@@ -283,8 +272,8 @@ export default function QuestionInput({ onSubmit, isLoading }) {
                     key={step.id}
                     className="flex items-center space-x-3 animate-fade-in"
                   >
-                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                    <span className="text-sm text-gray-300">
+                    <div className="w-4 h-4 border-2 border-[#888] border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-sm text-[#888]">
                       {step.text}
                     </span>
                   </div>
@@ -304,9 +293,9 @@ export default function QuestionInput({ onSubmit, isLoading }) {
                 onClick={() => setQuestion(`Vad är ${suggestion.toLowerCase()}?`)}
                 className="
                   px-4 py-2 text-sm rounded-full
-                  bg-civic-dark-700 hover:bg-civic-dark-600
-                  text-gray-400 hover:text-gray-200
-                  border border-civic-dark-600 hover:border-civic-gray-600
+                  bg-[#2a2a2a] hover:bg-[#3a3a3a]
+                  text-[#888] hover:text-[#e7e7e7]
+                  border border-[#3a3a3a] hover:border-[#4a4a4a]
                   transition-all duration-200 hover:scale-105
                 "
               >

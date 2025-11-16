@@ -8,19 +8,18 @@ export default function RichContentCard({
   badge,
   content,
   metadata,
-  icon,
   actions
 }) {
   return (
-    <div className="bg-gradient-to-br from-civic-dark-800 to-civic-dark-850 border border-civic-dark-700 rounded-xl p-9 mb-6 hover:border-civic-dark-600 hover:shadow-xl transition-all duration-300">
+    <div className="bg-[#151515] border border-[#1a1a1a] rounded-xl p-9 mb-6 hover:border-[#2a2a2a] hover:shadow-xl transition-all duration-300">
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         {badge && (
           <div className={`
             inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] font-medium uppercase tracking-wider
             ${badge.primary 
-              ? 'bg-gradient-to-r from-civic-dark-600 to-civic-dark-700 text-civic-gray-100' 
-              : 'bg-civic-dark-750 text-civic-gray-300'
+              ? 'bg-[#2a2a2a] text-[#e7e7e7]' 
+              : 'bg-[#1a1a1a] text-[#888]'
             }
           `}>
             {badge.icon && <span>{badge.icon}</span>}
@@ -34,7 +33,7 @@ export default function RichContentCard({
               <button
                 key={idx}
                 onClick={action.onClick}
-                className="w-8 h-8 bg-civic-dark-900 border border-civic-dark-700 rounded-md flex items-center justify-center text-sm text-civic-gray-400 hover:bg-civic-dark-750 hover:border-civic-dark-600 hover:text-civic-gray-300 transition-all"
+                className="w-8 h-8 bg-[#1a1a1a] border border-[#2a2a2a] rounded-md flex items-center justify-center text-sm text-[#888] hover:bg-[#2a2a2a] hover:border-[#3a3a3a] hover:text-[#e7e7e7] transition-all"
                 title={action.title}
               >
                 {action.icon}
@@ -46,25 +45,25 @@ export default function RichContentCard({
 
       {/* Title */}
       {title && (
-        <h3 className="text-lg font-medium text-civic-gray-100 mb-4.5">
+        <h3 className="text-lg font-medium text-[#e7e7e7] mb-4.5">
           {title}
         </h3>
       )}
 
       {/* Content */}
-      <div className="text-[15px] leading-relaxed text-civic-gray-300 mb-5">
+      <div className="text-[15px] leading-relaxed text-[#c0c0c0] mb-5">
         {content}
       </div>
 
       {/* Metadata Grid */}
       {metadata && metadata.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-5 border-t border-civic-dark-700">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-5 border-t border-[#1a1a1a]">
           {metadata.map((meta, idx) => (
             <div key={idx} className="flex flex-col gap-1">
-              <div className="text-[11px] text-civic-gray-600 uppercase tracking-wide">
+              <div className="text-[11px] text-[#666] uppercase tracking-wide">
                 {meta.label}
               </div>
-              <div className="text-[13px] text-civic-gray-300 font-medium">
+              <div className="text-[13px] text-[#888] font-medium">
                 {meta.value}
               </div>
             </div>

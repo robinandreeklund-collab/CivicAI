@@ -65,13 +65,13 @@ export default function TimelineNavigator({
   };
 
   return (
-    <div className="w-[280px] bg-civic-dark-900 border-l border-civic-dark-700 flex flex-col h-screen">
+    <div className="w-[280px] bg-[#151515] border-l border-[#2a2a2a] flex flex-col h-screen">
       {/* Header */}
       <div className="px-5 py-8">
-        <div className="text-xs font-medium text-civic-gray-500 uppercase tracking-wider mb-1.5">
+        <div className="text-xs font-medium text-[#888] uppercase tracking-wider mb-1.5">
           Dataflöde
         </div>
-        <div className="text-[11px] text-civic-gray-600">
+        <div className="text-[11px] text-[#666]">
           Navigera genom analysen
         </div>
       </div>
@@ -83,7 +83,7 @@ export default function TimelineNavigator({
           <div className="mb-6">
             <button
               onClick={() => toggleGroup('aiServices')}
-              className="w-full flex items-center justify-between px-2 mb-3 text-[11px] font-medium text-civic-gray-600 uppercase tracking-wide hover:text-civic-gray-500 transition-colors"
+              className="w-full flex items-center justify-between px-2 mb-3 text-[11px] font-medium text-[#666] uppercase tracking-wide hover:text-[#888] transition-colors"
             >
               <span>AI-tjänster ({aiServices.filter(s => s.enabled).length}/{aiServices.length})</span>
               <svg 
@@ -101,17 +101,17 @@ export default function TimelineNavigator({
                 {aiServices.map((service) => (
                   <div
                     key={service.id}
-                    className="bg-civic-dark-800 border border-civic-dark-700 rounded-lg p-3 hover:bg-civic-dark-750 hover:border-civic-dark-600 transition-all"
+                    className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-3 hover:bg-[#1a1a1a] hover:border-[#3a3a3a] transition-all"
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <span className="text-base">{service.icon}</span>
-                        <span className="text-xs font-medium text-civic-gray-300">{service.name}</span>
+                        <span className="text-xs font-medium text-[#c0c0c0]">{service.name}</span>
                       </div>
                       <button
                         onClick={() => onServiceToggle?.(service.id)}
                         className={`w-10 h-5 rounded-full transition-colors relative ${
-                          service.enabled ? 'bg-civic-gray-500' : 'bg-civic-dark-700'
+                          service.enabled ? 'bg-[#888]' : 'bg-[#2a2a2a]'
                         }`}
                       >
                         <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
@@ -119,7 +119,7 @@ export default function TimelineNavigator({
                         }`}></div>
                       </button>
                     </div>
-                    <div className="text-[10px] text-civic-gray-600">{service.description}</div>
+                    <div className="text-[10px] text-[#666]">{service.description}</div>
                   </div>
                 ))}
               </div>
@@ -132,7 +132,7 @@ export default function TimelineNavigator({
           <div key={sectionIdx} className="space-y-2">
             <button
               onClick={() => toggleGroup(section.group)}
-              className="w-full flex items-center justify-between px-2 text-[11px] font-medium text-civic-gray-600 uppercase tracking-wide hover:text-civic-gray-500 transition-colors"
+              className="w-full flex items-center justify-between px-2 text-[11px] font-medium text-[#666] uppercase tracking-wide hover:text-[#888] transition-colors"
             >
               <span>{section.title} ({section.items.length})</span>
               <svg 
@@ -154,36 +154,36 @@ export default function TimelineNavigator({
                       key={item.id}
                       onClick={() => onSectionChange(item.id)}
                       className={`
-                        w-full bg-civic-dark-800 border rounded-lg p-1.5 text-left transition-all relative
+                        w-full bg-[#1a1a1a] border rounded-lg p-1.5 text-left transition-all relative
                         ${isActive 
-                          ? 'bg-civic-dark-750 border-civic-dark-500 translate-x-1' 
-                          : 'border-civic-dark-700 hover:bg-civic-dark-750 hover:border-civic-dark-600 hover:translate-x-1'
+                          ? 'bg-[#1a1a1a] border-civic-dark-500 translate-x-1' 
+                          : 'border-[#2a2a2a] hover:bg-[#1a1a1a] hover:border-[#3a3a3a] hover:translate-x-1'
                         }
                       `}
                     >
                       {/* Active indicator */}
                       <div className={`
                         absolute left-0 top-0 bottom-0 w-0.5 rounded-l-lg transition-all
-                        ${isActive ? 'bg-gradient-to-b from-civic-gray-400 to-civic-gray-600' : 'bg-transparent'}
+                        ${isActive ? 'bg-gradient-to-b from-[#a0a0a0] to-[#666]' : 'bg-transparent'}
                       `}></div>
 
                       <div className="flex items-center justify-between">
                         <div className={`text-[11px] font-medium transition-colors ${
-                          isActive ? 'text-civic-gray-200' : 'text-civic-gray-300'
+                          isActive ? 'text-[#e0e0e0]' : 'text-[#c0c0c0]'
                         }`}>
                           {item.title}
                         </div>
                         <div className={`
                           w-1.5 h-1.5 rounded-full transition-all
                           ${isActive 
-                            ? 'bg-civic-gray-400 shadow-[0_0_8px_rgba(200,200,200,0.3)]' 
-                            : 'bg-civic-dark-600'
+                            ? 'bg-[#a0a0a0] shadow-[0_0_8px_rgba(200,200,200,0.3)]' 
+                            : 'bg-[#3a3a3a]'
                           }
                         `}></div>
                       </div>
 
                       {item.meta && (
-                        <div className="text-[9px] text-civic-gray-600 mt-0.5">
+                        <div className="text-[9px] text-[#666] mt-0.5">
                           {item.meta}
                         </div>
                       )}
@@ -197,14 +197,14 @@ export default function TimelineNavigator({
       </div>
 
       {/* Progress Footer */}
-      <div className="px-5 py-6 border-t border-civic-dark-800">
+      <div className="px-5 py-6 border-t border-[#1a1a1a]">
         <div className="flex justify-between items-center mb-3 text-[11px]">
-          <span className="text-civic-gray-500">Utforskat</span>
-          <span className="text-civic-gray-300 font-medium">{exploredCount} / {totalSections} ({progressPercent}%)</span>
+          <span className="text-[#888]">Utforskat</span>
+          <span className="text-[#c0c0c0] font-medium">{exploredCount} / {totalSections} ({progressPercent}%)</span>
         </div>
-        <div className="h-1.5 bg-civic-dark-800 rounded-full overflow-hidden">
+        <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
           <div 
-            className="h-full bg-gradient-to-r from-civic-gray-500 to-civic-gray-400 rounded-full transition-all duration-500"
+            className="h-full bg-gradient-to-r from-[#888] to-[#a0a0a0] rounded-full transition-all duration-500"
             style={{ width: `${progressPercent}%` }}
           ></div>
         </div>

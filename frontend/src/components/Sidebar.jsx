@@ -11,7 +11,6 @@ export default function Sidebar({
   currentConversationId = null,
   onSelectConversation,
   onNewConversation,
-  onExportConversations,
   isCollapsed = false,
   onToggleCollapse,
   lastAiMessage = null
