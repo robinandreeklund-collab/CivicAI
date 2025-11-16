@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CivicAI - Minimalist Zen</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 700px;
+            width: 90%;
+            text-align: center;
+        }
+
+        /* Ultra minimal logo */
+        .brand {
+            font-size: 96px;
+            font-weight: 100;
+            letter-spacing: 20px;
+            color: #e7e7e7;
+            margin-bottom: 80px;
+            animation: breathe 4s ease-in-out infinite;
+        }
+
+        @keyframes breathe {
+            0%, 100% {
+                opacity: 1;
+                letter-spacing: 20px;
+            }
+            50% {
+                opacity: 0.7;
+                letter-spacing: 24px;
+            }
+        }
+
+        /* Expanding search */
+        .search-container {
+            margin: 60px 0;
+        }
+
+        .search-line {
+            position: relative;
+            height: 2px;
+            background: #1a1a1a;
+            margin-bottom: 40px;
+            overflow: hidden;
+        }
+
+        .search-line::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 40%;
+            background: linear-gradient(90deg, transparent, #99c2ff, #31deac, transparent);
+            animation: lineFlow 3s linear infinite;
+        }
+
+        @keyframes lineFlow {
+            0% {
+                left: -40%;
+            }
+            100% {
+                left: 100%;
+            }
+        }
+
+        .input-minimal {
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid #1a1a1a;
+            padding: 24px 0;
+            color: #e7e7e7;
+            font-size: 24px;
+            font-weight: 100;
+            text-align: center;
+            outline: none;
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .input-minimal::placeholder {
+            color: #333;
+        }
+
+        .input-minimal:focus {
+            border-bottom-color: #99c2ff;
+            padding: 28px 0;
+        }
+
+        /* Minimal submit */
+        .submit-minimal {
+            margin-top: 40px;
+            background: transparent;
+            border: 1px solid #1a1a1a;
+            color: #666;
+            padding: 16px 48px;
+            font-size: 14px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.5s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .submit-minimal::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(153, 194, 255, 0.1);
+            transform: translate(-50%, -50%);
+            transition: all 0.6s ease;
+        }
+
+        .submit-minimal:hover {
+            color: #99c2ff;
+            border-color: #99c2ff;
+        }
+
+        .submit-minimal:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        /* Minimal stats */
+        .stats-zen {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 100px;
+            padding-top: 60px;
+            border-top: 1px solid #151515;
+        }
+
+        .stat-zen {
+            text-align: center;
+            animation: fadeIn 1s ease both;
+        }
+
+        .stat-zen:nth-child(1) { animation-delay: 0.2s; }
+        .stat-zen:nth-child(2) { animation-delay: 0.4s; }
+        .stat-zen:nth-child(3) { animation-delay: 0.6s; }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .stat-num {
+            font-size: 40px;
+            font-weight: 100;
+            color: #e7e7e7;
+            margin-bottom: 12px;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #444;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        @media (max-width: 768px) {
+            .brand {
+                font-size: 48px;
+                letter-spacing: 10px;
+            }
+            
+            .input-minimal {
+                font-size: 18px;
+            }
+            
+            .stats-zen {
+                flex-direction: column;
+                gap: 40px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="brand">Civic</h1>
+
+        <div class="search-container">
+            <div class="search-line"></div>
+            <input 
+                type="text" 
+                class="input-minimal" 
+                placeholder="Din fråga..."
+            >
+            <button class="submit-minimal">Analysera</button>
+        </div>
+
+        <div class="stats-zen">
+            <div class="stat-zen">
+                <div class="stat-num">5</div>
+                <div class="stat-label">Modeller</div>
+            </div>
+            <div class="stat-zen">
+                <div class="stat-num">∞</div>
+                <div class="stat-label">Transparens</div>
+            </div>
+            <div class="stat-zen">
+                <div class="stat-num">0</div>
+                <div class="stat-label">Bias</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

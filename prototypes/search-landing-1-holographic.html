@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CivicAI - Holographic Search</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Animated background particles */
+        .particles {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: #99c2ff;
+            border-radius: 50%;
+            animation: float 20s infinite;
+            opacity: 0.3;
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0) translateX(0);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.3;
+            }
+            90% {
+                opacity: 0.3;
+            }
+            100% {
+                transform: translateY(-100vh) translateX(100px);
+                opacity: 0;
+            }
+        }
+
+        .container {
+            position: relative;
+            z-index: 10;
+            max-width: 900px;
+            width: 90%;
+            text-align: center;
+        }
+
+        /* Logo with holographic effect */
+        .logo {
+            font-size: 72px;
+            font-weight: 300;
+            letter-spacing: 8px;
+            margin-bottom: 20px;
+            background: linear-gradient(45deg, #99c2ff, #31deac, #99c2ff, #31deac);
+            background-size: 300% 300%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: holographic 4s ease infinite;
+            position: relative;
+        }
+
+        @keyframes holographic {
+            0%, 100% {
+                background-position: 0% 50%;
+                filter: drop-shadow(0 0 20px rgba(153, 194, 255, 0.5));
+            }
+            50% {
+                background-position: 100% 50%;
+                filter: drop-shadow(0 0 40px rgba(49, 222, 172, 0.7));
+            }
+        }
+
+        .tagline {
+            font-size: 16px;
+            color: #666;
+            letter-spacing: 3px;
+            margin-bottom: 60px;
+            text-transform: uppercase;
+            animation: fadeInUp 1s ease 0.3s both;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Search container with 3D effect */
+        .search-container {
+            position: relative;
+            animation: fadeInUp 1s ease 0.6s both;
+            perspective: 1000px;
+        }
+
+        .search-wrapper {
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .search-wrapper:hover {
+            transform: rotateX(2deg) translateZ(10px);
+        }
+
+        .search-box {
+            position: relative;
+            background: linear-gradient(135deg, #151515 0%, #0a0a0a 100%);
+            border-radius: 24px;
+            padding: 8px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Animated border */
+        .search-box::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 24px;
+            padding: 2px;
+            background: linear-gradient(135deg, #99c2ff, #31deac, #99c2ff);
+            background-size: 200% 200%;
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            animation: borderFlow 3s linear infinite;
+        }
+
+        @keyframes borderFlow {
+            0% {
+                background-position: 0% 50%;
+            }
+            100% {
+                background-position: 200% 50%;
+            }
+        }
+
+        .search-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            padding: 28px 32px;
+            color: #e7e7e7;
+            font-size: 20px;
+            font-weight: 300;
+            outline: none;
+            letter-spacing: 1px;
+        }
+
+        .search-input::placeholder {
+            color: #444;
+            font-weight: 300;
+        }
+
+        /* Glowing search icon */
+        .search-icon {
+            position: absolute;
+            right: 32px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .search-icon:hover {
+            transform: translateY(-50%) scale(1.2) rotate(90deg);
+        }
+
+        .search-icon::before,
+        .search-icon::after {
+            content: '';
+            position: absolute;
+            background: #99c2ff;
+            border-radius: 50%;
+        }
+
+        .search-icon::before {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #99c2ff;
+            background: transparent;
+            box-shadow: 0 0 20px rgba(153, 194, 255, 0.6);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .search-icon::after {
+            width: 2px;
+            height: 8px;
+            background: #99c2ff;
+            bottom: -2px;
+            right: -2px;
+            transform: rotate(45deg);
+            box-shadow: 0 0 10px rgba(153, 194, 255, 0.8);
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 0 20px rgba(153, 194, 255, 0.6);
+            }
+            50% {
+                box-shadow: 0 0 35px rgba(153, 194, 255, 0.9);
+            }
+        }
+
+        /* Feature cards */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-top: 60px;
+            animation: fadeInUp 1s ease 0.9s both;
+        }
+
+        .feature-card {
+            background: linear-gradient(135deg, #151515 0%, #0a0a0a 100%);
+            border: 1px solid #1a1a1a;
+            border-radius: 16px;
+            padding: 32px 24px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, transparent, rgba(153, 194, 255, 0.1), transparent);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-8px);
+            border-color: #99c2ff;
+            box-shadow: 0 20px 40px rgba(153, 194, 255, 0.2);
+        }
+
+        .feature-card:hover::before {
+            opacity: 1;
+        }
+
+        .feature-icon {
+            font-size: 40px;
+            margin-bottom: 16px;
+            display: inline-block;
+            animation: iconFloat 3s ease-in-out infinite;
+        }
+
+        @keyframes iconFloat {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .feature-card:nth-child(2) .feature-icon {
+            animation-delay: 0.3s;
+        }
+
+        .feature-card:nth-child(3) .feature-icon {
+            animation-delay: 0.6s;
+        }
+
+        .feature-title {
+            font-size: 16px;
+            font-weight: 500;
+            color: #e7e7e7;
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+        }
+
+        .feature-text {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .logo {
+                font-size: 48px;
+            }
+            
+            .features {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .search-input {
+                font-size: 16px;
+                padding: 20px 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="particles" id="particles"></div>
+
+    <div class="container">
+        <h1 class="logo">CivicAI</h1>
+        <p class="tagline">Transparens · Ansvar · Demokrati</p>
+
+        <div class="search-container">
+            <div class="search-wrapper">
+                <div class="search-box">
+                    <input 
+                        type="text" 
+                        class="search-input" 
+                        placeholder="Ställ en fråga om demokrati, politik eller samhälle..."
+                        id="searchInput"
+                    >
+                    <div class="search-icon"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="features">
+            <div class="feature-card">
+                <div class="feature-icon">🔍</div>
+                <div class="feature-title">5 AI-Modeller</div>
+                <div class="feature-text">Jämför svar från flera ledande AI-modeller samtidigt</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">⚖️</div>
+                <div class="feature-title">Bias-Analys</div>
+                <div class="feature-text">Automatisk detektion av bias och tonalitet</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">✓</div>
+                <div class="feature-title">Faktakoll</div>
+                <div class="feature-text">Verifiering mot aktuella källor</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Generate floating particles
+        const particlesContainer = document.getElementById('particles');
+        for (let i = 0; i < 50; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.animationDelay = Math.random() * 20 + 's';
+            particle.style.animationDuration = (15 + Math.random() * 10) + 's';
+            particlesContainer.appendChild(particle);
+        }
+
+        // Search input animation
+        const searchInput = document.getElementById('searchInput');
+        searchInput.addEventListener('focus', function() {
+            this.parentElement.parentElement.style.transform = 'scale(1.02)';
+        });
+
+        searchInput.addEventListener('blur', function() {
+            this.parentElement.parentElement.style.transform = 'scale(1)';
+        });
+    </script>
+</body>
+</html>
