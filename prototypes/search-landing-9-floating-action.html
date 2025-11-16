@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneSeek.AI - Floating Action</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 48px;
+            font-weight: 300;
+            letter-spacing: 2px;
+            margin-bottom: 16px;
+            color: #e7e7e7;
+        }
+
+        .tagline {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 80px;
+            font-weight: 300;
+        }
+
+        .search-section {
+            margin-bottom: 60px;
+        }
+
+        .search-box {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .search-box:hover {
+            border-color: #2a2a2a;
+            transform: translateY(-2px);
+        }
+
+        .search-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            padding: 0;
+            color: #e7e7e7;
+            font-size: 18px;
+            outline: none;
+            text-align: center;
+        }
+
+        .search-input::placeholder {
+            color: #444;
+        }
+
+        .floating-button {
+            background: #e7e7e7;
+            color: #0a0a0a;
+            border: none;
+            padding: 16px 48px;
+            border-radius: 24px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .floating-button:hover {
+            background: #fff;
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        .floating-button:active {
+            transform: translateY(-2px);
+        }
+
+        .features-row {
+            display: flex;
+            justify-content: center;
+            gap: 48px;
+            padding: 40px 0;
+            border-top: 1px solid #151515;
+            border-bottom: 1px solid #151515;
+        }
+
+        .feature {
+            text-align: center;
+        }
+
+        .feature-icon {
+            font-size: 28px;
+            margin-bottom: 12px;
+        }
+
+        .feature-label {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .cta-text {
+            margin-top: 60px;
+            font-size: 14px;
+            color: #666;
+            line-height: 1.8;
+        }
+
+        @media (max-width: 768px) {
+            .logo {
+                font-size: 36px;
+            }
+            
+            .features-row {
+                flex-direction: column;
+                gap: 32px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="logo">OneSeek.AI</h1>
+        <p class="tagline">Beslut med insyn. AI med ansvar.</p>
+
+        <div class="search-section">
+            <div class="search-box">
+                <input 
+                    type="text" 
+                    class="search-input" 
+                    placeholder="Ställ en fråga..."
+                >
+            </div>
+            <button class="floating-button">Analysera med AI</button>
+        </div>
+
+        <div class="features-row">
+            <div class="feature">
+                <div class="feature-icon">🔍</div>
+                <div class="feature-label">Jämför 5 AI-modeller</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">⚖️</div>
+                <div class="feature-label">Bias-detektion</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">✓</div>
+                <div class="feature-label">Faktakontroll</div>
+            </div>
+        </div>
+
+        <p class="cta-text">
+            Transparent AI-analys med automatisk bias-detektion<br>
+            och verifiering mot aktuella källor.
+        </p>
+    </div>
+</body>
+</html>

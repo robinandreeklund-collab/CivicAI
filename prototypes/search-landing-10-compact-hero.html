@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneSeek.AI - Compact Hero</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 650px;
+            width: 90%;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 52px;
+            font-weight: 300;
+            letter-spacing: 3px;
+            margin-bottom: 12px;
+            color: #e7e7e7;
+        }
+
+        .tagline {
+            font-size: 15px;
+            color: #666;
+            margin-bottom: 48px;
+            font-weight: 300;
+        }
+
+        .search-container {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 32px;
+            transition: all 0.3s ease;
+        }
+
+        .search-container:hover {
+            border-color: #2a2a2a;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            flex: 1;
+            background: #0a0a0a;
+            border: 1px solid #1a1a1a;
+            border-radius: 10px;
+            padding: 16px 20px;
+            color: #e7e7e7;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .search-input:focus {
+            border-color: #2a2a2a;
+        }
+
+        .search-input::placeholder {
+            color: #444;
+        }
+
+        .search-btn {
+            background: #e7e7e7;
+            color: #0a0a0a;
+            border: none;
+            padding: 16px 28px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+        }
+
+        .search-btn:hover {
+            background: #fff;
+            transform: scale(1.02);
+        }
+
+        .help-text {
+            font-size: 12px;
+            color: #444;
+            line-height: 1.6;
+        }
+
+        .quick-stats {
+            display: flex;
+            justify-content: space-around;
+            padding: 24px 0;
+        }
+
+        .stat-box {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 300;
+            color: #e7e7e7;
+            margin-bottom: 6px;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .bottom-links {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-top: 48px;
+            padding-top: 32px;
+            border-top: 1px solid #151515;
+        }
+
+        .link {
+            font-size: 13px;
+            color: #666;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .link:hover {
+            color: #e7e7e7;
+        }
+
+        @media (max-width: 768px) {
+            .logo {
+                font-size: 40px;
+            }
+            
+            .input-group {
+                flex-direction: column;
+            }
+            
+            .quick-stats {
+                flex-direction: column;
+                gap: 24px;
+            }
+            
+            .bottom-links {
+                flex-direction: column;
+                gap: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="logo">OneSeek.AI</h1>
+        <p class="tagline">Beslut med insyn. AI med ansvar.</p>
+
+        <div class="search-container">
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    class="search-input" 
+                    placeholder="Ställ din fråga..."
+                >
+                <button class="search-btn">Analysera</button>
+            </div>
+            <div class="help-text">
+                Jämför AI-modellers svar med automatisk bias-detektion
+            </div>
+        </div>
+
+        <div class="quick-stats">
+            <div class="stat-box">
+                <div class="stat-value">5</div>
+                <div class="stat-label">Modeller</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">100%</div>
+                <div class="stat-label">Transparent</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">∞</div>
+                <div class="stat-label">Frågor</div>
+            </div>
+        </div>
+
+        <div class="bottom-links">
+            <a href="#" class="link">Om OneSeek.AI</a>
+            <a href="#" class="link">Hur det fungerar</a>
+            <a href="#" class="link">Kontakt</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneSeek.AI - Card Stack</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 700px;
+            width: 100%;
+        }
+
+        .logo {
+            font-size: 48px;
+            font-weight: 300;
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+            color: #e7e7e7;
+            text-align: center;
+        }
+
+        .tagline {
+            font-size: 15px;
+            color: #666;
+            margin-bottom: 48px;
+            font-weight: 300;
+            text-align: center;
+        }
+
+        .card {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            background: #1a1a1a;
+            transform: translateY(-2px);
+        }
+
+        .card-title {
+            font-size: 14px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+        }
+
+        .search-input {
+            width: 100%;
+            background: #0a0a0a;
+            border: 1px solid #1a1a1a;
+            border-radius: 8px;
+            padding: 16px;
+            color: #e7e7e7;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .search-input:focus {
+            border-color: #2a2a2a;
+        }
+
+        .search-input::placeholder {
+            color: #444;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .btn {
+            flex: 1;
+            background: #e7e7e7;
+            color: #0a0a0a;
+            border: none;
+            padding: 14px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            background: #fff;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: #1a1a1a;
+            color: #e7e7e7;
+            border: 1px solid #2a2a2a;
+        }
+
+        .btn-secondary:hover {
+            background: #2a2a2a;
+        }
+
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-item {
+            padding: 16px 0;
+            border-bottom: 1px solid #1a1a1a;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .feature-item:last-child {
+            border-bottom: none;
+        }
+
+        .feature-icon {
+            font-size: 24px;
+        }
+
+        .feature-content {
+            flex: 1;
+        }
+
+        .feature-name {
+            font-size: 15px;
+            color: #e7e7e7;
+            margin-bottom: 4px;
+        }
+
+        .feature-desc {
+            font-size: 13px;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .logo {
+                font-size: 36px;
+            }
+            
+            .button-row {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="logo">OneSeek.AI</h1>
+        <p class="tagline">Beslut med insyn. AI med ansvar.</p>
+
+        <div class="card">
+            <div class="card-title">Din Fråga</div>
+            <input 
+                type="text" 
+                class="search-input" 
+                placeholder="Ställ en fråga till AI-modellerna..."
+            >
+            <div class="button-row">
+                <button class="btn">Analysera</button>
+                <button class="btn btn-secondary">Exempel</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Så Fungerar Det</div>
+            <ul class="feature-list">
+                <li class="feature-item">
+                    <span class="feature-icon">🔍</span>
+                    <div class="feature-content">
+                        <div class="feature-name">Jämför 5 AI-modeller</div>
+                        <div class="feature-desc">Parallell analys i realtid</div>
+                    </div>
+                </li>
+                <li class="feature-item">
+                    <span class="feature-icon">⚖️</span>
+                    <div class="feature-content">
+                        <div class="feature-name">Bias-detektion</div>
+                        <div class="feature-desc">Automatisk analys av tonalitet</div>
+                    </div>
+                </li>
+                <li class="feature-item">
+                    <span class="feature-icon">✓</span>
+                    <div class="feature-content">
+                        <div class="feature-name">Faktakontroll</div>
+                        <div class="feature-desc">Verifiering mot källor</div>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
