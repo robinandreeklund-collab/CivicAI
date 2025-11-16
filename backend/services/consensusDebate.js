@@ -16,7 +16,6 @@ import { getOpenAIResponse } from './openai.js';
 import { getGeminiResponse } from './gemini.js';
 import { getDeepSeekResponse } from './deepseek.js';
 import { getGrokResponse } from './grok.js';
-import { getQwenResponse } from './qwen.js';
 import { logAuditEvent, AuditEventType } from './auditTrail.js';
 import { executeAnalysisPipeline } from './analysisPipeline.js';
 
@@ -26,7 +25,7 @@ const debates = new Map();
 // Configuration
 const DEBATE_CONFIG = {
   maxAgents: 5,
-  maxRoundsPerAgent: 5,
+  maxRoundsPerAgent: 3, // Changed from 5 to 3
   divergenceThreshold: 60, // Percentage - if consensus < 40%, trigger debate
   severityThreshold: 2, // Number of high-severity divergences to trigger debate
 };
@@ -112,7 +111,6 @@ function getAIServiceByAgent(agent) {
     'gemini': getGeminiResponse,
     'deepseek': getDeepSeekResponse,
     'grok': getGrokResponse,
-    'qwen': getQwenResponse,
   };
   
   return serviceMap[agent];

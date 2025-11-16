@@ -298,7 +298,7 @@ export default function ConsensusDebateCard({
               </div>
               <div>
                 <div className="text-civic-gray-500 mb-1">Max rundor:</div>
-                <div className="text-civic-gray-200 font-medium">5 rundor</div>
+                <div className="text-civic-gray-200 font-medium">3 rundor</div>
               </div>
             </div>
           </div>
@@ -342,7 +342,7 @@ export default function ConsensusDebateCard({
             {debate.status === 'completed' && 'Klar'}
           </div>
           <div className="text-xs text-civic-gray-500">
-            Runda {debate.currentRound} / 5
+            Runda {debate.currentRound} / 3
           </div>
         </div>
       </div>
