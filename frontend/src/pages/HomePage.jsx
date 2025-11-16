@@ -12,13 +12,22 @@ import { formatMarkdown } from '../utils/formatMarkdown';
  * Main chat interface for OneSeek.AI with Timeline Navigator (Concept 3)
  * Clean, minimalist design with card stack navigation
  */
-export default function HomePage({ onAiMessageUpdate }) {
+export default function HomePage({ onAiMessageUpdate, conversationId }) {
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [activeSection, setActiveSection] = useState(null);
   const [exploredSections, setExploredSections] = useState(new Set());
   const chatEndRef = useRef(null);
+
+  // Reset messages when conversationId changes (new conversation)
+  useEffect(() => {
+    if (conversationId) {
+      setMessages([]);
+      setActiveSection(null);
+      setExploredSections(new Set());
+    }
+  }, [conversationId]);
 
   // AI Services configuration
   const [aiServices, setAiServices] = useState([
