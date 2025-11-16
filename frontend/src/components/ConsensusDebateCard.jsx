@@ -24,7 +24,7 @@ export default function ConsensusDebateCard({
 
   // Auto-progress through rounds after debate starts
   useEffect(() => {
-    if (debate && debate.status === 'initiated' && !isRunningRound && debate.currentRound < 5) {
+    if (debate && debate.status === 'initiated' && !isRunningRound && debate.currentRound < 3) {
       // Auto-run next round after a brief delay for smooth UX
       const timer = setTimeout(() => {
         runNextRound();

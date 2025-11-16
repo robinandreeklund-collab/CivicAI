@@ -6,7 +6,7 @@
 import { useState } from 'react';
 
 export default function DebateRoundDisplay({ round, isLatest = false }) {
-  const [isExpanded, setIsExpanded] = useState(isLatest); // Latest round is expanded by default
+  const [isExpanded, setIsExpanded] = useState(false); // All rounds minimized by default
 
   return (
     <div className={`bg-civic-dark-900/50 rounded-lg border border-civic-dark-700 ${isLatest ? 'animate-fadeIn' : ''}`}>
