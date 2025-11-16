@@ -97,13 +97,21 @@ export function detectBias(text, question = '') {
   // Direction assigned only if one side exceeds the other by 3+ keywords
   let leftCount = 0;
   let rightCount = 0;
+  const leftWords = [];
+  const rightWords = [];
   
   biasIndicators.political.leftLeaning.forEach(keyword => {
-    if (textLower.includes(keyword)) leftCount++;
+    if (textLower.includes(keyword)) {
+      leftCount++;
+      leftWords.push(keyword);
+    }
   });
   
   biasIndicators.political.rightLeaning.forEach(keyword => {
-    if (textLower.includes(keyword)) rightCount++;
+    if (textLower.includes(keyword)) {
+      rightCount++;
+      rightWords.push(keyword);
+    }
   });
 
   if (leftCount > rightCount + 2) {
@@ -115,6 +123,7 @@ export function detectBias(text, question = '') {
       severity: calculateSeverity(biasIndicators.political.score),
       direction: 'left',
       description: 'Vänsterorienterad politisk bias',
+      words: leftWords,
     });
   } else if (rightCount > leftCount + 2) {
     // Right bias detected: Score = difference between counts
@@ -125,14 +134,17 @@ export function detectBias(text, question = '') {
       severity: calculateSeverity(biasIndicators.political.score),
       direction: 'right',
       description: 'Högerorienterad politisk bias',
+      words: rightWords,
     });
   }
 
   // COMMERCIAL BIAS DETECTION
   // Count commercial keywords; 2+ matches trigger detection
+  const commercialWords = [];
   biasIndicators.commercial.keywords.forEach(keyword => {
     if (textLower.includes(keyword)) {
       biasIndicators.commercial.score++;
+      commercialWords.push(keyword);
     }
   });
 
@@ -141,6 +153,7 @@ export function detectBias(text, question = '') {
       type: 'commercial',
       severity: calculateSeverity(biasIndicators.commercial.score),
       description: 'Kommersiell bias eller produktrekommendationer',
+      words: commercialWords,
     });
   }
 
@@ -149,13 +162,21 @@ export function detectBias(text, question = '') {
   // Direction assigned only if one side exceeds the other by 2+ keywords
   let westernCount = 0;
   let nonWesternCount = 0;
+  const westernWords = [];
+  const nonWesternWords = [];
 
   biasIndicators.cultural.western.forEach(keyword => {
-    if (textLower.includes(keyword)) westernCount++;
+    if (textLower.includes(keyword)) {
+      westernCount++;
+      westernWords.push(keyword);
+    }
   });
 
   biasIndicators.cultural.nonWestern.forEach(keyword => {
-    if (textLower.includes(keyword)) nonWesternCount++;
+    if (textLower.includes(keyword)) {
+      nonWesternCount++;
+      nonWesternWords.push(keyword);
+    }
   });
 
   if (westernCount > nonWesternCount + 1) {
@@ -166,14 +187,17 @@ export function detectBias(text, question = '') {
       severity: calculateSeverity(biasIndicators.cultural.score),
       direction: 'western',
       description: 'Västerländsk kulturell bias',
+      words: westernWords,
     });
   }
 
   // CONFIRMATION BIAS DETECTION
   // Any occurrence of confirmation keywords is significant
+  const confirmationWords = [];
   biasIndicators.confirmation.keywords.forEach(keyword => {
     if (textLower.includes(keyword)) {
       biasIndicators.confirmation.score++;
+      confirmationWords.push(keyword);
     }
   });
 
@@ -182,14 +206,17 @@ export function detectBias(text, question = '') {
       type: 'confirmation',
       severity: calculateSeverity(biasIndicators.confirmation.score),
       description: 'Bekräftelsebias - presenterar påståenden som självklara',
+      words: confirmationWords,
     });
   }
 
   // RECENCY BIAS DETECTION
   // Count temporal keywords; 3+ matches trigger detection (adjusted -2 for normal usage)
+  const recencyWords = [];
   biasIndicators.recency.keywords.forEach(keyword => {
     if (textLower.includes(keyword)) {
       biasIndicators.recency.score++;
+      recencyWords.push(keyword);
     }
   });
 
@@ -198,6 +225,7 @@ export function detectBias(text, question = '') {
       type: 'recency',
       severity: calculateSeverity(biasIndicators.recency.score - 2), // Adjust score
       description: 'Recency bias - fokuserar på nyhet över relevans',
+      words: recencyWords,
     });
   }
 
@@ -214,6 +242,13 @@ export function detectBias(text, question = '') {
     detectedBiases: detectedBiases.sort((a, b) => 
       severityToScore(b.severity) - severityToScore(a.severity)
     ),
+    provenance: {
+      model: 'Multi-dimensional Bias Detector',
+      version: '1.0.0',
+      method: 'Keyword-based bias detection with 5 bias types',
+      timestamp: new Date().toISOString(),
+      library: 'JavaScript native (no external dependencies)',
+    },
   };
 }
 

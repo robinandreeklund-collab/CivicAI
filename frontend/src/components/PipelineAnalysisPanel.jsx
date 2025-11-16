@@ -8,12 +8,14 @@
  * - Preprocessing results
  * - Quality indicators
  * - Risk flags
+ * - Detailed processing steps with library information
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import AnalysisPipelineTimeline from './AnalysisPipelineTimeline';
 import SentimentAnalysisPanel from './SentimentAnalysisPanel';
 import IdeologicalClassificationPanel from './IdeologicalClassificationPanel';
+import ProcessingStepCard from './ProcessingStepCard';
 
 const PipelineAnalysisPanel = ({ pipelineAnalysis }) => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -34,6 +36,7 @@ const PipelineAnalysisPanel = ({ pipelineAnalysis }) => {
   // Tab configuration
   const tabs = [
     { id: 'overview', label: 'Översikt', icon: '📊' },
+    { id: 'processing', label: 'Processering', icon: '⚙️' },
     { id: 'sentiment', label: 'Sentiment', icon: '💭' },
     { id: 'ideology', label: 'Ideologi', icon: '🏛️' },
     { id: 'timeline', label: 'Timeline', icon: '⏱️' },
@@ -177,6 +180,94 @@ const PipelineAnalysisPanel = ({ pipelineAnalysis }) => {
                   <div className="text-sm text-civic-gray-500">Ord/mening</div>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Processing Tab - NEW: Detailed processing steps */}
+        {activeTab === 'processing' && (
+          <div className="space-y-4">
+            <div className="bg-civic-dark-800/50 rounded-lg p-6 border border-civic-dark-700">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <span>⚙️</span>
+                Processningssteg
+              </h3>
+              <p className="text-sm text-civic-gray-400 mb-4">
+                Detaljerad information om varje analyssteg, bibliotek som används och identifierade nyckelord.
+              </p>
+              
+              {timeline && timeline.length > 0 ? (
+                <div className="space-y-3">
+                  {timeline.map((step, index) => {
+                    // Find corresponding data for this step
+                    const stepDataMap = {
+                      'bias_detection_javascript': pipelineAnalysis.biasAnalysis,
+                      'sentence_bias_analysis': pipelineAnalysis.sentenceBiasAnalysis,
+                      'sentiment_analysis_javascript': pipelineAnalysis.sentimentAnalysis,
+                      'ideology_classification_javascript': pipelineAnalysis.ideologicalClassification,
+                      'preprocessing_javascript': pipelineAnalysis.preprocessing,
+                    };
+                    
+                    const stepData = stepDataMap[step.step];
+                    
+                    return (
+                      <ProcessingStepCard
+                        key={index}
+                        step={step}
+                        stepData={stepData}
+                        stepIndex={index}
+                      />
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-sm text-civic-gray-400">
+                  Ingen timeline-data tillgänglig
+                </div>
+              )}
+
+              {/* Python ML Statistics */}
+              {pipelineAnalysis.pythonMLStats && (
+                <div className="mt-6 pt-4 border-t border-civic-dark-700">
+                  <h4 className="text-sm font-semibold text-white mb-3">Python ML Statistik</h4>
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                      <div className="text-2xl font-bold text-civic-gray-300">
+                        {pipelineAnalysis.pythonMLStats.pythonSteps || 0}
+                      </div>
+                      <div className="text-xs text-civic-gray-400">Python ML steg</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-civic-gray-300">
+                        {pipelineAnalysis.pythonMLStats.javascriptSteps || 0}
+                      </div>
+                      <div className="text-xs text-civic-gray-400">JavaScript steg</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-civic-gray-300">
+                        {pipelineAnalysis.pythonMLStats.toolsUsed?.length || 0}
+                      </div>
+                      <div className="text-xs text-civic-gray-400">Unika verktyg</div>
+                    </div>
+                  </div>
+                  
+                  {pipelineAnalysis.pythonMLStats.toolsUsed && pipelineAnalysis.pythonMLStats.toolsUsed.length > 0 && (
+                    <div className="mt-4">
+                      <div className="text-xs text-civic-gray-400 mb-2">Använda verktyg:</div>
+                      <div className="flex flex-wrap gap-2">
+                        {pipelineAnalysis.pythonMLStats.toolsUsed.map((tool, idx) => (
+                          <span
+                            key={idx}
+                            className="px-3 py-1 bg-civic-dark-900/50 text-civic-gray-300 text-xs rounded border border-civic-dark-700"
+                          >
+                            {tool}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

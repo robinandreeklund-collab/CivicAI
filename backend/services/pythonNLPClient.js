@@ -42,21 +42,37 @@ export async function getAvailableModels() {
  */
 export async function preprocessWithSpacy(text) {
   try {
-    const response = await axios.post(`${PYTHON_SERVICE_URL}/preprocess`, { text });
+    const response = await axios.post(`${PYTHON_SERVICE_URL}/preprocess`, { text }, { timeout: 5000 });
+    console.log('✓ Using Python spaCy for preprocessing');
     return {
       success: true,
       data: response.data,
       usingPython: true,
     };
   } catch (error) {
+    // Handle any connection or service errors
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      console.log('✗ Python service not reachable - using JavaScript fallback for preprocessing');
+      return {
+        success: false,
+        fallback: true,
+        error: 'Python service not reachable',
+      };
+    }
     if (error.response?.status === 503) {
+      console.log('✗ spaCy not available in Python service - using JavaScript fallback');
       return {
         success: false,
         fallback: true,
         error: 'spaCy not available - using JavaScript fallback',
       };
     }
-    throw error;
+    console.error('Error calling Python preprocessing:', error.message);
+    return {
+      success: false,
+      fallback: true,
+      error: error.message,
+    };
   }
 }
 
@@ -67,46 +83,76 @@ export async function preprocessWithSpacy(text) {
  */
 export async function analyzeSentimentWithTextBlob(text) {
   try {
-    const response = await axios.post(`${PYTHON_SERVICE_URL}/sentiment`, { text });
+    const response = await axios.post(`${PYTHON_SERVICE_URL}/sentiment`, { text }, { timeout: 5000 });
+    console.log('✓ Using Python TextBlob for sentiment analysis');
     return {
       success: true,
       data: response.data,
       usingPython: true,
     };
   } catch (error) {
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      console.log('✗ Python service not reachable - using JavaScript fallback for sentiment');
+      return {
+        success: false,
+        fallback: true,
+        error: 'Python service not reachable',
+      };
+    }
     if (error.response?.status === 503) {
+      console.log('✗ TextBlob not available in Python service - using JavaScript fallback');
       return {
         success: false,
         fallback: true,
         error: 'TextBlob not available - using JavaScript fallback',
       };
     }
-    throw error;
+    console.error('Error calling Python sentiment analysis:', error.message);
+    return {
+      success: false,
+      fallback: true,
+      error: error.message,
+    };
   }
 }
 
 /**
- * Detect language using Polyglot
+ * Detect language using langdetect
  * - Multi-language support
  * - Confidence scores
  */
 export async function detectLanguageWithPolyglot(text) {
   try {
-    const response = await axios.post(`${PYTHON_SERVICE_URL}/detect-language`, { text });
+    const response = await axios.post(`${PYTHON_SERVICE_URL}/detect-language`, { text }, { timeout: 5000 });
+    console.log('✓ Using Python langdetect for language detection');
     return {
       success: true,
       data: response.data,
       usingPython: true,
     };
   } catch (error) {
-    if (error.response?.status === 503) {
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      console.log('✗ Python service not reachable - using JavaScript fallback for language detection');
       return {
         success: false,
         fallback: true,
-        error: 'Polyglot not available - using JavaScript fallback',
+        error: 'Python service not reachable',
       };
     }
-    throw error;
+    if (error.response?.status === 503) {
+      console.log('✗ langdetect not available in Python service - using JavaScript fallback');
+      return {
+        success: false,
+        fallback: true,
+        error: 'langdetect not available - using JavaScript fallback',
+      };
+    }
+    console.error('Error calling Python language detection:', error.message);
+    return {
+      success: false,
+      fallback: true,
+      error: error.message,
+    };
   }
 }
 
@@ -118,21 +164,36 @@ export async function detectLanguageWithPolyglot(text) {
  */
 export async function detectToxicityWithDetoxify(text) {
   try {
-    const response = await axios.post(`${PYTHON_SERVICE_URL}/detect-toxicity`, { text });
+    const response = await axios.post(`${PYTHON_SERVICE_URL}/detect-toxicity`, { text }, { timeout: 5000 });
+    console.log('✓ Using Python Detoxify for toxicity detection');
     return {
       success: true,
       data: response.data,
       usingPython: true,
     };
   } catch (error) {
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      console.log('✗ Python service not reachable - using JavaScript fallback for toxicity detection');
+      return {
+        success: false,
+        fallback: true,
+        error: 'Python service not reachable',
+      };
+    }
     if (error.response?.status === 503) {
+      console.log('✗ Detoxify not available in Python service - using JavaScript fallback');
       return {
         success: false,
         fallback: true,
         error: 'Detoxify not available - using JavaScript fallback',
       };
     }
-    throw error;
+    console.error('Error calling Python toxicity detection:', error.message);
+    return {
+      success: false,
+      fallback: true,
+      error: error.message,
+    };
   }
 }
 
@@ -142,7 +203,8 @@ export async function detectToxicityWithDetoxify(text) {
  */
 export async function classifyIdeologyWithTransformers(text) {
   try {
-    const response = await axios.post(`${PYTHON_SERVICE_URL}/classify-ideology`, { text });
+    const response = await axios.post(`${PYTHON_SERVICE_URL}/classify-ideology`, { text }, { timeout: 10000 });
+    console.log('✓ Using Python Transformers (Swedish BERT) for ideology classification');
     return {
       success: true,
       data: response.data,
@@ -150,14 +212,28 @@ export async function classifyIdeologyWithTransformers(text) {
       usingSwedishBERT: response.data.provenance?.model?.includes('swedish') || false,
     };
   } catch (error) {
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      console.log('✗ Python service not reachable - using JavaScript fallback for ideology classification');
+      return {
+        success: false,
+        fallback: true,
+        error: 'Python service not reachable',
+      };
+    }
     if (error.response?.status === 503) {
+      console.log('✗ Transformers not available in Python service - using JavaScript fallback');
       return {
         success: false,
         fallback: true,
         error: 'Transformers not available - using JavaScript fallback',
       };
     }
-    throw error;
+    console.error('Error calling Python ideology classification:', error.message);
+    return {
+      success: false,
+      fallback: true,
+      error: error.message,
+    };
   }
 }
 
@@ -167,21 +243,36 @@ export async function classifyIdeologyWithTransformers(text) {
  */
 export async function topicModelingWithBERTopic(texts) {
   try {
-    const response = await axios.post(`${PYTHON_SERVICE_URL}/topic-modeling`, { texts });
+    const response = await axios.post(`${PYTHON_SERVICE_URL}/topic-modeling`, { texts }, { timeout: 15000 });
+    console.log('✓ Using Python BERTopic for topic modeling');
     return {
       success: true,
       data: response.data,
       usingPython: true,
     };
   } catch (error) {
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      console.log('✗ Python service not reachable - BERTopic unavailable');
+      return {
+        success: false,
+        fallback: true,
+        error: 'Python service not reachable',
+      };
+    }
     if (error.response?.status === 503) {
+      console.log('✗ BERTopic not available in Python service');
       return {
         success: false,
         fallback: true,
         error: 'BERTopic not available - using JavaScript fallback',
       };
     }
-    throw error;
+    console.error('Error calling Python topic modeling:', error.message);
+    return {
+      success: false,
+      fallback: true,
+      error: error.message,
+    };
   }
 }
 
@@ -190,21 +281,36 @@ export async function topicModelingWithBERTopic(texts) {
  */
 export async function analyzeSemanticSimilarity(texts) {
   try {
-    const response = await axios.post(`${PYTHON_SERVICE_URL}/semantic-similarity`, { texts });
+    const response = await axios.post(`${PYTHON_SERVICE_URL}/semantic-similarity`, { texts }, { timeout: 10000 });
+    console.log('✓ Using Python Gensim for semantic similarity');
     return {
       success: true,
       data: response.data,
       usingPython: true,
     };
   } catch (error) {
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      console.log('✗ Python service not reachable - Gensim unavailable');
+      return {
+        success: false,
+        fallback: true,
+        error: 'Python service not reachable',
+      };
+    }
     if (error.response?.status === 503) {
+      console.log('✗ Gensim not available in Python service');
       return {
         success: false,
         fallback: true,
         error: 'Gensim not available - using JavaScript fallback',
       };
     }
-    throw error;
+    console.error('Error calling Python semantic similarity:', error.message);
+    return {
+      success: false,
+      fallback: true,
+      error: error.message,
+    };
   }
 }
 
@@ -213,21 +319,36 @@ export async function analyzeSemanticSimilarity(texts) {
  */
 export async function runCompletePythonPipeline(text) {
   try {
-    const response = await axios.post(`${PYTHON_SERVICE_URL}/analyze-complete`, { text });
+    const response = await axios.post(`${PYTHON_SERVICE_URL}/analyze-complete`, { text }, { timeout: 15000 });
+    console.log('✓ Using complete Python ML pipeline');
     return {
       success: true,
       data: response.data,
       usingPython: true,
     };
   } catch (error) {
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      console.log('✗ Python service not reachable - using JavaScript fallbacks');
+      return {
+        success: false,
+        fallback: true,
+        error: 'Python service not reachable',
+      };
+    }
     if (error.response?.status === 503) {
+      console.log('✗ Python pipeline not available - using JavaScript fallback');
       return {
         success: false,
         fallback: true,
         error: 'Python pipeline not available - using JavaScript fallback',
       };
     }
-    throw error;
+    console.error('Error calling Python complete pipeline:', error.message);
+    return {
+      success: false,
+      fallback: true,
+      error: error.message,
+    };
   }
 }
 

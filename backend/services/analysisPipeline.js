@@ -42,6 +42,18 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
   const pipelineStartTime = Date.now();
   const timeline = [];
   
+  // Check Python service availability at the start
+  console.log('🔬 Starting analysis pipeline...');
+  const pythonServiceAvailable = await pythonNLP.isPythonServiceAvailable();
+  if (pythonServiceAvailable) {
+    console.log('✓ Python NLP service is available - will use Python ML libraries');
+    const models = await pythonNLP.getAvailableModels();
+    console.log('  Available Python models:', Object.keys(models).filter(k => models[k]).join(', '));
+  } else {
+    console.log('✗ Python NLP service is NOT available - will use JavaScript fallbacks');
+    console.log('  To enable Python ML: cd backend/python_services && python nlp_pipeline.py');
+  }
+  
   // Helper function to track each step (synchronous)
   const trackStep = (stepName, stepFunction, ...args) => {
     const stepStartTime = Date.now();

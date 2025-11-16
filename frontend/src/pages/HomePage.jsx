@@ -5,6 +5,7 @@ import QuestionInput from '../components/QuestionInput';
 import ModelDivergencePanel from '../components/ModelDivergencePanel';
 import ModelPerspectiveCard from '../components/ModelPerspectiveCard';
 import PipelineAnalysisPanel from '../components/PipelineAnalysisPanel';
+import HighlightedText from '../components/HighlightedText';
 import { formatMarkdown } from '../utils/formatMarkdown';
 
 /**
@@ -12,13 +13,22 @@ import { formatMarkdown } from '../utils/formatMarkdown';
  * Main chat interface for OneSeek.AI with Timeline Navigator (Concept 3)
  * Clean, minimalist design with card stack navigation
  */
-export default function HomePage({ onAiMessageUpdate }) {
+export default function HomePage({ onAiMessageUpdate, conversationId }) {
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [activeSection, setActiveSection] = useState(null);
   const [exploredSections, setExploredSections] = useState(new Set());
   const chatEndRef = useRef(null);
+
+  // Reset messages when conversationId changes (new conversation)
+  useEffect(() => {
+    if (conversationId) {
+      setMessages([]);
+      setActiveSection(null);
+      setExploredSections(new Set());
+    }
+  }, [conversationId]);
 
   // AI Services configuration
   const [aiServices, setAiServices] = useState([
@@ -316,7 +326,7 @@ export default function HomePage({ onAiMessageUpdate }) {
     if (!aiMessage) return null;
 
     switch (sectionId) {
-      case 'best-answer':
+      case 'best-answer': {
         const bestResponse = aiMessage.responses?.[0];
         return bestResponse ? (
           <RichContentCard
@@ -324,7 +334,15 @@ export default function HomePage({ onAiMessageUpdate }) {
             title={`${bestResponse.metadata?.model || bestResponse.agent} Rekommendation`}
             content={
               <div className="space-y-3">
-                {bestResponse.response || bestResponse.content || 'Inget svar tillgängligt'}
+                {bestResponse.pipelineAnalysis ? (
+                  <HighlightedText 
+                    text={bestResponse.response || bestResponse.content || 'Inget svar tillgängligt'}
+                    analysisData={bestResponse.pipelineAnalysis}
+                    enableHighlighting={true}
+                  />
+                ) : (
+                  <div>{bestResponse.response || bestResponse.content || 'Inget svar tillgängligt'}</div>
+                )}
               </div>
             }
             metadata={[
@@ -344,8 +362,9 @@ export default function HomePage({ onAiMessageUpdate }) {
             ]}
           />
         ) : null;
+      }
 
-      case 'bert-summary':
+      case 'bert-summary': {
         const bertText = aiMessage.synthesizedSummary || aiMessage.bertSummary || 'Ingen sammanfattning tillgänglig';
         // Format BERT summary with proper paragraphs and line breaks
         const formattedBert = bertText.split('\n\n').map((paragraph, idx) => (
@@ -379,8 +398,9 @@ export default function HomePage({ onAiMessageUpdate }) {
             ]}
           />
         );
+      }
 
-      case 'tone-analysis':
+      case 'tone-analysis': {
         return aiMessage.toneAnalysis ? (
           <RichContentCard
             badge={{ text: 'Tonanalys', icon: '🎭' }}
@@ -407,8 +427,9 @@ export default function HomePage({ onAiMessageUpdate }) {
             ]}
           />
         ) : null;
+      }
 
-      case 'bias-detection':
+      case 'bias-detection': {
         return aiMessage.biasDetection ? (
           <RichContentCard
             badge={{ text: 'Bias-detektion', icon: '⚖️' }}
@@ -438,8 +459,9 @@ export default function HomePage({ onAiMessageUpdate }) {
             ]}
           />
         ) : null;
+      }
 
-      case 'meta-review':
+      case 'meta-review': {
         const metaContent = typeof aiMessage.metaReview === 'string' 
           ? aiMessage.metaReview 
           : aiMessage.metaReview?.summary || 'GPT-3.5 har granskat kvaliteten på alla AI-svar och bedömt deras innehåll, konsekvens och användbarhet.';
@@ -473,8 +495,9 @@ export default function HomePage({ onAiMessageUpdate }) {
             ]}
           />
         ) : null;
+      }
 
-      case 'fact-check':
+      case 'fact-check': {
         return aiMessage.factCheckComparison ? (
           <RichContentCard
             badge={{ text: 'Tavily Faktakoll', icon: '✓' }}
@@ -514,8 +537,9 @@ export default function HomePage({ onAiMessageUpdate }) {
             ]}
           />
         ) : null;
+      }
 
-      case 'model-synthesis':
+      case 'model-synthesis': {
         return aiMessage.modelSynthesis ? (
           <RichContentCard
             badge={{ text: 'Modellsyntes', icon: '🔬' }}
@@ -556,6 +580,7 @@ export default function HomePage({ onAiMessageUpdate }) {
             ]}
           />
         ) : null;
+      }
 
       default:
         // Pipeline step details
@@ -619,12 +644,22 @@ export default function HomePage({ onAiMessageUpdate }) {
                 badge={{ text: response.metadata?.model || response.agent, icon: getAgentIcon(response.agent) }}
                 title={`${response.metadata?.model || response.agent} Svar`}
                 content={
-                  <div 
-                    className="space-y-3 prose prose-invert max-w-none"
-                    dangerouslySetInnerHTML={{ 
-                      __html: formatMarkdown(response.response || response.content || 'Inget svar tillgängligt') 
-                    }}
-                  />
+                  response.pipelineAnalysis ? (
+                    <div className="space-y-3">
+                      <HighlightedText 
+                        text={response.response || response.content || 'Inget svar tillgängligt'}
+                        analysisData={response.pipelineAnalysis}
+                        enableHighlighting={true}
+                      />
+                    </div>
+                  ) : (
+                    <div 
+                      className="space-y-3 prose prose-invert max-w-none"
+                      dangerouslySetInnerHTML={{ 
+                        __html: formatMarkdown(response.response || response.content || 'Inget svar tillgängligt') 
+                      }}
+                    />
+                  )
                 }
                 metadata={[
                   { label: 'Modell', value: response.metadata?.model || response.agent || 'N/A' },
