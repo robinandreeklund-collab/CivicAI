@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneSeek.AI - Resultat: Timeline-fokus</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        .header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+        .logo {
+            font-size: 32px;
+            font-weight: 300;
+            letter-spacing: 2px;
+            margin-bottom: 16px;
+        }
+        .question {
+            font-size: 18px;
+            color: #999;
+            line-height: 1.6;
+        }
+        .timeline-wrapper {
+            position: relative;
+            padding-left: 60px;
+            margin-bottom: 48px;
+        }
+        .timeline-line {
+            position: absolute;
+            left: 28px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(180deg, #31deac 0%, #99c2ff 100%);
+        }
+        .timeline-step {
+            position: relative;
+            margin-bottom: 40px;
+        }
+        .step-dot {
+            position: absolute;
+            left: -32px;
+            top: 4px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #31deac;
+            box-shadow: 0 0 0 4px rgba(49, 222, 172, 0.2);
+        }
+        .step-content {
+            background: #0f0f0f;
+            border: 1px solid #151515;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        .step-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #e7e7e7;
+            margin-bottom: 8px;
+        }
+        .step-desc {
+            font-size: 13px;
+            color: #888;
+            line-height: 1.6;
+        }
+        .step-time {
+            font-size: 11px;
+            color: #666;
+            margin-top: 8px;
+        }
+        .final-summary {
+            background: #0f0f0f;
+            border: 1px solid #151515;
+            border-radius: 12px;
+            padding: 32px;
+            text-align: center;
+        }
+        .summary-title {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+        }
+        .summary-text {
+            font-size: 15px;
+            line-height: 1.8;
+            color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">OneSeek.AI</div>
+            <div class="question">Hur kan AI bidra till mer transparenta beslutsprocesser i demokratiska samhällen?</div>
+        </div>
+
+        <div class="timeline-wrapper">
+            <div class="timeline-line"></div>
+            
+            <div class="timeline-step">
+                <div class="step-dot"></div>
+                <div class="step-content">
+                    <div class="step-title">1. Fråga mottagen</div>
+                    <div class="step-desc">Din fråga har validerats, språk identifierat (Svenska) och förberetts för analys.</div>
+                    <div class="step-time">0.2 sekunder</div>
+                </div>
+            </div>
+
+            <div class="timeline-step">
+                <div class="step-dot"></div>
+                <div class="step-content">
+                    <div class="step-title">2. Tonanalys genomförd</div>
+                    <div class="step-desc">Sentiment: Neutral (0.12/1.0). Frågan har en objektiv och balanserad ton.</div>
+                    <div class="step-time">0.8 sekunder</div>
+                </div>
+            </div>
+
+            <div class="timeline-step">
+                <div class="step-dot"></div>
+                <div class="step-content">
+                    <div class="step-title">3. Bias-detektion slutförd</div>
+                    <div class="step-desc">Ingen signifikant bias upptäckt. Frågeställningen är neutralt formulerad.</div>
+                    <div class="step-time">1.2 sekunder</div>
+                </div>
+            </div>
+
+            <div class="timeline-step">
+                <div class="step-dot"></div>
+                <div class="step-content">
+                    <div class="step-title">4. Faktakontroll utförd</div>
+                    <div class="step-desc">Verifierat via Tavily Search API. Inga faktafel identifierade.</div>
+                    <div class="step-time">2.4 sekunder</div>
+                </div>
+            </div>
+
+            <div class="timeline-step">
+                <div class="step-dot"></div>
+                <div class="step-content">
+                    <div class="step-title">5. AI-modeller har svarat</div>
+                    <div class="step-desc">
+                        5 modeller (GPT-3.5, Gemini, DeepSeek, Grok, Qwen) har genererat svar parallellt. 
+                        Alla svar analyserade och rankade.
+                    </div>
+                    <div class="step-time">3.2 sekunder</div>
+                </div>
+            </div>
+
+            <div class="timeline-step">
+                <div class="step-dot"></div>
+                <div class="step-content">
+                    <div class="step-title">6. BERT-sammanfattning klar</div>
+                    <div class="step-desc">Extraktiv NLP-summering av alla AI-svar har skapats.</div>
+                    <div class="step-time">4.1 sekunder</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="final-summary">
+            <div class="summary-title">Slutlig sammanfattning</div>
+            <div class="summary-text">
+                AI kan öka transparens i demokratiska processer genom dokumentation, visualisering och analys av beslutsdata, 
+                samt genom att göra komplex information mer tillgänglig för medborgare via automatisk översättning och sammanfattning.
+            </div>
+        </div>
+    </div>
+</body>
+</html>

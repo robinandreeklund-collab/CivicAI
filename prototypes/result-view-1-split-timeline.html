@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneSeek.AI - Resultat: Split Timeline</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 60px;
+        }
+
+        /* Left Side - Timeline */
+        .timeline-side {
+            position: sticky;
+            top: 40px;
+            align-self: start;
+        }
+
+        .logo {
+            font-size: 32px;
+            font-weight: 300;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+            color: #e7e7e7;
+        }
+
+        .question-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 32px 0 12px 0;
+        }
+
+        .question-text {
+            font-size: 16px;
+            color: #e7e7e7;
+            line-height: 1.6;
+            margin-bottom: 40px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid #151515;
+        }
+
+        .timeline {
+            list-style: none;
+        }
+
+        .timeline-item {
+            padding: 20px 0;
+            border-left: 2px solid #151515;
+            padding-left: 24px;
+            position: relative;
+            transition: border-color 0.3s ease;
+        }
+
+        .timeline-item.complete {
+            border-left-color: #31deac;
+        }
+
+        .timeline-item.active {
+            border-left-color: #99c2ff;
+        }
+
+        .timeline-item::before {
+            content: '';
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #151515;
+            position: absolute;
+            left: -7px;
+            top: 24px;
+            transition: all 0.3s ease;
+        }
+
+        .timeline-item.complete::before {
+            background: #31deac;
+            box-shadow: 0 0 0 4px rgba(49, 222, 172, 0.1);
+        }
+
+        .timeline-item.active::before {
+            background: #99c2ff;
+            box-shadow: 0 0 0 4px rgba(153, 194, 255, 0.1);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+
+        .timeline-step-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .timeline-item.complete .timeline-step-title,
+        .timeline-item.active .timeline-step-title {
+            color: #e7e7e7;
+        }
+
+        .timeline-step-desc {
+            font-size: 12px;
+            color: #555;
+        }
+
+        .timeline-step-time {
+            font-size: 11px;
+            color: #444;
+            margin-top: 4px;
+        }
+
+        /* Right Side - Results */
+        .results-side {
+            background: #0a0a0a;
+        }
+
+        .analysis-header {
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid #151515;
+        }
+
+        .analysis-title {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .ai-responses {
+            margin-bottom: 40px;
+        }
+
+        .response-card {
+            background: #0f0f0f;
+            border: 1px solid #151515;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 16px;
+            transition: all 0.2s ease;
+        }
+
+        .response-card:hover {
+            border-color: #1a1a1a;
+            background: #111;
+        }
+
+        .model-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .model-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: #e7e7e7;
+        }
+
+        .model-badge {
+            font-size: 10px;
+            color: #666;
+            background: #151515;
+            padding: 4px 10px;
+            border-radius: 4px;
+        }
+
+        .response-text {
+            font-size: 14px;
+            line-height: 1.8;
+            color: #999;
+        }
+
+        .analysis-section {
+            background: #0f0f0f;
+            border: 1px solid #151515;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: #e7e7e7;
+            margin-bottom: 12px;
+        }
+
+        .section-content {
+            font-size: 13px;
+            line-height: 1.8;
+            color: #888;
+        }
+
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .analysis-item {
+            background: #151515;
+            padding: 16px;
+            border-radius: 8px;
+        }
+
+        .analysis-label {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 6px;
+        }
+
+        .analysis-value {
+            font-size: 14px;
+            color: #e7e7e7;
+        }
+
+        @media (max-width: 968px) {
+            .container {
+                grid-template-columns: 1fr;
+                gap: 40px;
+            }
+
+            .timeline-side {
+                position: static;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Left Side - Timeline -->
+        <div class="timeline-side">
+            <div class="logo">OneSeek.AI</div>
+            
+            <div class="question-label">Din fråga</div>
+            <div class="question-text">Hur kan AI bidra till mer transparenta beslutsprocesser i demokratiska samhällen?</div>
+
+            <ul class="timeline">
+                <li class="timeline-item complete">
+                    <div class="timeline-step-title">Fråga mottagen</div>
+                    <div class="timeline-step-desc">Validerat & förberedd</div>
+                    <div class="timeline-step-time">0.2s</div>
+                </li>
+                <li class="timeline-item complete">
+                    <div class="timeline-step-title">Tonanalys</div>
+                    <div class="timeline-step-desc">Sentiment analyserad</div>
+                    <div class="timeline-step-time">0.8s</div>
+                </li>
+                <li class="timeline-item complete">
+                    <div class="timeline-step-title">Bias-detektion</div>
+                    <div class="timeline-step-desc">Ingen bias upptäckt</div>
+                    <div class="timeline-step-time">1.2s</div>
+                </li>
+                <li class="timeline-item complete">
+                    <div class="timeline-step-title">Faktakoll</div>
+                    <div class="timeline-step-desc">Tavily Search API</div>
+                    <div class="timeline-step-time">2.4s</div>
+                </li>
+                <li class="timeline-item active">
+                    <div class="timeline-step-title">AI-modeller svarar</div>
+                    <div class="timeline-step-desc">5 modeller parallellt</div>
+                    <div class="timeline-step-time">3.2s</div>
+                </li>
+                <li class="timeline-item">
+                    <div class="timeline-step-title">BERT-sammanfattning</div>
+                    <div class="timeline-step-desc">Extraktiv NLP</div>
+                    <div class="timeline-step-time">Väntar...</div>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Right Side - Results -->
+        <div class="results-side">
+            <div class="analysis-header">
+                <div class="analysis-title">Analys & Svar</div>
+            </div>
+
+            <!-- Analysis Sections -->
+            <div class="analysis-section">
+                <div class="section-title">⚖️ Bias-analys</div>
+                <div class="section-content">Ingen signifikant bias upptäckt. Frågan är neutral formulerad och förutsätter inte något specifikt perspektiv.</div>
+                <div class="analysis-grid">
+                    <div class="analysis-item">
+                        <div class="analysis-label">Sentiment</div>
+                        <div class="analysis-value">Neutral</div>
+                    </div>
+                    <div class="analysis-item">
+                        <div class="analysis-label">Tone Score</div>
+                        <div class="analysis-value">0.12 / 1.0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Responses -->
+            <div class="ai-responses">
+                <div class="response-card">
+                    <div class="model-header">
+                        <div class="model-name">GPT-3.5 Turbo</div>
+                        <div class="model-badge">OpenAI</div>
+                    </div>
+                    <div class="response-text">
+                        AI kan bidra till transparens genom att automatiskt dokumentera och visualisera beslutsprocesser. 
+                        Maskininlärningsmodeller kan analysera stora mängder data och identifiera mönster som människor 
+                        kanske missar, vilket kan leda till mer informerade och rättvisa beslut.
+                    </div>
+                </div>
+
+                <div class="response-card">
+                    <div class="model-header">
+                        <div class="model-name">Gemini Pro</div>
+                        <div class="model-badge">Google</div>
+                    </div>
+                    <div class="response-text">
+                        Genom att använda AI-drivna verktyg för att spåra och logga beslut kan medborgare få insyn i hur 
+                        beslut fattas. AI kan också hjälpa till att upptäcka potentiella intressekonflikter och bias i 
+                        beslutsprocessen, vilket ökar ansvarstagandet.
+                    </div>
+                </div>
+
+                <div class="response-card">
+                    <div class="model-header">
+                        <div class="model-name">DeepSeek</div>
+                        <div class="model-badge">DeepSeek AI</div>
+                    </div>
+                    <div class="response-text">
+                        AI-system kan tillhandahålla realtidsrapportering av beslutsprocesser och göra information lättillgänglig 
+                        för allmänheten. Detta kan inkludera automatisk översättning av komplexa dokument och visualisering av data 
+                        för att göra det lättare för medborgare att förstå.
+                    </div>
+                </div>
+
+                <div class="response-card">
+                    <div class="model-header">
+                        <div class="model-name">Grok</div>
+                        <div class="model-badge">xAI</div>
+                    </div>
+                    <div class="response-text">
+                        AI kan förbättra transparens genom prediktiv analys som kan förutse konsekvenserna av olika beslut. 
+                        Detta ger beslutsfattare och medborgare möjlighet att bedöma effekterna innan beslut genomförs.
+                    </div>
+                </div>
+
+                <div class="response-card">
+                    <div class="model-header">
+                        <div class="model-name">Qwen</div>
+                        <div class="model-badge">Alibaba Cloud</div>
+                    </div>
+                    <div class="response-text">
+                        Med naturlig språkbehandling kan AI göra offentliga dokument mer lättillgängliga genom att sammanfatta 
+                        komplexa texter och besvara medborgarnas frågor. Detta minskar klyftan mellan beslutsfattare och allmänhet.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

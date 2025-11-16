@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneSeek.AI - Resultat: Kortlayout</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid #151515;
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: 300;
+            letter-spacing: 2px;
+            color: #e7e7e7;
+        }
+
+        .status-badge {
+            font-size: 11px;
+            color: #31deac;
+            background: rgba(49, 222, 172, 0.1);
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 1px solid rgba(49, 222, 172, 0.2);
+        }
+
+        /* Question Card */
+        .question-card {
+            background: #0f0f0f;
+            border: 1px solid #151515;
+            border-radius: 12px;
+            padding: 32px;
+            margin-bottom: 32px;
+        }
+
+        .question-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .question-text {
+            font-size: 18px;
+            line-height: 1.6;
+            color: #e7e7e7;
+        }
+
+        /* Timeline Horizontal */
+        .timeline-container {
+            margin-bottom: 40px;
+            overflow-x: auto;
+            padding-bottom: 8px;
+        }
+
+        .timeline {
+            display: flex;
+            gap: 16px;
+            min-width: max-content;
+        }
+
+        .timeline-card {
+            flex: 0 0 auto;
+            width: 180px;
+            background: #0f0f0f;
+            border: 1px solid #151515;
+            border-radius: 10px;
+            padding: 20px;
+            transition: all 0.2s ease;
+        }
+
+        .timeline-card.complete {
+            border-color: rgba(49, 222, 172, 0.3);
+            background: rgba(49, 222, 172, 0.03);
+        }
+
+        .timeline-card.active {
+            border-color: rgba(153, 194, 255, 0.4);
+            background: rgba(153, 194, 255, 0.05);
+        }
+
+        .timeline-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .step-number {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #151515;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            margin-bottom: 12px;
+            color: #666;
+        }
+
+        .timeline-card.complete .step-number {
+            background: #31deac;
+            color: #0a0a0a;
+        }
+
+        .timeline-card.active .step-number {
+            background: #99c2ff;
+            color: #0a0a0a;
+        }
+
+        .step-title {
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #666;
+        }
+
+        .timeline-card.complete .step-title,
+        .timeline-card.active .step-title {
+            color: #e7e7e7;
+        }
+
+        .step-time {
+            font-size: 11px;
+            color: #555;
+        }
+
+        /* Results Grid */
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .result-card {
+            background: #0f0f0f;
+            border: 1px solid #151515;
+            border-radius: 12px;
+            padding: 24px;
+            transition: all 0.2s ease;
+        }
+
+        .result-card:hover {
+            border-color: #1a1a1a;
+            transform: translateY(-2px);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #151515;
+        }
+
+        .model-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: #151515;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .model-info {
+            flex: 1;
+        }
+
+        .model-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: #e7e7e7;
+            margin-bottom: 2px;
+        }
+
+        .model-provider {
+            font-size: 11px;
+            color: #666;
+        }
+
+        .card-content {
+            font-size: 13px;
+            line-height: 1.8;
+            color: #888;
+        }
+
+        @media (max-width: 768px) {
+            .results-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">OneSeek.AI</div>
+            <div class="status-badge">✓ Analys klar</div>
+        </div>
+
+        <!-- Question -->
+        <div class="question-card">
+            <div class="question-label">Din fråga</div>
+            <div class="question-text">Hur kan AI bidra till mer transparenta beslutsprocesser i demokratiska samhällen?</div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="timeline-container">
+            <div class="timeline">
+                <div class="timeline-card complete">
+                    <div class="step-number">1</div>
+                    <div class="step-title">Fråga mottagen</div>
+                    <div class="step-time">0.2s</div>
+                </div>
+                <div class="timeline-card complete">
+                    <div class="step-number">2</div>
+                    <div class="step-title">Tonanalys</div>
+                    <div class="step-time">0.8s</div>
+                </div>
+                <div class="timeline-card complete">
+                    <div class="step-number">3</div>
+                    <div class="step-title">Bias-detektion</div>
+                    <div class="step-time">1.2s</div>
+                </div>
+                <div class="timeline-card complete">
+                    <div class="step-number">4</div>
+                    <div class="step-title">Faktakoll</div>
+                    <div class="step-time">2.4s</div>
+                </div>
+                <div class="timeline-card complete">
+                    <div class="step-number">5</div>
+                    <div class="step-title">AI-modeller</div>
+                    <div class="step-time">3.2s</div>
+                </div>
+                <div class="timeline-card complete">
+                    <div class="step-number">6</div>
+                    <div class="step-title">Sammanfattning</div>
+                    <div class="step-time">4.1s</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div class="results-grid">
+            <div class="result-card">
+                <div class="card-header">
+                    <div class="model-icon">🤖</div>
+                    <div class="model-info">
+                        <div class="model-name">GPT-3.5 Turbo</div>
+                        <div class="model-provider">OpenAI</div>
+                    </div>
+                </div>
+                <div class="card-content">
+                    AI kan bidra till transparens genom att automatiskt dokumentera och visualisera beslutsprocesser. 
+                    Maskininlärningsmodeller kan analysera stora mängder data och identifiera mönster som människor 
+                    kanske missar, vilket kan leda till mer informerade och rättvisa beslut.
+                </div>
+            </div>
+
+            <div class="result-card">
+                <div class="card-header">
+                    <div class="model-icon">✨</div>
+                    <div class="model-info">
+                        <div class="model-name">Gemini Pro</div>
+                        <div class="model-provider">Google</div>
+                    </div>
+                </div>
+                <div class="card-content">
+                    Genom att använda AI-drivna verktyg för att spåra och logga beslut kan medborgare få insyn i hur 
+                    beslut fattas. AI kan också hjälpa till att upptäcka potentiella intressekonflikter och bias i 
+                    beslutsprocessen, vilket ökar ansvarstagandet.
+                </div>
+            </div>
+
+            <div class="result-card">
+                <div class="card-header">
+                    <div class="model-icon">🔍</div>
+                    <div class="model-info">
+                        <div class="model-name">DeepSeek</div>
+                        <div class="model-provider">DeepSeek AI</div>
+                    </div>
+                </div>
+                <div class="card-content">
+                    AI-system kan tillhandahålla realtidsrapportering av beslutsprocesser och göra information lättillgänglig 
+                    för allmänheten. Detta kan inkludera automatisk översättning av komplexa dokument och visualisering av data 
+                    för att göra det lättare för medborgare att förstå.
+                </div>
+            </div>
+
+            <div class="result-card">
+                <div class="card-header">
+                    <div class="model-icon">⚡</div>
+                    <div class="model-info">
+                        <div class="model-name">Grok</div>
+                        <div class="model-provider">xAI</div>
+                    </div>
+                </div>
+                <div class="card-content">
+                    AI kan förbättra transparens genom prediktiv analys som kan förutse konsekvenserna av olika beslut. 
+                    Detta ger beslutsfattare och medborgare möjlighet att bedöma effekterna innan beslut genomförs.
+                </div>
+            </div>
+
+            <div class="result-card">
+                <div class="card-header">
+                    <div class="model-icon">💡</div>
+                    <div class="model-info">
+                        <div class="model-name">Qwen</div>
+                        <div class="model-provider">Alibaba Cloud</div>
+                    </div>
+                </div>
+                <div class="card-content">
+                    Med naturlig språkbehandling kan AI göra offentliga dokument mer lättillgängliga genom att sammanfatta 
+                    komplexa texter och besvara medborgarnas frågor. Detta minskar klyftan mellan beslutsfattare och allmänhet.
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

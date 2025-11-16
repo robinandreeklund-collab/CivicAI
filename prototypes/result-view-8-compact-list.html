@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneSeek.AI - Resultat: Kompakt Lista</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #151515;
+        }
+        .logo { font-size: 24px; font-weight: 300; letter-spacing: 2px; }
+        .status { font-size: 11px; color: #31deac; }
+        .question-box {
+            background: #0f0f0f;
+            border-left: 3px solid #99c2ff;
+            padding: 20px;
+            margin-bottom: 32px;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+        .section {
+            margin-bottom: 32px;
+        }
+        .section-title {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+        }
+        .list-item {
+            background: #0f0f0f;
+            border: 1px solid #151515;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 8px;
+            display: flex;
+            gap: 16px;
+            align-items: start;
+        }
+        .item-icon {
+            width: 32px;
+            height: 32px;
+            background: #151515;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 14px;
+        }
+        .item-content { flex: 1; }
+        .item-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: #e7e7e7;
+            margin-bottom: 4px;
+        }
+        .item-text {
+            font-size: 12px;
+            color: #888;
+            line-height: 1.6;
+        }
+        .meta-row {
+            display: flex;
+            gap: 24px;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">OneSeek.AI</div>
+            <div class="status">✓ Analys slutförd</div>
+        </div>
+        
+        <div class="question-box">Hur kan AI bidra till mer transparenta beslutsprocesser i demokratiska samhällen?</div>
+        
+        <div class="meta-row">
+            <span>⏱️ 4.1s</span>
+            <span>🤖 5 modeller</span>
+            <span>⚖️ Neutral ton</span>
+            <span>✓ Ingen bias</span>
+        </div>
+
+        <div class="section">
+            <div class="section-title">AI-modellernas svar</div>
+            
+            <div class="list-item">
+                <div class="item-icon">🤖</div>
+                <div class="item-content">
+                    <div class="item-title">GPT-3.5 Turbo • OpenAI</div>
+                    <div class="item-text">Automatisk dokumentation och visualisering av beslutsprocesser för transparens.</div>
+                </div>
+            </div>
+
+            <div class="list-item">
+                <div class="item-icon">✨</div>
+                <div class="item-content">
+                    <div class="item-title">Gemini Pro • Google</div>
+                    <div class="item-text">AI-drivna verktyg för att spåra beslut och upptäcka intressekonflikter.</div>
+                </div>
+            </div>
+
+            <div class="list-item">
+                <div class="item-icon">🔍</div>
+                <div class="item-content">
+                    <div class="item-title">DeepSeek • DeepSeek AI</div>
+                    <div class="item-text">Realtidsrapportering och automatisk översättning av komplexa dokument.</div>
+                </div>
+            </div>
+
+            <div class="list-item">
+                <div class="item-icon">⚡</div>
+                <div class="item-content">
+                    <div class="item-title">Grok • xAI</div>
+                    <div class="item-text">Prediktiv analys för att förutse konsekvenser av beslut.</div>
+                </div>
+            </div>
+
+            <div class="list-item">
+                <div class="item-icon">💡</div>
+                <div class="item-content">
+                    <div class="item-title">Qwen • Alibaba Cloud</div>
+                    <div class="item-text">NLP för att sammanfatta texter och besvara medborgarnas frågor.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Sammanfattning</div>
+            <div class="list-item">
+                <div class="item-icon">📊</div>
+                <div class="item-content">
+                    <div class="item-text">
+                        AI kan öka transparens genom dokumentation, visualisering och analys av beslutsdata, 
+                        samt göra information tillgänglig via automatisk översättning och sammanfattning.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
