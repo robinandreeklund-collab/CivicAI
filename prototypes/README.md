@@ -1,6 +1,11 @@
 # OneSeek.AI Design Prototypes - Complete Collection
 
-Detta är den kompletta samlingen av designprototyper för OneSeek.AI. Alla prototyper följer den grafiska profilen med färger #0a0a0a, #151515, #e7e7e7, accent #99c2ff, #31deac och minimalistisk stil.
+Detta är den kompletta samlingen av **24 designprototyper** för OneSeek.AI:
+- 4 original interaktiva prototyper
+- 10 minimalistiska landing pages
+- 10 resultatvyer (visas efter att fråga ställts)
+
+Alla prototyper följer den grafiska profilen med färger #0a0a0a, #151515, #e7e7e7, accent #99c2ff, #31deac och minimalistisk stil.
 
 ## Original 4 Prototyper
 
@@ -53,24 +58,17 @@ Modern panel för snabbsvar med animation som visas under inputfältet.
 Timeline med event-overlay som animeras in vid interaktion.
 
 **Funktioner:**
-- Vertical timeline with alternating layout
+- Vertical alternating left/right timeline
 - Click-triggered modal overlays
 - Detailed event information
-- Progress ring SVG animation
+- Progress ring SVG animation on active events
 - Blur backdrop with scale transitions
-- Close on Escape key
 
 ---
 
-## Nya 10 Minimalistiska Landing Pages
+## 10 Minimalistiska Landing Pages
 
-Alla designade för OneSeek.AI med fokus på clean look och subtila animeringar i detaljer.
-
----
-
-## Nya 10 Integrerade Vyer (Landing + Chat + Timeline)
-
-Baserat på användarens favorit-layout (#7 Split Layout), skapade 10 varianter som kombinerar landningssidan med plattformens chat-interface och timeline-funktionalitet.
+Alla landing pages använder OneSeek.AI:s minimalistiska design med subtila animeringar endast i detaljer.
 
 ### 1. Classic Clean
 **Fil:** `search-landing-1-classic-clean.html`
@@ -78,12 +76,12 @@ Baserat på användarens favorit-layout (#7 Split Layout), skapade 10 varianter 
 Ultra-ren centrerad layout.
 
 **Funktioner:**
-- Minimalistisk design
+- Clean centered design
 - Subtle hover effects
-- Clean stats display
-- Centered search box
+- Simple stats display
+- Feature highlights
 
-**Design:** Klassisk clean OneSeek.AI-stil
+**Design:** Klassisk och elegant
 
 ---
 
@@ -93,12 +91,12 @@ Ultra-ren centrerad layout.
 Minimala glow-effekter vid fokus.
 
 **Funktioner:**
-- Gentle glow on focus
-- Feature cards with hover states
-- Gradient button
-- Professional layout
+- Glow effects on focus
+- Feature cards with gentle hover
+- Clean gradient button
+- Smooth transitions
 
-**Design:** Subtil med eleganta detaljer
+**Design:** Subtil och professionell
 
 ---
 
@@ -108,12 +106,12 @@ Minimala glow-effekter vid fokus.
 Animerad border vid fokus.
 
 **Funktioner:**
-- Animated border on focus
+- Animated border transitions
 - Quick link chips
 - Two-column info grid
-- Clean interactions
+- Search-focused layout
 
-**Design:** Elegant med mjuka övergångar
+**Design:** Elegant och strukturerad
 
 ---
 
@@ -124,11 +122,11 @@ Stegvis fade-in animering.
 
 **Funktioner:**
 - Staggered fade-in animations
-- Example tags
+- Example question tags
 - Centered stats row
-- Smooth entrance
+- Progressive reveal
 
-**Design:** Dynamisk men diskret
+**Design:** Dynamisk och luftig
 
 ---
 
@@ -138,42 +136,42 @@ Stegvis fade-in animering.
 Staplade kort-layout.
 
 **Funktioner:**
-- Stacked card design
+- Stacked card layout
 - Feature list with icons
-- Button row with actions
-- Informativ struktur
+- Primary/secondary button row
+- Visual hierarchy
 
-**Design:** Organiserad och tydlig
+**Design:** Modern kort-baserad
 
 ---
 
 ### 6. Centered Focus
 **Fil:** `search-landing-6-centered-focus.html`
 
-Maximal fokus på sökfält.
+Maximal fokus på sökfältet.
 
 **Funktioner:**
+- Maximum search focus
 - Centered text input
-- Model badges
+- Model badges below
 - Minimal distractions
-- Clean dividers
 
-**Design:** Fokuserad enkelhet
+**Design:** Fokuserad och ren
 
 ---
 
-### 7. Split Layout
+### 7. Split Layout ⭐ ANVÄNDARFAVORIT
 **Fil:** `search-landing-7-split-layout.html`
 
-Tvåkolumn desktop-layout.
+Tvåkolumn desktop-layout (används som bas för resultatvyerna).
 
 **Funktioner:**
-- Two-column grid
-- Feature checklist
-- Search form on right
-- Example questions
+- Two-column layout
+- Feature checklist (left)
+- Search form with examples (right)
+- Professional split design
 
-**Design:** Professionell och balanserad
+**Design:** Balanserad och professionell
 
 ---
 
@@ -222,200 +220,259 @@ Kompakt sammanhållen design.
 
 ---
 
-### 11. Side Navigation (Integrerad)
-**Fil:** `integrated-1-side-navigation.html`
+## 10 Resultatvyer (Post-Question Analysis Pages)
 
-Vänster sidofält med timeline i header.
+Dessa vyer visas **efter** att användaren ställt en fråga och visar hela analysprocessen med timeline, AI-svar, bias-detektion och sammanfattningar. Alla baseras på split-layout (#7) estetiken.
 
-**Funktioner:**
-- Left sidebar med funktioner och statistik
-- Timeline header med process-steg
-- Chat-område i mitten
-- Three-column layout
-- Välkomstskärm med exempelfrågor
+### 1. Split Timeline
+**Fil:** `result-view-1-split-timeline.html`
 
-**Design:** Klassisk sidebar-navigation
-
----
-
-### 12. Top Bar Navigation (Integrerad)
-**Fil:** `integrated-2-top-bar-navigation.html`
-
-Horisontell top navigation med split view.
+Två-kolumn med timeline (vänster) + resultat (höger).
 
 **Funktioner:**
-- Horizontal top nav bar
-- Chat (vänster) + Timeline (höger) split
-- Feature badges i top bar
-- Detaljerad timeline-panel
-- Kompakt header design
+- Sticky sidebar med vertikal timeline
+- Frågan visas prominent
+- AI-svar i cards (höger kolumn)
+- Bias-analys section
+- Progress indicators med animation
 
-**Design:** Modern top-bar med split view
+**Design:** Balanserad split-design
 
 ---
 
-### 13. Floating Timeline (Integrerad)
-**Fil:** `integrated-3-floating-timeline.html`
+### 2. Card Layout
+**Fil:** `result-view-2-card-layout.html`
 
-Flytande timeline-bar med info panel.
+Kortbaserad layout med horisontell timeline.
 
 **Funktioner:**
-- Floating timeline bar med dots
-- Info panel + chat panel split
-- Horizontal scrollable timeline
-- Progress indicators
-- Platform information panel
+- Header med logo och status badge
+- Fråga i egen card
+- Horizontal timeline cards
+- Grid av AI-responskort med ikoner
+- Responsive card-grid
 
-**Design:** Luftig med flytande timeline
+**Design:** Flexibel kort-layout
 
 ---
 
-### 14. Card-Based Layout (Integrerad)
-**Fil:** `integrated-4-card-based.html`
+### 3. Minimal Vertical
+**Fil:** `result-view-3-minimal-vertical.html`
 
-Grid-baserat kort-system.
+Minimalistisk vertikal design med dot-timeline.
 
 **Funktioner:**
-- Timeline cards at top
-- Feature cards + chat card
-- Flexible card grid
-- AI-modeller information card
-- Responsive grid layout
+- Centrerad layout
+- Dot-baserad horizontal timeline strip
+- Sekventiella vertikala svar
+- Meta-information row
+- Sammanfattningsbox längst ner
 
-**Design:** Flexibel kort-baserad layout
+**Design:** Ultra-minimalistisk
 
 ---
 
-### 15-20. Additional Integrated Variations
-**Filer:** `integrated-5-variation.html` till `integrated-10-variation.html`
+### 4. Two-Column Analysis
+**Fil:** `result-view-4-two-column-analysis.html`
 
-Ytterligare varianter med olika layouter.
+Analys (vänster) + AI-svar (höger).
 
 **Funktioner:**
-- Olika timeline-placeringar
-- Alternativa navigations-mönster
-- Unika informations-hierarkier
-- Varierad content-organisation
-- Different split ratios
+- Horizontal timeline header
+- Vänster kolumn: Analyskort (bias, fakta, sammanfattning)
+- Höger kolumn: Alla 5 AI-svar staplade
+- Professionell grid-layout
 
-**Design:** Varierade professionella layouter
-
----
-
-## Funktioner i Integrerade Vyer
-
-Alla 10 integrerade vyer inkluderar:
-
-**Timeline-steg:**
-1. ⏱️ Fråga mottagen (0.2s)
-2. 🔍 Tonanalys (Sentiment analysis)
-3. ⚖️ Bias-detektion (Automatisk)
-4. ✓ Faktakoll (Tavily Search API)
-5. 🤖 AI-modeller svarar (5 modeller parallellt)
-6. 📊 BERT-sammanfattning (Extraktiv NLP)
-
-**Platform Features:**
-- 5 AI-Modeller (GPT-3.5, Gemini, DeepSeek, Grok, Qwen)
-- Automatisk bias-detektion och tonanalys
-- Faktakontroll med Tavily Search
-- BERT extraktiv sammanfattning
-- Full transparens i varje steg
-
-**Chat Interface:**
-- Välkomstskärm
-- Exempelfrågor (Demokrati, Klimat, Utbildning)
-- Meddelande-visning
-- Input-fält med skicka-knapp
-- Animerad feedback
+**Design:** Informations-fokuserad
 
 ---
 
-## Tekniska Specifikationer
+### 5. Tabbed View
+**Fil:** `result-view-5-tabbed-view.html`
 
-### Alla prototyper innehåller:
-- ✅ Self-contained HTML files (ingen externa dependencies)
-- ✅ Embedded CSS and JavaScript
-- ✅ Responsiv design
-- ✅ CivicAI färgpalett (#0a0a0a, #151515, #e7e7e7, #99c2ff, #31deac)
-- ✅ Minimalistisk stil
-- ✅ 60fps smooth animations
-- ✅ Interactive hover states
-- ✅ Svenska språket
+Flikbaserad navigation.
 
-### Browser-kompatibilitet:
-- Chrome/Edge (senaste)
-- Firefox (senaste)
-- Safari (senaste)
-- Mobile browsers (responsiv design)
+**Funktioner:**
+- Tab-navigation: Timeline, Svar, Analys, Sammanfattning
+- Content byts med fade-animation
+- Detaljerad timeline-lista med ikoner
+- Analysis metrics i grid
 
-### Prestanda:
-- Inga externa HTTP requests
-- Optimerade CSS animations
-- Hardware-accelererade transforms
-- Canvas-optimering där tillämpligt
+**Design:** Organiserad flik-vy
 
 ---
 
-## Hur man testar
+### 6. Accordion Style
+**Fil:** `result-view-6-accordion-style.html`
 
-1. Öppna valfri HTML-fil direkt i webbläsaren
-2. Ingen build eller installation krävs
-3. Alla filer är self-contained
-4. Fungerar offline
+Expanderbara/hopfällbara sektioner.
 
-### Rekommenderad testning:
+**Funktioner:**
+- Click för att expandera sektioner
+- Progress bar animation
+- Kompakt, utrymmes-effektiv design
+- Smooth expand/collapse transitions
+
+**Design:** Kompakt accordion
+
+---
+
+### 7. Masonry Grid
+**Fil:** `result-view-7-masonry-grid.html`
+
+Pinterest-stil mosaikgrid.
+
+**Funktioner:**
+- Masonry column layout
+- Mixade kortstorlekar
+- 3-kolumn responsive grid
+- Visuell variation i arrangemang
+
+**Design:** Dynamisk mosaik
+
+---
+
+### 8. Compact List
+**Fil:** `result-view-8-compact-list.html`
+
+Ren listbaserad design.
+
+**Funktioner:**
+- Fråga-box med accent border
+- Ikon-baserade list items
+- Meta-information rad med stats
+- Kompakt presentation
+
+**Design:** List-fokuserad
+
+---
+
+### 9. Sidebar Navigation
+**Fil:** `result-view-9-sidebar-navigation.html`
+
+Sidebar med sektion-navigation.
+
+**Funktioner:**
+- Vänster sidebar med navigation
+- Click för att byta mellan: Översikt, Svar, Analys, Timeline
+- Stats dashboard i översikt
+- Full-height split layout
+
+**Design:** Navigation-drivet
+
+---
+
+### 10. Timeline Focus
+**Fil:** `result-view-10-timeline-focus.html`
+
+Vertikal timeline som huvudelement.
+
+**Funktioner:**
+- Vertikal timeline med gradient line
+- Detaljerad steg-för-steg progression
+- Timeline dots med glow effects
+- Slutlig sammanfattnings-card
+
+**Design:** Timeline-centrerad
+
+---
+
+## Funktioner i Resultatvyer
+
+Alla 10 resultatvyer inkluderar:
+
+**Timeline-steg (6 steg, 4.1s total):**
+1. ⏱️ Fråga mottagen (0.2s) - Validerat & förberedd
+2. 🔍 Tonanalys (0.8s) - Sentiment analyserad
+3. ⚖️ Bias-detektion (1.2s) - Ingen bias upptäckt
+4. ✓ Faktakoll (2.4s) - Tavily Search API
+5. 🤖 AI-modeller svarar (3.2s) - 5 modeller parallellt
+6. 📊 BERT-sammanfattning (4.1s) - Extraktiv NLP
+
+**AI-modeller (5 stycken):**
+- GPT-3.5 Turbo (OpenAI)
+- Gemini Pro (Google)
+- DeepSeek (DeepSeek AI)
+- Grok (xAI)
+- Qwen (Alibaba Cloud)
+
+**Analysdata:**
+- Sentiment/Ton: Neutral (0.12/1.0)
+- Bias-detektion: Ingen upptäckt
+- Faktakontroll: Verifierad (Tavily API)
+- Språk: Svenska (sv-SE)
+- Process-tider för varje steg
+
+**BERT-sammanfattning:**
+Extraktiv NLP-summering av alla AI-svar för en koncis översikt.
+
+---
+
+## Teknisk Implementation
+
+**Alla 24 prototyper:**
+- Self-contained HTML-filer (ingen externa dependencies)
+- Embedded CSS och JavaScript
+- Vanilla JS (inga frameworks)
+- Responsive design
+- System font stack
+- Svensk språk-content
+- Direct browser testing
+- Production-ready code
+
+**Designprinciper:**
+- Minimalistisk OneSeek.AI-estetik
+- Färgpalett: #0a0a0a, #151515, #e7e7e7, #99c2ff, #31deac
+- Subtila animationer endast i detaljer (hover, focus)
+- Clean, professionell presentation
+- Ingen teknisk overkill (inga Canvas/WebGL)
+- Mobile responsive
+- Accessibility-vänlig
+
+## Användning
+
+Alla filer kan öppnas direkt i en webbläsare:
+
 ```bash
-# Starta en lokal server
-python3 -m http.server 8080
+# Öppna direkt i browser
+open prototypes/search-landing-7-split-layout.html
+open prototypes/result-view-1-split-timeline.html
 
-# Öppna i webbläsare
-http://localhost:8080/[filnamn].html
+# Eller kör lokal server
+cd prototypes
+python3 -m http.server 8000
+# Navigera till http://localhost:8000
 ```
 
----
+## Fil-struktur
 
-## Designprinciper
+```
+/prototypes/
+├── floating-timeline-scroll.html          # Original 4
+├── pixel-perfect-input.html
+├── minimalist-quick-reply.html
+├── timeline-animated-overlays.html
+├── search-landing-1-classic-clean.html    # Landing pages (10)
+├── search-landing-2-subtle-glow.html
+├── search-landing-3-elegant-border.html
+├── search-landing-4-fade-in.html
+├── search-landing-5-card-stack.html
+├── search-landing-6-centered-focus.html
+├── search-landing-7-split-layout.html     # ⭐ Användarfavorit
+├── search-landing-8-minimal-line.html
+├── search-landing-9-floating-action.html
+├── search-landing-10-compact-hero.html
+├── result-view-1-split-timeline.html      # Resultatvyer (10)
+├── result-view-2-card-layout.html
+├── result-view-3-minimal-vertical.html
+├── result-view-4-two-column-analysis.html
+├── result-view-5-tabbed-view.html
+├── result-view-6-accordion-style.html
+├── result-view-7-masonry-grid.html
+├── result-view-8-compact-list.html
+├── result-view-9-sidebar-navigation.html
+├── result-view-10-timeline-focus.html
+└── README.md                               # Denna fil
+```
 
-Alla prototyper följer OneSeek.AI:s designprinciper:
-
-1. **Minimalism först** - Clean look utan teknisk overkill
-2. **Grafisk profil** - Konsekvent färgpalett (#0a0a0a, #151515, #e7e7e7)
-3. **Subtila animationer** - Endast i detaljer (hover, focus)
-4. **Responsiv design** - Fungerar på alla skärmstorlekar
-5. **Tillgänglighet** - Keyboard navigation där relevant
-6. **Prestanda** - Optimerade animationer utan Canvas/WebGL overhead
-
----
-
-## Användningsområden
-
-### Original 4 prototyper:
-- **Timeline scroll**: Process visualization
-- **Input field**: Search och query input
-- **Quick reply**: Pre-defined questions
-- **Timeline overlays**: Detailed event information
-
-### Nya 10 minimalistiska landing pages:
-Perfekta för:
-- OneSeek.AI startsida
-- Hero section
-- Clean marketing page
-- Professional product showcase
-- Minimalist demo page
-
-### Nya 10 integrerade vyer:
-Perfekta för:
-- Complete application interface
-- Full-featured landing → chat flow
-- Timeline visualization med interaction
-- Platform feature demonstration
-- Production-ready application views
-
-Alla varianter är produktionsklara med clean, professionell design.
-
----
-
-**Version:** 4.0 (OneSeek.AI Integrated Edition)  
-**Datum:** 2025-11-16  
-**Skapad för:** OneSeek.AI UX Design
-**Totalt:** 24 kompletta prototyper (4 original + 10 landing + 10 integrerade)
+**Total: 24 kompletta, produktionsklara HTML-prototyper**
