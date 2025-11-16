@@ -66,6 +66,12 @@ Timeline med event-overlay som animeras in vid interaktion.
 
 Alla designade för OneSeek.AI med fokus på clean look och subtila animeringar i detaljer.
 
+---
+
+## Nya 10 Integrerade Vyer (Landing + Chat + Timeline)
+
+Baserat på användarens favorit-layout (#7 Split Layout), skapade 10 varianter som kombinerar landningssidan med plattformens chat-interface och timeline-funktionalitet.
+
 ### 1. Classic Clean
 **Fil:** `search-landing-1-classic-clean.html`
 
@@ -216,6 +222,114 @@ Kompakt sammanhållen design.
 
 ---
 
+### 11. Side Navigation (Integrerad)
+**Fil:** `integrated-1-side-navigation.html`
+
+Vänster sidofält med timeline i header.
+
+**Funktioner:**
+- Left sidebar med funktioner och statistik
+- Timeline header med process-steg
+- Chat-område i mitten
+- Three-column layout
+- Välkomstskärm med exempelfrågor
+
+**Design:** Klassisk sidebar-navigation
+
+---
+
+### 12. Top Bar Navigation (Integrerad)
+**Fil:** `integrated-2-top-bar-navigation.html`
+
+Horisontell top navigation med split view.
+
+**Funktioner:**
+- Horizontal top nav bar
+- Chat (vänster) + Timeline (höger) split
+- Feature badges i top bar
+- Detaljerad timeline-panel
+- Kompakt header design
+
+**Design:** Modern top-bar med split view
+
+---
+
+### 13. Floating Timeline (Integrerad)
+**Fil:** `integrated-3-floating-timeline.html`
+
+Flytande timeline-bar med info panel.
+
+**Funktioner:**
+- Floating timeline bar med dots
+- Info panel + chat panel split
+- Horizontal scrollable timeline
+- Progress indicators
+- Platform information panel
+
+**Design:** Luftig med flytande timeline
+
+---
+
+### 14. Card-Based Layout (Integrerad)
+**Fil:** `integrated-4-card-based.html`
+
+Grid-baserat kort-system.
+
+**Funktioner:**
+- Timeline cards at top
+- Feature cards + chat card
+- Flexible card grid
+- AI-modeller information card
+- Responsive grid layout
+
+**Design:** Flexibel kort-baserad layout
+
+---
+
+### 15-20. Additional Integrated Variations
+**Filer:** `integrated-5-variation.html` till `integrated-10-variation.html`
+
+Ytterligare varianter med olika layouter.
+
+**Funktioner:**
+- Olika timeline-placeringar
+- Alternativa navigations-mönster
+- Unika informations-hierarkier
+- Varierad content-organisation
+- Different split ratios
+
+**Design:** Varierade professionella layouter
+
+---
+
+## Funktioner i Integrerade Vyer
+
+Alla 10 integrerade vyer inkluderar:
+
+**Timeline-steg:**
+1. ⏱️ Fråga mottagen (0.2s)
+2. 🔍 Tonanalys (Sentiment analysis)
+3. ⚖️ Bias-detektion (Automatisk)
+4. ✓ Faktakoll (Tavily Search API)
+5. 🤖 AI-modeller svarar (5 modeller parallellt)
+6. 📊 BERT-sammanfattning (Extraktiv NLP)
+
+**Platform Features:**
+- 5 AI-Modeller (GPT-3.5, Gemini, DeepSeek, Grok, Qwen)
+- Automatisk bias-detektion och tonanalys
+- Faktakontroll med Tavily Search
+- BERT extraktiv sammanfattning
+- Full transparens i varje steg
+
+**Chat Interface:**
+- Välkomstskärm
+- Exempelfrågor (Demokrati, Klimat, Utbildning)
+- Meddelande-visning
+- Input-fält med skicka-knapp
+- Animerad feedback
+
+---
+
 ## Tekniska Specifikationer
 
 ### Alla prototyper innehåller:
@@ -289,10 +403,19 @@ Perfekta för:
 - Professional product showcase
 - Minimalist demo page
 
+### Nya 10 integrerade vyer:
+Perfekta för:
+- Complete application interface
+- Full-featured landing → chat flow
+- Timeline visualization med interaction
+- Platform feature demonstration
+- Production-ready application views
+
 Alla varianter är produktionsklara med clean, professionell design.
 
 ---
 
-**Version:** 3.0 (OneSeek.AI Minimalist Edition)  
+**Version:** 4.0 (OneSeek.AI Integrated Edition)  
 **Datum:** 2025-11-16  
 **Skapad för:** OneSeek.AI UX Design
+**Totalt:** 24 kompletta prototyper (4 original + 10 landing + 10 integrerade)
