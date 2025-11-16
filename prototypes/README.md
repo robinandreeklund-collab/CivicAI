@@ -1,6 +1,6 @@
-# CivicAI Design Prototypes - Complete Collection
+# OneSeek.AI Design Prototypes - Complete Collection
 
-Detta är den kompletta samlingen av designprototyper för CivicAI. Alla prototyper följer den grafiska profilen med färger #0a0a0a, #151515, #e7e7e7, accent #99c2ff, #31deac och minimalistisk stil.
+Detta är den kompletta samlingen av designprototyper för OneSeek.AI. Alla prototyper följer den grafiska profilen med färger #0a0a0a, #151515, #e7e7e7, accent #99c2ff, #31deac och minimalistisk stil.
 
 ## Original 4 Prototyper
 
@@ -62,175 +62,157 @@ Timeline med event-overlay som animeras in vid interaktion.
 
 ---
 
-## Nya 10 Sökfält & Startsidor
+## Nya 10 Minimalistiska Landing Pages
 
-### 1. Holographic Search
-**Fil:** `search-landing-1-holographic.html`
+Alla designade för OneSeek.AI med fokus på clean look och subtila animeringar i detaljer.
 
-Holografisk sökupplevelse med flytande partiklar.
+### 1. Classic Clean
+**Fil:** `search-landing-1-classic-clean.html`
+
+Ultra-ren centrerad layout.
 
 **Funktioner:**
-- 50 animated floating particles
-- Holographic gradient text effects
-- 3D transform on hover
-- Pulse animation on search icon
-- Feature cards with float animation
-- Glow and shadow effects
+- Minimalistisk design
+- Subtle hover effects
+- Clean stats display
+- Centered search box
 
-**Design:** Futuristisk med holografiska effekter
+**Design:** Klassisk clean OneSeek.AI-stil
 
 ---
 
-### 2. Glassmorphism Hero
-**Fil:** `search-landing-2-glassmorphism.html`
+### 2. Subtle Glow
+**Fil:** `search-landing-2-subtle-glow.html`
 
-Frostat glas-design med flytande gradienter.
+Minimala glow-effekter vid fokus.
 
 **Funktioner:**
-- Floating gradient orbs background
-- Frosted glass card with backdrop blur
-- Morphing gradient border on focus
-- Shimmer text effects
-- Action chips with scale animation
-- Stats section with fade-in
+- Gentle glow on focus
+- Feature cards with hover states
+- Gradient button
+- Professional layout
 
-**Design:** Modern glassmorphism med blur-effekter
+**Design:** Subtil med eleganta detaljer
 
 ---
 
-### 3. Neon Pulse
-**Fil:** `search-landing-3-neon-pulse.html`
+### 3. Elegant Border
+**Fil:** `search-landing-3-elegant-border.html`
 
-Cyberpunk-inspirerad med neon och pulsering.
+Animerad border vid fokus.
 
 **Funktioner:**
-- Animated grid background
-- Neon glow and flicker effects
-- Multiple expanding pulse rings
-- Button pulse animation
-- Sweep animation on hover
-- Grid pattern movement
+- Animated border on focus
+- Quick link chips
+- Two-column info grid
+- Clean interactions
 
-**Design:** Cyberpunk neon-stil
+**Design:** Elegant med mjuka övergångar
 
 ---
 
-### 4. Minimal Zen
-**Fil:** `search-landing-4-minimal-zen.html`
+### 4. Fade In
+**Fil:** `search-landing-4-fade-in.html`
 
-Ultra-minimalistisk Zen-design.
+Stegvis fade-in animering.
 
 **Funktioner:**
-- Breathing typography animation
-- Flowing line animation
-- Expanding circle button effect
-- Minimal color palette
-- Focus-triggered padding expansion
-- Zen-inspired spacing
+- Staggered fade-in animations
+- Example tags
+- Centered stats row
+- Smooth entrance
 
-**Design:** Extremt minimalistisk med mycket whitespace
+**Design:** Dynamisk men diskret
 
 ---
 
-### 5. Liquid Motion
-**Fil:** `search-landing-5-liquid-motion.html`
+### 5. Card Stack
+**Fil:** `search-landing-5-card-stack.html`
 
-Morfande blobs med flytande animeringar.
+Staplade kort-layout.
 
 **Funktioner:**
-- Morphing blob backgrounds
-- Liquid-style border animations
-- Flowing text gradients
-- Shimmer effects on cards
-- Ripple effect on button
-- Organic shape morphing
+- Stacked card design
+- Feature list with icons
+- Button row with actions
+- Informativ struktur
 
-**Design:** Flytande organiska former
+**Design:** Organiserad och tydlig
 
 ---
 
-### 6. Terminal Command
-**Fil:** `search-landing-6-terminal-command.html`
+### 6. Centered Focus
+**Fil:** `search-landing-6-centered-focus.html`
 
-Retro terminal/CLI-interface.
+Maximal fokus på sökfält.
 
 **Funktioner:**
-- Scanline overlay effect
-- Blinking cursor and LEDs
-- Terminal-style input with prefix
-- Monospace font throughout
-- Status bar with system info
-- Glitch-inspired animations
+- Centered text input
+- Model badges
+- Minimal distractions
+- Clean dividers
 
-**Design:** Retro terminal/command-line
+**Design:** Fokuserad enkelhet
 
 ---
 
-### 7. Particle Wave
-**Fil:** `search-landing-7-particle-wave.html`
+### 7. Split Layout
+**Fil:** `search-landing-7-split-layout.html`
 
-Canvas-baserat partikelsystem med vågor.
+Tvåkolumn desktop-layout.
 
 **Funktioner:**
-- 100 animated particles with connections
-- Wave-based expanding rings
-- Particle network visualization
-- Canvas rendering at 60fps
-- Wave gradient text
-- Shine effect on button
+- Two-column grid
+- Feature checklist
+- Search form on right
+- Example questions
 
-**Design:** Partikel-våg visualisering
+**Design:** Professionell och balanserad
 
 ---
 
-### 8. Gradient Flow
-**Fil:** `search-landing-8-gradient-flow.html`
+### 8. Minimal Line
+**Fil:** `search-landing-8-minimal-line.html`
 
-Flytande gradienter i flera lager.
+Ren linje-separator design.
 
 **Funktioner:**
-- Multi-layer gradient backgrounds
-- Rotating gradient icon
-- Animated gradient borders
-- Flowing gradient button
-- Gradient line animation on cards
-- Breathing gradient shifts
+- Clean line separators
+- Underline input style
+- Minimal button
+- Maximum whitespace
 
-**Design:** Gradient-fokuserad med flöden
+**Design:** Extremt minimalistisk
 
 ---
 
-### 9. 3D Depth
-**Fil:** `search-landing-9-3d-depth.html`
+### 9. Floating Action
+**Fil:** `search-landing-9-floating-action.html`
 
-CSS 3D-perspektiv med djupeffekter.
+Elevated search box med hover.
 
 **Funktioner:**
-- 3D perspective transforms
-- Depth layers with parallax
-- 3D hover interactions (rotateX, rotateY)
-- Floating elements in Z-space
-- Shadow depth simulation
-- Transform-style: preserve-3d
+- Floating search box
+- Shadow on hover
+- Feature icons row
+- Elevated CTA button
 
-**Design:** 3D djup med perspektiv
+**Design:** Modern och luftig
 
 ---
 
-### 10. Cyber Matrix
-**Fil:** `search-landing-10-cyber-matrix.html`
+### 10. Compact Hero
+**Fil:** `search-landing-10-compact-hero.html`
 
-Matrix-regn med glitch-effekter.
+Kompakt sammanhållen design.
 
 **Funktioner:**
-- Matrix rain effect (Canvas)
-- Glitch text animations
-- Neon scanline effects
-- LED status indicators
-- Cyberpunk grid layout
-- Monospace cyber-font
+- Inline search button
+- Compact layout
+- Bottom navigation links
+- Stats display
 
-**Design:** Matrix/cyberpunk-stil
+**Design:** Kompakt och komplett
 
 ---
 
@@ -280,14 +262,14 @@ http://localhost:8080/[filnamn].html
 
 ## Designprinciper
 
-Alla prototyper följer CivicAI:s designprinciper:
+Alla prototyper följer OneSeek.AI:s designprinciper:
 
-1. **Minimalism först** - Varje element har ett syfte
-2. **Grafisk profil** - Konsekvent färgpalett
-3. **Smooth animations** - 60fps med CSS transforms
+1. **Minimalism först** - Clean look utan teknisk overkill
+2. **Grafisk profil** - Konsekvent färgpalett (#0a0a0a, #151515, #e7e7e7)
+3. **Subtila animationer** - Endast i detaljer (hover, focus)
 4. **Responsiv design** - Fungerar på alla skärmstorlekar
 5. **Tillgänglighet** - Keyboard navigation där relevant
-6. **Prestanda** - Optimerade animationer och effekter
+6. **Prestanda** - Optimerade animationer utan Canvas/WebGL overhead
 
 ---
 
@@ -299,16 +281,18 @@ Alla prototyper följer CivicAI:s designprinciper:
 - **Quick reply**: Pre-defined questions
 - **Timeline overlays**: Detailed event information
 
-### Nya 10 landing pages:
+### Nya 10 minimalistiska landing pages:
 Perfekta för:
-- Startsida / Hero section
-- Marketing landing page
-- Product showcase
-- Brand presentation
-- Demo/preview sida
+- OneSeek.AI startsida
+- Hero section
+- Clean marketing page
+- Professional product showcase
+- Minimalist demo page
+
+Alla varianter är produktionsklara med clean, professionell design.
 
 ---
 
-**Version:** 2.0  
+**Version:** 3.0 (OneSeek.AI Minimalist Edition)  
 **Datum:** 2025-11-16  
-**Skapad för:** CivicAI UX Design Lab
+**Skapad för:** OneSeek.AI UX Design
