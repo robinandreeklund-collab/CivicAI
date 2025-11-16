@@ -308,8 +308,8 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
       });
     }
 
-    // Add Consensus Debate if triggered
-    if (aiMessage.debateTrigger) {
+    // Add Consensus Debate - always show when model synthesis exists
+    if (aiMessage.modelSynthesis) {
       analysisItems.push({
         id: 'consensus-debate',
         title: 'Konsensus Live Debatt',
@@ -579,8 +579,8 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
                   <ModelDivergencePanel modelSynthesis={aiMessage.modelSynthesis} />
                 </div>
 
-                {/* Consensus Debate - Only show if debate should be triggered */}
-                {aiMessage.debateTrigger && (
+                {/* Consensus Debate - Always show when model synthesis exists */}
+                {aiMessage.modelSynthesis && (
                   <div>
                     <h4 className="text-sm font-medium text-civic-gray-400 mb-3">Konsensus Live Debatt</h4>
                     <ConsensusDebateCard
@@ -606,15 +606,15 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
       }
 
       case 'consensus-debate': {
-        return aiMessage.debateTrigger && aiMessage.modelSynthesis ? (
+        return aiMessage.modelSynthesis ? (
           <RichContentCard
             badge={{ text: 'Konsensus Live Debatt', icon: '🎯', primary: true }}
             title="AI-agenter debatterar för konsensus"
             content={
               <div className="space-y-4">
                 <p className="text-civic-gray-400">
-                  Hög divergens detekterades mellan AI-modellernas svar. En live-debatt genomförs där AI-agenter 
-                  presenterar sina perspektiv, svarar på varandras argument och röstar på det bästa svaret.
+                  Starta en live-debatt där AI-agenter presenterar sina perspektiv, 
+                  svarar på varandras argument och röstar på det bästa svaret.
                 </p>
                 
                 <ConsensusDebateCard
