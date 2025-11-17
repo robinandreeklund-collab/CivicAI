@@ -174,9 +174,9 @@ export default function QuestionInput({ onSubmit, isLoading }) {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto mb-8">
+    <div className="w-full max-w-[1080px] mx-auto">
       <form onSubmit={handleSubmit} className="relative">
-        {/* Main search field - from full-ui-demo.html design */}
+        {/* Main search field - matching 01-refined-card-stack.html design */}
         <div 
           className={`
             transition-all duration-600 ease-in-out
@@ -189,58 +189,55 @@ export default function QuestionInput({ onSubmit, isLoading }) {
           }}
         >
           <div className="relative">
-            <textarea
+            <input
+              type="text"
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === 'Enter') {
                   e.preventDefault();
                   handleSubmit(e);
                 }
               }}
-              placeholder="Ställ en fråga till AI-modellerna..."
-              rows={1}
+              placeholder="Ställ en ny fråga..."
               className={`
                 w-full
-                px-6 py-5 pr-28
+                px-5 pr-[60px]
+                py-4
                 bg-[#151515] text-[#e7e7e7]
-                border-2 rounded-xl
-                transition-all duration-300
+                border rounded-[12px]
+                transition-all duration-200
                 focus:outline-none
                 placeholder-[#666]
-                resize-none
-                text-base
+                text-[14px]
                 ${isFocused 
-                  ? 'border-[#3a3a3a] bg-[#1a1a1a] shadow-[0_8px_24px_rgba(0,0,0,0.4)] scale-[1.01]' 
-                  : 'border-[#2a2a2a] hover:border-[#3a3a3a] hover:bg-[#1a1a1a]'
+                  ? 'border-[#3a3a3a] shadow-[0_4px_12px_rgba(0,0,0,0.3)]' 
+                  : 'border-[#1a1a1a]'
                 }
               `}
-              style={{
-                fontFamily: 'inherit',
-                fontSize: '16px',
-                lineHeight: '1.6'
-              }}
               disabled={isLoading || animationPhase !== 'idle'}
             />
             
-            {/* Send button - positioned absolutely inside input */}
+            {/* Send button - icon only, matching reference design */}
             <button
               type="submit"
               disabled={isLoading || !question.trim() || animationPhase !== 'idle'}
               className={`
-                absolute right-4 bottom-4
-                px-5 py-2.5 rounded-lg
-                transition-all duration-300
-                font-medium text-sm
+                absolute right-3 top-1/2 -translate-y-1/2
+                w-9 h-9
+                rounded-lg
+                flex items-center justify-center
+                text-base
+                transition-all duration-200
                 ${question.trim() && !isLoading && animationPhase === 'idle'
-                  ? 'bg-[#e7e7e7] hover:bg-white text-[#0a0a0a] border-2 border-[#e7e7e7] hover:shadow-lg hover:scale-105' 
-                  : 'bg-[#2a2a2a] text-[#666] cursor-not-allowed border-2 border-[#2a2a2a]'
+                  ? 'bg-[#e7e7e7] hover:bg-white text-[#0a0a0a] hover:scale-105' 
+                  : 'bg-[#2a2a2a] text-[#666] cursor-not-allowed'
                 }
               `}
             >
-              Skicka
+              →
             </button>
           </div>
         </div>
