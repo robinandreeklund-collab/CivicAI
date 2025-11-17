@@ -11,7 +11,7 @@ export default function AboutPage() {
     <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] flex flex-col">
       <div className="flex-1 flex items-center justify-center px-4 py-8">
         <div className="max-w-[1100px] w-full grid md:grid-cols-2 gap-12 md:gap-16 items-start">
-          {/* Left Side - Branding */}
+          {/* Left Column */}
           <div className="md:pr-10">
             <Link 
               to="/" 
@@ -26,24 +26,7 @@ export default function AboutPage() {
             <p className="text-lg text-[#888] mb-10 font-light leading-relaxed">
               En plattform för digitalt självförsvar, demokratisk insyn och teknisk folkbildning.
             </p>
-            <ul className="space-y-0">
-              <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
-                ✓ AI som granskar AI
-              </li>
-              <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
-                ✓ Zero Tracking-standard
-              </li>
-              <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
-                ✓ Anonym nyckelbaserad inloggning
-              </li>
-              <li className="py-4 text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
-                ✓ Total transparens i analyskedjan
-              </li>
-            </ul>
-          </div>
 
-          {/* Right Side - Content */}
-          <div className="md:pl-10 md:border-l border-[#151515]">
             <div className="space-y-6 text-[#888] leading-relaxed">
               <div>
                 <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Vår Vision: Insyn i en tid av osäkerhet</h2>
@@ -169,7 +152,12 @@ export default function AboutPage() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
 
+          {/* Right Column */}
+          <div className="md:pl-10 md:border-l border-[#151515]">
+            <div className="space-y-6 text-[#888] leading-relaxed">
               <div>
                 <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Plattformseffekten: Vi knyter ihop allt</h2>
                 <p className="mb-3">
