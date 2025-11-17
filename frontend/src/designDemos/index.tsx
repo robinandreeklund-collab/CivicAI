@@ -24,11 +24,12 @@ import ChatViewConcept27 from './ChatViewConcept27';
 import ChatViewConcept28 from './ChatViewConcept28';
 import ChatViewConcept29 from './ChatViewConcept29';
 import ChatViewConcept30 from './ChatViewConcept30';
+import ChatViewConcept31 from './ChatViewConcept31';
 
 /**
  * DemoIndex - Navigation component for all chat view design concepts
  * 
- * This component allows easy switching between all 20 design demos
+ * This component allows easy switching between all 26 design demos
  */
 
 const concepts = [
@@ -181,6 +182,12 @@ const concepts = [
     title: 'Zen Minimal with Progressive Disclosure',
     description: 'Ultra-minimal, centered design with content reveal',
     component: ChatViewConcept30,
+  },
+  {
+    id: 31,
+    title: '⭐ Hierarkisk Layout - Complete Data Integration',
+    description: 'BERT + Modellsyntes + Individuella svar + Pipeline + Debatt (All platform data)',
+    component: ChatViewConcept31,
   },
 ];
 
