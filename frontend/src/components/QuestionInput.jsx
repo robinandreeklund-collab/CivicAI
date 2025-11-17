@@ -280,27 +280,6 @@ export default function QuestionInput({ onSubmit, isLoading }) {
           </div>
         )}
 
-        {/* Quick suggestions - only when idle and empty */}
-        {animationPhase === 'idle' && !isLoading && question.length === 0 && (
-          <div className="flex flex-wrap gap-2 mt-4">
-            {['Demokrati och samhälle', 'Hållbar utveckling', 'AI och etik'].map((suggestion, index) => (
-              <button
-                key={index}
-                type="button"
-                onClick={() => setQuestion(`Vad är ${suggestion.toLowerCase()}?`)}
-                className="
-                  px-4 py-2 text-sm rounded-full
-                  bg-[#2a2a2a] hover:bg-[#3a3a3a]
-                  text-[#888] hover:text-[#e7e7e7]
-                  border border-[#3a3a3a] hover:border-[#4a4a4a]
-                  transition-all duration-200 hover:scale-105
-                "
-              >
-                {suggestion}
-              </button>
-            ))}
-          </div>
-        )}
       </form>
     </div>
   );
