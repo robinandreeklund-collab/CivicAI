@@ -16,7 +16,6 @@ export function useTypewriter(questions = [], options = {}) {
   } = options;
 
   const [currentText, setCurrentText] = useState('');
-  const [isTyping, setIsTyping] = useState(true);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [phase, setPhase] = useState('typing'); // typing, paused, deleting, correcting
   const timeoutRef = useRef(null);
