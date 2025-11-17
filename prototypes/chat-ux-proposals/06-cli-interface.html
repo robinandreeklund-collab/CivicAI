@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat UX Proposal 6: Command Line Interface</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+            padding: 40px;
+        }
+
+        .terminal {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .prompt-line {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 32px;
+            font-size: 14px;
+        }
+
+        .prompt {
+            color: #666;
+        }
+
+        .command {
+            color: #e7e7e7;
+            flex: 1;
+        }
+
+        .output-block {
+            margin-left: 24px;
+            margin-bottom: 48px;
+            padding-left: 20px;
+            border-left: 2px solid #1a1a1a;
+        }
+
+        .output-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+        }
+
+        .output-text {
+            font-size: 13px;
+            line-height: 1.8;
+            color: #c0c0c0;
+            margin-bottom: 16px;
+        }
+
+        .output-meta {
+            font-size: 11px;
+            color: #666;
+            display: flex;
+            gap: 16px;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 16px;
+            background: #e7e7e7;
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        .input-line {
+            display: flex;
+            gap: 12px;
+            margin-top: 60px;
+            font-size: 14px;
+        }
+
+        .input-line input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #e7e7e7;
+            font-family: inherit;
+            font-size: inherit;
+            outline: none;
+        }
+
+        .input-line input::placeholder {
+            color: #444;
+        }
+    </style>
+</head>
+<body>
+    <div class="terminal">
+        <div class="prompt-line">
+            <span class="prompt">$</span>
+            <span class="command">oneseek query "Hur kan AI förbättra demokratin?"</span>
+        </div>
+
+        <div class="output-block">
+            <div class="output-label">[GPT-3.5]</div>
+            <div class="output-text">
+                AI kan förbättra demokratin genom att göra beslutsfattande mer transparent och tillgängligt. Genom automatiserad analys av stora mängder data kan medborgare få bättre insyn i politiska processer.
+            </div>
+            <div class="output-meta">
+                <span>1.2s</span>
+                <span>87% confidence</span>
+                <span>bias:2/10</span>
+            </div>
+        </div>
+
+        <div class="output-block">
+            <div class="output-label">[GEMINI]</div>
+            <div class="output-text">
+                Demokrati kan stärkas genom AI-baserade verktyg för att öka medborgardeltagande. Automatiserad översättning och tillgänglighetsförbättringar kan hjälpa fler människor att engagera sig.
+            </div>
+            <div class="output-meta">
+                <span>0.9s</span>
+                <span>92% confidence</span>
+                <span>bias:1/10</span>
+            </div>
+        </div>
+
+        <div class="output-block">
+            <div class="output-label">[SUMMARY]</div>
+            <div class="output-text">
+                Båda modellerna lyfter fram transparens och tillgänglighet. AI kan göra demokratiska processer mer inkluderande genom att bryta ned informationsbarriärer.
+            </div>
+            <div class="output-meta">
+                <span>2 sources</span>
+                <span>generated:14:23</span>
+            </div>
+        </div>
+
+        <div class="input-line">
+            <span class="prompt">$</span>
+            <input type="text" placeholder="oneseek query">
+            <span class="cursor"></span>
+        </div>
+    </div>
+</body>
+</html>
