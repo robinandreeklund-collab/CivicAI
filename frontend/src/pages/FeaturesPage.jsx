@@ -7,9 +7,9 @@ import FooterDemo4 from '../components/footers/FooterDemo4';
  */
 export default function FeaturesPage() {
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] flex flex-col">
-      <div className="flex-1 px-4 py-8">
-        <div className="max-w-[1400px] mx-auto">
+    <div className="bg-[#0a0a0a] text-[#e7e7e7]">
+      <div className="px-4 py-8">
+        <div className="max-w-[1400px] mx-auto pb-8">
           {/* Header */}
           <div className="mb-12">
             <Link 
