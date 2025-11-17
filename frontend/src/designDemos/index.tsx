@@ -9,11 +9,21 @@ import ChatViewConcept7 from './ChatViewConcept7';
 import ChatViewConcept8 from './ChatViewConcept8';
 import ChatViewConcept9 from './ChatViewConcept9';
 import ChatViewConcept10 from './ChatViewConcept10';
+import ChatViewConcept11 from './ChatViewConcept11';
+import ChatViewConcept12 from './ChatViewConcept12';
+import ChatViewConcept13 from './ChatViewConcept13';
+import ChatViewConcept14 from './ChatViewConcept14';
+import ChatViewConcept15 from './ChatViewConcept15';
+import ChatViewConcept16 from './ChatViewConcept16';
+import ChatViewConcept17 from './ChatViewConcept17';
+import ChatViewConcept18 from './ChatViewConcept18';
+import ChatViewConcept19 from './ChatViewConcept19';
+import ChatViewConcept20 from './ChatViewConcept20';
 
 /**
  * DemoIndex - Navigation component for all chat view design concepts
  * 
- * This component allows easy switching between all 10 design demos
+ * This component allows easy switching between all 20 design demos
  */
 
 const concepts = [
@@ -76,6 +86,66 @@ const concepts = [
     title: 'Radial Navigation',
     description: 'Futuristic circular menu system',
     component: ChatViewConcept10,
+  },
+  {
+    id: 11,
+    title: 'Enhanced Floating Cards with Model Synthesis',
+    description: 'Rich data, particle effects, always-visible input',
+    component: ChatViewConcept11,
+  },
+  {
+    id: 12,
+    title: 'Minimalist with Animated Insights',
+    description: 'Smooth animations, pulsing metrics, micro-interactions',
+    component: ChatViewConcept12,
+  },
+  {
+    id: 13,
+    title: 'Timeline with Rich Model Perspectives',
+    description: 'Animated timeline, detailed model cards, full data',
+    component: ChatViewConcept13,
+  },
+  {
+    id: 14,
+    title: 'Tabbed Interface with Smooth Transitions',
+    description: 'Animated tabs, organized content, rich data',
+    component: ChatViewConcept14,
+  },
+  {
+    id: 15,
+    title: 'Enhanced Glassmorphism Design',
+    description: 'Ambient effects, model comparison, gradient accents',
+    component: ChatViewConcept15,
+  },
+  {
+    id: 16,
+    title: 'Split View with Synthesis Data',
+    description: 'Dual-panel comparison, rich insights, smooth scrolling',
+    component: ChatViewConcept16,
+  },
+  {
+    id: 17,
+    title: 'Carousel Model Perspectives',
+    description: 'Swipeable cards, animated transitions, full viewport',
+    component: ChatViewConcept17,
+  },
+  {
+    id: 18,
+    title: 'Matrix Grid with Hover Effects',
+    description: 'Interactive grid, detailed tooltips, visual hierarchy',
+    component: ChatViewConcept18,
+  },
+  {
+    id: 19,
+    title: 'Vertical Scroll with Sticky Insights',
+    description: 'Progressive disclosure, sticky panels, rich data',
+    component: ChatViewConcept19,
+  },
+  {
+    id: 20,
+    title: 'Immersive Full-Screen Experience',
+    description: 'Ambient effects, full data, cinematic presentation',
+    component: ChatViewConcept20,
   },
 ];
 
@@ -153,7 +223,7 @@ export default function DemoIndex() {
             OneSeek.AI Design Concepts
           </h1>
           <p className="text-[#888] text-lg">
-            10 innovativa chattgränssnitt med integrerad meny och insyn
+            20 innovativa chattgränssnitt med integrerad meny och insyn
           </p>
         </div>
 
