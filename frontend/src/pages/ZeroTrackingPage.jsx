@@ -7,7 +7,7 @@ import FooterDemo4 from '../components/footers/FooterDemo4';
  */
 export default function ZeroTrackingPage() {
   return (
-    <div className="bg-[#0a0a0a] text-[#e7e7e7]">
+    <div className="h-full overflow-y-auto bg-[#0a0a0a] text-[#e7e7e7]">
       <div className="px-4 py-8">
         <div className="max-w-[1400px] mx-auto pb-8">
           {/* Header */}
