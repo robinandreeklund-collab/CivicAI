@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NLP Flow Demo 7 - Matrix Rain</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000000;
+            color: #00ff00;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .matrix-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Landing Page */
+        .landing-page {
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .landing-page h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #00ff00;
+            text-shadow: 0 0 20px #00ff00;
+        }
+
+        .landing-page p {
+            font-size: 1.2rem;
+            color: #00cc00;
+            margin-bottom: 2rem;
+        }
+
+        .input-container {
+            background: rgba(0, 20, 0, 0.8);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 2px solid #00ff00;
+        }
+
+        .input-container input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid #00ff00;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #00ff00;
+            font-size: 1rem;
+            font-family: 'Courier New', monospace;
+            outline: none;
+        }
+
+        .input-container input:focus {
+            box-shadow: 0 0 10px #00ff00;
+        }
+
+        .input-container button {
+            width: 100%;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #00ff00;
+            border: none;
+            border-radius: 8px;
+            color: #000000;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .input-container button:hover {
+            box-shadow: 0 0 20px #00ff00;
+        }
+
+        /* Loader Page */
+        .loader-page {
+            display: none;
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .matrix-container {
+            background: rgba(0, 20, 0, 0.8);
+            border-radius: 12px;
+            padding: 2rem;
+            border: 2px solid #00ff00;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .falling-text {
+            font-size: 1.5rem;
+            color: #00ff00;
+            margin: 0.5rem;
+            opacity: 0;
+            animation: fallDown 1s ease-out forwards;
+        }
+
+        @keyframes fallDown {
+            0% {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            50% {
+                opacity: 1;
+            }
+            100% {
+                opacity: 0.7;
+                transform: translateY(0);
+            }
+        }
+
+        .current-step {
+            font-size: 2rem;
+            color: #00ff00;
+            margin-top: 2rem;
+            text-shadow: 0 0 10px #00ff00;
+            animation: glow 1s ease-in-out infinite;
+        }
+
+        @keyframes glow {
+            0%, 100% {
+                text-shadow: 0 0 10px #00ff00;
+            }
+            50% {
+                text-shadow: 0 0 20px #00ff00, 0 0 30px #00ff00;
+            }
+        }
+
+        /* Chat Page */
+        .chat-page {
+            display: none;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .chat-container {
+            background: rgba(0, 20, 0, 0.8);
+            border-radius: 12px;
+            padding: 2rem;
+            border: 2px solid #00ff00;
+        }
+
+        .message {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            border-radius: 8px;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        .message.user {
+            background: rgba(0, 255, 0, 0.1);
+            border-left: 4px solid #00ff00;
+        }
+
+        .message.assistant {
+            background: rgba(0, 200, 0, 0.1);
+            border-left: 4px solid #00cc00;
+        }
+
+        .message-label {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #00ff00;
+        }
+
+        .new-question-btn {
+            width: 100%;
+            padding: 1rem;
+            background: #00ff00;
+            border: none;
+            border-radius: 8px;
+            color: #000000;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+            cursor: pointer;
+            margin-top: 1rem;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Matrix rain effect */
+        .matrix-char {
+            position: absolute;
+            color: #00ff00;
+            font-size: 20px;
+            opacity: 0;
+            animation: matrixFall 3s linear infinite;
+        }
+
+        @keyframes matrixFall {
+            0% {
+                top: -20px;
+                opacity: 1;
+            }
+            100% {
+                top: 100vh;
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas class="matrix-bg" id="matrixCanvas"></canvas>
+    
+    <div class="container">
+        <!-- Landing Page -->
+        <div class="landing-page" id="landingPage">
+            <h1>Välkommen!</h1>
+            <p>Ställ din fråga till vår AI-assistent</p>
+            <div class="input-container">
+                <input type="text" id="questionInput" placeholder="Skriv din fråga här..." />
+                <button onclick="startProcessing()">Skicka fråga</button>
+            </div>
+        </div>
+
+        <!-- Loader Page -->
+        <div class="loader-page" id="loaderPage">
+            <div class="matrix-container" id="matrixContainer">
+                <div class="current-step" id="currentStep"></div>
+            </div>
+        </div>
+
+        <!-- Chat Page -->
+        <div class="chat-page" id="chatPage">
+            <div class="chat-container">
+                <div class="message user">
+                    <div class="message-label">&gt; Du</div>
+                    <div id="userQuestion"></div>
+                </div>
+                <div class="message assistant">
+                    <div class="message-label">&gt; AI-assistent</div>
+                    <div id="assistantResponse"></div>
+                </div>
+                <button class="new-question-btn" onclick="resetDemo()">Ställ ny fråga</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentQuestion = '';
+
+        // Matrix background effect
+        const canvas = document.getElementById('matrixCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノ';
+        const fontSize = 16;
+        const columns = canvas.width / fontSize;
+        const drops = Array(Math.floor(columns)).fill(1);
+
+        function drawMatrix() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#00ff00';
+            ctx.font = fontSize + 'px monospace';
+            
+            for (let i = 0; i < drops.length; i++) {
+                const text = chars[Math.floor(Math.random() * chars.length)];
+                ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                
+                if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                    drops[i] = 0;
+                }
+                drops[i]++;
+            }
+        }
+
+        setInterval(drawMatrix, 50);
+
+        const steps = [
+            'TOKENISERING',
+            'ENTITETSIGENKÄNNING',
+            'SENTIMENTANALYS',
+            'SEMANTISK ANALYS',
+            'SAMMANFATTNING'
+        ];
+
+        function startProcessing() {
+            const input = document.getElementById('questionInput');
+            currentQuestion = input.value.trim();
+            
+            if (!currentQuestion) {
+                alert('Vänligen skriv en fråga först!');
+                return;
+            }
+
+            document.getElementById('landingPage').classList.add('hidden');
+            document.getElementById('loaderPage').style.display = 'block';
+            processSteps();
+        }
+
+        function processSteps() {
+            let currentStep = 0;
+            const container = document.getElementById('matrixContainer');
+            const stepDisplay = document.getElementById('currentStep');
+
+            function showNextStep() {
+                if (currentStep < steps.length) {
+                    // Add falling text
+                    const fallingText = document.createElement('div');
+                    fallingText.className = 'falling-text';
+                    fallingText.textContent = steps[currentStep];
+                    container.insertBefore(fallingText, stepDisplay);
+                    
+                    // Update current step
+                    stepDisplay.textContent = '> ' + steps[currentStep];
+                    
+                    currentStep++;
+                    setTimeout(showNextStep, 900);
+                } else {
+                    setTimeout(showChat, 700);
+                }
+            }
+
+            showNextStep();
+        }
+
+        function showChat() {
+            document.getElementById('loaderPage').style.display = 'none';
+            document.getElementById('chatPage').style.display = 'block';
+            
+            document.getElementById('userQuestion').textContent = currentQuestion;
+            
+            const responses = [
+                'Det är en intressant fråga! Baserat på min analys kan jag säga att detta är ett komplext ämne som kräver noggrann övervägning av flera faktorer.',
+                'Tack för din fråga! Jag har analyserat den och här är min bedömning: Detta beror på olika perspektiv och sammanhang.',
+                'Utifrån den information jag har tillgång till kan jag ge följande svar: Det finns flera aspekter att ta hänsyn till när man överväger denna fråga.',
+            ];
+            
+            document.getElementById('assistantResponse').textContent = 
+                responses[Math.floor(Math.random() * responses.length)];
+        }
+
+        function resetDemo() {
+            document.getElementById('chatPage').style.display = 'none';
+            document.getElementById('landingPage').classList.remove('hidden');
+            document.getElementById('questionInput').value = '';
+            
+            // Clear falling texts
+            const fallingTexts = document.querySelectorAll('.falling-text');
+            fallingTexts.forEach(text => text.remove());
+            document.getElementById('currentStep').textContent = '';
+            
+            currentQuestion = '';
+        }
+
+        document.getElementById('questionInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                startProcessing();
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>

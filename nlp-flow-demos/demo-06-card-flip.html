@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NLP Flow Demo 6 - Card Flip</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #232526 0%, #414345 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            perspective: 1000px;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+        }
+
+        /* Landing Page */
+        .landing-page {
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .landing-page h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #fc4a1a, #f7b733);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .landing-page p {
+            font-size: 1.2rem;
+            color: #a0a0a0;
+            margin-bottom: 2rem;
+        }
+
+        .input-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 1.5rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .input-container input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #ffffff;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .input-container input:focus {
+            border-color: #fc4a1a;
+        }
+
+        .input-container button {
+            width: 100%;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: linear-gradient(135deg, #fc4a1a, #f7b733);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .input-container button:hover {
+            transform: translateY(-2px);
+        }
+
+        /* Loader Page */
+        .loader-page {
+            display: none;
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .cards-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            padding: 1rem;
+        }
+
+        .flip-card {
+            width: 100%;
+            height: 80px;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.6s;
+        }
+
+        .flip-card.flipped {
+            transform: rotateY(180deg);
+        }
+
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-weight: 600;
+            padding: 1rem;
+        }
+
+        .card-front {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            color: #888;
+        }
+
+        .card-back {
+            background: linear-gradient(135deg, #fc4a1a, #f7b733);
+            transform: rotateY(180deg);
+            box-shadow: 0 10px 30px rgba(252, 74, 26, 0.3);
+        }
+
+        /* Chat Page */
+        .chat-page {
+            display: none;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .chat-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .message {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            border-radius: 8px;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        .message.user {
+            background: rgba(252, 74, 26, 0.2);
+            border-left: 4px solid #fc4a1a;
+        }
+
+        .message.assistant {
+            background: rgba(247, 183, 51, 0.2);
+            border-left: 4px solid #f7b733;
+        }
+
+        .message-label {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #fc4a1a;
+        }
+
+        .message.assistant .message-label {
+            color: #f7b733;
+        }
+
+        .new-question-btn {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, #fc4a1a, #f7b733);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 1rem;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Landing Page -->
+        <div class="landing-page" id="landingPage">
+            <h1>Välkommen!</h1>
+            <p>Ställ din fråga till vår AI-assistent</p>
+            <div class="input-container">
+                <input type="text" id="questionInput" placeholder="Skriv din fråga här..." />
+                <button onclick="startProcessing()">Skicka fråga</button>
+            </div>
+        </div>
+
+        <!-- Loader Page -->
+        <div class="loader-page" id="loaderPage">
+            <div class="cards-container">
+                <div class="flip-card" data-step="0">
+                    <div class="card-face card-front">Väntar...</div>
+                    <div class="card-face card-back">Tokenisering</div>
+                </div>
+                <div class="flip-card" data-step="1">
+                    <div class="card-face card-front">Väntar...</div>
+                    <div class="card-face card-back">Entitetsigenkänning</div>
+                </div>
+                <div class="flip-card" data-step="2">
+                    <div class="card-face card-front">Väntar...</div>
+                    <div class="card-face card-back">Sentimentanalys</div>
+                </div>
+                <div class="flip-card" data-step="3">
+                    <div class="card-face card-front">Väntar...</div>
+                    <div class="card-face card-back">Semantisk analys</div>
+                </div>
+                <div class="flip-card" data-step="4">
+                    <div class="card-face card-front">Väntar...</div>
+                    <div class="card-face card-back">Sammanfattning</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Page -->
+        <div class="chat-page" id="chatPage">
+            <div class="chat-container">
+                <div class="message user">
+                    <div class="message-label">Du</div>
+                    <div id="userQuestion"></div>
+                </div>
+                <div class="message assistant">
+                    <div class="message-label">AI-assistent</div>
+                    <div id="assistantResponse"></div>
+                </div>
+                <button class="new-question-btn" onclick="resetDemo()">Ställ ny fråga</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentQuestion = '';
+
+        function startProcessing() {
+            const input = document.getElementById('questionInput');
+            currentQuestion = input.value.trim();
+            
+            if (!currentQuestion) {
+                alert('Vänligen skriv en fråga först!');
+                return;
+            }
+
+            document.getElementById('landingPage').classList.add('hidden');
+            document.getElementById('loaderPage').style.display = 'block';
+            processSteps();
+        }
+
+        function processSteps() {
+            const cards = document.querySelectorAll('.flip-card');
+            let currentStep = 0;
+
+            function flipNextCard() {
+                if (currentStep < cards.length) {
+                    cards[currentStep].classList.add('flipped');
+                    currentStep++;
+                    setTimeout(flipNextCard, 700);
+                } else {
+                    setTimeout(showChat, 700);
+                }
+            }
+
+            flipNextCard();
+        }
+
+        function showChat() {
+            document.getElementById('loaderPage').style.display = 'none';
+            document.getElementById('chatPage').style.display = 'block';
+            
+            document.getElementById('userQuestion').textContent = currentQuestion;
+            
+            const responses = [
+                'Det är en intressant fråga! Baserat på min analys kan jag säga att detta är ett komplext ämne som kräver noggrann övervägning av flera faktorer.',
+                'Tack för din fråga! Jag har analyserat den och här är min bedömning: Detta beror på olika perspektiv och sammanhang.',
+                'Utifrån den information jag har tillgång till kan jag ge följande svar: Det finns flera aspekter att ta hänsyn till när man överväger denna fråga.',
+            ];
+            
+            document.getElementById('assistantResponse').textContent = 
+                responses[Math.floor(Math.random() * responses.length)];
+        }
+
+        function resetDemo() {
+            document.getElementById('chatPage').style.display = 'none';
+            document.getElementById('landingPage').classList.remove('hidden');
+            document.getElementById('questionInput').value = '';
+            
+            const cards = document.querySelectorAll('.flip-card');
+            cards.forEach(card => {
+                card.classList.remove('flipped');
+            });
+            
+            currentQuestion = '';
+        }
+
+        document.getElementById('questionInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                startProcessing();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NLP Flow Demo 1 - Progress Bar</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            color: #e5e7eb;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+        }
+
+        /* Landing Page */
+        .landing-page {
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .landing-page h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .landing-page p {
+            font-size: 1.2rem;
+            color: #94a3b8;
+            margin-bottom: 2rem;
+        }
+
+        .input-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 1.5rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .input-container input {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #e5e7eb;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .input-container input:focus {
+            border-color: #60a5fa;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .input-container button {
+            width: 100%;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .input-container button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(96, 165, 250, 0.3);
+        }
+
+        /* Loader Page */
+        .loader-page {
+            display: none;
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .loader-page h2 {
+            font-size: 1.8rem;
+            margin-bottom: 2rem;
+            color: #60a5fa;
+        }
+
+        .progress-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #60a5fa, #a78bfa);
+            width: 0%;
+            transition: width 0.5s ease;
+            border-radius: 4px;
+        }
+
+        .steps-list {
+            text-align: left;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            padding: 0.8rem 0;
+            opacity: 0.3;
+            transition: all 0.5s ease;
+        }
+
+        .step.active {
+            opacity: 1;
+            transform: translateX(10px);
+        }
+
+        .step.completed {
+            opacity: 0.6;
+        }
+
+        .step-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 1rem;
+            border-radius: 50%;
+            border: 2px solid currentColor;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #60a5fa;
+        }
+
+        .step.active .step-icon {
+            animation: pulse 1s infinite;
+        }
+
+        .step.completed .step-icon::before {
+            content: '✓';
+            color: #10b981;
+        }
+
+        /* Chat Page */
+        .chat-page {
+            display: none;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .chat-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .message {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            border-radius: 8px;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        .message.user {
+            background: rgba(96, 165, 250, 0.2);
+            border-left: 4px solid #60a5fa;
+        }
+
+        .message.assistant {
+            background: rgba(167, 139, 250, 0.2);
+            border-left: 4px solid #a78bfa;
+        }
+
+        .message-label {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #60a5fa;
+        }
+
+        .message.assistant .message-label {
+            color: #a78bfa;
+        }
+
+        .new-question-btn {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: transform 0.2s ease;
+        }
+
+        .new-question-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.1);
+                opacity: 0.7;
+            }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Landing Page -->
+        <div class="landing-page" id="landingPage">
+            <h1>Välkommen!</h1>
+            <p>Ställ din fråga till vår AI-assistent</p>
+            <div class="input-container">
+                <input type="text" id="questionInput" placeholder="Skriv din fråga här..." />
+                <button onclick="startProcessing()">Skicka fråga</button>
+            </div>
+        </div>
+
+        <!-- Loader Page -->
+        <div class="loader-page" id="loaderPage">
+            <h2>Analyserar din fråga...</h2>
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="steps-list" id="stepsList">
+                    <div class="step" data-step="0">
+                        <div class="step-icon"></div>
+                        <div class="step-text">Tokenisering</div>
+                    </div>
+                    <div class="step" data-step="1">
+                        <div class="step-icon"></div>
+                        <div class="step-text">Entitetsigenkänning</div>
+                    </div>
+                    <div class="step" data-step="2">
+                        <div class="step-icon"></div>
+                        <div class="step-text">Sentimentanalys</div>
+                    </div>
+                    <div class="step" data-step="3">
+                        <div class="step-icon"></div>
+                        <div class="step-text">Semantisk analys</div>
+                    </div>
+                    <div class="step" data-step="4">
+                        <div class="step-icon"></div>
+                        <div class="step-text">Sammanfattning</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Page -->
+        <div class="chat-page" id="chatPage">
+            <div class="chat-container">
+                <div class="message user">
+                    <div class="message-label">Du</div>
+                    <div id="userQuestion"></div>
+                </div>
+                <div class="message assistant">
+                    <div class="message-label">AI-assistent</div>
+                    <div id="assistantResponse"></div>
+                </div>
+                <button class="new-question-btn" onclick="resetDemo()">Ställ ny fråga</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentQuestion = '';
+
+        function startProcessing() {
+            const input = document.getElementById('questionInput');
+            currentQuestion = input.value.trim();
+            
+            if (!currentQuestion) {
+                alert('Vänligen skriv en fråga först!');
+                return;
+            }
+
+            // Hide landing page and show loader
+            document.getElementById('landingPage').classList.add('hidden');
+            document.getElementById('loaderPage').style.display = 'block';
+
+            // Simulate NLP processing steps
+            processSteps();
+        }
+
+        function processSteps() {
+            const steps = document.querySelectorAll('.step');
+            const progressFill = document.getElementById('progressFill');
+            let currentStep = 0;
+
+            function activateNextStep() {
+                if (currentStep > 0) {
+                    steps[currentStep - 1].classList.remove('active');
+                    steps[currentStep - 1].classList.add('completed');
+                }
+
+                if (currentStep < steps.length) {
+                    steps[currentStep].classList.add('active');
+                    const progress = ((currentStep + 1) / steps.length) * 100;
+                    progressFill.style.width = progress + '%';
+                    currentStep++;
+                    setTimeout(activateNextStep, 800);
+                } else {
+                    // All steps completed, show chat
+                    setTimeout(showChat, 500);
+                }
+            }
+
+            activateNextStep();
+        }
+
+        function showChat() {
+            document.getElementById('loaderPage').style.display = 'none';
+            document.getElementById('chatPage').style.display = 'block';
+            
+            document.getElementById('userQuestion').textContent = currentQuestion;
+            
+            // Simulate AI response
+            const responses = [
+                'Det är en intressant fråga! Baserat på min analys kan jag säga att detta är ett komplext ämne som kräver noggrann övervägning av flera faktorer.',
+                'Tack för din fråga! Jag har analyserat den och här är min bedömning: Detta beror på olika perspektiv och sammanhang.',
+                'Utifrån den information jag har tillgång till kan jag ge följande svar: Det finns flera aspekter att ta hänsyn till när man överväger denna fråga.',
+            ];
+            
+            document.getElementById('assistantResponse').textContent = 
+                responses[Math.floor(Math.random() * responses.length)];
+        }
+
+        function resetDemo() {
+            // Reset all states
+            document.getElementById('chatPage').style.display = 'none';
+            document.getElementById('landingPage').classList.remove('hidden');
+            document.getElementById('questionInput').value = '';
+            
+            // Reset steps
+            const steps = document.querySelectorAll('.step');
+            steps.forEach(step => {
+                step.classList.remove('active', 'completed');
+            });
+            
+            // Reset progress bar
+            document.getElementById('progressFill').style.width = '0%';
+            
+            currentQuestion = '';
+        }
+
+        // Allow Enter key to submit
+        document.getElementById('questionInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                startProcessing();
+            }
+        });
+    </script>
+</body>
+</html>
