@@ -24,9 +24,11 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
   const location = useLocation();
 
   // Handle initial question from landing page
+  const hasSubmittedInitialQuestion = useRef(false);
+  
   useEffect(() => {
-    if (location.state?.initialQuestion) {
-      setQuestion(location.state.initialQuestion);
+    if (location.state?.initialQuestion && !hasSubmittedInitialQuestion.current) {
+      hasSubmittedInitialQuestion.current = true;
       // Auto-submit the question
       setTimeout(() => {
         handleSubmitQuestion(location.state.initialQuestion);
@@ -34,7 +36,8 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
       // Clear the state
       window.history.replaceState({}, document.title);
     }
-  }, [location.state]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state?.initialQuestion]);
 
   // Reset messages when conversationId changes (new conversation)
   useEffect(() => {
@@ -42,6 +45,7 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
       setMessages([]);
       setActiveSection(null);
       setExploredSections(new Set());
+      hasSubmittedInitialQuestion.current = false;
     }
   }, [conversationId]);
 

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat UX Proposal 10: Minimal Grid</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+            padding: 60px 40px 140px;
+        }
+
+        .grid-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .question {
+            font-size: 32px;
+            font-weight: 200;
+            text-align: center;
+            margin-bottom: 80px;
+            grid-column: 1 / -1;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1px;
+            background: #1a1a1a;
+            border: 1px solid #1a1a1a;
+        }
+
+        .grid-item {
+            background: #0a0a0a;
+            padding: 40px;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s;
+        }
+
+        .grid-item:hover {
+            background: #151515;
+        }
+
+        .item-icon {
+            font-size: 32px;
+            margin-bottom: 20px;
+        }
+
+        .item-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+        }
+
+        .item-content {
+            flex: 1;
+            font-size: 14px;
+            line-height: 1.8;
+            color: #c0c0c0;
+        }
+
+        .item-meta {
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid #1a1a1a;
+            font-size: 11px;
+            color: #666;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .grid-item.summary {
+            grid-column: 1 / -1;
+            background: #151515;
+            border-top: 1px solid #1a1a1a;
+        }
+
+        .grid-item.summary .item-content {
+            font-size: 16px;
+            max-width: 800px;
+        }
+
+        .input-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #0a0a0a;
+            border-top: 1px solid #1a1a1a;
+            padding: 24px;
+        }
+
+        .input-wrapper {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 12px;
+        }
+
+        .input-field {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 8px;
+            padding: 14px 20px;
+            color: #e7e7e7;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .input-field::placeholder {
+            color: #666;
+        }
+
+        .send-btn {
+            background: #e7e7e7;
+            color: #0a0a0a;
+            border: none;
+            padding: 0 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .send-btn:hover {
+            background: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="grid-container">
+        <div class="question">Hur kan AI förbättra demokratin?</div>
+
+        <div class="grid">
+            <div class="grid-item">
+                <div class="item-icon">🤖</div>
+                <div class="item-label">GPT-3.5</div>
+                <div class="item-content">
+                    AI kan förbättra demokratin genom att göra beslutsfattande mer transparent och tillgängligt. Genom automatiserad analys av stora mängder data kan medborgare få bättre insyn i politiska processer och fatta mer informerade val.
+                </div>
+                <div class="item-meta">
+                    <span>1.2s</span>
+                    <span>87%</span>
+                    <span>Bias: 2/10</span>
+                </div>
+            </div>
+
+            <div class="grid-item">
+                <div class="item-icon">✨</div>
+                <div class="item-label">Gemini</div>
+                <div class="item-content">
+                    Demokrati kan stärkas genom AI-baserade verktyg för att öka medborgardeltagande. Automatiserad översättning, tillgänglighetsförbättringar och personaliserad information kan hjälpa fler människor att engagera sig i demokratiska processer.
+                </div>
+                <div class="item-meta">
+                    <span>0.9s</span>
+                    <span>92%</span>
+                    <span>Bias: 1/10</span>
+                </div>
+            </div>
+
+            <div class="grid-item">
+                <div class="item-icon">⚖️</div>
+                <div class="item-label">Bias-analys</div>
+                <div class="item-content">
+                    Analyserna visar låg bias i båda svaren. Gemini har marginellt lägre bias-poäng jämfört med GPT-3.5. Båda modellerna presenterar balanserad information utan tydlig politisk vinkling.
+                </div>
+                <div class="item-meta">
+                    <span>Genomsnitt: 1.5/10</span>
+                    <span>Status: Godkänd</span>
+                </div>
+            </div>
+
+            <div class="grid-item summary">
+                <div class="item-icon">📝</div>
+                <div class="item-label">Sammanfattning</div>
+                <div class="item-content">
+                    Båda modellerna lyfter fram transparens och tillgänglighet som nyckelfaktorer. AI kan göra demokratiska processer mer inkluderande genom att bryta ned informationsbarriärer och möjliggöra bredare medborgardeltagande. Fokus ligger på att göra demokratin mer tillgänglig för fler människor.
+                </div>
+                <div class="item-meta">
+                    <span>2 källor</span>
+                    <span>Genererad: 14:23</span>
+                    <span>Konsensus: Hög</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="input-container">
+        <div class="input-wrapper">
+            <input type="text" class="input-field" placeholder="Ställ en ny fråga...">
+            <button class="send-btn">Skicka</button>
+        </div>
+    </div>
+</body>
+</html>

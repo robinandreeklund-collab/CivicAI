@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat UX Proposal 5: Accordion Minimalism</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+            padding: 60px 20px 140px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .question {
+            font-size: 28px;
+            font-weight: 200;
+            margin-bottom: 60px;
+            text-align: center;
+        }
+
+        /* Accordion items */
+        .accordion-item {
+            border-bottom: 1px solid #1a1a1a;
+            margin-bottom: 1px;
+        }
+
+        .accordion-header {
+            padding: 24px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .accordion-header:hover {
+            padding-left: 12px;
+        }
+
+        .accordion-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            color: #e7e7e7;
+        }
+
+        .accordion-icon {
+            font-size: 16px;
+        }
+
+        .accordion-meta {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .accordion-chevron {
+            color: #666;
+            transition: transform 0.3s;
+        }
+
+        .accordion-item.active .accordion-chevron {
+            transform: rotate(180deg);
+        }
+
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+
+        .accordion-item.active .accordion-content {
+            max-height: 1000px;
+            transition: max-height 0.5s ease-in;
+        }
+
+        .accordion-inner {
+            padding: 0 0 32px 28px;
+            font-size: 15px;
+            line-height: 1.8;
+            color: #c0c0c0;
+        }
+
+        .accordion-stats {
+            margin-top: 20px;
+            display: flex;
+            gap: 24px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        /* Fixed input */
+        .input-fixed {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #0a0a0a;
+            border-top: 1px solid #1a1a1a;
+            padding: 20px;
+        }
+
+        .input-wrapper {
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .input-field {
+            width: 100%;
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 16px 60px 16px 20px;
+            color: #e7e7e7;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .input-field:focus {
+            border-color: #2a2a2a;
+        }
+
+        .input-field::placeholder {
+            color: #666;
+        }
+
+        .send-btn {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #e7e7e7;
+            color: #0a0a0a;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .send-btn:hover {
+            background: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="question">
+            Hur kan AI förbättra demokratin?
+        </div>
+
+        <div class="accordion-item active">
+            <div class="accordion-header">
+                <div class="accordion-title">
+                    <span class="accordion-icon">📝</span>
+                    <span>Sammanfattning</span>
+                </div>
+                <div class="accordion-meta">
+                    <span>2 KÄLLOR</span>
+                </div>
+                <div class="accordion-chevron">▼</div>
+            </div>
+            <div class="accordion-content">
+                <div class="accordion-inner">
+                    Båda modellerna lyfter fram transparens och tillgänglighet som nyckelfaktorer. AI kan göra demokratiska processer mer inkluderande genom att bryta ned informationsbarriärer och möjliggöra bredare medborgardeltagande.
+                    <div class="accordion-stats">
+                        <span>2 modeller</span>
+                        <span>Genererad: 14:23</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <div class="accordion-header">
+                <div class="accordion-title">
+                    <span class="accordion-icon">🤖</span>
+                    <span>GPT-3.5</span>
+                </div>
+                <div class="accordion-meta">
+                    <span>1.2S • 87%</span>
+                </div>
+                <div class="accordion-chevron">▼</div>
+            </div>
+            <div class="accordion-content">
+                <div class="accordion-inner">
+                    AI kan förbättra demokratin genom att göra beslutsfattande mer transparent och tillgängligt. Genom automatiserad analys av stora mängder data kan medborgare få bättre insyn i politiska processer och fatta mer informerade val.
+                    <div class="accordion-stats">
+                        <span>Svarstid: 1.2s</span>
+                        <span>Säkerhet: 87%</span>
+                        <span>Bias: 2/10</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <div class="accordion-header">
+                <div class="accordion-title">
+                    <span class="accordion-icon">✨</span>
+                    <span>Gemini</span>
+                </div>
+                <div class="accordion-meta">
+                    <span>0.9S • 92%</span>
+                </div>
+                <div class="accordion-chevron">▼</div>
+            </div>
+            <div class="accordion-content">
+                <div class="accordion-inner">
+                    Demokrati kan stärkas genom AI-baserade verktyg för att öka medborgardeltagande. Automatiserad översättning, tillgänglighetsförbättringar och personaliserad information kan hjälpa fler människor att engagera sig i demokratiska processer.
+                    <div class="accordion-stats">
+                        <span>Svarstid: 0.9s</span>
+                        <span>Säkerhet: 92%</span>
+                        <span>Bias: 1/10</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion-item">
+            <div class="accordion-header">
+                <div class="accordion-title">
+                    <span class="accordion-icon">⚖️</span>
+                    <span>Bias-analys</span>
+                </div>
+                <div class="accordion-meta">
+                    <span>LÅG BIAS</span>
+                </div>
+                <div class="accordion-chevron">▼</div>
+            </div>
+            <div class="accordion-content">
+                <div class="accordion-inner">
+                    Analyserna visar låg bias i båda svaren. Gemini har marginellt lägre bias-poäng (1/10) jämfört med GPT-3.5 (2/10). Båda modellerna presenterar balanserad information.
+                    <div class="accordion-stats">
+                        <span>Genomsnitt: 1.5/10</span>
+                        <span>Status: Godkänd</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="input-fixed">
+        <div class="input-wrapper">
+            <input type="text" class="input-field" placeholder="Ställ en ny fråga...">
+            <button class="send-btn">→</button>
+        </div>
+    </div>
+
+    <script>
+        document.querySelectorAll('.accordion-header').forEach(header => {
+            header.addEventListener('click', () => {
+                const item = header.parentElement;
+                const wasActive = item.classList.contains('active');
+                
+                // Close all
+                document.querySelectorAll('.accordion-item').forEach(i => {
+                    i.classList.remove('active');
+                });
+                
+                // Open clicked if it wasn't active
+                if (!wasActive) {
+                    item.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
