@@ -88,13 +88,13 @@ export default function PipelinePage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] flex flex-col">
-      <div className="flex-1 flex items-center justify-center px-4 py-8">
-        <div className="max-w-[1100px] w-full grid md:grid-cols-2 gap-12 md:gap-16 items-start">
-          {/* Left Side - Branding */}
-          <div className="md:pr-10">
+      <div className="flex-1 px-4 py-8">
+        <div className="max-w-[1400px] mx-auto">
+          {/* Header */}
+          <div className="mb-12">
             <Link 
               to="/" 
-              className="inline-flex items-center gap-2 text-[#666] text-sm mb-4 transition-colors duration-200 hover:text-[#e7e7e7] group"
+              className="inline-flex items-center gap-2 text-[#666] text-sm mb-6 transition-colors duration-200 hover:text-[#e7e7e7] group"
             >
               <span className="transition-transform duration-200 group-hover:-translate-x-1">←</span>
               <span>Tillbaka</span>
@@ -102,35 +102,16 @@ export default function PipelinePage() {
             <h1 className="text-5xl md:text-[52px] font-light tracking-wide mb-5 text-[#e7e7e7]">
               Pipeline
             </h1>
-            <p className="text-lg text-[#888] mb-10 font-light leading-relaxed">
+            <p className="text-lg text-[#888] max-w-[800px] font-light leading-relaxed">
               OneSeek.AI:s analyspipeline består av flera steg som tillsammans skapar en omfattande 
-              och transparent analys.
+              och transparent analys. Varje steg använder avancerade verktyg och metoder för att säkerställa 
+              maximal kvalitet och transparens.
             </p>
-            <ul className="space-y-0">
-              <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
-                01 Frågeanalys
-              </li>
-              <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
-                02 Multi-AI Analys
-              </li>
-              <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
-                03 Faktakontroll
-              </li>
-              <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
-                04 Bias-detektion
-              </li>
-              <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
-                05 Konsensusanalys
-              </li>
-              <li className="py-4 text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
-                06 Presentation
-              </li>
-            </ul>
           </div>
 
-          {/* Right Side - Content */}
-          <div className="md:pl-10 md:border-l border-[#151515]">
-            <div className="space-y-4 text-[#888] leading-relaxed">
+          {/* Content Grid */}
+          <div className="grid md:grid-cols-2 gap-6 mb-8">
+            <div className="space-y-6 text-[#888] leading-relaxed">
               {steps.map((step) => (
                 <div key={step.num} className="bg-[#151515] border border-[#2a2a2a] rounded-xl p-6">
                   <div className="flex items-start gap-4">
@@ -150,43 +131,48 @@ export default function PipelinePage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
 
-              <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-6 mt-6">
-                <h3 className="text-xl font-light text-[#e7e7e7] mb-4">Hybrid Pipeline-arkitektur</h3>
-                <p className="mb-4 text-sm">
-                  Systemet använder en hybrid-arkitektur som kombinerar Python ML-verktyg med JavaScript-fallbacks för maximal tillförlitlighet:
-                </p>
-                <div className="space-y-3 text-xs">
-                  <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
-                    <div className="text-[#e7e7e7] font-medium mb-2">🐍 Python ML Pipeline (Föredraget)</div>
-                    <ul className="space-y-1.5 text-[#888]">
-                      <li className="flex gap-2"><span className="text-[#666]">•</span><span>spaCy v3.7.2 (sv_core_news_sm) - Avancerad tokenisering och NER</span></li>
-                      <li className="flex gap-2"><span className="text-[#666]">•</span><span>TextBlob v0.17.1 - Sentiment polarity och subjectivity</span></li>
-                      <li className="flex gap-2"><span className="text-[#666]">•</span><span>Detoxify v0.5.2 - ML-baserad toxicitetsanalys</span></li>
-                      <li className="flex gap-2"><span className="text-[#666]">•</span><span>KB/bert-base-swedish-cased - Svensk BERT för ideologiklassificering</span></li>
-                      <li className="flex gap-2"><span className="text-[#666]">•</span><span>langdetect v1.0.9 - Multi-språkdetektion</span></li>
-                      <li className="flex gap-2"><span className="text-[#666]">•</span><span>BERTopic v0.16.0 / Gensim v4.3.2 - Ämnesmodellering</span></li>
-                    </ul>
-                  </div>
-                  <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
-                    <div className="text-[#e7e7e7] font-medium mb-2">⚡ JavaScript Fallback (Alltid tillgänglig)</div>
-                    <ul className="space-y-1.5 text-[#888]">
-                      <li className="flex gap-2"><span className="text-[#666]">•</span><span>compromise.js v14.11.0 - Lättviktig NLP och tokenisering</span></li>
-                      <li className="flex gap-2"><span className="text-[#666]">•</span><span>Custom sentiment analyzer - Lexicon-baserad sentimentanalys</span></li>
-                      <li className="flex gap-2"><span className="text-[#666]">•</span><span>Custom bias detector - Regelbaserad bias-detektion</span></li>
-                      <li className="flex gap-2"><span className="text-[#666]">•</span><span>Custom ideology classifier - Svensk politisk terminologi</span></li>
-                    </ul>
-                  </div>
+          {/* Full-width sections */}
+          <div className="space-y-6">
+            <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-6">
+              <h3 className="text-xl font-light text-[#e7e7e7] mb-4">Hybrid Pipeline-arkitektur</h3>
+              <p className="mb-4 text-sm text-[#888]">
+                Systemet använder en hybrid-arkitektur som kombinerar Python ML-verktyg med JavaScript-fallbacks för maximal tillförlitlighet:
+              </p>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+                  <div className="text-[#e7e7e7] font-medium mb-3">🐍 Python ML Pipeline (Föredraget)</div>
+                  <ul className="space-y-1.5 text-xs text-[#888]">
+                    <li className="flex gap-2"><span className="text-[#666]">•</span><span>spaCy v3.7.2 (sv_core_news_sm) - Avancerad tokenisering och NER</span></li>
+                    <li className="flex gap-2"><span className="text-[#666]">•</span><span>TextBlob v0.17.1 - Sentiment polarity och subjectivity</span></li>
+                    <li className="flex gap-2"><span className="text-[#666]">•</span><span>Detoxify v0.5.2 - ML-baserad toxicitetsanalys</span></li>
+                    <li className="flex gap-2"><span className="text-[#666]">•</span><span>KB/bert-base-swedish-cased - Svensk BERT för ideologiklassificering</span></li>
+                    <li className="flex gap-2"><span className="text-[#666]">•</span><span>langdetect v1.0.9 - Multi-språkdetektion</span></li>
+                    <li className="flex gap-2"><span className="text-[#666]">•</span><span>BERTopic v0.16.0 / Gensim v4.3.2 - Ämnesmodellering</span></li>
+                  </ul>
                 </div>
-                <p className="mt-4 text-xs text-[#666] italic">
-                  Systemet väljer automatiskt Python ML när tillgängligt och faller tillbaka på JavaScript vid behov.
-                  Provenance tracking dokumenterar exakt vilka verktyg som användes för varje analys.
-                </p>
+                <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+                  <div className="text-[#e7e7e7] font-medium mb-3">⚡ JavaScript Fallback (Alltid tillgänglig)</div>
+                  <ul className="space-y-1.5 text-xs text-[#888]">
+                    <li className="flex gap-2"><span className="text-[#666]">•</span><span>compromise.js v14.11.0 - Lättviktig NLP och tokenisering</span></li>
+                    <li className="flex gap-2"><span className="text-[#666]">•</span><span>Custom sentiment analyzer - Lexicon-baserad sentimentanalys</span></li>
+                    <li className="flex gap-2"><span className="text-[#666]">•</span><span>Custom bias detector - Regelbaserad bias-detektion</span></li>
+                    <li className="flex gap-2"><span className="text-[#666]">•</span><span>Custom ideology classifier - Svensk politisk terminologi</span></li>
+                  </ul>
+                </div>
               </div>
+              <p className="mt-4 text-xs text-[#666] italic">
+                Systemet väljer automatiskt Python ML när tillgängligt och faller tillbaka på JavaScript vid behov.
+                Provenance tracking dokumenterar exakt vilka verktyg som användes för varje analys.
+              </p>
+            </div>
 
-              <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-6 mt-6">
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-6">
                 <h3 className="text-xl font-light text-[#e7e7e7] mb-4">Auditlogg och Transparens</h3>
-                <p className="mb-4 text-sm">
+                <p className="mb-4 text-sm text-[#888]">
                   Varje pipeline-körning genererar en komplett audit trail med fullständig spårbarhet:
                 </p>
                 <div className="space-y-2 text-xs">
@@ -199,9 +185,9 @@ export default function PipelinePage() {
                 </div>
               </div>
 
-              <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-6 mt-6">
+              <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-6">
                 <h3 className="text-xl font-light text-[#e7e7e7] mb-4">Kontinuerlig Utveckling</h3>
-                <p className="mb-4 text-sm">
+                <p className="mb-4 text-sm text-[#888]">
                   Pipelinen utvecklas kontinuerligt med nya moduler och förbättrade analysmetoder. 
                   All utveckling sker öppet med fokus på användarnytta och transparens.
                 </p>
