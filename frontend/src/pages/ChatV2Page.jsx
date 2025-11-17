@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import ConsensusDebateCard from '../components/ConsensusDebateCard';
 
@@ -20,7 +20,6 @@ export default function ChatV2Page() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [synthesisExpanded, setSynthesisExpanded] = useState(false);
   const [selectedModel, setSelectedModel] = useState('gpt-3.5');
-  const chatEndRef = useRef(null);
 
   // Get latest AI message for display
   const latestAiMessage = messages.filter(m => m.type === 'ai').slice(-1)[0];
