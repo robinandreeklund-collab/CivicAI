@@ -8,6 +8,7 @@ import ModelPerspectiveCard from '../components/ModelPerspectiveCard';
 import PipelineAnalysisPanel from '../components/PipelineAnalysisPanel';
 import HighlightedText from '../components/HighlightedText';
 import ConsensusDebateCard from '../components/ConsensusDebateCard';
+import NLPProcessingLoader from '../components/NLPProcessingLoader';
 import { formatMarkdown } from '../utils/formatMarkdown';
 
 /**
@@ -859,6 +860,13 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
                   Transparent analys av ton, bias och fakta. 
                   Minimalistisk design, maximalt fokus på innehåll.
                 </p>
+              </div>
+            )}
+
+            {/* NLP Processing Loader - shown when loading and user has asked a question */}
+            {isLoading && messages.length > 0 && (
+              <div className="mt-12">
+                <NLPProcessingLoader />
               </div>
             )}
 
