@@ -103,10 +103,11 @@
             cursor: not-allowed;
         }
 
-        /* Loader Page - Using platform's existing ProcessingLoader design */
+        /* Loader Page - Centered with rotating half-circle */
         .loader-page {
             display: none;
             animation: fadeIn 0.5s ease-in;
+            text-align: center;
         }
 
         .loader-container {
@@ -115,125 +116,41 @@
             align-items: center;
             justify-content: center;
             padding: 4rem 0;
+            min-height: 400px;
         }
 
-        /* Three animated dots */
-        .typing-indicator {
-            display: flex;
-            align-items: center;
-            gap: 8px;
+        /* Rotating half-circle spinner */
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid #1a1a1a;
+            border-top-color: #888;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
             margin-bottom: 2rem;
         }
 
-        .typing-indicator span {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #888;
-            animation: typing 1.4s infinite;
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
 
-        .typing-indicator span:nth-child(2) {
-            animation-delay: 0.2s;
-        }
-
-        .typing-indicator span:nth-child(3) {
-            animation-delay: 0.4s;
-        }
-
-        @keyframes typing {
-            0%, 60%, 100% { 
-                transform: translateY(0); 
-                opacity: 0.5; 
-            }
-            30% { 
-                transform: translateY(-10px); 
-                opacity: 1; 
-            }
-        }
-
-        /* Steps container */
-        .steps {
-            width: 100%;
+        /* Current step display - only one visible at a time */
+        .current-step {
             max-width: 500px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
+            text-align: center;
         }
 
-        .step {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 4px 8px;
-            transition: all 0.5s ease;
-            transform-origin: left center;
-        }
-
-        .step.active {
-            transform: scale(1.05);
-        }
-
-        .step-icon {
-            width: 24px;
-            height: 24px;
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .checkmark {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            background: #888;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            animation: scaleIn 0.3s ease;
-        }
-
-        @keyframes scaleIn {
-            from { transform: scale(0); }
-            to { transform: scale(1); }
-        }
-
-        .pulse-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #e7e7e7;
-            animation: pulse 2s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { 
-                opacity: 0.6; 
-                transform: scale(1); 
-            }
-            50% { 
-                opacity: 1; 
-                transform: scale(1.2); 
-            }
-        }
-
-        .step-text {
-            font-size: 0.9rem;
-            transition: all 0.5s;
-        }
-
-        .step-text.completed {
-            color: #666;
-        }
-
-        .step-text.active {
+        .step-title {
+            font-size: 1.1rem;
             color: #e7e7e7;
             font-weight: 500;
+            margin-bottom: 0.75rem;
         }
 
-        .step-text.pending {
-            color: #444;
+        .step-description {
+            font-size: 0.9rem;
+            color: #888;
+            line-height: 1.6;
         }
 
         /* Chat Page */
@@ -331,19 +248,16 @@
             </div>
         </div>
 
-        <!-- Loader Page - Based on platform's ProcessingLoader -->
+        <!-- Loader Page - Centered with rotating half-circle -->
         <div class="loader-page" id="loaderPage">
             <div class="loader-container">
-                <!-- Three animated dots -->
-                <div class="typing-indicator">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                </div>
+                <!-- Rotating half-circle spinner -->
+                <div class="spinner"></div>
 
-                <!-- Processing steps -->
-                <div class="steps" id="steps">
-                    <!-- Steps will be inserted by JavaScript -->
+                <!-- Current step display -->
+                <div class="current-step">
+                    <div class="step-title" id="stepTitle"></div>
+                    <div class="step-description" id="stepDescription"></div>
                 </div>
             </div>
         </div>
@@ -367,17 +281,31 @@
     <script>
         let currentQuestion = '';
 
-        // NLP processing steps matching platform's analysis pipeline
+        // NLP processing steps with detailed descriptions
         const steps = [
-            'Tokenisering',
-            'Entitetsigenkänning',
-            'Sentimentanalys',
-            'Semantisk analys',
-            'Sammanfattning'
+            {
+                title: 'Tokenisering',
+                description: 'Delar upp din text i meningsfulla enheter - ord, meningar och fraser för djupare analys'
+            },
+            {
+                title: 'Entitetsigenkänning',
+                description: 'Identifierar viktiga element som namn, platser, organisationer och begrepp i din fråga'
+            },
+            {
+                title: 'Sentimentanalys',
+                description: 'Analyserar den känslomässiga tonen - positiv, negativ eller neutral inställning'
+            },
+            {
+                title: 'Semantisk analys',
+                description: 'Förstår innebörden och sammanhanget genom att analysera relationer mellan ord och begrepp'
+            },
+            {
+                title: 'Sammanställning',
+                description: 'Kombinerar alla analyser för att skapa ett intelligent och sammanhängande svar'
+            }
         ];
 
         let currentStep = 0;
-        const stepsContainer = document.getElementById('steps');
 
         function startProcessing() {
             const input = document.getElementById('questionInput');
@@ -392,28 +320,9 @@
             document.getElementById('landingPage').classList.add('hidden');
             document.getElementById('loaderPage').style.display = 'block';
 
-            // Initialize steps
-            initSteps();
-            
-            // Start processing sequence
-            processSteps();
-        }
-
-        function initSteps() {
-            stepsContainer.innerHTML = '';
+            // Reset and start processing
             currentStep = 0;
-
-            // Create step elements
-            steps.forEach((stepText, index) => {
-                const stepDiv = document.createElement('div');
-                stepDiv.className = 'step';
-                stepDiv.id = `step-${index}`;
-                stepDiv.innerHTML = `
-                    <div class="step-icon" id="icon-${index}"></div>
-                    <p class="step-text pending" id="text-${index}">${stepText}</p>
-                `;
-                stepsContainer.appendChild(stepDiv);
-            });
+            processSteps();
         }
 
         function processSteps() {
@@ -423,34 +332,19 @@
         function updateStep() {
             if (currentStep >= steps.length) {
                 // All steps complete, show chat
-                setTimeout(showChat, 500);
+                setTimeout(showChat, 800);
                 return;
             }
 
-            const stepDiv = document.getElementById(`step-${currentStep}`);
-            const iconDiv = document.getElementById(`icon-${currentStep}`);
-            const textDiv = document.getElementById(`text-${currentStep}`);
+            const step = steps[currentStep];
+            
+            // Update the displayed step
+            document.getElementById('stepTitle').textContent = step.title;
+            document.getElementById('stepDescription').textContent = step.description;
 
-            // Activate current step
-            stepDiv.classList.add('active');
-            iconDiv.innerHTML = '<div class="pulse-dot"></div>';
-            textDiv.className = 'step-text active';
-
-            // After 1.5 seconds, mark as complete and move to next
-            setTimeout(() => {
-                stepDiv.classList.remove('active');
-                iconDiv.innerHTML = `
-                    <div class="checkmark">
-                        <svg width="16" height="16" fill="white" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                        </svg>
-                    </div>
-                `;
-                textDiv.className = 'step-text completed';
-
-                currentStep++;
-                updateStep();
-            }, 1500);
+            // Move to next step after delay
+            currentStep++;
+            setTimeout(updateStep, 2000);
         }
 
         function showChat() {
