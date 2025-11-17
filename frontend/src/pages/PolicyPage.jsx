@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import FooterDemo4 from '../components/footers/FooterDemo4';
 
 /**
@@ -12,6 +13,13 @@ export default function PolicyPage() {
         <div className="max-w-[1100px] w-full grid md:grid-cols-2 gap-12 md:gap-16 items-start">
           {/* Left Side - Branding */}
           <div className="md:pr-10">
+            <Link 
+              to="/" 
+              className="inline-flex items-center gap-2 text-[#666] text-sm mb-4 transition-colors duration-200 hover:text-[#e7e7e7] group"
+            >
+              <span className="transition-transform duration-200 group-hover:-translate-x-1">←</span>
+              <span>Tillbaka</span>
+            </Link>
             <h1 className="text-5xl md:text-[52px] font-light tracking-wide mb-5 text-[#e7e7e7]">
               Policy
             </h1>
