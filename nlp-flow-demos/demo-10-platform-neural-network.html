@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NLP Flow Demo 10 - Platform Neural Network</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+            position: relative;
+            z-index: 10;
+        }
+
+        /* Landing Page */
+        .landing-page {
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .landing-page h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: #e7e7e7;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+        }
+
+        .landing-page p {
+            font-size: 1rem;
+            color: #888;
+            margin-bottom: 2rem;
+            font-weight: 400;
+        }
+
+        .input-container {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .input-container:focus-within {
+            border-color: #2a2a2a;
+        }
+
+        .input-container input {
+            width: 100%;
+            padding: 1rem;
+            border: 1px solid #1a1a1a;
+            border-radius: 8px;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .input-container input:focus {
+            border-color: #2a2a2a;
+        }
+
+        .input-container input::placeholder {
+            color: #666;
+        }
+
+        .input-container button {
+            width: 100%;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #e7e7e7;
+            border: none;
+            border-radius: 8px;
+            color: #0a0a0a;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .input-container button:hover {
+            background: #fff;
+        }
+
+        .input-container button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Loader Page */
+        .loader-page {
+            display: none;
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .loader-container {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 2rem;
+        }
+
+        #neuralCanvas {
+            width: 100%;
+            height: 300px;
+            border-radius: 8px;
+            background: #0a0a0a;
+            margin-bottom: 1.5rem;
+            border: 1px solid #1a1a1a;
+        }
+
+        .neural-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .step-indicator {
+            font-size: 1.2rem;
+            color: #e7e7e7;
+            font-weight: 400;
+            min-height: 2rem;
+        }
+
+        .progress-text {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        /* Chat Page */
+        .chat-page {
+            display: none;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .chat-container {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 2rem;
+        }
+
+        .message {
+            margin-bottom: 1.5rem;
+            padding: 1.25rem;
+            border-radius: 8px;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        .message.user {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+        }
+
+        .message.assistant {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+        }
+
+        .message-label {
+            font-weight: 500;
+            margin-bottom: 0.75rem;
+            color: #e7e7e7;
+            font-size: 0.9rem;
+        }
+
+        .message-text {
+            color: #888;
+            line-height: 1.6;
+        }
+
+        .new-question-btn {
+            width: 100%;
+            padding: 1rem;
+            background: transparent;
+            border: 1px solid #1a1a1a;
+            border-radius: 8px;
+            color: #e7e7e7;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: all 0.2s ease;
+        }
+
+        .new-question-btn:hover {
+            background: #151515;
+            border-color: #2a2a2a;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Landing Page -->
+        <div class="landing-page" id="landingPage">
+            <h1>Välkommen!</h1>
+            <p>Ställ din fråga till vår AI-assistent</p>
+            <div class="input-container">
+                <input type="text" id="questionInput" placeholder="Skriv din fråga här..." />
+                <button onclick="startProcessing()">Skicka fråga</button>
+            </div>
+        </div>
+
+        <!-- Loader Page -->
+        <div class="loader-page" id="loaderPage">
+            <div class="loader-container">
+                <canvas id="neuralCanvas"></canvas>
+                <div class="neural-info">
+                    <div class="step-indicator" id="stepIndicator"></div>
+                    <div class="progress-text" id="progressText"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Page -->
+        <div class="chat-page" id="chatPage">
+            <div class="chat-container">
+                <div class="message user">
+                    <div class="message-label">Du</div>
+                    <div class="message-text" id="userQuestion"></div>
+                </div>
+                <div class="message assistant">
+                    <div class="message-label">AI-assistent</div>
+                    <div class="message-text" id="assistantResponse"></div>
+                </div>
+                <button class="new-question-btn" onclick="resetDemo()">Ställ ny fråga</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentQuestion = '';
+        let animationId;
+
+        const steps = [
+            'Tokenisering',
+            'Entitetsigenkänning',
+            'Sentimentanalys',
+            'Semantisk analys',
+            'Sammanfattning'
+        ];
+
+        // Neural network visualization with platform colors
+        const canvas = document.getElementById('neuralCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 600;
+        canvas.height = 300;
+
+        class Node {
+            constructor(x, y, layer, index) {
+                this.x = x;
+                this.y = y;
+                this.layer = layer;
+                this.index = index;
+                this.active = false;
+                this.activation = 0;
+                this.targetActivation = 0;
+            }
+
+            update() {
+                this.activation += (this.targetActivation - this.activation) * 0.08;
+            }
+
+            draw() {
+                const radius = 6;
+                const brightness = this.activation;
+                
+                // Node circle
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = brightness > 0.3 
+                    ? `rgba(231, 231, 231, ${0.4 + brightness * 0.6})` 
+                    : 'rgba(136, 136, 136, 0.3)';
+                ctx.fill();
+                
+                // Subtle glow for active nodes
+                if (brightness > 0.5) {
+                    ctx.strokeStyle = `rgba(231, 231, 231, ${brightness * 0.4})`;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+            }
+        }
+
+        class Connection {
+            constructor(from, to) {
+                this.from = from;
+                this.to = to;
+                this.strength = 0;
+                this.targetStrength = 0;
+            }
+
+            update() {
+                this.strength += (this.targetStrength - this.strength) * 0.08;
+            }
+
+            draw() {
+                if (this.strength > 0.05) {
+                    ctx.beginPath();
+                    ctx.moveTo(this.from.x, this.from.y);
+                    ctx.lineTo(this.to.x, this.to.y);
+                    ctx.strokeStyle = `rgba(136, 136, 136, ${this.strength * 0.25})`;
+                    ctx.lineWidth = this.strength * 1.5;
+                    ctx.stroke();
+                }
+            }
+        }
+
+        let nodes = [];
+        let connections = [];
+
+        function initNeuralNetwork() {
+            nodes = [];
+            connections = [];
+
+            const layers = [3, 5, 5, 3];
+            const layerSpacing = canvas.width / (layers.length + 1);
+            
+            layers.forEach((nodeCount, layerIndex) => {
+                const y_spacing = canvas.height / (nodeCount + 1);
+                for (let i = 0; i < nodeCount; i++) {
+                    const x = layerSpacing * (layerIndex + 1);
+                    const y = y_spacing * (i + 1);
+                    nodes.push(new Node(x, y, layerIndex, i));
+                }
+            });
+
+            // Create connections
+            let nodeIndex = 0;
+            for (let layer = 0; layer < layers.length - 1; layer++) {
+                const currentLayerSize = layers[layer];
+                const nextLayerSize = layers[layer + 1];
+                const currentLayerStart = nodeIndex;
+                const nextLayerStart = nodeIndex + currentLayerSize;
+
+                for (let i = 0; i < currentLayerSize; i++) {
+                    for (let j = 0; j < nextLayerSize; j++) {
+                        connections.push(new Connection(
+                            nodes[currentLayerStart + i],
+                            nodes[nextLayerStart + j]
+                        ));
+                    }
+                }
+                nodeIndex += currentLayerSize;
+            }
+        }
+
+        function activateLayer(layerIndex) {
+            nodes.forEach(node => {
+                if (node.layer === layerIndex) {
+                    node.targetActivation = 1;
+                } else if (node.layer < layerIndex) {
+                    node.targetActivation = 0.3;
+                } else {
+                    node.targetActivation = 0;
+                }
+            });
+
+            connections.forEach(conn => {
+                if (conn.from.layer === layerIndex - 1 && conn.to.layer === layerIndex) {
+                    conn.targetStrength = 1;
+                } else if (conn.from.layer < layerIndex) {
+                    conn.targetStrength = 0.15;
+                } else {
+                    conn.targetStrength = 0;
+                }
+            });
+        }
+
+        function animateNeuralNetwork() {
+            ctx.fillStyle = 'rgba(10, 10, 10, 0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            connections.forEach(conn => {
+                conn.update();
+                conn.draw();
+            });
+
+            nodes.forEach(node => {
+                node.update();
+                node.draw();
+            });
+
+            animationId = requestAnimationFrame(animateNeuralNetwork);
+        }
+
+        function startProcessing() {
+            const input = document.getElementById('questionInput');
+            currentQuestion = input.value.trim();
+            
+            if (!currentQuestion) {
+                alert('Vänligen skriv en fråga först!');
+                return;
+            }
+
+            document.getElementById('landingPage').classList.add('hidden');
+            document.getElementById('loaderPage').style.display = 'block';
+            initNeuralNetwork();
+            animateNeuralNetwork();
+            processSteps();
+        }
+
+        function processSteps() {
+            let currentStep = 0;
+
+            function showNextStep() {
+                if (currentStep < steps.length) {
+                    document.getElementById('stepIndicator').textContent = steps[currentStep];
+                    document.getElementById('progressText').textContent = 
+                        `Steg ${currentStep + 1} av ${steps.length}`;
+                    
+                    activateLayer(currentStep);
+                    
+                    currentStep++;
+                    setTimeout(showNextStep, 800);
+                } else {
+                    setTimeout(showChat, 600);
+                }
+            }
+
+            showNextStep();
+        }
+
+        function showChat() {
+            cancelAnimationFrame(animationId);
+            document.getElementById('loaderPage').style.display = 'none';
+            document.getElementById('chatPage').style.display = 'block';
+            
+            document.getElementById('userQuestion').textContent = currentQuestion;
+            
+            const responses = [
+                'Det är en intressant fråga! Baserat på min analys kan jag säga att detta är ett komplext ämne som kräver noggrann övervägning av flera faktorer.',
+                'Tack för din fråga! Jag har analyserat den och här är min bedömning: Detta beror på olika perspektiv och sammanhang.',
+                'Utifrån den information jag har tillgång till kan jag ge följande svar: Det finns flera aspekter att ta hänsyn till när man överväger denna fråga.',
+            ];
+            
+            document.getElementById('assistantResponse').textContent = 
+                responses[Math.floor(Math.random() * responses.length)];
+        }
+
+        function resetDemo() {
+            document.getElementById('chatPage').style.display = 'none';
+            document.getElementById('landingPage').classList.remove('hidden');
+            document.getElementById('questionInput').value = '';
+            document.getElementById('stepIndicator').textContent = '';
+            document.getElementById('progressText').textContent = '';
+            currentQuestion = '';
+        }
+
+        document.getElementById('questionInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                startProcessing();
+            }
+        });
+    </script>
+</body>
+</html>
