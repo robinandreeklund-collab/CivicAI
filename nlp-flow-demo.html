@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CivicAI - NLP Flow Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            width: 100%;
+        }
+
+        /* Landing Page */
+        .landing-page {
+            text-align: center;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .landing-page h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: #e7e7e7;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+        }
+
+        .landing-page p {
+            font-size: 1rem;
+            color: #888;
+            margin-bottom: 2rem;
+            font-weight: 400;
+        }
+
+        .input-container {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .input-container:focus-within {
+            border-color: #2a2a2a;
+        }
+
+        .input-container input {
+            width: 100%;
+            padding: 1rem;
+            border: 1px solid #1a1a1a;
+            border-radius: 8px;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .input-container input:focus {
+            border-color: #2a2a2a;
+        }
+
+        .input-container input::placeholder {
+            color: #666;
+        }
+
+        .input-container button {
+            width: 100%;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #e7e7e7;
+            border: none;
+            border-radius: 8px;
+            color: #0a0a0a;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .input-container button:hover {
+            background: #fff;
+        }
+
+        .input-container button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Loader Page - Centered with rotating half-circle */
+        .loader-page {
+            display: none;
+            animation: fadeIn 0.5s ease-in;
+            text-align: center;
+        }
+
+        .loader-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 4rem 0;
+            min-height: 400px;
+        }
+
+        /* Rotating half-circle spinner */
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid #1a1a1a;
+            border-top-color: #888;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 2rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Current step display - only one visible at a time */
+        .current-step {
+            max-width: 500px;
+            text-align: center;
+        }
+
+        .step-title {
+            font-size: 1.1rem;
+            color: #e7e7e7;
+            font-weight: 500;
+            margin-bottom: 0.75rem;
+        }
+
+        .step-description {
+            font-size: 0.9rem;
+            color: #888;
+            line-height: 1.6;
+        }
+
+        /* Chat Page */
+        .chat-page {
+            display: none;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        .chat-container {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 2rem;
+        }
+
+        .message {
+            margin-bottom: 1.5rem;
+            padding: 1.25rem;
+            border-radius: 8px;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        .message.user {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+        }
+
+        .message.assistant {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+        }
+
+        .message-label {
+            font-weight: 500;
+            margin-bottom: 0.75rem;
+            color: #e7e7e7;
+            font-size: 0.9rem;
+        }
+
+        .message-text {
+            color: #888;
+            line-height: 1.6;
+        }
+
+        .new-question-btn {
+            width: 100%;
+            padding: 1rem;
+            background: transparent;
+            border: 1px solid #1a1a1a;
+            border-radius: 8px;
+            color: #e7e7e7;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: all 0.2s ease;
+        }
+
+        .new-question-btn:hover {
+            background: #151515;
+            border-color: #2a2a2a;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Landing Page -->
+        <div class="landing-page" id="landingPage">
+            <h1>Välkommen!</h1>
+            <p>Ställ din fråga till vår AI-assistent</p>
+            <div class="input-container">
+                <input type="text" id="questionInput" placeholder="Skriv din fråga här..." />
+                <button onclick="startProcessing()">Skicka fråga</button>
+            </div>
+        </div>
+
+        <!-- Loader Page - Centered with rotating half-circle -->
+        <div class="loader-page" id="loaderPage">
+            <div class="loader-container">
+                <!-- Rotating half-circle spinner -->
+                <div class="spinner"></div>
+
+                <!-- Current step display -->
+                <div class="current-step">
+                    <div class="step-title" id="stepTitle"></div>
+                    <div class="step-description" id="stepDescription"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Page -->
+        <div class="chat-page" id="chatPage">
+            <div class="chat-container">
+                <div class="message user">
+                    <div class="message-label">Du</div>
+                    <div class="message-text" id="userQuestion"></div>
+                </div>
+                <div class="message assistant">
+                    <div class="message-label">AI-assistent</div>
+                    <div class="message-text" id="assistantResponse"></div>
+                </div>
+                <button class="new-question-btn" onclick="resetDemo()">Ställ ny fråga</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentQuestion = '';
+
+        // NLP processing steps with detailed descriptions
+        const steps = [
+            {
+                title: 'Tokenisering',
+                description: 'Delar upp din text i meningsfulla enheter - ord, meningar och fraser för djupare analys'
+            },
+            {
+                title: 'Entitetsigenkänning',
+                description: 'Identifierar viktiga element som namn, platser, organisationer och begrepp i din fråga'
+            },
+            {
+                title: 'Sentimentanalys',
+                description: 'Analyserar den känslomässiga tonen - positiv, negativ eller neutral inställning'
+            },
+            {
+                title: 'Semantisk analys',
+                description: 'Förstår innebörden och sammanhanget genom att analysera relationer mellan ord och begrepp'
+            },
+            {
+                title: 'Sammanställning',
+                description: 'Kombinerar alla analyser för att skapa ett intelligent och sammanhängande svar'
+            }
+        ];
+
+        let currentStep = 0;
+
+        function startProcessing() {
+            const input = document.getElementById('questionInput');
+            currentQuestion = input.value.trim();
+            
+            if (!currentQuestion) {
+                alert('Vänligen skriv en fråga först!');
+                return;
+            }
+
+            // Hide landing page and show loader
+            document.getElementById('landingPage').classList.add('hidden');
+            document.getElementById('loaderPage').style.display = 'block';
+
+            // Reset and start processing
+            currentStep = 0;
+            processSteps();
+        }
+
+        function processSteps() {
+            updateStep();
+        }
+
+        function updateStep() {
+            if (currentStep >= steps.length) {
+                // All steps complete, show chat
+                setTimeout(showChat, 800);
+                return;
+            }
+
+            const step = steps[currentStep];
+            
+            // Update the displayed step
+            document.getElementById('stepTitle').textContent = step.title;
+            document.getElementById('stepDescription').textContent = step.description;
+
+            // Move to next step after delay
+            currentStep++;
+            setTimeout(updateStep, 2000);
+        }
+
+        function showChat() {
+            document.getElementById('loaderPage').style.display = 'none';
+            document.getElementById('chatPage').style.display = 'block';
+            
+            document.getElementById('userQuestion').textContent = currentQuestion;
+            
+            // Simulate AI response
+            const responses = [
+                'Det är en intressant fråga! Baserat på min analys kan jag säga att detta är ett komplext ämne som kräver noggrann övervägning av flera faktorer.',
+                'Tack för din fråga! Jag har analyserat den och här är min bedömning: Detta beror på olika perspektiv och sammanhang.',
+                'Utifrån den information jag har tillgång till kan jag ge följande svar: Det finns flera aspekter att ta hänsyn till när man överväger denna fråga.',
+            ];
+            
+            document.getElementById('assistantResponse').textContent = 
+                responses[Math.floor(Math.random() * responses.length)];
+        }
+
+        function resetDemo() {
+            document.getElementById('chatPage').style.display = 'none';
+            document.getElementById('landingPage').classList.remove('hidden');
+            document.getElementById('questionInput').value = '';
+            currentQuestion = '';
+        }
+
+        // Allow Enter key to submit
+        document.getElementById('questionInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                startProcessing();
+            }
+        });
+    </script>
+</body>
+</html>
