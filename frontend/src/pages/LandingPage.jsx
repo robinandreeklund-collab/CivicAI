@@ -1,10 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import FooterDemo1 from '../components/footers/FooterDemo1';
-import FooterDemo2 from '../components/footers/FooterDemo2';
-import FooterDemo3 from '../components/footers/FooterDemo3';
 import FooterDemo4 from '../components/footers/FooterDemo4';
-import FooterDemo5 from '../components/footers/FooterDemo5';
 
 /**
  * LandingPage Component
@@ -13,7 +9,6 @@ import FooterDemo5 from '../components/footers/FooterDemo5';
  */
 export default function LandingPage() {
   const [question, setQuestion] = useState('');
-  const [activeFooter, setActiveFooter] = useState(1);
   const navigate = useNavigate();
 
   const handleAnalyze = () => {
@@ -32,16 +27,6 @@ export default function LandingPage() {
       handleAnalyze();
     }
   };
-
-  const footerComponents = {
-    1: FooterDemo1,
-    2: FooterDemo2,
-    3: FooterDemo3,
-    4: FooterDemo4,
-    5: FooterDemo5,
-  };
-
-  const FooterComponent = footerComponents[activeFooter];
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] flex flex-col">
@@ -125,34 +110,10 @@ export default function LandingPage() {
           </div>
         </div>
       </div>
-
-      {/* Footer Demo Selector */}
-      <div className="bg-[#151515] border-t border-[#1a1a1a] py-4">
-        <div className="max-w-[1100px] mx-auto px-4">
-          <div className="flex flex-wrap justify-center items-center gap-3">
-            <span className="text-[#666] text-xs uppercase tracking-wider mr-2">
-              Footer Demo:
-            </span>
-            {[1, 2, 3, 4, 5].map((num) => (
-              <button
-                key={num}
-                onClick={() => setActiveFooter(num)}
-                className={`px-4 py-2 text-xs rounded-lg transition-all duration-200 ${
-                  activeFooter === num
-                    ? 'bg-[#e7e7e7] text-[#0a0a0a]'
-                    : 'bg-[#1a1a1a] text-[#666] hover:bg-[#2a2a2a] hover:text-[#e7e7e7]'
-                }`}
-              >
-                Demo {num}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
     </div>
 
-    {/* Active Footer Component */}
-    {FooterComponent && <FooterComponent />}
+    {/* Footer */}
+    <FooterDemo4 />
   </div>
   );
 }

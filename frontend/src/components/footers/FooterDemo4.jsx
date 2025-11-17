@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 /**
  * FooterDemo4 Component
  * Floating sticky footer with blur and centered layout
@@ -5,12 +7,12 @@
  */
 export default function FooterDemo4() {
   const links = [
-    { text: 'Om oss', href: '#' },
-    { text: 'Policy', href: '#' },
-    { text: 'Zero Tracking Standard', href: '#' },
-    { text: 'Kontakta oss', href: '#' },
-    { text: 'Pipeline', href: '#' },
-    { text: 'Funktioner', href: '#' },
+    { text: 'Om oss', to: '/about' },
+    { text: 'Policy', to: '/policy' },
+    { text: 'Zero Tracking Standard', to: '/zero-tracking' },
+    { text: 'Kontakta oss', to: '/contact' },
+    { text: 'Pipeline', to: '/pipeline' },
+    { text: 'Funktioner', to: '/features' },
   ];
 
   return (
@@ -19,13 +21,13 @@ export default function FooterDemo4() {
         <div className="bg-[#151515]/80 backdrop-blur-md border border-[#2a2a2a] rounded-xl py-4 px-6">
           <div className="flex flex-wrap justify-center items-center gap-4 md:gap-6">
             {links.map((link, index) => (
-              <a
+              <Link
                 key={index}
-                href={link.href}
+                to={link.to}
                 className="text-[#666] text-xs transition-all duration-200 hover:text-[#e7e7e7] hover:scale-105"
               >
                 {link.text}
-              </a>
+              </Link>
             ))}
           </div>
         </div>
