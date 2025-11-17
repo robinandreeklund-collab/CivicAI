@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-route
 import Sidebar from './components/Sidebar';
 import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
+import ChatV2Page from './pages/ChatV2Page';
 import PolicyQuestionBankPage from './pages/PolicyQuestionBankPage';
 import AuditTrailPage from './pages/AuditTrailPage';
 import AboutPage from './pages/AboutPage';
@@ -13,6 +14,7 @@ import PipelinePage from './pages/PipelinePage';
 import FeaturesPage from './pages/FeaturesPage';
 import LanguageModelPage from './pages/LanguageModelPage';
 import SignupPage from './pages/SignupPage';
+import DemoIndex from './designDemos';
 
 /**
  * Main OneSeek.AI Application
@@ -118,6 +120,8 @@ function AppContent() {
           <Route path="/features" element={<FeaturesPage />} />
           <Route path="/sprakmodell" element={<LanguageModelPage />} />
           <Route path="/skapa-konto" element={<SignupPage />} />
+          <Route path="/design-demos" element={<DemoIndex />} />
+          <Route path="/chat-v2" element={<ChatV2Page />} />
         </Routes>
       </div>
     </div>
