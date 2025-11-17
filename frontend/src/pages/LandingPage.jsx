@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FooterDemo4 from '../components/footers/FooterDemo4';
 import { useTypewriter } from '../hooks/useTypewriter';
@@ -13,8 +13,8 @@ export default function LandingPage() {
   const [isFocused, setIsFocused] = useState(false);
   const navigate = useNavigate();
 
-  // Sample questions for typewriter animation
-  const sampleQuestions = [
+  // Sample questions for typewriter animation - memoized to prevent recreating on every render
+  const sampleQuestions = useMemo(() => [
     { text: 'Hur säkrar vi tillgång till psykisk vård?' },
     { text: 'Hur gör vi klimatomställningen rättvis?' },
     { text: 'Hur stärker vi ungas demokratiska tänkande?' },
@@ -34,7 +34,7 @@ export default function LandingPage() {
     },
     { text: 'Hur bekämpar vi desinformation i samhället?' },
     { text: 'Hur stärker vi civilsamhällets inflytande?' }
-  ];
+  ], []);
 
   // Enable typewriter only when input is empty and not focused
   const typewriterEnabled = !question && !isFocused;
