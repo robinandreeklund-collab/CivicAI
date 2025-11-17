@@ -1,39 +1,42 @@
 import { useState, useEffect } from 'react';
 
 /**
- * ChatViewConcept28: Compact Mobile-First Design
- * Based on Concept 8 - Optimized for mobile with touch gestures
+ * ChatViewConcept28: Compact Mobile with Floating Actions
+ * Based on Concept 8 - Mobile-optimized with floating action button and bottom sheet
  * Brand: OneSeek.AI grayscale aesthetic
  */
 
 export default function ChatViewConcept28() {
   const [mounted, setMounted] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [fabOpen, setFabOpen] = useState(false);
   
   useEffect(() => {
     setTimeout(() => setMounted(true), 100);
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] overflow-auto">
-      {/* Header with Menu */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-[#151515]">
-        <div className="h-14 px-6 flex items-center justify-between max-w-7xl mx-auto">
-          <h1 className="text-lg font-light tracking-wide">OneSeek.AI</h1>
+    <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7]">
+      {/* Minimal Top Bar */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0a]/95 backdrop-blur-sm">
+        <div className="h-14 px-4 flex items-center justify-between border-b border-[#151515]">
+          <h1 className="text-base font-light">OneSeek.AI</h1>
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="text-xs uppercase tracking-wider text-[#666] hover:text-[#e7e7e7] transition-colors"
+            className="w-9 h-9 flex items-center justify-center"
           >
-            Meny
+            <svg className="w-5 h-5 text-[#666]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
           </button>
         </div>
 
         {menuOpen && (
-          <div className="absolute top-full right-0 w-56 bg-[#151515] border-l border-b border-[#1a1a1a]">
-            {['Startsida', 'Analys', 'Historik', 'Källor', 'Kontakt'].map((item, idx) => (
+          <div className="bg-[#151515] border-b border-[#1a1a1a]">
+            {['Hem', 'Analys', 'Historik', 'Källor'].map((item, idx) => (
               <button
                 key={idx}
-                className="w-full text-left px-6 py-3 text-xs text-[#666] hover:bg-[#1a1a1a] hover:text-[#e7e7e7] transition-colors"
+                className="w-full text-left px-4 py-3 text-sm text-[#666] hover:bg-[#1a1a1a] hover:text-[#e7e7e7] transition-colors border-b border-[#151515] last:border-0"
               >
                 {item}
               </button>
@@ -42,89 +45,119 @@ export default function ChatViewConcept28() {
         )}
       </div>
 
+      {/* Quick Stats Bar */}
+      <div className="fixed top-14 left-0 right-0 z-40 bg-[#151515] border-b border-[#1a1a1a]">
+        <div className="px-4 py-3 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-[#666] rounded-full" />
+            <span className="text-[#666]">3 modeller</span>
+          </div>
+          <div className="text-[#666]">92% konsensus</div>
+          <div className="text-[#666]">18 källor</div>
+        </div>
+      </div>
+
       {/* Main Content */}
-      <div className="pt-20 pb-32 px-6">
-        <div className="max-w-5xl mx-auto">
-          {/* Question */}
-          <div className={`mb-10 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-            <div className="text-xs text-[#444] uppercase tracking-widest mb-3">Din fråga</div>
-            <h2 className="text-3xl font-light leading-relaxed">
-              Vilka är de viktigaste klimatpolitiska åtgärderna för Sverige fram till 2030?
-            </h2>
+      <div className="pt-28 pb-24 px-4">
+        <div className={`transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+          {/* Question Card */}
+          <div className="mb-4">
+            <div className="text-xs text-[#444] uppercase tracking-widest mb-2">Din fråga</div>
+            <div className="bg-[#151515] border border-[#1a1a1a] rounded-lg p-4">
+              <p className="text-sm leading-relaxed">
+                Vilka är de viktigaste klimatpolitiska åtgärderna för Sverige fram till 2030?
+              </p>
+            </div>
           </div>
 
-          {/* Synthesis Card */}
-          <div className={`bg-[#151515] border border-[#1a1a1a] rounded-lg p-8 mb-8 transition-all duration-700 delay-200 ${
-            mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-          }`}>
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-12 h-12 bg-[#1a1a1a] rounded-lg flex items-center justify-center text-xl">🎯</div>
+          {/* Compact Synthesis */}
+          <div className="bg-[#151515] border border-[#1a1a1a] rounded-lg p-4 mb-4">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-2xl">🎯</span>
               <div>
-                <h3 className="text-lg font-light">Syntes från 3 AI-modeller</h3>
-                <div className="text-xs text-[#666]">92% konsensus</div>
+                <div className="text-sm font-light">Syntes</div>
+                <div className="text-xs text-[#666]">3 AI-modeller</div>
               </div>
             </div>
-
-            <div className="space-y-3 mb-6">
-              {['Elektrifiering av transportsektorn', 'Utbyggnad av förnybar energi', 'Energieffektivisering i alla sektorer'].map((item, idx) => (
-                <div key={idx} className="flex items-center gap-3 py-2 border-b border-[#1a1a1a] last:border-0">
+            <div className="space-y-2">
+              {['Elektrifiering av transport', 'Förnybar energi', 'Energieffektivisering'].map((item, idx) => (
+                <div key={idx} className="flex items-center gap-2 text-xs text-[#888]">
                   <div className="w-1 h-1 bg-[#666] rounded-full" />
-                  <span className="text-sm text-[#888]">{item}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              {[
-                { name: 'GPT-3.5', icon: '🤖', score: 94 },
-                { name: 'Gemini', icon: '✨', score: 91 },
-                { name: 'DeepSeek', icon: '🧠', score: 89 }
-              ].map((model, idx) => (
-                <div key={idx} className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-lg">{model.icon}</span>
-                    <span className="text-xs font-light">{model.name}</span>
-                  </div>
-                  <div className="text-xs text-[#666]">{model.score}% match</div>
+                  {item}
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Model Perspectives */}
-          <div className="space-y-6">
+          {/* Compact Model Cards */}
+          <div className="space-y-3">
             {[
-              { model: 'GPT-3.5', icon: '🤖', text: 'Elektrifiering av transportsektorn är avgörande för att nå klimatmålen. Detta inkluderar övergången till elbilar och elektrifiering av tunga transporter.' },
-              { model: 'Gemini', icon: '✨', text: 'Förnybar energi måste prioriteras genom utbyggnad av sol- och vindkraft. Investeringar i infrastruktur är kritiska för att möjliggöra denna omställning.' },
-              { model: 'DeepSeek', icon: '🧠', text: 'Energieffektivisering i byggnader och industri kan reducera utsläpp betydligt. Smart elnät och energilagring är tekniska lösningar som behövs.' }
+              { model: 'GPT-3.5', icon: '🤖', score: 94 },
+              { model: 'Gemini', icon: '✨', score: 91 },
+              { model: 'DeepSeek', icon: '🧠', score: 89 }
             ].map((item, idx) => (
-              <div key={idx} className={`bg-[#151515] border border-[#1a1a1a] rounded-lg p-6 transition-all duration-700 ${
-                mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-              }`} style={{transitionDelay: `${400 + idx * 100}ms`}}>
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-2xl">{item.icon}</span>
-                  <span className="text-base font-light">{item.model}</span>
+              <div 
+                key={idx} 
+                className="bg-[#151515] border border-[#1a1a1a] rounded-lg p-3 transition-all duration-700"
+                style={{transitionDelay: `${idx * 100}ms`}}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{item.icon}</span>
+                    <span className="text-xs font-light">{item.model}</span>
+                  </div>
+                  <span className="text-xs text-[#666]">{item.score}%</span>
                 </div>
-                <p className="text-sm text-[#888] leading-relaxed">{item.text}</p>
+                <div className="h-1 bg-[#0a0a0a] rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-[#2a2a2a] transition-all duration-1000"
+                    style={{width: mounted ? `${item.score}%` : '0%'}}
+                  />
+                </div>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Fixed Bottom Input */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent pt-8 pb-6 px-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="bg-[#151515] border border-[#1a1a1a] rounded-lg p-2 flex gap-2">
-            <input
-              type="text"
-              placeholder="Ställ en följdfråga..."
-              className="flex-1 bg-transparent px-4 py-3 text-sm text-[#e7e7e7] placeholder-[#444] focus:outline-none"
-            />
-            <button className="px-6 py-3 bg-[#e7e7e7] text-[#0a0a0a] rounded-md text-sm font-medium hover:bg-white transition-colors">
-              Skicka
-            </button>
+      {/* Floating Action Button */}
+      <div className="fixed bottom-20 right-4 z-50">
+        <button
+          onClick={() => setFabOpen(!fabOpen)}
+          className="w-14 h-14 bg-[#e7e7e7] text-[#0a0a0a] rounded-full shadow-lg flex items-center justify-center hover:bg-white transition-all"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={fabOpen ? "M6 18L18 6M6 6l12 12" : "M12 4v16m8-8H4"} />
+          </svg>
+        </button>
+
+        {fabOpen && (
+          <div className="absolute bottom-16 right-0 w-48 bg-[#151515] border border-[#1a1a1a] rounded-lg shadow-2xl overflow-hidden">
+            {['Exportera', 'Dela', 'Favorit', 'Historik'].map((action, idx) => (
+              <button
+                key={idx}
+                className="w-full text-left px-4 py-3 text-sm text-[#666] hover:bg-[#1a1a1a] hover:text-[#e7e7e7] transition-colors border-b border-[#151515] last:border-0"
+              >
+                {action}
+              </button>
+            ))}
           </div>
+        )}
+      </div>
+
+      {/* Fixed Bottom Input */}
+      <div className="fixed bottom-0 left-0 right-0 bg-[#0a0a0a] border-t border-[#151515] px-4 py-3">
+        <div className="bg-[#151515] border border-[#1a1a1a] rounded-full p-1 flex gap-2">
+          <input
+            type="text"
+            placeholder="Ny fråga..."
+            className="flex-1 bg-transparent px-4 py-2 text-sm text-[#e7e7e7] placeholder-[#444] focus:outline-none"
+          />
+          <button className="w-10 h-10 bg-[#e7e7e7] text-[#0a0a0a] rounded-full flex items-center justify-center flex-shrink-0 hover:bg-white transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
+          </button>
         </div>
       </div>
     </div>
