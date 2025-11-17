@@ -110,8 +110,9 @@ export default function PipelinePage() {
           </div>
 
           {/* Content Grid */}
-          <div className="grid md:grid-cols-2 gap-6 mb-8">
-            <div className="space-y-6 text-[#888] leading-relaxed">
+          <div className="space-y-6">
+            {/* Pipeline Steps - 2 column grid */}
+            <div className="grid md:grid-cols-2 gap-6">
               {steps.map((step) => (
                 <div key={step.num} className="bg-[#151515] border border-[#2a2a2a] rounded-xl p-6">
                   <div className="flex items-start gap-4">
@@ -132,10 +133,8 @@ export default function PipelinePage() {
                 </div>
               ))}
             </div>
-          </div>
 
-          {/* Full-width sections */}
-          <div className="space-y-6">
+            {/* Hybrid Pipeline Architecture - Full width */}
             <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-6">
               <h3 className="text-xl font-light text-[#e7e7e7] mb-4">Hybrid Pipeline-arkitektur</h3>
               <p className="mb-4 text-sm text-[#888]">
