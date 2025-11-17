@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-route
 import Sidebar from './components/Sidebar';
 import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
+import ChatV2Page from './pages/ChatV2Page';
 import PolicyQuestionBankPage from './pages/PolicyQuestionBankPage';
 import AuditTrailPage from './pages/AuditTrailPage';
 import AboutPage from './pages/AboutPage';
@@ -120,6 +121,7 @@ function AppContent() {
           <Route path="/sprakmodell" element={<LanguageModelPage />} />
           <Route path="/skapa-konto" element={<SignupPage />} />
           <Route path="/design-demos" element={<DemoIndex />} />
+          <Route path="/chat-v2" element={<ChatV2Page />} />
         </Routes>
       </div>
     </div>
