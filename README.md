@@ -17,6 +17,9 @@ CivicAI är en öppen, transparent plattform för att jämföra och analysera hu
 - 🏛️ **Ideologisk klassificering** - Kartlägger politisk lutning på ekonomisk, social och auktoritär dimension
 - 🏷️ **Ämnesmodellering** - Identifierar dominerande teman och nyckelord
 - ✅ **Faktakontroll** - Markerar verifierbara påståenden som bör kontrolleras
+- 🔍 **Model Förklarbarhet (SHAP & LIME)** - Förstå exakt hur AI fattar beslut med feature importance och lokala förklaringar
+- ⚖️ **Rättvisa & Bias Analys (Fairlearn)** - Säkerställ etisk AI med demographic parity och equal opportunity metriker
+- 📊 **Data Quality Reports (Sweetviz & Lux)** - Automatiska EDA-rapporter och interaktiva visualiseringar för dataset-analys
 
 **Konsensus Live Debatt:** När AI-modeller visar hög divergens (konsensus < 60%), kan användaren starta en live-debatt där:
 - 🎯 **AI-agenter debatterar** - Max 5 agenter i max 5 live-följbara rundor baserat på RAW svar

@@ -45,13 +45,44 @@ Write-Host "Upgrading pip..." -ForegroundColor Yellow
 python -m pip install --upgrade pip
 Write-Host ""
 
+# Check for Windows Long Path support
+Write-Host "Checking Windows Long Path support..." -ForegroundColor Yellow
+try {
+    $longPathEnabled = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -ErrorAction SilentlyContinue
+    if ($longPathEnabled.LongPathsEnabled -eq 1) {
+        Write-Host "✓ Windows Long Paths are enabled" -ForegroundColor Green
+    } else {
+        Write-Host "⚠ Windows Long Paths are NOT enabled" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "IMPORTANT: Lux and Sweetviz require long path support." -ForegroundColor Yellow
+        Write-Host "To enable (requires Administrator PowerShell):" -ForegroundColor Yellow
+        Write-Host '  New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" \' -ForegroundColor Cyan
+        Write-Host '    -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force' -ForegroundColor Cyan
+        Write-Host "Then restart your computer and re-run this script." -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "Alternatively, these packages are optional and can be skipped." -ForegroundColor Yellow
+        Write-Host "See TROUBLESHOOTING.md for details." -ForegroundColor Yellow
+        Write-Host ""
+    }
+} catch {
+    Write-Host "⚠ Could not check Long Path status (requires admin)" -ForegroundColor Yellow
+}
+Write-Host ""
+
 # Install core dependencies
 Write-Host "Installing core Python dependencies..." -ForegroundColor Yellow
 Write-Host "NOTE: This may take several minutes as PyTorch and other packages are large..." -ForegroundColor Yellow
 pip install -r requirements.txt
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: Failed to install some dependencies" -ForegroundColor Red
-    Write-Host "This is normal on Windows. Continuing with available packages..." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "⚠ Some dependencies failed to install" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "If you see a Long Path error for Lux/Sweetviz:" -ForegroundColor Yellow
+    Write-Host "1. Enable Windows Long Paths (see above)" -ForegroundColor Yellow
+    Write-Host "2. OR comment out lux-api and sweetviz in requirements.txt" -ForegroundColor Yellow
+    Write-Host "3. See TROUBLESHOOTING.md for detailed instructions" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Continuing with available packages..." -ForegroundColor Yellow
 }
 Write-Host ""
 

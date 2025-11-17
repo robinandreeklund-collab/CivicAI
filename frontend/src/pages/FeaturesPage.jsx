@@ -192,6 +192,131 @@ export default function FeaturesPage() {
               </div>
             </div>
 
+            {/* Model Explainability - SHAP & LIME - Full width */}
+            <div className="bg-[#151515] border border-[#2a2a2a] rounded-xl p-6">
+              <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Model Förklarbarhet (SHAP & LIME)</h2>
+              <p className="mb-4 text-sm text-[#888]">
+                Förstå exakt hur AI-modellen fattar beslut genom avancerad explainability-analys med SHAP och LIME.
+              </p>
+              <div className="grid md:grid-cols-2 gap-4 mb-4">
+                <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+                  <div className="text-[#e7e7e7] mb-2 font-medium text-sm">🔍 SHAP - Global Förklaringar</div>
+                  <ul className="space-y-1.5 text-xs text-[#888]">
+                    <li className="flex gap-2"><span className="text-[#666]">•</span><span>Feature importance för alla klasser</span></li>
+                    <li className="flex gap-2"><span className="text-[#666]">•</span><span>Identifierar mest inflytelserika ord</span></li>
+                    <li className="flex gap-2"><span className="text-[#666]">•</span><span>Visar bidrag per vänster/center/höger</span></li>
+                    <li className="flex gap-2"><span className="text-[#666]">•</span><span>Model-agnostisk analys (fungerar med alla modeller)</span></li>
+                  </ul>
+                </div>
+                <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+                  <div className="text-[#e7e7e7] mb-2 font-medium text-sm">💡 LIME - Lokala Förklaringar</div>
+                  <ul className="space-y-1.5 text-xs text-[#888]">
+                    <li className="flex gap-2"><span className="text-[#666]">•</span><span>Förklaring för varje individuell prediktion</span></li>
+                    <li className="flex gap-2"><span className="text-[#666]">•</span><span>Ord-nivå bidrag med vikter</span></li>
+                    <li className="flex gap-2"><span className="text-[#666]">•</span><span>Interaktiva klickbara insights cards</span></li>
+                    <li className="flex gap-2"><span className="text-[#666]">•</span><span>Visar alternativa prediktionsscenarier</span></li>
+                  </ul>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">🎯 Transparent beslutsfattande</div>
+                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">📊 Visuella förklaringar</div>
+                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">🔬 Vetenskaplig grund</div>
+                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">💾 Exporterbara resultat</div>
+              </div>
+            </div>
+
+            {/* Fairness & Bias Analysis - Full width */}
+            <div className="bg-[#151515] border border-[#2a2a2a] rounded-xl p-6">
+              <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Rättvisa & Bias Analys (Fairlearn)</h2>
+              <p className="mb-4 text-sm text-[#888]">
+                Säkerställ etisk AI med automatisk fairness-analys som mäter demographic parity och equal opportunity över demografiska grupper.
+              </p>
+              <div className="grid md:grid-cols-3 gap-4 mb-4">
+                <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+                  <div className="text-[#e7e7e7] mb-2 font-medium text-sm">⚖️ Demographic Parity</div>
+                  <div className="space-y-1.5 text-xs text-[#888]">
+                    <div className="flex gap-2"><span className="text-[#666]">•</span><span>Mäter jämlik behandling över grupper</span></div>
+                    <div className="flex gap-2"><span className="text-[#666]">•</span><span>Detekterar bias i selection rates</span></div>
+                    <div className="flex gap-2"><span className="text-[#666]">•</span><span>Automatiska varningar vid tröskelvärden</span></div>
+                  </div>
+                </div>
+                <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+                  <div className="text-[#e7e7e7] mb-2 font-medium text-sm">🎯 Equal Opportunity</div>
+                  <div className="space-y-1.5 text-xs text-[#888]">
+                    <div className="flex gap-2"><span className="text-[#666]">•</span><span>Säkerställer lika chanser för alla grupper</span></div>
+                    <div className="flex gap-2"><span className="text-[#666]">•</span><span>Balanserad accuracy tracking</span></div>
+                    <div className="flex gap-2"><span className="text-[#666]">•</span><span>Statistisk paritet beräkning</span></div>
+                  </div>
+                </div>
+                <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4">
+                  <div className="text-[#e7e7e7] mb-2 font-medium text-sm">📊 Fairness Indicators</div>
+                  <div className="space-y-1.5 text-xs text-[#888]">
+                    <div className="flex gap-2"><span className="text-[#666]">•</span><span>Realtids dashboards med metriker</span></div>
+                    <div className="flex gap-2"><span className="text-[#666]">•</span><span>Historisk tracking av bias över tid</span></div>
+                    <div className="flex gap-2"><span className="text-[#666]">•</span><span>Rekommendationer vid bias-detektion</span></div>
+                  </div>
+                </div>
+              </div>
+              <div className="text-xs text-[#888] bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-3">
+                <span className="text-[#e7e7e7] font-medium">✓ Fairness Status Indicators:</span> 
+                <span className="ml-2">Fair (&lt;0.10) | Borderline (0.10-0.15) | Biased (&gt;0.15)</span>
+              </div>
+            </div>
+
+            {/* Data Quality & EDA - 2 columns */}
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="bg-[#151515] border border-[#2a2a2a] rounded-xl p-6">
+                <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Data Quality Reports (Sweetviz)</h2>
+                <p className="mb-4 text-sm text-[#888]">
+                  Automatiska HTML-rapporter för djupgående dataset-analys med Sweetviz.
+                </p>
+                <div className="space-y-2 text-xs">
+                  <div className="text-[#888]">
+                    <span className="text-[#e7e7e7] font-medium">📊 Automatisk EDA:</span> 
+                    <span className="ml-2">Feature korrelationer, distributions, missing values</span>
+                  </div>
+                  <div className="text-[#888]">
+                    <span className="text-[#e7e7e7] font-medium">🔄 Dataset-jämförelser:</span> 
+                    <span className="ml-2">Train vs test, före vs efter preprocessing</span>
+                  </div>
+                  <div className="text-[#888]">
+                    <span className="text-[#e7e7e7] font-medium">📈 Interaktiva rapporter:</span> 
+                    <span className="ml-2">Klickbara HTML-rapporter med visualiseringar</span>
+                  </div>
+                  <div className="text-[#888]">
+                    <span className="text-[#e7e7e7] font-medium">💾 Export-format:</span> 
+                    <span className="ml-2">HTML, PDF för delning och dokumentation</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[#151515] border border-[#2a2a2a] rounded-xl p-6">
+                <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Interactive Visualizations (Lux)</h2>
+                <p className="mb-4 text-sm text-[#888]">
+                  Smarta visualiseringar direkt i Pandas DataFrames med Lux-integration.
+                </p>
+                <div className="space-y-2 text-xs">
+                  <div className="text-[#888]">
+                    <span className="text-[#e7e7e7] font-medium">🎯 Smart rekommendationer:</span> 
+                    <span className="ml-2">Automatisk val av bästa visualiseringar</span>
+                  </div>
+                  <div className="text-[#888]">
+                    <span className="text-[#e7e7e7] font-medium">📊 Flera charttyper:</span> 
+                    <span className="ml-2">Bar, scatter, histogram, correlation heatmaps</span>
+                  </div>
+                  <div className="text-[#888]">
+                    <span className="text-[#e7e7e7] font-medium">🔍 Interaktiv utforskning:</span> 
+                    <span className="ml-2">Zoom, pan, filter direkt i visualiseringen</span>
+                  </div>
+                  <div className="text-[#888]">
+                    <span className="text-[#e7e7e7] font-medium">⚡ One-line integration:</span> 
+                    <span className="ml-2">Automatisk enhancement av Pandas workflow</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Future Development */}
             <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-6">
               <h3 className="text-xl font-light text-[#e7e7e7] mb-4">Kommande Funktioner och Utveckling</h3>

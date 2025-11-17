@@ -39,6 +39,8 @@ const PipelineAnalysisPanel = ({ pipelineAnalysis }) => {
     { id: 'processing', label: 'Processering', icon: '⚙️' },
     { id: 'sentiment', label: 'Sentiment', icon: '💭' },
     { id: 'ideology', label: 'Ideologi', icon: '🏛️' },
+    { id: 'explainability', label: 'Förklarbarhet', icon: '🔍' },
+    { id: 'fairness', label: 'Rättvisa', icon: '⚖️' },
     { id: 'timeline', label: 'Timeline', icon: '⏱️' },
     { id: 'details', label: 'Detaljer', icon: '🔍' },
   ];
@@ -280,6 +282,248 @@ const PipelineAnalysisPanel = ({ pipelineAnalysis }) => {
         {/* Ideology Tab */}
         {activeTab === 'ideology' && (
           <IdeologicalClassificationPanel ideologyData={ideologicalClassification} />
+        )}
+
+        {/* Explainability Tab */}
+        {activeTab === 'explainability' && (
+          <div className="space-y-6">
+            <div className="bg-civic-dark-800/50 rounded-lg p-6 border border-civic-dark-700">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <span>🔍</span>
+                Model Förklarbarhet - SHAP & LIME
+              </h3>
+              
+              {pipelineAnalysis.shapExplanations ? (
+                <div className="space-y-4">
+                  <div className="text-sm text-civic-gray-300 mb-4">
+                    Förklaringar för hur AI-modellen fattar beslut baserat på textens innehåll.
+                  </div>
+                  
+                  {/* SHAP Feature Importance */}
+                  <div className="bg-civic-dark-900/50 rounded-lg p-4 border border-civic-dark-700">
+                    <h4 className="text-md font-semibold text-white mb-3">Global Feature Importance (SHAP)</h4>
+                    <div className="space-y-3">
+                      {pipelineAnalysis.shapExplanations.feature_importance?.map((classData, idx) => (
+                        <div key={idx}>
+                          <div className="text-sm font-medium text-civic-gray-300 mb-2 capitalize">
+                            {classData.class === 'left' ? 'Vänster' : 
+                             classData.class === 'center' ? 'Center' : 'Höger'}
+                          </div>
+                          <div className="space-y-1">
+                            {classData.features.slice(0, 5).map(([feature, impact], featureIdx) => (
+                              <div key={featureIdx} className="flex items-center gap-2">
+                                <span className="text-xs text-civic-gray-400 w-24">{feature}</span>
+                                <div className="flex-1 h-4 bg-civic-dark-700 rounded overflow-hidden">
+                                  <div
+                                    className={`h-full ${impact > 0 ? 'bg-civic-gray-400' : 'bg-civic-gray-600'}`}
+                                    style={{ width: `${Math.abs(impact) * 100}%` }}
+                                  ></div>
+                                </div>
+                                <span className="text-xs text-civic-gray-300 w-16 text-right">
+                                  {impact > 0 ? '+' : ''}{impact.toFixed(2)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-civic-gray-400">
+                  SHAP-förklaringar är inte tillgängliga för denna analys. 
+                  Aktivera Python ML-service för att få tillgång till explainability-funktioner.
+                </div>
+              )}
+
+              {pipelineAnalysis.limeExplanations && (
+                <div className="mt-4 bg-civic-dark-900/50 rounded-lg p-4 border border-civic-dark-700">
+                  <h4 className="text-md font-semibold text-white mb-3">Lokal Förklaring (LIME)</h4>
+                  <div className="space-y-3">
+                    <div className="text-xs text-civic-gray-400">
+                      Predikterad klass: <span className="text-white font-medium capitalize">
+                        {pipelineAnalysis.limeExplanations.predicted_class === 'left' ? 'Vänster' :
+                         pipelineAnalysis.limeExplanations.predicted_class === 'center' ? 'Center' : 'Höger'}
+                      </span>
+                    </div>
+                    <div className="flex gap-4 text-xs">
+                      <div>
+                        <span className="text-civic-gray-400">Vänster: </span>
+                        <span className="text-white">{(pipelineAnalysis.limeExplanations.prediction.left * 100).toFixed(0)}%</span>
+                      </div>
+                      <div>
+                        <span className="text-civic-gray-400">Center: </span>
+                        <span className="text-white">{(pipelineAnalysis.limeExplanations.prediction.center * 100).toFixed(0)}%</span>
+                      </div>
+                      <div>
+                        <span className="text-civic-gray-400">Höger: </span>
+                        <span className="text-white">{(pipelineAnalysis.limeExplanations.prediction.right * 100).toFixed(0)}%</span>
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      <div className="text-xs text-civic-gray-400 mb-2">Ord-bidrag:</div>
+                      <div className="flex flex-wrap gap-2">
+                        {pipelineAnalysis.limeExplanations.explanation.slice(0, 10).map(([word, contribution], idx) => (
+                          <span
+                            key={idx}
+                            className={`px-2 py-1 rounded text-xs border ${
+                              contribution > 0 
+                                ? 'bg-civic-gray-600/20 text-civic-gray-300 border-civic-gray-600/30' 
+                                : 'bg-civic-dark-900/50 text-civic-gray-400 border-civic-dark-700'
+                            }`}
+                          >
+                            {word} {contribution > 0 ? '+' : ''}{contribution.toFixed(2)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Provenance */}
+              {(pipelineAnalysis.shapExplanations || pipelineAnalysis.limeExplanations) && (
+                <div className="mt-4 pt-4 border-t border-civic-dark-700 text-xs text-civic-gray-500">
+                  {pipelineAnalysis.shapExplanations && (
+                    <div>
+                      📊 SHAP: {pipelineAnalysis.shapExplanations.provenance?.model} v
+                      {pipelineAnalysis.shapExplanations.provenance?.version} | 
+                      Model: {pipelineAnalysis.shapExplanations.model}
+                    </div>
+                  )}
+                  {pipelineAnalysis.limeExplanations && (
+                    <div className="mt-1">
+                      💡 LIME: {pipelineAnalysis.limeExplanations.provenance?.model} v
+                      {pipelineAnalysis.limeExplanations.provenance?.version}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Fairness Tab */}
+        {activeTab === 'fairness' && (
+          <div className="space-y-6">
+            <div className="bg-civic-dark-800/50 rounded-lg p-6 border border-civic-dark-700">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <span>⚖️</span>
+                Rättvisa & Bias Analys - Fairlearn
+              </h3>
+              
+              {pipelineAnalysis.fairnessMetrics ? (
+                <div className="space-y-4">
+                  {/* Overall Fairness Score */}
+                  <div className="bg-civic-dark-900/50 rounded-lg p-4 border border-civic-dark-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-civic-gray-400">Overall Fairness Score:</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl font-bold text-white">
+                          {pipelineAnalysis.fairnessMetrics.overall_fairness_score.toFixed(2)}
+                        </span>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          pipelineAnalysis.fairnessMetrics.fairness_status === 'fair'
+                            ? 'bg-green-900/30 text-green-400 border border-green-700/50'
+                            : 'bg-red-900/30 text-red-400 border border-red-700/50'
+                        }`}>
+                          {pipelineAnalysis.fairnessMetrics.fairness_status === 'fair' ? '✓ FAIR' : '⚠️ BIASED'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-civic-gray-500">
+                      Lägre är bättre - tröskel: 0.10
+                    </div>
+                  </div>
+
+                  {/* Demographic Parity */}
+                  <div className="bg-civic-dark-900/50 rounded-lg p-4 border border-civic-dark-700">
+                    <h4 className="text-sm font-semibold text-white mb-3">Demographic Parity Differences</h4>
+                    <div className="space-y-2">
+                      {Object.entries(pipelineAnalysis.fairnessMetrics.demographic_parity).map(([classification, value]) => (
+                        <div key={classification} className="flex items-center justify-between">
+                          <span className="text-xs text-civic-gray-400 capitalize">
+                            {classification === 'left' ? 'Vänster' : 
+                             classification === 'center' ? 'Center' : 'Höger'}:
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-32 h-2 bg-civic-dark-700 rounded overflow-hidden">
+                              <div
+                                className={`h-full ${
+                                  value < 0.10 ? 'bg-green-500' : 
+                                  value < 0.15 ? 'bg-yellow-500' : 'bg-red-500'
+                                }`}
+                                style={{ width: `${Math.min(value * 100, 100)}%` }}
+                              ></div>
+                            </div>
+                            <span className="text-xs text-white w-12 text-right">
+                              {value.toFixed(2)}
+                            </span>
+                            <span className="text-xs">
+                              {value < 0.10 ? '✓' : '⚠️'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Selection Rates */}
+                  {pipelineAnalysis.fairnessMetrics.selection_rates && (
+                    <div className="bg-civic-dark-900/50 rounded-lg p-4 border border-civic-dark-700">
+                      <h4 className="text-sm font-semibold text-white mb-3">Selection Rates by Group</h4>
+                      <div className="space-y-3">
+                        {Object.entries(pipelineAnalysis.fairnessMetrics.selection_rates).map(([group, rates]) => (
+                          <div key={group}>
+                            <div className="text-xs text-civic-gray-400 mb-1">
+                              {group} (n={rates.total_predictions})
+                            </div>
+                            <div className="space-y-1 pl-3">
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="text-civic-gray-500 w-16">Vänster:</span>
+                                <div className="flex-1 h-3 bg-civic-dark-700 rounded overflow-hidden">
+                                  <div className="h-full bg-civic-gray-400" style={{ width: `${rates.left * 100}%` }}></div>
+                                </div>
+                                <span className="text-civic-gray-300 w-12 text-right">{(rates.left * 100).toFixed(0)}%</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="text-civic-gray-500 w-16">Center:</span>
+                                <div className="flex-1 h-3 bg-civic-dark-700 rounded overflow-hidden">
+                                  <div className="h-full bg-civic-gray-400" style={{ width: `${rates.center * 100}%` }}></div>
+                                </div>
+                                <span className="text-civic-gray-300 w-12 text-right">{(rates.center * 100).toFixed(0)}%</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="text-civic-gray-500 w-16">Höger:</span>
+                                <div className="flex-1 h-3 bg-civic-dark-700 rounded overflow-hidden">
+                                  <div className="h-full bg-civic-gray-400" style={{ width: `${rates.right * 100}%` }}></div>
+                                </div>
+                                <span className="text-civic-gray-300 w-12 text-right">{(rates.right * 100).toFixed(0)}%</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Provenance */}
+                  <div className="pt-4 border-t border-civic-dark-700 text-xs text-civic-gray-500">
+                    📊 Fairlearn: {pipelineAnalysis.fairnessMetrics.provenance?.model} v
+                    {pipelineAnalysis.fairnessMetrics.provenance?.version} | 
+                    Groups: {pipelineAnalysis.fairnessMetrics.num_groups} | 
+                    Total: {pipelineAnalysis.fairnessMetrics.total_predictions} predictions
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-civic-gray-400">
+                  Fairness-analys är inte tillgänglig för denna analys. 
+                  Aktivera Python ML-service och analysera flera texter för att få tillgång till fairness-metrik.
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* Timeline Tab */}

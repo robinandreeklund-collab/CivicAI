@@ -99,6 +99,73 @@ python -m spacy download sv_core_news_sm
 python -m spacy download en_core_web_sm
 ```
 
+### 6. Windows Long Path Error (Lux/Sweetviz Installation)
+
+**Symptoms:**
+```
+ERROR: Could not install packages due to an OSError: [Errno 2] No such file or directory: 'C:\Users\...\venv\share\jupyter\labextensions\@jupyter-widgets\jupyterlab-manager\static\vendors-node_modules_d3-color_src_color_js-node_modules_d3-format_src_defaultLocale_js-node_m-09b215.2643c43f22ad111f4f82.js'
+HINT: This error might have occurred since this system does not have Windows Long Path support enabled.
+```
+
+**Cause:** Windows has a 260-character path limit by default. Lux and Sweetviz install Jupyter dependencies with very long file paths that exceed this limit.
+
+**Solution 1 (Recommended): Enable Windows Long Paths**
+
+1. **Run PowerShell as Administrator**
+
+2. **Enable long paths in registry:**
+   ```powershell
+   New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
+     -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+   ```
+
+3. **Enable long paths for Git (if using Git):**
+   ```powershell
+   git config --global core.longpaths true
+   ```
+
+4. **Restart your computer** (required for changes to take effect)
+
+5. **Retry installation:**
+   ```powershell
+   cd backend\python_services
+   .\venv\Scripts\Activate.ps1
+   pip install -r requirements.txt
+   ```
+
+**Solution 2: Skip Optional EDA Packages**
+
+If you cannot enable long paths, you can skip Lux and Sweetviz (they are optional):
+
+1. **Edit requirements.txt** and comment out:
+   ```txt
+   # lux-api==0.5.0
+   # sweetviz==2.3.1
+   ```
+
+2. **Install remaining dependencies:**
+   ```powershell
+   pip install -r requirements.txt
+   ```
+
+3. **Set environment variables to disable these features:**
+   ```powershell
+   # Add to your .env file or set before starting service
+   $env:ENABLE_LUX="false"
+   $env:ENABLE_SWEETVIZ="false"
+   python nlp_pipeline.py
+   ```
+
+**Note:** Core functionality (SHAP, LIME, Fairlearn) will still work. Only the optional EDA visualization features will be unavailable.
+
+**Verify Long Paths are Enabled:**
+```powershell
+# Check registry setting
+Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled"
+```
+
+Should return: `LongPathsEnabled : 1`
+
 ## Recommended Clean Install Steps
 
 If you're experiencing multiple issues, follow these steps for a clean installation:

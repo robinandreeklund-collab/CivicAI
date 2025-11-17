@@ -65,8 +65,34 @@ This script will:
 2. Install all required packages (spaCy, Detoxify, Gensim, etc.)
 3. Download spaCy language models (Swedish and/or English)
 4. Download TextBlob corpora
+5. Check for Windows Long Path support
 
-**Note for Windows users:** BERTopic may fail to install due to compilation requirements (hdbscan, umap-learn). This is normal - the system will automatically use Gensim LDA for topic modeling instead.
+**Important Windows Notes:**
+
+1. **BERTopic:** May fail to install due to compilation requirements (hdbscan, umap-learn). This is normal - the system will automatically use Gensim LDA for topic modeling instead.
+
+2. **Lux/Sweetviz (Long Path Issue):** These packages require Windows Long Path support enabled. If you encounter an error like:
+   ```
+   ERROR: Could not install packages due to an OSError: [Errno 2] No such file or directory
+   HINT: This error might have occurred since this system does not have Windows Long Path support enabled.
+   ```
+   
+   **Solution A (Recommended):** Enable Windows Long Paths
+   - Run PowerShell as Administrator
+   - Execute:
+     ```powershell
+     New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
+       -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+     ```
+   - Restart your computer
+   - Re-run `.\setup_windows.ps1`
+   
+   **Solution B:** Skip optional EDA packages
+   - Edit `requirements.txt` and comment out `lux-api` and `sweetviz`
+   - Set environment variables: `$env:ENABLE_LUX="false"` and `$env:ENABLE_SWEETVIZ="false"`
+   - Core functionality (SHAP, LIME, Fairlearn) will still work
+   
+   See `TROUBLESHOOTING.md` for detailed instructions.
 
 **Alternative manual installation (Linux/macOS):**
 
@@ -530,12 +556,276 @@ python -m spacy download sv_core_news_sm
 
 ## Future Enhancements
 
-1. **SHAP Integration:** Add visual explanations for ideology classification
+1. ~~**SHAP Integration:** Add visual explanations for ideology classification~~ ✓ **COMPLETED**
 2. **Custom Models:** Train domain-specific models on Swedish political texts
 3. **Streaming:** Real-time analysis for long texts
 4. **Batch Processing:** Optimize for analyzing multiple texts
 5. **Model Versioning:** Track and manage different model versions
 6. **A/B Testing:** Compare different models and approaches
+
+## New Integrations (v1.1.0)
+
+### 8. Model Explainability (SHAP)
+
+**Tool:** SHAP v0.44.0
+
+**Capabilities:**
+- Global feature importance analysis
+- Model-agnostic explanations
+- Feature contribution visualization
+- Support for transformer models
+
+**API Endpoint:** `POST /explain-shap`
+
+**Configuration:** Set `ENABLE_SHAP=true` (default: enabled)
+
+**Example:**
+```javascript
+import { explainWithSHAP } from './services/pythonNLPClient.js';
+
+const result = await explainWithSHAP('Text to explain...');
+// Returns: feature_importance for each class, provenance
+```
+
+**Output Format:**
+```json
+{
+  "feature_importance": [
+    {
+      "class": "left",
+      "features": [["välfärd", 0.45], ["jämlikhet", 0.32]]
+    }
+  ],
+  "explanation_type": "global",
+  "model": "KB/bert-base-swedish-cased"
+}
+```
+
+### 9. Local Explanations (LIME)
+
+**Tool:** LIME v0.2.0.1
+
+**Capabilities:**
+- Local interpretable model-agnostic explanations
+- Word-level contribution analysis
+- Individual prediction explanations
+- Alternative prediction scenarios
+
+**API Endpoint:** `POST /explain-lime`
+
+**Configuration:** Set `ENABLE_LIME=true` (default: enabled)
+
+**Example:**
+```javascript
+import { explainWithLIME } from './services/pythonNLPClient.js';
+
+const result = await explainWithLIME('Text to explain...', { num_features: 10 });
+// Returns: explanation with word contributions, prediction probabilities
+```
+
+**Output Format:**
+```json
+{
+  "explanation": [["balansera", 0.35], ["kompromiss", 0.28]],
+  "prediction": {"left": 0.21, "center": 0.67, "right": 0.12},
+  "predicted_class": "center",
+  "text": "Original text..."
+}
+```
+
+### 10. Fairness Analysis (Fairlearn)
+
+**Tool:** Fairlearn v0.10.0
+
+**Capabilities:**
+- Demographic parity measurement
+- Equal opportunity analysis
+- Fairness metrics computation
+- Bias detection across groups
+
+**API Endpoint:** `POST /fairness-metrics`
+
+**Configuration:** Set `ENABLE_FAIRLEARN=true` (default: enabled)
+
+**Example:**
+```javascript
+import { analyzeFairness } from './services/pythonNLPClient.js';
+
+const result = await analyzeFairness({
+  texts: ['Text 1...', 'Text 2...'],
+  sensitive_features: ['Group A', 'Group B']
+});
+// Returns: selection_rates, demographic_parity, fairness_status
+```
+
+**Output Format:**
+```json
+{
+  "selection_rates": {
+    "Group A": {"left": 0.22, "center": 0.51, "right": 0.27}
+  },
+  "demographic_parity": {"left": 0.06, "center": 0.08, "right": 0.02},
+  "overall_fairness_score": 0.08,
+  "fairness_status": "fair"
+}
+```
+
+### 11. EDA Reports (Sweetviz)
+
+**Tool:** Sweetviz v2.3.1
+
+**Capabilities:**
+- Automated HTML report generation
+- Dataset comparison (train vs test)
+- Feature correlation analysis
+- Missing value detection
+
+**API Endpoint:** `POST /generate-eda-report`
+
+**Configuration:** Set `ENABLE_SWEETVIZ=true` (default: enabled)
+
+**Example:**
+```javascript
+import { generateEDAReport } from './services/pythonNLPClient.js';
+
+const result = await generateEDAReport({
+  dataset: [{text: '...', label: 'left'}, ...],
+  report_name: 'training_data'
+});
+// Returns: report_path, report_html, summary statistics
+```
+
+### 12. Interactive Visualizations (Lux)
+
+**Tool:** Lux v0.5.0
+
+**Capabilities:**
+- Automatic visualization recommendations
+- Interactive Pandas DataFrame enhancement
+- Smart chart selection
+- One-line visualization generation
+
+**API Endpoint:** `POST /lux-recommendations`
+
+**Configuration:** Set `ENABLE_LUX=true` (default: enabled)
+
+**Example:**
+```javascript
+import { getLuxRecommendations } from './services/pythonNLPClient.js';
+
+const result = await getLuxRecommendations({
+  dataset: [{prediction: 'left', confidence: 0.8}, ...]
+});
+// Returns: visualization recommendations and dataset summary
+```
+
+## Complete Data Flow (Updated)
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                     User Query                                │
+└──────────────────────┬───────────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────────────┐
+│              1. PREPROCESSING                                 │
+│  • spaCy (tokenization, POS, NER)                            │
+│  • TextBlob (sentiment, subjectivity)                        │
+│  • langdetect (language detection)                           │
+└──────────────────────┬───────────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────────────┐
+│              2. BIAS & TOXICITY DETECTION                     │
+│  • Detoxify (toxicity, threats, insults)                     │
+│  • Custom bias detector (political, commercial)              │
+└──────────────────────┬───────────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────────────┐
+│              3. IDEOLOGY CLASSIFICATION                       │
+│  • Swedish BERT (KB/bert-base-swedish-cased)                 │
+│  • Left/Center/Right classification                          │
+└──────────────────────┬───────────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────────────┐
+│              4. EXPLAINABILITY (NEW)                          │
+│  • SHAP (global feature importance)                          │
+│  • LIME (local explanations per prediction)                  │
+└──────────────────────┬───────────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────────────┐
+│              5. FAIRNESS ANALYSIS (NEW)                       │
+│  • Fairlearn (demographic parity)                            │
+│  • Equal opportunity metrics                                 │
+└──────────────────────┬───────────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────────────┐
+│              6. DATA QUALITY (NEW)                            │
+│  • Sweetviz (EDA reports)                                    │
+│  • Lux (interactive visualizations)                          │
+└──────────────────────┬───────────────────────────────────────┘
+                       │
+                       ▼
+┌──────────────────────────────────────────────────────────────┐
+│              7. UI PRESENTATION                               │
+│  • PipelineAnalysisPanel (all results)                       │
+│  • Explainability tab (SHAP/LIME)                            │
+│  • Fairness tab (metrics/indicators)                         │
+│  • Data Quality section (reports)                            │
+└──────────────────────────────────────────────────────────────┘
+```
+
+## Configuration Guide
+
+### Environment Variables
+
+Add to `.env`:
+
+```env
+# Python NLP Service
+PYTHON_NLP_SERVICE_URL=http://localhost:5001
+
+# Feature Flags (all default to true)
+ENABLE_LUX=true
+ENABLE_SWEETVIZ=true
+ENABLE_SHAP=true
+ENABLE_LIME=true
+ENABLE_FAIRLEARN=true
+```
+
+### Disable Specific Features
+
+To disable a feature (e.g., for performance or resource constraints):
+
+```env
+ENABLE_SHAP=false
+ENABLE_LIME=false
+```
+
+## API Endpoints (Updated)
+
+### Python NLP Service (Port 5001)
+
+| Endpoint | Method | Purpose | New in v1.1 |
+|----------|--------|---------|-------------|
+| `/health` | GET | Service health check | - |
+| `/preprocess` | POST | spaCy preprocessing | - |
+| `/sentiment` | POST | TextBlob sentiment | - |
+| `/detect-language` | POST | Language detection | - |
+| `/detect-toxicity` | POST | Detoxify toxicity detection | - |
+| `/classify-ideology` | POST | Transformer ideology classification | - |
+| `/topic-modeling` | POST | BERTopic topic modeling | - |
+| `/semantic-similarity` | POST | Gensim similarity | - |
+| `/analyze-complete` | POST | Complete pipeline | - |
+| `/explain-shap` | POST | SHAP feature importance | ✓ |
+| `/explain-lime` | POST | LIME local explanations | ✓ |
+| `/fairness-metrics` | POST | Fairness analysis | ✓ |
+| `/generate-eda-report` | POST | Sweetviz EDA reports | ✓ |
+| `/lux-recommendations` | POST | Lux visualizations | ✓ |
 
 ## References
 
@@ -546,6 +836,10 @@ python -m spacy download sv_core_news_sm
 - [Gensim Documentation](https://radimrehurek.com/gensim/)
 - [Hugging Face Transformers](https://huggingface.co/transformers/)
 - [SHAP Documentation](https://shap.readthedocs.io/)
+- [LIME Documentation](https://lime-ml.readthedocs.io/)
+- [Fairlearn Documentation](https://fairlearn.org/)
+- [Sweetviz Documentation](https://github.com/fbdesignpro/sweetviz)
+- [Lux Documentation](https://lux-api.readthedocs.io/)
 
 ## License
 
