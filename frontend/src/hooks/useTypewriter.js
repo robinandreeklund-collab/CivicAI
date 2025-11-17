@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 /**
  * Custom hook for typewriter animation with typo correction
@@ -16,105 +16,124 @@ export function useTypewriter(questions = [], options = {}) {
   } = options;
 
   const [currentText, setCurrentText] = useState('');
-  const [questionIndex, setQuestionIndex] = useState(0);
-  const [phase, setPhase] = useState('typing'); // typing, paused, deleting, correcting
   const timeoutRef = useRef(null);
-  const charIndexRef = useRef(0);
+  const stateRef = useRef({
+    questionIndex: 0,
+    charIndex: 0,
+    phase: 'typing', // typing, paused-typo, deleting-typo, correcting, paused, deleting
+  });
+
+  const animate = useCallback(() => {
+    if (!enabled || questions.length === 0) return;
+
+    const state = stateRef.current;
+    const currentQuestion = questions[state.questionIndex];
+    if (!currentQuestion) return;
+
+    const { text, typo } = currentQuestion;
+
+    if (state.phase === 'typing') {
+      // Determine if we're typing the typo or the correct text
+      const targetText = typo ? typo.text : text;
+      
+      if (state.charIndex < targetText.length) {
+        // Type next character
+        state.charIndex++;
+        setCurrentText(targetText.slice(0, state.charIndex));
+        timeoutRef.current = setTimeout(animate, typingSpeed);
+      } else {
+        // Finished typing
+        if (typo) {
+          // We typed the typo, now pause and prepare to delete it
+          state.phase = 'paused-typo';
+          timeoutRef.current = setTimeout(() => {
+            state.phase = 'deleting-typo';
+            animate();
+          }, pauseBeforeDelete);
+        } else {
+          // We typed the correct text, pause and then delete
+          state.phase = 'paused';
+          timeoutRef.current = setTimeout(() => {
+            state.phase = 'deleting';
+            animate();
+          }, pauseDuration);
+        }
+      }
+    } else if (state.phase === 'deleting-typo') {
+      const typoText = typo.text;
+      const correctText = text;
+      
+      // Find where the typo diverges from correct text
+      let divergeIndex = 0;
+      for (let i = 0; i < Math.min(correctText.length, typoText.length); i++) {
+        if (correctText[i] !== typoText[i]) {
+          divergeIndex = i;
+          break;
+        }
+      }
+
+      if (state.charIndex > divergeIndex) {
+        // Delete one character
+        state.charIndex--;
+        setCurrentText(typoText.slice(0, state.charIndex));
+        timeoutRef.current = setTimeout(animate, deletingSpeed);
+      } else {
+        // Done deleting, now type the correct part
+        state.phase = 'correcting';
+        timeoutRef.current = setTimeout(animate, 100);
+      }
+    } else if (state.phase === 'correcting') {
+      const correctText = text;
+      
+      if (state.charIndex < correctText.length) {
+        // Type the correct character
+        state.charIndex++;
+        setCurrentText(correctText.slice(0, state.charIndex));
+        timeoutRef.current = setTimeout(animate, typingSpeed);
+      } else {
+        // Finished correcting, pause then delete all
+        state.phase = 'paused';
+        timeoutRef.current = setTimeout(() => {
+          state.phase = 'deleting';
+          animate();
+        }, pauseDuration);
+      }
+    } else if (state.phase === 'deleting') {
+      if (state.charIndex > 0) {
+        // Delete one character
+        state.charIndex--;
+        setCurrentText(text.slice(0, state.charIndex));
+        timeoutRef.current = setTimeout(animate, deletingSpeed);
+      } else {
+        // Finished deleting, move to next question
+        state.questionIndex = (state.questionIndex + 1) % questions.length;
+        state.phase = 'typing';
+        state.charIndex = 0;
+        setCurrentText('');
+        // Small pause before starting next question
+        timeoutRef.current = setTimeout(animate, 500);
+      }
+    }
+  }, [enabled, questions, typingSpeed, deletingSpeed, pauseDuration, pauseBeforeDelete]);
 
   useEffect(() => {
     if (!enabled || questions.length === 0) {
       setCurrentText('');
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
       return;
     }
 
-    const currentQuestion = questions[questionIndex];
-    if (!currentQuestion) return;
-
-    const { text, typo } = currentQuestion;
-    const targetText = phase === 'typing' && typo 
-      ? typo.text 
-      : text;
-
-    const animate = () => {
-      if (phase === 'typing') {
-        // Typing phase
-        if (charIndexRef.current < targetText.length) {
-          setCurrentText(targetText.slice(0, charIndexRef.current + 1));
-          charIndexRef.current++;
-          timeoutRef.current = setTimeout(animate, typingSpeed);
-        } else {
-          // Finished typing
-          if (typo && typo.text === targetText) {
-            // We just typed the typo, now pause and delete it
-            setPhase('paused-typo');
-            timeoutRef.current = setTimeout(() => {
-              setPhase('deleting-typo');
-              animate();
-            }, pauseBeforeDelete);
-          } else {
-            // Finished typing correct text, pause then move to next
-            setPhase('paused');
-            timeoutRef.current = setTimeout(() => {
-              setPhase('deleting');
-              animate();
-            }, pauseDuration);
-          }
-        }
-      } else if (phase === 'deleting-typo') {
-        // Delete the typo back to the point where it diverges
-        const correctText = text;
-        const typoText = typo.text;
-        
-        // Find where the typo starts
-        let divergeIndex = 0;
-        for (let i = 0; i < Math.min(correctText.length, typoText.length); i++) {
-          if (correctText[i] !== typoText[i]) {
-            divergeIndex = i;
-            break;
-          }
-        }
-
-        if (charIndexRef.current > divergeIndex) {
-          setCurrentText(typoText.slice(0, charIndexRef.current - 1));
-          charIndexRef.current--;
-          timeoutRef.current = setTimeout(animate, deletingSpeed);
-        } else {
-          // Done deleting typo, now type the correct version
-          setPhase('correcting');
-          animate();
-        }
-      } else if (phase === 'correcting') {
-        // Type the correct text from where the typo was
-        if (charIndexRef.current < text.length) {
-          setCurrentText(text.slice(0, charIndexRef.current + 1));
-          charIndexRef.current++;
-          timeoutRef.current = setTimeout(animate, typingSpeed);
-        } else {
-          // Finished correction, pause then delete all
-          setPhase('paused');
-          timeoutRef.current = setTimeout(() => {
-            setPhase('deleting');
-            animate();
-          }, pauseDuration);
-        }
-      } else if (phase === 'deleting') {
-        // Delete everything
-        if (charIndexRef.current > 0) {
-          setCurrentText(text.slice(0, charIndexRef.current - 1));
-          charIndexRef.current--;
-          timeoutRef.current = setTimeout(animate, deletingSpeed);
-        } else {
-          // Finished deleting, move to next question
-          const nextIndex = (questionIndex + 1) % questions.length;
-          setQuestionIndex(nextIndex);
-          charIndexRef.current = 0;
-          setPhase('typing');
-          // Small pause before starting next question
-          timeoutRef.current = setTimeout(animate, 500);
-        }
-      }
+    // Reset state when starting
+    stateRef.current = {
+      questionIndex: 0,
+      charIndex: 0,
+      phase: 'typing',
     };
+    setCurrentText('');
 
+    // Start animation
     animate();
 
     return () => {
@@ -122,16 +141,18 @@ export function useTypewriter(questions = [], options = {}) {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [enabled, questions, questionIndex, phase, typingSpeed, deletingSpeed, pauseDuration, pauseBeforeDelete]);
+  }, [enabled, questions, animate]);
 
   const reset = () => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
     setCurrentText('');
-    setQuestionIndex(0);
-    charIndexRef.current = 0;
-    setPhase('typing');
+    stateRef.current = {
+      questionIndex: 0,
+      charIndex: 0,
+      phase: 'typing',
+    };
   };
 
   return {
