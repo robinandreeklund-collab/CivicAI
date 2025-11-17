@@ -746,16 +746,16 @@ export default function SignupPage() {
 
                   <div className="space-y-3">
                     <Link
-                      to="/chat"
+                      to="/"
                       className="block w-full bg-[#e7e7e7] text-[#0a0a0a] py-3 rounded-lg font-medium hover:bg-white transition-colors duration-200 text-center"
                     >
-                      Börja använda OneSeek.AI
+                      Tillbaka till startsidan
                     </Link>
                     <Link
-                      to="/"
+                      to="/chat"
                       className="block w-full bg-[#1a1a1a] text-[#e7e7e7] py-3 rounded-lg font-medium border border-[#2a2a2a] hover:bg-[#2a2a2a] transition-colors duration-200 text-center"
                     >
-                      Tillbaka till startsidan
+                      Börja använda OneSeek.AI
                     </Link>
                   </div>
                 </div>
