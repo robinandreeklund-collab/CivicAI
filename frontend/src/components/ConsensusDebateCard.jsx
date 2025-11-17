@@ -206,17 +206,18 @@ export default function ConsensusDebateCard({
 
   if (isInitiating) {
     return (
-      <div className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 rounded-lg border border-purple-500/30 p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
-          <h3 className="text-lg font-semibold text-civic-gray-100">
-            Konsensus Live Debatt
-          </h3>
+      <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">💬</div>
+          <div>
+            <div className="font-medium text-[#e7e7e7]">Konsensus Live Debatt</div>
+            <div className="text-sm text-[#666]">Startar debatt...</div>
+          </div>
         </div>
         <div className="flex items-center justify-center py-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
-            <p className="text-sm text-civic-gray-400">Startar debatt...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#888] mx-auto mb-4"></div>
+            <p className="text-sm text-[#888]">Initierar AI-agenter...</p>
           </div>
         </div>
       </div>
@@ -225,17 +226,18 @@ export default function ConsensusDebateCard({
 
   if (error) {
     return (
-      <div className="bg-red-900/20 rounded-lg border border-red-500/30 p-6">
-        <div className="flex items-center gap-3 mb-2">
-          <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <h3 className="text-lg font-semibold text-civic-gray-100">Fel</h3>
+      <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">⚠️</div>
+          <div>
+            <div className="font-medium text-[#e7e7e7]">Fel uppstod</div>
+            <div className="text-sm text-[#666]">Kunde inte starta debatt</div>
+          </div>
         </div>
-        <p className="text-sm text-red-400">{error}</p>
+        <p className="text-[#888] leading-relaxed mb-4">{error}</p>
         <button
           onClick={initiateDebate}
-          className="mt-4 px-4 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-colors text-sm"
+          className="px-4 py-2 bg-[#2a2a2a] text-[#e7e7e7] rounded-lg hover:bg-[#3a3a3a] transition-colors text-sm"
         >
           Försök igen
         </button>
@@ -249,112 +251,101 @@ export default function ConsensusDebateCard({
     const shouldRecommend = consensus < 60;
     
     return (
-      <div className="bg-civic-dark-900/30 rounded-lg border border-civic-dark-700 p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-2 h-2 bg-civic-gray-500 rounded-full"></div>
-          <h3 className="text-lg font-semibold text-civic-gray-100">
-            Konsensus Live Debatt
-          </h3>
+      <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">💬</div>
+          <div>
+            <div className="font-medium text-[#e7e7e7]">Konsensus Live Debatt</div>
+            <div className="text-sm text-[#666]">AI-agenter debatterar och når konsensus</div>
+          </div>
         </div>
         
         {/* Recommendation banner when consensus is low */}
         {shouldRecommend && (
-          <div className="mb-4 bg-civic-dark-800/50 border border-civic-dark-600 rounded-lg p-3 flex items-start gap-3">
-            <svg className="w-5 h-5 text-civic-gray-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div>
-              <div className="text-sm font-medium text-civic-gray-300 mb-1">
-                Live debatt rekommenderas för att hitta konsensus
-              </div>
-              <div className="text-xs text-civic-gray-500">
-                Låg konsensus ({consensus}%) detekterad mellan AI-modellernas svar. En debatt kan hjälpa till att klargöra skillnader och nå bättre överensstämmelse.
+          <div className="mb-4 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-[#888] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <div className="text-sm font-medium text-[#e7e7e7] mb-1">
+                  Live debatt rekommenderas
+                </div>
+                <div className="text-sm text-[#888]">
+                  Låg konsensus ({consensus}%) detekterad. En debatt kan hjälpa till att klargöra skillnader.
+                </div>
               </div>
             </div>
           </div>
         )}
         
-        <div className="text-center py-6">
-          <p className="text-sm text-civic-gray-400 mb-6">
-            Starta en live-debatt där AI-agenter presenterar sina perspektiv, 
-            svarar på varandras argument och röstar på det bästa svaret.
-          </p>
-          
-          <div className="mb-6 bg-civic-dark-900/50 rounded-lg border border-civic-dark-700 p-4">
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div>
-                <div className="text-civic-gray-500 mb-1">Konsensus:</div>
-                <div className={`font-medium ${shouldRecommend ? 'text-civic-gray-300' : 'text-civic-gray-200'}`}>
-                  {consensus}%
-                </div>
-              </div>
-              <div>
-                <div className="text-civic-gray-500 mb-1">Skillnader:</div>
-                <div className="text-civic-gray-200 font-medium">{modelSynthesis.divergences?.divergenceCount || 0} st</div>
-              </div>
-              <div>
-                <div className="text-civic-gray-500 mb-1">Max agenter:</div>
-                <div className="text-civic-gray-200 font-medium">5 st</div>
-              </div>
-              <div>
-                <div className="text-civic-gray-500 mb-1">Max rundor:</div>
-                <div className="text-civic-gray-200 font-medium">3 rundor</div>
-              </div>
-            </div>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div>
+            <div className="text-[#666] text-sm mb-1">Konsensus</div>
+            <div className="text-[#e7e7e7] font-medium">{consensus}%</div>
           </div>
-          
-          <button
-            onClick={initiateDebate}
-            disabled={isInitiating}
-            className="px-6 py-3 bg-civic-dark-700 hover:bg-civic-dark-600 disabled:bg-civic-dark-800 text-civic-gray-100 rounded-lg transition-colors font-medium text-sm flex items-center gap-2 mx-auto border border-civic-dark-600 hover:border-civic-dark-500"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-            <span>Starta Konsensus Live Debatt</span>
-          </button>
+          <div>
+            <div className="text-[#666] text-sm mb-1">Skillnader</div>
+            <div className="text-[#e7e7e7] font-medium">{modelSynthesis.divergences?.divergenceCount || 0} st</div>
+          </div>
+          <div>
+            <div className="text-[#666] text-sm mb-1">Max agenter</div>
+            <div className="text-[#e7e7e7] font-medium">5 st</div>
+          </div>
+          <div>
+            <div className="text-[#666] text-sm mb-1">Max rundor</div>
+            <div className="text-[#e7e7e7] font-medium">3 rundor</div>
+          </div>
         </div>
+        
+        {/* Description */}
+        <p className="text-[#888] leading-relaxed mb-6">
+          Starta en live-debatt där AI-agenter presenterar sina perspektiv, 
+          svarar på varandras argument och röstar på det bästa svaret.
+        </p>
+        
+        {/* Action Button */}
+        <button
+          onClick={initiateDebate}
+          disabled={isInitiating}
+          className="w-full px-4 py-3 bg-[#2a2a2a] hover:bg-[#3a3a3a] disabled:bg-[#1a1a1a] disabled:opacity-50 text-[#e7e7e7] rounded-lg transition-colors font-medium text-sm flex items-center justify-center gap-2"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          <span>Starta Konsensus Live Debatt</span>
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="bg-civic-dark-900/30 rounded-lg border border-civic-dark-700 p-6 space-y-4">
+    <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-2 h-2 bg-civic-gray-500 rounded-full animate-pulse"></div>
-          <div>
-            <h3 className="text-lg font-semibold text-civic-gray-100">
-              Konsensus Live Debatt
-            </h3>
-            <p className="text-xs text-civic-gray-500 mt-1">
-              {debate.status === 'initiated' && 'Pågående debatt...'}
-              {debate.status === 'voting' && 'Röstning pågår...'}
-              {debate.status === 'completed' && 'Debatt avslutad'}
-            </p>
+      <div className="flex items-center gap-2 mb-6">
+        <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">💬</div>
+        <div className="flex-1">
+          <div className="font-medium text-[#e7e7e7]">Konsensus Live Debatt</div>
+          <div className="text-sm text-[#666]">
+            {debate.status === 'initiated' && 'Pågående debatt...'}
+            {debate.status === 'voting' && 'Röstning pågår...'}
+            {debate.status === 'completed' && 'Debatt avslutad'}
           </div>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <div className="px-2.5 py-1 bg-civic-dark-800/50 text-civic-gray-400 rounded text-xs font-medium border border-civic-dark-600">
-            {debate.status === 'initiated' && 'Pågår'}
-            {debate.status === 'voting' && 'Röstning'}
-            {debate.status === 'completed' && 'Klar'}
-          </div>
-          <div className="text-xs text-civic-gray-500">
-            Runda {debate.currentRound} / 3
-          </div>
+        <div className="text-sm text-[#666]">
+          Runda {debate.currentRound} / 3
         </div>
       </div>
 
       {/* Participants */}
-      <div className="bg-civic-dark-900/50 rounded-lg border border-civic-dark-700 p-3">
-        <h4 className="text-xs font-medium text-civic-gray-400 mb-2">Deltagare</h4>
+      <div className="mb-6">
+        <div className="text-sm text-[#666] mb-2">Deltagare</div>
         <div className="flex flex-wrap gap-2">
           {debate.participants.map((agent, idx) => (
             <span 
               key={idx}
-              className="px-2 py-1 bg-civic-dark-800/50 text-civic-gray-300 rounded text-xs font-medium border border-civic-dark-600"
+              className="px-3 py-1 bg-[#1a1a1a] text-[#888] rounded text-sm border border-[#2a2a2a]"
             >
               {agent}
             </span>
@@ -362,28 +353,30 @@ export default function ConsensusDebateCard({
         </div>
       </div>
 
-      {/* Debate Rounds - with live chat animation */}
+      {/* Debate Rounds */}
       {debate.rounds.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-xs font-medium text-civic-gray-400 mb-2">Debattrundor</h4>
-          {debate.rounds.map((round, idx) => (
-            <DebateRoundDisplay key={idx} round={round} isLatest={idx === debate.rounds.length - 1} />
-          ))}
+        <div className="mb-6">
+          <div className="text-sm text-[#666] mb-3">Debattrundor</div>
+          <div className="space-y-3">
+            {debate.rounds.map((round, idx) => (
+              <DebateRoundDisplay key={idx} round={round} isLatest={idx === debate.rounds.length - 1} />
+            ))}
+          </div>
         </div>
       )}
 
       {/* Loading indicator when running round */}
       {isRunningRound && (
-        <div className="flex items-center gap-2 text-xs text-civic-gray-500 py-2">
-          <div className="w-1.5 h-1.5 bg-civic-gray-500 rounded-full animate-pulse"></div>
+        <div className="flex items-center gap-2 text-sm text-[#888] py-3">
+          <div className="w-1.5 h-1.5 bg-[#888] rounded-full animate-pulse"></div>
           <span>Agenter formulerar svar...</span>
         </div>
       )}
 
       {/* Voting indicator */}
       {isVoting && (
-        <div className="flex items-center gap-2 text-xs text-civic-gray-500 py-2">
-          <div className="w-1.5 h-1.5 bg-civic-gray-500 rounded-full animate-pulse"></div>
+        <div className="flex items-center gap-2 text-sm text-[#888] py-3">
+          <div className="w-1.5 h-1.5 bg-[#888] rounded-full animate-pulse"></div>
           <span>Agenter röstar...</span>
         </div>
       )}
@@ -395,57 +388,62 @@ export default function ConsensusDebateCard({
 
       {/* Winning Answer Analysis */}
       {debate.status === 'completed' && (isAnalyzing || winningAnalysis) && (
-        <div className="bg-civic-dark-900/50 rounded-lg border border-civic-dark-700 p-4 space-y-3">
-          <div className="flex items-center gap-2 mb-2">
-            <svg className="w-4 h-4 text-civic-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="mt-6 border-t border-[#2a2a2a] pt-6">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">🏆</div>
+            <div>
+              <div className="font-medium text-[#e7e7e7]">Analys av Vinnande Svar</div>
+              <div className="text-sm text-[#666]">Komplett pipeline-analys</div>
+            </div>
+          </div>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
             </svg>
             <h4 className="text-sm font-medium text-civic-gray-300">Analys av Vinnande Svar</h4>
           </div>
 
           {isAnalyzing ? (
-            <div className="flex items-center justify-center py-4">
+            <div className="flex items-center justify-center py-6">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-civic-gray-500 mx-auto mb-2"></div>
-                <p className="text-xs text-civic-gray-400">Analyserar vinnande svar...</p>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#888] mx-auto mb-3"></div>
+                <p className="text-sm text-[#888]">Analyserar vinnande svar...</p>
               </div>
             </div>
           ) : winningAnalysis && (
-            <div className="space-y-3">
-              <div className="bg-civic-dark-900/50 rounded-lg border border-civic-dark-700 p-3">
-                <div className="text-xs text-civic-gray-500 mb-2">Agent:</div>
-                <div className="text-sm font-medium text-civic-gray-200">{winningAnalysis.agent}</div>
+            <div className="space-y-4">
+              <div>
+                <div className="text-sm text-[#666] mb-1">Agent</div>
+                <div className="text-[#e7e7e7]">{winningAnalysis.agent}</div>
               </div>
 
-              <div className="bg-civic-dark-900/50 rounded-lg border border-civic-dark-700 p-3">
-                <div className="text-xs text-civic-gray-500 mb-2">Svar:</div>
-                <div className="text-sm text-civic-gray-300 leading-relaxed">{winningAnalysis.response}</div>
+              <div>
+                <div className="text-sm text-[#666] mb-2">Svar</div>
+                <div className="text-[#888] leading-relaxed">{winningAnalysis.response}</div>
               </div>
 
               {winningAnalysis.pipelineAnalysis && (
-                <div className="bg-civic-dark-900/50 rounded-lg border border-civic-dark-700 p-3">
-                  <div className="text-xs text-civic-gray-500 mb-3">Pipeline-analys:</div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-civic-gray-400">Steg:</span>
-                      <span className="text-civic-gray-200">{winningAnalysis.pipelineAnalysis.timeline?.length || 0}</span>
+                <div>
+                  <div className="text-sm text-[#666] mb-2">Pipeline-analys</div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div className="text-[#666] mb-1">Steg</div>
+                      <div className="text-[#e7e7e7]">{winningAnalysis.pipelineAnalysis.timeline?.length || 0}</div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-civic-gray-400">Total tid:</span>
-                      <span className="text-civic-gray-200">
+                    <div>
+                      <div className="text-[#666] mb-1">Total tid</div>
+                      <div className="text-[#e7e7e7]">
                         {winningAnalysis.pipelineAnalysis.timeline?.reduce((sum, step) => sum + (step.durationMs || 0), 0) || 0}ms
-                      </span>
+                      </div>
                     </div>
                   </div>
-                  <div className="mt-3 pt-3 border-t border-civic-dark-700">
-                    <div className="text-xs text-civic-gray-500">
+                  <div className="mt-3 pt-3 border-t border-[#2a2a2a]">
+                    <div className="text-sm text-[#888]">
                       ✅ Komplett analys genomförd med alla pipeline-steg
                     </div>
                   </div>
                 </div>
               )}
 
-              <div className="text-xs text-civic-gray-600 italic">
+              <div className="text-xs text-[#666] italic">
                 Analyserat: {new Date(winningAnalysis.analyzedAt).toLocaleString('sv-SE')}
               </div>
             </div>
