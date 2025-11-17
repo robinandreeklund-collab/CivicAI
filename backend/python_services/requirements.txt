@@ -18,6 +18,14 @@ sentencepiece==0.1.99
 
 # Explainability
 shap==0.44.0
+lime==0.2.0.1
+
+# Fairness
+fairlearn==0.10.0
+
+# EDA and Visualization
+lux-api==0.5.0
+sweetviz==2.3.1
 
 # Topic Modeling (Gensim LDA - Windows-compatible, no compilation required)
 gensim==4.3.2
