@@ -11,6 +11,7 @@ export default function FooterDemo4() {
   const links = [
     { text: 'Start', to: '/' },
     { text: 'Om oss', to: '/about' },
+    { text: 'Skapa konto', to: '/skapa-konto' },
     { text: 'Policy', to: '/policy' },
     { text: 'Zero Tracking Standard', to: '/zero-tracking' },
     { text: 'Kontakta oss', to: '/contact' },
