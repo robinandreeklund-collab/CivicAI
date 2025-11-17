@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NLP Flow Demo 10 - Platform Neural Network</title>
+    <title>CivicAI - NLP Flow Demo</title>
     <style>
         * {
             margin: 0;
@@ -25,8 +25,6 @@
         .container {
             max-width: 600px;
             width: 100%;
-            position: relative;
-            z-index: 10;
         }
 
         /* Landing Page */
@@ -105,45 +103,137 @@
             cursor: not-allowed;
         }
 
-        /* Loader Page */
+        /* Loader Page - Using platform's existing ProcessingLoader design */
         .loader-page {
             display: none;
-            text-align: center;
             animation: fadeIn 0.5s ease-in;
         }
 
         .loader-container {
-            background: #151515;
-            border: 1px solid #1a1a1a;
-            border-radius: 12px;
-            padding: 2rem;
-        }
-
-        #neuralCanvas {
-            width: 100%;
-            height: 300px;
-            border-radius: 8px;
-            background: #0a0a0a;
-            margin-bottom: 1.5rem;
-            border: 1px solid #1a1a1a;
-        }
-
-        .neural-info {
             display: flex;
             flex-direction: column;
-            gap: 0.5rem;
+            align-items: center;
+            justify-content: center;
+            padding: 4rem 0;
         }
 
-        .step-indicator {
-            font-size: 1.2rem;
-            color: #e7e7e7;
-            font-weight: 400;
-            min-height: 2rem;
+        /* Three animated dots */
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 2rem;
         }
 
-        .progress-text {
-            font-size: 0.85rem;
+        .typing-indicator span {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #888;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% { 
+                transform: translateY(0); 
+                opacity: 0.5; 
+            }
+            30% { 
+                transform: translateY(-10px); 
+                opacity: 1; 
+            }
+        }
+
+        /* Steps container */
+        .steps {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 4px 8px;
+            transition: all 0.5s ease;
+            transform-origin: left center;
+        }
+
+        .step.active {
+            transform: scale(1.05);
+        }
+
+        .step-icon {
+            width: 24px;
+            height: 24px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .checkmark {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #888;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: scaleIn 0.3s ease;
+        }
+
+        @keyframes scaleIn {
+            from { transform: scale(0); }
+            to { transform: scale(1); }
+        }
+
+        .pulse-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #e7e7e7;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { 
+                opacity: 0.6; 
+                transform: scale(1); 
+            }
+            50% { 
+                opacity: 1; 
+                transform: scale(1.2); 
+            }
+        }
+
+        .step-text {
+            font-size: 0.9rem;
+            transition: all 0.5s;
+        }
+
+        .step-text.completed {
             color: #666;
+        }
+
+        .step-text.active {
+            color: #e7e7e7;
+            font-weight: 500;
+        }
+
+        .step-text.pending {
+            color: #444;
         }
 
         /* Chat Page */
@@ -241,13 +331,19 @@
             </div>
         </div>
 
-        <!-- Loader Page -->
+        <!-- Loader Page - Based on platform's ProcessingLoader -->
         <div class="loader-page" id="loaderPage">
             <div class="loader-container">
-                <canvas id="neuralCanvas"></canvas>
-                <div class="neural-info">
-                    <div class="step-indicator" id="stepIndicator"></div>
-                    <div class="progress-text" id="progressText"></div>
+                <!-- Three animated dots -->
+                <div class="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+
+                <!-- Processing steps -->
+                <div class="steps" id="steps">
+                    <!-- Steps will be inserted by JavaScript -->
                 </div>
             </div>
         </div>
@@ -270,8 +366,8 @@
 
     <script>
         let currentQuestion = '';
-        let animationId;
 
+        // NLP processing steps matching platform's analysis pipeline
         const steps = [
             'Tokenisering',
             'Entitetsigenkänning',
@@ -280,149 +376,8 @@
             'Sammanfattning'
         ];
 
-        // Neural network visualization with platform colors
-        const canvas = document.getElementById('neuralCanvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 600;
-        canvas.height = 300;
-
-        class Node {
-            constructor(x, y, layer, index) {
-                this.x = x;
-                this.y = y;
-                this.layer = layer;
-                this.index = index;
-                this.active = false;
-                this.activation = 0;
-                this.targetActivation = 0;
-            }
-
-            update() {
-                this.activation += (this.targetActivation - this.activation) * 0.08;
-            }
-
-            draw() {
-                const radius = 6;
-                const brightness = this.activation;
-                
-                // Node circle
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, radius, 0, Math.PI * 2);
-                ctx.fillStyle = brightness > 0.3 
-                    ? `rgba(231, 231, 231, ${0.4 + brightness * 0.6})` 
-                    : 'rgba(136, 136, 136, 0.3)';
-                ctx.fill();
-                
-                // Subtle glow for active nodes
-                if (brightness > 0.5) {
-                    ctx.strokeStyle = `rgba(231, 231, 231, ${brightness * 0.4})`;
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
-                }
-            }
-        }
-
-        class Connection {
-            constructor(from, to) {
-                this.from = from;
-                this.to = to;
-                this.strength = 0;
-                this.targetStrength = 0;
-            }
-
-            update() {
-                this.strength += (this.targetStrength - this.strength) * 0.08;
-            }
-
-            draw() {
-                if (this.strength > 0.05) {
-                    ctx.beginPath();
-                    ctx.moveTo(this.from.x, this.from.y);
-                    ctx.lineTo(this.to.x, this.to.y);
-                    ctx.strokeStyle = `rgba(136, 136, 136, ${this.strength * 0.25})`;
-                    ctx.lineWidth = this.strength * 1.5;
-                    ctx.stroke();
-                }
-            }
-        }
-
-        let nodes = [];
-        let connections = [];
-
-        function initNeuralNetwork() {
-            nodes = [];
-            connections = [];
-
-            const layers = [3, 5, 5, 3];
-            const layerSpacing = canvas.width / (layers.length + 1);
-            
-            layers.forEach((nodeCount, layerIndex) => {
-                const y_spacing = canvas.height / (nodeCount + 1);
-                for (let i = 0; i < nodeCount; i++) {
-                    const x = layerSpacing * (layerIndex + 1);
-                    const y = y_spacing * (i + 1);
-                    nodes.push(new Node(x, y, layerIndex, i));
-                }
-            });
-
-            // Create connections
-            let nodeIndex = 0;
-            for (let layer = 0; layer < layers.length - 1; layer++) {
-                const currentLayerSize = layers[layer];
-                const nextLayerSize = layers[layer + 1];
-                const currentLayerStart = nodeIndex;
-                const nextLayerStart = nodeIndex + currentLayerSize;
-
-                for (let i = 0; i < currentLayerSize; i++) {
-                    for (let j = 0; j < nextLayerSize; j++) {
-                        connections.push(new Connection(
-                            nodes[currentLayerStart + i],
-                            nodes[nextLayerStart + j]
-                        ));
-                    }
-                }
-                nodeIndex += currentLayerSize;
-            }
-        }
-
-        function activateLayer(layerIndex) {
-            nodes.forEach(node => {
-                if (node.layer === layerIndex) {
-                    node.targetActivation = 1;
-                } else if (node.layer < layerIndex) {
-                    node.targetActivation = 0.3;
-                } else {
-                    node.targetActivation = 0;
-                }
-            });
-
-            connections.forEach(conn => {
-                if (conn.from.layer === layerIndex - 1 && conn.to.layer === layerIndex) {
-                    conn.targetStrength = 1;
-                } else if (conn.from.layer < layerIndex) {
-                    conn.targetStrength = 0.15;
-                } else {
-                    conn.targetStrength = 0;
-                }
-            });
-        }
-
-        function animateNeuralNetwork() {
-            ctx.fillStyle = 'rgba(10, 10, 10, 0.2)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            connections.forEach(conn => {
-                conn.update();
-                conn.draw();
-            });
-
-            nodes.forEach(node => {
-                node.update();
-                node.draw();
-            });
-
-            animationId = requestAnimationFrame(animateNeuralNetwork);
-        }
+        let currentStep = 0;
+        const stepsContainer = document.getElementById('steps');
 
         function startProcessing() {
             const input = document.getElementById('questionInput');
@@ -433,41 +388,78 @@
                 return;
             }
 
+            // Hide landing page and show loader
             document.getElementById('landingPage').classList.add('hidden');
             document.getElementById('loaderPage').style.display = 'block';
-            initNeuralNetwork();
-            animateNeuralNetwork();
+
+            // Initialize steps
+            initSteps();
+            
+            // Start processing sequence
             processSteps();
         }
 
-        function processSteps() {
-            let currentStep = 0;
+        function initSteps() {
+            stepsContainer.innerHTML = '';
+            currentStep = 0;
 
-            function showNextStep() {
-                if (currentStep < steps.length) {
-                    document.getElementById('stepIndicator').textContent = steps[currentStep];
-                    document.getElementById('progressText').textContent = 
-                        `Steg ${currentStep + 1} av ${steps.length}`;
-                    
-                    activateLayer(currentStep);
-                    
-                    currentStep++;
-                    setTimeout(showNextStep, 800);
-                } else {
-                    setTimeout(showChat, 600);
-                }
+            // Create step elements
+            steps.forEach((stepText, index) => {
+                const stepDiv = document.createElement('div');
+                stepDiv.className = 'step';
+                stepDiv.id = `step-${index}`;
+                stepDiv.innerHTML = `
+                    <div class="step-icon" id="icon-${index}"></div>
+                    <p class="step-text pending" id="text-${index}">${stepText}</p>
+                `;
+                stepsContainer.appendChild(stepDiv);
+            });
+        }
+
+        function processSteps() {
+            updateStep();
+        }
+
+        function updateStep() {
+            if (currentStep >= steps.length) {
+                // All steps complete, show chat
+                setTimeout(showChat, 500);
+                return;
             }
 
-            showNextStep();
+            const stepDiv = document.getElementById(`step-${currentStep}`);
+            const iconDiv = document.getElementById(`icon-${currentStep}`);
+            const textDiv = document.getElementById(`text-${currentStep}`);
+
+            // Activate current step
+            stepDiv.classList.add('active');
+            iconDiv.innerHTML = '<div class="pulse-dot"></div>';
+            textDiv.className = 'step-text active';
+
+            // After 1.5 seconds, mark as complete and move to next
+            setTimeout(() => {
+                stepDiv.classList.remove('active');
+                iconDiv.innerHTML = `
+                    <div class="checkmark">
+                        <svg width="16" height="16" fill="white" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                `;
+                textDiv.className = 'step-text completed';
+
+                currentStep++;
+                updateStep();
+            }, 1500);
         }
 
         function showChat() {
-            cancelAnimationFrame(animationId);
             document.getElementById('loaderPage').style.display = 'none';
             document.getElementById('chatPage').style.display = 'block';
             
             document.getElementById('userQuestion').textContent = currentQuestion;
             
+            // Simulate AI response
             const responses = [
                 'Det är en intressant fråga! Baserat på min analys kan jag säga att detta är ett komplext ämne som kräver noggrann övervägning av flera faktorer.',
                 'Tack för din fråga! Jag har analyserat den och här är min bedömning: Detta beror på olika perspektiv och sammanhang.',
@@ -482,11 +474,10 @@
             document.getElementById('chatPage').style.display = 'none';
             document.getElementById('landingPage').classList.remove('hidden');
             document.getElementById('questionInput').value = '';
-            document.getElementById('stepIndicator').textContent = '';
-            document.getElementById('progressText').textContent = '';
             currentQuestion = '';
         }
 
+        // Allow Enter key to submit
         document.getElementById('questionInput').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 startProcessing();
