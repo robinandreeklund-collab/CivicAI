@@ -1,7 +1,7 @@
 /**
  * RichContentCard Component
- * Based on chat-timeline-concept-3
- * Card design for displaying analysis content with metadata
+ * Refined card design based on design improvement prototype
+ * Maintains all functionality with improved visual aesthetics
  */
 export default function RichContentCard({ 
   title,
@@ -11,15 +11,15 @@ export default function RichContentCard({
   actions
 }) {
   return (
-    <div className="bg-[#151515] border border-[#1a1a1a] rounded-xl p-9 mb-6 hover:border-[#2a2a2a] hover:shadow-xl transition-all duration-300">
+    <div className="bg-[#151515] border border-[#1a1a1a] rounded-xl p-8 mb-5 hover:border-[#2a2a2a] hover:shadow-[0_8px_24px_rgba(0,0,0,0.3)] transition-all duration-300">
       {/* Header */}
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-6">
         {badge && (
           <div className={`
-            inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] font-medium uppercase tracking-wider
+            inline-flex items-center gap-2 px-3.5 py-1.5 rounded-[20px] text-[10px] font-semibold uppercase tracking-wider border
             ${badge.primary 
-              ? 'bg-[#2a2a2a] text-[#e7e7e7]' 
-              : 'bg-[#1a1a1a] text-[#888]'
+              ? 'bg-[#2a2a2a] border-[#3a3a3a] text-[#e7e7e7]' 
+              : 'bg-[#1a1a1a] border-[#2a2a2a] text-[#e7e7e7]'
             }
           `}>
             {badge.icon && <span>{badge.icon}</span>}
@@ -33,7 +33,7 @@ export default function RichContentCard({
               <button
                 key={idx}
                 onClick={action.onClick}
-                className="w-8 h-8 bg-[#1a1a1a] border border-[#2a2a2a] rounded-md flex items-center justify-center text-sm text-[#888] hover:bg-[#2a2a2a] hover:border-[#3a3a3a] hover:text-[#e7e7e7] transition-all"
+                className="w-8 h-8 bg-[#1a1a1a] border border-[#2a2a2a] rounded-md flex items-center justify-center text-sm text-[#888] hover:bg-[#2a2a2a] hover:border-[#3a3a3a] hover:text-[#e7e7e7] transition-all duration-200"
                 title={action.title}
               >
                 {action.icon}
@@ -45,25 +45,25 @@ export default function RichContentCard({
 
       {/* Title */}
       {title && (
-        <h3 className="text-lg font-medium text-[#e7e7e7] mb-4.5">
+        <h3 className="text-[18px] font-medium text-[#e7e7e7] mb-5 tracking-[-0.2px]">
           {title}
         </h3>
       )}
 
       {/* Content */}
-      <div className="text-[15px] leading-relaxed text-[#c0c0c0] mb-5">
+      <div className="text-[15px] leading-[1.7] text-[#c0c0c0] mb-6">
         {content}
       </div>
 
       {/* Metadata Grid */}
       {metadata && metadata.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-5 border-t border-[#1a1a1a]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-6 border-t border-[#1a1a1a]">
           {metadata.map((meta, idx) => (
-            <div key={idx} className="flex flex-col gap-1">
-              <div className="text-[11px] text-[#666] uppercase tracking-wide">
+            <div key={idx} className="flex flex-col gap-1.5">
+              <div className="text-[10px] text-[#666] uppercase tracking-wide font-semibold">
                 {meta.label}
               </div>
-              <div className="text-[13px] text-[#888] font-medium">
+              <div className="text-[13px] text-[#c0c0c0] font-medium">
                 {meta.value}
               </div>
             </div>

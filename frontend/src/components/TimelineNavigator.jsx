@@ -146,7 +146,7 @@ export default function TimelineNavigator({
             </button>
 
             {expandedGroups[section.group] && (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {section.items.map((item, itemIdx) => {
                   const isActive = activeSection === item.id;
                   return (
@@ -154,39 +154,31 @@ export default function TimelineNavigator({
                       key={item.id}
                       onClick={() => onSectionChange(item.id)}
                       className={`
-                        w-full bg-[#1a1a1a] border rounded-lg p-1.5 text-left transition-all relative
+                        w-full flex items-center gap-3 rounded-lg p-2.5 text-left transition-all duration-200 border
                         ${isActive 
-                          ? 'bg-[#1a1a1a] border-civic-dark-500 translate-x-1' 
-                          : 'border-[#2a2a2a] hover:bg-[#1a1a1a] hover:border-[#3a3a3a] hover:translate-x-1'
+                          ? 'bg-[#1a1a1a] border-[#3a3a3a]' 
+                          : 'border-transparent hover:bg-[#1a1a1a] hover:border-[#2a2a2a]'
                         }
                       `}
                     >
-                      {/* Active indicator */}
-                      <div className={`
-                        absolute left-0 top-0 bottom-0 w-0.5 rounded-l-lg transition-all
-                        ${isActive ? 'bg-gradient-to-b from-[#a0a0a0] to-[#666]' : 'bg-transparent'}
-                      `}></div>
+                      {/* Icon */}
+                      <div className="text-base flex-shrink-0">
+                        {getIcon(item.title)}
+                      </div>
 
-                      <div className="flex items-center justify-between">
-                        <div className={`text-[11px] font-medium transition-colors ${
-                          isActive ? 'text-[#e0e0e0]' : 'text-[#c0c0c0]'
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-xs font-medium transition-colors truncate ${
+                          isActive ? 'text-[#e7e7e7]' : 'text-[#e7e7e7]'
                         }`}>
                           {item.title}
                         </div>
-                        <div className={`
-                          w-1.5 h-1.5 rounded-full transition-all
-                          ${isActive 
-                            ? 'bg-[#a0a0a0] shadow-[0_0_8px_rgba(200,200,200,0.3)]' 
-                            : 'bg-[#3a3a3a]'
-                          }
-                        `}></div>
+                        {item.meta && (
+                          <div className="text-[10px] text-[#666] mt-0.5">
+                            {item.meta}
+                          </div>
+                        )}
                       </div>
-
-                      {item.meta && (
-                        <div className="text-[9px] text-[#666] mt-0.5">
-                          {item.meta}
-                        </div>
-                      )}
                     </button>
                   );
                 })}

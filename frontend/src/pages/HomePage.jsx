@@ -735,7 +735,7 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
       <div className="flex-1 flex flex-col">
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto">
-          <div className="px-10 py-10">
+          <div className="px-15 py-10 max-w-[1200px]">
             {messages.length === 0 && !isLoading && (
               <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-fade-in">
                 {/* Typing Effect Logo */}
