@@ -5,6 +5,12 @@ import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
 import PolicyQuestionBankPage from './pages/PolicyQuestionBankPage';
 import AuditTrailPage from './pages/AuditTrailPage';
+import AboutPage from './pages/AboutPage';
+import PolicyPage from './pages/PolicyPage';
+import ZeroTrackingPage from './pages/ZeroTrackingPage';
+import ContactPage from './pages/ContactPage';
+import PipelinePage from './pages/PipelinePage';
+import FeaturesPage from './pages/FeaturesPage';
 
 /**
  * Main OneSeek.AI Application
@@ -18,7 +24,8 @@ function AppContent() {
   const location = useLocation();
 
   // Check if we're on a route that should show the sidebar
-  const showSidebar = location.pathname !== '/';
+  // Sidebar should only show on /chat, /policy-questions, and /audit-trail
+  const showSidebar = ['/chat', '/policy-questions', '/audit-trail'].includes(location.pathname);
 
   const handleNewConversation = () => {
     const newConvId = Date.now().toString();
@@ -101,6 +108,12 @@ function AppContent() {
           />
           <Route path="/policy-questions" element={<PolicyQuestionBankPage />} />
           <Route path="/audit-trail" element={<AuditTrailPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/policy" element={<PolicyPage />} />
+          <Route path="/zero-tracking" element={<ZeroTrackingPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+          <Route path="/pipeline" element={<PipelinePage />} />
+          <Route path="/features" element={<FeaturesPage />} />
         </Routes>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import FooterDemo4 from '../components/footers/FooterDemo4';
 
 /**
  * LandingPage Component
@@ -28,8 +29,9 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] flex items-center justify-center px-4 py-8">
-      <div className="max-w-[1100px] w-full grid md:grid-cols-2 gap-12 md:gap-16 items-center">
+    <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] flex flex-col">
+      <div className="flex-1 flex items-center justify-center px-4 py-8">
+        <div className="max-w-[1100px] w-full grid md:grid-cols-2 gap-12 md:gap-16 items-center">
         {/* Left Side - Branding & Features */}
         <div className="md:pr-10">
           <h1 className="text-5xl md:text-[52px] font-light tracking-wide mb-5 text-[#e7e7e7]">
@@ -109,5 +111,9 @@ export default function LandingPage() {
         </div>
       </div>
     </div>
+
+    {/* Footer */}
+    <FooterDemo4 />
+  </div>
   );
 }
