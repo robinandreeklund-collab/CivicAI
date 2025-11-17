@@ -221,14 +221,14 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] flex flex-col">
-      <div className="flex-1 flex items-center justify-center px-4 py-8">
-        <div className="max-w-[1100px] w-full grid md:grid-cols-2 gap-12 md:gap-16 items-start">
-          {/* Left Side - Branding & Progress */}
-          <div className="md:pr-10">
+    <div className="bg-[#0a0a0a] text-[#e7e7e7]">
+      <div className="px-4 py-8">
+        <div className="max-w-[1400px] mx-auto pb-8">
+          {/* Header */}
+          <div className="mb-12">
             <Link 
               to="/" 
-              className="inline-flex items-center gap-2 text-[#666] text-sm mb-4 transition-colors duration-200 hover:text-[#e7e7e7] group"
+              className="inline-flex items-center gap-2 text-[#666] text-sm mb-6 transition-colors duration-200 hover:text-[#e7e7e7] group"
             >
               <span className="transition-transform duration-200 group-hover:-translate-x-1">←</span>
               <span>Tillbaka</span>
@@ -236,50 +236,58 @@ export default function SignupPage() {
             <h1 className="text-5xl md:text-[52px] font-light tracking-wide mb-5 text-[#e7e7e7]">
               Skapa konto
             </h1>
-            <p className="text-lg text-[#888] mb-10 font-light leading-relaxed">
+            <p className="text-lg text-[#888] max-w-[800px] font-light leading-relaxed">
               Anonymt kontoskapande med fullständig integritet och transparens.
             </p>
-
-            {/* Progress Steps */}
-            <div className="space-y-0">
-              {steps.map((step, index) => (
-                <div
-                  key={step.id}
-                  className={`py-4 border-b border-[#151515] transition-colors duration-200 ${
-                    index === currentStep 
-                      ? 'text-[#e7e7e7]' 
-                      : index < currentStep 
-                        ? 'text-[#666] line-through' 
-                        : 'text-[#444]'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className={`text-xs font-medium ${
-                      index === currentStep ? 'text-[#e7e7e7]' : index < currentStep ? 'text-[#666]' : 'text-[#444]'
-                    }`}>
-                      {index < currentStep ? '✓' : index + 1}
-                    </span>
-                    <div>
-                      <div className="text-sm font-medium">{step.title}</div>
-                      <div className="text-xs opacity-70">{step.desc}</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Security Features */}
-            <div className="mt-10 space-y-2">
-              <div className="text-xs text-[#666]">🔒 Ingen IP-loggning</div>
-              <div className="text-xs text-[#666]">🔒 Ingen tredjepartsautentisering</div>
-              <div className="text-xs text-[#666]">🔒 Tor-kompatibel</div>
-              <div className="text-xs text-[#666]">⚡ Rate-limit: 3 konton/IP/timme</div>
-            </div>
           </div>
 
-          {/* Right Side - Step Content */}
-          <div className="md:pl-10 md:border-l border-[#151515]">
-            <div className="space-y-6">
+          {/* Content Grid */}
+          <div className="space-y-6">
+            {/* Progress and content - 2 column grid */}
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Progress Steps */}
+              <div className="bg-[#151515] border border-[#2a2a2a] rounded-xl p-6">
+                <h2 className="text-xl font-light text-[#e7e7e7] mb-4">Steg {currentStep + 1} av {steps.length}</h2>
+                <div className="space-y-0">
+                  {steps.map((step, index) => (
+                    <div
+                      key={step.id}
+                      className={`py-3 border-b border-[#1a1a1a] transition-colors duration-200 ${
+                        index === currentStep 
+                          ? 'text-[#e7e7e7]' 
+                          : index < currentStep 
+                            ? 'text-[#666] line-through' 
+                            : 'text-[#444]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={`text-xs font-medium ${
+                          index === currentStep ? 'text-[#e7e7e7]' : index < currentStep ? 'text-[#666]' : 'text-[#444]'
+                        }`}>
+                          {index < currentStep ? '✓' : index + 1}
+                        </span>
+                        <div>
+                          <div className="text-sm font-medium">{step.title}</div>
+                          <div className="text-xs opacity-70">{step.desc}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Security Features */}
+                <div className="mt-6 pt-6 border-t border-[#1a1a1a] space-y-2">
+                  <div className="text-xs text-[#666]">🔒 Ingen IP-loggning</div>
+                  <div className="text-xs text-[#666]">🔒 Ingen tredjepartsautentisering</div>
+                  <div className="text-xs text-[#666]">🔒 Tor-kompatibel</div>
+                  <div className="text-xs text-[#666]">⚡ Rate-limit: 3 konton/IP/timme</div>
+                </div>
+              </div>
+
+              {/* Step Content */}
+              <div className="bg-[#151515] border border-[#2a2a2a] rounded-xl p-6"
+                style={{ minHeight: '500px' }}
+              >
               {/* Step 0: Welcome */}
               {currentStep === 0 && (
                 <div className="space-y-6 text-[#888] leading-relaxed">
@@ -760,6 +768,7 @@ export default function SignupPage() {
                   </div>
                 </div>
               )}
+              </div>
             </div>
           </div>
         </div>
