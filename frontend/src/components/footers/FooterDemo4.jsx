@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
  */
 export default function FooterDemo4() {
   const links = [
+    { text: 'Start', to: '/', highlight: true },
     { text: 'Om oss', to: '/about' },
     { text: 'Policy', to: '/policy' },
     { text: 'Zero Tracking Standard', to: '/zero-tracking' },
@@ -24,7 +25,11 @@ export default function FooterDemo4() {
               <Link
                 key={index}
                 to={link.to}
-                className="text-[#666] text-xs transition-all duration-200 hover:text-[#e7e7e7] hover:scale-105"
+                className={`text-xs transition-all duration-200 hover:scale-105 ${
+                  link.highlight 
+                    ? 'text-[#e7e7e7] font-medium hover:text-white' 
+                    : 'text-[#666] hover:text-[#e7e7e7]'
+                }`}
               >
                 {link.text}
               </Link>

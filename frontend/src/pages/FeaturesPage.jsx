@@ -7,147 +7,95 @@ import FooterDemo4 from '../components/footers/FooterDemo4';
 export default function FeaturesPage() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] flex flex-col">
-      <div className="flex-1 flex items-center justify-center px-4 py-16">
-        <div className="max-w-[800px] w-full">
-          <h1 className="text-4xl md:text-5xl font-light tracking-wide mb-6 text-[#e7e7e7]">
-            Funktioner
-          </h1>
-          
-          <div className="space-y-6 text-[#888] leading-relaxed">
-            <p className="text-lg">
+      <div className="flex-1 flex items-center justify-center px-4 py-8">
+        <div className="max-w-[1100px] w-full grid md:grid-cols-2 gap-12 md:gap-16 items-start">
+          {/* Left Side - Branding */}
+          <div className="md:pr-10">
+            <h1 className="text-5xl md:text-[52px] font-light tracking-wide mb-5 text-[#e7e7e7]">
+              Funktioner
+            </h1>
+            <p className="text-lg text-[#888] mb-10 font-light leading-relaxed">
               OneSeek.AI erbjuder en rad avancerade funktioner för transparent och balanserad AI-analys.
             </p>
-            
-            <div className="border-l-2 border-[#2a2a2a] pl-6 py-4">
-              <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Multi-AI Jämförelse</h2>
-              <p className="mb-3">
-                Få svar från fem ledande AI-modeller samtidigt och jämför deras perspektiv:
-              </p>
-              <ul className="space-y-3">
-                <li className="flex items-start">
-                  <span className="text-[#666] mr-3">•</span>
-                  <span><strong className="text-[#e7e7e7]">OpenAI GPT-4:</strong> Avancerad språkförståelse och resonemang</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="text-[#666] mr-3">•</span>
-                  <span><strong className="text-[#e7e7e7]">Anthropic Claude:</strong> Fokus på säkerhet och nyanserad analys</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="text-[#666] mr-3">•</span>
-                  <span><strong className="text-[#e7e7e7]">Google Gemini:</strong> Multimodal förståelse och bred kunskapsbas</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="text-[#666] mr-3">•</span>
-                  <span><strong className="text-[#e7e7e7]">xAI Grok:</strong> Realtidsdata och alternativa perspektiv</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="text-[#666] mr-3">•</span>
-                  <span><strong className="text-[#e7e7e7]">DeepSeek:</strong> Teknisk precision och detaljerad analys</span>
-                </li>
-              </ul>
-            </div>
+            <ul className="space-y-0">
+              <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
+                ✓ Multi-AI Jämförelse
+              </li>
+              <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
+                ✓ Konsensus Live Debate
+              </li>
+              <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
+                ✓ Bias-detektion
+              </li>
+              <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
+                ✓ Faktakontroll
+              </li>
+              <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
+                ✓ Transparent Pipeline
+              </li>
+              <li className="py-4 text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
+                ✓ Auditlogg
+              </li>
+            </ul>
+          </div>
 
-            <div className="border-l-2 border-[#2a2a2a] pl-6 py-4">
-              <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Konsensus Live Debate</h2>
-              <p className="mb-3">
-                En unik funktion där AI-modeller diskuterar och debatterar komplexa frågor:
-              </p>
-              <ul className="space-y-2">
-                <li className="text-[#666]">• Strukturerade debattrundor mellan AI-modeller</li>
-                <li className="text-[#666]">• Identifiering av gemensamma slutsatser</li>
-                <li className="text-[#666]">• Tydlig markering av meningsskiljaktigheter</li>
-                <li className="text-[#666]">• Röstning och konsensusbedömning</li>
-              </ul>
-            </div>
+          {/* Right Side - Content */}
+          <div className="md:pl-10 md:border-l border-[#151515]">
+            <div className="space-y-6 text-[#888] leading-relaxed">
+              <div>
+                <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Multi-AI Jämförelse</h2>
+                <p className="mb-3">Få svar från fem ledande AI-modeller samtidigt och jämför deras perspektiv:</p>
+                <div className="space-y-2 text-sm">
+                  <div className="text-[#666]">• OpenAI GPT-4 - Avancerad språkförståelse</div>
+                  <div className="text-[#666]">• Anthropic Claude - Säkerhet och nyanserad analys</div>
+                  <div className="text-[#666]">• Google Gemini - Multimodal förståelse</div>
+                  <div className="text-[#666]">• xAI Grok - Realtidsdata</div>
+                  <div className="text-[#666]">• DeepSeek - Teknisk precision</div>
+                </div>
+              </div>
 
-            <div className="border-l-2 border-[#2a2a2a] pl-6 py-4">
-              <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Automatisk Bias-detektion</h2>
-              <p className="mb-3">
-                Avancerad analys som identifierar och markerar eventuella bias i AI-svar:
-              </p>
-              <ul className="space-y-2">
-                <li className="text-[#666]">• Politisk vinkling och ideologiska tendenser</li>
-                <li className="text-[#666]">• Sentiment och tonalitet i framställningen</li>
-                <li className="text-[#666]">• Obalanserad källanvändning</li>
-                <li className="text-[#666]">• Visuell markering av detekterade bias</li>
-              </ul>
-            </div>
+              <div>
+                <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Konsensus Live Debate</h2>
+                <p className="mb-3">En unik funktion där AI-modeller diskuterar och debatterar komplexa frågor:</p>
+                <div className="space-y-2 text-sm">
+                  <div className="text-[#666]">• Strukturerade debattrundor mellan AI-modeller</div>
+                  <div className="text-[#666]">• Identifiering av gemensamma slutsatser</div>
+                  <div className="text-[#666]">• Tydlig markering av meningsskiljaktigheter</div>
+                  <div className="text-[#666]">• Röstning och konsensusbedömning</div>
+                </div>
+              </div>
 
-            <div className="border-l-2 border-[#2a2a2a] pl-6 py-4">
-              <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Faktakontroll med Tavily</h2>
-              <p className="mb-3">
-                Alla påståenden verifieras mot externa källor i realtid:
-              </p>
-              <ul className="space-y-2">
-                <li className="text-[#666]">• Automatisk källsökning och verifiering</li>
-                <li className="text-[#666]">• Tydliga källhänvisningar till alla påståenden</li>
-                <li className="text-[#666]">• Markering av overifierade påståenden</li>
-                <li className="text-[#666]">• Direktlänkar till originalkällor</li>
-              </ul>
-            </div>
+              <div>
+                <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Automatisk Bias-detektion</h2>
+                <p className="mb-3">Avancerad analys som identifierar och markerar eventuella bias:</p>
+                <div className="space-y-2 text-sm">
+                  <div className="text-[#666]">• Politisk vinkling och ideologiska tendenser</div>
+                  <div className="text-[#666]">• Sentiment och tonalitet i framställningen</div>
+                  <div className="text-[#666]">• Obalanserad källanvändning</div>
+                  <div className="text-[#666]">• Visuell markering av detekterade bias</div>
+                </div>
+              </div>
 
-            <div className="border-l-2 border-[#2a2a2a] pl-6 py-4">
-              <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Transparent Analyspipeline</h2>
-              <p className="mb-3">
-                Se exakt hur din fråga bearbetas steg för steg:
-              </p>
-              <ul className="space-y-2">
-                <li className="text-[#666]">• Visuell tidslinje för hela analysprocessen</li>
-                <li className="text-[#666]">• Detaljerad loggning av varje steg</li>
-                <li className="text-[#666]">• Insyn i vilka moduler som används</li>
-                <li className="text-[#666]">• Tidsåtgång och processinformation</li>
-              </ul>
-            </div>
+              <div>
+                <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Faktakontroll med Tavily</h2>
+                <p className="mb-3">Alla påståenden verifieras mot externa källor i realtid:</p>
+                <div className="space-y-2 text-sm">
+                  <div className="text-[#666]">• Automatisk källsökning och verifiering</div>
+                  <div className="text-[#666]">• Tydliga källhänvisningar</div>
+                  <div className="text-[#666]">• Markering av overifierade påståenden</div>
+                  <div className="text-[#666]">• Direktlänkar till originalkällor</div>
+                </div>
+              </div>
 
-            <div className="border-l-2 border-[#2a2a2a] pl-6 py-4">
-              <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Auditlogg och Spårbarhet</h2>
-              <p className="mb-3">
-                Fullständig dokumentation av alla analyser:
-              </p>
-              <ul className="space-y-2">
-                <li className="text-[#666]">• Komplett historik över alla frågor och svar</li>
-                <li className="text-[#666]">• Spårbarhet av AI-resonemang och slutsatser</li>
-                <li className="text-[#666]">• Export av analyser i olika format</li>
-                <li className="text-[#666]">• Möjlighet att granska tidigare analyser</li>
-              </ul>
-            </div>
-
-            <div className="border-l-2 border-[#2a2a2a] pl-6 py-4">
-              <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Policy Question Bank</h2>
-              <p className="mb-3">
-                Färdiga frågemallar för vanliga samhällsfrågor:
-              </p>
-              <ul className="space-y-2">
-                <li className="text-[#666]">• Förberedda frågor inom politik, ekonomi och samhälle</li>
-                <li className="text-[#666]">• Strukturerade analyser av komplexa ämnen</li>
-                <li className="text-[#666]">• Jämförande perspektiv på aktuella frågor</li>
-                <li className="text-[#666]">• Kontinuerligt uppdaterad frågebank</li>
-              </ul>
-            </div>
-
-            <div className="border-l-2 border-[#2a2a2a] pl-6 py-4">
-              <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Realtidsanalys</h2>
-              <p className="mb-3">
-                Live-uppdateringar under hela analysprocessen:
-              </p>
-              <ul className="space-y-2">
-                <li className="text-[#666]">• Se AI-svar genereras i realtid</li>
-                <li className="text-[#666]">• Progressindikatorer för varje analyssteg</li>
-                <li className="text-[#666]">• Animerade visualiseringar av dataflöden</li>
-                <li className="text-[#666]">• Omedelbar feedback på analysens status</li>
-              </ul>
-            </div>
-
-            <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-6 mt-8">
-              <h3 className="text-xl font-light text-[#e7e7e7] mb-3">Kommande Funktioner</h3>
-              <p className="mb-3">Vi arbetar kontinuerligt med att utveckla nya funktioner:</p>
-              <ul className="space-y-2 text-sm">
-                <li className="text-[#666]">• Användaranpassade analysprofiler</li>
-                <li className="text-[#666]">• Avancerad datavisualisering</li>
-                <li className="text-[#666]">• Jämförande historisk analys</li>
-                <li className="text-[#666]">• API för externa integrationer</li>
-                <li className="text-[#666]">• Community-funktioner och delning</li>
-              </ul>
+              <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-6">
+                <h3 className="text-xl font-light text-[#e7e7e7] mb-3">Kommande Funktioner</h3>
+                <p className="mb-3 text-sm">Vi arbetar kontinuerligt med att utveckla nya funktioner:</p>
+                <div className="space-y-2 text-sm">
+                  <div className="text-[#666]">• Användaranpassade analysprofiler</div>
+                  <div className="text-[#666]">• Avancerad datavisualisering</div>
+                  <div className="text-[#666]">• API för externa integrationer</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

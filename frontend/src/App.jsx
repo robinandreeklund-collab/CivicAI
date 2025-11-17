@@ -24,7 +24,8 @@ function AppContent() {
   const location = useLocation();
 
   // Check if we're on a route that should show the sidebar
-  const showSidebar = location.pathname !== '/';
+  // Sidebar should only show on /chat, /policy-questions, and /audit-trail
+  const showSidebar = ['/chat', '/policy-questions', '/audit-trail'].includes(location.pathname);
 
   const handleNewConversation = () => {
     const newConvId = Date.now().toString();
