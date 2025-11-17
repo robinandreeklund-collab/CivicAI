@@ -18,6 +18,7 @@ const ChatViewConcept31 = () => {
   const [selectedModel, setSelectedModel] = useState(null);
   const [debateActive, setDebateActive] = useState(false);
   const [viewMode, setViewMode] = useState('overview'); // overview | model-detail | pipeline | debate
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Complete mock data structure matching platform
   const mockData = {
@@ -212,49 +213,82 @@ const ChatViewConcept31 = () => {
           <span className="text-sm text-[#666]">Analys klar</span>
         </div>
         
-        <div className="flex items-center gap-4">
-          {/* View Mode Selector */}
-          <div className="flex gap-2 bg-[#151515] rounded-lg p-1">
-            {['overview', 'model-detail', 'pipeline', 'debate'].map(mode => (
-              <button
-                key={mode}
-                onClick={() => setViewMode(mode)}
-                className={`px-3 py-1 text-xs rounded transition-colors ${
-                  viewMode === mode
-                    ? 'bg-[#e7e7e7] text-[#0a0a0a]'
-                    : 'text-[#888] hover:text-[#e7e7e7]'
-                }`}
-              >
-                {mode === 'overview' ? 'Översikt' :
-                 mode === 'model-detail' ? 'Modeller' :
-                 mode === 'pipeline' ? 'Pipeline' : 'Debatt'}
-              </button>
-            ))}
-          </div>
-
-          {/* Menu */}
-          <div className="relative">
+        {/* View Mode Selector - Centered */}
+        <div className="absolute left-1/2 transform -translate-x-1/2 flex gap-2 bg-[#151515] rounded-lg p-1">
+          {['overview', 'model-detail', 'pipeline', 'debate'].map(mode => (
             <button
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="px-4 py-2 bg-[#151515] hover:bg-[#1a1a1a] rounded transition-colors"
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              className={`px-4 py-2 text-sm rounded transition-colors ${
+                viewMode === mode
+                  ? 'bg-[#e7e7e7] text-[#0a0a0a]'
+                  : 'text-[#888] hover:text-[#e7e7e7]'
+              }`}
             >
-              Meny
+              {mode === 'overview' ? 'Översikt' :
+               mode === 'model-detail' ? 'Modeller' :
+               mode === 'pipeline' ? 'Pipeline' : 'Debatt'}
             </button>
-            {menuOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-[#151515] border border-[#2a2a2a] rounded-lg shadow-xl z-50">
-                {['Hem', 'Analys', 'Historik', 'Källor', 'Inställningar', 'Kontakt'].map(item => (
+          ))}
+        </div>
+
+        {/* Menu Button */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="px-4 py-2 bg-[#151515] hover:bg-[#1a1a1a] rounded transition-colors flex items-center gap-2"
+        >
+          <span>Meny</span>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      </header>
+
+      {/* Sidebar Menu */}
+      {sidebarOpen && (
+        <>
+          {/* Overlay */}
+          <div 
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={() => setSidebarOpen(false)}
+          ></div>
+          
+          {/* Sidebar */}
+          <div className="fixed right-0 top-0 bottom-0 w-80 bg-[#0a0a0a] border-l border-[#1a1a1a] z-50 shadow-2xl">
+            <div className="h-full flex flex-col">
+              {/* Sidebar Header */}
+              <div className="px-6 py-4 border-b border-[#1a1a1a] flex items-center justify-between">
+                <h2 className="text-lg font-light">Meny</h2>
+                <button 
+                  onClick={() => setSidebarOpen(false)}
+                  className="text-[#666] hover:text-[#e7e7e7] transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Sidebar Content */}
+              <nav className="flex-1 px-6 py-6 space-y-2">
+                {['Hem', 'Analys', 'Historik', 'Källor', 'Inställningar', 'Om OneSeek.AI', 'Kontakt'].map((item, idx) => (
                   <button
-                    key={item}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-[#1a1a1a] first:rounded-t-lg last:rounded-b-lg"
+                    key={idx}
+                    className="w-full text-left px-4 py-3 text-sm text-[#888] hover:bg-[#151515] hover:text-[#e7e7e7] rounded transition-colors"
                   >
                     {item}
                   </button>
                 ))}
+              </nav>
+
+              {/* Sidebar Footer */}
+              <div className="px-6 py-4 border-t border-[#1a1a1a] text-xs text-[#666]">
+                <div>OneSeek.AI © 2024</div>
               </div>
-            )}
+            </div>
           </div>
-        </div>
-      </header>
+        </>
+      )}
 
       {/* Main Content Area - Scrollable */}
       <div className="flex-1 overflow-y-auto px-6 py-6 pb-32">
@@ -791,23 +825,25 @@ const ChatViewConcept31 = () => {
         )}
       </div>
 
-      {/* Fixed Bottom Input */}
-      <div className="border-t border-[#1a1a1a] bg-[#0a0a0a] px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center gap-4">
-          <input
-            type="text"
-            placeholder="Ställ en följdfråga..."
-            className="flex-1 bg-[#151515] border border-[#1a1a1a] rounded-lg px-4 py-3 focus:outline-none focus:border-[#2a2a2a]"
-          />
-          <button className="px-6 py-3 bg-[#e7e7e7] text-[#0a0a0a] rounded-lg hover:bg-[#fff] transition-colors font-medium">
-            Skicka
-          </button>
+      {/* Fixed Bottom Input - Premium Minimalist Style from Concept 21 */}
+      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent pt-8 pb-6">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="bg-[#151515] border border-[#1a1a1a] rounded-lg p-2 flex gap-2 hover:border-[#2a2a2a] transition-colors">
+            <input
+              type="text"
+              placeholder="Ställ en följdfråga..."
+              className="flex-1 bg-transparent px-4 py-3 text-sm text-[#e7e7e7] placeholder-[#444] focus:outline-none"
+            />
+            <button className="px-6 py-3 bg-[#e7e7e7] text-[#0a0a0a] rounded-md text-sm font-medium hover:bg-white transition-colors">
+              Analysera
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Footer Navigation */}
-      <div className="border-t border-[#1a1a1a] bg-[#0a0a0a] px-6 py-3">
-        <div className="max-w-5xl mx-auto flex items-center justify-between text-xs text-[#666]">
+      <div className="fixed bottom-0 left-0 right-0 bg-[#0a0a0a] px-6 py-3 pointer-events-none">
+        <div className="max-w-5xl mx-auto flex items-center justify-between text-xs text-[#666] pointer-events-auto" style={{ marginBottom: '80px' }}>
           <div className="flex gap-6">
             <button className="hover:text-[#e7e7e7]">Om OneSeek.AI</button>
             <button className="hover:text-[#e7e7e7]">Integritet</button>
