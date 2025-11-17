@@ -60,14 +60,19 @@ export default function ChatV2Page() {
 
       const data = await response.json();
       
-      // Add AI response
+      // Add AI response - map API response to our structure
       const aiMessage = {
         type: 'ai',
         question: userQuestion,
         responses: data.responses || [],
-        bertSummary: data.bertSummary || null,
+        // BERT summary is returned as 'synthesizedSummary' from API
+        bertSummary: data.synthesizedSummary || null,
+        bertMetadata: data.synthesizedSummaryMetadata || null,
+        // Model synthesis contains consensus/divergence analysis
         modelSynthesis: data.modelSynthesis || null,
-        synthesizedSummary: data.synthesizedSummary || null,
+        metaReview: data.metaReview || null,
+        factCheckComparison: data.factCheckComparison || null,
+        debateTrigger: data.debateTrigger || false,
         timestamp: new Date().toISOString(),
       };
       
@@ -175,7 +180,7 @@ export default function ChatV2Page() {
                   <div>
                     <div className="font-medium text-[#e7e7e7]">Modellsyntes & Konsensus</div>
                     <div className="text-sm text-[#666]">
-                      {latestAiMessage.modelSynthesis.agreementPercentage || '87'}% överensstämmelse mellan modeller
+                      {latestAiMessage.modelSynthesis.consensus?.overallConsensus || '87'}% överensstämmelse mellan modeller
                     </div>
                   </div>
                 </div>
@@ -184,32 +189,74 @@ export default function ChatV2Page() {
               
               {synthesisExpanded && (
                 <div className="border-t border-[#2a2a2a] p-6 space-y-4">
-                  {/* Consensus Points */}
-                  <div>
-                    <div className="text-sm text-[#666] mb-2">Konsensu spunkter:</div>
-                    <div className="space-y-2">
-                      {(latestAiMessage.modelSynthesis.consensusPoints || [
-                        'Elektrifiering av transportsektorn',
-                        'Förnybar energi som huvudfokus',
-                        'Energieffektivisering i byggnader'
-                      ]).map((point, idx) => (
-                        <div key={idx} className="flex items-start gap-2">
-                          <span className="text-green-500">✓</span>
-                          <span className="text-[#888]">{point}</span>
-                        </div>
-                      ))}
+                  {/* Consensus Areas */}
+                  {latestAiMessage.modelSynthesis.consensus?.areas && (
+                    <div>
+                      <div className="text-sm text-[#666] mb-2">Konsensuområden:</div>
+                      <div className="space-y-2">
+                        {latestAiMessage.modelSynthesis.consensus.areas.map((area, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-sm">
+                            <span className="text-[#888]">{area.area}: {area.dominant}</span>
+                            <span className="text-[#666]">{area.consensus}%</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
+                  
+                  {/* Common Topics (Consensus Points) */}
+                  {latestAiMessage.modelSynthesis.insights?.commonTopics && latestAiMessage.modelSynthesis.insights.commonTopics.length > 0 && (
+                    <div>
+                      <div className="text-sm text-[#666] mb-2">Gemensamma ämnen:</div>
+                      <div className="space-y-2">
+                        {latestAiMessage.modelSynthesis.insights.commonTopics.slice(0, 5).map((topic, idx) => (
+                          <div key={idx} className="flex items-start gap-2">
+                            <span className="text-green-500">✓</span>
+                            <span className="text-[#888]">{topic.topic || topic}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   
                   {/* Divergence Points */}
-                  {latestAiMessage.modelSynthesis.divergencePoints && (
+                  {latestAiMessage.modelSynthesis.divergences?.divergences && latestAiMessage.modelSynthesis.divergences.divergences.length > 0 && (
                     <div>
                       <div className="text-sm text-[#666] mb-2">Divergenspunkter:</div>
                       <div className="space-y-2">
-                        {latestAiMessage.modelSynthesis.divergencePoints.map((point, idx) => (
+                        {latestAiMessage.modelSynthesis.divergences.divergences.map((div, idx) => (
                           <div key={idx} className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-3">
-                            <div className="text-[#e7e7e7] mb-1">{point.topic}</div>
-                            <div className="text-sm text-[#666]">{point.perspectives.join(', ')}</div>
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="text-[#e7e7e7]">{div.type}</div>
+                              <span className={`text-xs px-2 py-0.5 rounded ${
+                                div.severity === 'high' ? 'bg-red-900/20 text-red-400' :
+                                div.severity === 'medium' ? 'bg-yellow-900/20 text-yellow-400' :
+                                'bg-blue-900/20 text-blue-400'
+                              }`}>
+                                {div.severity}
+                              </span>
+                            </div>
+                            <div className="text-sm text-[#666]">{div.description}</div>
+                            {div.models && (
+                              <div className="mt-2 text-xs text-[#555]">
+                                {div.models.map(m => `${m.agent}: ${m.value}`).join(' • ')}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Contradictions */}
+                  {latestAiMessage.modelSynthesis.contradictions?.contradictions && latestAiMessage.modelSynthesis.contradictions.contradictions.length > 0 && (
+                    <div>
+                      <div className="text-sm text-[#666] mb-2">Motsägelser:</div>
+                      <div className="space-y-2">
+                        {latestAiMessage.modelSynthesis.contradictions.contradictions.map((contra, idx) => (
+                          <div key={idx} className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-3">
+                            <div className="text-[#e7e7e7] mb-1">{contra.topic}</div>
+                            <div className="text-sm text-[#666]">{contra.description}</div>
                           </div>
                         ))}
                       </div>
@@ -229,10 +276,10 @@ export default function ChatV2Page() {
               {latestAiMessage.responses.map((response, idx) => (
                 <div key={idx} className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-4 hover:border-[#3a3a3a] transition-colors">
                   <div className="flex items-center justify-between mb-3">
-                    <div className="font-medium text-[#e7e7e7]">{response.model || `Modell ${idx + 1}`}</div>
+                    <div className="font-medium text-[#e7e7e7]">{response.agent || `Modell ${idx + 1}`}</div>
                     <button
                       onClick={() => {
-                        setSelectedModel(response.model);
+                        setSelectedModel(response.agent);
                         setViewMode('pipeline');
                       }}
                       className="text-sm text-[#666] hover:text-[#e7e7e7] transition-colors"
@@ -247,36 +294,36 @@ export default function ChatV2Page() {
                       <div className="text-[#666] mb-1">Bias</div>
                       <div className="flex items-center gap-2">
                         <div className="flex-1 bg-[#1a1a1a] h-1 rounded-full overflow-hidden">
-                          <div className="bg-[#888] h-full" style={{width: `${(response.biasDetection?.overall_bias_score || 0.15) * 100}%`}}></div>
+                          <div className="bg-[#888] h-full" style={{width: `${(response.analysis?.bias?.biasScore || 1.5) * 10}%`}}></div>
                         </div>
-                        <span className="text-[#888]">{((response.biasDetection?.overall_bias_score || 0.15) * 10).toFixed(1)}/10</span>
+                        <span className="text-[#888]">{(response.analysis?.bias?.biasScore || 1.5).toFixed(1)}/10</span>
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666] mb-1">Tillit</div>
                       <div className="flex items-center gap-2">
                         <div className="flex-1 bg-[#1a1a1a] h-1 rounded-full overflow-hidden">
-                          <div className="bg-[#888] h-full" style={{width: '${(response.confidence || 0.88) * 100}%'}}></div>
+                          <div className="bg-[#888] h-full" style={{width: `${(response.analysis?.tone?.confidence || 0.88) * 100}%`}}></div>
                         </div>
-                        <span className="text-[#888]">{((response.confidence || 0.88) * 100).toFixed(0)}%</span>
+                        <span className="text-[#888]">{((response.analysis?.tone?.confidence || 0.88) * 100).toFixed(0)}%</span>
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666] mb-1">Faktahalt</div>
                       <div className="flex items-center gap-2">
                         <div className="flex-1 bg-[#1a1a1a] h-1 rounded-full overflow-hidden">
-                          <div className="bg-[#888] h-full" style={{width: '${(response.factuality || 0.94) * 100}%'}}></div>
+                          <div className="bg-[#888] h-full" style={{width: `${response.enhancedAnalysis?.factOpinion?.summary?.factPercentage || 94}%`}}></div>
                         </div>
-                        <span className="text-[#888]">{((response.factuality || 0.94) * 100).toFixed(0)}%</span>
+                        <span className="text-[#888]">{(response.enhancedAnalysis?.factOpinion?.summary?.factPercentage || 94).toFixed(0)}%</span>
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666] mb-1">Objektivitet</div>
                       <div className="flex items-center gap-2">
                         <div className="flex-1 bg-[#1a1a1a] h-1 rounded-full overflow-hidden">
-                          <div className="bg-[#888] h-full" style={{width: '${(response.objectivity || 0.87) * 100}%'}}></div>
+                          <div className="bg-[#888] h-full" style={{width: `${100 - ((response.analysis?.bias?.biasScore || 1.5) * 10)}%`}}></div>
                         </div>
-                        <span className="text-[#888]">{((response.objectivity || 0.87) * 100).toFixed(0)}%</span>
+                        <span className="text-[#888]">{(100 - ((response.analysis?.bias?.biasScore || 1.5) * 10)).toFixed(0)}%</span>
                       </div>
                     </div>
                   </div>
@@ -302,10 +349,10 @@ export default function ChatV2Page() {
                 {/* Model Header */}
                 <div className="p-6 border-b border-[#2a2a2a]">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="font-medium text-[#e7e7e7] text-lg">{response.model || `Modell ${idx + 1}`}</div>
+                    <div className="font-medium text-[#e7e7e7] text-lg">{response.agent || `Modell ${idx + 1}`}</div>
                     <button
                       onClick={() => {
-                        setSelectedModel(response.model);
+                        setSelectedModel(response.agent);
                         setViewMode('pipeline');
                       }}
                       className="text-sm px-3 py-1 bg-[#2a2a2a] text-[#e7e7e7] rounded hover:bg-[#3a3a3a] transition-colors"
@@ -319,30 +366,30 @@ export default function ChatV2Page() {
                     <div>
                       <div className="text-[#666] mb-2">Bias</div>
                       <div className="h-2 bg-[#1a1a1a] rounded-full overflow-hidden mb-1">
-                        <div className="bg-[#888] h-full" style={{width: `${(response.biasDetection?.overall_bias_score || 0.15) * 100}%`}}></div>
+                        <div className="bg-[#888] h-full" style={{width: `${(response.analysis?.bias?.biasScore || 1.5) * 10}%`}}></div>
                       </div>
-                      <div className="text-[#888]">{((response.biasDetection?.overall_bias_score || 0.15) * 10).toFixed(1)}/10</div>
+                      <div className="text-[#888]">{(response.analysis?.bias?.biasScore || 1.5).toFixed(1)}/10</div>
                     </div>
                     <div>
                       <div className="text-[#666] mb-2">Tillit</div>
                       <div className="h-2 bg-[#1a1a1a] rounded-full overflow-hidden mb-1">
-                        <div className="bg-[#888] h-full" style={{width: `${(response.confidence || 0.88) * 100}%`}}></div>
+                        <div className="bg-[#888] h-full" style={{width: `${(response.analysis?.tone?.confidence || 0.88) * 100}%`}}></div>
                       </div>
-                      <div className="text-[#888]">{((response.confidence || 0.88) * 100).toFixed(0)}%</div>
+                      <div className="text-[#888]">{((response.analysis?.tone?.confidence || 0.88) * 100).toFixed(0)}%</div>
                     </div>
                     <div>
                       <div className="text-[#666] mb-2">Faktahalt</div>
                       <div className="h-2 bg-[#1a1a1a] rounded-full overflow-hidden mb-1">
-                        <div className="bg-[#888] h-full" style={{width: `${(response.factuality || 0.94) * 100}%`}}></div>
+                        <div className="bg-[#888] h-full" style={{width: `${response.enhancedAnalysis?.factOpinion?.summary?.factPercentage || 94}%`}}></div>
                       </div>
-                      <div className="text-[#888]">{((response.factuality || 0.94) * 100).toFixed(0)}%</div>
+                      <div className="text-[#888]">{(response.enhancedAnalysis?.factOpinion?.summary?.factPercentage || 94).toFixed(0)}%</div>
                     </div>
                     <div>
                       <div className="text-[#666] mb-2">Objektivitet</div>
                       <div className="h-2 bg-[#1a1a1a] rounded-full overflow-hidden mb-1">
-                        <div className="bg-[#888] h-full" style={{width: `${(response.objectivity || 0.87) * 100}%`}}></div>
+                        <div className="bg-[#888] h-full" style={{width: `${100 - ((response.analysis?.bias?.biasScore || 1.5) * 10)}%`}}></div>
                       </div>
-                      <div className="text-[#888]">{((response.objectivity || 0.87) * 100).toFixed(0)}%</div>
+                      <div className="text-[#888]">{(100 - ((response.analysis?.bias?.biasScore || 1.5) * 10)).toFixed(0)}%</div>
                     </div>
                   </div>
                 </div>
@@ -354,19 +401,46 @@ export default function ChatV2Page() {
                   </div>
                   
                   {/* Emotion/Tone/Intent */}
-                  {response.toneAnalysis && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                      <div className="bg-[#1a1a1a] rounded p-3">
-                        <div className="text-[#666] mb-1">Emotion</div>
-                        <div className="text-[#e7e7e7]">{response.toneAnalysis.emotion || 'Optimistisk'}</div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-6">
+                    <div className="bg-[#1a1a1a] rounded p-3">
+                      <div className="text-[#666] mb-1">Emotion</div>
+                      <div className="text-[#e7e7e7]">{response.enhancedAnalysis?.emotion?.primary || response.analysis?.tone?.primary || 'Neutral'}</div>
+                    </div>
+                    <div className="bg-[#1a1a1a] rounded p-3">
+                      <div className="text-[#666] mb-1">Ton</div>
+                      <div className="text-[#e7e7e7]">{response.analysis?.tone?.description || response.analysis?.tone?.primary || 'Informativ'}</div>
+                    </div>
+                    <div className="bg-[#1a1a1a] rounded p-3">
+                      <div className="text-[#666] mb-1">Syfte</div>
+                      <div className="text-[#e7e7e7]">{response.enhancedAnalysis?.intent?.primary || 'Förklara'}</div>
+                    </div>
+                  </div>
+                  
+                  {/* Main Points */}
+                  {response.enhancedAnalysis?.argumentation?.huvudpunkter && response.enhancedAnalysis.argumentation.huvudpunkter.length > 0 && (
+                    <div className="mb-6">
+                      <div className="text-[#666] mb-2">Huvudpunkter:</div>
+                      <div className="space-y-2">
+                        {response.enhancedAnalysis.argumentation.huvudpunkter.map((point, pidx) => (
+                          <div key={pidx} className="flex items-start gap-2">
+                            <span className="text-[#666] mt-0.5">{pidx + 1}.</span>
+                            <span className="text-[#888]">{point}</span>
+                          </div>
+                        ))}
                       </div>
-                      <div className="bg-[#1a1a1a] rounded p-3">
-                        <div className="text-[#666] mb-1">Ton</div>
-                        <div className="text-[#e7e7e7]">{response.toneAnalysis.tone || 'Informativ'}</div>
-                      </div>
-                      <div className="bg-[#1a1a1a] rounded p-3">
-                        <div className="text-[#666] mb-1">Syfte</div>
-                        <div className="text-[#e7e7e7]">{response.toneAnalysis.intent || 'Förklara'}</div>
+                    </div>
+                  )}
+                  
+                  {/* Identified Entities */}
+                  {response.enhancedAnalysis?.entities?.entities && response.enhancedAnalysis.entities.entities.length > 0 && (
+                    <div>
+                      <div className="text-[#666] mb-2">Identifierade entiteter:</div>
+                      <div className="flex flex-wrap gap-2">
+                        {response.enhancedAnalysis.entities.entities.slice(0, 8).map((entity, eidx) => (
+                          <span key={eidx} className="px-2 py-1 bg-[#1a1a1a] text-[#888] text-sm rounded">
+                            {entity.text} ({entity.label})
+                          </span>
+                        ))}
                       </div>
                     </div>
                   )}
