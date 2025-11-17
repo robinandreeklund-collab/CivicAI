@@ -79,6 +79,11 @@ export default function ChatV2Page() {
       setMessages(prev => [...prev, aiMessage]);
       setViewMode('overview'); // Reset to overview on new response
       
+      // Initialize selectedModel with first response's agent name
+      if (aiMessage.responses && aiMessage.responses.length > 0) {
+        setSelectedModel(aiMessage.responses[0].agent);
+      }
+      
     } catch (err) {
       console.error('Error fetching AI responses:', err);
       const errorMessage = {
@@ -98,9 +103,9 @@ export default function ChatV2Page() {
     if (latestAiMessage && latestAiMessage.responses) {
       const models = latestAiMessage.responses;
       const simulatedDebate = [
-        { model: models[0]?.model || 'GPT-3.5', text: 'Baserat på min analys ser jag tre huvudsakliga klimatåtgärder...', timestamp: new Date().toISOString() },
-        { model: models[1]?.model || 'Gemini', text: 'Jag håller med, men skulle även lägga till att...', timestamp: new Date(Date.now() + 2000).toISOString() },
-        { model: models[2]?.model || 'DeepSeek', text: 'Intressant perspektiv. Från ett tekniskt perspektiv...', timestamp: new Date(Date.now() + 4000).toISOString() },
+        { model: models[0]?.agent || 'GPT-3.5', text: 'Baserat på min analys ser jag tre huvudsakliga klimatåtgärder...', timestamp: new Date().toISOString() },
+        { model: models[1]?.agent || 'Gemini', text: 'Jag håller med, men skulle även lägga till att...', timestamp: new Date(Date.now() + 2000).toISOString() },
+        { model: models[2]?.agent || 'DeepSeek', text: 'Intressant perspektiv. Från ett tekniskt perspektiv...', timestamp: new Date(Date.now() + 4000).toISOString() },
       ];
       setDebateMessages(simulatedDebate);
     }
@@ -469,7 +474,7 @@ export default function ChatV2Page() {
 
   // Pipeline mode: Complete processing steps
   const renderPipeline = () => {
-    const selectedResponse = latestAiMessage.responses?.find(r => r.model === selectedModel) || latestAiMessage.responses?.[0];
+    const selectedResponse = latestAiMessage.responses?.find(r => r.agent === selectedModel) || latestAiMessage.responses?.[0];
     
     return (
       <div className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24">
@@ -481,14 +486,14 @@ export default function ChatV2Page() {
               {latestAiMessage.responses && latestAiMessage.responses.map((response, idx) => (
                 <button
                   key={idx}
-                  onClick={() => setSelectedModel(response.model)}
+                  onClick={() => setSelectedModel(response.agent)}
                   className={`px-4 py-2 rounded transition-colors ${
-                    selectedModel === response.model
+                    selectedModel === response.agent
                       ? 'bg-[#e7e7e7] text-[#0a0a0a]'
                       : 'bg-[#151515] border border-[#2a2a2a] text-[#888] hover:border-[#3a3a3a]'
                   }`}
                 >
-                  {response.model}
+                  {response.agent}
                 </button>
               ))}
             </div>
