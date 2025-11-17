@@ -65,8 +65,34 @@ This script will:
 2. Install all required packages (spaCy, Detoxify, Gensim, etc.)
 3. Download spaCy language models (Swedish and/or English)
 4. Download TextBlob corpora
+5. Check for Windows Long Path support
 
-**Note for Windows users:** BERTopic may fail to install due to compilation requirements (hdbscan, umap-learn). This is normal - the system will automatically use Gensim LDA for topic modeling instead.
+**Important Windows Notes:**
+
+1. **BERTopic:** May fail to install due to compilation requirements (hdbscan, umap-learn). This is normal - the system will automatically use Gensim LDA for topic modeling instead.
+
+2. **Lux/Sweetviz (Long Path Issue):** These packages require Windows Long Path support enabled. If you encounter an error like:
+   ```
+   ERROR: Could not install packages due to an OSError: [Errno 2] No such file or directory
+   HINT: This error might have occurred since this system does not have Windows Long Path support enabled.
+   ```
+   
+   **Solution A (Recommended):** Enable Windows Long Paths
+   - Run PowerShell as Administrator
+   - Execute:
+     ```powershell
+     New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
+       -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+     ```
+   - Restart your computer
+   - Re-run `.\setup_windows.ps1`
+   
+   **Solution B:** Skip optional EDA packages
+   - Edit `requirements.txt` and comment out `lux-api` and `sweetviz`
+   - Set environment variables: `$env:ENABLE_LUX="false"` and `$env:ENABLE_SWEETVIZ="false"`
+   - Core functionality (SHAP, LIME, Fairlearn) will still work
+   
+   See `TROUBLESHOOTING.md` for detailed instructions.
 
 **Alternative manual installation (Linux/macOS):**
 

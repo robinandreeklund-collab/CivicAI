@@ -23,12 +23,33 @@ lime==0.2.0.1
 # Fairness
 fairlearn==0.10.0
 
-# EDA and Visualization
-lux-api==0.5.0
-sweetviz==2.3.1
-
 # Topic Modeling (Gensim LDA - Windows-compatible, no compilation required)
 gensim==4.3.2
+
+# ========================================
+# EDA AND VISUALIZATION (OPTIONAL - Windows Long Path Issue)
+# ========================================
+# 
+# NOTE FOR WINDOWS USERS:
+# lux-api and sweetviz require Jupyter dependencies with very long file paths
+# that may exceed Windows' 260-character path limit.
+#
+# SOLUTION 1 (Recommended): Enable Windows Long Path Support
+# Run PowerShell as Administrator and execute:
+#   New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
+#     -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+# Then restart your computer.
+#
+# SOLUTION 2: Skip these packages (they are optional)
+# Comment out the lines below if you cannot enable long paths.
+# The system will work without EDA visualization features.
+#
+# lux-api==0.5.0
+# sweetviz==2.3.1
+#
+# After enabling long paths OR if on Linux/macOS, uncomment to install:
+lux-api==0.5.0
+sweetviz==2.3.1
 
 # Utilities (updated to resolve dependency conflicts)
 numpy>=1.25.0,<2.0.0
