@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
 import FooterDemo4 from '../components/footers/FooterDemo4';
 
 /**
@@ -138,6 +139,11 @@ export default function SignupPage() {
     setPowComplete(false);
 
     try {
+      // Ensure we have a public key
+      if (!accountData.publicKey) {
+        throw new Error('Ingen publikt nyckel tillgänglig');
+      }
+
       const challenge = accountData.publicKey + Date.now();
       const difficulty = 4; // Number of leading zeros required in hash
       let nonce = 0;
@@ -185,7 +191,8 @@ export default function SignupPage() {
     } catch (error) {
       console.error('Proof-of-Work error:', error);
       setIsPerformingPow(false);
-      alert('Fel vid proof-of-work beräkning.');
+      setPowProgress(0);
+      alert(`Fel vid proof-of-work beräkning: ${error.message}\n\nKontrollera att din browser stödjer Web Crypto API och att du har gått igenom alla tidigare steg.`);
     }
   };
 
@@ -438,10 +445,14 @@ export default function SignupPage() {
                     <h3 className="text-xl font-light text-[#e7e7e7] mb-3">QR-kod</h3>
                     <p className="text-sm mb-4">Alternativt kan du spara denna QR-kod för återställning.</p>
                     <div className="bg-white p-4 rounded inline-block">
-                      <div className="w-32 h-32 bg-[#0a0a0a] flex items-center justify-center text-white text-xs text-center">
-                        QR Code<br/>Placeholder<br/>{accountData.qrCode.substring(0, 15)}...
-                      </div>
+                      <QRCodeSVG 
+                        value={accountData.seedPhrase}
+                        size={128}
+                        level="H"
+                        includeMargin={false}
+                      />
                     </div>
+                    <p className="text-xs text-[#666] mt-2">Scanna denna kod med en kompatibel wallet-app</p>
                   </div>
 
                   <div className="flex gap-3">
