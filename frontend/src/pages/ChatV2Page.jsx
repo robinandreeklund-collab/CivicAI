@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import ConsensusDebateCard from '../components/ConsensusDebateCard';
+import NLPProcessingLoader from '../components/NLPProcessingLoader';
 
 /**
  * ChatV2Page Component - Concept 31 Design
@@ -180,6 +181,15 @@ export default function ChatV2Page() {
 
   // Render different views based on viewMode
   const renderContent = () => {
+    // Show loader when loading
+    if (isLoading) {
+      return (
+        <div className="flex-1 flex items-center justify-center">
+          <NLPProcessingLoader />
+        </div>
+      );
+    }
+
     if (!latestAiMessage) {
       return (
         <div className="flex-1 flex items-center justify-center">
@@ -714,6 +724,14 @@ export default function ChatV2Page() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] flex flex-col">
+      {/* CSS for spinner animation */}
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
+      
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-40 bg-[#0a0a0a] border-b border-[#151515]">
         <div className="h-16 px-4 md:px-8 flex items-center justify-between">
