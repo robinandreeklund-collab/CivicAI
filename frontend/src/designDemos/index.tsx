@@ -14,11 +14,16 @@ import ChatViewConcept12 from './ChatViewConcept12';
 import ChatViewConcept13 from './ChatViewConcept13';
 import ChatViewConcept14 from './ChatViewConcept14';
 import ChatViewConcept15 from './ChatViewConcept15';
-import ChatViewConcept16 from './ChatViewConcept16';
-import ChatViewConcept17 from './ChatViewConcept17';
-import ChatViewConcept18 from './ChatViewConcept18';
-import ChatViewConcept19 from './ChatViewConcept19';
-import ChatViewConcept20 from './ChatViewConcept20';
+import ChatViewConcept21 from './ChatViewConcept21';
+import ChatViewConcept22 from './ChatViewConcept22';
+import ChatViewConcept23 from './ChatViewConcept23';
+import ChatViewConcept24 from './ChatViewConcept24';
+import ChatViewConcept25 from './ChatViewConcept25';
+import ChatViewConcept26 from './ChatViewConcept26';
+import ChatViewConcept27 from './ChatViewConcept27';
+import ChatViewConcept28 from './ChatViewConcept28';
+import ChatViewConcept29 from './ChatViewConcept29';
+import ChatViewConcept30 from './ChatViewConcept30';
 
 /**
  * DemoIndex - Navigation component for all chat view design concepts
@@ -118,34 +123,64 @@ const concepts = [
     component: ChatViewConcept15,
   },
   {
-    id: 16,
-    title: 'Split View with Synthesis Data',
-    description: 'Dual-panel comparison, rich insights, smooth scrolling',
-    component: ChatViewConcept16,
+    id: 21,
+    title: 'Premium Minimalist Command Center',
+    description: 'Ultra-clean interface with floating synthesis card',
+    component: ChatViewConcept21,
   },
   {
-    id: 17,
-    title: 'Carousel Model Perspectives',
-    description: 'Swipeable cards, animated transitions, full viewport',
-    component: ChatViewConcept17,
+    id: 22,
+    title: 'Elegant Stacked Cards with Side Navigation',
+    description: 'Card-based interface with vertical tab navigation',
+    component: ChatViewConcept22,
   },
   {
-    id: 18,
-    title: 'Matrix Grid with Hover Effects',
-    description: 'Interactive grid, detailed tooltips, visual hierarchy',
-    component: ChatViewConcept18,
+    id: 23,
+    title: 'Mobile-First Slide-Up Panel',
+    description: 'Bottom drawer with swipe-up navigation',
+    component: ChatViewConcept23,
   },
   {
-    id: 19,
-    title: 'Vertical Scroll with Sticky Insights',
-    description: 'Progressive disclosure, sticky panels, rich data',
-    component: ChatViewConcept19,
+    id: 24,
+    title: 'Horizontal Timeline Flow',
+    description: 'Horizontal scrolling timeline with card progression',
+    component: ChatViewConcept24,
   },
   {
-    id: 20,
-    title: 'Immersive Full-Screen Experience',
-    description: 'Ambient effects, full data, cinematic presentation',
-    component: ChatViewConcept20,
+    id: 25,
+    title: 'Grid Dashboard with Command Palette',
+    description: 'Modular grid layout with quick actions (⌘K)',
+    component: ChatViewConcept25,
+  },
+  {
+    id: 26,
+    title: 'Full-Width Immersive Experience',
+    description: 'Full viewport usage with edge-to-edge content',
+    component: ChatViewConcept26,
+  },
+  {
+    id: 27,
+    title: 'Split Panel Comparison View',
+    description: 'Side-by-side model comparison',
+    component: ChatViewConcept27,
+  },
+  {
+    id: 28,
+    title: 'Compact Mobile-First Design',
+    description: 'Optimized for mobile with touch gestures',
+    component: ChatViewConcept28,
+  },
+  {
+    id: 29,
+    title: 'Layered Cards with Depth',
+    description: 'Stacked cards with shadow depth',
+    component: ChatViewConcept29,
+  },
+  {
+    id: 30,
+    title: 'Minimal Zen Interface',
+    description: 'Ultra-minimal, distraction-free design',
+    component: ChatViewConcept30,
   },
 ];
 
@@ -223,7 +258,7 @@ export default function DemoIndex() {
             OneSeek.AI Design Concepts
           </h1>
           <p className="text-[#888] text-lg">
-            20 innovativa chattgränssnitt med integrerad meny och insyn
+            25 innovativa chattgränssnitt med integrerad meny och insyn
           </p>
         </div>
 
