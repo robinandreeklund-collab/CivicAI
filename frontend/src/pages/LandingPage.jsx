@@ -48,8 +48,8 @@ export default function LandingPage() {
 
   const handleAnalyze = () => {
     if (question.trim()) {
-      // Navigate to chat interface with the question
-      navigate('/chat', { state: { initialQuestion: question } });
+      // Navigate to ChatV2 interface with the question
+      navigate('/chat-v2', { state: { initialQuestion: question } });
     }
   };
 

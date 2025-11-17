@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import ConsensusDebateCard from '../components/ConsensusDebateCard';
 
 /**
  * ChatV2Page Component - Concept 31 Design
@@ -10,6 +12,7 @@ import { useState, useRef, useEffect } from 'react';
  * - OneSeek.AI grayscale brand identity
  */
 export default function ChatV2Page() {
+  const location = useLocation();
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -17,12 +20,91 @@ export default function ChatV2Page() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [synthesisExpanded, setSynthesisExpanded] = useState(false);
   const [selectedModel, setSelectedModel] = useState('gpt-3.5');
-  const [debateActive, setDebateActive] = useState(false);
-  const [debateMessages, setDebateMessages] = useState([]);
   const chatEndRef = useRef(null);
 
   // Get latest AI message for display
   const latestAiMessage = messages.filter(m => m.type === 'ai').slice(-1)[0];
+
+  // Handle initial question from LandingPage navigation
+  useEffect(() => {
+    if (location.state?.initialQuestion) {
+      setQuestion(location.state.initialQuestion);
+      // Auto-submit the question
+      const submitInitialQuestion = async () => {
+        const userQuestion = location.state.initialQuestion.trim();
+        
+        // Add user message
+        const userMessage = {
+          type: 'user',
+          content: userQuestion,
+          timestamp: new Date().toISOString(),
+        };
+        
+        setMessages([userMessage]);
+        setIsLoading(true);
+
+        try {
+          // Call real backend API
+          const response = await fetch('/api/query', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              question: userQuestion,
+              services: ['gpt-3.5', 'gemini', 'deepseek'] // Default services
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          
+          // Add AI response - map API response to our structure
+          const aiMessage = {
+            type: 'ai',
+            question: userQuestion,
+            responses: data.responses || [],
+            // BERT summary is returned as 'synthesizedSummary' from API
+            bertSummary: data.synthesizedSummary || null,
+            bertMetadata: data.synthesizedSummaryMetadata || null,
+            // Model synthesis contains consensus/divergence analysis
+            modelSynthesis: data.modelSynthesis || null,
+            metaReview: data.metaReview || null,
+            factCheckComparison: data.factCheckComparison || null,
+            debateTrigger: data.debateTrigger || false,
+            timestamp: new Date().toISOString(),
+          };
+          
+          setMessages([userMessage, aiMessage]);
+          setViewMode('overview');
+          
+          // Initialize selectedModel with first response's agent name
+          if (aiMessage.responses && aiMessage.responses.length > 0) {
+            setSelectedModel(aiMessage.responses[0].agent);
+          }
+          
+        } catch (err) {
+          console.error('Error fetching AI responses:', err);
+          const errorMessage = {
+            type: 'error',
+            content: err.message || 'Ett fel uppstod vid hämtning av svar.',
+            timestamp: new Date().toISOString(),
+          };
+          setMessages(prev => [...prev, errorMessage]);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      submitInitialQuestion();
+      
+      // Clear the location state to prevent re-submission on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -97,24 +179,6 @@ export default function ChatV2Page() {
     }
   };
 
-  // Simulate debate
-  const startDebate = () => {
-    setDebateActive(true);
-    if (latestAiMessage && latestAiMessage.responses) {
-      const models = latestAiMessage.responses;
-      const simulatedDebate = [
-        { model: models[0]?.agent || 'GPT-3.5', text: 'Baserat på min analys ser jag tre huvudsakliga klimatåtgärder...', timestamp: new Date().toISOString() },
-        { model: models[1]?.agent || 'Gemini', text: 'Jag håller med, men skulle även lägga till att...', timestamp: new Date(Date.now() + 2000).toISOString() },
-        { model: models[2]?.agent || 'DeepSeek', text: 'Intressant perspektiv. Från ett tekniskt perspektiv...', timestamp: new Date(Date.now() + 4000).toISOString() },
-      ];
-      setDebateMessages(simulatedDebate);
-    }
-  };
-
-  const pauseDebate = () => {
-    setDebateActive(false);
-  };
-
   // Render different views based on viewMode
   const renderContent = () => {
     if (!latestAiMessage) {
@@ -185,7 +249,7 @@ export default function ChatV2Page() {
                   <div>
                     <div className="font-medium text-[#e7e7e7]">Modellsyntes & Konsensus</div>
                     <div className="text-sm text-[#666]">
-                      {latestAiMessage.modelSynthesis.consensus?.overallConsensus || '87'}% överensstämmelse mellan modeller
+                      {latestAiMessage.modelSynthesis.consensus?.overallConsensus}% överensstämmelse mellan modeller
                     </div>
                   </div>
                 </div>
@@ -299,36 +363,36 @@ export default function ChatV2Page() {
                       <div className="text-[#666] mb-1">Bias</div>
                       <div className="flex items-center gap-2">
                         <div className="flex-1 bg-[#1a1a1a] h-1 rounded-full overflow-hidden">
-                          <div className="bg-[#888] h-full" style={{width: `${(response.analysis?.bias?.biasScore || 1.5) * 10}%`}}></div>
+                          <div className="bg-[#888] h-full" style={{width: `${(response.analysis?.bias?.biasScore ?? 0) * 10}%`}}></div>
                         </div>
-                        <span className="text-[#888]">{(response.analysis?.bias?.biasScore || 1.5).toFixed(1)}/10</span>
+                        <span className="text-[#888]">{(response.analysis?.bias?.biasScore ?? 0).toFixed(1)}/10</span>
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666] mb-1">Tillit</div>
                       <div className="flex items-center gap-2">
                         <div className="flex-1 bg-[#1a1a1a] h-1 rounded-full overflow-hidden">
-                          <div className="bg-[#888] h-full" style={{width: `${(response.analysis?.tone?.confidence || 0.88) * 100}%`}}></div>
+                          <div className="bg-[#888] h-full" style={{width: `${(response.analysis?.tone?.confidence ?? 0) * 100}%`}}></div>
                         </div>
-                        <span className="text-[#888]">{((response.analysis?.tone?.confidence || 0.88) * 100).toFixed(0)}%</span>
+                        <span className="text-[#888]">{((response.analysis?.tone?.confidence ?? 0) * 100).toFixed(0)}%</span>
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666] mb-1">Faktahalt</div>
                       <div className="flex items-center gap-2">
                         <div className="flex-1 bg-[#1a1a1a] h-1 rounded-full overflow-hidden">
-                          <div className="bg-[#888] h-full" style={{width: `${response.enhancedAnalysis?.factOpinion?.summary?.factPercentage || 94}%`}}></div>
+                          <div className="bg-[#888] h-full" style={{width: `${response.enhancedAnalysis?.factOpinion?.summary?.factPercentage ?? 0}%`}}></div>
                         </div>
-                        <span className="text-[#888]">{(response.enhancedAnalysis?.factOpinion?.summary?.factPercentage || 94).toFixed(0)}%</span>
+                        <span className="text-[#888]">{(response.enhancedAnalysis?.factOpinion?.summary?.factPercentage ?? 0).toFixed(0)}%</span>
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666] mb-1">Objektivitet</div>
                       <div className="flex items-center gap-2">
                         <div className="flex-1 bg-[#1a1a1a] h-1 rounded-full overflow-hidden">
-                          <div className="bg-[#888] h-full" style={{width: `${100 - ((response.analysis?.bias?.biasScore || 1.5) * 10)}%`}}></div>
+                          <div className="bg-[#888] h-full" style={{width: `${100 - ((response.analysis?.bias?.biasScore ?? 0) * 10)}%`}}></div>
                         </div>
-                        <span className="text-[#888]">{(100 - ((response.analysis?.bias?.biasScore || 1.5) * 10)).toFixed(0)}%</span>
+                        <span className="text-[#888]">{(100 - ((response.analysis?.bias?.biasScore ?? 0) * 10)).toFixed(0)}%</span>
                       </div>
                     </div>
                   </div>
@@ -371,30 +435,30 @@ export default function ChatV2Page() {
                     <div>
                       <div className="text-[#666] mb-2">Bias</div>
                       <div className="h-2 bg-[#1a1a1a] rounded-full overflow-hidden mb-1">
-                        <div className="bg-[#888] h-full" style={{width: `${(response.analysis?.bias?.biasScore || 1.5) * 10}%`}}></div>
+                        <div className="bg-[#888] h-full" style={{width: `${(response.analysis?.bias?.biasScore ?? 0) * 10}%`}}></div>
                       </div>
-                      <div className="text-[#888]">{(response.analysis?.bias?.biasScore || 1.5).toFixed(1)}/10</div>
+                      <div className="text-[#888]">{(response.analysis?.bias?.biasScore ?? 0).toFixed(1)}/10</div>
                     </div>
                     <div>
                       <div className="text-[#666] mb-2">Tillit</div>
                       <div className="h-2 bg-[#1a1a1a] rounded-full overflow-hidden mb-1">
-                        <div className="bg-[#888] h-full" style={{width: `${(response.analysis?.tone?.confidence || 0.88) * 100}%`}}></div>
+                        <div className="bg-[#888] h-full" style={{width: `${(response.analysis?.tone?.confidence ?? 0) * 100}%`}}></div>
                       </div>
-                      <div className="text-[#888]">{((response.analysis?.tone?.confidence || 0.88) * 100).toFixed(0)}%</div>
+                      <div className="text-[#888]">{((response.analysis?.tone?.confidence ?? 0) * 100).toFixed(0)}%</div>
                     </div>
                     <div>
                       <div className="text-[#666] mb-2">Faktahalt</div>
                       <div className="h-2 bg-[#1a1a1a] rounded-full overflow-hidden mb-1">
-                        <div className="bg-[#888] h-full" style={{width: `${response.enhancedAnalysis?.factOpinion?.summary?.factPercentage || 94}%`}}></div>
+                        <div className="bg-[#888] h-full" style={{width: `${response.enhancedAnalysis?.factOpinion?.summary?.factPercentage ?? 0}%`}}></div>
                       </div>
-                      <div className="text-[#888]">{(response.enhancedAnalysis?.factOpinion?.summary?.factPercentage || 94).toFixed(0)}%</div>
+                      <div className="text-[#888]">{(response.enhancedAnalysis?.factOpinion?.summary?.factPercentage ?? 0).toFixed(0)}%</div>
                     </div>
                     <div>
                       <div className="text-[#666] mb-2">Objektivitet</div>
                       <div className="h-2 bg-[#1a1a1a] rounded-full overflow-hidden mb-1">
-                        <div className="bg-[#888] h-full" style={{width: `${100 - ((response.analysis?.bias?.biasScore || 1.5) * 10)}%`}}></div>
+                        <div className="bg-[#888] h-full" style={{width: `${100 - ((response.analysis?.bias?.biasScore ?? 0) * 10)}%`}}></div>
                       </div>
-                      <div className="text-[#888]">{(100 - ((response.analysis?.bias?.biasScore || 1.5) * 10)).toFixed(0)}%</div>
+                      <div className="text-[#888]">{(100 - ((response.analysis?.bias?.biasScore ?? 0) * 10)).toFixed(0)}%</div>
                     </div>
                   </div>
                 </div>
@@ -409,15 +473,19 @@ export default function ChatV2Page() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-6">
                     <div className="bg-[#1a1a1a] rounded p-3">
                       <div className="text-[#666] mb-1">Emotion</div>
-                      <div className="text-[#e7e7e7]">{response.enhancedAnalysis?.emotion?.primary || response.analysis?.tone?.primary || 'Neutral'}</div>
+                      <div className="text-[#e7e7e7]">
+                        {response.enhancedAnalysis?.emotion?.primary || response.analysis?.tone?.primary || 'N/A'}
+                      </div>
                     </div>
                     <div className="bg-[#1a1a1a] rounded p-3">
                       <div className="text-[#666] mb-1">Ton</div>
-                      <div className="text-[#e7e7e7]">{response.analysis?.tone?.description || response.analysis?.tone?.primary || 'Informativ'}</div>
+                      <div className="text-[#e7e7e7]">
+                        {response.analysis?.tone?.description || response.analysis?.tone?.primary || 'N/A'}
+                      </div>
                     </div>
                     <div className="bg-[#1a1a1a] rounded p-3">
                       <div className="text-[#666] mb-1">Syfte</div>
-                      <div className="text-[#e7e7e7]">{response.enhancedAnalysis?.intent?.primary || 'Förklara'}</div>
+                      <div className="text-[#e7e7e7]">{response.enhancedAnalysis?.intent?.primary || 'N/A'}</div>
                     </div>
                   </div>
                   
@@ -510,15 +578,19 @@ export default function ChatV2Page() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <div className="text-[#666]">Ord</div>
-                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.preprocessing.word_count || '247'}</div>
+                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.preprocessing.word_count ?? 'N/A'}</div>
                     </div>
                     <div>
                       <div className="text-[#666]">Meningar</div>
-                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.preprocessing.sentence_count || '12'}</div>
+                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.preprocessing.sentence_count ?? 'N/A'}</div>
                     </div>
                     <div>
                       <div className="text-[#666]">Subjektivitet</div>
-                      <div className="text-[#e7e7e7]">{(selectedResponse.pipelineAnalysis.preprocessing.subjectivity || 0.42).toFixed(2)}</div>
+                      <div className="text-[#e7e7e7]">
+                        {selectedResponse.pipelineAnalysis.preprocessing.subjectivity != null 
+                          ? selectedResponse.pipelineAnalysis.preprocessing.subjectivity.toFixed(2)
+                          : 'N/A'}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -531,15 +603,19 @@ export default function ChatV2Page() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <div className="text-[#666]">Övergripande</div>
-                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.sentimentAnalysis.overall || 'Positiv'}</div>
+                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.sentimentAnalysis.overall ?? 'N/A'}</div>
                     </div>
                     <div>
                       <div className="text-[#666]">Poäng</div>
-                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.sentimentAnalysis.score?.toFixed(2) || '0.73'}</div>
+                      <div className="text-[#e7e7e7]">
+                        {selectedResponse.pipelineAnalysis.sentimentAnalysis.score != null
+                          ? selectedResponse.pipelineAnalysis.sentimentAnalysis.score.toFixed(2)
+                          : 'N/A'}
+                      </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Intensitet</div>
-                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.sentimentAnalysis.intensity || 'Måttlig'}</div>
+                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.sentimentAnalysis.intensity ?? 'N/A'}</div>
                     </div>
                   </div>
                 </div>
@@ -552,15 +628,21 @@ export default function ChatV2Page() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <div className="text-[#666]">Primär</div>
-                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.ideologicalClassification.primary || 'Center'}</div>
+                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.ideologicalClassification.primary ?? 'N/A'}</div>
                     </div>
                     <div>
                       <div className="text-[#666]">Säkerhet</div>
-                      <div className="text-[#e7e7e7]">{((selectedResponse.pipelineAnalysis.ideologicalClassification.confidence || 0.81) * 100).toFixed(0)}%</div>
+                      <div className="text-[#e7e7e7]">
+                        {selectedResponse.pipelineAnalysis.ideologicalClassification.confidence != null
+                          ? `${(selectedResponse.pipelineAnalysis.ideologicalClassification.confidence * 100).toFixed(0)}%`
+                          : 'N/A'}
+                      </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Indikatorer</div>
-                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.ideologicalClassification.indicators?.length || '5'} st</div>
+                      <div className="text-[#e7e7e7]">
+                        {selectedResponse.pipelineAnalysis.ideologicalClassification.indicators?.length ?? 0} st
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -576,7 +658,9 @@ export default function ChatV2Page() {
                         <div className="w-2 h-2 bg-[#888] rounded-full"></div>
                         <div className="flex-1 text-sm">
                           <div className="text-[#e7e7e7]">{step.step || step.name}</div>
-                          <div className="text-[#666]">{step.model || 'JavaScript'} • {step.duration || '23'}ms</div>
+                          <div className="text-[#666]">
+                            {step.model ?? 'N/A'} • {step.duration != null ? `${step.duration}ms` : 'N/A'}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -595,57 +679,32 @@ export default function ChatV2Page() {
     );
   };
 
-  // Debate mode: Live consensus debate
+  // Debate mode: Live consensus debate using ConsensusDebateCard
   const renderDebate = () => {
+    // Generate a unique question ID from the message timestamp or use a simple hash
+    const questionId = latestAiMessage?.timestamp 
+      ? `q-${new Date(latestAiMessage.timestamp).getTime()}` 
+      : `q-${Date.now()}`;
+
     return (
       <div className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24">
         <div className="max-w-4xl mx-auto">
           <div className="text-[#666] text-sm uppercase tracking-wide mb-6">LIVE KONSENSUS-DEBATT</div>
           
-          {/* Controls */}
-          <div className="mb-6 flex gap-3">
-            <button
-              onClick={startDebate}
-              disabled={debateActive}
-              className="px-4 py-2 bg-[#e7e7e7] text-[#0a0a0a] rounded hover:bg-[#fff] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Starta debatt
-            </button>
-            <button
-              onClick={pauseDebate}
-              disabled={!debateActive}
-              className="px-4 py-2 bg-[#2a2a2a] text-[#e7e7e7] rounded hover:bg-[#3a3a3a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Pausa
-            </button>
-          </div>
-
-          {/* Debate Messages */}
-          <div className="space-y-4">
-            {debateMessages.map((msg, idx) => (
-              <div key={idx} className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-8 h-8 bg-[#2a2a2a] rounded-full flex items-center justify-center text-sm">
-                    {msg.model.charAt(0)}
-                  </div>
-                  <div>
-                    <div className="font-medium text-[#e7e7e7]">{msg.model}</div>
-                    <div className="text-xs text-[#666]">{new Date(msg.timestamp).toLocaleTimeString('sv-SE')}</div>
-                  </div>
-                </div>
-                <p className="text-[#888] leading-relaxed">{msg.text}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Consensus Summary */}
-          {debateMessages.length > 0 && (
-            <div className="mt-8 bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
-              <h3 className="font-medium text-[#e7e7e7] mb-3">Konsensussammanfattning</h3>
-              <p className="text-[#888] leading-relaxed">
-                Modellerna är överens om att klimatåtgärderna bör fokusera på elektrifiering,
-                förnybar energi och energieffektivisering. Vissa skillnader finns i prioriteringsordning
-                och implementeringsstrategi.
+          {latestAiMessage && latestAiMessage.modelSynthesis && latestAiMessage.responses ? (
+            <ConsensusDebateCard
+              questionId={questionId}
+              question={latestAiMessage.question}
+              modelSynthesis={latestAiMessage.modelSynthesis}
+              responses={latestAiMessage.responses}
+              onDebateComplete={(debate) => {
+                console.log('Debate completed:', debate);
+              }}
+            />
+          ) : (
+            <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
+              <p className="text-[#888] text-center">
+                Ingen modellsyntes tillgänglig för debatt. Ställ en fråga först.
               </p>
             </div>
           )}
