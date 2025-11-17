@@ -13,6 +13,7 @@ import PipelinePage from './pages/PipelinePage';
 import FeaturesPage from './pages/FeaturesPage';
 import LanguageModelPage from './pages/LanguageModelPage';
 import SignupPage from './pages/SignupPage';
+import DemoIndex from './designDemos';
 
 /**
  * Main OneSeek.AI Application
@@ -118,6 +119,7 @@ function AppContent() {
           <Route path="/features" element={<FeaturesPage />} />
           <Route path="/sprakmodell" element={<LanguageModelPage />} />
           <Route path="/skapa-konto" element={<SignupPage />} />
+          <Route path="/design-demos" element={<DemoIndex />} />
         </Routes>
       </div>
     </div>
