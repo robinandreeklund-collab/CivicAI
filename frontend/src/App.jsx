@@ -11,6 +11,7 @@ import ZeroTrackingPage from './pages/ZeroTrackingPage';
 import ContactPage from './pages/ContactPage';
 import PipelinePage from './pages/PipelinePage';
 import FeaturesPage from './pages/FeaturesPage';
+import LanguageModelPage from './pages/LanguageModelPage';
 
 /**
  * Main OneSeek.AI Application
@@ -114,6 +115,7 @@ function AppContent() {
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/pipeline" element={<PipelinePage />} />
           <Route path="/features" element={<FeaturesPage />} />
+          <Route path="/sprakmodell" element={<LanguageModelPage />} />
         </Routes>
       </div>
     </div>

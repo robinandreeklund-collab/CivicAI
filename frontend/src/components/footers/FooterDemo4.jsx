@@ -16,6 +16,7 @@ export default function FooterDemo4() {
     { text: 'Kontakta oss', to: '/contact' },
     { text: 'Pipeline', to: '/pipeline' },
     { text: 'Funktioner', to: '/features' },
+    { text: 'Språkmodell [OQT‑1.0]', to: '/sprakmodell' },
   ];
 
   return (
