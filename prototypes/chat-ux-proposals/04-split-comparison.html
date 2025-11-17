@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat UX Proposal 4: Split Comparison View</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+        }
+
+        /* Question at top */
+        .question-header {
+            text-align: center;
+            padding: 40px 20px;
+            border-bottom: 1px solid #1a1a1a;
+        }
+
+        .question-header h1 {
+            font-size: 24px;
+            font-weight: 300;
+            margin-bottom: 12px;
+        }
+
+        .question-meta {
+            font-size: 12px;
+            color: #666;
+        }
+
+        /* Split view */
+        .split-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            min-height: calc(100vh - 200px);
+        }
+
+        .split-panel {
+            padding: 60px;
+            overflow-y: auto;
+        }
+
+        .split-panel:first-child {
+            border-right: 1px solid #1a1a1a;
+        }
+
+        .panel-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-content {
+            font-size: 16px;
+            line-height: 1.8;
+            color: #c0c0c0;
+        }
+
+        .panel-stats {
+            margin-top: 40px;
+            padding-top: 24px;
+            border-top: 1px solid #1a1a1a;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            color: #e7e7e7;
+        }
+
+        /* Input fixed at bottom */
+        .input-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #0a0a0a;
+            border-top: 1px solid #1a1a1a;
+            padding: 20px;
+        }
+
+        .input-wrapper {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 12px 16px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .input-wrapper input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #e7e7e7;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .input-wrapper input::placeholder {
+            color: #666;
+        }
+
+        .input-wrapper button {
+            background: #e7e7e7;
+            color: #0a0a0a;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .input-wrapper button:hover {
+            background: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="question-header">
+        <h1>Hur kan AI förbättra demokratin?</h1>
+        <div class="question-meta">2 AI-modeller • Jämförelsevy</div>
+    </div>
+
+    <div class="split-container">
+        <div class="split-panel">
+            <div class="panel-label">
+                <span>🤖</span>
+                <span>GPT-3.5</span>
+            </div>
+            <div class="panel-content">
+                AI kan förbättra demokratin genom att göra beslutsfattande mer transparent och tillgängligt. Genom automatiserad analys av stora mängder data kan medborgare få bättre insyn i politiska processer och fatta mer informerade val.
+                <br><br>
+                Dessutom kan AI hjälpa till att identifiera och motverka desinformation, vilket stärker demokratins grundvalar. Verktyg för faktakontroll och källverifiering kan göra det lättare för medborgare att skilja på fakta och fiktion.
+            </div>
+            <div class="panel-stats">
+                <div class="stat-item">
+                    <div class="stat-label">Svarstid</div>
+                    <div class="stat-value">1.2s</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Säkerhet</div>
+                    <div class="stat-value">87%</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Bias</div>
+                    <div class="stat-value">2/10</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="split-panel">
+            <div class="panel-label">
+                <span>✨</span>
+                <span>Gemini</span>
+            </div>
+            <div class="panel-content">
+                Demokrati kan stärkas genom AI-baserade verktyg för att öka medborgardeltagande. Automatiserad översättning, tillgänglighetsförbättringar och personaliserad information kan hjälpa fler människor att engagera sig i demokratiska processer.
+                <br><br>
+                AI kan också användas för att analysera medborgarfeedback och identifiera viktiga samhällsfrågor som kräver politisk uppmärksamhet. Detta kan leda till mer responsiv och inkluderande demokrati.
+            </div>
+            <div class="panel-stats">
+                <div class="stat-item">
+                    <div class="stat-label">Svarstid</div>
+                    <div class="stat-value">0.9s</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Säkerhet</div>
+                    <div class="stat-value">92%</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Bias</div>
+                    <div class="stat-value">1/10</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="input-container">
+        <div class="input-wrapper">
+            <input type="text" placeholder="Ställ en ny fråga...">
+            <button>Skicka</button>
+        </div>
+    </div>
+</body>
+</html>

@@ -7,7 +7,19 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Grayscale theme colors - minimalist and clean
+        // Primary colors from split-layout design
+        'oneseek': {
+          'bg-primary': '#0a0a0a',
+          'bg-secondary': '#151515',
+          'bg-tertiary': '#1a1a1a',
+          'border': '#151515',
+          'border-hover': '#2a2a2a',
+          'text-primary': '#e7e7e7',
+          'text-secondary': '#888',
+          'text-tertiary': '#666',
+          'text-muted': '#444',
+        },
+        // Legacy grayscale theme colors - kept for backward compatibility
         'civic-dark': {
           950: '#0a0a0a',
           900: '#1a1a1a',
