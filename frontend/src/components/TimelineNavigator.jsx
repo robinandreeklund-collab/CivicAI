@@ -67,25 +67,25 @@ export default function TimelineNavigator({
   };
 
   return (
-    <div className="w-[280px] bg-[#151515] border-l border-[#2a2a2a] flex flex-col h-screen">
+    <div className="w-[280px] bg-[#151515] border-r border-[#1a1a1a] flex flex-col h-screen fixed left-0 top-0">
       {/* Header */}
-      <div className="px-5 py-8">
-        <div className="text-xs font-medium text-[#888] uppercase tracking-wider mb-1.5">
+      <div className="px-5 py-6 border-b border-[#1a1a1a]">
+        <div className="text-[11px] font-semibold text-[#888] uppercase tracking-[1.5px] mb-1">
           Dataflöde
         </div>
-        <div className="text-[11px] text-[#666]">
+        <div className="text-[10px] text-[#666]">
           Navigera genom analysen
         </div>
       </div>
 
       {/* Navigator */}
-      <div className="flex-1 overflow-y-auto px-3 space-y-6">
+      <div className="flex-1 overflow-y-auto px-4 space-y-6">
         {/* AI Services Section (Collapsible) */}
         {aiServices && aiServices.length > 0 && (
           <div className="mb-6">
             <button
               onClick={() => toggleGroup('aiServices')}
-              className="w-full flex items-center justify-between px-2 mb-3 text-[11px] font-medium text-[#666] uppercase tracking-wide hover:text-[#888] transition-colors"
+              className="w-full flex items-center justify-between px-2 mb-3 text-[10px] font-semibold text-[#666] uppercase tracking-[1px] hover:text-[#888] transition-colors"
             >
               <span>AI-tjänster ({aiServices.filter(s => s.enabled).length}/{aiServices.length})</span>
               <svg 
@@ -131,10 +131,10 @@ export default function TimelineNavigator({
 
         {/* Timeline Sections */}
         {sections.map((section, sectionIdx) => (
-          <div key={sectionIdx} className="space-y-2">
+          <div key={sectionIdx} className="space-y-3">
             <button
               onClick={() => toggleGroup(section.group)}
-              className="w-full flex items-center justify-between px-2 text-[11px] font-medium text-[#666] uppercase tracking-wide hover:text-[#888] transition-colors"
+              className="w-full flex items-center justify-between px-2 text-[10px] font-semibold text-[#666] uppercase tracking-[1px] hover:text-[#888] transition-colors"
             >
               <span>{section.title} ({section.items.length})</span>
               <svg 
@@ -176,7 +176,7 @@ export default function TimelineNavigator({
                           {item.title}
                         </div>
                         {item.meta && (
-                          <div className="text-[10px] text-[#666] mt-0.5">
+                          <div className="text-[10px] text-[#666] mt-0.5 truncate">
                             {item.meta}
                           </div>
                         )}

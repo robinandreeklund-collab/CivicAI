@@ -785,11 +785,23 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
 
   return (
     <div className="flex h-screen bg-[#0a0a0a]">
+      {/* Timeline Navigator - Left Sidebar */}
+      {latestAiMessage && (
+        <TimelineNavigator
+          sections={timelineSections}
+          activeSection={activeSection}
+          onSectionChange={handleSectionChange}
+          exploredCount={exploredSections.size}
+          aiServices={aiServices}
+          onServiceToggle={handleServiceToggle}
+        />
+      )}
+
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className={`flex-1 flex flex-col ${latestAiMessage ? 'ml-[280px]' : ''}`}>
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto">
-          <div className="px-14 py-10 max-w-[1200px] mx-auto">
+          <div className="px-[60px] py-10 max-w-[1200px] pb-[100px]">
             {/* Question Display at top - from refined prototype */}
             {messages.length > 0 && messages[0].type === 'user' && (
               <h1 className="text-[28px] font-light text-[#e7e7e7] mb-12 leading-[1.4] tracking-[-0.3px]">
@@ -924,7 +936,7 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
 
         {/* Input Area - Fixed at bottom - from refined prototype */}
         <div className="flex-shrink-0 border-t border-[#1a1a1a] bg-[#0a0a0a]">
-          <div className="px-14 py-6 max-w-[1200px] mx-auto">
+          <div className="px-[60px] py-5 max-w-[1080px]">
             {/* Clean search box matching prototype design */}
             <QuestionInput
               onSubmit={handleSubmitQuestion}
@@ -933,18 +945,6 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
           </div>
         </div>
       </div>
-
-      {/* Timeline Navigator - Right Sidebar */}
-      {latestAiMessage && (
-        <TimelineNavigator
-          sections={timelineSections}
-          activeSection={activeSection}
-          onSectionChange={handleSectionChange}
-          exploredCount={exploredSections.size}
-          aiServices={aiServices}
-          onServiceToggle={handleServiceToggle}
-        />
-      )}
     </div>
   );
 }

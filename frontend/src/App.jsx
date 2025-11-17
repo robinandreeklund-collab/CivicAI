@@ -68,8 +68,8 @@ function AppContent() {
 
   return (
     <div className="flex h-screen bg-[#0a0a0a] overflow-hidden">
-      {/* Sidebar - only shown on non-landing pages */}
-      {showSidebar && (
+      {/* Sidebar - only shown on non-landing and non-chat pages */}
+      {showSidebar && location.pathname !== '/chat' && (
         <Sidebar
           conversations={conversations}
           currentConversationId={currentConversationId}
@@ -85,7 +85,7 @@ function AppContent() {
       <div 
         className={`
           flex-1 flex flex-col relative overflow-hidden transition-all duration-300
-          ${showSidebar ? (sidebarCollapsed ? 'ml-16' : 'ml-64') : ''}
+          ${showSidebar && location.pathname !== '/chat' ? (sidebarCollapsed ? 'ml-16' : 'ml-64') : ''}
         `}
       >
         <Routes>
