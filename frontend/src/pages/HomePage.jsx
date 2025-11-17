@@ -730,12 +730,19 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
   };
 
   return (
-    <div className="flex h-screen" style={{ background: '#0a0a0a' }}>
+    <div className="flex h-screen bg-[#0a0a0a]">
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto">
-          <div className="px-15 py-10 max-w-[1200px]">
+          <div className="px-14 py-10 max-w-[1200px] mx-auto">
+            {/* Question Display at top - from refined prototype */}
+            {messages.length > 0 && messages[0].type === 'user' && (
+              <h1 className="text-[28px] font-light text-[#e7e7e7] mb-12 leading-[1.4] tracking-[-0.3px]">
+                {messages[0].content}
+              </h1>
+            )}
+
             {messages.length === 0 && !isLoading && (
               <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-fade-in">
                 {/* Typing Effect Logo */}
@@ -791,10 +798,10 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
 
             {/* Message history */}
             {messages.map((message, index) => (
-              <div key={index} className="mb-6 animate-fade-in-up">
-                {message.type === 'user' && (
+              <div key={index} className="mb-6">
+                {message.type === 'user' && index > 0 && (
                   <div className="mb-8">
-                    <div className="text-xl font-light text-civic-gray-100 leading-relaxed">
+                    <div className="text-xl font-light text-[#e7e7e7] leading-relaxed">
                       {message.content}
                     </div>
                   </div>
@@ -861,10 +868,10 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
           </div>
         </div>
 
-        {/* Input Area - Fixed at bottom */}
-        <div className="flex-shrink-0 border-t border-civic-dark-800">
-          <div className="px-10 py-4">
-            {/* Clean search box with collapse/expand animation */}
+        {/* Input Area - Fixed at bottom - from refined prototype */}
+        <div className="flex-shrink-0 border-t border-[#1a1a1a] bg-[#0a0a0a]">
+          <div className="px-14 py-6 max-w-[1200px] mx-auto">
+            {/* Clean search box matching prototype design */}
             <QuestionInput
               onSubmit={handleSubmitQuestion}
               isLoading={isLoading}
