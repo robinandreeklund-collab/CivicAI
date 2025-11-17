@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneSeek.AI - Variation 2: Horizontal Tabs</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        .header {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #151515;
+        }
+        .question-text {
+            font-size: 20px;
+            font-weight: 300;
+            line-height: 1.6;
+        }
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 30px;
+            border-bottom: 1px solid #151515;
+            padding-bottom: 0;
+        }
+        .tab {
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            color: #666;
+            font-size: 14px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+        .tab:hover {
+            color: #e7e7e7;
+        }
+        .tab.active {
+            color: #e7e7e7;
+            border-bottom-color: #e7e7e7;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .content-card {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+        }
+        .card-badge {
+            background: #2a2a2a;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            display: inline-block;
+            margin-bottom: 16px;
+        }
+        .card-title {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 16px;
+        }
+        .card-content {
+            font-size: 15px;
+            line-height: 1.8;
+            color: #b3b3b3;
+        }
+        .ai-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .ai-card {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 24px;
+        }
+        .ai-name {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        .ai-text {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="question-text">Hur kan AI bidra till mer transparenta beslutsprocesser?</div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('overview')">📊 Översikt</button>
+            <button class="tab" onclick="switchTab('responses')">🤖 AI-svar</button>
+            <button class="tab" onclick="switchTab('analysis')">📈 Analyser</button>
+            <button class="tab" onclick="switchTab('timeline')">⏱️ Timeline</button>
+        </div>
+
+        <!-- Overview Tab -->
+        <div id="overview" class="tab-content active">
+            <div class="content-card">
+                <span class="card-badge">📊 BERT-SAMMANFATTNING</span>
+                <div class="card-title">Extraerande sammanfattning</div>
+                <div class="card-content">
+                    <p>AI kan bidra till mer transparenta beslutsprocesser genom att automatisera informationsinsamling, analysera stora datamängder objektivt och visualisera komplexa beslutskriterier.</p>
+                </div>
+            </div>
+            <div class="content-card">
+                <span class="card-badge">🔬 MODELLSYNTES</span>
+                <div class="card-title">Jämförande analys</div>
+                <div class="card-content">
+                    <p><strong>Konsensus:</strong> Alla 5 AI-modeller är överens om huvudpunkterna.</p>
+                    <p style="margin-top: 12px;"><strong>Skillnader:</strong> GPT-3.5 betonar tekniska implementationer, Gemini fokuserar på etik.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Responses Tab -->
+        <div id="responses" class="tab-content">
+            <div class="ai-grid">
+                <div class="ai-card">
+                    <div class="ai-name">GPT-3.5 Turbo</div>
+                    <div class="ai-text">AI kan revolutionera beslutsprocesser genom datadrivet stöd...</div>
+                </div>
+                <div class="ai-card">
+                    <div class="ai-name">Gemini Pro</div>
+                    <div class="ai-text">Transparenta beslutsprocesser är avgörande för demokratin...</div>
+                </div>
+                <div class="ai-card">
+                    <div class="ai-name">DeepSeek</div>
+                    <div class="ai-text">Implementering av AI för beslutstransparens kräver planering...</div>
+                </div>
+                <div class="ai-card">
+                    <div class="ai-name">Grok</div>
+                    <div class="ai-text">Praktiska exempel visar att AI redan används i offentliga sektorer...</div>
+                </div>
+                <div class="ai-card">
+                    <div class="ai-name">Qwen</div>
+                    <div class="ai-text">Internationellt perspektiv visar att AI-driven transparens varierar...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analysis Tab -->
+        <div id="analysis" class="tab-content">
+            <div class="content-card">
+                <span class="card-badge">✓ FAKTAKOLL</span>
+                <div class="card-title">Verifiering via Tavily API</div>
+                <div class="card-content">
+                    <p>Alla huvudpunkter har verifierats mot tillförlitliga källor.</p>
+                </div>
+            </div>
+            <div class="content-card">
+                <span class="card-badge">⚖️ BIAS-DETEKTION</span>
+                <div class="card-title">Automatisk analys</div>
+                <div class="card-content">
+                    <p>Minimal bias detekterad. Neutral framställning genomgående.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Timeline Tab -->
+        <div id="timeline" class="tab-content">
+            <div class="content-card">
+                <div class="card-title">Processering Timeline</div>
+                <div class="card-content">
+                    <p>⏱️ Fråga mottagen: 0.2s</p>
+                    <p style="margin-top: 8px;">🔍 Tonanalys: 0.8s</p>
+                    <p style="margin-top: 8px;">⚖️ Bias-detektion: 1.2s</p>
+                    <p style="margin-top: 8px;">✓ Faktakoll: 2.4s</p>
+                    <p style="margin-top: 8px;">🤖 AI-modeller svarar: 3.2s</p>
+                    <p style="margin-top: 8px;">📊 BERT-sammanfattning: 4.1s</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabName).classList.add('active');
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneSeek.AI - Minimal Line</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 700px;
+            width: 90%;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 48px;
+            font-weight: 300;
+            letter-spacing: 2px;
+            margin-bottom: 16px;
+            color: #e7e7e7;
+        }
+
+        .tagline {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 60px;
+            font-weight: 300;
+        }
+
+        .search-wrapper {
+            position: relative;
+            margin-bottom: 48px;
+        }
+
+        .search-line {
+            height: 1px;
+            background: #1a1a1a;
+            margin-bottom: 24px;
+        }
+
+        .search-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid #1a1a1a;
+            padding: 20px 0;
+            color: #e7e7e7;
+            font-size: 18px;
+            text-align: center;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            border-bottom-color: #2a2a2a;
+        }
+
+        .search-input::placeholder {
+            color: #444;
+        }
+
+        .search-button {
+            margin-top: 24px;
+            background: transparent;
+            border: 1px solid #1a1a1a;
+            color: #e7e7e7;
+            padding: 14px 32px;
+            border-radius: 24px;
+            font-size: 14px;
+            font-weight: 400;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .search-button:hover {
+            background: #151515;
+            border-color: #2a2a2a;
+        }
+
+        .info-section {
+            margin-top: 80px;
+            padding-top: 40px;
+            border-top: 1px solid #151515;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 40px;
+            text-align: center;
+        }
+
+        .info-item {
+            padding: 20px 0;
+        }
+
+        .info-number {
+            font-size: 32px;
+            font-weight: 300;
+            color: #e7e7e7;
+            margin-bottom: 8px;
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        @media (max-width: 768px) {
+            .logo {
+                font-size: 36px;
+            }
+            
+            .info-grid {
+                grid-template-columns: 1fr;
+                gap: 32px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="logo">OneSeek.AI</h1>
+        <p class="tagline">Beslut med insyn. AI med ansvar.</p>
+
+        <div class="search-wrapper">
+            <div class="search-line"></div>
+            <input 
+                type="text" 
+                class="search-input" 
+                placeholder="Ställ en fråga..."
+            >
+            <button class="search-button">Analysera</button>
+        </div>
+
+        <div class="info-section">
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-number">5</div>
+                    <div class="info-label">AI-Modeller</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-number">100%</div>
+                    <div class="info-label">Transparent</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-number">0</div>
+                    <div class="info-label">Bias</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

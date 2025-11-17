@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneSeek.AI - Variation 3: Card Grid</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            margin-bottom: 30px;
+        }
+        .question-text {
+            font-size: 20px;
+            font-weight: 300;
+            line-height: 1.6;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        .card {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 24px;
+        }
+        .card.hero {
+            grid-column: span 2;
+        }
+        .card-badge {
+            background: #2a2a2a;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            display: inline-block;
+            margin-bottom: 12px;
+        }
+        .card-title {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 12px;
+        }
+        .card-content {
+            font-size: 14px;
+            line-height: 1.7;
+            color: #b3b3b3;
+        }
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #1a1a1a;
+        }
+        .stat {
+            flex: 1;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .stat-label {
+            font-size: 10px;
+            color: #666;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="question-text">Hur kan AI bidra till mer transparenta beslutsprocesser?</div>
+        </div>
+
+        <div class="grid">
+            <!-- BERT Summary - Hero Card -->
+            <div class="card hero">
+                <span class="card-badge">📊 BERT-SAMMANFATTNING</span>
+                <div class="card-title">Extraerande sammanfattning</div>
+                <div class="card-content">
+                    <p>AI kan bidra till mer transparenta beslutsprocesser genom att automatisera informationsinsamling, analysera stora datamängder objektivt och visualisera komplexa beslutskriterier. Genom maskininlärning kan beslutsunderlag kvalitetssäkras och potentiella bias identifieras. Tekniken möjliggör även spårbarhet där varje steg i beslutsprocessen dokumenteras automatiskt.</p>
+                </div>
+                <div class="stats">
+                    <div class="stat">
+                        <div class="stat-value">BERT</div>
+                        <div class="stat-label">Metod</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">Hög</div>
+                        <div class="stat-label">Extraktivitet</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">94%</div>
+                        <div class="stat-label">Tillförlitlighet</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Model Synthesis -->
+            <div class="card">
+                <span class="card-badge">🔬 MODELLSYNTES</span>
+                <div class="card-title">Jämförande analys</div>
+                <div class="card-content">
+                    <p><strong>Konsensus:</strong> 92% - Alla modeller överens</p>
+                    <p style="margin-top: 8px;"><strong>Divergenser:</strong> 2 punkter</p>
+                    <p style="margin-top: 8px;"><strong>Modeller:</strong> 5/5 aktiva</p>
+                </div>
+            </div>
+
+            <!-- AI Responses -->
+            <div class="card">
+                <span class="card-badge">🤖 GPT-3.5</span>
+                <div class="card-content">
+                    AI kan revolutionera beslutsprocesser genom datadrivet stöd baserat på omfattande analyser...
+                </div>
+            </div>
+
+            <div class="card">
+                <span class="card-badge">🤖 GEMINI</span>
+                <div class="card-content">
+                    Transparenta beslutsprocesser är avgörande för demokratin. AI-system kan bidra genom dokumentation...
+                </div>
+            </div>
+
+            <div class="card">
+                <span class="card-badge">🤖 DEEPSEEK</span>
+                <div class="card-content">
+                    Implementering av AI för beslutstransparens kräver noggrann planering och fokus på öppenhet...
+                </div>
+            </div>
+
+            <div class="card">
+                <span class="card-badge">🤖 GROK</span>
+                <div class="card-content">
+                    Praktiska exempel visar att AI redan används i offentliga sektorer för resursallokering...
+                </div>
+            </div>
+
+            <div class="card">
+                <span class="card-badge">🤖 QWEN</span>
+                <div class="card-content">
+                    Internationellt perspektiv visar att AI-driven transparens varierar mellan politiska system...
+                </div>
+            </div>
+
+            <!-- Analysis Cards -->
+            <div class="card">
+                <span class="card-badge">✓ FAKTAKOLL</span>
+                <div class="card-title">Tavily API</div>
+                <div class="card-content">
+                    Verifierade källor bekräftar huvudpunkterna. Hög tillförlitlighet.
+                </div>
+            </div>
+
+            <div class="card">
+                <span class="card-badge">⚖️ BIAS</span>
+                <div class="card-title">Detektion</div>
+                <div class="card-content">
+                    Minimal bias: 2/10. Neutral framställning genomgående.
+                </div>
+            </div>
+
+            <div class="card">
+                <span class="card-badge">💭 TONANALYS</span>
+                <div class="card-title">VADER + NLP</div>
+                <div class="card-content">
+                    Neutral ton. Positiv: 20%, Neutral: 70%, Negativ: 10%
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

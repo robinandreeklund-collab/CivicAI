@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CivicAI - Pixel Perfect Input</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+        }
+
+        .demo-header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .demo-title {
+            font-size: 32px;
+            font-weight: 300;
+            color: #e7e7e7;
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+        }
+
+        .demo-subtitle {
+            font-size: 14px;
+            color: #666;
+            letter-spacing: 1px;
+        }
+
+        /* Input Container */
+        .input-wrapper {
+            position: relative;
+            margin-bottom: 40px;
+        }
+
+        .input-container {
+            position: relative;
+            background: #151515;
+            border-radius: 16px;
+            padding: 4px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Animated border */
+        .input-container::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 16px;
+            padding: 2px;
+            background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            transition: all 0.4s ease;
+        }
+
+        .input-container:focus-within::before {
+            background: linear-gradient(135deg, #99c2ff, #31deac, #99c2ff);
+            background-size: 200% 200%;
+            animation: borderGlow 3s ease infinite;
+        }
+
+        @keyframes borderGlow {
+            0%, 100% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+        }
+
+        .input-container:focus-within {
+            box-shadow: 0 0 40px rgba(153, 194, 255, 0.2);
+        }
+
+        .input-field {
+            width: 100%;
+            background: #151515;
+            border: none;
+            border-radius: 12px;
+            padding: 20px 140px 20px 24px;
+            color: #e7e7e7;
+            font-size: 16px;
+            font-family: inherit;
+            outline: none;
+            transition: all 0.3s ease;
+            resize: none;
+            min-height: 60px;
+        }
+
+        .input-field::placeholder {
+            color: #444;
+            transition: all 0.3s ease;
+        }
+
+        .input-field:focus::placeholder {
+            color: #666;
+            transform: translateX(4px);
+        }
+
+        /* Character counter */
+        .char-counter {
+            position: absolute;
+            bottom: -24px;
+            left: 4px;
+            font-size: 11px;
+            color: #444;
+            transition: all 0.3s ease;
+        }
+
+        .input-container:focus-within .char-counter {
+            color: #666;
+        }
+
+        /* Send Button */
+        .send-btn {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 14px 28px;
+            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .send-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, #99c2ff 0%, #31deac 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .send-btn span {
+            position: relative;
+            z-index: 1;
+        }
+
+        .send-btn:hover {
+            border-color: #99c2ff;
+            color: #e7e7e7;
+            transform: translateY(-50%) translateX(4px);
+            box-shadow: 0 0 20px rgba(153, 194, 255, 0.3);
+        }
+
+        .input-field:focus ~ .send-btn {
+            background: linear-gradient(135deg, #3a3a3a 0%, #2a2a2a 100%);
+            border-color: #3a3a3a;
+            color: #e7e7e7;
+        }
+
+        .send-btn:active {
+            transform: translateY(-50%) scale(0.95);
+        }
+
+        /* Send icon */
+        .send-icon {
+            width: 16px;
+            height: 16px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .send-btn:hover .send-icon {
+            transform: translateX(3px) rotate(-5deg);
+        }
+
+        /* Examples Section */
+        .examples {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-top: 60px;
+        }
+
+        .example-card {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .example-card:hover {
+            background: #1a1a1a;
+            border-color: #2a2a2a;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .example-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: #e7e7e7;
+            margin-bottom: 8px;
+        }
+
+        .example-text {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        /* Variants Section */
+        .variants {
+            margin-top: 80px;
+            padding-top: 40px;
+            border-top: 1px solid #1a1a1a;
+        }
+
+        .variant-title {
+            font-size: 18px;
+            font-weight: 300;
+            color: #e7e7e7;
+            margin-bottom: 30px;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+
+        .variant-grid {
+            display: grid;
+            gap: 40px;
+        }
+
+        .variant-item {
+            position: relative;
+        }
+
+        .variant-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Variant 1: Minimal */
+        .input-minimal {
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid #1a1a1a;
+            padding: 16px 120px 16px 0;
+            color: #e7e7e7;
+            font-size: 16px;
+            font-family: inherit;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .input-minimal:focus {
+            border-bottom-color: #99c2ff;
+        }
+
+        .input-minimal::placeholder {
+            color: #444;
+        }
+
+        .send-btn-minimal {
+            position: absolute;
+            right: 0;
+            bottom: 8px;
+            background: transparent;
+            border: none;
+            color: #444;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            padding: 8px 16px;
+        }
+
+        .send-btn-minimal:hover {
+            color: #99c2ff;
+        }
+
+        /* Variant 2: Compact */
+        .input-compact-wrapper {
+            display: flex;
+            gap: 8px;
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 24px;
+            padding: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .input-compact-wrapper:focus-within {
+            border-color: #99c2ff;
+            box-shadow: 0 0 20px rgba(153, 194, 255, 0.15);
+        }
+
+        .input-compact {
+            flex: 1;
+            background: transparent;
+            border: none;
+            padding: 12px 16px;
+            color: #e7e7e7;
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .input-compact::placeholder {
+            color: #444;
+        }
+
+        .send-btn-compact {
+            background: linear-gradient(135deg, #99c2ff 0%, #31deac 100%);
+            border: none;
+            border-radius: 20px;
+            padding: 10px 24px;
+            color: #0a0a0a;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .send-btn-compact:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 16px rgba(153, 194, 255, 0.4);
+        }
+
+        .send-btn-compact:active {
+            transform: scale(0.98);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="demo-header">
+            <h1 class="demo-title">Pixel Perfect Input</h1>
+            <p class="demo-subtitle">Animerad inputdesign med fokuseffekter</p>
+        </div>
+
+        <!-- Main Input -->
+        <div class="input-wrapper">
+            <div class="input-container">
+                <textarea 
+                    class="input-field" 
+                    placeholder="Ställ en fråga till AI-modellerna..."
+                    maxlength="500"
+                    id="mainInput"
+                    oninput="updateCounter()"
+                ></textarea>
+                <button class="send-btn">
+                    <span>Skicka</span>
+                    <span class="send-icon">→</span>
+                </button>
+            </div>
+            <div class="char-counter">
+                <span id="charCount">0</span> / 500 tecken
+            </div>
+        </div>
+
+        <!-- Example Questions -->
+        <div class="examples">
+            <div class="example-card" onclick="fillExample(0)">
+                <div class="example-title">Demokrati & AI</div>
+                <div class="example-text">Hur kan AI bidra till mer transparenta beslutsprocesser?</div>
+            </div>
+            <div class="example-card" onclick="fillExample(1)">
+                <div class="example-title">Klimatpolitik</div>
+                <div class="example-text">Vilka är de mest effektiva åtgärderna mot klimatförändringarna?</div>
+            </div>
+            <div class="example-card" onclick="fillExample(2)">
+                <div class="example-title">Utbildning</div>
+                <div class="example-text">Hur kan vi förbättra svensk skola och öka likvärdigheten?</div>
+            </div>
+        </div>
+
+        <!-- Variants -->
+        <div class="variants">
+            <h2 class="variant-title">Alternativa Inputstilar</h2>
+            <div class="variant-grid">
+                <!-- Variant 1: Minimal -->
+                <div class="variant-item">
+                    <div class="variant-label">Variant 1: Minimal</div>
+                    <div style="position: relative;">
+                        <input 
+                            type="text" 
+                            class="input-minimal" 
+                            placeholder="Minimal stil med endast bottenlinje..."
+                        >
+                        <button class="send-btn-minimal">Skicka →</button>
+                    </div>
+                </div>
+
+                <!-- Variant 2: Compact -->
+                <div class="variant-item">
+                    <div class="variant-label">Variant 2: Compact</div>
+                    <div class="input-compact-wrapper">
+                        <input 
+                            type="text" 
+                            class="input-compact" 
+                            placeholder="Kompakt design med integrerad knapp..."
+                        >
+                        <button class="send-btn-compact">Skicka</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const examples = [
+            "Hur kan AI bidra till mer transparenta beslutsprocesser i demokratiska samhällen?",
+            "Vilka är de mest effektiva åtgärderna mot klimatförändringarna och hur kan vi implementera dem?",
+            "Hur kan vi förbättra den svenska skolan och öka likvärdigheten i utbildningssystemet?"
+        ];
+
+        function fillExample(index) {
+            const input = document.getElementById('mainInput');
+            input.value = examples[index];
+            input.focus();
+            updateCounter();
+            
+            // Animate input
+            input.style.transform = 'scale(0.99)';
+            setTimeout(() => {
+                input.style.transform = 'scale(1)';
+            }, 100);
+        }
+
+        function updateCounter() {
+            const input = document.getElementById('mainInput');
+            const counter = document.getElementById('charCount');
+            counter.textContent = input.value.length;
+        }
+
+        // Auto-resize textarea
+        const textarea = document.getElementById('mainInput');
+        textarea.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+        });
+
+        // Send button functionality
+        document.querySelectorAll('.send-btn, .send-btn-minimal, .send-btn-compact').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // Ripple effect
+                const ripple = document.createElement('span');
+                ripple.style.cssText = `
+                    position: absolute;
+                    width: 20px;
+                    height: 20px;
+                    background: rgba(153, 194, 255, 0.5);
+                    border-radius: 50%;
+                    transform: scale(0);
+                    animation: ripple 0.6s ease-out;
+                    pointer-events: none;
+                `;
+                
+                const rect = this.getBoundingClientRect();
+                ripple.style.left = (e.clientX - rect.left - 10) + 'px';
+                ripple.style.top = (e.clientY - rect.top - 10) + 'px';
+                
+                this.appendChild(ripple);
+                
+                setTimeout(() => ripple.remove(), 600);
+            });
+        });
+
+        // Add ripple animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes ripple {
+                to {
+                    transform: scale(4);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>

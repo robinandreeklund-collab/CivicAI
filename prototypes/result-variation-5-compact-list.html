@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OneSeek.AI - Variation 5: Compact List</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e7e7e7;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .question-box {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 30px;
+        }
+        .question-text {
+            font-size: 18px;
+            font-weight: 300;
+            line-height: 1.6;
+        }
+        .section {
+            margin-bottom: 16px;
+        }
+        .section-header {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 8px;
+            padding: 16px 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.2s ease;
+        }
+        .section-header:hover {
+            background: #1a1a1a;
+        }
+        .section-title {
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .section-arrow {
+            font-size: 12px;
+            color: #666;
+            transition: transform 0.2s ease;
+        }
+        .section-content {
+            display: none;
+            background: #0f0f0f;
+            border: 1px solid #151515;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            padding: 20px;
+            margin-top: -8px;
+        }
+        .section.expanded .section-content {
+            display: block;
+        }
+        .section.expanded .section-arrow {
+            transform: rotate(90deg);
+        }
+        .content-text {
+            font-size: 14px;
+            line-height: 1.7;
+            color: #b3b3b3;
+        }
+        .stats-row {
+            display: flex;
+            gap: 24px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #151515;
+        }
+        .stat {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .stat-label {
+            font-size: 10px;
+            color: #666;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+        .always-visible {
+            background: #151515;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        .section-badge {
+            background: #2a2a2a;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="question-box">
+            <div class="question-text">Hur kan AI bidra till mer transparenta beslutsprocesser?</div>
+        </div>
+
+        <!-- Always Visible: BERT Summary -->
+        <div class="always-visible">
+            <span class="section-badge">📊 BERT-SAMMANFATTNING</span>
+            <div style="margin-top: 16px;" class="content-text">
+                <p>AI kan bidra till mer transparenta beslutsprocesser genom att automatisera informationsinsamling, analysera stora datamängder objektivt och visualisera komplexa beslutskriterier.</p>
+            </div>
+            <div class="stats-row">
+                <div class="stat">
+                    <div class="stat-value">BERT</div>
+                    <div class="stat-label">Metod</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">Hög</div>
+                    <div class="stat-label">Extraktivitet</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">94%</div>
+                    <div class="stat-label">Tillförlitlighet</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Expandable: Model Synthesis -->
+        <div class="section" onclick="toggleSection(this)">
+            <div class="section-header">
+                <div class="section-title">
+                    <span>🔬</span>
+                    <span>Modellsyntes</span>
+                </div>
+                <span class="section-arrow">›</span>
+            </div>
+            <div class="section-content">
+                <div class="content-text">
+                    <p><strong>Konsensus:</strong> Alla 5 AI-modeller är överens om huvudpunkterna.</p>
+                    <p style="margin-top: 12px;"><strong>Skillnader:</strong> GPT-3.5 betonar tekniska implementationer, Gemini fokuserar på etiska aspekter.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Expandable: AI Responses -->
+        <div class="section" onclick="toggleSection(this)">
+            <div class="section-header">
+                <div class="section-title">
+                    <span>🤖</span>
+                    <span>GPT-3.5 Turbo</span>
+                </div>
+                <span class="section-arrow">›</span>
+            </div>
+            <div class="section-content">
+                <div class="content-text">
+                    <p>AI kan revolutionera beslutsprocesser genom att erbjuda datadrivet stöd baserat på omfattande analyser...</p>
+                </div>
+                <div class="stats-row">
+                    <div class="stat">
+                        <div class="stat-value">1.2s</div>
+                        <div class="stat-label">Svarstid</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">2/10</div>
+                        <div class="stat-label">Bias</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">Neutral</div>
+                        <div class="stat-label">Ton</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section" onclick="toggleSection(this)">
+            <div class="section-header">
+                <div class="section-title">
+                    <span>🤖</span>
+                    <span>Gemini Pro</span>
+                </div>
+                <span class="section-arrow">›</span>
+            </div>
+            <div class="section-content">
+                <div class="content-text">
+                    <p>Transparenta beslutsprocesser är avgörande för demokratin. AI-system kan bidra genom dokumentation...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section" onclick="toggleSection(this)">
+            <div class="section-header">
+                <div class="section-title">
+                    <span>🤖</span>
+                    <span>DeepSeek</span>
+                </div>
+                <span class="section-arrow">›</span>
+            </div>
+            <div class="section-content">
+                <div class="content-text">
+                    <p>Implementering av AI för beslutstransparens kräver noggrann planering...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section" onclick="toggleSection(this)">
+            <div class="section-header">
+                <div class="section-title">
+                    <span>🤖</span>
+                    <span>Grok</span>
+                </div>
+                <span class="section-arrow">›</span>
+            </div>
+            <div class="section-content">
+                <div class="content-text">
+                    <p>Praktiska exempel visar att AI redan används i offentliga sektorer...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section" onclick="toggleSection(this)">
+            <div class="section-header">
+                <div class="section-title">
+                    <span>🤖</span>
+                    <span>Qwen</span>
+                </div>
+                <span class="section-arrow">›</span>
+            </div>
+            <div class="section-content">
+                <div class="content-text">
+                    <p>Internationellt perspektiv visar att AI-driven transparens varierar...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analysis Sections -->
+        <div class="section" onclick="toggleSection(this)">
+            <div class="section-header">
+                <div class="section-title">
+                    <span>✓</span>
+                    <span>Faktakoll</span>
+                </div>
+                <span class="section-arrow">›</span>
+            </div>
+            <div class="section-content">
+                <div class="content-text">
+                    <p>Verifierade källor bekräftar huvudpunkterna. Tavily API användes för faktakontroll.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section" onclick="toggleSection(this)">
+            <div class="section-header">
+                <div class="section-title">
+                    <span>⚖️</span>
+                    <span>Bias-detektion</span>
+                </div>
+                <span class="section-arrow">›</span>
+            </div>
+            <div class="section-content">
+                <div class="content-text">
+                    <p>Minimal bias detekterad: 2/10. Neutral framställning genomgående.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleSection(element) {
+            element.classList.toggle('expanded');
+        }
+    </script>
+</body>
+</html>
