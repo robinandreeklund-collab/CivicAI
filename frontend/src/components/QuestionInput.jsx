@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import { useTypewriter } from '../hooks/useTypewriter';
 
 /**
  * QuestionInput Component - Based on full-ui-demo.html
  * 
  * Features:
  * - Simple, clean input field with send button
+ * - Typewriter animation with sample questions
+ * - Intentional typos that get corrected
  * - Collapses from sides to center after submit
  * - Advanced step-by-step loader showing all actual processing steps
  * - Completed steps fade and move up, active step prominent
@@ -15,6 +18,39 @@ export default function QuestionInput({ onSubmit, isLoading }) {
   const [isFocused, setIsFocused] = useState(false);
   const [animationPhase, setAnimationPhase] = useState('idle'); // idle, collapsing, processing, expanding
   const [processingSteps, setProcessingSteps] = useState([]);
+
+  // Sample questions for typewriter animation
+  const sampleQuestions = [
+    { text: 'Hur säkrar vi tillgång till psykisk vård?' },
+    { text: 'Hur gör vi klimatomställningen rättvis?' },
+    { text: 'Hur stärker vi ungas demokratiska tänkande?' },
+    { 
+      text: 'Hur löser vi bostadsbristen för unga?',
+      typo: { text: 'Hur löser vi bostadsbresten för unga?' }
+    },
+    { text: 'Hur skyddar vi digital integritet?' },
+    { 
+      text: 'Hur minskar vi ekonomisk ojämlikhet?',
+      typo: { text: 'Hur minskar vi ekonmisk ojämlikhet?' }
+    },
+    { text: 'Hur förbättrar vi integration och inkludering?' },
+    { 
+      text: 'Hur säkrar vi tillgång till kvalitativ utbildning?',
+      typo: { text: 'Hur säkrar vi tillgång till kvalitativ utbilding?' }
+    },
+    { text: 'Hur bekämpar vi desinformation i samhället?' },
+    { text: 'Hur stärker vi civilsamhällets inflytande?' }
+  ];
+
+  // Enable typewriter only when input is empty, not focused, and not loading
+  const typewriterEnabled = !question && !isFocused && animationPhase === 'idle' && !isLoading;
+  const { text: typewriterText } = useTypewriter(sampleQuestions, {
+    typingSpeed: 80,
+    deletingSpeed: 50,
+    pauseDuration: 2000,
+    pauseBeforeDelete: 800,
+    enabled: typewriterEnabled
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -175,6 +211,24 @@ export default function QuestionInput({ onSubmit, isLoading }) {
 
   return (
     <div className="w-full max-w-[1080px] mx-auto">
+      <style>{`
+        .typewriter-cursor {
+          display: inline-block;
+          width: 2px;
+          height: 1em;
+          background-color: #888;
+          animation: typewriter-blink 1s step-end infinite;
+        }
+        
+        @keyframes typewriter-blink {
+          0%, 50% {
+            opacity: 1;
+          }
+          51%, 100% {
+            opacity: 0;
+          }
+        }
+      `}</style>
       <form onSubmit={handleSubmit} className="relative">
         {/* Main search field - matching 01-refined-card-stack.html design */}
         <div 
@@ -189,6 +243,17 @@ export default function QuestionInput({ onSubmit, isLoading }) {
           }}
         >
           <div className="relative">
+            {/* Typewriter placeholder overlay - shown when input is empty and not focused */}
+            {typewriterEnabled && typewriterText && (
+              <div 
+                className="absolute inset-0 px-5 py-4 pointer-events-none flex items-center text-[14px] text-[#888]"
+                style={{ zIndex: 1 }}
+              >
+                <span>{typewriterText}</span>
+                <span className="typewriter-cursor ml-0.5"></span>
+              </div>
+            )}
+
             <input
               type="text"
               value={question}
@@ -216,7 +281,10 @@ export default function QuestionInput({ onSubmit, isLoading }) {
                   ? 'border-[#3a3a3a] shadow-[0_4px_12px_rgba(0,0,0,0.3)]' 
                   : 'border-[#1a1a1a]'
                 }
+                relative
+                ${typewriterEnabled && typewriterText ? 'placeholder-transparent' : ''}
               `}
+              style={{ zIndex: 2, position: 'relative' }}
               disabled={isLoading || animationPhase !== 'idle'}
             />
             
