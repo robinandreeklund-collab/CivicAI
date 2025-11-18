@@ -543,8 +543,8 @@ export default function ChatV2Page() {
           </div>
         )}
 
-        {/* Explainability Panel (SHAP/LIME) */}
-        {(latestAiMessage.responses?.some(r => r.explainability) || latestAiMessage.explainability) && (
+        {/* Explainability Panel (SHAP/LIME) - Always visible in Overview mode */}
+        {viewMode === 'overview' && (
           <div className="max-w-4xl mx-auto mb-8">
             <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
               <div className="flex items-center gap-2 mb-4">
@@ -607,8 +607,8 @@ export default function ChatV2Page() {
           </div>
         )}
 
-        {/* Toxicity Analysis Panel (Detoxify) */}
-        {(latestAiMessage.responses?.some(r => r.toxicity) || latestAiMessage.toxicity) && (
+        {/* Toxicity Analysis Panel (Detoxify) - Always visible in Overview mode */}
+        {viewMode === 'overview' && (
           <div className="max-w-4xl mx-auto mb-8">
             <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
               <div className="flex items-center gap-2 mb-4">
@@ -676,60 +676,115 @@ export default function ChatV2Page() {
           </div>
         )}
 
-        {/* Topic Modeling Panel (BERTopic) */}
-        {(latestAiMessage.responses?.some(r => r.topics) || latestAiMessage.topics) && (
+        {/* Topic Modeling Panel (BERTopic/Gensim) - Always visible in Overview mode */}
+        {viewMode === 'overview' && (
           <div className="max-w-4xl mx-auto mb-8">
             <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">🧠</div>
                 <div>
                   <div className="font-medium text-[#e7e7e7]">Topic Modeling</div>
-                  <div className="text-sm text-[#666]">BERTopic cluster analysis and dominant themes</div>
+                  <div className="text-sm text-[#666]">BERTopic & Gensim cluster analysis and dominant themes</div>
                 </div>
               </div>
-              {/* TODO: Backend should provide topics data in response.topics */}
+              {/* Display topics from BERTopic, Gensim, or both */}
               {latestAiMessage.topics ? (
-                <div className="space-y-4">
-                  {latestAiMessage.topics.topics?.map((topic, idx) => (
-                    <div key={idx} className="bg-[#1a1a1a] rounded p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <div className="text-[#e7e7e7] font-medium">{topic.label}</div>
-                          <div className="text-[#666] text-xs">Topic {topic.id}</div>
+                <div className="space-y-6">
+                  {/* BERTopic Results */}
+                  {(latestAiMessage.topics.bertopic || latestAiMessage.topics.method !== 'gensim') && (
+                    <div>
+                      {latestAiMessage.topics.method === 'both' && (
+                        <div className="text-[#888] text-sm font-medium mb-3 flex items-center gap-2">
+                          <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                          BERTopic Analysis
                         </div>
-                        <div className="text-right">
-                          <div className="text-[#e7e7e7] text-lg font-medium">
-                            {(topic.probability * 100).toFixed(1)}%
-                          </div>
-                          {topic.coherence && (
-                            <div className="text-[#666] text-xs">
-                              Coherence: {topic.coherence.toFixed(2)}
+                      )}
+                      <div className="space-y-3">
+                        {(latestAiMessage.topics.bertopic?.topics || latestAiMessage.topics.topics)?.map((topic, idx) => (
+                          <div key={`bert-${idx}`} className="bg-[#1a1a1a] rounded p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div>
+                                <div className="text-[#e7e7e7] font-medium">{topic.label}</div>
+                                <div className="text-[#666] text-xs">Topic {topic.id}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-[#e7e7e7] text-lg font-medium">
+                                  {(topic.probability * 100).toFixed(1)}%
+                                </div>
+                                {topic.coherence && (
+                                  <div className="text-[#666] text-xs">
+                                    Coherence: {topic.coherence.toFixed(2)}
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {topic.terms?.map((term, tidx) => (
-                          <span key={tidx} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded">
-                            {term}
-                          </span>
-                        ))}
+                            <div className="flex flex-wrap gap-2">
+                              {topic.terms?.map((term, tidx) => (
+                                <span key={tidx} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded">
+                                  {term}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )) || <p className="text-[#666] text-sm">No BERTopic topics identified</p>}
                       </div>
                     </div>
-                  )) || <p className="text-[#666] text-sm">No topics identified</p>}
+                  )}
+
+                  {/* Gensim Results */}
+                  {latestAiMessage.topics.gensim && (
+                    <div>
+                      {latestAiMessage.topics.method === 'both' && (
+                        <div className="text-[#888] text-sm font-medium mb-3 flex items-center gap-2">
+                          <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                          Gensim LDA Analysis
+                        </div>
+                      )}
+                      <div className="space-y-3">
+                        {latestAiMessage.topics.gensim.topics?.map((topic, idx) => (
+                          <div key={`gensim-${idx}`} className="bg-[#1a1a1a] rounded p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div>
+                                <div className="text-[#e7e7e7] font-medium">{topic.label}</div>
+                                <div className="text-[#666] text-xs">Topic {topic.id}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-[#e7e7e7] text-lg font-medium">
+                                  {(topic.probability * 100).toFixed(1)}%
+                                </div>
+                                {topic.coherence && (
+                                  <div className="text-[#666] text-xs">
+                                    Coherence: {topic.coherence.toFixed(2)}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {topic.terms?.map((term, tidx) => (
+                                <span key={tidx} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded">
+                                  {term}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )) || <p className="text-[#666] text-sm">No Gensim topics identified</p>}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-4">
                   <p className="text-[#666] text-sm">Topic modeling kommer vara tillgänglig när backend är implementerat</p>
-                  <p className="text-[#555] text-xs mt-1">TODO: Implementera /ml/topics endpoint med BERTopic</p>
+                  <p className="text-[#555] text-xs mt-1">TODO: Anropa /api/ml/topics endpoint från query-flödet</p>
+                  <p className="text-[#555] text-xs mt-1">Endpoint stöder method="bertopic", "gensim", eller "both" för parallel analys</p>
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* Bias & Fairness Panel (Fairlearn) */}
-        {(latestAiMessage.responses?.some(r => r.fairness) || latestAiMessage.fairness) && (
+        {/* Bias & Fairness Panel (Fairlearn) - Always visible in Overview mode */}
+        {viewMode === 'overview' && (
           <div className="max-w-4xl mx-auto mb-8">
             <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
               <div className="flex items-center gap-2 mb-4">
@@ -817,8 +872,8 @@ export default function ChatV2Page() {
           </div>
         )}
 
-        {/* Fact Checking Panel (Tavily) */}
-        {(latestAiMessage.factCheck || latestAiMessage.factCheckComparison) && (
+        {/* Fact Checking Panel (Tavily) - Always visible in Overview mode */}
+        {viewMode === 'overview' && (
           <div className="max-w-4xl mx-auto mb-8">
             <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
               <div className="flex items-center gap-2 mb-4">
