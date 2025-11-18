@@ -1,0 +1,35 @@
+{
+  "verificationStatus": "partially_true",
+  "confidence": 0.78,
+  "verdict": "Sweden has set an ambitious goal to achieve carbon neutrality by 2045, but has not yet achieved it. The country has made significant progress in renewable energy adoption and emission reduction.",
+  "sources": [
+    {
+      "url": "https://www.government.se/climate-policy",
+      "title": "Sweden's Climate Policy Framework",
+      "snippet": "Sweden aims to reach net zero greenhouse gas emissions by 2045, making it one of the most ambitious climate targets in the world.",
+      "credibility": 0.95,
+      "date": "2024-03-15"
+    },
+    {
+      "url": "https://www.iea.org/countries/sweden",
+      "title": "IEA - Sweden Energy Policy Review",
+      "snippet": "Sweden has reduced emissions by 30% since 1990 while growing its economy, demonstrating strong climate action progress.",
+      "credibility": 0.92,
+      "date": "2024-02-20"
+    },
+    {
+      "url": "https://ec.europa.eu/energy/sweden",
+      "title": "European Commission - Sweden Energy Profile",
+      "snippet": "Sweden leads Europe in renewable energy with over 60% of energy from renewable sources.",
+      "credibility": 0.90,
+      "date": "2024-01-10"
+    }
+  ],
+  "supportingEvidence": 3,
+  "contradictingEvidence": 0,
+  "timestamp": "2025-11-18T10:00:00Z",
+  "metadata": {
+    "api": "Tavily",
+    "search_depth": "advanced"
+  }
+}

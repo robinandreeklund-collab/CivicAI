@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LIME Interpretability Response Schema",
+  "description": "Schema for LIME local interpretable model-agnostic explanations",
+  "type": "object",
+  "properties": {
+    "explanation": {
+      "type": "string",
+      "description": "Human-readable explanation of the prediction"
+    },
+    "weights": {
+      "type": "array",
+      "description": "Feature weights for the local explanation",
+      "items": {
+        "type": "object",
+        "properties": {
+          "word": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "number"
+          },
+          "class": {
+            "type": "string"
+          }
+        },
+        "required": ["word", "weight"]
+      }
+    },
+    "prediction": {
+      "type": "string",
+      "description": "The predicted class"
+    },
+    "confidence": {
+      "type": "number",
+      "description": "Confidence in the prediction",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "intercept": {
+      "type": "number",
+      "description": "Intercept of the local linear model"
+    },
+    "score": {
+      "type": "number",
+      "description": "R-squared score of the local model"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "num_features": {
+          "type": "integer"
+        },
+        "num_samples": {
+          "type": "integer"
+        }
+      }
+    }
+  },
+  "required": ["explanation", "weights", "prediction", "confidence"]
+}

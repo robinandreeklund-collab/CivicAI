@@ -1,0 +1,19 @@
+{
+  "explanation": "The model classified this as 'green' primarily due to environmental policy terms like 'miljö' and 'hållbarhet'",
+  "weights": [
+    {"word": "miljö", "weight": 0.45, "class": "green"},
+    {"word": "hållbarhet", "weight": 0.38, "class": "green"},
+    {"word": "klimat", "weight": 0.32, "class": "green"},
+    {"word": "politik", "weight": 0.12, "class": "center"},
+    {"word": "och", "weight": 0.02, "class": "neutral"}
+  ],
+  "prediction": "green",
+  "confidence": 0.88,
+  "intercept": 0.05,
+  "score": 0.72,
+  "metadata": {
+    "model": "LIME",
+    "num_features": 10,
+    "num_samples": 5000
+  }
+}

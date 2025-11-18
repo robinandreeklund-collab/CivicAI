@@ -1,0 +1,15 @@
+{
+  "toxicity": 0.08,
+  "severe_toxicity": 0.005,
+  "obscene": 0.02,
+  "threat": 0.01,
+  "insult": 0.04,
+  "identity_attack": 0.015,
+  "sexual_explicit": 0.003,
+  "overall_toxic": false,
+  "risk_level": "low",
+  "metadata": {
+    "model": "unitary/toxic-bert",
+    "version": "0.5.2"
+  }
+}

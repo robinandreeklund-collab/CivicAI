@@ -1,0 +1,32 @@
+{
+  "reportUrl": "/reports/eda_abc123.html",
+  "summary": {
+    "num_features": 8,
+    "num_observations": 1000,
+    "missing_cells": 15,
+    "duplicate_rows": 3,
+    "correlations": {
+      "feature1_target": 0.85,
+      "feature2_target": 0.42,
+      "feature1_feature2": 0.31
+    }
+  },
+  "statistics": {
+    "feature1": {
+      "mean": 15.5,
+      "std": 7.2,
+      "min": 1.0,
+      "max": 30.0
+    },
+    "feature2": {
+      "mean": 42.8,
+      "std": 12.5,
+      "min": 10.0,
+      "max": 75.0
+    }
+  },
+  "metadata": {
+    "model": "Sweetviz",
+    "report_type": "analyze"
+  }
+}

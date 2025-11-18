@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Detoxify Toxicity Detection Response Schema",
+  "description": "Schema for multi-dimensional toxicity detection",
+  "type": "object",
+  "properties": {
+    "toxicity": {
+      "type": "number",
+      "description": "Overall toxicity score",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "severe_toxicity": {
+      "type": "number",
+      "description": "Severe toxicity score",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "obscene": {
+      "type": "number",
+      "description": "Obscenity score",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "threat": {
+      "type": "number",
+      "description": "Threat level score",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "insult": {
+      "type": "number",
+      "description": "Insult score",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "identity_attack": {
+      "type": "number",
+      "description": "Identity-based attack score",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "sexual_explicit": {
+      "type": "number",
+      "description": "Sexually explicit content score",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "overall_toxic": {
+      "type": "boolean",
+      "description": "Whether content is considered toxic overall"
+    },
+    "risk_level": {
+      "type": "string",
+      "description": "Overall risk assessment",
+      "enum": ["low", "medium", "high", "critical"]
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": ["toxicity", "threat", "insult", "identity_attack"]
+}

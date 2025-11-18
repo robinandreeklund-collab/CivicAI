@@ -1,0 +1,11 @@
+{
+  "polarity": 0.75,
+  "subjectivity": 0.60,
+  "sentiment": "positive",
+  "confidence": 0.88,
+  "magnitude": 0.65,
+  "metadata": {
+    "model": "TextBlob",
+    "version": "0.17.1"
+  }
+}

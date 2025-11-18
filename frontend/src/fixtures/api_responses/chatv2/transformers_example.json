@@ -1,0 +1,15 @@
+{
+  "ideology": "green",
+  "scores": {
+    "left": 0.18,
+    "center": 0.22,
+    "right": 0.08,
+    "green": 0.52
+  },
+  "confidence": 0.82,
+  "secondary": "center",
+  "metadata": {
+    "model": "KB/bert-base-swedish-cased",
+    "version": "transformers-4.36.2"
+  }
+}

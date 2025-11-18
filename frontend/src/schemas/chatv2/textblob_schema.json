@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TextBlob Sentiment Analysis Response Schema",
+  "description": "Schema for TextBlob sentiment analysis with polarity and subjectivity scores",
+  "type": "object",
+  "properties": {
+    "polarity": {
+      "type": "number",
+      "description": "Polarity score from -1 (negative) to 1 (positive)",
+      "minimum": -1,
+      "maximum": 1
+    },
+    "subjectivity": {
+      "type": "number",
+      "description": "Subjectivity score from 0 (objective) to 1 (subjective)",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "sentiment": {
+      "type": "string",
+      "description": "Overall sentiment classification",
+      "enum": ["positive", "negative", "neutral"]
+    },
+    "confidence": {
+      "type": "number",
+      "description": "Confidence score for sentiment classification",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "magnitude": {
+      "type": "number",
+      "description": "Magnitude of sentiment strength",
+      "minimum": 0
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": ["polarity", "subjectivity", "sentiment"]
+}

@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Lux Visualization Response Schema",
+  "description": "Schema for interactive visualizations and recommendations from Lux",
+  "type": "object",
+  "properties": {
+    "visualizations": {
+      "type": "array",
+      "description": "Generated visualizations with specifications",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["scatter", "bar", "line", "histogram", "heatmap"]
+          },
+          "x": {
+            "type": "string"
+          },
+          "y": {
+            "type": "string"
+          },
+          "encoding": {
+            "type": "object"
+          },
+          "score": {
+            "type": "number",
+            "description": "Relevance score of the visualization"
+          }
+        },
+        "required": ["type", "score"]
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "description": "Insights and recommendations based on data analysis",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": ["type", "description"]
+      }
+    },
+    "insights": {
+      "type": "array",
+      "description": "Automated insights discovered from the data",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "num_visualizations": {
+          "type": "integer"
+        }
+      }
+    }
+  },
+  "required": ["visualizations", "recommendations"]
+}

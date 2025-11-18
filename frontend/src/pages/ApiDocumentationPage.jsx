@@ -173,73 +173,73 @@ export default function ApiDocumentationPage() {
     { 
       path: '/ml/preprocessing', 
       method: 'POST', 
-      status: '✅', 
-      desc: 'Text preprocessing (spaCy)', 
+      status: 'Ready', 
+      desc: 'Text preprocessing with spaCy - tokens, POS tagging, NER, dependency parsing', 
       service: 'python-ml',
       details: {
-        input: '```json\n{\n  "text": "Detta är en mening som behöver analyseras."\n}\n```',
-        process: 'Tokenizes text using spaCy → Performs POS tagging → Named entity recognition → Dependency parsing → Returns linguistic features',
-        output: '```json\n{\n  "tokens": ["Detta", "är", "en", "mening", "som", "behöver", "analyseras"],\n  "pos": ["PRON", "VERB", "DET", "NOUN", "PRON", "VERB", "VERB"],\n  "entities": [],\n  "dependencies": [...]\n}\n```'
+        input: '```json\n{\n  "text": "Detta är en mening som behöver analyseras.",\n  "language": "sv"\n}\n```',
+        process: 'Tokenizes text using spaCy → Performs POS (Part-of-Speech) tagging → Named entity recognition (NER) → Dependency parsing → Extracts linguistic features → Returns structured analysis',
+        output: '```json\n{\n  "tokens": ["Detta", "är", "en", "mening", "som", "behöver", "analyseras"],\n  "pos": ["PRON", "VERB", "DET", "NOUN", "PRON", "VERB", "VERB"],\n  "entities": [{"text": "Sverige", "label": "GPE", "start": 10, "end": 17}],\n  "dependencies": [\n    {"token": "är", "dep": "ROOT", "head": "är"},\n    {"token": "Detta", "dep": "nsubj", "head": "är"}\n  ],\n  "lemmas": ["detta", "vara", "en", "mening", "som", "behöva", "analysera"],\n  "metadata": {"model": "sv_core_news_sm", "version": "3.7.2"}\n}\n```'
       }
     },
     { 
       path: '/ml/sentiment', 
       method: 'POST', 
-      status: '✅', 
-      desc: 'Sentiment analysis (TextBlob)', 
+      status: 'Ready', 
+      desc: 'Sentiment analysis using TextBlob - polarity and subjectivity scores', 
       service: 'python-ml',
       details: {
         input: '```json\n{\n  "text": "This is a wonderful day!"\n}\n```',
-        process: 'Analyzes text polarity using TextBlob → Calculates subjectivity → Classifies sentiment → Returns scores',
-        output: '```json\n{\n  "polarity": 0.85,\n  "subjectivity": 0.65,\n  "sentiment": "positive",\n  "confidence": 0.92\n}\n```'
+        process: 'Analyzes text polarity using TextBlob → Calculates subjectivity score (0=objective, 1=subjective) → Classifies overall sentiment → Returns detailed scores with confidence',
+        output: '```json\n{\n  "polarity": 0.85,\n  "subjectivity": 0.65,\n  "sentiment": "positive",\n  "confidence": 0.92,\n  "magnitude": 0.75,\n  "metadata": {"model": "TextBlob", "version": "0.17.1"}\n}\n```'
       }
     },
     { 
       path: '/ml/language', 
       method: 'POST', 
-      status: '✅', 
-      desc: 'Language detection', 
+      status: 'Ready', 
+      desc: 'Language detection using langdetect - language code with confidence scores', 
       service: 'python-ml',
       details: {
         input: '```json\n{\n  "text": "Detta är en svensk mening"\n}\n```',
-        process: 'Detects language using langdetect → Calculates confidence → Returns language code',
-        output: '```json\n{\n  "language": "sv",\n  "confidence": 0.99,\n  "alternates": [{"lang": "no", "prob": 0.01}]\n}\n```'
+        process: 'Detects language using langdetect library → Calculates confidence probability → Identifies alternative language matches → Returns ISO 639-1 language code with probabilities',
+        output: '```json\n{\n  "language": "sv",\n  "confidence": 0.99,\n  "alternates": [\n    {"lang": "no", "prob": 0.01},\n    {"lang": "da", "prob": 0.005}\n  ],\n  "metadata": {"detector": "langdetect", "iso_code": "ISO 639-1"}\n}\n```'
       }
     },
     { 
       path: '/ml/toxicity', 
       method: 'POST', 
-      status: '✅', 
-      desc: 'Toxicity detection (Detoxify)', 
+      status: 'Ready', 
+      desc: 'Multi-dimensional toxicity detection using Detoxify - toxicity, threat, insult, sexual, identity hate', 
       service: 'python-ml',
       details: {
         input: '```json\n{\n  "text": "Your text to analyze for toxicity"\n}\n```',
-        process: 'Analyzes text using Detoxify model → Scores toxicity categories → Returns classification',
-        output: '```json\n{\n  "toxicity": 0.12,\n  "severe_toxicity": 0.01,\n  "obscene": 0.05,\n  "threat": 0.02,\n  "insult": 0.08,\n  "identity_attack": 0.03\n}\n```'
+        process: 'Analyzes text using Detoxify transformer model → Scores multiple toxicity dimensions → Applies threshold detection → Returns multi-category classification with confidence scores',
+        output: '```json\n{\n  "toxicity": 0.12,\n  "severe_toxicity": 0.01,\n  "obscene": 0.05,\n  "threat": 0.02,\n  "insult": 0.08,\n  "identity_attack": 0.03,\n  "sexual_explicit": 0.01,\n  "overall_toxic": false,\n  "risk_level": "low",\n  "metadata": {"model": "unitary/toxic-bert", "version": "0.5.2"}\n}\n```'
       }
     },
     { 
       path: '/ml/ideology', 
       method: 'POST', 
-      status: '✅', 
-      desc: 'Ideological classification (Swedish BERT)', 
+      status: 'Ready', 
+      desc: 'Ideological classification using Swedish BERT transformers - political leaning with confidence', 
       service: 'python-ml',
       details: {
-        input: '```json\n{\n  "text": "Text om miljöpolitik och hållbarhet"\n}\n```',
-        process: 'Tokenizes using Swedish BERT → Runs through transformer model → Classifies political leaning → Returns ideology scores',
-        output: '```json\n{\n  "ideology": "green",\n  "scores": {\n    "left": 0.15,\n    "center": 0.20,\n    "right": 0.10,\n    "green": 0.55\n  },\n  "confidence": 0.85\n}\n```'
+        input: '```json\n{\n  "text": "Text om miljöpolitik och hållbarhet",\n  "language": "sv"\n}\n```',
+        process: 'Tokenizes using Swedish BERT tokenizer → Runs through fine-tuned transformer model → Classifies political/ideological leaning → Calculates multi-class probabilities → Returns ideology distribution with confidence',
+        output: '```json\n{\n  "ideology": "green",\n  "scores": {\n    "left": 0.15,\n    "center": 0.20,\n    "right": 0.10,\n    "green": 0.55\n  },\n  "confidence": 0.85,\n  "secondary": "center",\n  "metadata": {"model": "KB/bert-base-swedish-cased", "version": "transformers-4.36.2"}\n}\n```'
       }
     },
     { 
       path: '/ml/topics', 
       method: 'POST', 
-      status: '✅', 
-      desc: 'Topic modeling (BERTopic/Gensim)', 
+      status: 'Ready', 
+      desc: 'Topic modeling using BERTopic and Gensim - topic clusters with key terms', 
       service: 'python-ml',
       details: {
-        input: '```json\n{\n  "text": "Long text about climate change and renewable energy..."\n}\n```',
-        process: 'Embeds text using sentence transformers → Clusters topics using BERTopic/LDA → Extracts key terms → Returns topic distribution',
-        output: '```json\n{\n  "topics": [\n    {"id": 0, "label": "climate_change", "probability": 0.65, "terms": ["climate", "change", "warming"]},\n    {"id": 1, "label": "renewable_energy", "probability": 0.35, "terms": ["solar", "wind", "renewable"]}\n  ]\n}\n```'
+        input: '```json\n{\n  "text": "Long text about climate change and renewable energy...",\n  "num_topics": 5,\n  "method": "bertopic"\n}\n```',
+        process: 'Embeds text using sentence transformers → Applies dimensionality reduction (UMAP) → Clusters topics using HDBSCAN → Extracts representative key terms using c-TF-IDF → Returns topic distribution with cluster metadata',
+        output: '```json\n{\n  "topics": [\n    {"id": 0, "label": "climate_change", "probability": 0.65, "terms": ["climate", "change", "warming", "global"], "coherence": 0.72},\n    {"id": 1, "label": "renewable_energy", "probability": 0.35, "terms": ["solar", "wind", "renewable", "energy"], "coherence": 0.68}\n  ],\n  "num_topics_found": 2,\n  "outliers": 0.05,\n  "metadata": {"model": "BERTopic", "version": "0.16.0", "embedding_model": "all-MiniLM-L6-v2"}\n}\n```'
       }
     },
     { 
@@ -269,61 +269,61 @@ export default function ApiDocumentationPage() {
     { 
       path: '/ml/shap', 
       method: 'POST', 
-      status: '✅', 
-      desc: 'SHAP explainability', 
+      status: 'Ready', 
+      desc: 'SHAP explainability - global and local feature importance for model predictions', 
       service: 'python-ml',
       details: {
-        input: '```json\n{\n  "text": "Text to explain",\n  "model": "sentiment"\n}\n```',
-        process: 'Generates SHAP values for model prediction → Identifies important features → Returns feature contributions',
-        output: '```json\n{\n  "shapValues": [0.15, -0.08, 0.22, ...],\n  "tokens": ["word1", "word2", "word3", ...],\n  "topFeatures": [{"token": "wonderful", "contribution": 0.22}]\n}\n```'
+        input: '```json\n{\n  "text": "Text to explain",\n  "model": "sentiment",\n  "prediction_class": "positive"\n}\n```',
+        process: 'Generates SHAP (SHapley Additive exPlanations) values using TreeExplainer or DeepExplainer → Identifies important features → Calculates feature contributions → Returns both global and local explanations with visualizations',
+        output: '```json\n{\n  "shapValues": [0.15, -0.08, 0.22, 0.05, -0.12],\n  "tokens": ["wonderful", "day", "but", "some", "issues"],\n  "baseValue": 0.0,\n  "topFeatures": [\n    {"token": "wonderful", "contribution": 0.22, "direction": "positive"},\n    {"token": "issues", "contribution": -0.12, "direction": "negative"}\n  ],\n  "globalImportance": {"word_sentiment": 0.45, "word_length": 0.15},\n  "visualization": "data:image/png;base64,...",\n  "metadata": {"model": "SHAP", "version": "0.44.0", "explainer_type": "TreeExplainer"}\n}\n```'
       }
     },
     { 
       path: '/ml/lime', 
       method: 'POST', 
-      status: '✅', 
-      desc: 'LIME interpretability', 
+      status: 'Ready', 
+      desc: 'LIME local interpretability - explains individual predictions with feature weights', 
       service: 'python-ml',
       details: {
-        input: '```json\n{\n  "text": "Text to explain",\n  "model": "ideology"\n}\n```',
-        process: 'Generates LIME explanation → Creates local interpretable model → Returns feature weights',
-        output: '```json\n{\n  "explanation": "Local explanation text",\n  "weights": [{"word": "policy", "weight": 0.45}],\n  "confidence": 0.88\n}\n```'
+        input: '```json\n{\n  "text": "Text to explain",\n  "model": "ideology",\n  "num_features": 10,\n  "num_samples": 5000\n}\n```',
+        process: 'Generates LIME (Local Interpretable Model-agnostic Explanations) → Perturbs input text → Creates local surrogate model → Calculates feature importance weights → Returns interpretable local explanation',
+        output: '```json\n{\n  "explanation": "The model classified this as \'green\' primarily due to environmental policy terms",\n  "weights": [\n    {"word": "miljö", "weight": 0.45, "class": "green"},\n    {"word": "hållbarhet", "weight": 0.38, "class": "green"},\n    {"word": "politik", "weight": 0.12, "class": "center"}\n  ],\n  "prediction": "green",\n  "confidence": 0.88,\n  "intercept": 0.05,\n  "score": 0.72,\n  "metadata": {"model": "LIME", "num_features": 10, "num_samples": 5000}\n}\n```'
       }
     },
     { 
       path: '/ml/fairness', 
       method: 'POST', 
-      status: '✅', 
-      desc: 'Fairness metrics (Fairlearn)', 
+      status: 'Ready', 
+      desc: 'Fairness metrics and bias analysis using Fairlearn - demographic parity, equalized odds', 
       service: 'python-ml',
       details: {
-        input: '```json\n{\n  "predictions": [...],\n  "sensitive_features": [...]\n}\n```',
-        process: 'Calculates fairness metrics → Checks for bias → Returns fairness assessment',
-        output: '```json\n{\n  "demographicParity": 0.92,\n  "equalizedOdds": 0.88,\n  "biasMitigation": "recommended"\n}\n```'
+        input: '```json\n{\n  "predictions": [0, 1, 1, 0, 1],\n  "true_labels": [0, 1, 0, 0, 1],\n  "sensitive_features": ["group_a", "group_b", "group_a", "group_b", "group_a"],\n  "feature_names": ["gender"]\n}\n```',
+        process: 'Calculates Fairlearn fairness metrics → Computes demographic parity difference → Analyzes equalized odds → Checks disparate impact → Identifies bias patterns → Returns comprehensive fairness assessment with mitigation recommendations',
+        output: '```json\n{\n  "demographicParity": 0.92,\n  "demographicParityDifference": 0.08,\n  "equalizedOdds": 0.88,\n  "disparateImpact": 0.85,\n  "biasMitigation": "recommended",\n  "fairnessViolations": ["demographic_parity"],\n  "groupMetrics": {\n    "group_a": {"selection_rate": 0.60, "accuracy": 0.85},\n    "group_b": {"selection_rate": 0.68, "accuracy": 0.82}\n  },\n  "recommendations": ["Apply threshold optimization", "Review sensitive feature impact"],\n  "metadata": {"model": "Fairlearn", "version": "0.10.0"}\n}\n```'
       }
     },
     { 
       path: '/ml/eda', 
       method: 'POST', 
-      status: '📋', 
-      desc: 'Automated EDA (Sweetviz)', 
+      status: 'Partial', 
+      desc: 'Automated EDA using Sweetviz - comprehensive data analysis and visualizations', 
       service: 'python-ml',
       details: {
-        input: '```json\n{\n  "dataset": [...]\n}\n```',
-        process: 'Generates automated exploratory data analysis → Creates visualizations → Returns HTML report',
-        output: '```json\n{\n  "reportUrl": "/reports/eda_abc123.html",\n  "summary": {...}\n}\n```'
+        input: '```json\n{\n  "dataset": [\n    {"feature1": 10, "feature2": "category_a", "target": 1},\n    {"feature1": 20, "feature2": "category_b", "target": 0}\n  ],\n  "target_column": "target",\n  "compare_dataset": null\n}\n```',
+        process: 'Generates automated exploratory data analysis using Sweetviz → Analyzes distributions → Creates correlation matrices → Identifies missing values → Generates comprehensive visualizations → Returns HTML report with interactive charts',
+        output: '```json\n{\n  "reportUrl": "/reports/eda_abc123.html",\n  "summary": {\n    "num_features": 3,\n    "num_observations": 2,\n    "missing_cells": 0,\n    "duplicate_rows": 0,\n    "correlations": {"feature1_target": 0.85}\n  },\n  "statistics": {\n    "feature1": {"mean": 15.0, "std": 7.07, "min": 10, "max": 20}\n  },\n  "metadata": {"model": "Sweetviz", "report_type": "analyze"}\n}\n```'
       }
     },
     { 
       path: '/ml/viz', 
       method: 'POST', 
-      status: '📋', 
-      desc: 'Interactive visualizations (Lux)', 
+      status: 'Partial', 
+      desc: 'Interactive visualizations using Lux - automatic chart recommendations and insights', 
       service: 'python-ml',
       details: {
-        input: '```json\n{\n  "dataset": [...],\n  "target": "column_name"\n}\n```',
-        process: 'Generates interactive visualizations using Lux → Returns visualization recommendations',
-        output: '```json\n{\n  "visualizations": [...],\n  "recommendations": [...]\n}\n```'
+        input: '```json\n{\n  "dataset": [\n    {"x": 10, "y": 20, "category": "A"},\n    {"x": 15, "y": 25, "category": "B"}\n  ],\n  "target": "y",\n  "intent": ["x", "category"]\n}\n```',
+        process: 'Generates interactive visualizations using Lux library → Analyzes data patterns → Creates automatic chart recommendations → Identifies interesting correlations → Returns visualization specifications with insights',
+        output: '```json\n{\n  "visualizations": [\n    {"type": "scatter", "x": "x", "y": "y", "encoding": {...}, "score": 0.85},\n    {"type": "bar", "x": "category", "y": "y", "encoding": {...}, "score": 0.72}\n  ],\n  "recommendations": [\n    {"type": "Correlation", "description": "Strong positive correlation between x and y"},\n    {"type": "Distribution", "description": "Category A shows higher y values"}\n  ],\n  "insights": ["x and y are highly correlated (r=0.95)"],\n  "metadata": {"model": "Lux", "num_visualizations": 2}\n}\n```'
       }
     },
     { 
@@ -421,6 +421,33 @@ export default function ApiDocumentationPage() {
         input: 'Query params: `resourceId`, `from`, `to`',
         process: 'Retrieves change history → Orders chronologically → Returns timeline',
         output: '```json\n{\n  "timeline": [{\n    "timestamp": "2025-11-18T10:00:00Z",\n    "change": {...},\n    "severity": 0.35\n  }]\n}\n```'
+      }
+    },
+  ];
+
+  const factCheckEndpoints = [
+    { 
+      path: '/fact-check/verify', 
+      method: 'POST', 
+      status: 'Partial', 
+      desc: 'Fact verification using Tavily API - verify claims with source citations', 
+      service: 'fact-check',
+      details: {
+        input: '```json\n{\n  "claim": "Sweden has achieved carbon neutrality by 2045",\n  "context": "Optional context text",\n  "max_sources": 5\n}\n```',
+        process: 'Submits claim to Tavily API → Searches trusted sources → Analyzes credibility → Extracts supporting/contradicting evidence → Calculates confidence score → Returns verification status with citations',
+        output: '```json\n{\n  "verificationStatus": "partially_true",\n  "confidence": 0.75,\n  "verdict": "Sweden has set a goal for carbon neutrality by 2045 but has not yet achieved it",\n  "sources": [\n    {\n      "url": "https://example.com/sweden-climate",\n      "title": "Sweden Climate Goals",\n      "snippet": "Sweden aims to reach net zero emissions by 2045",\n      "credibility": 0.92,\n      "date": "2024-01-15"\n    }\n  ],\n  "supportingEvidence": 3,\n  "contradictingEvidence": 1,\n  "timestamp": "2025-11-18T10:00:00Z",\n  "metadata": {"api": "Tavily", "search_depth": "advanced"}\n}\n```'
+      }
+    },
+    { 
+      path: '/fact-check/sources', 
+      method: 'POST', 
+      status: 'Partial', 
+      desc: 'Get credible sources for a topic', 
+      service: 'fact-check',
+      details: {
+        input: '```json\n{\n  "query": "renewable energy statistics 2024",\n  "num_sources": 10,\n  "domain_filter": ["gov", "edu", "org"]\n}\n```',
+        process: 'Queries Tavily for credible sources → Filters by domain credibility → Ranks by relevance and trustworthiness → Returns curated source list',
+        output: '```json\n{\n  "sources": [\n    {"url": "https://example.gov/renewable", "title": "...", "credibility": 0.95},\n    {"url": "https://example.edu/energy", "title": "...", "credibility": 0.88}\n  ],\n  "total": 10,\n  "metadata": {"query_time_ms": 450}\n}\n```'
       }
     },
   ];
@@ -589,6 +616,20 @@ export default function ApiDocumentationPage() {
             </div>
             <div>
               {changeDetectionEndpoints.map((endpoint, idx) => renderEndpoint(endpoint, idx, 'change'))}
+            </div>
+          </div>
+
+          {/* Fact Checking Endpoints */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-mono text-[#888]">FACT CHECKING (TAVILY)</h2>
+              <div className="flex items-center gap-2 text-[10px] font-mono">
+                <span className="text-[#555]">Status:</span>
+                {getServiceHealth('fact-check')}
+              </div>
+            </div>
+            <div>
+              {factCheckEndpoints.map((endpoint, idx) => renderEndpoint(endpoint, idx, 'fact-check'))}
             </div>
           </div>
 

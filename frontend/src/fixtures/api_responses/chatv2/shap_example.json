@@ -1,0 +1,23 @@
+{
+  "shapValues": [0.22, -0.08, 0.15, 0.05, -0.12, 0.18, -0.03],
+  "tokens": ["wonderful", "day", "but", "some", "issues", "remain", "unsolved"],
+  "baseValue": 0.0,
+  "topFeatures": [
+    {"token": "wonderful", "contribution": 0.22, "direction": "positive"},
+    {"token": "remain", "contribution": 0.18, "direction": "positive"},
+    {"token": "but", "contribution": 0.15, "direction": "positive"},
+    {"token": "issues", "contribution": -0.12, "direction": "negative"},
+    {"token": "day", "contribution": -0.08, "direction": "negative"}
+  ],
+  "globalImportance": {
+    "word_sentiment": 0.45,
+    "word_length": 0.15,
+    "position": 0.10
+  },
+  "visualization": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+  "metadata": {
+    "model": "SHAP",
+    "version": "0.44.0",
+    "explainer_type": "TreeExplainer"
+  }
+}
