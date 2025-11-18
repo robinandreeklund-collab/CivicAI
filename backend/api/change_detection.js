@@ -1,6 +1,7 @@
 import express from 'express';
 import { spawn } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -82,8 +83,6 @@ async function executeChangeDetection(question, model, response, version = 'unkn
           console.error(errorOutput);
           
           // Also write full error to a debug file
-          const fs = require('fs');
-          const path = require('path');
           const debugDir = path.join(__dirname, '..', '..', 'ml', 'debug');
           try {
             if (!fs.existsSync(debugDir)) {
@@ -94,7 +93,7 @@ async function executeChangeDetection(question, model, response, version = 'unkn
             fs.writeFileSync(errorFile, `Timestamp: ${new Date().toISOString()}\n\nError Output:\n${errorOutput}\n`);
             console.error(`Full error written to: ${errorFile}`);
           } catch (writeErr) {
-            // Ignore file write errors
+            console.error('Failed to write debug file:', writeErr.message);
           }
           
           // Try to parse as JSON for better error display
