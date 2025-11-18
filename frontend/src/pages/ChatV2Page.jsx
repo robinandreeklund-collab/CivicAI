@@ -1099,18 +1099,26 @@ export default function ChatV2Page() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <div className="text-[#666]">Ord</div>
-                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.preprocessing.word_count ?? 'N/A'}</div>
+                      <div className="text-[#e7e7e7]">
+                        {selectedResponse.pipelineAnalysis.preprocessing.tokenization?.wordCount ?? 
+                         selectedResponse.pipelineAnalysis.preprocessing.word_count ?? 'N/A'}
+                      </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Meningar</div>
-                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.preprocessing.sentence_count ?? 'N/A'}</div>
+                      <div className="text-[#e7e7e7]">
+                        {selectedResponse.pipelineAnalysis.preprocessing.tokenization?.sentenceCount ?? 
+                         selectedResponse.pipelineAnalysis.preprocessing.sentence_count ?? 'N/A'}
+                      </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Subjektivitet</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.preprocessing.subjectivity != null 
-                          ? selectedResponse.pipelineAnalysis.preprocessing.subjectivity.toFixed(2)
-                          : 'N/A'}
+                        {selectedResponse.pipelineAnalysis.preprocessing.subjectivityAnalysis?.subjectivityScore != null 
+                          ? selectedResponse.pipelineAnalysis.preprocessing.subjectivityAnalysis.subjectivityScore.toFixed(2)
+                          : (selectedResponse.pipelineAnalysis.preprocessing.subjectivity != null 
+                            ? selectedResponse.pipelineAnalysis.preprocessing.subjectivity.toFixed(2)
+                            : 'N/A')}
                       </div>
                     </div>
                   </div>
@@ -1124,19 +1132,29 @@ export default function ChatV2Page() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <div className="text-[#666]">Övergripande</div>
-                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.sentimentAnalysis.overall ?? 'N/A'}</div>
+                      <div className="text-[#e7e7e7]">
+                        {selectedResponse.pipelineAnalysis.sentimentAnalysis.overallTone ?? 
+                         selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment?.classification ?? 
+                         selectedResponse.pipelineAnalysis.sentimentAnalysis.overall ?? 'N/A'}
+                      </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Poäng</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.sentimentAnalysis.score != null
-                          ? selectedResponse.pipelineAnalysis.sentimentAnalysis.score.toFixed(2)
-                          : 'N/A'}
+                        {selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment?.score != null
+                          ? selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment.score.toFixed(2)
+                          : (selectedResponse.pipelineAnalysis.sentimentAnalysis.score != null
+                            ? selectedResponse.pipelineAnalysis.sentimentAnalysis.score.toFixed(2)
+                            : 'N/A')}
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Intensitet</div>
-                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.sentimentAnalysis.intensity ?? 'N/A'}</div>
+                      <div className="text-[#e7e7e7]">
+                        {selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment?.comparative != null
+                          ? Math.abs(selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment.comparative).toFixed(2)
+                          : (selectedResponse.pipelineAnalysis.sentimentAnalysis.intensity ?? 'N/A')}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1149,20 +1167,26 @@ export default function ChatV2Page() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <div className="text-[#666]">Primär</div>
-                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.ideologicalClassification.primary ?? 'N/A'}</div>
+                      <div className="text-[#e7e7e7]">
+                        {selectedResponse.pipelineAnalysis.ideologicalClassification.ideology?.classification ?? 
+                         selectedResponse.pipelineAnalysis.ideologicalClassification.primary ?? 'N/A'}
+                      </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Säkerhet</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.ideologicalClassification.confidence != null
-                          ? `${(selectedResponse.pipelineAnalysis.ideologicalClassification.confidence * 100).toFixed(0)}%`
-                          : 'N/A'}
+                        {selectedResponse.pipelineAnalysis.ideologicalClassification.ideology?.confidence != null
+                          ? `${(selectedResponse.pipelineAnalysis.ideologicalClassification.ideology.confidence * 100).toFixed(0)}%`
+                          : (selectedResponse.pipelineAnalysis.ideologicalClassification.confidence != null
+                            ? `${(selectedResponse.pipelineAnalysis.ideologicalClassification.confidence * 100).toFixed(0)}%`
+                            : 'N/A')}
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Indikatorer</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.ideologicalClassification.indicators?.length ?? 0} st
+                        {selectedResponse.pipelineAnalysis.ideologicalClassification.ideology?.markers?.length ?? 
+                         selectedResponse.pipelineAnalysis.ideologicalClassification.indicators?.length ?? 0} st
                       </div>
                     </div>
                   </div>
