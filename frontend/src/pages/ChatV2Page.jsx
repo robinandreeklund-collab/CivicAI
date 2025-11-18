@@ -537,6 +537,359 @@ export default function ChatV2Page() {
             />
           </div>
         )}
+
+        {/* Explainability Panel (SHAP/LIME) */}
+        {(latestAiMessage.responses?.some(r => r.explainability) || latestAiMessage.explainability) && (
+          <div className="max-w-4xl mx-auto mb-8">
+            <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">🔍</div>
+                <div>
+                  <div className="font-medium text-[#e7e7e7]">Explainability & Feature Importance</div>
+                  <div className="text-sm text-[#666]">SHAP and LIME model explanations</div>
+                </div>
+              </div>
+              {/* TODO: Backend should provide explainability data in response.explainability */}
+              {latestAiMessage.explainability ? (
+                <div className="space-y-4">
+                  {latestAiMessage.explainability.shap && (
+                    <div>
+                      <div className="text-sm text-[#666] mb-2">SHAP Values (Top Features):</div>
+                      <div className="space-y-2">
+                        {latestAiMessage.explainability.shap.topFeatures?.map((feat, idx) => (
+                          <div key={idx} className="flex items-center gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[#e7e7e7] text-sm">{feat.token}</span>
+                                <span className={`text-xs ${feat.direction === 'positive' ? 'text-green-400' : 'text-red-400'}`}>
+                                  {feat.contribution > 0 ? '+' : ''}{feat.contribution.toFixed(3)}
+                                </span>
+                              </div>
+                              <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full ${feat.direction === 'positive' ? 'bg-green-500' : 'bg-red-500'}`}
+                                  style={{width: `${Math.abs(feat.contribution) * 100}%`}}
+                                ></div>
+                              </div>
+                            </div>
+                          </div>
+                        )) || <p className="text-[#666] text-sm">No SHAP data available</p>}
+                      </div>
+                    </div>
+                  )}
+                  {latestAiMessage.explainability.lime && (
+                    <div>
+                      <div className="text-sm text-[#666] mb-2">LIME Explanation:</div>
+                      <p className="text-[#888] text-sm mb-3">{latestAiMessage.explainability.lime.explanation}</p>
+                      <div className="space-y-1">
+                        {latestAiMessage.explainability.lime.weights?.slice(0, 5).map((w, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-sm">
+                            <span className="text-[#e7e7e7]">{w.word}</span>
+                            <span className="text-[#666]">{w.weight.toFixed(3)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-[#666] text-sm">Explainability data kommer vara tillgänglig när backend är implementerat</p>
+                  <p className="text-[#555] text-xs mt-1">TODO: Implementera /ml/shap och /ml/lime endpoints</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Toxicity Analysis Panel (Detoxify) */}
+        {(latestAiMessage.responses?.some(r => r.toxicity) || latestAiMessage.toxicity) && (
+          <div className="max-w-4xl mx-auto mb-8">
+            <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">🛡️</div>
+                <div>
+                  <div className="font-medium text-[#e7e7e7]">Toxicity Analysis</div>
+                  <div className="text-sm text-[#666]">Multi-dimensional toxicity detection using Detoxify</div>
+                </div>
+              </div>
+              {/* TODO: Backend should provide toxicity data in response.toxicity */}
+              {latestAiMessage.toxicity ? (
+                <div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                    {[
+                      {label: 'Toxicity', value: latestAiMessage.toxicity.toxicity, key: 'toxicity'},
+                      {label: 'Threat', value: latestAiMessage.toxicity.threat, key: 'threat'},
+                      {label: 'Insult', value: latestAiMessage.toxicity.insult, key: 'insult'},
+                      {label: 'Identity Attack', value: latestAiMessage.toxicity.identity_attack, key: 'identity_attack'},
+                      {label: 'Obscene', value: latestAiMessage.toxicity.obscene, key: 'obscene'},
+                      {label: 'Severe Toxicity', value: latestAiMessage.toxicity.severe_toxicity, key: 'severe_toxicity'},
+                    ].map((metric) => (
+                      <div key={metric.key} className="bg-[#1a1a1a] rounded p-3">
+                        <div className="text-[#666] text-xs mb-2">{metric.label}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 bg-[#0a0a0a] h-2 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full ${
+                                (metric.value || 0) > 0.5 ? 'bg-red-500' :
+                                (metric.value || 0) > 0.3 ? 'bg-yellow-500' :
+                                'bg-green-500'
+                              }`}
+                              style={{width: `${(metric.value || 0) * 100}%`}}
+                            ></div>
+                          </div>
+                          <span className="text-[#e7e7e7] text-sm font-medium">
+                            {((metric.value || 0) * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {latestAiMessage.toxicity.overall_toxic !== undefined && (
+                    <div className={`p-3 rounded ${latestAiMessage.toxicity.overall_toxic ? 'bg-red-900/20 border border-red-900/30' : 'bg-green-900/20 border border-green-900/30'}`}>
+                      <div className="text-sm">
+                        <span className="font-medium">Overall Assessment: </span>
+                        <span className={latestAiMessage.toxicity.overall_toxic ? 'text-red-400' : 'text-green-400'}>
+                          {latestAiMessage.toxicity.overall_toxic ? 'Toxic content detected' : 'Content appears safe'}
+                        </span>
+                        {latestAiMessage.toxicity.risk_level && (
+                          <span className="text-[#666] ml-2">
+                            (Risk Level: {latestAiMessage.toxicity.risk_level})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-[#666] text-sm">Toxicitetsanalys kommer vara tillgänglig när backend är implementerat</p>
+                  <p className="text-[#555] text-xs mt-1">TODO: Implementera /ml/toxicity endpoint</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Topic Modeling Panel (BERTopic) */}
+        {(latestAiMessage.responses?.some(r => r.topics) || latestAiMessage.topics) && (
+          <div className="max-w-4xl mx-auto mb-8">
+            <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">🧠</div>
+                <div>
+                  <div className="font-medium text-[#e7e7e7]">Topic Modeling</div>
+                  <div className="text-sm text-[#666]">BERTopic cluster analysis and dominant themes</div>
+                </div>
+              </div>
+              {/* TODO: Backend should provide topics data in response.topics */}
+              {latestAiMessage.topics ? (
+                <div className="space-y-4">
+                  {latestAiMessage.topics.topics?.map((topic, idx) => (
+                    <div key={idx} className="bg-[#1a1a1a] rounded p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <div className="text-[#e7e7e7] font-medium">{topic.label}</div>
+                          <div className="text-[#666] text-xs">Topic {topic.id}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[#e7e7e7] text-lg font-medium">
+                            {(topic.probability * 100).toFixed(1)}%
+                          </div>
+                          {topic.coherence && (
+                            <div className="text-[#666] text-xs">
+                              Coherence: {topic.coherence.toFixed(2)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {topic.terms?.map((term, tidx) => (
+                          <span key={tidx} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded">
+                            {term}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )) || <p className="text-[#666] text-sm">No topics identified</p>}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-[#666] text-sm">Topic modeling kommer vara tillgänglig när backend är implementerat</p>
+                  <p className="text-[#555] text-xs mt-1">TODO: Implementera /ml/topics endpoint med BERTopic</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Bias & Fairness Panel (Fairlearn) */}
+        {(latestAiMessage.responses?.some(r => r.fairness) || latestAiMessage.fairness) && (
+          <div className="max-w-4xl mx-auto mb-8">
+            <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">⚖️</div>
+                <div>
+                  <div className="font-medium text-[#e7e7e7]">Bias & Fairness Analysis</div>
+                  <div className="text-sm text-[#666]">Fairlearn metrics and bias detection</div>
+                </div>
+              </div>
+              {/* TODO: Backend should provide fairness data in response.fairness */}
+              {latestAiMessage.fairness ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {latestAiMessage.fairness.demographicParity !== undefined && (
+                      <div className="bg-[#1a1a1a] rounded p-3">
+                        <div className="text-[#666] text-sm mb-2">Demographic Parity</div>
+                        <div className="text-2xl font-medium text-[#e7e7e7]">
+                          {(latestAiMessage.fairness.demographicParity * 100).toFixed(0)}%
+                        </div>
+                        <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
+                          <div 
+                            className="bg-blue-500 h-full" 
+                            style={{width: `${latestAiMessage.fairness.demographicParity * 100}%`}}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
+                    {latestAiMessage.fairness.equalizedOdds !== undefined && (
+                      <div className="bg-[#1a1a1a] rounded p-3">
+                        <div className="text-[#666] text-sm mb-2">Equalized Odds</div>
+                        <div className="text-2xl font-medium text-[#e7e7e7]">
+                          {(latestAiMessage.fairness.equalizedOdds * 100).toFixed(0)}%
+                        </div>
+                        <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
+                          <div 
+                            className="bg-purple-500 h-full" 
+                            style={{width: `${latestAiMessage.fairness.equalizedOdds * 100}%`}}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
+                    {latestAiMessage.fairness.disparateImpact !== undefined && (
+                      <div className="bg-[#1a1a1a] rounded p-3">
+                        <div className="text-[#666] text-sm mb-2">Disparate Impact</div>
+                        <div className="text-2xl font-medium text-[#e7e7e7]">
+                          {(latestAiMessage.fairness.disparateImpact * 100).toFixed(0)}%
+                        </div>
+                        <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
+                          <div 
+                            className="bg-cyan-500 h-full" 
+                            style={{width: `${latestAiMessage.fairness.disparateImpact * 100}%`}}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {latestAiMessage.fairness.fairnessViolations && latestAiMessage.fairness.fairnessViolations.length > 0 && (
+                    <div className="bg-yellow-900/20 border border-yellow-900/30 rounded p-3">
+                      <div className="text-sm text-yellow-400 mb-2">⚠ Fairness Violations Detected:</div>
+                      <ul className="space-y-1">
+                        {latestAiMessage.fairness.fairnessViolations.map((violation, idx) => (
+                          <li key={idx} className="text-[#888] text-sm">• {violation}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {latestAiMessage.fairness.recommendations && latestAiMessage.fairness.recommendations.length > 0 && (
+                    <div>
+                      <div className="text-[#666] text-sm mb-2">Recommendations:</div>
+                      <ul className="space-y-1">
+                        {latestAiMessage.fairness.recommendations.map((rec, idx) => (
+                          <li key={idx} className="text-[#888] text-sm">• {rec}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-[#666] text-sm">Fairness-analys kommer vara tillgänglig när backend är implementerat</p>
+                  <p className="text-[#555] text-xs mt-1">TODO: Implementera /ml/fairness endpoint med Fairlearn</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Fact Checking Panel (Tavily) */}
+        {(latestAiMessage.factCheck || latestAiMessage.factCheckComparison) && (
+          <div className="max-w-4xl mx-auto mb-8">
+            <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">✅</div>
+                <div>
+                  <div className="font-medium text-[#e7e7e7]">Fact Checking</div>
+                  <div className="text-sm text-[#666]">Source verification using Tavily API</div>
+                </div>
+              </div>
+              {/* TODO: Backend should provide fact checking data in response.factCheck */}
+              {latestAiMessage.factCheck ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-3 bg-[#1a1a1a] rounded">
+                    <div>
+                      <div className="text-sm text-[#666]">Verification Status</div>
+                      <div className={`text-lg font-medium capitalize ${
+                        latestAiMessage.factCheck.verificationStatus === 'true' ? 'text-green-400' :
+                        latestAiMessage.factCheck.verificationStatus === 'false' ? 'text-red-400' :
+                        latestAiMessage.factCheck.verificationStatus === 'partially_true' ? 'text-yellow-400' :
+                        'text-[#888]'
+                      }`}>
+                        {latestAiMessage.factCheck.verificationStatus?.replace('_', ' ')}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm text-[#666]">Confidence</div>
+                      <div className="text-lg font-medium text-[#e7e7e7]">
+                        {(latestAiMessage.factCheck.confidence * 100).toFixed(0)}%
+                      </div>
+                    </div>
+                  </div>
+                  {latestAiMessage.factCheck.verdict && (
+                    <div className="p-3 bg-[#1a1a1a] rounded">
+                      <div className="text-sm text-[#666] mb-2">Verdict:</div>
+                      <p className="text-[#888] text-sm">{latestAiMessage.factCheck.verdict}</p>
+                    </div>
+                  )}
+                  {latestAiMessage.factCheck.sources && latestAiMessage.factCheck.sources.length > 0 && (
+                    <div>
+                      <div className="text-sm text-[#666] mb-2">
+                        Sources ({latestAiMessage.factCheck.supportingEvidence || 0} supporting, {latestAiMessage.factCheck.contradictingEvidence || 0} contradicting):
+                      </div>
+                      <div className="space-y-2">
+                        {latestAiMessage.factCheck.sources.map((source, idx) => (
+                          <div key={idx} className="p-3 bg-[#1a1a1a] rounded border border-[#2a2a2a] hover:border-[#3a3a3a] transition-colors">
+                            <div className="flex items-start justify-between mb-2">
+                              <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-[#e7e7e7] hover:text-white text-sm font-medium flex-1">
+                                {source.title}
+                              </a>
+                              {source.credibility && (
+                                <span className="text-xs px-2 py-1 bg-[#2a2a2a] text-[#888] rounded ml-2">
+                                  {(source.credibility * 100).toFixed(0)}% credible
+                                </span>
+                              )}
+                            </div>
+                            {source.snippet && (
+                              <p className="text-[#666] text-xs mb-1">{source.snippet}</p>
+                            )}
+                            {source.date && (
+                              <div className="text-[#555] text-xs">{source.date}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-[#666] text-sm">Fact checking kommer vara tillgänglig när backend är implementerat</p>
+                  <p className="text-[#555] text-xs mt-1">TODO: Implementera /fact-check/verify endpoint med Tavily API</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
