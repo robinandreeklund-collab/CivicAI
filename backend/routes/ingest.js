@@ -76,6 +76,7 @@ ensureDataDir();
 /**
  * POST /api/ingest/interaction
  * Collect a new AI interaction
+ * Rate limited to 30 requests per minute per IP
  */
 router.post('/interaction', rateLimiter, async (req, res) => {
   try {
@@ -152,6 +153,7 @@ router.post('/interaction', rateLimiter, async (req, res) => {
 /**
  * GET /api/ingest/stats
  * Get ingestion statistics
+ * Rate limited to 30 requests per minute per IP
  */
 router.get('/stats', rateLimiter, async (req, res) => {
   try {
@@ -209,6 +211,7 @@ router.get('/stats', rateLimiter, async (req, res) => {
 /**
  * GET /api/ingest/recent
  * Get recent interactions
+ * Rate limited to 30 requests per minute per IP
  */
 router.get('/recent', rateLimiter, async (req, res) => {
   try {
