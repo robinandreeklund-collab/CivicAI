@@ -25,7 +25,7 @@ const router = express.Router();
  */
 router.post('/shap', async (req, res) => {
   try {
-    const { text, model = 'sentiment', prediction_class } = req.body;
+    const { text, model = 'sentiment' } = req.body;
 
     if (!text) {
       return res.status(400).json({ 
@@ -186,7 +186,7 @@ router.post('/toxicity', async (req, res) => {
  */
 router.post('/topics', async (req, res) => {
   try {
-    const { text, num_topics = 5, method = 'bertopic' } = req.body;
+    const { text, num_topics = 5 } = req.body;
 
     if (!text) {
       return res.status(400).json({ 

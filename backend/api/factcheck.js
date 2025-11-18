@@ -14,6 +14,20 @@ const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 const TAVILY_API_URL = 'https://api.tavily.com/search';
 
 /**
+ * Sanitize text to prevent XSS attacks
+ * Removes HTML tags and escapes special characters
+ */
+function sanitizeText(text) {
+  if (typeof text !== 'string') return text;
+  return text
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;');
+}
+
+/**
  * POST /fact-check/verify
  * Fact verification using Tavily API
  * 
@@ -93,8 +107,8 @@ router.post('/verify', async (req, res) => {
 
         return {
           url: result.url,
-          title: result.title || 'Untitled',
-          snippet: result.content?.substring(0, 200) || '',
+          title: sanitizeText(result.title) || 'Untitled',
+          snippet: sanitizeText(result.content?.substring(0, 200)) || '',
           credibility,
           date: result.published_date || null
         };
@@ -124,7 +138,7 @@ router.post('/verify', async (req, res) => {
       return res.json({
         verificationStatus,
         confidence,
-        verdict: answer || 'Unable to determine verification status from available sources.',
+        verdict: sanitizeText(answer) || 'Unable to determine verification status from available sources.',
         sources,
         supportingEvidence: Math.floor(sources.length * 0.7), // Estimate
         contradictingEvidence: Math.floor(sources.length * 0.3), // Estimate

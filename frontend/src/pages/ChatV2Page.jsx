@@ -258,9 +258,14 @@ export default function ChatV2Page() {
                   <div className="text-sm text-[#666]">AI-genererad kondenserad översikt</div>
                 </div>
               </div>
-              <p className="text-[#888] leading-relaxed">
-                {latestAiMessage.bertSummary}
-              </p>
+              <div className="text-sm text-[#666] leading-relaxed whitespace-pre-wrap" 
+                   dangerouslySetInnerHTML={{ 
+                     __html: latestAiMessage.bertSummary
+                       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold text
+                       .replace(/\*(.*?)\*/g, '<em>$1</em>')  // Italic text
+                       .replace(/\n/g, '<br/>')  // Line breaks
+                   }}>
+              </div>
             </div>
           </div>
         )}
@@ -568,7 +573,7 @@ export default function ChatV2Page() {
                               <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
                                 <div 
                                   className={`h-full ${feat.direction === 'positive' ? 'bg-green-500' : 'bg-red-500'}`}
-                                  style={{width: `${Math.abs(feat.contribution) * 100}%`}}
+                                  style={{width: `${Math.min(Math.abs(feat.contribution) * 100, 100)}%`}}
                                 ></div>
                               </div>
                             </div>
@@ -635,7 +640,7 @@ export default function ChatV2Page() {
                                 (metric.value || 0) > 0.3 ? 'bg-yellow-500' :
                                 'bg-green-500'
                               }`}
-                              style={{width: `${(metric.value || 0) * 100}%`}}
+                              style={{width: `${Math.min((metric.value || 0) * 100, 100)}%`}}
                             ></div>
                           </div>
                           <span className="text-[#e7e7e7] text-sm font-medium">
@@ -747,7 +752,7 @@ export default function ChatV2Page() {
                         <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
                           <div 
                             className="bg-blue-500 h-full" 
-                            style={{width: `${latestAiMessage.fairness.demographicParity * 100}%`}}
+                            style={{width: `${Math.min(latestAiMessage.fairness.demographicParity * 100, 100)}%`}}
                           ></div>
                         </div>
                       </div>
@@ -761,7 +766,7 @@ export default function ChatV2Page() {
                         <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
                           <div 
                             className="bg-purple-500 h-full" 
-                            style={{width: `${latestAiMessage.fairness.equalizedOdds * 100}%`}}
+                            style={{width: `${Math.min(latestAiMessage.fairness.equalizedOdds * 100, 100)}%`}}
                           ></div>
                         </div>
                       </div>
@@ -775,7 +780,7 @@ export default function ChatV2Page() {
                         <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
                           <div 
                             className="bg-cyan-500 h-full" 
-                            style={{width: `${latestAiMessage.fairness.disparateImpact * 100}%`}}
+                            style={{width: `${Math.min(latestAiMessage.fairness.disparateImpact * 100, 100)}%`}}
                           ></div>
                         </div>
                       </div>
@@ -1030,25 +1035,36 @@ export default function ChatV2Page() {
                     <div>
                       <div className="text-[#666] mb-2">Identifierade entiteter:</div>
                       <div className="flex flex-wrap gap-2">
-                        {response.enhancedAnalysis.entities.entities.slice(0, 8).map((entity, eidx) => (
-                          <span key={eidx} className="px-2 py-1 bg-[#1a1a1a] text-[#888] text-sm rounded">
-                            {entity.text} ({entity.label})
-                          </span>
-                        ))}
+                        {response.enhancedAnalysis.entities.entities.slice(0, 8).map((entity, eidx) => {
+                          // Handle different entity structures
+                          const text = entity.text || entity.word || entity.entity || entity;
+                          const label = entity.label || entity.entity_group || entity.type || '';
+                          return (
+                            <span key={eidx} className="px-2 py-1 bg-[#1a1a1a] text-[#888] text-sm rounded">
+                              {typeof text === 'string' ? text : JSON.stringify(text)}
+                              {label && ` (${label})`}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
                   
-                  {/* Identified Entities */}
-                  {response.entities && response.entities.length > 0 && (
+                  {/* Identified Entities - Alternative structure */}
+                  {response.entities && response.entities.length > 0 && !response.enhancedAnalysis?.entities?.entities && (
                     <div className="mt-4">
                       <div className="text-sm text-[#666] mb-2">Identifierade entiteter:</div>
                       <div className="flex flex-wrap gap-2">
-                        {response.entities.map((entity, i) => (
-                          <span key={i} className="px-2 py-1 bg-[#1a1a1a] text-[#888] text-sm rounded">
-                            {entity.text || entity}
-                          </span>
-                        ))}
+                        {response.entities.map((entity, i) => {
+                          const text = typeof entity === 'object' ? (entity.text || entity.word || entity.entity) : entity;
+                          const label = typeof entity === 'object' ? (entity.label || entity.entity_group || entity.type) : '';
+                          return (
+                            <span key={i} className="px-2 py-1 bg-[#1a1a1a] text-[#888] text-sm rounded">
+                              {text || 'N/A'}
+                              {label && ` (${label})`}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
