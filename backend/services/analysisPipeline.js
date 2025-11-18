@@ -392,7 +392,8 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
   const performSingleTextFairness = async () => {
     // Calculate bias indicators from existing analysis results
     const sentimentScores = sentimentAnalysis ? [sentimentAnalysis.polarity || 0] : [0];
-    const toxicityScores = toxicityAnalysis ? [toxicityAnalysis.toxicity || 0] : [0];
+    const toxicityScore = biasAnalysis?.detoxify?.toxicity || biasAnalysis?.overallBiasScore || 0;
+    const toxicityScores = [toxicityScore];
     
     // Calculate consistency metrics
     const sentimentVariance = 0.01; // Low variance for single text
