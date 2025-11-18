@@ -14,6 +14,7 @@ import PipelinePage from './pages/PipelinePage';
 import FeaturesPage from './pages/FeaturesPage';
 import LanguageModelPage from './pages/LanguageModelPage';
 import SignupPage from './pages/SignupPage';
+import OQTDashboardPage from './pages/OQTDashboardPage';
 import DemoIndex from './designDemos';
 
 /**
@@ -119,6 +120,7 @@ function AppContent() {
           <Route path="/pipeline" element={<PipelinePage />} />
           <Route path="/features" element={<FeaturesPage />} />
           <Route path="/sprakmodell" element={<LanguageModelPage />} />
+          <Route path="/oqt-dashboard" element={<OQTDashboardPage />} />
           <Route path="/skapa-konto" element={<SignupPage />} />
           <Route path="/design-demos" element={<DemoIndex />} />
           <Route path="/chat-v2" element={<ChatV2Page />} />

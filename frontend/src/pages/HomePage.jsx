@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import TimelineNavigator from '../components/TimelineNavigator';
 import RichContentCard from '../components/RichContentCard';
 import QuestionInput from '../components/QuestionInput';
@@ -945,6 +945,17 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
         {/* Input Area - Fixed at bottom - from refined prototype */}
         <div className="flex-shrink-0 border-t border-[#1a1a1a] bg-[#0a0a0a]">
           <div className="px-[60px] py-5 max-w-[1080px]">
+            {/* OQT Model Link */}
+            <div className="mb-3 text-center">
+              <Link 
+                to="/oqt-dashboard" 
+                className="inline-flex items-center gap-2 text-xs text-[#666] hover:text-[#e7e7e7] transition-colors duration-200"
+              >
+                <span>🔍</span>
+                <span>Se modell transparens →</span>
+              </Link>
+            </div>
+            
             {/* Clean search box matching prototype design */}
             <QuestionInput
               onSubmit={handleSubmitQuestion}

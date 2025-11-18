@@ -138,6 +138,17 @@ export default function LanguageModelPage() {
               </div>
             </div>
           </div>
+
+          {/* OQT Dashboard Link */}
+          <div className="mt-8 pt-6 border-t border-[#2a2a2a] text-center">
+            <Link 
+              to="/oqt-dashboard"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-[#e7e7e7] text-sm rounded-lg transition-colors duration-200"
+            >
+              <span>🔍</span>
+              <span>Visa fullständig OQT-1.0 Dashboard →</span>
+            </Link>
+          </div>
         </div>
       </div>
       
