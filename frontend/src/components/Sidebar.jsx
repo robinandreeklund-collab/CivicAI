@@ -148,6 +148,20 @@ export default function Sidebar({
               </div>
               <div className="space-y-1">
                 <Link
+                  to="/oqt-dashboard"
+                  className={`
+                    w-full px-3 py-2.5 rounded-lg text-sm transition-all duration-200 flex items-center gap-3
+                    ${location.pathname === '/oqt-dashboard'
+                      ? 'bg-[#2a2a2a] text-[#e7e7e7]'
+                      : 'text-[#888] hover:bg-[#1a1a1a] hover:text-[#e7e7e7]'
+                    }
+                  `}
+                >
+                  <span>🔍</span>
+                  <span>OQT-1.0 Dashboard</span>
+                </Link>
+
+                <Link
                   to="/policy-questions"
                   className={`
                     w-full px-3 py-2.5 rounded-lg text-sm transition-all duration-200 flex items-center gap-3

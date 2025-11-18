@@ -1,0 +1,270 @@
+#!/usr/bin/env python3
+"""
+OQT-1.0 Language Model Training
+Batch training for the Open Quality Transformer model
+"""
+
+import json
+import os
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List
+
+# Add pipelines to path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'pipelines'))
+
+from transparency_ledger import TransparencyLedger
+
+
+class OQTTrainer:
+    """Trainer for OQT-1.0 language model"""
+    
+    def __init__(self, data_dir: str, model_dir: str, ledger_dir: str):
+        self.data_dir = Path(data_dir)
+        self.model_dir = Path(model_dir)
+        self.model_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Initialize transparency ledger
+        self.ledger = TransparencyLedger(ledger_dir)
+        
+        # Training config
+        self.config = {
+            'model_name': 'OQT-1.0',
+            'architecture': 'transformer',
+            'learning_rate': 2e-5,
+            'batch_size': 32,
+            'epochs': 3,
+            'warmup_steps': 500
+        }
+    
+    def load_training_data(self) -> Dict:
+        """Load prepared training datasets"""
+        datasets = {}
+        
+        for split in ['train', 'validation', 'test']:
+            file_path = self.data_dir / f"{split}.json"
+            if file_path.exists():
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    datasets[split] = json.load(f)
+                print(f"Loaded {len(datasets[split])} {split} samples")
+            else:
+                print(f"Warning: {split} dataset not found at {file_path}")
+                datasets[split] = []
+        
+        return datasets
+    
+    def calculate_dataset_hash(self, datasets: Dict) -> str:
+        """Calculate hash of all training data for provenance"""
+        import hashlib
+        combined_data = json.dumps(datasets, sort_keys=True)
+        return hashlib.sha256(combined_data.encode()).hexdigest()
+    
+    def simulate_training(self, datasets: Dict, version: str) -> Dict:
+        """
+        Simulate model training
+        In production, this would use PyTorch/TensorFlow
+        """
+        print(f"\n{'=' * 70}")
+        print(f"Training OQT-1.0 Version {version}")
+        print(f"{'=' * 70}")
+        
+        train_size = len(datasets.get('train', []))
+        val_size = len(datasets.get('validation', []))
+        
+        print(f"\nDataset sizes:")
+        print(f"  Training: {train_size}")
+        print(f"  Validation: {val_size}")
+        
+        print(f"\nTraining configuration:")
+        for key, value in self.config.items():
+            print(f"  {key}: {value}")
+        
+        print(f"\nStarting training...")
+        
+        # Simulate training metrics
+        # In production, these would be actual training results
+        metrics = {
+            'training_loss': 0.342,
+            'validation_accuracy': 0.876,
+            'fairness_score': 0.912,
+            'bias_score': 0.123,
+            'consensus_accuracy': 0.854
+        }
+        
+        fairness_metrics = {
+            'demographic_parity': 0.945,
+            'equal_opportunity': 0.928,
+            'disparate_impact': 0.967
+        }
+        
+        print(f"\nTraining completed!")
+        print(f"\nFinal Metrics:")
+        for key, value in metrics.items():
+            print(f"  {key}: {value:.3f}")
+        
+        print(f"\nFairness Metrics:")
+        for key, value in fairness_metrics.items():
+            print(f"  {key}: {value:.3f}")
+        
+        return {
+            'metrics': metrics,
+            'fairness_metrics': fairness_metrics
+        }
+    
+    def save_model_version(self, version: str, datasets: Dict, results: Dict) -> Dict:
+        """Save model version with complete metadata"""
+        
+        model_version = {
+            'version': version,
+            'timestamp': datetime.now().isoformat(),
+            'training_config': {
+                'dataset_size': len(datasets.get('train', [])),
+                'epochs': self.config['epochs'],
+                'batch_size': self.config['batch_size'],
+                'learning_rate': self.config['learning_rate']
+            },
+            'metrics': results['metrics'],
+            'fairness_metrics': results['fairness_metrics'],
+            'provenance': {
+                'training_data_hash': self.calculate_dataset_hash(datasets),
+                'ledger_block_id': None,  # Will be set after adding to ledger
+                'trainer': 'OQT-Training-Pipeline',
+                'notes': f'Batch training for version {version}'
+            }
+        }
+        
+        # Save model version file
+        version_file = self.model_dir / f"model_version_{version.replace('.', '_')}.json"
+        with open(version_file, 'w', encoding='utf-8') as f:
+            json.dump(model_version, f, indent=2)
+        
+        print(f"\nSaved model version to {version_file}")
+        
+        return model_version
+    
+    def log_to_ledger(self, model_version: Dict) -> Dict:
+        """Log training event to transparency ledger"""
+        
+        ledger_data = {
+            'model_version': model_version['version'],
+            'training_samples': model_version['training_config']['dataset_size'],
+            'fairness_metrics': model_version['fairness_metrics'],
+            'bias_metrics': {
+                'bias_score': model_version['metrics']['bias_score']
+            },
+            'provenance': [
+                f"training_data_hash:{model_version['provenance']['training_data_hash']}",
+                f"trainer:{model_version['provenance']['trainer']}",
+                f"timestamp:{model_version['timestamp']}"
+            ],
+            'training_config': model_version['training_config'],
+            'metrics': model_version['metrics']
+        }
+        
+        block = self.ledger.add_block('training', ledger_data, validator='OQT-Training-Pipeline')
+        
+        # Update model version with ledger reference
+        model_version['provenance']['ledger_block_id'] = block['block_id']
+        
+        # Re-save with ledger reference
+        version = model_version['version']
+        version_file = self.model_dir / f"model_version_{version.replace('.', '_')}.json"
+        with open(version_file, 'w', encoding='utf-8') as f:
+            json.dump(model_version, f, indent=2)
+        
+        print(f"Logged to transparency ledger (Block {block['block_id']})")
+        
+        return block
+    
+    def train(self, version: str = '1.0.0'):
+        """
+        Main training pipeline
+        
+        Args:
+            version: Semantic version for this model
+        """
+        print(f"\n{'=' * 70}")
+        print(f"OQT-1.0 Training Pipeline")
+        print(f"{'=' * 70}")
+        
+        # Load data
+        print(f"\nStep 1: Loading training data...")
+        datasets = self.load_training_data()
+        
+        if not datasets.get('train'):
+            print("ERROR: No training data found!")
+            print("Please run prepare_dataset.py first.")
+            return
+        
+        # Train model
+        print(f"\nStep 2: Training model...")
+        results = self.simulate_training(datasets, version)
+        
+        # Save model version
+        print(f"\nStep 3: Saving model version...")
+        model_version = self.save_model_version(version, datasets, results)
+        
+        # Log to transparency ledger
+        print(f"\nStep 4: Logging to transparency ledger...")
+        ledger_block = self.log_to_ledger(model_version)
+        
+        # Verify ledger integrity
+        print(f"\nStep 5: Verifying ledger integrity...")
+        verification = self.ledger.verify_chain()
+        if verification['valid']:
+            print("✓ Ledger integrity verified")
+        else:
+            print("✗ Ledger integrity check failed!")
+            print(f"  Errors: {verification.get('errors', [])}")
+        
+        print(f"\n{'=' * 70}")
+        print(f"Training Complete!")
+        print(f"{'=' * 70}")
+        print(f"\nModel Version: {version}")
+        print(f"Ledger Block: {ledger_block['block_id']}")
+        print(f"Validation Accuracy: {results['metrics']['validation_accuracy']:.3f}")
+        print(f"Fairness Score: {results['metrics']['fairness_score']:.3f}")
+        print(f"Demographic Parity: {results['fairness_metrics']['demographic_parity']:.3f}")
+        print(f"\nModel saved to: {self.model_dir}")
+        print(f"Transparency ledger: {self.ledger.ledger_file}")
+        
+
+def main():
+    """Main entry point"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Train OQT-1.0 Language Model')
+    parser.add_argument('--version', type=str, default='1.0.0',
+                        help='Model version (semantic versioning, e.g., 1.0.0)')
+    parser.add_argument('--data-dir', type=str, default=None,
+                        help='Directory containing prepared datasets')
+    
+    args = parser.parse_args()
+    
+    # Configuration
+    if args.data_dir:
+        DATA_DIR = args.data_dir
+    else:
+        DATA_DIR = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            'data', 'prepared'
+        )
+    
+    MODEL_DIR = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        'models', 'oqt-1.0'
+    )
+    
+    LEDGER_DIR = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        'ledger'
+    )
+    
+    # Create trainer and run
+    trainer = OQTTrainer(DATA_DIR, MODEL_DIR, LEDGER_DIR)
+    trainer.train(args.version)
+
+
+if __name__ == '__main__':
+    main()

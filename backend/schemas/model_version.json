@@ -1,0 +1,126 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Model Version",
+  "description": "Schema for OQT-1.0 model version metadata",
+  "type": "object",
+  "required": ["version", "timestamp", "training_config", "metrics"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the model (e.g., 1.0.0)"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of when this version was trained"
+    },
+    "training_config": {
+      "type": "object",
+      "required": ["dataset_size", "epochs", "batch_size", "learning_rate"],
+      "properties": {
+        "dataset_size": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Number of samples in training dataset"
+        },
+        "epochs": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Number of training epochs"
+        },
+        "batch_size": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Batch size used during training"
+        },
+        "learning_rate": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Learning rate used during training"
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": ["training_loss", "validation_accuracy"],
+      "properties": {
+        "training_loss": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Final training loss"
+        },
+        "validation_accuracy": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Validation accuracy (0-1)"
+        },
+        "fairness_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Overall fairness score (0-1)"
+        },
+        "bias_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Bias score (lower is better, 0-1)"
+        },
+        "consensus_accuracy": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Accuracy in predicting consensus (0-1)"
+        }
+      }
+    },
+    "fairness_metrics": {
+      "type": "object",
+      "description": "Detailed fairness metrics",
+      "properties": {
+        "demographic_parity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Demographic parity score (closer to 1 is better)"
+        },
+        "equal_opportunity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Equal opportunity score (closer to 1 is better)"
+        },
+        "disparate_impact": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Disparate impact ratio (closer to 1 is better)"
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "description": "Provenance information for this model version",
+      "properties": {
+        "training_data_hash": {
+          "type": "string",
+          "description": "Hash of the training dataset for verification"
+        },
+        "ledger_block_id": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Reference to transparency ledger block"
+        },
+        "trainer": {
+          "type": "string",
+          "description": "Identifier of who/what trained this version"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Training notes and observations"
+        }
+      }
+    }
+  }
+}

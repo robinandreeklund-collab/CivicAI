@@ -173,3 +173,9 @@ Lib/
 Scripts/
 pyvenv.cfg
 Include/
+
+# OQT-1.0 ML Pipeline data and models
+backend/data/oqt-interactions/
+ml/data/
+ml/models/
+ml/ledger/
