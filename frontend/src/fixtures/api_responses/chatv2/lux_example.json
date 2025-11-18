@@ -1,0 +1,55 @@
+{
+  "visualizations": [
+    {
+      "type": "scatter",
+      "x": "x_value",
+      "y": "y_value",
+      "encoding": {
+        "color": "category",
+        "size": "magnitude"
+      },
+      "score": 0.85
+    },
+    {
+      "type": "bar",
+      "x": "category",
+      "y": "count",
+      "encoding": {
+        "color": "category"
+      },
+      "score": 0.72
+    },
+    {
+      "type": "heatmap",
+      "x": "feature1",
+      "y": "feature2",
+      "encoding": {
+        "color": "correlation"
+      },
+      "score": 0.68
+    }
+  ],
+  "recommendations": [
+    {
+      "type": "Correlation",
+      "description": "Strong positive correlation between x_value and y_value (r=0.95)"
+    },
+    {
+      "type": "Distribution",
+      "description": "Category A shows significantly higher y_value compared to other categories"
+    },
+    {
+      "type": "Outlier",
+      "description": "3 outliers detected in y_value distribution"
+    }
+  ],
+  "insights": [
+    "x_value and y_value are highly correlated (r=0.95)",
+    "Category distribution is imbalanced: A=45%, B=35%, C=20%",
+    "Peak values occur in the 40-60 range for y_value"
+  ],
+  "metadata": {
+    "model": "Lux",
+    "num_visualizations": 3
+  }
+}

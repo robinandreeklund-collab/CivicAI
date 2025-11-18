@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Sweetviz EDA Response Schema",
+  "description": "Schema for automated exploratory data analysis using Sweetviz",
+  "type": "object",
+  "properties": {
+    "reportUrl": {
+      "type": "string",
+      "description": "URL to the generated HTML EDA report"
+    },
+    "summary": {
+      "type": "object",
+      "description": "Summary statistics of the EDA",
+      "properties": {
+        "num_features": {
+          "type": "integer"
+        },
+        "num_observations": {
+          "type": "integer"
+        },
+        "missing_cells": {
+          "type": "integer"
+        },
+        "duplicate_rows": {
+          "type": "integer"
+        },
+        "correlations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "statistics": {
+      "type": "object",
+      "description": "Detailed statistics per feature",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "mean": {
+            "type": "number"
+          },
+          "std": {
+            "type": "number"
+          },
+          "min": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "report_type": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": ["reportUrl", "summary"]
+}

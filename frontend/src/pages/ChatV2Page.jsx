@@ -14,6 +14,17 @@ import ReplayTimeline from '../components/ReplayTimeline';
  * - 4 view modes with real API integration
  * - OneSeek.AI grayscale brand identity
  */
+
+// Helper function to format text with markdown-like formatting
+const formatTextWithMarkdown = (text) => {
+  if (!text) return '';
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold text
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')  // Italic text
+    .replace(/\n/g, '<br/>')  // Line breaks
+    .replace(/^- (.+)$/gm, '<div class="ml-4">• $1</div>');  // List items
+};
+
 export default function ChatV2Page() {
   const location = useLocation();
   const [messages, setMessages] = useState([]);
@@ -71,6 +82,80 @@ export default function ChatV2Page() {
 
           const data = await response.json();
           
+          // Fetch ML analysis data from new endpoints (parallel requests for performance)
+          const synthesizedText = data.synthesizedSummary || '';
+          const mlDataPromises = [];
+          
+          // Only fetch ML data if we have text to analyze
+          if (synthesizedText) {
+            // SHAP explainability
+            mlDataPromises.push(
+              fetch('/api/ml/shap', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ text: synthesizedText, model: 'sentiment' })
+              }).then(r => r.ok ? r.json() : null).catch(() => null)
+            );
+            
+            // LIME explainability
+            mlDataPromises.push(
+              fetch('/api/ml/lime', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ text: synthesizedText, model: 'sentiment', num_features: 10 })
+              }).then(r => r.ok ? r.json() : null).catch(() => null)
+            );
+            
+            // Toxicity analysis
+            mlDataPromises.push(
+              fetch('/api/ml/toxicity', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ text: synthesizedText })
+              }).then(r => r.ok ? r.json() : null).catch(() => null)
+            );
+            
+            // Topic modeling (both BERTopic and Gensim)
+            mlDataPromises.push(
+              fetch('/api/ml/topics', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ text: synthesizedText, method: 'both', num_topics: 5 })
+              }).then(r => r.ok ? r.json() : null).catch(() => null)
+            );
+            
+            // Fairness analysis (requires predictions data - use placeholder for now)
+            mlDataPromises.push(
+              fetch('/api/ml/fairness', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ 
+                  predictions: [0, 1, 0, 1], 
+                  true_labels: [0, 1, 1, 0],
+                  sensitive_features: [0, 0, 1, 1],
+                  feature_names: ['group_a', 'group_b']
+                })
+              }).then(r => r.ok ? r.json() : null).catch(() => null)
+            );
+          } else {
+            // Push null promises if no text
+            mlDataPromises.push(...Array(5).fill(Promise.resolve(null)));
+          }
+          
+          // Wait for all ML data requests (with timeout)
+          const [shapData, limeData, toxicityData, topicsData, fairnessData] = await Promise.all(
+            mlDataPromises.map(p => Promise.race([p, new Promise(resolve => setTimeout(() => resolve(null), 5000))]))
+          );
+          
+          // Combine SHAP and LIME into explainability object
+          const explainability = {};
+          if (shapData && shapData.topFeatures) {
+            explainability.shap = shapData;
+          }
+          if (limeData && limeData.weights) {
+            explainability.lime = limeData;
+          }
+          
           // Add AI response - map API response to our structure
           const aiMessage = {
             type: 'ai',
@@ -86,6 +171,11 @@ export default function ChatV2Page() {
             debateTrigger: data.debateTrigger || false,
             // Change detection data from backend
             changeDetection: data.change_detection || null,
+            // ML analysis data from new endpoints
+            explainability: Object.keys(explainability).length > 0 ? explainability : null,
+            toxicity: toxicityData,
+            topics: topicsData,
+            fairness: fairnessData,
             timestamp: new Date().toISOString(),
           };
           
@@ -160,6 +250,80 @@ export default function ChatV2Page() {
 
       const data = await response.json();
       
+      // Fetch ML analysis data from new endpoints (parallel requests for performance)
+      const synthesizedText = data.synthesizedSummary || '';
+      const mlDataPromises = [];
+      
+      // Only fetch ML data if we have text to analyze
+      if (synthesizedText) {
+        // SHAP explainability
+        mlDataPromises.push(
+          fetch('/api/ml/shap', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ text: synthesizedText, model: 'sentiment' })
+          }).then(r => r.ok ? r.json() : null).catch(() => null)
+        );
+        
+        // LIME explainability
+        mlDataPromises.push(
+          fetch('/api/ml/lime', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ text: synthesizedText, model: 'sentiment', num_features: 10 })
+          }).then(r => r.ok ? r.json() : null).catch(() => null)
+        );
+        
+        // Toxicity analysis
+        mlDataPromises.push(
+          fetch('/api/ml/toxicity', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ text: synthesizedText })
+          }).then(r => r.ok ? r.json() : null).catch(() => null)
+        );
+        
+        // Topic modeling (both BERTopic and Gensim)
+        mlDataPromises.push(
+          fetch('/api/ml/topics', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ text: synthesizedText, method: 'both', num_topics: 5 })
+          }).then(r => r.ok ? r.json() : null).catch(() => null)
+        );
+        
+        // Fairness analysis (requires predictions data - use placeholder for now)
+        mlDataPromises.push(
+          fetch('/api/ml/fairness', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+              predictions: [0, 1, 0, 1], 
+              true_labels: [0, 1, 1, 0],
+              sensitive_features: [0, 0, 1, 1],
+              feature_names: ['group_a', 'group_b']
+            })
+          }).then(r => r.ok ? r.json() : null).catch(() => null)
+        );
+      } else {
+        // Push null promises if no text
+        mlDataPromises.push(...Array(5).fill(Promise.resolve(null)));
+      }
+      
+      // Wait for all ML data requests (with timeout)
+      const [shapData, limeData, toxicityData, topicsData, fairnessData] = await Promise.all(
+        mlDataPromises.map(p => Promise.race([p, new Promise(resolve => setTimeout(() => resolve(null), 5000))]))
+      );
+      
+      // Combine SHAP and LIME into explainability object
+      const explainability = {};
+      if (shapData && shapData.topFeatures) {
+        explainability.shap = shapData;
+      }
+      if (limeData && limeData.weights) {
+        explainability.lime = limeData;
+      }
+      
       // Add AI response - map API response to our structure
       const aiMessage = {
         type: 'ai',
@@ -175,6 +339,11 @@ export default function ChatV2Page() {
         debateTrigger: data.debateTrigger || false,
         // Change detection data from backend
         changeDetection: data.change_detection || null,
+        // ML analysis data from new endpoints
+        explainability: Object.keys(explainability).length > 0 ? explainability : null,
+        toxicity: toxicityData,
+        topics: topicsData,
+        fairness: fairnessData,
         timestamp: new Date().toISOString(),
       };
       
@@ -258,9 +427,14 @@ export default function ChatV2Page() {
                   <div className="text-sm text-[#666]">AI-genererad kondenserad översikt</div>
                 </div>
               </div>
-              <p className="text-[#888] leading-relaxed">
-                {latestAiMessage.bertSummary}
-              </p>
+              <div className="text-sm text-[#666] leading-relaxed whitespace-pre-wrap" 
+                   dangerouslySetInnerHTML={{ 
+                     __html: latestAiMessage.bertSummary
+                       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold text
+                       .replace(/\*(.*?)\*/g, '<em>$1</em>')  // Italic text
+                       .replace(/\n/g, '<br/>')  // Line breaks
+                   }}>
+              </div>
             </div>
           </div>
         )}
@@ -537,6 +711,457 @@ export default function ChatV2Page() {
             />
           </div>
         )}
+
+        {/* Explainability Panel (SHAP/LIME) - Always visible in Overview mode */}
+        {viewMode === 'overview' && (
+          <div className="max-w-4xl mx-auto mb-8">
+            <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">🔍</div>
+                <div>
+                  <div className="font-medium text-[#e7e7e7]">Explainability & Feature Importance</div>
+                  <div className="text-sm text-[#666]">SHAP and LIME model explanations</div>
+                </div>
+              </div>
+              {/* TODO: Backend should provide explainability data in response.explainability */}
+              {latestAiMessage.explainability ? (
+                <div className="space-y-4">
+                  {latestAiMessage.explainability.shap && (
+                    <div>
+                      <div className="text-sm text-[#666] mb-2">SHAP Values (Top Features):</div>
+                      <div className="space-y-2">
+                        {latestAiMessage.explainability.shap.topFeatures?.map((feat, idx) => (
+                          <div key={idx} className="flex items-center gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[#e7e7e7] text-sm">{feat.token}</span>
+                                <span className={`text-xs ${feat.direction === 'positive' ? 'text-green-400' : 'text-red-400'}`}>
+                                  {feat.contribution > 0 ? '+' : ''}{feat.contribution.toFixed(3)}
+                                </span>
+                              </div>
+                              <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full ${feat.direction === 'positive' ? 'bg-green-500' : 'bg-red-500'}`}
+                                  style={{width: `${Math.min(Math.abs(feat.contribution) * 100, 100)}%`}}
+                                ></div>
+                              </div>
+                            </div>
+                          </div>
+                        )) || <p className="text-[#666] text-sm">No SHAP data available</p>}
+                      </div>
+                    </div>
+                  )}
+                  {latestAiMessage.explainability.lime && (
+                    <div>
+                      <div className="text-sm text-[#666] mb-2">LIME Explanation:</div>
+                      <p className="text-[#888] text-sm mb-3">{latestAiMessage.explainability.lime.explanation}</p>
+                      <div className="space-y-1">
+                        {latestAiMessage.explainability.lime.weights?.slice(0, 5).map((w, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-sm">
+                            <span className="text-[#e7e7e7]">{w.word}</span>
+                            <span className="text-[#666]">{w.weight.toFixed(3)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-[#666] text-sm">Explainability data kommer vara tillgänglig när backend är implementerat</p>
+                  <p className="text-[#555] text-xs mt-1">TODO: Implementera /ml/shap och /ml/lime endpoints</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Toxicity Analysis Panel (Detoxify) - Always visible in Overview mode */}
+        {viewMode === 'overview' && (
+          <div className="max-w-4xl mx-auto mb-8">
+            <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">🛡️</div>
+                <div>
+                  <div className="font-medium text-[#e7e7e7]">Toxicity Analysis</div>
+                  <div className="text-sm text-[#666]">Multi-dimensional toxicity detection using Detoxify</div>
+                </div>
+              </div>
+              {/* TODO: Backend should provide toxicity data in response.toxicity */}
+              {latestAiMessage.toxicity ? (
+                <div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                    {[
+                      {label: 'Toxicity', value: latestAiMessage.toxicity.toxicity, key: 'toxicity'},
+                      {label: 'Threat', value: latestAiMessage.toxicity.threat, key: 'threat'},
+                      {label: 'Insult', value: latestAiMessage.toxicity.insult, key: 'insult'},
+                      {label: 'Identity Attack', value: latestAiMessage.toxicity.identity_attack, key: 'identity_attack'},
+                      {label: 'Obscene', value: latestAiMessage.toxicity.obscene, key: 'obscene'},
+                      {label: 'Severe Toxicity', value: latestAiMessage.toxicity.severe_toxicity, key: 'severe_toxicity'},
+                    ].map((metric) => (
+                      <div key={metric.key} className="bg-[#1a1a1a] rounded p-3">
+                        <div className="text-[#666] text-xs mb-2">{metric.label}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 bg-[#0a0a0a] h-2 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full ${
+                                (metric.value || 0) > 0.5 ? 'bg-red-500' :
+                                (metric.value || 0) > 0.3 ? 'bg-yellow-500' :
+                                'bg-green-500'
+                              }`}
+                              style={{width: `${Math.min((metric.value || 0) * 100, 100)}%`}}
+                            ></div>
+                          </div>
+                          <span className="text-[#e7e7e7] text-sm font-medium">
+                            {((metric.value || 0) * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {latestAiMessage.toxicity.overall_toxic !== undefined && (
+                    <div className={`p-3 rounded ${latestAiMessage.toxicity.overall_toxic ? 'bg-red-900/20 border border-red-900/30' : 'bg-green-900/20 border border-green-900/30'}`}>
+                      <div className="text-sm">
+                        <span className="font-medium">Overall Assessment: </span>
+                        <span className={latestAiMessage.toxicity.overall_toxic ? 'text-red-400' : 'text-green-400'}>
+                          {latestAiMessage.toxicity.overall_toxic ? 'Toxic content detected' : 'Content appears safe'}
+                        </span>
+                        {latestAiMessage.toxicity.risk_level && (
+                          <span className="text-[#666] ml-2">
+                            (Risk Level: {latestAiMessage.toxicity.risk_level})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-[#666] text-sm">Toxicitetsanalys kommer vara tillgänglig när backend är implementerat</p>
+                  <p className="text-[#555] text-xs mt-1">TODO: Implementera /ml/toxicity endpoint</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Topic Modeling Panel (BERTopic/Gensim) - Always visible in Overview mode */}
+        {viewMode === 'overview' && (
+          <div className="max-w-4xl mx-auto mb-8">
+            <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">🧠</div>
+                <div>
+                  <div className="font-medium text-[#e7e7e7]">Topic Modeling</div>
+                  <div className="text-sm text-[#666]">BERTopic & Gensim cluster analysis and dominant themes</div>
+                </div>
+              </div>
+              {/* Display topics from BERTopic, Gensim, or both */}
+              {latestAiMessage.topics ? (
+                <div className="space-y-6">
+                  {/* BERTopic Results */}
+                  {(latestAiMessage.topics.bertopic || latestAiMessage.topics.method !== 'gensim') && (
+                    <div>
+                      {latestAiMessage.topics.method === 'both' && (
+                        <div className="text-[#888] text-sm font-medium mb-3 flex items-center gap-2">
+                          <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                          BERTopic Analysis
+                        </div>
+                      )}
+                      <div className="space-y-3">
+                        {(latestAiMessage.topics.bertopic?.topics || latestAiMessage.topics.topics)?.map((topic, idx) => (
+                          <div key={`bert-${idx}`} className="bg-[#1a1a1a] rounded p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div>
+                                <div className="text-[#e7e7e7] font-medium">{topic.label}</div>
+                                <div className="text-[#666] text-xs">Topic {topic.id}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-[#e7e7e7] text-lg font-medium">
+                                  {(topic.probability * 100).toFixed(1)}%
+                                </div>
+                                {topic.coherence && (
+                                  <div className="text-[#666] text-xs">
+                                    Coherence: {topic.coherence.toFixed(2)}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {topic.terms?.map((term, tidx) => (
+                                <span key={tidx} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded">
+                                  {term}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )) || <p className="text-[#666] text-sm">No BERTopic topics identified</p>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Gensim Results */}
+                  {latestAiMessage.topics.gensim && (
+                    <div>
+                      {latestAiMessage.topics.method === 'both' && (
+                        <div className="text-[#888] text-sm font-medium mb-3 flex items-center gap-2">
+                          <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                          Gensim LDA Analysis
+                        </div>
+                      )}
+                      <div className="space-y-3">
+                        {latestAiMessage.topics.gensim.topics?.map((topic, idx) => (
+                          <div key={`gensim-${idx}`} className="bg-[#1a1a1a] rounded p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div>
+                                <div className="text-[#e7e7e7] font-medium">{topic.label}</div>
+                                <div className="text-[#666] text-xs">Topic {topic.id}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-[#e7e7e7] text-lg font-medium">
+                                  {(topic.probability * 100).toFixed(1)}%
+                                </div>
+                                {topic.coherence && (
+                                  <div className="text-[#666] text-xs">
+                                    Coherence: {topic.coherence.toFixed(2)}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {topic.terms?.map((term, tidx) => (
+                                <span key={tidx} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded">
+                                  {term}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )) || <p className="text-[#666] text-sm">No Gensim topics identified</p>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-[#666] text-sm">Topic modeling kommer vara tillgänglig när backend är implementerat</p>
+                  <p className="text-[#555] text-xs mt-1">TODO: Anropa /api/ml/topics endpoint från query-flödet</p>
+                  <p className="text-[#555] text-xs mt-1">Endpoint stöder method="bertopic", "gensim", eller "both" för parallel analys</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Bias & Fairness Panel (Fairlearn) - Always visible in Overview mode */}
+        {viewMode === 'overview' && (
+          <div className="max-w-4xl mx-auto mb-8">
+            <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">⚖️</div>
+                <div>
+                  <div className="font-medium text-[#e7e7e7]">Bias & Fairness Analysis</div>
+                  <div className="text-sm text-[#666]">Fairlearn metrics and bias detection</div>
+                </div>
+              </div>
+              {/* TODO: Backend should provide fairness data in response.fairness */}
+              {latestAiMessage.fairness ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {latestAiMessage.fairness.demographicParity !== undefined && (
+                      <div className="bg-[#1a1a1a] rounded p-3">
+                        <div className="text-[#666] text-sm mb-2">Demographic Parity</div>
+                        <div className="text-2xl font-medium text-[#e7e7e7]">
+                          {(latestAiMessage.fairness.demographicParity * 100).toFixed(0)}%
+                        </div>
+                        <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
+                          <div 
+                            className="bg-blue-500 h-full" 
+                            style={{width: `${Math.min(latestAiMessage.fairness.demographicParity * 100, 100)}%`}}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
+                    {latestAiMessage.fairness.equalizedOdds !== undefined && (
+                      <div className="bg-[#1a1a1a] rounded p-3">
+                        <div className="text-[#666] text-sm mb-2">Equalized Odds</div>
+                        <div className="text-2xl font-medium text-[#e7e7e7]">
+                          {(latestAiMessage.fairness.equalizedOdds * 100).toFixed(0)}%
+                        </div>
+                        <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
+                          <div 
+                            className="bg-purple-500 h-full" 
+                            style={{width: `${Math.min(latestAiMessage.fairness.equalizedOdds * 100, 100)}%`}}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
+                    {latestAiMessage.fairness.disparateImpact !== undefined && (
+                      <div className="bg-[#1a1a1a] rounded p-3">
+                        <div className="text-[#666] text-sm mb-2">Disparate Impact</div>
+                        <div className="text-2xl font-medium text-[#e7e7e7]">
+                          {(latestAiMessage.fairness.disparateImpact * 100).toFixed(0)}%
+                        </div>
+                        <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
+                          <div 
+                            className="bg-cyan-500 h-full" 
+                            style={{width: `${Math.min(latestAiMessage.fairness.disparateImpact * 100, 100)}%`}}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {latestAiMessage.fairness.fairnessViolations && latestAiMessage.fairness.fairnessViolations.length > 0 && (
+                    <div className="bg-yellow-900/20 border border-yellow-900/30 rounded p-3">
+                      <div className="text-sm text-yellow-400 mb-2">⚠ Fairness Violations Detected:</div>
+                      <ul className="space-y-1">
+                        {latestAiMessage.fairness.fairnessViolations.map((violation, idx) => (
+                          <li key={idx} className="text-[#888] text-sm">• {violation}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {latestAiMessage.fairness.recommendations && latestAiMessage.fairness.recommendations.length > 0 && (
+                    <div>
+                      <div className="text-[#666] text-sm mb-2">Recommendations:</div>
+                      <ul className="space-y-1">
+                        {latestAiMessage.fairness.recommendations.map((rec, idx) => (
+                          <li key={idx} className="text-[#888] text-sm">• {rec}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-[#666] text-sm">Fairness-analys kommer vara tillgänglig när backend är implementerat</p>
+                  <p className="text-[#555] text-xs mt-1">TODO: Implementera /ml/fairness endpoint med Fairlearn</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Fact Checking Panel (Tavily) - Always visible in Overview mode */}
+        {viewMode === 'overview' && (
+          <div className="max-w-4xl mx-auto mb-8">
+            <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">✅</div>
+                <div>
+                  <div className="font-medium text-[#e7e7e7]">Fact Checking</div>
+                  <div className="text-sm text-[#666]">Source verification using Tavily API</div>
+                </div>
+              </div>
+              {/* Use factCheckComparison or bertMetadata for fact checking data */}
+              {(latestAiMessage.factCheck || latestAiMessage.factCheckComparison || latestAiMessage.bertMetadata?.factCheck) ? (
+                <div className="space-y-4">
+                  {/* Show fact check summary from BERT metadata if available */}
+                  {latestAiMessage.bertMetadata?.factCheck && (
+                    <div className="p-3 bg-[#1a1a1a] rounded mb-4">
+                      <div className="text-sm text-[#666] mb-2">Faktakoll-sammanfattning:</div>
+                      <div className="text-[#888] text-sm whitespace-pre-wrap" 
+                           dangerouslySetInnerHTML={{ __html: formatTextWithMarkdown(latestAiMessage.bertMetadata.factCheck) }}>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Show factCheckComparison data if available */}
+                  {latestAiMessage.factCheckComparison && (
+                    <div className="space-y-3">
+                      {latestAiMessage.factCheckComparison.claims && latestAiMessage.factCheckComparison.claims.length > 0 && (
+                        <div>
+                          <div className="text-sm text-[#666] mb-2">Verifierade påståenden:</div>
+                          <div className="space-y-2">
+                            {latestAiMessage.factCheckComparison.claims.map((claim, idx) => (
+                              <div key={idx} className="p-3 bg-[#1a1a1a] rounded border border-[#2a2a2a]">
+                                <div className="text-[#e7e7e7] text-sm mb-2">{claim.text}</div>
+                                {claim.sources && claim.sources.length > 0 && (
+                                  <div className="text-xs text-[#666]">
+                                    Källor: {claim.sources.map((s, si) => (
+                                      <a key={si} href={s.url} target="_blank" rel="noopener noreferrer" 
+                                         className="text-[#4a9eff] hover:underline ml-1">
+                                        [{si + 1}]
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Show factCheck data if available (from new ML endpoints) */}
+                  {latestAiMessage.factCheck && (
+                    <>
+                      <div className="flex items-center justify-between p-3 bg-[#1a1a1a] rounded">
+                        <div>
+                          <div className="text-sm text-[#666]">Verification Status</div>
+                          <div className={`text-lg font-medium capitalize ${
+                            latestAiMessage.factCheck.verificationStatus === 'true' ? 'text-green-400' :
+                            latestAiMessage.factCheck.verificationStatus === 'false' ? 'text-red-400' :
+                            latestAiMessage.factCheck.verificationStatus === 'partially_true' ? 'text-yellow-400' :
+                            'text-[#888]'
+                          }`}>
+                            {latestAiMessage.factCheck.verificationStatus?.replace('_', ' ')}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-[#666]">Confidence</div>
+                          <div className="text-lg font-medium text-[#e7e7e7]">
+                            {(latestAiMessage.factCheck.confidence * 100).toFixed(0)}%
+                          </div>
+                        </div>
+                      </div>
+                      {latestAiMessage.factCheck.verdict && (
+                        <div className="p-3 bg-[#1a1a1a] rounded">
+                          <div className="text-sm text-[#666] mb-2">Verdict:</div>
+                          <p className="text-[#888] text-sm">{latestAiMessage.factCheck.verdict}</p>
+                        </div>
+                      )}
+                      {latestAiMessage.factCheck.sources && latestAiMessage.factCheck.sources.length > 0 && (
+                        <div>
+                          <div className="text-sm text-[#666] mb-2">
+                            Sources ({latestAiMessage.factCheck.supportingEvidence || 0} supporting, {latestAiMessage.factCheck.contradictingEvidence || 0} contradicting):
+                          </div>
+                          <div className="space-y-2">
+                            {latestAiMessage.factCheck.sources.map((source, idx) => (
+                              <div key={idx} className="p-3 bg-[#1a1a1a] rounded border border-[#2a2a2a] hover:border-[#3a3a3a] transition-colors">
+                                <div className="flex items-start justify-between mb-2">
+                                  <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-[#e7e7e7] hover:text-white text-sm font-medium flex-1">
+                                    {source.title}
+                                  </a>
+                                  {source.credibility && (
+                                    <span className="text-xs px-2 py-1 bg-[#2a2a2a] text-[#888] rounded ml-2">
+                                      {(source.credibility * 100).toFixed(0)}% credible
+                                    </span>
+                                  )}
+                                </div>
+                                {source.snippet && (
+                                  <p className="text-[#666] text-xs mb-1">{source.snippet}</p>
+                                )}
+                                {source.date && (
+                                  <div className="text-[#555] text-xs">{source.date}</div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-[#666] text-sm">Fact checking data is available from backend API</p>
+                  <p className="text-[#555] text-xs mt-1">✅ Tavily API is being queried - check bertMetadata for fact check summary</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -633,8 +1258,10 @@ export default function ChatV2Page() {
 
                 {/* Full Response Text */}
                 <div className="p-6">
-                  <div className="text-[#888] leading-relaxed mb-6">
-                    {response.response || response.text || 'Inget svar tillgängligt'}
+                  <div className="text-[#888] leading-relaxed mb-6 whitespace-pre-wrap" 
+                       dangerouslySetInnerHTML={{ 
+                         __html: formatTextWithMarkdown(response.response || response.text || 'Inget svar tillgängligt')
+                       }}>
                   </div>
                   
                   {/* Emotion/Tone/Intent */}
@@ -665,7 +1292,9 @@ export default function ChatV2Page() {
                         {response.enhancedAnalysis.argumentation.huvudpunkter.map((point, pidx) => (
                           <div key={pidx} className="flex items-start gap-2">
                             <span className="text-[#666] mt-0.5">{pidx + 1}.</span>
-                            <span className="text-[#888]">{point}</span>
+                            <span className="text-[#888] whitespace-pre-wrap" 
+                                  dangerouslySetInnerHTML={{ __html: formatTextWithMarkdown(point) }}>
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -677,25 +1306,36 @@ export default function ChatV2Page() {
                     <div>
                       <div className="text-[#666] mb-2">Identifierade entiteter:</div>
                       <div className="flex flex-wrap gap-2">
-                        {response.enhancedAnalysis.entities.entities.slice(0, 8).map((entity, eidx) => (
-                          <span key={eidx} className="px-2 py-1 bg-[#1a1a1a] text-[#888] text-sm rounded">
-                            {entity.text} ({entity.label})
-                          </span>
-                        ))}
+                        {response.enhancedAnalysis.entities.entities.slice(0, 8).map((entity, eidx) => {
+                          // Handle different entity structures
+                          const text = entity.text || entity.word || entity.entity || entity;
+                          const label = entity.label || entity.entity_group || entity.type || '';
+                          return (
+                            <span key={eidx} className="px-2 py-1 bg-[#1a1a1a] text-[#888] text-sm rounded">
+                              {typeof text === 'string' ? text : JSON.stringify(text)}
+                              {label && ` (${label})`}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
                   
-                  {/* Identified Entities */}
-                  {response.entities && response.entities.length > 0 && (
+                  {/* Identified Entities - Alternative structure */}
+                  {response.entities && response.entities.length > 0 && !response.enhancedAnalysis?.entities?.entities && (
                     <div className="mt-4">
                       <div className="text-sm text-[#666] mb-2">Identifierade entiteter:</div>
                       <div className="flex flex-wrap gap-2">
-                        {response.entities.map((entity, i) => (
-                          <span key={i} className="px-2 py-1 bg-[#1a1a1a] text-[#888] text-sm rounded">
-                            {entity.text || entity}
-                          </span>
-                        ))}
+                        {response.entities.map((entity, i) => {
+                          const text = typeof entity === 'object' ? (entity.text || entity.word || entity.entity) : entity;
+                          const label = typeof entity === 'object' ? (entity.label || entity.entity_group || entity.type) : '';
+                          return (
+                            <span key={i} className="px-2 py-1 bg-[#1a1a1a] text-[#888] text-sm rounded">
+                              {text || 'N/A'}
+                              {label && ` (${label})`}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -746,18 +1386,26 @@ export default function ChatV2Page() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <div className="text-[#666]">Ord</div>
-                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.preprocessing.word_count ?? 'N/A'}</div>
+                      <div className="text-[#e7e7e7]">
+                        {selectedResponse.pipelineAnalysis.preprocessing.tokenization?.wordCount ?? 
+                         selectedResponse.pipelineAnalysis.preprocessing.word_count ?? 'N/A'}
+                      </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Meningar</div>
-                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.preprocessing.sentence_count ?? 'N/A'}</div>
+                      <div className="text-[#e7e7e7]">
+                        {selectedResponse.pipelineAnalysis.preprocessing.tokenization?.sentenceCount ?? 
+                         selectedResponse.pipelineAnalysis.preprocessing.sentence_count ?? 'N/A'}
+                      </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Subjektivitet</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.preprocessing.subjectivity != null 
-                          ? selectedResponse.pipelineAnalysis.preprocessing.subjectivity.toFixed(2)
-                          : 'N/A'}
+                        {selectedResponse.pipelineAnalysis.preprocessing.subjectivityAnalysis?.subjectivityScore != null 
+                          ? selectedResponse.pipelineAnalysis.preprocessing.subjectivityAnalysis.subjectivityScore.toFixed(2)
+                          : (selectedResponse.pipelineAnalysis.preprocessing.subjectivity != null 
+                            ? selectedResponse.pipelineAnalysis.preprocessing.subjectivity.toFixed(2)
+                            : 'N/A')}
                       </div>
                     </div>
                   </div>
@@ -771,19 +1419,29 @@ export default function ChatV2Page() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <div className="text-[#666]">Övergripande</div>
-                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.sentimentAnalysis.overall ?? 'N/A'}</div>
+                      <div className="text-[#e7e7e7]">
+                        {selectedResponse.pipelineAnalysis.sentimentAnalysis.overallTone ?? 
+                         selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment?.classification ?? 
+                         selectedResponse.pipelineAnalysis.sentimentAnalysis.overall ?? 'N/A'}
+                      </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Poäng</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.sentimentAnalysis.score != null
-                          ? selectedResponse.pipelineAnalysis.sentimentAnalysis.score.toFixed(2)
-                          : 'N/A'}
+                        {selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment?.score != null
+                          ? selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment.score.toFixed(2)
+                          : (selectedResponse.pipelineAnalysis.sentimentAnalysis.score != null
+                            ? selectedResponse.pipelineAnalysis.sentimentAnalysis.score.toFixed(2)
+                            : 'N/A')}
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Intensitet</div>
-                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.sentimentAnalysis.intensity ?? 'N/A'}</div>
+                      <div className="text-[#e7e7e7]">
+                        {selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment?.comparative != null
+                          ? Math.abs(selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment.comparative).toFixed(2)
+                          : (selectedResponse.pipelineAnalysis.sentimentAnalysis.intensity ?? 'N/A')}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -796,20 +1454,26 @@ export default function ChatV2Page() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <div className="text-[#666]">Primär</div>
-                      <div className="text-[#e7e7e7]">{selectedResponse.pipelineAnalysis.ideologicalClassification.primary ?? 'N/A'}</div>
+                      <div className="text-[#e7e7e7]">
+                        {selectedResponse.pipelineAnalysis.ideologicalClassification.ideology?.classification ?? 
+                         selectedResponse.pipelineAnalysis.ideologicalClassification.primary ?? 'N/A'}
+                      </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Säkerhet</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.ideologicalClassification.confidence != null
-                          ? `${(selectedResponse.pipelineAnalysis.ideologicalClassification.confidence * 100).toFixed(0)}%`
-                          : 'N/A'}
+                        {selectedResponse.pipelineAnalysis.ideologicalClassification.ideology?.confidence != null
+                          ? `${(selectedResponse.pipelineAnalysis.ideologicalClassification.ideology.confidence * 100).toFixed(0)}%`
+                          : (selectedResponse.pipelineAnalysis.ideologicalClassification.confidence != null
+                            ? `${(selectedResponse.pipelineAnalysis.ideologicalClassification.confidence * 100).toFixed(0)}%`
+                            : 'N/A')}
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Indikatorer</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.ideologicalClassification.indicators?.length ?? 0} st
+                        {selectedResponse.pipelineAnalysis.ideologicalClassification.ideology?.markers?.length ?? 
+                         selectedResponse.pipelineAnalysis.ideologicalClassification.indicators?.length ?? 0} st
                       </div>
                     </div>
                   </div>
@@ -894,9 +1558,118 @@ export default function ChatV2Page() {
                                 </div>
                               </div>
                               
+                              {/* Enhanced visualization for specific services */}
+                              {(step.step === 'gensim_topics' || step.step === 'bertopic_modeling') && step.output && (
+                                <div className="mt-4 p-4 bg-[#0a0a0a] rounded">
+                                  <div className="text-[#666] mb-3 font-medium">📊 Topic Analysis Results</div>
+                                  {step.output.topics && step.output.topics.length > 0 ? (
+                                    <div className="space-y-3">
+                                      {step.output.topics.slice(0, 5).map((topic, tidx) => (
+                                        <div key={tidx} className="border border-[#2a2a2a] rounded p-3">
+                                          <div className="flex items-center justify-between mb-2">
+                                            <span className="text-[#e7e7e7] font-medium">
+                                              {topic.label || topic.topic || `Topic ${tidx + 1}`}
+                                            </span>
+                                            {topic.probability && (
+                                              <span className="text-[#888] text-xs">
+                                                {(topic.probability * 100).toFixed(1)}%
+                                              </span>
+                                            )}
+                                          </div>
+                                          {topic.terms && topic.terms.length > 0 && (
+                                            <div className="flex flex-wrap gap-2 mt-2">
+                                              {topic.terms.slice(0, 8).map((term, termIdx) => (
+                                                <span key={termIdx} className="px-2 py-1 bg-[#1a1a1a] text-[#888] text-xs rounded">
+                                                  {typeof term === 'string' ? term : term.word || term.term}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
+                                          {topic.coherence && (
+                                            <div className="mt-2 text-xs text-[#666]">
+                                              Coherence: {topic.coherence.toFixed(3)}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                      {step.output.topics.length > 5 && (
+                                        <div className="text-center text-xs text-[#666]">
+                                          +{step.output.topics.length - 5} fler topics
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="text-[#666] text-sm">No topics extracted</div>
+                                  )}
+                                  {step.output.method && (
+                                    <div className="mt-3 text-xs text-[#666]">
+                                      Method: {step.output.method} {step.output.model && `(${step.output.model})`}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {/* Enhanced visualization for SHAP/LIME explainability */}
+                              {(step.step === 'shap_explainability' || step.step === 'lime_explanation') && step.output && (
+                                <div className="mt-4 p-4 bg-[#0a0a0a] rounded">
+                                  <div className="text-[#666] mb-3 font-medium">🔍 Feature Importance</div>
+                                  {step.output.topFeatures && step.output.topFeatures.length > 0 ? (
+                                    <div className="space-y-2">
+                                      {step.output.topFeatures.slice(0, 10).map((feat, fidx) => (
+                                        <div key={fidx} className="flex items-center gap-3">
+                                          <span className="text-[#888] text-xs w-32 truncate">{feat.feature || feat.word}</span>
+                                          <div className="flex-1 h-4 bg-[#1a1a1a] rounded-full overflow-hidden">
+                                            <div 
+                                              className={`h-full ${feat.contribution > 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                                              style={{width: `${Math.min(Math.abs(feat.contribution || feat.weight || 0) * 100, 100)}%`}}
+                                            ></div>
+                                          </div>
+                                          <span className="text-[#888] text-xs w-16 text-right">
+                                            {(feat.contribution || feat.weight || 0).toFixed(3)}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="text-[#666] text-sm">No feature importance data</div>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {/* Enhanced visualization for toxicity */}
+                              {step.step === 'detoxify_toxicity' && step.output && (
+                                <div className="mt-4 p-4 bg-[#0a0a0a] rounded">
+                                  <div className="text-[#666] mb-3 font-medium">🛡️ Toxicity Scores</div>
+                                  <div className="space-y-2">
+                                    {Object.entries(step.output).filter(([key]) => 
+                                      !['timestamp', 'model', 'version'].includes(key)
+                                    ).map(([metric, value]) => (
+                                      <div key={metric} className="flex items-center gap-3">
+                                        <span className="text-[#888] text-xs w-32 capitalize">
+                                          {metric.replace('_', ' ')}
+                                        </span>
+                                        <div className="flex-1 h-4 bg-[#1a1a1a] rounded-full overflow-hidden">
+                                          <div 
+                                            className={`h-full ${
+                                              value > 0.7 ? 'bg-red-500' :
+                                              value > 0.4 ? 'bg-yellow-500' :
+                                              'bg-green-500'
+                                            }`}
+                                            style={{width: `${Math.min((value || 0) * 100, 100)}%`}}
+                                          ></div>
+                                        </div>
+                                        <span className="text-[#888] text-xs w-16 text-right">
+                                          {((value || 0) * 100).toFixed(1)}%
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
                               {step.details && (
                                 <div className="mt-4">
-                                  <div className="text-[#666] mb-2">Detaljer</div>
+                                  <div className="text-[#666] mb-2">Rådata (JSON)</div>
                                   <pre className="text-xs text-[#999] bg-[#0a0a0a] p-3 rounded overflow-auto max-h-48">
                                     {JSON.stringify(step.details, null, 2)}
                                   </pre>

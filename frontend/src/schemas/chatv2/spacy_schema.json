@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "spaCy Preprocessing Response Schema",
+  "description": "Schema for spaCy text preprocessing including tokenization, POS tagging, NER, and dependency parsing",
+  "type": "object",
+  "properties": {
+    "tokens": {
+      "type": "array",
+      "description": "List of tokens extracted from the text",
+      "items": {
+        "type": "string"
+      }
+    },
+    "pos": {
+      "type": "array",
+      "description": "Part-of-speech tags for each token",
+      "items": {
+        "type": "string"
+      }
+    },
+    "entities": {
+      "type": "array",
+      "description": "Named entities recognized in the text",
+      "items": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "start": {
+            "type": "integer"
+          },
+          "end": {
+            "type": "integer"
+          }
+        },
+        "required": ["text", "label"]
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "Dependency parsing results",
+      "items": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "dep": {
+            "type": "string"
+          },
+          "head": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "lemmas": {
+      "type": "array",
+      "description": "Lemmatized forms of tokens",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": ["tokens", "pos"]
+}

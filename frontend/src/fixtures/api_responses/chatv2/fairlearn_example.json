@@ -1,0 +1,27 @@
+{
+  "demographicParity": 0.92,
+  "demographicParityDifference": 0.08,
+  "equalizedOdds": 0.88,
+  "disparateImpact": 0.85,
+  "biasMitigation": "recommended",
+  "fairnessViolations": ["demographic_parity"],
+  "groupMetrics": {
+    "group_a": {
+      "selection_rate": 0.60,
+      "accuracy": 0.85
+    },
+    "group_b": {
+      "selection_rate": 0.68,
+      "accuracy": 0.82
+    }
+  },
+  "recommendations": [
+    "Apply threshold optimization",
+    "Review sensitive feature impact",
+    "Consider reweighting training data"
+  ],
+  "metadata": {
+    "model": "Fairlearn",
+    "version": "0.10.0"
+  }
+}

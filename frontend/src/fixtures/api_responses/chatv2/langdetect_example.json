@@ -1,0 +1,12 @@
+{
+  "language": "sv",
+  "confidence": 0.9987,
+  "alternates": [
+    {"lang": "no", "prob": 0.0008},
+    {"lang": "da", "prob": 0.0005}
+  ],
+  "metadata": {
+    "detector": "langdetect",
+    "iso_code": "ISO 639-1"
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Fairlearn Fairness Metrics Response Schema",
+  "description": "Schema for bias analysis and fairness metrics from Fairlearn",
+  "type": "object",
+  "properties": {
+    "demographicParity": {
+      "type": "number",
+      "description": "Demographic parity score (1 = perfect parity)",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "demographicParityDifference": {
+      "type": "number",
+      "description": "Difference in demographic parity across groups"
+    },
+    "equalizedOdds": {
+      "type": "number",
+      "description": "Equalized odds metric",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "disparateImpact": {
+      "type": "number",
+      "description": "Disparate impact ratio"
+    },
+    "biasMitigation": {
+      "type": "string",
+      "description": "Recommended bias mitigation strategy",
+      "enum": ["not_needed", "recommended", "required"]
+    },
+    "fairnessViolations": {
+      "type": "array",
+      "description": "List of fairness criteria violations",
+      "items": {
+        "type": "string"
+      }
+    },
+    "groupMetrics": {
+      "type": "object",
+      "description": "Per-group performance metrics",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "selection_rate": {
+            "type": "number"
+          },
+          "accuracy": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "description": "Recommendations for improving fairness",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": ["demographicParity", "equalizedOdds"]
+}

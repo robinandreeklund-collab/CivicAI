@@ -1,0 +1,24 @@
+{
+  "tokens": ["Detta", "är", "en", "svensk", "mening", "om", "miljöpolitik"],
+  "pos": ["PRON", "VERB", "DET", "ADJ", "NOUN", "ADP", "NOUN"],
+  "entities": [
+    {
+      "text": "svensk",
+      "label": "MISC",
+      "start": 12,
+      "end": 18
+    }
+  ],
+  "dependencies": [
+    {"token": "är", "dep": "ROOT", "head": "är"},
+    {"token": "Detta", "dep": "nsubj", "head": "är"},
+    {"token": "mening", "dep": "attr", "head": "är"},
+    {"token": "en", "dep": "det", "head": "mening"},
+    {"token": "svensk", "dep": "amod", "head": "mening"}
+  ],
+  "lemmas": ["detta", "vara", "en", "svensk", "mening", "om", "miljöpolitik"],
+  "metadata": {
+    "model": "sv_core_news_sm",
+    "version": "3.7.2"
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Tavily Fact Checking Response Schema",
+  "description": "Schema for fact verification using Tavily API",
+  "type": "object",
+  "properties": {
+    "verificationStatus": {
+      "type": "string",
+      "description": "Overall verification status",
+      "enum": ["true", "false", "partially_true", "unverified", "misleading"]
+    },
+    "confidence": {
+      "type": "number",
+      "description": "Confidence in the verification",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "verdict": {
+      "type": "string",
+      "description": "Detailed verdict explanation"
+    },
+    "sources": {
+      "type": "array",
+      "description": "Supporting sources with credibility scores",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "snippet": {
+            "type": "string"
+          },
+          "credibility": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": ["url", "title"]
+      }
+    },
+    "supportingEvidence": {
+      "type": "integer",
+      "description": "Number of supporting sources"
+    },
+    "contradictingEvidence": {
+      "type": "integer",
+      "description": "Number of contradicting sources"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "api": {
+          "type": "string"
+        },
+        "search_depth": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": ["verificationStatus", "confidence", "sources"]
+}

@@ -1,0 +1,25 @@
+{
+  "topics": [
+    {
+      "id": 0,
+      "label": "climate_change",
+      "probability": 0.68,
+      "terms": ["climate", "change", "warming", "global", "temperature"],
+      "coherence": 0.75
+    },
+    {
+      "id": 1,
+      "label": "renewable_energy",
+      "probability": 0.32,
+      "terms": ["solar", "wind", "renewable", "energy", "sustainable"],
+      "coherence": 0.71
+    }
+  ],
+  "num_topics_found": 2,
+  "outliers": 0.05,
+  "metadata": {
+    "model": "BERTopic",
+    "version": "0.16.0",
+    "embedding_model": "all-MiniLM-L6-v2"
+  }
+}

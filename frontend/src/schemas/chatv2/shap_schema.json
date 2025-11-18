@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SHAP Explainability Response Schema",
+  "description": "Schema for SHAP feature importance and model explanations",
+  "type": "object",
+  "properties": {
+    "shapValues": {
+      "type": "array",
+      "description": "SHAP values for each feature",
+      "items": {
+        "type": "number"
+      }
+    },
+    "tokens": {
+      "type": "array",
+      "description": "Tokens/features corresponding to SHAP values",
+      "items": {
+        "type": "string"
+      }
+    },
+    "baseValue": {
+      "type": "number",
+      "description": "Base value for SHAP calculation"
+    },
+    "topFeatures": {
+      "type": "array",
+      "description": "Most important features with their contributions",
+      "items": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "contribution": {
+            "type": "number"
+          },
+          "direction": {
+            "type": "string",
+            "enum": ["positive", "negative"]
+          }
+        },
+        "required": ["token", "contribution"]
+      }
+    },
+    "globalImportance": {
+      "type": "object",
+      "description": "Global feature importance scores",
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "visualization": {
+      "type": "string",
+      "description": "Base64-encoded visualization image"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "explainer_type": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": ["shapValues", "tokens"]
+}

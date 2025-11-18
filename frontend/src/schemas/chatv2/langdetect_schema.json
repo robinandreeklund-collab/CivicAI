@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "langdetect Language Detection Response Schema",
+  "description": "Schema for language detection with confidence scores",
+  "type": "object",
+  "properties": {
+    "language": {
+      "type": "string",
+      "description": "ISO 639-1 language code",
+      "pattern": "^[a-z]{2}$"
+    },
+    "confidence": {
+      "type": "number",
+      "description": "Confidence score for detected language",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "alternates": {
+      "type": "array",
+      "description": "Alternative language matches with probabilities",
+      "items": {
+        "type": "object",
+        "properties": {
+          "lang": {
+            "type": "string"
+          },
+          "prob": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": ["lang", "prob"]
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "detector": {
+          "type": "string"
+        },
+        "iso_code": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": ["language", "confidence"]
+}

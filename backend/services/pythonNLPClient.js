@@ -659,6 +659,33 @@ export async function logPythonServiceStatus() {
   }
 }
 
+/**
+ * Wrapper functions for ML API endpoints
+ * These provide a cleaner interface for the API routes
+ */
+
+export async function getShapExplanation(text, model = 'sentiment') {
+  return await explainWithSHAP(text, model);
+}
+
+export async function getLimeExplanation(text, model = 'ideology', num_features = 10) {
+  return await explainWithLIME(text, model);
+}
+
+export async function detectToxicity(text) {
+  return await detectToxicityWithDetoxify(text);
+}
+
+export async function extractTopics(text, num_topics = 5) {
+  // BERTopic expects an array of texts, so we'll wrap single text in array
+  const result = await topicModelingWithBERTopic([text]);
+  return result;
+}
+
+export async function analyzeFairnessMetrics(predictions, true_labels, sensitive_features, feature_names) {
+  return await analyzeFairness(predictions, true_labels, sensitive_features, feature_names);
+}
+
 export default {
   isPythonServiceAvailable,
   getAvailableModels,

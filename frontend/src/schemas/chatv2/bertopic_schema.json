@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BERTopic/Gensim Topic Modeling Response Schema",
+  "description": "Schema for topic modeling using BERTopic and Gensim LDA",
+  "type": "object",
+  "properties": {
+    "topics": {
+      "type": "array",
+      "description": "Identified topics with probabilities and terms",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "probability": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "terms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "coherence": {
+            "type": "number"
+          }
+        },
+        "required": ["id", "label", "probability", "terms"]
+      }
+    },
+    "num_topics_found": {
+      "type": "integer",
+      "description": "Number of topics identified"
+    },
+    "outliers": {
+      "type": "number",
+      "description": "Percentage of outlier documents"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "embedding_model": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": ["topics"]
+}

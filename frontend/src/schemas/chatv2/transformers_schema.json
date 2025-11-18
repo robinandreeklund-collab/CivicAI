@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Transformers Ideological Classification Response Schema",
+  "description": "Schema for ideological classification using Swedish BERT and other transformer models",
+  "type": "object",
+  "properties": {
+    "ideology": {
+      "type": "string",
+      "description": "Primary ideological classification",
+      "enum": ["left", "center", "right", "green", "liberal", "conservative"]
+    },
+    "scores": {
+      "type": "object",
+      "description": "Probability scores for each ideology",
+      "properties": {
+        "left": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "center": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "right": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "green": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "confidence": {
+      "type": "number",
+      "description": "Confidence in primary classification",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "secondary": {
+      "type": "string",
+      "description": "Secondary ideological leaning"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": ["ideology", "scores", "confidence"]
+}

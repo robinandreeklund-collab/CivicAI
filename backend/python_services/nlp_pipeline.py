@@ -179,8 +179,13 @@ def load_detoxify_model():
                 except:
                     device = 'cpu'
             
-            # Load model with explicit device parameter to avoid meta tensor issues
-            # This ensures the model is directly loaded to the target device
+            # Load model with explicit device
+            # Note: from_pretrained_kwargs not supported in Detoxify 0.5.2
+            # Use environment variable to control dtype instead
+            import os
+            os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = '1'
+            
+            # Try loading with device only (detoxify 0.5.2 compatible)
             MODELS['detoxify'] = Detoxify('multilingual', device=device)
             print(f"✓ Loaded Detoxify multilingual model (device: {device})")
         except Exception as e:
@@ -188,11 +193,10 @@ def load_detoxify_model():
             # Handle meta tensor error specifically
             if "meta tensor" in error_msg.lower() or "to_empty" in error_msg.lower():
                 try:
-                    # Retry with explicit CPU device and no meta device usage
+                    # Retry with explicit CPU device
                     print("  Retrying Detoxify with CPU-only mode...")
                     import os
-                    # Disable meta device usage in transformers
-                    os.environ['TRANSFORMERS_OFFLINE'] = '0'
+                    os.environ['TRANSFORMERS_NO_ADVISORY_WARNINGS'] = '1'
                     MODELS['detoxify'] = Detoxify('multilingual', device='cpu')
                     print(f"✓ Loaded Detoxify multilingual model (device: cpu, retry successful)")
                     return MODELS['detoxify']
@@ -601,12 +605,13 @@ def classify_ideology():
 @app.route('/topic-modeling', methods=['POST'])
 def topic_modeling():
     """
-    Topic modeling using BERTopic or Gensim LDA
+    Topic modeling using BERTopic and/or Gensim LDA
+    Supports parallel classification with both methods
     """
     data = request.json
     texts = data.get('texts', [])
     text = data.get('text', '')  # Single text support
-    method = data.get('method', 'bertopic')  # 'bertopic' or 'gensim'
+    method = data.get('method', 'bertopic')  # 'bertopic', 'gensim', or 'both'
     
     # Handle single text by splitting into sentences
     if text and not texts:
@@ -643,7 +648,108 @@ def topic_modeling():
     if not texts:
         return jsonify({'error': 'No texts provided'}), 400
     
-    # Gensim LDA method
+    # If method is 'both', run parallel classification with BERTopic and Gensim
+    if method == 'both':
+        bertopic_result = None
+        gensim_result = None
+        
+        # Run BERTopic if available
+        if len(texts) >= 3:
+            topic_model = load_bertopic_model()
+            if topic_model:
+                try:
+                    topics, probs = topic_model.fit_transform(texts)
+                    topic_info = topic_model.get_topic_info()
+                    
+                    bertopic_result = {
+                        'topics': [
+                            {
+                                'topic_id': int(row['Topic']),
+                                'count': int(row['Count']),
+                                'name': row['Name'],
+                            }
+                            for _, row in topic_info.iterrows()
+                            if row['Topic'] != -1
+                        ][:10],
+                        'document_topics': [int(t) for t in topics],
+                        'probabilities': [[float(p) for p in prob] for prob in probs] if probs is not None else [],
+                        'model': 'BERTopic',
+                        'version': '0.16.0'
+                    }
+                except Exception as e:
+                    print(f"BERTopic error in parallel mode: {str(e)}")
+        
+        # Run Gensim if available
+        if len(texts) >= 2 and GENSIM_AVAILABLE:
+            try:
+                from gensim import corpora
+                from gensim.models import LdaModel
+                from gensim.utils import simple_preprocess
+                
+                processed_texts = [simple_preprocess(text, deacc=True) for text in texts]
+                processed_texts = [text for text in processed_texts if len(text) > 0]
+                
+                if len(processed_texts) >= 2:
+                    dictionary = corpora.Dictionary(processed_texts)
+                    corpus = [dictionary.doc2bow(text) for text in processed_texts]
+                    num_topics = min(data.get('num_topics', 3), len(texts))
+                    
+                    lda_model = LdaModel(
+                        corpus=corpus,
+                        id2word=dictionary,
+                        num_topics=num_topics,
+                        random_state=42,
+                        passes=10,
+                        alpha='auto'
+                    )
+                    
+                    topics = []
+                    for idx in range(num_topics):
+                        topic_terms = lda_model.show_topic(idx, topn=10)
+                        topics.append({
+                            'topic_id': idx,
+                            'terms': [{'word': word, 'weight': float(weight)} for word, weight in topic_terms],
+                            'label': f"Topic {idx}"
+                        })
+                    
+                    doc_topics = []
+                    for doc_bow in corpus:
+                        topic_dist = lda_model.get_document_topics(doc_bow)
+                        doc_topics.append([{'topic_id': topic_id, 'probability': float(prob)} for topic_id, prob in topic_dist])
+                    
+                    gensim_result = {
+                        'topics': topics,
+                        'document_topics': doc_topics,
+                        'num_topics': num_topics,
+                        'model': 'Gensim LDA',
+                        'version': '4.3.2'
+                    }
+            except Exception as e:
+                print(f"Gensim error in parallel mode: {str(e)}")
+        
+        # Combine results
+        combined_result = {
+            'method': 'both',
+            'bertopic': bertopic_result,
+            'gensim': gensim_result,
+            'provenance': {
+                'models': [],
+                'method': 'Parallel topic modeling with BERTopic and Gensim LDA',
+                'timestamp': datetime.utcnow().isoformat()
+            }
+        }
+        
+        if bertopic_result:
+            combined_result['provenance']['models'].append('BERTopic')
+        if gensim_result:
+            combined_result['provenance']['models'].append('Gensim LDA')
+        
+        if not bertopic_result and not gensim_result:
+            return jsonify({'error': 'Neither BERTopic nor Gensim are available'}), 503
+        
+        return jsonify(combined_result)
+    
+    # Gensim LDA method (single)
     if method == 'gensim' and GENSIM_AVAILABLE:
         try:
             from gensim import corpora
