@@ -310,6 +310,8 @@ async function createCollections() {
             
         } catch (error) {
             console.error(`   ❌ Error creating ${collectionName}:`, error.message);
+            console.error(`   Stack trace:`, error.stack);
+            // Continue with other collections even if one fails
         }
     }
     
@@ -331,7 +333,16 @@ createCollections()
         process.exit(0);
     })
     .catch((error) => {
-        console.error('❌ Setup failed:', error);
+        console.error('❌ Setup failed:', error.message);
+        if (error.stack) {
+            console.error('\nStack trace:');
+            console.error(error.stack);
+        }
+        console.error('\n💡 Troubleshooting:');
+        console.error('   - Verify GOOGLE_APPLICATION_CREDENTIALS is set correctly');
+        console.error('   - Check that the service account has Firestore permissions');
+        console.error('   - Ensure the project ID is correct');
+        console.error('   - Check your internet connection');
         process.exit(1);
     });
 EOFJS
@@ -341,6 +352,7 @@ echo "📦 Checking firebase-admin package..."
 if ! node -e "require('firebase-admin')" 2>/dev/null; then
     echo "⚠️  firebase-admin not found globally"
     echo "Installing firebase-admin temporarily..."
+    echo ""
     
     # Create temporary package.json
     cd /tmp
@@ -354,8 +366,33 @@ if ! node -e "require('firebase-admin')" 2>/dev/null; then
 }
 EOF
     
-    npm install --silent
-    echo "✓ firebase-admin installed"
+    # Install with visible output so user can see progress and any errors
+    if npm install; then
+        echo ""
+        echo "✓ firebase-admin installed successfully"
+        echo ""
+    else
+        echo ""
+        echo "❌ Failed to install firebase-admin"
+        echo ""
+        echo "Please install it manually:"
+        echo "   npm install -g firebase-admin"
+        echo ""
+        echo "Or try running with sudo if needed:"
+        echo "   sudo npm install -g firebase-admin"
+        exit 1
+    fi
+    
+    # Verify installation worked
+    if ! node -e "require('firebase-admin')" 2>/dev/null; then
+        echo "❌ firebase-admin installation verification failed"
+        echo ""
+        echo "Please install firebase-admin manually:"
+        echo "   npm install -g firebase-admin"
+        exit 1
+    fi
+else
+    echo "✓ firebase-admin already installed"
     echo ""
 fi
 
@@ -364,13 +401,35 @@ echo "🚀 Initializing collections..."
 echo ""
 
 cd /tmp
-node init-firestore-collections.js "$PROJECT_ID"
+
+if node init-firestore-collections.js "$PROJECT_ID"; then
+    echo ""
+    echo "✅ Collection setup complete!"
+    echo ""
+    echo "🔗 View your collections at:"
+    echo "   https://console.firebase.google.com/project/$PROJECT_ID/firestore"
+    echo ""
+else
+    EXIT_CODE=$?
+    echo ""
+    echo "❌ Failed to initialize collections (exit code: $EXIT_CODE)"
+    echo ""
+    echo "Common issues:"
+    echo "  - Incorrect service account path"
+    echo "  - Service account doesn't have permissions"
+    echo "  - Project ID is incorrect"
+    echo "  - Network connectivity issues"
+    echo ""
+    echo "Check the error messages above for details."
+    echo ""
+    
+    # Cleanup
+    rm -f /tmp/init-firestore-collections.js
+    rm -rf /tmp/node_modules /tmp/package.json /tmp/package-lock.json 2>/dev/null
+    
+    exit $EXIT_CODE
+fi
 
 # Cleanup
 rm -f /tmp/init-firestore-collections.js
 rm -rf /tmp/node_modules /tmp/package.json /tmp/package-lock.json 2>/dev/null
-
-echo ""
-echo "🔗 View your collections at:"
-echo "   https://console.firebase.google.com/project/$PROJECT_ID/firestore"
-echo ""

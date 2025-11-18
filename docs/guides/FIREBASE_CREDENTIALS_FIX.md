@@ -123,7 +123,132 @@ source ~/.zshrc
 
 ---
 
-## Andra Vanliga Fel och Lösningar
+## Fel: "firebase admin saknas" / npm install misslyckas
+
+### Symptom
+Scriptet säger att firebase-admin saknas och försöker installera det, men installationen misslyckas och scriptet avslutas.
+
+### Orsak
+npm kan inte installera firebase-admin temporärt. Detta kan bero på:
+- Nätverksproblem
+- Behörighetsproblem
+- npm eller Node.js är inte korrekt installerat
+- Proxy-inställningar
+
+### Lösning 1: Installera firebase-admin globalt
+
+Den enklaste lösningen är att installera firebase-admin globalt:
+
+```bash
+npm install -g firebase-admin
+```
+
+**Om du får behörighetsfel:**
+```bash
+sudo npm install -g firebase-admin
+```
+
+Efter installationen, kör scriptet igen:
+```bash
+./scripts/firebase-init-collections.sh
+```
+
+---
+
+### Lösning 2: Använd npx (rekommenderat för engångskörning)
+
+Istället för att köra scriptet, kan du köra detta kommando direkt:
+
+```bash
+# Sätt credentials först
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/serviceAccountKey.json"
+
+# Kör med npx (installerar temporärt och kör)
+npx -y firebase-admin@latest <<'EOF'
+# Klistra in Node.js-koden här om nödvändigt
+EOF
+```
+
+---
+
+### Lösning 3: Kontrollera npm och Node.js
+
+Verifiera att npm och Node.js fungerar korrekt:
+
+```bash
+# Kontrollera versioner
+node --version   # Bör vara v14 eller senare
+npm --version    # Bör vara v6 eller senare
+
+# Kontrollera att npm kan installera paket
+npm install -g npm@latest
+```
+
+---
+
+### Lösning 4: Rensa npm cache
+
+Om npm har problem kan du prova att rensa cachen:
+
+```bash
+npm cache clean --force
+npm install -g firebase-admin
+```
+
+---
+
+### Lösning 5: Manuell installation i projektmappen
+
+Om globala installationer inte fungerar:
+
+```bash
+# Gå till en temp-mapp
+cd /tmp
+mkdir firebase-setup
+cd firebase-setup
+
+# Skapa package.json
+cat > package.json << 'EOF'
+{
+  "name": "firebase-temp",
+  "version": "1.0.0",
+  "dependencies": {
+    "firebase-admin": "^11.11.0"
+  }
+}
+EOF
+
+# Installera lokalt
+npm install
+
+# Nu kan du köra Node.js-scriptet från denna mapp
+```
+
+---
+
+## Fel: Scriptet "försvinner" / avslutas plötsligt
+
+### Symptom
+Efter att du angett service account-filen försvinner scriptet/terminalen stängs.
+
+### Orsak
+Detta händer när scriptet stöter på ett fel och avslutar med `exit 1` på grund av `set -e` flaggan.
+
+### Lösning: Kör med feldetektering
+
+```bash
+# Kör scriptet och se alla felmeddelanden
+bash -x ./scripts/firebase-init-collections.sh 2>&1 | tee firebase-setup.log
+```
+
+Detta kommer:
+- Visa alla kommandon som körs (`-x`)
+- Spara all output till en fil (`tee firebase-setup.log`)
+- Låta dig se vad som gick fel
+
+Efter körning, öppna `firebase-setup.log` och leta efter fel-meddelanden.
+
+---
 
 ### Fel: "Permission denied"
 
