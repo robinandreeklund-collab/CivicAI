@@ -96,6 +96,44 @@ Detta öppnar en webbläsare där du loggar in med ditt Google-konto.
 
 ---
 
+## ⚠️ Viktigt: Aktivera Firestore Database
+
+**INNAN du kör scriptet måste Firestore vara aktiverat i ditt Firebase-projekt!**
+
+### Kontrollera och aktivera Firestore
+
+**Steg 1:** Gå till Firestore i Firebase Console:
+```
+https://console.firebase.google.com/project/DITT-PROJECT-ID/firestore
+```
+
+**Steg 2:** Om Firestore inte är aktiverat:
+1. Klicka **"Create database"**
+2. Välj **"Start in production mode"** (rekommenderat) eller **"Test mode"** (för utveckling)
+3. Välj en location (t.ex. `europe-west1` för Europa)
+4. Klicka **"Enable"**
+5. Vänta ~1 minut medan databasen skapas
+
+**Steg 3:** Verifiera att Firestore är aktivt:
+- Du bör se Firestore-gränssnittet med möjlighet att skapa collections
+- Om du ser "Create database"-knappen är Firestore INTE aktiverat ännu
+
+### Vanligt fel
+
+Om du kör scriptet UTAN att aktivera Firestore får du detta fel:
+```
+ERROR: ai_interactions - 5 NOT_FOUND:
+ERROR: Firestore database not found!
+
+ACTION REQUIRED:
+1. Go to: https://console.firebase.google.com/project/your-project/firestore
+2. Click "Create database"
+```
+
+**Lösning:** Följ instruktionerna ovan för att aktivera Firestore först.
+
+---
+
 ## Hämta Service Account Key
 
 ### Steg 1: Gå till Firebase Console
@@ -282,6 +320,60 @@ npm install -g firebase-admin
 npm cache clean --force
 npm install -g firebase-admin
 ```
+
+### Problem: "5 NOT_FOUND" eller "Firestore database not found"
+
+**Fullständigt fel:**
+```
+[5/5] Creating collections...
+  ERROR: ai_interactions - 5 NOT_FOUND:
+  ERROR: model_versions - 5 NOT_FOUND:
+  ERROR: Firestore database not found!
+```
+
+**Orsak:** Firestore är inte aktiverat i ditt Firebase-projekt.
+
+**Lösning:**
+
+1. Gå till Firebase Console:
+   ```
+   https://console.firebase.google.com/project/DITT-PROJECT-ID/firestore
+   ```
+
+2. Om du ser "Create database"-knappen:
+   - Klicka **"Create database"**
+   - Välj **"Start in production mode"** (rekommenderat)
+   - Välj location (t.ex. `europe-west1`)
+   - Klicka **"Enable"**
+   - Vänta ~1 minut
+
+3. Kör scriptet igen:
+   ```powershell
+   .\scripts\firebase-init-collections-simple.ps1
+   ```
+
+**Verifiering:**
+- Gå till Firestore i Console
+- Du bör se ett tomt database-gränssnitt (inte "Create database"-knapp)
+- Detta betyder att Firestore är aktivt och redo
+
+### Problem: "Wrong Project ID"
+
+**Symptom:** Fel som säger att projektet inte hittas.
+
+**Lösning:**
+
+1. Hitta rätt Project ID i Firebase Console:
+   - Gå till: https://console.firebase.google.com
+   - Klicka på ditt projekt
+   - Project Settings (⚙️)
+   - Kopiera **"Project ID"** (INTE "Project name")
+
+2. Exempel:
+   - ✅ Rätt: `my-app-abc123`
+   - ❌ Fel: `My App` (detta är project name, inte ID)
+
+3. Kör scriptet igen med rätt ID
 
 ---
 

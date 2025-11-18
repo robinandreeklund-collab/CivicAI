@@ -122,6 +122,30 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
+// Verify Firestore is accessible
+async function verifyFirestore() {
+    try {
+        await db.listCollections();
+        return true;
+    } catch (error) {
+        if (error.code === 5 || error.message.includes('NOT_FOUND')) {
+            console.error('');
+            console.error('ERROR: Firestore database not found!');
+            console.error('');
+            console.error('ACTION REQUIRED:');
+            console.error('1. Go to: https://console.firebase.google.com/project/' + projectId + '/firestore');
+            console.error('2. Click "Create database"');
+            console.error('3. Choose "Start in production mode" or "Test mode"');
+            console.error('4. Select a location (e.g., europe-west1)');
+            console.error('5. Click "Enable"');
+            console.error('6. Run this script again');
+            console.error('');
+            return false;
+        }
+        throw error;
+    }
+}
+
 const collections = {
     ai_interactions: {
         question: 'Sample question',
@@ -166,22 +190,38 @@ const collections = {
 };
 
 async function initCollections() {
+    // First verify Firestore is accessible
+    const isAccessible = await verifyFirestore();
+    if (!isAccessible) {
+        process.exit(1);
+    }
+
+    console.log('');
+    let successCount = 0;
+    let errorCount = 0;
+
     for (const [collectionName, sampleDoc] of Object.entries(collections)) {
         try {
             await db.collection(collectionName).add(sampleDoc);
             console.log(`  OK: ${collectionName}`);
+            successCount++;
         } catch (error) {
             console.error(`  ERROR: ${collectionName} - ${error.message}`);
+            errorCount++;
         }
+    }
+
+    console.log('');
+    if (errorCount === 0) {
+        console.log('SUCCESS: All ' + successCount + ' collections created!');
+        process.exit(0);
+    } else {
+        console.log('PARTIAL: ' + successCount + ' succeeded, ' + errorCount + ' failed');
+        process.exit(1);
     }
 }
 
 initCollections()
-    .then(() => {
-        console.log('');
-        console.log('SUCCESS: All collections created!');
-        process.exit(0);
-    })
     .catch((error) => {
         console.error('ERROR:', error.message);
         process.exit(1);
