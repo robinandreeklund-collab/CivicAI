@@ -18,6 +18,7 @@ export default function FooterDemo4() {
     { text: 'Pipeline', to: '/pipeline' },
     { text: 'Funktioner', to: '/features' },
     { text: 'Språkmodell [OQT‑1.0]', to: '/sprakmodell' },
+    { text: 'API Dokumentation', to: 'https://github.com/robinandreeklund-collab/CivicAI/blob/main/docs/api/README.md', external: true },
   ];
 
   return (
@@ -27,6 +28,22 @@ export default function FooterDemo4() {
           <div className="flex flex-wrap justify-center items-center gap-4 md:gap-6">
             {links.map((link, index) => {
               const isActive = location.pathname === link.to;
+              
+              // Render external links differently
+              if (link.external) {
+                return (
+                  <a
+                    key={index}
+                    href={link.to}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs transition-all duration-200 hover:scale-105 text-[#666] hover:text-[#e7e7e7]"
+                  >
+                    {link.text}
+                  </a>
+                );
+              }
+              
               return (
                 <Link
                   key={index}
