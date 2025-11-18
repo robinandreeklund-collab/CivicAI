@@ -179,9 +179,26 @@ def load_detoxify_model():
                 except:
                     device = 'cpu'
             
+            # Load model with explicit device parameter to avoid meta tensor issues
+            # This ensures the model is directly loaded to the target device
             MODELS['detoxify'] = Detoxify('multilingual', device=device)
             print(f"✓ Loaded Detoxify multilingual model (device: {device})")
         except Exception as e:
+            error_msg = str(e)
+            # Handle meta tensor error specifically
+            if "meta tensor" in error_msg.lower() or "to_empty" in error_msg.lower():
+                try:
+                    # Retry with explicit CPU device and no meta device usage
+                    print("  Retrying Detoxify with CPU-only mode...")
+                    import os
+                    # Disable meta device usage in transformers
+                    os.environ['TRANSFORMERS_OFFLINE'] = '0'
+                    MODELS['detoxify'] = Detoxify('multilingual', device='cpu')
+                    print(f"✓ Loaded Detoxify multilingual model (device: cpu, retry successful)")
+                    return MODELS['detoxify']
+                except Exception as retry_err:
+                    print(f"✗ Retry failed: {retry_err}")
+            
             print(f"✗ Failed to load Detoxify model: {e}")
             print("  Detoxify will not be available")
             return None
