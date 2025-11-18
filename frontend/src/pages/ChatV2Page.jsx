@@ -238,7 +238,7 @@ export default function ChatV2Page() {
   // Overview mode: BERT summary + model synthesis + quick model table
   const renderOverview = () => {
     return (
-      <div key="overview" className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24 view-transition">
+      <div className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24">
         {/* User Question */}
         <div className="max-w-4xl mx-auto mb-8">
           <div className="text-[#666] text-sm uppercase tracking-wide mb-2">DIN FRÅGA</div>
@@ -544,7 +544,7 @@ export default function ChatV2Page() {
   // Models mode: Full responses with complete analysis
   const renderModels = () => {
     return (
-      <div key="models" className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24 view-transition">
+      <div className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24">
         <div className="max-w-4xl mx-auto">
           <div className="text-[#666] text-sm uppercase tracking-wide mb-6">DETALJERADE MODELLSVAR</div>
           
@@ -713,7 +713,7 @@ export default function ChatV2Page() {
     const selectedResponse = latestAiMessage.responses?.find(r => r.agent === selectedModel) || latestAiMessage.responses?.[0];
     
     return (
-      <div key="pipeline" className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24 view-transition">
+      <div className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24">
         <div className="max-w-4xl mx-auto">
           {/* Model Selector */}
           <div className="mb-6">
@@ -940,7 +940,7 @@ export default function ChatV2Page() {
       : `q-${Date.now()}`;
 
     return (
-      <div key="debate" className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24 view-transition">
+      <div className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24">
         <div className="max-w-4xl mx-auto">
           <div className="text-[#666] text-sm uppercase tracking-wide mb-6">LIVE KONSENSUS-DEBATT</div>
           
@@ -1003,14 +1003,9 @@ export default function ChatV2Page() {
           animation: fadeIn 300ms ease-in-out;
         }
         
-        .view-transition {
-          animation: fadeIn 250ms ease-in-out;
-        }
-        
         @media (prefers-reduced-motion: reduce) {
           .animate-slide-in-right,
-          .animate-fade-in,
-          .view-transition {
+          .animate-fade-in {
             animation: none;
             opacity: 1;
             transform: none;

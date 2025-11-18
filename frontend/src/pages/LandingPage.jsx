@@ -32,13 +32,11 @@ export default function LandingPage() {
     'Data quality reports'
   ], []);
 
-  // Cycle through features every 3200ms (2600ms display + 600ms transition)
-  // Show 4 features at a time, cycling through all features
+  // Cycle through features slowly, one at a time (4 seconds per feature)
   useEffect(() => {
-    const totalGroups = Math.ceil(features.length / 4);
     const interval = setInterval(() => {
-      setCurrentFeatureIndex((prevIndex) => (prevIndex + 1) % totalGroups);
-    }, 3200);
+      setCurrentFeatureIndex((prevIndex) => (prevIndex + 1) % features.length);
+    }, 4000); // Slower: 4 seconds per feature
     
     return () => clearInterval(interval);
   }, [features.length]);
@@ -126,50 +124,48 @@ export default function LandingPage() {
           </p>
           <div className="relative overflow-hidden" style={{ minHeight: '180px' }}>
             <style>{`
-              @keyframes fadeSlideIn {
+              @keyframes smoothSlideIn {
                 0% {
                   opacity: 0;
-                  transform: translateY(20px);
+                  transform: translateY(10px);
                 }
-                15% {
-                  opacity: 1;
-                  transform: translateY(0);
-                }
-                85% {
+                10%, 90% {
                   opacity: 1;
                   transform: translateY(0);
                 }
                 100% {
                   opacity: 0;
-                  transform: translateY(-20px);
+                  transform: translateY(-10px);
                 }
               }
               
-              .feature-group {
-                animation: fadeSlideIn 3200ms ease-in-out infinite;
+              .rotating-feature-list {
+                position: relative;
+              }
+              
+              .rotating-feature-item {
+                animation: smoothSlideIn 4000ms ease-in-out infinite;
               }
               
               @media (prefers-reduced-motion: reduce) {
-                .feature-group {
+                .rotating-feature-item {
                   animation: none;
                   opacity: 1;
                   transform: none;
                 }
               }
             `}</style>
-            <div className="feature-group absolute w-full">
-              <ul className="space-y-0">
-                {[0, 1, 2, 3].map((offset) => {
-                  const index = (currentFeatureIndex * 4 + offset) % features.length;
-                  return (
-                    <li key={offset} className="py-4 border-b border-[#151515] text-[#666] text-sm">
-                      <span className="mr-2">✓</span>
-                      <span>{features[index]}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+            <ul className="space-y-0 rotating-feature-list">
+              {[0, 1, 2, 3].map((offset) => {
+                const index = (currentFeatureIndex + offset) % features.length;
+                return (
+                  <li key={`feature-${index}`} className="py-4 border-b border-[#151515] text-[#666] text-sm flex items-start">
+                    <span className="mr-2 flex-shrink-0">✓</span>
+                    <span className="flex-1">{features[index]}</span>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         </div>
 
