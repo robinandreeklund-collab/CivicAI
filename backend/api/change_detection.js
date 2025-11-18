@@ -80,6 +80,23 @@ async function executeChangeDetection(question, model, response, version = 'unkn
         if (errorOutput) {
           console.error('Change detection error:');
           console.error(errorOutput);
+          
+          // Also write full error to a debug file
+          const fs = require('fs');
+          const path = require('path');
+          const debugDir = path.join(__dirname, '..', '..', 'ml', 'debug');
+          try {
+            if (!fs.existsSync(debugDir)) {
+              fs.mkdirSync(debugDir, { recursive: true });
+            }
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const errorFile = path.join(debugDir, `backend_error_${timestamp}.log`);
+            fs.writeFileSync(errorFile, `Timestamp: ${new Date().toISOString()}\n\nError Output:\n${errorOutput}\n`);
+            console.error(`Full error written to: ${errorFile}`);
+          } catch (writeErr) {
+            // Ignore file write errors
+          }
+          
           // Try to parse as JSON for better error display
           try {
             const errorJson = JSON.parse(errorOutput);
