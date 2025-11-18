@@ -27,6 +27,41 @@ fi
 echo "✓ Logged in to Firebase"
 echo ""
 
+# Check for service account credentials
+echo "🔑 Checking for Firebase Admin credentials..."
+echo ""
+
+if [ -z "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+    echo "⚠️  GOOGLE_APPLICATION_CREDENTIALS not set"
+    echo ""
+    echo "You need a Firebase Admin SDK service account key to run this script."
+    echo ""
+    echo "📖 How to get a service account key:"
+    echo "   1. Go to Firebase Console: https://console.firebase.google.com"
+    echo "   2. Select your project"
+    echo "   3. Go to Project Settings (⚙️) → Service accounts"
+    echo "   4. Click 'Generate new private key'"
+    echo "   5. Save the JSON file"
+    echo ""
+    read -p "Enter the path to your service account key JSON file: " SERVICE_ACCOUNT_PATH
+    
+    if [ -z "$SERVICE_ACCOUNT_PATH" ]; then
+        echo "❌ Service account path is required"
+        exit 1
+    fi
+    
+    if [ ! -f "$SERVICE_ACCOUNT_PATH" ]; then
+        echo "❌ File not found: $SERVICE_ACCOUNT_PATH"
+        exit 1
+    fi
+    
+    export GOOGLE_APPLICATION_CREDENTIALS="$SERVICE_ACCOUNT_PATH"
+    echo "✓ Using service account: $SERVICE_ACCOUNT_PATH"
+else
+    echo "✓ Using credentials from: $GOOGLE_APPLICATION_CREDENTIALS"
+fi
+echo ""
+
 # Get project list
 echo "📋 Available Firebase projects:"
 firebase projects:list
@@ -55,10 +90,22 @@ if (!projectId) {
     process.exit(1);
 }
 
-// Initialize Firebase Admin
-admin.initializeApp({
-    projectId: projectId
-});
+// Initialize Firebase Admin with Application Default Credentials
+// This will use the Firebase CLI token from 'firebase login'
+try {
+    admin.initializeApp({
+        projectId: projectId,
+        credential: admin.credential.applicationDefault()
+    });
+} catch (error) {
+    console.error('❌ Failed to initialize Firebase Admin SDK');
+    console.error('Error:', error.message);
+    console.error('\n💡 Solution:');
+    console.error('   Run: export GOOGLE_APPLICATION_CREDENTIALS=/path/to/serviceAccountKey.json');
+    console.error('   Or download a service account key from Firebase Console:');
+    console.error('   https://console.firebase.google.com/project/' + projectId + '/settings/serviceaccounts/adminsdk');
+    process.exit(1);
+}
 
 const db = admin.firestore();
 

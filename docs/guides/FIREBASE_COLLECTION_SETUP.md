@@ -8,6 +8,11 @@ Choose the method that works best for you:
 
 ### Option 1: Automated Script (Fastest) ⚡
 
+**Prerequisites:**
+- Firebase CLI installed: `npm install -g firebase-tools`
+- Logged in: `firebase login`
+- **Service Account Key** downloaded from Firebase Console
+
 ```bash
 ./scripts/firebase-init-collections.sh
 ```
@@ -19,6 +24,10 @@ Choose the method that works best for you:
 - Shows schema info for each collection
 
 **Time:** ~2 minutes
+
+**⚠️ Common Issue:** If you get "Could not load the default credentials" error, see the fix guide:
+- **Troubleshooting:** `docs/guides/FIREBASE_CREDENTIALS_FIX.md`
+- **Quick fix:** Download service account key from Firebase Console → Project Settings → Service accounts
 
 ---
 
