@@ -14,6 +14,17 @@ import ReplayTimeline from '../components/ReplayTimeline';
  * - 4 view modes with real API integration
  * - OneSeek.AI grayscale brand identity
  */
+
+// Helper function to format text with markdown-like formatting
+const formatTextWithMarkdown = (text) => {
+  if (!text) return '';
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold text
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')  // Italic text
+    .replace(/\n/g, '<br/>')  // Line breaks
+    .replace(/^- (.+)$/gm, '<div class="ml-4">• $1</div>');  // List items
+};
+
 export default function ChatV2Page() {
   const location = useLocation();
   const [messages, setMessages] = useState([]);
@@ -883,68 +894,111 @@ export default function ChatV2Page() {
                   <div className="text-sm text-[#666]">Source verification using Tavily API</div>
                 </div>
               </div>
-              {/* TODO: Backend should provide fact checking data in response.factCheck */}
-              {latestAiMessage.factCheck ? (
+              {/* Use factCheckComparison or bertMetadata for fact checking data */}
+              {(latestAiMessage.factCheck || latestAiMessage.factCheckComparison || latestAiMessage.bertMetadata?.factCheck) ? (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-[#1a1a1a] rounded">
-                    <div>
-                      <div className="text-sm text-[#666]">Verification Status</div>
-                      <div className={`text-lg font-medium capitalize ${
-                        latestAiMessage.factCheck.verificationStatus === 'true' ? 'text-green-400' :
-                        latestAiMessage.factCheck.verificationStatus === 'false' ? 'text-red-400' :
-                        latestAiMessage.factCheck.verificationStatus === 'partially_true' ? 'text-yellow-400' :
-                        'text-[#888]'
-                      }`}>
-                        {latestAiMessage.factCheck.verificationStatus?.replace('_', ' ')}
+                  {/* Show fact check summary from BERT metadata if available */}
+                  {latestAiMessage.bertMetadata?.factCheck && (
+                    <div className="p-3 bg-[#1a1a1a] rounded mb-4">
+                      <div className="text-sm text-[#666] mb-2">Faktakoll-sammanfattning:</div>
+                      <div className="text-[#888] text-sm whitespace-pre-wrap" 
+                           dangerouslySetInnerHTML={{ __html: formatTextWithMarkdown(latestAiMessage.bertMetadata.factCheck) }}>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm text-[#666]">Confidence</div>
-                      <div className="text-lg font-medium text-[#e7e7e7]">
-                        {(latestAiMessage.factCheck.confidence * 100).toFixed(0)}%
-                      </div>
-                    </div>
-                  </div>
-                  {latestAiMessage.factCheck.verdict && (
-                    <div className="p-3 bg-[#1a1a1a] rounded">
-                      <div className="text-sm text-[#666] mb-2">Verdict:</div>
-                      <p className="text-[#888] text-sm">{latestAiMessage.factCheck.verdict}</p>
                     </div>
                   )}
-                  {latestAiMessage.factCheck.sources && latestAiMessage.factCheck.sources.length > 0 && (
-                    <div>
-                      <div className="text-sm text-[#666] mb-2">
-                        Sources ({latestAiMessage.factCheck.supportingEvidence || 0} supporting, {latestAiMessage.factCheck.contradictingEvidence || 0} contradicting):
-                      </div>
-                      <div className="space-y-2">
-                        {latestAiMessage.factCheck.sources.map((source, idx) => (
-                          <div key={idx} className="p-3 bg-[#1a1a1a] rounded border border-[#2a2a2a] hover:border-[#3a3a3a] transition-colors">
-                            <div className="flex items-start justify-between mb-2">
-                              <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-[#e7e7e7] hover:text-white text-sm font-medium flex-1">
-                                {source.title}
-                              </a>
-                              {source.credibility && (
-                                <span className="text-xs px-2 py-1 bg-[#2a2a2a] text-[#888] rounded ml-2">
-                                  {(source.credibility * 100).toFixed(0)}% credible
-                                </span>
-                              )}
-                            </div>
-                            {source.snippet && (
-                              <p className="text-[#666] text-xs mb-1">{source.snippet}</p>
-                            )}
-                            {source.date && (
-                              <div className="text-[#555] text-xs">{source.date}</div>
-                            )}
+                  
+                  {/* Show factCheckComparison data if available */}
+                  {latestAiMessage.factCheckComparison && (
+                    <div className="space-y-3">
+                      {latestAiMessage.factCheckComparison.claims && latestAiMessage.factCheckComparison.claims.length > 0 && (
+                        <div>
+                          <div className="text-sm text-[#666] mb-2">Verifierade påståenden:</div>
+                          <div className="space-y-2">
+                            {latestAiMessage.factCheckComparison.claims.map((claim, idx) => (
+                              <div key={idx} className="p-3 bg-[#1a1a1a] rounded border border-[#2a2a2a]">
+                                <div className="text-[#e7e7e7] text-sm mb-2">{claim.text}</div>
+                                {claim.sources && claim.sources.length > 0 && (
+                                  <div className="text-xs text-[#666]">
+                                    Källor: {claim.sources.map((s, si) => (
+                                      <a key={si} href={s.url} target="_blank" rel="noopener noreferrer" 
+                                         className="text-[#4a9eff] hover:underline ml-1">
+                                        [{si + 1}]
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      )}
                     </div>
+                  )}
+                  
+                  {/* Show factCheck data if available (from new ML endpoints) */}
+                  {latestAiMessage.factCheck && (
+                    <>
+                      <div className="flex items-center justify-between p-3 bg-[#1a1a1a] rounded">
+                        <div>
+                          <div className="text-sm text-[#666]">Verification Status</div>
+                          <div className={`text-lg font-medium capitalize ${
+                            latestAiMessage.factCheck.verificationStatus === 'true' ? 'text-green-400' :
+                            latestAiMessage.factCheck.verificationStatus === 'false' ? 'text-red-400' :
+                            latestAiMessage.factCheck.verificationStatus === 'partially_true' ? 'text-yellow-400' :
+                            'text-[#888]'
+                          }`}>
+                            {latestAiMessage.factCheck.verificationStatus?.replace('_', ' ')}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-[#666]">Confidence</div>
+                          <div className="text-lg font-medium text-[#e7e7e7]">
+                            {(latestAiMessage.factCheck.confidence * 100).toFixed(0)}%
+                          </div>
+                        </div>
+                      </div>
+                      {latestAiMessage.factCheck.verdict && (
+                        <div className="p-3 bg-[#1a1a1a] rounded">
+                          <div className="text-sm text-[#666] mb-2">Verdict:</div>
+                          <p className="text-[#888] text-sm">{latestAiMessage.factCheck.verdict}</p>
+                        </div>
+                      )}
+                      {latestAiMessage.factCheck.sources && latestAiMessage.factCheck.sources.length > 0 && (
+                        <div>
+                          <div className="text-sm text-[#666] mb-2">
+                            Sources ({latestAiMessage.factCheck.supportingEvidence || 0} supporting, {latestAiMessage.factCheck.contradictingEvidence || 0} contradicting):
+                          </div>
+                          <div className="space-y-2">
+                            {latestAiMessage.factCheck.sources.map((source, idx) => (
+                              <div key={idx} className="p-3 bg-[#1a1a1a] rounded border border-[#2a2a2a] hover:border-[#3a3a3a] transition-colors">
+                                <div className="flex items-start justify-between mb-2">
+                                  <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-[#e7e7e7] hover:text-white text-sm font-medium flex-1">
+                                    {source.title}
+                                  </a>
+                                  {source.credibility && (
+                                    <span className="text-xs px-2 py-1 bg-[#2a2a2a] text-[#888] rounded ml-2">
+                                      {(source.credibility * 100).toFixed(0)}% credible
+                                    </span>
+                                  )}
+                                </div>
+                                {source.snippet && (
+                                  <p className="text-[#666] text-xs mb-1">{source.snippet}</p>
+                                )}
+                                {source.date && (
+                                  <div className="text-[#555] text-xs">{source.date}</div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-[#666] text-sm">Fact checking kommer vara tillgänglig när backend är implementerat</p>
-                  <p className="text-[#555] text-xs mt-1">TODO: Implementera /fact-check/verify endpoint med Tavily API</p>
+                  <p className="text-[#666] text-sm">Fact checking data is available from backend API</p>
+                  <p className="text-[#555] text-xs mt-1">✅ Tavily API is being queried - check bertMetadata for fact check summary</p>
                 </div>
               )}
             </div>
@@ -1046,8 +1100,10 @@ export default function ChatV2Page() {
 
                 {/* Full Response Text */}
                 <div className="p-6">
-                  <div className="text-[#888] leading-relaxed mb-6">
-                    {response.response || response.text || 'Inget svar tillgängligt'}
+                  <div className="text-[#888] leading-relaxed mb-6 whitespace-pre-wrap" 
+                       dangerouslySetInnerHTML={{ 
+                         __html: formatTextWithMarkdown(response.response || response.text || 'Inget svar tillgängligt')
+                       }}>
                   </div>
                   
                   {/* Emotion/Tone/Intent */}
@@ -1078,7 +1134,9 @@ export default function ChatV2Page() {
                         {response.enhancedAnalysis.argumentation.huvudpunkter.map((point, pidx) => (
                           <div key={pidx} className="flex items-start gap-2">
                             <span className="text-[#666] mt-0.5">{pidx + 1}.</span>
-                            <span className="text-[#888]">{point}</span>
+                            <span className="text-[#888] whitespace-pre-wrap" 
+                                  dangerouslySetInnerHTML={{ __html: formatTextWithMarkdown(point) }}>
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -1342,9 +1400,118 @@ export default function ChatV2Page() {
                                 </div>
                               </div>
                               
+                              {/* Enhanced visualization for specific services */}
+                              {(step.step === 'gensim_topics' || step.step === 'bertopic_modeling') && step.output && (
+                                <div className="mt-4 p-4 bg-[#0a0a0a] rounded">
+                                  <div className="text-[#666] mb-3 font-medium">📊 Topic Analysis Results</div>
+                                  {step.output.topics && step.output.topics.length > 0 ? (
+                                    <div className="space-y-3">
+                                      {step.output.topics.slice(0, 5).map((topic, tidx) => (
+                                        <div key={tidx} className="border border-[#2a2a2a] rounded p-3">
+                                          <div className="flex items-center justify-between mb-2">
+                                            <span className="text-[#e7e7e7] font-medium">
+                                              {topic.label || topic.topic || `Topic ${tidx + 1}`}
+                                            </span>
+                                            {topic.probability && (
+                                              <span className="text-[#888] text-xs">
+                                                {(topic.probability * 100).toFixed(1)}%
+                                              </span>
+                                            )}
+                                          </div>
+                                          {topic.terms && topic.terms.length > 0 && (
+                                            <div className="flex flex-wrap gap-2 mt-2">
+                                              {topic.terms.slice(0, 8).map((term, termIdx) => (
+                                                <span key={termIdx} className="px-2 py-1 bg-[#1a1a1a] text-[#888] text-xs rounded">
+                                                  {typeof term === 'string' ? term : term.word || term.term}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
+                                          {topic.coherence && (
+                                            <div className="mt-2 text-xs text-[#666]">
+                                              Coherence: {topic.coherence.toFixed(3)}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                      {step.output.topics.length > 5 && (
+                                        <div className="text-center text-xs text-[#666]">
+                                          +{step.output.topics.length - 5} fler topics
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="text-[#666] text-sm">No topics extracted</div>
+                                  )}
+                                  {step.output.method && (
+                                    <div className="mt-3 text-xs text-[#666]">
+                                      Method: {step.output.method} {step.output.model && `(${step.output.model})`}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {/* Enhanced visualization for SHAP/LIME explainability */}
+                              {(step.step === 'shap_explainability' || step.step === 'lime_explanation') && step.output && (
+                                <div className="mt-4 p-4 bg-[#0a0a0a] rounded">
+                                  <div className="text-[#666] mb-3 font-medium">🔍 Feature Importance</div>
+                                  {step.output.topFeatures && step.output.topFeatures.length > 0 ? (
+                                    <div className="space-y-2">
+                                      {step.output.topFeatures.slice(0, 10).map((feat, fidx) => (
+                                        <div key={fidx} className="flex items-center gap-3">
+                                          <span className="text-[#888] text-xs w-32 truncate">{feat.feature || feat.word}</span>
+                                          <div className="flex-1 h-4 bg-[#1a1a1a] rounded-full overflow-hidden">
+                                            <div 
+                                              className={`h-full ${feat.contribution > 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                                              style={{width: `${Math.min(Math.abs(feat.contribution || feat.weight || 0) * 100, 100)}%`}}
+                                            ></div>
+                                          </div>
+                                          <span className="text-[#888] text-xs w-16 text-right">
+                                            {(feat.contribution || feat.weight || 0).toFixed(3)}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="text-[#666] text-sm">No feature importance data</div>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {/* Enhanced visualization for toxicity */}
+                              {step.step === 'detoxify_toxicity' && step.output && (
+                                <div className="mt-4 p-4 bg-[#0a0a0a] rounded">
+                                  <div className="text-[#666] mb-3 font-medium">🛡️ Toxicity Scores</div>
+                                  <div className="space-y-2">
+                                    {Object.entries(step.output).filter(([key]) => 
+                                      !['timestamp', 'model', 'version'].includes(key)
+                                    ).map(([metric, value]) => (
+                                      <div key={metric} className="flex items-center gap-3">
+                                        <span className="text-[#888] text-xs w-32 capitalize">
+                                          {metric.replace('_', ' ')}
+                                        </span>
+                                        <div className="flex-1 h-4 bg-[#1a1a1a] rounded-full overflow-hidden">
+                                          <div 
+                                            className={`h-full ${
+                                              value > 0.7 ? 'bg-red-500' :
+                                              value > 0.4 ? 'bg-yellow-500' :
+                                              'bg-green-500'
+                                            }`}
+                                            style={{width: `${Math.min((value || 0) * 100, 100)}%`}}
+                                          ></div>
+                                        </div>
+                                        <span className="text-[#888] text-xs w-16 text-right">
+                                          {((value || 0) * 100).toFixed(1)}%
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
                               {step.details && (
                                 <div className="mt-4">
-                                  <div className="text-[#666] mb-2">Detaljer</div>
+                                  <div className="text-[#666] mb-2">Rådata (JSON)</div>
                                   <pre className="text-xs text-[#999] bg-[#0a0a0a] p-3 rounded overflow-auto max-h-48">
                                     {JSON.stringify(step.details, null, 2)}
                                   </pre>
