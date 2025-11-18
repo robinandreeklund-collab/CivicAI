@@ -547,16 +547,90 @@ def classify_ideology():
 @app.route('/topic-modeling', methods=['POST'])
 def topic_modeling():
     """
-    Topic modeling using BERTopic
+    Topic modeling using BERTopic or Gensim LDA
     """
     data = request.json
     texts = data.get('texts', [])
+    method = data.get('method', 'bertopic')  # 'bertopic' or 'gensim'
     
-    if not texts or len(texts) < 3:
+    if not texts:
+        return jsonify({'error': 'No texts provided'}), 400
+    
+    # Gensim LDA method
+    if method == 'gensim' and GENSIM_AVAILABLE:
+        try:
+            from gensim import corpora
+            from gensim.models import LdaModel
+            from gensim.utils import simple_preprocess
+            
+            # Minimum 3 texts for meaningful topic modeling
+            if len(texts) < 3:
+                return jsonify({'error': 'Need at least 3 texts for topic modeling'}), 400
+            
+            # Preprocess texts
+            processed_texts = [simple_preprocess(text, deacc=True) for text in texts]
+            
+            # Create dictionary and corpus
+            dictionary = corpora.Dictionary(processed_texts)
+            corpus = [dictionary.doc2bow(text) for text in processed_texts]
+            
+            # Train LDA model (default 5 topics)
+            num_topics = data.get('num_topics', 5)
+            lda_model = LdaModel(
+                corpus=corpus,
+                id2word=dictionary,
+                num_topics=num_topics,
+                random_state=42,
+                passes=10,
+                alpha='auto'
+            )
+            
+            # Get topics
+            topics = []
+            for idx in range(num_topics):
+                topic_terms = lda_model.show_topic(idx, topn=10)
+                topics.append({
+                    'topic_id': idx,
+                    'terms': [{'word': word, 'weight': float(weight)} for word, weight in topic_terms],
+                    'label': f"Topic {idx}"
+                })
+            
+            # Get document-topic distributions
+            doc_topics = []
+            for doc_bow in corpus:
+                topic_dist = lda_model.get_document_topics(doc_bow)
+                doc_topics.append([{'topic_id': topic_id, 'probability': float(prob)} for topic_id, prob in topic_dist])
+            
+            result = {
+                'topics': topics,
+                'document_topics': doc_topics,
+                'num_topics': num_topics,
+                'provenance': {
+                    'model': 'Gensim LDA',
+                    'version': '4.3.2',
+                    'method': 'Latent Dirichlet Allocation',
+                    'timestamp': datetime.utcnow().isoformat()
+                }
+            }
+            
+            return jsonify(result)
+            
+        except Exception as e:
+            return jsonify({'error': f'Gensim LDA error: {str(e)}'}), 500
+    
+    # BERTopic method (original implementation)
+    if len(texts) < 3:
         return jsonify({'error': 'Need at least 3 texts for topic modeling'}), 400
     
     topic_model = load_bertopic_model()
     if not topic_model:
+        # If BERTopic not available but Gensim is, suggest using Gensim
+        if GENSIM_AVAILABLE:
+            return jsonify({
+                'error': 'BERTopic not available. Use method="gensim" for Gensim LDA topic modeling.',
+                'fallback': True,
+                'suggestion': 'gensim'
+            }), 503
         return jsonify({
             'error': 'BERTopic not available',
             'fallback': True
