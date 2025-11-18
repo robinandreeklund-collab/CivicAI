@@ -476,6 +476,38 @@ export default function ChatV2Page() {
                     </button>
                   </div>
                   
+                  {/* Enhanced Metadata Display */}
+                  {response.metadata && (
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4 text-xs">
+                      <div className="bg-[#1a1a1a] rounded p-2">
+                        <div className="text-[#666] mb-1">Modell</div>
+                        <div className="text-[#e7e7e7]">{response.metadata.model || response.metadata.version || 'N/A'}</div>
+                      </div>
+                      <div className="bg-[#1a1a1a] rounded p-2">
+                        <div className="text-[#666] mb-1">Svarstid</div>
+                        <div className="text-[#e7e7e7]">{response.metadata.responseTimeMs || 0}ms</div>
+                      </div>
+                      <div className="bg-[#1a1a1a] rounded p-2">
+                        <div className="text-[#666] mb-1">Tokens</div>
+                        <div className="text-[#e7e7e7]">{response.metadata.tokenCount || 0}</div>
+                      </div>
+                      <div className="bg-[#1a1a1a] rounded p-2">
+                        <div className="text-[#666] mb-1">Språk</div>
+                        <div className="text-[#e7e7e7]">
+                          {response.metadata.language?.detected || 'N/A'} 
+                          {response.metadata.language?.confidence && 
+                            ` (${(response.metadata.language.confidence * 100).toFixed(0)}%)`}
+                        </div>
+                      </div>
+                      <div className="bg-[#1a1a1a] rounded p-2">
+                        <div className="text-[#666] mb-1">Confidence</div>
+                        <div className="text-[#e7e7e7]">
+                          {response.metadata.confidence ? `${(response.metadata.confidence * 100).toFixed(0)}%` : 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
                   {/* Full Bias Indicators */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
