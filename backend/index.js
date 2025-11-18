@@ -12,6 +12,7 @@ import debateRouter from './api/debate.js';
 import changeDetectionRouter from './api/change_detection.js';
 import ingestRouter from './routes/ingest.js';
 import { logPythonServiceStatus } from './services/pythonNLPClient.js';
+import { getCachedPythonStatus } from './services/healthCache.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -36,18 +37,20 @@ app.use('/api/ingest', ingestRouter);
 // Health check endpoint with service status
 app.get('/api/health', async (req, res) => {
   try {
-    const { checkPythonML } = await import('./services/pythonNLPClient.js');
-    
-    // Check Python ML service
-    const pythonMLStatus = await checkPythonML();
+    // Get cached Python ML service status
+    const pythonStatus = getCachedPythonStatus();
     
     res.json({ 
       status: 'ok',
       services: {
         'query': { status: 'up', description: 'AI Query Service' },
         'python-ml': { 
-          status: pythonMLStatus ? 'up' : 'down',
-          description: 'Python ML Pipeline Service'
+          status: pythonStatus.status ? 'up' : 'down',
+          description: 'Python ML Pipeline Service',
+          lastChecked: pythonStatus.lastChecked,
+          lastSuccessful: pythonStatus.lastSuccessful,
+          available_models: pythonStatus.available_models,
+          error: pythonStatus.error || null,
         },
         'change-detection': { status: 'up', description: 'Change Detection Service' },
         'ledger': { status: 'up', description: 'Transparency Ledger' },
@@ -57,15 +60,9 @@ app.get('/api/health', async (req, res) => {
     });
   } catch (error) {
     console.error('Health check error:', error);
-    res.json({
-      status: 'partial',
-      services: {
-        'query': { status: 'up', description: 'AI Query Service' },
-        'python-ml': { status: 'unknown', description: 'Python ML Pipeline Service' },
-        'change-detection': { status: 'up', description: 'Change Detection Service' },
-        'ledger': { status: 'up', description: 'Transparency Ledger' },
-        'audit': { status: 'up', description: 'Audit Trail Service' },
-      },
+    res.status(500).json({
+      status: 'error',
+      message: error.message,
       timestamp: new Date().toISOString()
     });
   }

@@ -9,6 +9,21 @@ import axios from 'axios';
 
 const PYTHON_SERVICE_URL = process.env.PYTHON_NLP_SERVICE_URL || 'http://localhost:5001';
 
+// Lazy import to avoid circular dependency
+let getCachedPythonStatusFn = null;
+async function getCachedPythonStatusIfAvailable() {
+  if (!getCachedPythonStatusFn) {
+    try {
+      const healthCache = await import('./healthCache.js');
+      getCachedPythonStatusFn = healthCache.getCachedPythonStatus;
+    } catch (err) {
+      // healthCache not available, use direct calls
+      return null;
+    }
+  }
+  return getCachedPythonStatusFn ? getCachedPythonStatusFn() : null;
+}
+
 /**
  * Check if Python NLP service is available
  */
@@ -315,16 +330,59 @@ export async function analyzeSemanticSimilarity(texts) {
 }
 
 /**
+ * Check Python ML service status (compatibility wrapper)
+ * Returns structured status with available models and timestamps
+ */
+export async function checkPythonML() {
+  try {
+    const available = await isPythonServiceAvailable();
+    const models = available ? await getAvailableModels() : {};
+    return {
+      status: available,
+      available_models: models,
+      lastChecked: new Date().toISOString(),
+    };
+  } catch (err) {
+    return {
+      status: false,
+      available_models: {},
+      lastChecked: new Date().toISOString(),
+      error: err?.message || String(err),
+    };
+  }
+}
+
+/**
  * Run complete pipeline analysis using all available Python ML tools
  */
 export async function runCompletePythonPipeline(text) {
   try {
-    const response = await axios.post(`${PYTHON_SERVICE_URL}/analyze-complete`, { text }, { timeout: 15000 });
+    const response = await axios.post(`${PYTHON_SERVICE_URL}/analyze-complete`, { text }, { timeout: 20000 });
     console.log('✓ Using complete Python ML pipeline');
+
+    // Try to extract models info from python response
+    const payload = response.data || {};
+    const availableModels = payload.available_models || payload.provenance?.models_used || {};
+
+    // Normalize: if provenance.models_used is an array, set models_attempted = array
+    const modelsAttempted = Array.isArray(payload.provenance?.models_used)
+      ? payload.provenance.models_used
+      : Object.keys(availableModels || {}).length ? Object.keys(availableModels) : [];
+
+    // Infer success/failure: if available_models object present, pick trues as used
+    const modelsUsed = Array.isArray(payload.provenance?.models_used)
+      ? payload.provenance.models_used
+      : Object.entries(availableModels || {}).filter(([k, v]) => v === true).map(([k]) => k);
+
+    const modelsFailed = modelsAttempted.filter(m => !modelsUsed.includes(m));
+
     return {
       success: true,
-      data: response.data,
+      data: payload,
       usingPython: true,
+      models_attempted: modelsAttempted,
+      models_used: modelsUsed,
+      models_failed: modelsFailed,
     };
   } catch (error) {
     if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
@@ -333,6 +391,9 @@ export async function runCompletePythonPipeline(text) {
         success: false,
         fallback: true,
         error: 'Python service not reachable',
+        models_attempted: [],
+        models_used: [],
+        models_failed: [],
       };
     }
     if (error.response?.status === 503) {
@@ -341,6 +402,9 @@ export async function runCompletePythonPipeline(text) {
         success: false,
         fallback: true,
         error: 'Python pipeline not available - using JavaScript fallback',
+        models_attempted: [],
+        models_used: [],
+        models_failed: [],
       };
     }
     console.error('Error calling Python complete pipeline:', error.message);
@@ -348,6 +412,9 @@ export async function runCompletePythonPipeline(text) {
       success: false,
       fallback: true,
       error: error.message,
+      models_attempted: [],
+      models_used: [],
+      models_failed: [],
     };
   }
 }
@@ -395,6 +462,17 @@ export async function enhancedSentiment(text) {
  * Check Python service status and log capabilities
  */
 export async function logPythonServiceStatus() {
+  // Try to use cached status first to avoid delays on startup
+  const cachedStatus = await getCachedPythonStatusIfAvailable();
+  
+  if (cachedStatus && cachedStatus.status) {
+    console.log('🐍 Python NLP Service: AVAILABLE (cached)');
+    console.log('   Available models:', JSON.stringify(cachedStatus.available_models, null, 2));
+    console.log('   Last checked:', cachedStatus.lastChecked);
+    return;
+  }
+  
+  // Fallback to direct check if cache not available
   const available = await isPythonServiceAvailable();
   
   if (available) {
@@ -421,4 +499,5 @@ export default {
   enhancedPreprocess,
   enhancedSentiment,
   logPythonServiceStatus,
+  checkPythonML,
 };
