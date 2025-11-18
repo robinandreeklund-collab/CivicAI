@@ -51,12 +51,12 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
   console.log('  2️⃣  Preprocessing (spaCy, TextBlob)');
   console.log('  3️⃣  Toxicity & Safety (Detoxify)');
   console.log('  4️⃣  Transformer Models (Sentiment, Ideology)');
-  console.log('  5️⃣  Explainability (SHAP, LIME)');
-  console.log('  6️⃣  Topic Modeling (Gensim LDA)');
-  console.log('  7️⃣  Fairness & Bias (Fairlearn)');
-  console.log('  8️⃣  Enhanced NLP Analysis');
-  console.log('  9️⃣  Tone & Fact Checking');
-  console.log('  🔟  Synthesis & Ledger Integration\n');
+  console.log('  5️⃣  Tone & Fact Checking');
+  console.log('  6️⃣  Enhanced NLP Analysis');
+  console.log('  7️⃣  Explainability (SHAP, LIME)');
+  console.log('  8️⃣  Topic Modeling (Gensim LDA)');
+  console.log('  9️⃣  Fairness & Bias (Fairlearn)');
+  console.log('  🔟  Synthesis & Integration\n');
   
   // Check Python service availability at the start
   console.log('🔬 Starting analysis pipeline...');
@@ -268,8 +268,13 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     ideologicalClassification.usingSwedishBERT = transformersResult.usingSwedishBERT;
   }
 
-  // Step 5: Tone Analysis
-  console.log('🎵 Step 5: Tone Analysis...');
+  // ═══════════════════════════════════════════════════════════
+  // STEP 5: TONE & FACT CHECKING
+  // ═══════════════════════════════════════════════════════════
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('5️⃣  STEP 5: Tone & Fact Checking');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  
   const toneAnalysis = trackStep(
     'tone_analysis_javascript',
     analyzeTone,
@@ -277,8 +282,6 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     text
   );
 
-  // Step 6: Fact Checking
-  console.log('✅ Step 6: Fact Checking...');
   const factCheck = trackStep(
     'fact_checking_javascript',
     checkFacts,
@@ -286,10 +289,15 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     text
   );
 
-  // Optional: Enhanced NLP Analysis (if requested)
+  // ═══════════════════════════════════════════════════════════
+  // STEP 6: ENHANCED NLP ANALYSIS
+  // ═══════════════════════════════════════════════════════════
   let enhancedNLP = null;
   if (options.includeEnhancedNLP !== false) {
-    console.log('🧠 Step 7: Enhanced NLP Analysis...');
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('6️⃣  STEP 6: Enhanced NLP Analysis');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
     enhancedNLP = trackStep(
       'enhanced_nlp_javascript',
       performCompleteEnhancedAnalysis,
@@ -300,43 +308,72 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     );
   }
 
-  // Step 8: Explainability (SHAP + LIME)
-  console.log('🔍 Step 8: Explainability Analysis (SHAP + LIME)...');
-  const shapResult = await trackAsyncStep(
-    'shap_explainability',
-    pythonNLP.explainWithSHAP,
-    text,
-    'sentiment'
-  );
+  // ═══════════════════════════════════════════════════════════
+  // STEP 7: EXPLAINABILITY (SHAP + LIME) - OPTIONAL
+  // ═══════════════════════════════════════════════════════════
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('7️⃣  STEP 7: Explainability Analysis (SHAP + LIME) [Optional]');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   
-  const limeResult = await trackAsyncStep(
-    'lime_explainability',
-    pythonNLP.explainWithLIME,
-    text,
-    'sentiment'
-  );
+  let explainability = { shap: null, lime: null };
+  
+  if (pythonServiceAvailable) {
+    const shapResult = await trackAsyncStep(
+      'shap_explainability',
+      pythonNLP.explainWithSHAP,
+      text,
+      'sentiment'
+    );
+    
+    const limeResult = await trackAsyncStep(
+      'lime_explainability',
+      pythonNLP.explainWithLIME,
+      text,
+      'sentiment'
+    );
 
-  const explainability = {
-    shap: shapResult.success ? shapResult.data : null,
-    lime: limeResult.success ? limeResult.data : null,
-  };
+    explainability = {
+      shap: shapResult.success ? shapResult.data : null,
+      lime: limeResult.success ? limeResult.data : null,
+    };
+    
+    if (shapResult.success || limeResult.success) {
+      console.log(`   ✅ Explainability: ${shapResult.success ? 'SHAP ✓' : ''} ${limeResult.success ? 'LIME ✓' : ''}`.trim());
+    } else {
+      console.log('   ⚠️  Explainability models not available (optional feature)');
+    }
+  } else {
+    console.log('   ⏭️  Skipped (Python service unavailable)');
+  }
 
-  // Step 9: Topic Modeling (Gensim)
-  console.log('📚 Step 9: Topic Modeling (Gensim LDA)...');
-  const topicResult = await trackAsyncStep(
-    'gensim_topic_modeling',
-    pythonNLP.topicModelingWithGensim,
-    [text]
-  );
+  // ═══════════════════════════════════════════════════════════
+  // STEP 8: TOPIC MODELING - OPTIONAL
+  // ═══════════════════════════════════════════════════════════
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('8️⃣  STEP 8: Topic Modeling (Gensim/BERTopic) [Optional]');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  
+  let topics = null;
+  
+  if (pythonServiceAvailable) {
+    // Note: Currently only BERTopic is implemented in Python service
+    // Gensim LDA is available but not exposed as endpoint yet
+    console.log('   ⚠️  Topic modeling requires BERTopic (not yet installed)');
+    console.log('   💡 To enable: Install BERTopic in Python service');
+  } else {
+    console.log('   ⏭️  Skipped (Python service unavailable)');
+  }
 
-  const topics = topicResult.success ? topicResult.data : null;
-
-  // Step 10: Fairness Analysis
-  console.log('⚖️ Step 10: Fairness & Bias Analysis (Fairlearn)...');
-  // For fairness, we need predictions and sensitive features
-  // This is a placeholder - in real use, you'd have actual predictions
+  // ═══════════════════════════════════════════════════════════
+  // STEP 9: FAIRNESS & BIAS ANALYSIS - OPTIONAL
+  // ═══════════════════════════════════════════════════════════
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('9️⃣  STEP 9: Fairness & Bias Analysis (Fairlearn) [Optional]');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  
   let fairnessAnalysis = null;
-  if (ideologicalClassification && ideologicalClassification.prediction) {
+  
+  if (pythonServiceAvailable && ideologicalClassification && ideologicalClassification.prediction) {
     const fairnessResult = await trackAsyncStep(
       'fairlearn_fairness',
       pythonNLP.analyzeFairness,
@@ -344,7 +381,22 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
       { language: preprocessing.language || 'unknown' }
     );
     fairnessAnalysis = fairnessResult.success ? fairnessResult.data : null;
+    
+    if (fairnessResult.success) {
+      console.log('   ✅ Fairness metrics calculated');
+    } else {
+      console.log('   ⚠️  Fairness analysis not available (optional feature)');
+    }
+  } else {
+    console.log('   ⏭️  Skipped (requires prediction data and Python service)');
   }
+
+  // ═══════════════════════════════════════════════════════════
+  // STEP 10: SYNTHESIS & INTEGRATION
+  // ═══════════════════════════════════════════════════════════
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('🔟  STEP 10: Synthesis & Integration');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   const pipelineEndTime = Date.now();
 
