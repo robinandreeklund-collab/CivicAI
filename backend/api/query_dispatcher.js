@@ -18,6 +18,7 @@ import { performCompleteEnhancedAnalysis } from '../utils/nlpProcessors.js';
 import { synthesizeModelResponses } from '../services/modelSynthesis.js';
 import { executeAnalysisPipeline } from '../services/analysisPipeline.js';
 import { shouldTriggerDebate } from '../services/consensusDebate.js';
+import { executeChangeDetection } from './change_detection.js';
 
 const router = express.Router();
 
@@ -274,6 +275,34 @@ router.post('/query', async (req, res) => {
     const debateTrigger = shouldTriggerDebate(modelSynthesis);
     console.log('🎯 Debate trigger check:', debateTrigger ? 'YES - High divergence detected' : 'NO - Consensus acceptable');
 
+    // NEW: Change Detection - Analyze each response for changes
+    console.log('🔍 Running change detection analysis...');
+    const changeDetections = await Promise.all(
+      responses.map(async (response) => {
+        try {
+          const change = await executeChangeDetection(
+            question,
+            response.agent,
+            response.response,
+            response.metadata?.model || 'unknown'
+          );
+          return change;
+        } catch (error) {
+          console.error(`Change detection failed for ${response.agent}:`, error.message);
+          return null;
+        }
+      })
+    );
+
+    // Find the first significant change detected
+    const significantChange = changeDetections.find(c => c && c.change_metrics?.severity_index >= 0.3);
+    
+    if (significantChange) {
+      console.log(`✅ Significant change detected for ${significantChange.model}: severity=${significantChange.change_metrics.severity_index}`);
+    } else {
+      console.log('ℹ️  No significant changes detected');
+    }
+
     res.json({
       question,
       responses,
@@ -285,6 +314,7 @@ router.post('/query', async (req, res) => {
       factCheckComparison: factCheckComparison,
       modelSynthesis: modelSynthesis,
       debateTrigger: debateTrigger,
+      change_detection: significantChange || null,  // NEW: Include change detection
       timestamp: new Date().toISOString(),
     });
 

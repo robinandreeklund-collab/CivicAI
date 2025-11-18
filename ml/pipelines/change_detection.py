@@ -537,10 +537,19 @@ class ChangeDetectionModule:
 def main():
     """Demo and testing"""
     import argparse
+    import sys
     
     parser = argparse.ArgumentParser(description='Change Detection Module')
     parser.add_argument('--test', action='store_true', help='Run test detection')
     parser.add_argument('--history', type=str, help='Show change history for question')
+    parser.add_argument('--detect-json', action='store_true', help='Detect change from JSON input (stdin)')
+    parser.add_argument('--history-json', action='store_true', help='Get history as JSON output')
+    parser.add_argument('--heatmap-json', action='store_true', help='Get heatmap data as JSON')
+    parser.add_argument('--bias-drift-json', action='store_true', help='Get bias drift as JSON')
+    parser.add_argument('--question', type=str, help='Question for history/heatmap/bias-drift')
+    parser.add_argument('--model', type=str, help='Model name for history/bias-drift')
+    parser.add_argument('--models', type=str, help='JSON array of models for heatmap')
+    parser.add_argument('--limit', type=int, default=10, help='Limit results')
     
     args = parser.parse_args()
     
@@ -549,6 +558,90 @@ def main():
     HISTORY_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'change_history')
     
     detector = ChangeDetectionModule(LEDGER_DIR, HISTORY_DIR)
+    
+    # JSON mode for API integration
+    if args.detect_json:
+        try:
+            # Read JSON from stdin
+            input_data = json.load(sys.stdin)
+            question = input_data.get('question')
+            model = input_data.get('model')
+            response = input_data.get('response')
+            version = input_data.get('version', 'unknown')
+            
+            if not all([question, model, response]):
+                print(json.dumps({'error': 'Missing required fields'}), file=sys.stderr)
+                sys.exit(1)
+            
+            result = detector.detect_change(question, model, response, version)
+            
+            if result:
+                # Output JSON to stdout
+                print(json.dumps(result, ensure_ascii=False))
+            else:
+                print(json.dumps({'change_detected': False, 'message': 'No change or first response'}))
+            
+            sys.exit(0)
+        except Exception as e:
+            print(json.dumps({'error': str(e)}), file=sys.stderr)
+            sys.exit(1)
+    
+    if args.history_json:
+        try:
+            if not args.question:
+                print(json.dumps({'error': 'question parameter required'}), file=sys.stderr)
+                sys.exit(1)
+            
+            history = detector.get_change_history(args.question, args.model, args.limit)
+            print(json.dumps({'history': history}, ensure_ascii=False))
+            sys.exit(0)
+        except Exception as e:
+            print(json.dumps({'error': str(e)}), file=sys.stderr)
+            sys.exit(1)
+    
+    if args.heatmap_json:
+        try:
+            if not args.question:
+                print(json.dumps({'error': 'question parameter required'}), file=sys.stderr)
+                sys.exit(1)
+            
+            # Generate heatmap data (mock for now, can be enhanced)
+            models_list = []
+            if args.models:
+                models_list = json.loads(args.models)
+            
+            heatmap_data = {
+                'timePeriods': [],
+                'dimensions': {
+                    'sentiment': {'label': 'Sentiment', 'models': {}},
+                    'ideology': {'label': 'Ideologi', 'models': {}},
+                    'themes': {'label': 'Tematiska skiften', 'models': {}}
+                }
+            }
+            
+            print(json.dumps(heatmap_data, ensure_ascii=False))
+            sys.exit(0)
+        except Exception as e:
+            print(json.dumps({'error': str(e)}), file=sys.stderr)
+            sys.exit(1)
+    
+    if args.bias_drift_json:
+        try:
+            if not args.question or not args.model:
+                print(json.dumps({'error': 'question and model parameters required'}), file=sys.stderr)
+                sys.exit(1)
+            
+            # Generate bias drift data (mock for now, can be enhanced)
+            bias_data = {
+                'dimensions': ['Positivitet', 'Normativ', 'Vänster', 'Höger', 'Grön', 'Emotionell'],
+                'periods': []
+            }
+            
+            print(json.dumps(bias_data, ensure_ascii=False))
+            sys.exit(0)
+        except Exception as e:
+            print(json.dumps({'error': str(e)}), file=sys.stderr)
+            sys.exit(1)
     
     if args.test:
         print("\nRunning test change detection...\n")
