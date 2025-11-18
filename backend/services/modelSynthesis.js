@@ -193,6 +193,127 @@ export function detectContradictions(responses) {
 }
 
 /**
+ * Calculate additional synthesis metrics
+ * Includes: consensus index, divergence measure, weighted sentiment, ideological leaning, dominant themes
+ */
+function calculateAdditionalSynthesisMetrics(responses, modelCards) {
+  const validResponses = responses.filter(r => !r.metadata?.error);
+  
+  // Consensus Index (0-1): How much models agree
+  const consensusIndex = modelCards.length > 0 
+    ? calculateOverallConsensusIndex(modelCards) 
+    : 0;
+  
+  // Divergence Measure (0-1): How much models disagree
+  const divergenceMeasure = 1 - consensusIndex;
+  
+  // Weighted Sentiment: Average sentiment across all models
+  const sentiments = validResponses.map(r => {
+    const sentiment = r.pipelineAnalysis?.sentimentAnalysis?.vaderSentiment?.classification || 'neutral';
+    const score = r.pipelineAnalysis?.sentimentAnalysis?.vaderSentiment?.compound || 0;
+    return { sentiment, score };
+  }).filter(s => s);
+  
+  const avgSentimentScore = sentiments.length > 0
+    ? sentiments.reduce((sum, s) => sum + s.score, 0) / sentiments.length
+    : 0;
+  
+  const weightedSentiment = {
+    classification: avgSentimentScore > 0.05 ? 'positive' : avgSentimentScore < -0.05 ? 'negative' : 'neutral',
+    score: avgSentimentScore,
+    positive: sentiments.filter(s => s.sentiment === 'positive').length / sentiments.length,
+    neutral: sentiments.filter(s => s.sentiment === 'neutral').length / sentiments.length,
+    negative: sentiments.filter(s => s.sentiment === 'negative').length / sentiments.length,
+  };
+  
+  // Ideological Leaning: Aggregate ideological classification
+  const ideologies = validResponses.map(r => 
+    r.pipelineAnalysis?.ideologicalClassification?.primary || 'center'
+  );
+  
+  const ideologyCount = {};
+  ideologies.forEach(ideology => {
+    ideologyCount[ideology] = (ideologyCount[ideology] || 0) + 1;
+  });
+  
+  const dominantIdeology = Object.keys(ideologyCount).reduce((a, b) => 
+    ideologyCount[a] > ideologyCount[b] ? a : b, 'center'
+  );
+  
+  const ideologicalLeaning = {
+    dominant: dominantIdeology,
+    distribution: ideologyCount,
+    confidence: ideologies.length > 0 ? ideologyCount[dominantIdeology] / ideologies.length : 0,
+  };
+  
+  // Dominant Themes: Extract common topics from all models
+  const allTopics = validResponses.flatMap(r => 
+    r.enhancedAnalysis?.topics?.mainTopics || []
+  );
+  
+  const topicCount = {};
+  allTopics.forEach(topic => {
+    const topicName = typeof topic === 'string' ? topic : topic.topic || topic.name;
+    if (topicName) {
+      topicCount[topicName] = (topicCount[topicName] || 0) + 1;
+    }
+  });
+  
+  const dominantThemes = Object.entries(topicCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([topic, count]) => ({
+      topic,
+      frequency: count,
+      percentage: (count / validResponses.length) * 100,
+    }));
+  
+  return {
+    consensusIndex,
+    divergenceMeasure,
+    weightedSentiment,
+    ideologicalLeaning,
+    dominantThemes,
+  };
+}
+
+/**
+ * Calculate overall consensus index (0-1)
+ */
+function calculateOverallConsensusIndex(modelCards) {
+  if (modelCards.length < 2) return 1;
+  
+  // Calculate consensus across multiple dimensions
+  const dimensions = [];
+  
+  // Emotion consensus
+  const emotions = modelCards.map(c => c.summary.mainEmotion);
+  dimensions.push(calculateArrayConsensus(emotions) / 100);
+  
+  // Tone consensus
+  const tones = modelCards.map(c => c.summary.primaryTone);
+  dimensions.push(calculateArrayConsensus(tones) / 100);
+  
+  // Bias similarity
+  const biasScores = modelCards.map(c => c.ratings.biasScore);
+  const biasVariance = calculateVariance(biasScores);
+  dimensions.push(Math.max(0, 1 - biasVariance / 10));
+  
+  // Average across all dimensions
+  return dimensions.reduce((sum, val) => sum + val, 0) / dimensions.length;
+}
+
+/**
+ * Calculate variance of a numeric array
+ */
+function calculateVariance(arr) {
+  if (arr.length === 0) return 0;
+  const mean = arr.reduce((sum, val) => sum + val, 0) / arr.length;
+  const squaredDiffs = arr.map(val => Math.pow(val - mean, 2));
+  return squaredDiffs.reduce((sum, val) => sum + val, 0) / arr.length;
+}
+
+/**
  * Synthesize all model responses into a comparative analysis
  */
 export function synthesizeModelResponses(responses) {
@@ -212,6 +333,9 @@ export function synthesizeModelResponses(responses) {
 
   // Extract combined insights
   const combinedInsights = extractCombinedInsights(modelCards);
+  
+  // Calculate additional synthesis metrics
+  const additionalMetrics = calculateAdditionalSynthesisMetrics(responses, modelCards);
 
   return {
     modelCards: modelCards,
@@ -219,10 +343,16 @@ export function synthesizeModelResponses(responses) {
     contradictions: contradictionAnalysis,
     consensus: consensusMetrics,
     insights: combinedInsights,
+    // NEW: Additional synthesis metrics
+    consensusIndex: additionalMetrics.consensusIndex,
+    divergenceMeasure: additionalMetrics.divergenceMeasure,
+    weightedSentiment: additionalMetrics.weightedSentiment,
+    ideologicalLeaning: additionalMetrics.ideologicalLeaning,
+    dominantThemes: additionalMetrics.dominantThemes,
     metadata: {
       totalModels: modelCards.length,
       synthesizedAt: new Date().toISOString(),
-      method: 'Multi-model comparative synthesis',
+      method: 'Multi-model comparative synthesis with enhanced metrics',
     },
   };
 }

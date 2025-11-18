@@ -286,7 +286,97 @@ export default function ChatV2Page() {
               </button>
               
               {synthesisExpanded && (
-                <div className="border-t border-[#2a2a2a] p-6 space-y-4">
+                <div className="border-t border-[#2a2a2a] p-6 space-y-6">
+                  {/* Enhanced Synthesis Metrics */}
+                  {(latestAiMessage.modelSynthesis.consensusIndex !== undefined || 
+                    latestAiMessage.modelSynthesis.weightedSentiment ||
+                    latestAiMessage.modelSynthesis.ideologicalLeaning) && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {latestAiMessage.modelSynthesis.consensusIndex !== undefined && (
+                        <div className="bg-[#1a1a1a] rounded p-4">
+                          <div className="text-[#666] text-sm mb-2">Konsensusindex</div>
+                          <div className="text-2xl font-medium text-[#e7e7e7]">
+                            {(latestAiMessage.modelSynthesis.consensusIndex * 100).toFixed(0)}%
+                          </div>
+                          <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
+                            <div 
+                              className="bg-green-500 h-full" 
+                              style={{width: `${latestAiMessage.modelSynthesis.consensusIndex * 100}%`}}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {latestAiMessage.modelSynthesis.divergenceMeasure !== undefined && (
+                        <div className="bg-[#1a1a1a] rounded p-4">
+                          <div className="text-[#666] text-sm mb-2">Divergensmått</div>
+                          <div className="text-2xl font-medium text-[#e7e7e7]">
+                            {(latestAiMessage.modelSynthesis.divergenceMeasure * 100).toFixed(0)}%
+                          </div>
+                          <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
+                            <div 
+                              className="bg-yellow-500 h-full" 
+                              style={{width: `${latestAiMessage.modelSynthesis.divergenceMeasure * 100}%`}}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {latestAiMessage.modelSynthesis.weightedSentiment && (
+                        <div className="bg-[#1a1a1a] rounded p-4">
+                          <div className="text-[#666] text-sm mb-2">Viktat Sentiment</div>
+                          <div className="text-2xl font-medium text-[#e7e7e7] capitalize">
+                            {latestAiMessage.modelSynthesis.weightedSentiment.classification}
+                          </div>
+                          <div className="grid grid-cols-3 gap-1 mt-2 text-xs">
+                            <div className="text-green-400">
+                              +{(latestAiMessage.modelSynthesis.weightedSentiment.positive * 100).toFixed(0)}%
+                            </div>
+                            <div className="text-[#666]">
+                              ={(latestAiMessage.modelSynthesis.weightedSentiment.neutral * 100).toFixed(0)}%
+                            </div>
+                            <div className="text-red-400">
+                              -{(latestAiMessage.modelSynthesis.weightedSentiment.negative * 100).toFixed(0)}%
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Ideological Leaning & Dominant Themes */}
+                  {(latestAiMessage.modelSynthesis.ideologicalLeaning || 
+                    latestAiMessage.modelSynthesis.dominantThemes) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {latestAiMessage.modelSynthesis.ideologicalLeaning && (
+                        <div className="bg-[#1a1a1a] rounded p-4">
+                          <div className="text-[#666] text-sm mb-2">Ideologisk lutning</div>
+                          <div className="text-lg font-medium text-[#e7e7e7] capitalize mb-2">
+                            {latestAiMessage.modelSynthesis.ideologicalLeaning.dominant}
+                          </div>
+                          <div className="text-xs text-[#666]">
+                            Säkerhet: {(latestAiMessage.modelSynthesis.ideologicalLeaning.confidence * 100).toFixed(0)}%
+                          </div>
+                        </div>
+                      )}
+                      
+                      {latestAiMessage.modelSynthesis.dominantThemes && 
+                       latestAiMessage.modelSynthesis.dominantThemes.length > 0 && (
+                        <div className="bg-[#1a1a1a] rounded p-4">
+                          <div className="text-[#666] text-sm mb-2">Dominanta teman</div>
+                          <div className="space-y-1">
+                            {latestAiMessage.modelSynthesis.dominantThemes.slice(0, 3).map((theme, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-sm">
+                                <span className="text-[#e7e7e7]">{theme.topic}</span>
+                                <span className="text-[#666]">{theme.percentage.toFixed(0)}%</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
                   {/* Consensus Areas */}
                   {latestAiMessage.modelSynthesis.consensus?.areas && (
                     <div>
