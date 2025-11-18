@@ -44,7 +44,17 @@ class TransparencyLedger:
                     if not self.quiet:
                         print(f"WARNING: Ledger file corrupted. Creating new ledger.", file=sys.stderr)
                 # Remove corrupted file and create genesis block
-                self.ledger_file.unlink()
+                try:
+                    if self.ledger_file.exists():
+                        self.ledger_file.unlink()
+                except Exception as unlink_err:
+                    if not self.quiet:
+                        print(f"WARNING: Could not delete corrupted ledger: {unlink_err}", file=sys.stderr)
+                self._create_genesis_block()
+            except Exception as e:
+                # Any other error loading ledger
+                if not self.quiet:
+                    print(f"WARNING: Error loading ledger: {e}. Creating new ledger.", file=sys.stderr)
                 self._create_genesis_block()
         else:
             # Create genesis block

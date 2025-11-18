@@ -195,6 +195,15 @@ python nlp_pipeline.py
 - **Disk:** ~2 GB for models and dependencies
 - **C++ Compiler:** Optional (only for BERTopic on Windows)
 
+## Additional: Enabling optional models and verifying availability
+- BERTopic requires `umap-learn` and `hdbscan`. On Windows you may need Visual C++ Build Tools.
+- After installing optional deps, restart the Python service and check `/health`.
+- Example checks:
+  - `curl http://localhost:5001/health`
+  - `curl http://localhost:3001/api/health`
+
+Production note: set `FLASK_DEBUG=false` and ensure the Python service has adequate memory for transformer models.
+
 ## License
 
 Part of the CivicAI project.
