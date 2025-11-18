@@ -24,7 +24,10 @@ from typing import Dict, List, Optional, Tuple
 import re
 
 # Import transparency ledger for block creation
-from transparency_ledger import TransparencyLedger
+try:
+    from .transparency_ledger import TransparencyLedger
+except ImportError:
+    from transparency_ledger import TransparencyLedger
 
 
 class ChangeDetectionModule:
