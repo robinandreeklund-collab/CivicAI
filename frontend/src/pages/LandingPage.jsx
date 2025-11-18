@@ -14,18 +14,30 @@ export default function LandingPage() {
   const [currentFeatureIndex, setCurrentFeatureIndex] = useState(0);
   const navigate = useNavigate();
 
-  // Features to cycle through
+  // Features to cycle through - expanded list from /features page
   const features = useMemo(() => [
     'Jämför 5 AI-modeller samtidigt',
     'Automatisk bias-detektion',
     'Faktakontroll med Tavily',
-    'Full transparens i processen'
+    'Full transparens i processen',
+    'Konsensus live-debatt mellan AI-modeller',
+    'Transparent pipeline-analys',
+    'Auditlogg och spårbarhet',
+    'Model förklarbarhet med SHAP & LIME',
+    'Rättvise- och bias-analys',
+    'Python ML-verktyg (Detoxify, BERT, spaCy)',
+    'Sentiment och tonanalys',
+    'Ideologisk klassificering',
+    'Toxicitetsdetektering',
+    'Data quality reports'
   ], []);
 
   // Cycle through features every 3200ms (2600ms display + 600ms transition)
+  // Show 4 features at a time, cycling through all features
   useEffect(() => {
+    const totalGroups = Math.ceil(features.length / 4);
     const interval = setInterval(() => {
-      setCurrentFeatureIndex((prevIndex) => (prevIndex + 1) % features.length);
+      setCurrentFeatureIndex((prevIndex) => (prevIndex + 1) % totalGroups);
     }, 3200);
     
     return () => clearInterval(interval);
@@ -112,7 +124,7 @@ export default function LandingPage() {
             Beslut med insyn. AI med ansvar.<br />
             Jämför AI-modeller och få en balanserad bild.
           </p>
-          <div className="relative h-14 overflow-hidden">
+          <div className="relative overflow-hidden" style={{ minHeight: '180px' }}>
             <style>{`
               @keyframes fadeSlideIn {
                 0% {
@@ -133,21 +145,30 @@ export default function LandingPage() {
                 }
               }
               
-              .feature-item {
+              .feature-group {
                 animation: fadeSlideIn 3200ms ease-in-out infinite;
               }
               
               @media (prefers-reduced-motion: reduce) {
-                .feature-item {
+                .feature-group {
                   animation: none;
                   opacity: 1;
                   transform: none;
                 }
               }
             `}</style>
-            <div className="feature-item absolute w-full flex items-center py-4 border-b border-[#151515] text-[#666] text-sm">
-              <span className="mr-2">✓</span>
-              <span>{features[currentFeatureIndex]}</span>
+            <div className="feature-group absolute w-full">
+              <ul className="space-y-0">
+                {[0, 1, 2, 3].map((offset) => {
+                  const index = (currentFeatureIndex * 4 + offset) % features.length;
+                  return (
+                    <li key={offset} className="py-4 border-b border-[#151515] text-[#666] text-sm">
+                      <span className="mr-2">✓</span>
+                      <span>{features[index]}</span>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           </div>
         </div>

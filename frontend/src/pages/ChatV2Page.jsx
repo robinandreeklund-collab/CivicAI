@@ -238,7 +238,7 @@ export default function ChatV2Page() {
   // Overview mode: BERT summary + model synthesis + quick model table
   const renderOverview = () => {
     return (
-      <div className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24">
+      <div key="overview" className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24 view-transition">
         {/* User Question */}
         <div className="max-w-4xl mx-auto mb-8">
           <div className="text-[#666] text-sm uppercase tracking-wide mb-2">DIN FRÅGA</div>
@@ -544,7 +544,7 @@ export default function ChatV2Page() {
   // Models mode: Full responses with complete analysis
   const renderModels = () => {
     return (
-      <div className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24">
+      <div key="models" className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24 view-transition">
         <div className="max-w-4xl mx-auto">
           <div className="text-[#666] text-sm uppercase tracking-wide mb-6">DETALJERADE MODELLSVAR</div>
           
@@ -713,7 +713,7 @@ export default function ChatV2Page() {
     const selectedResponse = latestAiMessage.responses?.find(r => r.agent === selectedModel) || latestAiMessage.responses?.[0];
     
     return (
-      <div className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24">
+      <div key="pipeline" className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24 view-transition">
         <div className="max-w-4xl mx-auto">
           {/* Model Selector */}
           <div className="mb-6">
@@ -940,7 +940,7 @@ export default function ChatV2Page() {
       : `q-${Date.now()}`;
 
     return (
-      <div className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24">
+      <div key="debate" className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24 view-transition">
         <div className="max-w-4xl mx-auto">
           <div className="text-[#666] text-sm uppercase tracking-wide mb-6">LIVE KONSENSUS-DEBATT</div>
           
@@ -1068,13 +1068,14 @@ export default function ChatV2Page() {
             </button>
             {/* Sliding background indicator */}
             <div 
-              className="absolute top-1 bottom-1 bg-[#e7e7e7] rounded transition-all duration-200 ease-in-out"
+              className="absolute top-1 bottom-1 bg-[#e7e7e7] rounded transition-all duration-200 ease-in-out pointer-events-none"
               style={{
                 width: 'calc(25% - 0.25rem)',
                 left: viewMode === 'overview' ? '0.25rem' : 
-                      viewMode === 'models' ? 'calc(25% + 0rem)' : 
-                      viewMode === 'pipeline' ? 'calc(50% - 0.125rem)' : 
-                      'calc(75% - 0.375rem)'
+                      viewMode === 'models' ? 'calc(25%)' : 
+                      viewMode === 'pipeline' ? 'calc(50%)' : 
+                      'calc(75% - 0.25rem)',
+                zIndex: 0
               }}
             />
           </div>
@@ -1092,9 +1093,7 @@ export default function ChatV2Page() {
       </header>
 
       {/* Main Content */}
-      <div key={viewMode} className="view-transition">
-        {renderContent()}
-      </div>
+      {renderContent()}
 
       {/* Premium Input Field (Concept 21 style) - Fixed Bottom */}
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent pt-8">
