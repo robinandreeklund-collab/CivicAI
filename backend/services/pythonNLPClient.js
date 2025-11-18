@@ -660,17 +660,6 @@ export async function logPythonServiceStatus() {
 }
 
 /**
- * Check Python ML service health and models
- * This is exported for use by health check endpoint
- */
-export async function checkPythonML() {
-  return {
-    available: await isPythonServiceAvailable(),
-    models: await getAvailableModels(),
-  };
-}
-
-/**
  * Wrapper functions for ML API endpoints
  * These provide a cleaner interface for the API routes
  */
