@@ -9,6 +9,15 @@ const __dirname = path.dirname(__filename);
 const router = express.Router();
 
 /**
+ * Detect the correct Python command for the platform
+ * @returns {string} Python command ('python' or 'python3')
+ */
+function getPythonCommand() {
+  // On Windows, use 'python', on Unix-like systems, prefer 'python3'
+  return process.platform === 'win32' ? 'python' : 'python3';
+}
+
+/**
  * Execute Python change detection module
  * @param {string} question - The question asked
  * @param {string} model - Model name (e.g., 'gpt-3.5', 'gemini')
@@ -28,7 +37,8 @@ async function executeChangeDetection(question, model, response, version = 'unkn
       version
     });
     
-    const python = spawn('python3', [
+    const pythonCommand = getPythonCommand();
+    const python = spawn(pythonCommand, [
       pythonScript,
       '--detect-json'
     ]);
@@ -46,6 +56,14 @@ async function executeChangeDetection(question, model, response, version = 'unkn
     
     python.stderr.on('data', (data) => {
       errorOutput += data.toString();
+    });
+    
+    python.on('error', (err) => {
+      console.error(`Failed to start Python process (${pythonCommand}):`, err.message);
+      console.error('Make sure Python is installed and in your PATH');
+      console.error('On Windows, use: python --version');
+      console.error('On Unix/Mac, use: python3 --version');
+      resolve(null);
     });
     
     python.on('close', (code) => {
@@ -142,7 +160,8 @@ router.get('/history', async (req, res) => {
       args.push('--limit', limit);
     }
     
-    const python = spawn('python3', args);
+    const pythonCommand = getPythonCommand();
+    const python = spawn(pythonCommand, args);
     
     let output = '';
     let errorOutput = '';
@@ -226,7 +245,8 @@ router.get('/heatmap', async (req, res) => {
       args.push('--models', JSON.stringify(modelList));
     }
     
-    const python = spawn('python3', args);
+    const pythonCommand = getPythonCommand();
+    const python = spawn(pythonCommand, args);
     
     let output = '';
     
@@ -305,7 +325,8 @@ router.get('/bias-drift', async (req, res) => {
       '--model', model
     ];
     
-    const python = spawn('python3', args);
+    const pythonCommand = getPythonCommand();
+    const python = spawn(pythonCommand, args);
     
     let output = '';
     

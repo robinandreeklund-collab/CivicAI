@@ -19,6 +19,27 @@
 - **RAM**: Minimum 4GB (8GB+ recommended for ML models)
 - **Disk**: 2GB free space for ML models
 
+### Python Setup
+
+**Important:** The backend automatically detects the correct Python command for your platform:
+- **Windows**: Uses `python` command
+- **Unix/Linux/Mac**: Uses `python3` command
+
+Verify Python is installed and accessible:
+
+```bash
+# On Windows
+python --version
+
+# On Unix/Linux/Mac
+python3 --version
+```
+
+Both should return Python 3.9 or higher. If not installed:
+- **Windows**: Download from [python.org](https://www.python.org/downloads/) and ensure "Add to PATH" is checked during installation
+- **Mac**: `brew install python3` or download from python.org
+- **Linux**: `sudo apt install python3` (Ubuntu/Debian) or `sudo yum install python3` (RHEL/CentOS)
+
 ### Dependencies
 - All backend dependencies from `backend/package.json`
 - Python packages from `ml/requirements.txt`
@@ -402,24 +423,47 @@ free -m  # Memory
 
 ### Python Process Not Starting
 
-**Symptom:** API returns "Request timeout" or null for change_detection
+**Symptom:** API returns "Request timeout" or null for change_detection, or error `spawn python3 ENOENT`
+
+**Common Causes:**
+1. Python not installed
+2. Python not in system PATH
+3. Wrong Python command for your platform
 
 **Solutions:**
 ```bash
 # 1. Verify Python is accessible
-which python3
+# On Windows:
+python --version
+
+# On Unix/Linux/Mac:
 python3 --version
 
 # 2. Test Python script directly
+# On Windows:
+python ml/pipelines/change_detection.py --test
+
+# On Unix/Linux/Mac:
 python3 ml/pipelines/change_detection.py --test
 
-# 3. Check permissions
-chmod +x ml/pipelines/change_detection.py
+# 3. Add Python to PATH (Windows)
+# Search for "Environment Variables" in Windows settings
+# Add Python installation directory to PATH
+# Example: C:\Users\YourName\AppData\Local\Programs\Python\Python39
 
-# 4. Check Python path in code
-# In backend/api/change_detection.js, verify:
-const python = spawn('python3', [...])  # or 'python'
+# 4. Install Python if missing
+# Windows: Download from python.org (check "Add to PATH")
+# Mac: brew install python3
+# Linux: sudo apt install python3 (Ubuntu) or sudo yum install python3 (RHEL)
+
+# 5. Verify backend detects correct command
+# The backend now automatically uses:
+# - 'python' on Windows
+# - 'python3' on Unix/Linux/Mac
+# Check console logs for confirmation
 ```
+
+**Note:** The backend was updated to automatically detect the correct Python command based on your platform. If you're still experiencing issues after updating, verify Python is properly installed and in your PATH.
 
 ### ML Models Not Loading
 
