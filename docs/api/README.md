@@ -251,15 +251,148 @@ Content-Type: application/json
 
 ## 🐍 Python ML Service (Optional)
 
+### Core NLP Endpoints
+
 | Endpoint | Method | Status | Description |
 |----------|--------|--------|-------------|
-| `/health` | GET | ✅ | Python service health check |
-| `/preprocess` | POST | ✅ | Text preprocessing with spaCy |
-| `/detect-toxicity` | POST | ✅ | Toxicity detection with Detoxify |
-| `/topic-modeling` | POST | ✅ | Topic modeling with BERTopic |
-| `/ideology-classify` | POST | 🔶 | Ideology classification |
+| `/health` | GET | ✅ | Python service health check and model availability |
+| `/preprocess` | POST | ✅ | Text preprocessing with spaCy (tokenization, POS, NER) |
+| `/sentiment` | POST | ✅ | Sentiment analysis with TextBlob (polarity, subjectivity) |
+| `/detect-language` | POST | ✅ | Language detection with langdetect (55+ languages) |
+| `/detect-toxicity` | POST | ✅ | Toxicity detection with Detoxify (multilingual) |
+| `/classify-ideology` | POST | 🔶 | Political ideology classification with Swedish BERT |
+| `/topic-modeling` | POST | ✅ | Topic modeling with BERTopic (transformer-based) |
+| `/semantic-similarity` | POST | ✅ | Semantic similarity analysis with Gensim (Word2Vec) |
+| `/analyze-complete` | POST | ✅ | Complete NLP analysis (all modules combined) |
+
+### Explainability & Interpretability
+
+| Endpoint | Method | Status | Description |
+|----------|--------|--------|-------------|
+| `/explain-shap` | POST | ✅ | Model explainability with SHAP (global feature importance) |
+| `/explain-lime` | POST | ✅ | Local interpretable explanations with LIME |
+
+### Fairness & Quality
+
+| Endpoint | Method | Status | Description |
+|----------|--------|--------|-------------|
+| `/fairness-metrics` | POST | ✅ | Fairness analysis with Fairlearn (demographic parity, equal opportunity) |
+| `/generate-eda-report` | POST | ✅ | Automated EDA reports with Sweetviz (data quality) |
+| `/lux-recommendations` | POST | ✅ | Interactive visualization recommendations with Lux |
 
 **Python Service Base URL**: `http://localhost:5001`
+
+### Available Models
+
+The Python ML service includes the following models:
+
+- **spaCy** 3.7.2 - Tokenization, POS tagging, NER, dependency parsing
+- **TextBlob** 0.17.1 - Sentiment polarity and subjectivity
+- **langdetect** - Multi-language detection (55+ languages, Windows-compatible)
+- **Detoxify** 0.5.2 - ML-based toxicity detection
+- **Transformers** 4.36.2 - Swedish BERT for ideology classification
+- **SHAP** 0.44.0 - Model explainability and feature importance
+- **Gensim** 4.3.2 - Word2Vec, FastText, LDA for semantic analysis
+- **BERTopic** 0.16.0 - Transformer-based topic modeling
+- **LIME** - Local interpretable model-agnostic explanations
+- **Fairlearn** 0.10.0 - Fairness metrics and bias detection
+- **Lux** - Interactive visualization recommendations
+- **Sweetviz** - Automated EDA report generation
+
+### Example: Complete Analysis
+
+```javascript
+POST /api/python-ml/analyze-complete
+Content-Type: application/json
+
+{
+  "text": "Text to analyze...",
+  "question": "Optional context"
+}
+
+// Response
+{
+  "preprocessing": {
+    "tokens": ["text", "to", "analyze"],
+    "pos_tags": [...],
+    "entities": [...]
+  },
+  "sentiment": {
+    "polarity": 0.1,
+    "subjectivity": 0.5
+  },
+  "language": {
+    "detected": "sv",
+    "confidence": 0.95
+  },
+  "toxicity": {
+    "toxicity": 0.02,
+    "severe_toxicity": 0.01,
+    "is_toxic": false
+  },
+  "topics": [...],
+  "provenance": {
+    "models_used": ["spaCy", "TextBlob", "langdetect", "Detoxify", "BERTopic"],
+    "timestamp": "2025-11-18T..."
+  }
+}
+```
+
+### Example: SHAP Explainability
+
+```javascript
+POST /api/python-ml/explain-shap
+Content-Type: application/json
+
+{
+  "text": "Text to explain..."
+}
+
+// Response
+{
+  "feature_importance": [
+    {
+      "class": "left",
+      "features": [
+        ["word1", 0.85],
+        ["word2", 0.72]
+      ]
+    }
+  ],
+  "explanation_type": "global",
+  "model": "KB/bert-base-swedish-cased"
+}
+```
+
+### Example: Fairness Metrics
+
+```javascript
+POST /api/python-ml/fairness-metrics
+Content-Type: application/json
+
+{
+  "texts": ["text1", "text2", "text3"],
+  "sensitive_features": ["group_a", "group_b", "group_a"]
+}
+
+// Response
+{
+  "selection_rates": {
+    "group_a": {
+      "left": 0.5,
+      "center": 0.3,
+      "right": 0.2
+    }
+  },
+  "demographic_parity": {
+    "left": 0.05,
+    "center": 0.03,
+    "right": 0.02
+  },
+  "overall_fairness_score": 0.033,
+  "fairness_status": "fair"
+}
+```
 
 ---
 

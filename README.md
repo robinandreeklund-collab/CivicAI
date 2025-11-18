@@ -252,10 +252,23 @@ Every analysis includes:
 | **Frontend** | React 18, Vite, Tailwind CSS | Modern, responsive UI |
 | **State** | Zustand | Lightweight state management |
 | **Backend** | Node.js 18+, Express | RESTful API server |
-| **Python ML** | Flask, spaCy, Detoxify, BERTopic | Advanced ML models (optional) |
+| **Python ML** | Flask, spaCy, Detoxify, BERTopic, SHAP, LIME, Fairlearn, Lux, Sweetviz | Advanced ML models (optional) |
 | **AI Models** | OpenAI, Google Gemini, DeepSeek | Multi-AI comparison |
 | **Database** | Firebase Firestore (planned) | Data persistence |
 | **Export** | js-yaml, markdown-it, PDFKit | Multi-format export |
+
+### Pipeline Tools
+
+| Step | JavaScript (Standard) | Python ML (Optional) |
+|------|----------------------|---------------------|
+| **Preprocessing** | compromise.js | spaCy 3.7.2, TextBlob, langdetect |
+| **Bias Detection** | Custom keyword-based | Custom + Detoxify 0.5.2 |
+| **Sentiment** | sentiment library (VADER) | VADER + TextBlob |
+| **Ideology** | Custom keyword classifier | Transformers 4.36.2 (Swedish BERT) |
+| **Topics** | compromise.js | BERTopic 0.16.0, Gensim 4.3.2 |
+| **Explainability** | Keyword tracking | SHAP 0.44.0, LIME |
+| **Fairness** | Basic bias detection | Fairlearn 0.10.0 (demographic parity, equal opportunity) |
+| **Data Quality** | Manual analysis | Sweetviz (automated EDA), Lux (visualizations) |
 
 ---
 
@@ -294,13 +307,18 @@ Every analysis includes:
 
 | Model | Status | Version | Purpose |
 |-------|--------|---------|---------|
-| **spaCy** | ✅ Ready | 3.7.2 | Tokenization, POS, NER |
-| **TextBlob** | ✅ Ready | 0.17.1 | Sentiment polarity |
-| **Detoxify** | ✅ Ready | 0.5.2 | Toxicity detection |
-| **BERTopic** | ✅ Ready | 0.16.0 | Topic modeling |
-| **Transformers** | 🔶 Partial | 4.36.2 | Ideology classification |
-| **SHAP** | ✅ Ready | 0.44.0 | Model explainability |
-| **Gensim** | ✅ Ready | 4.3.2 | Word2Vec, LDA |
+| **spaCy** | ✅ Ready | 3.7.2 | Tokenization, POS, NER, dependency parsing |
+| **TextBlob** | ✅ Ready | 0.17.1 | Sentiment polarity and subjectivity |
+| **langdetect** | ✅ Ready | Latest | Multi-language detection (55+ languages) |
+| **Detoxify** | ✅ Ready | 0.5.2 | ML-based toxicity detection |
+| **Transformers** | 🔶 Partial | 4.36.2 | Swedish BERT ideology classification |
+| **SHAP** | ✅ Ready | 0.44.0 | Global model explainability |
+| **Gensim** | ✅ Ready | 4.3.2 | Word2Vec, FastText, LDA semantic analysis |
+| **BERTopic** | ✅ Ready | 0.16.0 | Transformer-based topic modeling |
+| **LIME** | ✅ Ready | Latest | Local interpretable explanations |
+| **Fairlearn** | ✅ Ready | 0.10.0 | Fairness metrics and bias analysis |
+| **Lux** | ✅ Ready | Latest | Interactive visualization recommendations |
+| **Sweetviz** | ✅ Ready | Latest | Automated EDA report generation |
 
 ### ML Pipeline Modules (Future)
 
