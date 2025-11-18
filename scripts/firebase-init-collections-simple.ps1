@@ -190,10 +190,38 @@ initCollections()
 
 Set-Content -Path "init.js" -Value $nodeScript -Encoding UTF8
 
-# Run the script
-node init.js $projectId
+# Run the script with environment variable explicitly passed
+# This ensures the Node.js process has access to the credentials
+$processEnv = @{
+    GOOGLE_APPLICATION_CREDENTIALS = $env:GOOGLE_APPLICATION_CREDENTIALS
+}
 
-$exitCode = $LASTEXITCODE
+# Start the Node.js process with the environment variable
+$pinfo = New-Object System.Diagnostics.ProcessStartInfo
+$pinfo.FileName = "node"
+$pinfo.Arguments = "init.js $projectId"
+$pinfo.UseShellExecute = $false
+$pinfo.RedirectStandardOutput = $true
+$pinfo.RedirectStandardError = $true
+$pinfo.WorkingDirectory = Get-Location
+$pinfo.EnvironmentVariables["GOOGLE_APPLICATION_CREDENTIALS"] = $env:GOOGLE_APPLICATION_CREDENTIALS
+
+$process = New-Object System.Diagnostics.Process
+$process.StartInfo = $pinfo
+$process.Start() | Out-Null
+
+# Read output
+$stdout = $process.StandardOutput.ReadToEnd()
+$stderr = $process.StandardError.ReadToEnd()
+
+$process.WaitForExit()
+$exitCode = $process.ExitCode
+
+# Display output
+Write-Host $stdout
+if ($stderr) {
+    Write-Host $stderr -ForegroundColor Red
+}
 
 # Cleanup
 Pop-Location
