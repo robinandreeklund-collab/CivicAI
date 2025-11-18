@@ -18,6 +18,7 @@ export default function FooterDemo4() {
     { text: 'Pipeline', to: '/pipeline' },
     { text: 'Funktioner', to: '/features' },
     { text: 'Språkmodell [OQT‑1.0]', to: '/sprakmodell' },
+    { text: 'API Dokumentation', to: '/api-docs' },
   ];
 
   return (
@@ -27,6 +28,7 @@ export default function FooterDemo4() {
           <div className="flex flex-wrap justify-center items-center gap-4 md:gap-6">
             {links.map((link, index) => {
               const isActive = location.pathname === link.to;
+              
               return (
                 <Link
                   key={index}

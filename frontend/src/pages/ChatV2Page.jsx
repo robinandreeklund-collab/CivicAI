@@ -25,6 +25,7 @@ export default function ChatV2Page() {
   const [selectedModel, setSelectedModel] = useState('gpt-3.5');
   const [showReplay, setShowReplay] = useState(false);
   const [replayData, setReplayData] = useState(null);
+  const [expandedPipelineStep, setExpandedPipelineStep] = useState(null);
   
   // Prevent duplicate submissions in React StrictMode (development)
   const hasSubmittedInitialQuestion = useRef(false);
@@ -285,7 +286,97 @@ export default function ChatV2Page() {
               </button>
               
               {synthesisExpanded && (
-                <div className="border-t border-[#2a2a2a] p-6 space-y-4">
+                <div className="border-t border-[#2a2a2a] p-6 space-y-6">
+                  {/* Enhanced Synthesis Metrics */}
+                  {(latestAiMessage.modelSynthesis.consensusIndex !== undefined || 
+                    latestAiMessage.modelSynthesis.weightedSentiment ||
+                    latestAiMessage.modelSynthesis.ideologicalLeaning) && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {latestAiMessage.modelSynthesis.consensusIndex !== undefined && (
+                        <div className="bg-[#1a1a1a] rounded p-4">
+                          <div className="text-[#666] text-sm mb-2">Konsensusindex</div>
+                          <div className="text-2xl font-medium text-[#e7e7e7]">
+                            {(latestAiMessage.modelSynthesis.consensusIndex * 100).toFixed(0)}%
+                          </div>
+                          <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
+                            <div 
+                              className="bg-green-500 h-full" 
+                              style={{width: `${latestAiMessage.modelSynthesis.consensusIndex * 100}%`}}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {latestAiMessage.modelSynthesis.divergenceMeasure !== undefined && (
+                        <div className="bg-[#1a1a1a] rounded p-4">
+                          <div className="text-[#666] text-sm mb-2">Divergensmått</div>
+                          <div className="text-2xl font-medium text-[#e7e7e7]">
+                            {(latestAiMessage.modelSynthesis.divergenceMeasure * 100).toFixed(0)}%
+                          </div>
+                          <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
+                            <div 
+                              className="bg-yellow-500 h-full" 
+                              style={{width: `${latestAiMessage.modelSynthesis.divergenceMeasure * 100}%`}}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {latestAiMessage.modelSynthesis.weightedSentiment && (
+                        <div className="bg-[#1a1a1a] rounded p-4">
+                          <div className="text-[#666] text-sm mb-2">Viktat Sentiment</div>
+                          <div className="text-2xl font-medium text-[#e7e7e7] capitalize">
+                            {latestAiMessage.modelSynthesis.weightedSentiment.classification}
+                          </div>
+                          <div className="grid grid-cols-3 gap-1 mt-2 text-xs">
+                            <div className="text-green-400">
+                              +{(latestAiMessage.modelSynthesis.weightedSentiment.positive * 100).toFixed(0)}%
+                            </div>
+                            <div className="text-[#666]">
+                              ={(latestAiMessage.modelSynthesis.weightedSentiment.neutral * 100).toFixed(0)}%
+                            </div>
+                            <div className="text-red-400">
+                              -{(latestAiMessage.modelSynthesis.weightedSentiment.negative * 100).toFixed(0)}%
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Ideological Leaning & Dominant Themes */}
+                  {(latestAiMessage.modelSynthesis.ideologicalLeaning || 
+                    latestAiMessage.modelSynthesis.dominantThemes) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {latestAiMessage.modelSynthesis.ideologicalLeaning && (
+                        <div className="bg-[#1a1a1a] rounded p-4">
+                          <div className="text-[#666] text-sm mb-2">Ideologisk lutning</div>
+                          <div className="text-lg font-medium text-[#e7e7e7] capitalize mb-2">
+                            {latestAiMessage.modelSynthesis.ideologicalLeaning.dominant}
+                          </div>
+                          <div className="text-xs text-[#666]">
+                            Säkerhet: {(latestAiMessage.modelSynthesis.ideologicalLeaning.confidence * 100).toFixed(0)}%
+                          </div>
+                        </div>
+                      )}
+                      
+                      {latestAiMessage.modelSynthesis.dominantThemes && 
+                       latestAiMessage.modelSynthesis.dominantThemes.length > 0 && (
+                        <div className="bg-[#1a1a1a] rounded p-4">
+                          <div className="text-[#666] text-sm mb-2">Dominanta teman</div>
+                          <div className="space-y-1">
+                            {latestAiMessage.modelSynthesis.dominantThemes.slice(0, 3).map((theme, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-sm">
+                                <span className="text-[#e7e7e7]">{theme.topic}</span>
+                                <span className="text-[#666]">{theme.percentage.toFixed(0)}%</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
                   {/* Consensus Areas */}
                   {latestAiMessage.modelSynthesis.consensus?.areas && (
                     <div>
@@ -474,6 +565,38 @@ export default function ChatV2Page() {
                       Pipeline →
                     </button>
                   </div>
+                  
+                  {/* Enhanced Metadata Display */}
+                  {response.metadata && (
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4 text-xs">
+                      <div className="bg-[#1a1a1a] rounded p-2">
+                        <div className="text-[#666] mb-1">Modell</div>
+                        <div className="text-[#e7e7e7]">{response.metadata.model || response.metadata.version || 'N/A'}</div>
+                      </div>
+                      <div className="bg-[#1a1a1a] rounded p-2">
+                        <div className="text-[#666] mb-1">Svarstid</div>
+                        <div className="text-[#e7e7e7]">{response.metadata.responseTimeMs || 0}ms</div>
+                      </div>
+                      <div className="bg-[#1a1a1a] rounded p-2">
+                        <div className="text-[#666] mb-1">Tokens</div>
+                        <div className="text-[#e7e7e7]">{response.metadata.tokenCount || 0}</div>
+                      </div>
+                      <div className="bg-[#1a1a1a] rounded p-2">
+                        <div className="text-[#666] mb-1">Språk</div>
+                        <div className="text-[#e7e7e7]">
+                          {response.metadata.language?.detected || 'N/A'} 
+                          {response.metadata.language?.confidence && 
+                            ` (${(response.metadata.language.confidence * 100).toFixed(0)}%)`}
+                        </div>
+                      </div>
+                      <div className="bg-[#1a1a1a] rounded p-2">
+                        <div className="text-[#666] mb-1">Confidence</div>
+                        <div className="text-[#e7e7e7]">
+                          {response.metadata.confidence ? `${(response.metadata.confidence * 100).toFixed(0)}%` : 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   
                   {/* Full Bias Indicators */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -693,26 +816,111 @@ export default function ChatV2Page() {
                 </div>
               )}
 
-              {/* Timeline */}
+              {/* Pipeline Process Timeline with all NLP services */}
               {selectedResponse.pipelineAnalysis.timeline && selectedResponse.pipelineAnalysis.timeline.length > 0 && (
                 <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
-                  <h3 className="font-medium text-[#e7e7e7] mb-4">Processtidslinje</h3>
+                  <h3 className="font-medium text-[#e7e7e7] mb-4">Pipeline Processtidslinje</h3>
                   <div className="space-y-3">
-                    {selectedResponse.pipelineAnalysis.timeline.map((step, idx) => (
-                      <div key={idx} className="flex items-center gap-4">
-                        <div className="w-2 h-2 bg-[#888] rounded-full"></div>
-                        <div className="flex-1 text-sm">
-                          <div className="text-[#e7e7e7]">{step.step || step.name}</div>
-                          <div className="text-[#666]">
-                            {step.model ?? 'N/A'} • {step.duration != null ? `${step.duration}ms` : 'N/A'}
-                          </div>
+                    {selectedResponse.pipelineAnalysis.timeline.map((step, idx) => {
+                      const isExpanded = expandedPipelineStep === idx;
+                      const stepDuration = step.durationMs ?? step.duration ?? 0;
+                      
+                      // Get step icon
+                      const getStepIcon = (stepName) => {
+                        const icons = {
+                          'spacy_preprocessing': '📝',
+                          'textblob_sentiment': '💭',
+                          'langdetect': '🌍',
+                          'detoxify_toxicity': '🛡️',
+                          'swedish_bert_ideology': '🏛️',
+                          'shap_explainability': '🔍',
+                          'gensim_topics': '📊',
+                          'bertopic_modeling': '🧠',
+                          'lime_explanation': '💡',
+                          'fairlearn_fairness': '⚖️',
+                          'lux_viz': '📈',
+                          'sweetviz_eda': '📉',
+                          'preprocessing': '📝',
+                          'bias_detection': '🎯',
+                          'sentiment_analysis': '💭',
+                          'ideology_classification': '🏛️',
+                          'tone_analysis': '🎵',
+                          'fact_checking': '✅',
+                        };
+                        return icons[stepName] || '⚙️';
+                      };
+                      
+                      return (
+                        <div key={idx} className="border border-[#2a2a2a] rounded-lg overflow-hidden">
+                          <button
+                            onClick={() => setExpandedPipelineStep(isExpanded ? null : idx)}
+                            className="w-full flex items-center gap-4 p-4 hover:bg-[#1a1a1a] transition-colors"
+                          >
+                            <div className="text-xl">{getStepIcon(step.step)}</div>
+                            <div className="flex-1 text-left text-sm">
+                              <div className="text-[#e7e7e7] font-medium">{step.step || step.name || 'Unknown'}</div>
+                              <div className="text-[#666] flex items-center gap-2">
+                                <span>{step.model ?? 'N/A'}</span>
+                                {step.version && <span className="text-[#555]">v{step.version}</span>}
+                                <span>•</span>
+                                <span>{stepDuration}ms</span>
+                                {step.usingPython && <span className="text-[#4a9eff] text-xs ml-2">🐍 Python ML</span>}
+                                {step.fallback && <span className="text-[#ff9f4a] text-xs ml-2">⚠ Fallback</span>}
+                              </div>
+                            </div>
+                            <div className="text-[#666]">
+                              {isExpanded ? '▼' : '▶'}
+                            </div>
+                          </button>
+                          
+                          {isExpanded && (
+                            <div className="px-4 pb-4 border-t border-[#2a2a2a] bg-[#0f0f0f]">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 text-sm">
+                                <div>
+                                  <div className="text-[#666] mb-1">Metod</div>
+                                  <div className="text-[#e7e7e7]">{step.method || 'N/A'}</div>
+                                </div>
+                                <div>
+                                  <div className="text-[#666] mb-1">Starttid</div>
+                                  <div className="text-[#e7e7e7]">{step.startTime ? new Date(step.startTime).toLocaleTimeString('sv-SE') : 'N/A'}</div>
+                                </div>
+                                <div>
+                                  <div className="text-[#666] mb-1">Sluttid</div>
+                                  <div className="text-[#e7e7e7]">{step.endTime ? new Date(step.endTime).toLocaleTimeString('sv-SE') : 'N/A'}</div>
+                                </div>
+                                <div>
+                                  <div className="text-[#666] mb-1">Varaktighet</div>
+                                  <div className="text-[#e7e7e7] font-medium">{stepDuration}ms</div>
+                                </div>
+                              </div>
+                              
+                              {step.details && (
+                                <div className="mt-4">
+                                  <div className="text-[#666] mb-2">Detaljer</div>
+                                  <pre className="text-xs text-[#999] bg-[#0a0a0a] p-3 rounded overflow-auto max-h-48">
+                                    {JSON.stringify(step.details, null, 2)}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     <div className="pt-3 border-t border-[#2a2a2a] text-sm">
-                      <div className="text-[#666]">Total tid: <span className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.timeline.reduce((sum, step) => sum + (step.duration || 0), 0)}ms
-                      </span></div>
+                      <div className="flex items-center justify-between">
+                        <div className="text-[#666]">
+                          Total tid: <span className="text-[#e7e7e7] font-medium">
+                            {selectedResponse.pipelineAnalysis.metadata?.totalProcessingTimeMs ?? 
+                             selectedResponse.pipelineAnalysis.timeline.reduce((sum, step) => sum + (step.durationMs || step.duration || 0), 0)}ms
+                          </span>
+                        </div>
+                        {selectedResponse.pipelineAnalysis.pythonMLStats && (
+                          <div className="text-[#4a9eff] text-xs">
+                            🐍 Python ML: {selectedResponse.pipelineAnalysis.pythonMLStats.pythonSteps}/{selectedResponse.pipelineAnalysis.pythonMLStats.totalSteps} steg
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

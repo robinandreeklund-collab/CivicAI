@@ -183,3 +183,15 @@ ml/change_history/
 ml/ledger_demo/
 ml/change_history_demo/
 ml/debug/
+
+# Firebase sensitive files
+# NEVER commit service account keys or Firebase credentials
+server/serviceAccountKey.json
+**/serviceAccountKey.json
+firebase-adminsdk*.json
+.firebaserc
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+firestore.indexes.json
+firestore.rules

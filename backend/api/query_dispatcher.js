@@ -53,6 +53,7 @@ router.post('/query', async (req, res) => {
     });
 
     // Call all AI services in parallel
+    const serviceStartTime = Date.now();
     const [gptResponse, geminiResponse, deepseekResponse, grokResponse] = await Promise.allSettled([
       getOpenAIResponse(question),
       getGeminiResponse(question),
@@ -60,11 +61,45 @@ router.post('/query', async (req, res) => {
       getGrokResponse(question),
     ]);
 
+    // Helper function to compute enhanced metadata for each response
+    const computeEnhancedMetadata = (responseText, modelName, serviceTime) => {
+      const tokens = responseText.split(/\s+/).length;
+      const characters = responseText.length;
+      
+      // Simple confidence score based on response characteristics
+      const confidenceScore = Math.min(1.0, (tokens / 100) * 0.5 + (responseText.match(/\./g)?.length || 0) / 20);
+      
+      // Language detection (simple check for Swedish vs English)
+      const swedishWords = ['är', 'och', 'det', 'som', 'att', 'för', 'på', 'i', 'en', 'av'].filter(word => 
+        responseText.toLowerCase().includes(word)
+      ).length;
+      const englishWords = ['is', 'and', 'the', 'that', 'to', 'for', 'in', 'a', 'of'].filter(word => 
+        responseText.toLowerCase().includes(word)
+      ).length;
+      const detectedLanguage = swedishWords > englishWords ? 'sv' : 'en';
+      const languageConfidence = Math.max(swedishWords, englishWords) / 10;
+      
+      return {
+        model: modelName,
+        version: modelName,
+        timestamp: new Date().toISOString(),
+        responseTimeMs: serviceTime,
+        tokenCount: tokens,
+        characterCount: characters,
+        confidence: Math.min(1.0, confidenceScore),
+        language: {
+          detected: detectedLanguage,
+          confidence: Math.min(1.0, languageConfidence),
+        },
+      };
+    };
+
     // Process responses
     const responses = [];
     const startTime = Date.now();
 
     if (gptResponse.status === 'fulfilled') {
+      const gptStartTime = Date.now();
       const responseText = gptResponse.value.response;
       const toneAnalysis = analyzeTone(responseText);
       const biasAnalysis = detectBias(responseText, question);
@@ -75,14 +110,12 @@ router.post('/query', async (req, res) => {
       // NEW: Complete analysis pipeline
       console.log('🔬 Running complete analysis pipeline for GPT-3.5...');
       const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
+      const gptProcessTime = Date.now() - gptStartTime;
 
       responses.push({
         agent: 'gpt-3.5',
         response: responseText,
-        metadata: {
-          model: gptResponse.value.model,
-          timestamp: new Date().toISOString(),
-        },
+        metadata: computeEnhancedMetadata(responseText, gptResponse.value.model, gptProcessTime),
         analysis: {
           tone: {
             primary: toneAnalysis.primary,
@@ -111,6 +144,7 @@ router.post('/query', async (req, res) => {
     }
 
     if (geminiResponse.status === 'fulfilled') {
+      const geminiStartTime = Date.now();
       const responseText = geminiResponse.value.response;
       const toneAnalysis = analyzeTone(responseText);
       const biasAnalysis = detectBias(responseText, question);
@@ -121,14 +155,12 @@ router.post('/query', async (req, res) => {
       // Complete analysis pipeline
       console.log('🔬 Running complete analysis pipeline for Gemini...');
       const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
+      const geminiProcessTime = Date.now() - geminiStartTime;
 
       responses.push({
         agent: 'gemini',
         response: responseText,
-        metadata: {
-          model: geminiResponse.value.model,
-          timestamp: new Date().toISOString(),
-        },
+        metadata: computeEnhancedMetadata(responseText, geminiResponse.value.model, geminiProcessTime),
         analysis: {
           tone: {
             primary: toneAnalysis.primary,
@@ -157,6 +189,7 @@ router.post('/query', async (req, res) => {
     }
 
     if (deepseekResponse.status === 'fulfilled') {
+      const deepseekStartTime = Date.now();
       const responseText = deepseekResponse.value.response;
       const toneAnalysis = analyzeTone(responseText);
       const biasAnalysis = detectBias(responseText, question);
@@ -167,14 +200,12 @@ router.post('/query', async (req, res) => {
       // Complete analysis pipeline
       console.log('🔬 Running complete analysis pipeline for DeepSeek...');
       const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
+      const deepseekProcessTime = Date.now() - deepseekStartTime;
 
       responses.push({
         agent: 'deepseek',
         response: responseText,
-        metadata: {
-          model: deepseekResponse.value.model,
-          timestamp: new Date().toISOString(),
-        },
+        metadata: computeEnhancedMetadata(responseText, deepseekResponse.value.model, deepseekProcessTime),
         analysis: {
           tone: {
             primary: toneAnalysis.primary,
@@ -203,6 +234,7 @@ router.post('/query', async (req, res) => {
     }
 
     if (grokResponse.status === 'fulfilled') {
+      const grokStartTime = Date.now();
       const responseText = grokResponse.value.response;
       const toneAnalysis = analyzeTone(responseText);
       const biasAnalysis = detectBias(responseText, question);
@@ -213,14 +245,12 @@ router.post('/query', async (req, res) => {
       // Complete analysis pipeline
       console.log('🔬 Running complete analysis pipeline for Grok...');
       const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
+      const grokProcessTime = Date.now() - grokStartTime;
 
       responses.push({
         agent: 'grok',
         response: responseText,
-        metadata: {
-          model: grokResponse.value.model,
-          timestamp: new Date().toISOString(),
-        },
+        metadata: computeEnhancedMetadata(responseText, grokResponse.value.model, grokProcessTime),
         analysis: {
           tone: {
             primary: toneAnalysis.primary,
