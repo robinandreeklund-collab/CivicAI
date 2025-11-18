@@ -293,71 +293,61 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
   console.log(`   ✅ Fact Check: ${factCheck.overallScore ? Math.round(factCheck.overallScore * 100) + '%' : 'analyzed'}`);
 
   // ═══════════════════════════════════════════════════════════
-  // STEP 6: ENHANCED NLP ANALYSIS
+  // STEP 6: ENHANCED NLP ANALYSIS (Always enabled)
   // ═══════════════════════════════════════════════════════════
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('6️⃣  STEP 6: Enhanced NLP Analysis');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   
-  let enhancedNLP = null;
-  if (options.includeEnhancedNLP !== false) {
-    enhancedNLP = trackStep(
-      'enhanced_nlp_javascript',
-      performCompleteEnhancedAnalysis,
-      pythonServiceAvailable, // isComplement
-      text,
-      question,
-      pipelineStartTime
-    );
-    console.log(`   ✅ Enhanced NLP analysis completed`);
-  } else {
-    console.log(`   ⏭️  Skipped (disabled in options)`);
-  }
+  const enhancedNLP = trackStep(
+    'enhanced_nlp_javascript',
+    performCompleteEnhancedAnalysis,
+    pythonServiceAvailable, // isComplement
+    text,
+    question,
+    pipelineStartTime
+  );
+  console.log(`   ✅ Enhanced NLP analysis completed`);
 
   // ═══════════════════════════════════════════════════════════
-  // STEP 7: EXPLAINABILITY (SHAP + LIME) - EXPERIMENTAL
+  // STEP 7: EXPLAINABILITY (SHAP + LIME) - Now enabled by default
   // ═══════════════════════════════════════════════════════════
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('7️⃣  STEP 7: Explainability Analysis (SHAP + LIME) [Experimental]');
+  console.log('7️⃣  STEP 7: Explainability Analysis (SHAP + LIME)');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   
   let explainability = { shap: null, lime: null };
   
-  if (pythonServiceAvailable) {
-    // Note: SHAP and LIME are computationally expensive and experimental
-    // They may not work for all text inputs or models
-    console.log('   💡 Explainability features are experimental (SHAP/LIME)');
-    console.log('   ⏭️  Skipped for performance (can be enabled via options)');
+  if (pythonServiceAvailable && options.includeExplainability !== false) {
+    // SHAP and LIME are now simplified and enabled by default
+    const shapResult = await trackAsyncStep(
+      'shap_explainability',
+      pythonNLP.explainWithSHAP,
+      text,
+      'sentiment'
+    );
     
-    // Only run if explicitly enabled in options
-    if (options.includeExplainability) {
-      const shapResult = await trackAsyncStep(
-        'shap_explainability',
-        pythonNLP.explainWithSHAP,
-        text,
-        'sentiment'
-      );
-      
-      const limeResult = await trackAsyncStep(
-        'lime_explainability',
-        pythonNLP.explainWithLIME,
-        text,
-        'sentiment'
-      );
+    const limeResult = await trackAsyncStep(
+      'lime_explainability',
+      pythonNLP.explainWithLIME,
+      text,
+      'sentiment'
+    );
 
-      explainability = {
-        shap: shapResult.success ? shapResult.data : null,
-        lime: limeResult.success ? limeResult.data : null,
-      };
-      
-      if (shapResult.success || limeResult.success) {
-        console.log(`   ✅ Explainability: ${shapResult.success ? 'SHAP ✓' : ''} ${limeResult.success ? 'LIME ✓' : ''}`.trim());
-      } else {
-        console.log('   ⚠️  Explainability models encountered errors (experimental feature)');
-      }
+    explainability = {
+      shap: shapResult.success ? shapResult.data : null,
+      lime: limeResult.success ? limeResult.data : null,
+    };
+    
+    if (shapResult.success || limeResult.success) {
+      console.log(`   ✅ Explainability: ${shapResult.success ? 'SHAP ✓' : ''} ${limeResult.success ? 'LIME ✓' : ''}`.trim());
+    } else {
+      console.log('   ⚠️  Explainability analysis not available');
     }
-  } else {
+  } else if (!pythonServiceAvailable) {
     console.log('   ⏭️  Skipped (Python service unavailable)');
+  } else {
+    console.log('   ⏭️  Skipped (disabled in options)');
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -373,14 +363,16 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     const topicResult = await trackAsyncStep(
       'gensim_topic_modeling',
       pythonNLP.topicModelingWithGensim,
-      [text]
+      text  // Pass single text, will be split into sentences by Python
     );
     topics = topicResult.success ? topicResult.data : null;
     
     if (topicResult.success) {
-      console.log(`   ✅ Topic modeling completed with ${topicResult.data.num_topics || topicResult.data.topics?.length || 0} topics`);
+      const topicCount = topicResult.data.num_topics || topicResult.data.topics?.length || 0;
+      const method = topicResult.data.method || 'topic_modeling';
+      console.log(`   ✅ Topic analysis completed (${method}): ${topicCount} topics/keywords found`);
     } else {
-      console.log('   ⚠️  Topic modeling not available (requires multiple documents)');
+      console.log(`   ⚠️  ${topicResult.error || 'Topic modeling not available'}`);
     }
   } else {
     console.log('   ⏭️  Skipped (Python service unavailable)');

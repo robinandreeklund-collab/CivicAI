@@ -543,12 +543,14 @@ export async function explainWithLIME(text, model = 'sentiment') {
 /**
  * Perform topic modeling using Gensim LDA
  */
-export async function topicModelingWithGensim(texts) {
+export async function topicModelingWithGensim(textOrTexts) {
   try {
-    const response = await axios.post(`${PYTHON_SERVICE_URL}/topic-modeling`, { 
-      texts,
-      method: 'gensim' 
-    }, { timeout: 20000 });
+    // Accept both single text and array of texts
+    const payload = typeof textOrTexts === 'string' 
+      ? { text: textOrTexts, method: 'gensim' }
+      : { texts: textOrTexts, method: 'gensim' };
+    
+    const response = await axios.post(`${PYTHON_SERVICE_URL}/topic-modeling`, payload, { timeout: 20000 });
     console.log('✓ Using Python Gensim for topic modeling');
     return {
       success: true,
@@ -570,6 +572,14 @@ export async function topicModelingWithGensim(texts) {
         success: false,
         fallback: true,
         error: 'Gensim not available',
+      };
+    }
+    if (error.response?.status === 400) {
+      console.log('✗ Gensim topic modeling requires more text');
+      return {
+        success: false,
+        fallback: true,
+        error: error.response?.data?.error || 'Text too short for topic modeling',
       };
     }
     console.error('Error calling Python Gensim:', error.message);
