@@ -148,13 +148,31 @@ def load_spacy_model():
     return MODELS['spacy']
 
 def load_detoxify_model():
-    """Load Detoxify model"""
+    """Load Detoxify model with proper device handling"""
     if not DETOXIFY_AVAILABLE:
         return None
     
     if 'detoxify' not in MODELS:
-        MODELS['detoxify'] = Detoxify('multilingual')
-        print("✓ Loaded Detoxify multilingual model")
+        try:
+            # Force CPU on Windows to avoid CUDA issues
+            import torch
+            device = 'cpu'  # Safer default, especially on Windows
+            
+            # Only use CUDA if explicitly available and working
+            if torch.cuda.is_available():
+                try:
+                    # Test if CUDA actually works
+                    torch.cuda.init()
+                    device = 'cuda'
+                except:
+                    device = 'cpu'
+            
+            MODELS['detoxify'] = Detoxify('multilingual', device=device)
+            print(f"✓ Loaded Detoxify multilingual model (device: {device})")
+        except Exception as e:
+            print(f"✗ Failed to load Detoxify model: {e}")
+            print("  Detoxify will not be available")
+            return None
     
     return MODELS['detoxify']
 
@@ -407,33 +425,40 @@ def detect_toxicity():
     if not text:
         return jsonify({'error': 'No text provided'}), 400
     
-    model = load_detoxify_model()
-    if not model:
-        return jsonify({
-            'error': 'Detoxify not available',
-            'fallback': True
-        }), 503
-    
-    predictions = model.predict(text)
-    
-    result = {
-        'toxicity': float(predictions['toxicity']),
-        'severe_toxicity': float(predictions['severe_toxicity']),
-        'obscene': float(predictions['obscene']),
-        'threat': float(predictions['threat']),
-        'insult': float(predictions['insult']),
-        'identity_attack': float(predictions['identity_attack']),
-        'is_toxic': float(predictions['toxicity']) > 0.5,
-        'is_aggressive': float(predictions['insult']) > 0.5 or float(predictions['threat']) > 0.5,
-        'provenance': {
-            'model': 'Detoxify',
-            'version': '0.5.2',
-            'method': 'Transformer-based toxicity detection (multilingual)',
-            'timestamp': datetime.utcnow().isoformat()
+    try:
+        model = load_detoxify_model()
+        if not model:
+            return jsonify({
+                'error': 'Detoxify not available',
+                'fallback': True
+            }), 503
+        
+        predictions = model.predict(text)
+        
+        result = {
+            'toxicity': float(predictions['toxicity']),
+            'severe_toxicity': float(predictions['severe_toxicity']),
+            'obscene': float(predictions['obscene']),
+            'threat': float(predictions['threat']),
+            'insult': float(predictions['insult']),
+            'identity_attack': float(predictions['identity_attack']),
+            'is_toxic': float(predictions['toxicity']) > 0.5,
+            'is_aggressive': float(predictions['insult']) > 0.5 or float(predictions['threat']) > 0.5,
+            'provenance': {
+                'model': 'Detoxify',
+                'version': '0.5.2',
+                'method': 'Transformer-based toxicity detection (multilingual)',
+                'timestamp': datetime.utcnow().isoformat()
+            }
         }
-    }
-    
-    return jsonify(result)
+        
+        return jsonify(result)
+    except Exception as e:
+        print(f"Error in detect_toxicity: {e}")
+        return jsonify({
+            'error': f'Toxicity detection failed: {str(e)}',
+            'fallback': True
+        }), 500
 
 @app.route('/classify-ideology', methods=['POST'])
 def classify_ideology():
