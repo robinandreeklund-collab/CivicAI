@@ -1,0 +1,38 @@
+# Production ML Dependencies for Change Detection Module
+
+# Core ML libraries
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Text embeddings and similarity
+sentence-transformers>=2.2.2
+scikit-learn>=1.3.0
+
+# BERT-based models
+transformers>=4.35.0
+torch>=2.1.0
+
+# Explainability
+shap>=0.42.0
+lime>=0.2.0
+
+# Topic modeling
+bertopic>=0.15.0
+umap-learn>=0.5.4
+
+# Sentiment analysis
+textblob>=0.17.1
+
+# Data processing
+pandas>=2.0.0
+nltk>=3.8
+
+# Database (optional - for production)
+# psycopg2-binary>=2.9.9  # PostgreSQL
+# redis>=5.0.0  # Redis
+
+# Task queue (optional - for production)
+# celery>=5.3.4
+
+# Existing dependencies (keep for compatibility)
+# These should already be in your environment
