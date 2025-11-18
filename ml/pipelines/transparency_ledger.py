@@ -7,6 +7,7 @@ Blockchain-inspired immutable audit trail for model training and updates
 import json
 import hashlib
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -14,11 +15,12 @@ from typing import Dict, List, Optional
 class TransparencyLedger:
     """Manages immutable audit trail for OQT-1.0"""
     
-    def __init__(self, ledger_dir: str):
+    def __init__(self, ledger_dir: str, quiet: bool = False):
         self.ledger_dir = Path(ledger_dir)
         self.ledger_dir.mkdir(parents=True, exist_ok=True)
         self.ledger_file = self.ledger_dir / 'ledger.json'
         self.blocks = []
+        self.quiet = quiet
         self._load_ledger()
     
     def _load_ledger(self):
@@ -27,7 +29,8 @@ class TransparencyLedger:
             with open(self.ledger_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 self.blocks = data.get('blocks', [])
-            print(f"Loaded ledger with {len(self.blocks)} blocks")
+            if not self.quiet:
+                print(f"Loaded ledger with {len(self.blocks)} blocks", file=sys.stderr)
         else:
             # Create genesis block
             self._create_genesis_block()
@@ -57,7 +60,8 @@ class TransparencyLedger:
         
         self.blocks.append(genesis)
         self._save_ledger()
-        print("Created genesis block")
+        if not self.quiet:
+            print("Created genesis block", file=sys.stderr)
     
     def _calculate_data_hash(self, data: Dict) -> str:
         """Calculate SHA-256 hash of data"""
@@ -120,7 +124,8 @@ class TransparencyLedger:
         self.blocks.append(new_block)
         self._save_ledger()
         
-        print(f"Added block {new_block['block_id']}: {event_type}")
+        if not self.quiet:
+            print(f"Added block {new_block['block_id']}: {event_type}", file=sys.stderr)
         
         return new_block
     

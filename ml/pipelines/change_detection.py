@@ -18,6 +18,7 @@ Features:
 import json
 import hashlib
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -33,17 +34,19 @@ except ImportError:
 class ChangeDetectionModule:
     """Detects and analyzes changes in AI model responses over time"""
     
-    def __init__(self, ledger_dir: str, history_dir: str):
+    def __init__(self, ledger_dir: str, history_dir: str, quiet: bool = False):
         """
         Initialize Change Detection Module
         
         Args:
             ledger_dir: Directory for transparency ledger
             history_dir: Directory for storing response history
+            quiet: If True, suppress informational messages (for API/JSON mode)
         """
-        self.ledger = TransparencyLedger(ledger_dir)
+        self.ledger = TransparencyLedger(ledger_dir, quiet=quiet)
         self.history_dir = Path(history_dir)
         self.history_dir.mkdir(parents=True, exist_ok=True)
+        self.quiet = quiet
         
     def _hash_question(self, question: str) -> str:
         """Create SHA-256 hash of question for indexing"""
@@ -324,7 +327,8 @@ class ChangeDetectionModule:
         
         # If no previous response, no change to detect
         if not previous:
-            print(f"No previous response found for {model} - saved as baseline")
+            if not self.quiet:
+                print(f"No previous response found for {model} - saved as baseline", file=sys.stderr)
             return None
         
         previous_response = previous['response']
@@ -397,10 +401,12 @@ class ChangeDetectionModule:
             ledger_block = self._log_to_ledger(change_analysis)
             change_analysis['ledger_block_id'] = ledger_block['block_id']
             
-            print(f"Change detected for {model}: severity={severity}")
+            if not self.quiet:
+                print(f"Change detected for {model}: severity={severity}", file=sys.stderr)
             return change_analysis
         
-        print(f"No significant change detected for {model}: similarity={similarity}")
+        if not self.quiet:
+            print(f"No significant change detected for {model}: similarity={similarity}", file=sys.stderr)
         return None
     
     def _log_to_ledger(self, change_analysis: Dict) -> Dict:
@@ -557,7 +563,10 @@ def main():
     LEDGER_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'ledger')
     HISTORY_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'change_history')
     
-    detector = ChangeDetectionModule(LEDGER_DIR, HISTORY_DIR)
+    # Determine if we're in quiet mode (for JSON API operations)
+    quiet_mode = args.detect_json or args.history_json or args.heatmap_json or args.bias_drift_json
+    
+    detector = ChangeDetectionModule(LEDGER_DIR, HISTORY_DIR, quiet=quiet_mode)
     
     # JSON mode for API integration
     if args.detect_json:
