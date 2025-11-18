@@ -1020,15 +1020,15 @@ export default function ChatV2Page() {
       
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-40 bg-[#0a0a0a] border-b border-[#151515]">
-        <div className="h-16 px-4 md:px-8 flex items-center justify-between">
+        <div className="h-16 px-4 md:px-8 flex items-center justify-between relative">
           {/* Logo */}
-          <div className="text-lg font-light">OneSeek.AI</div>
+          <div className="text-lg font-light z-10">OneSeek.AI</div>
           
           {/* Centered View Selector */}
-          <div className="absolute left-1/2 transform -translate-x-1/2 flex gap-1 bg-[#151515] rounded-lg p-1 relative">
+          <div className="absolute left-1/2 transform -translate-x-1/2 flex gap-1 bg-[#151515] rounded-lg p-1 relative z-0">
             <button
               onClick={() => setViewMode('overview')}
-              className={`px-4 py-2 rounded text-sm transition-all duration-200 relative z-10 ${
+              className={`px-4 py-2 rounded text-sm transition-all duration-200 relative z-1 ${
                 viewMode === 'overview'
                   ? 'text-[#0a0a0a]'
                   : 'text-[#888] hover:text-[#e7e7e7]'
@@ -1038,7 +1038,7 @@ export default function ChatV2Page() {
             </button>
             <button
               onClick={() => setViewMode('models')}
-              className={`px-4 py-2 rounded text-sm transition-all duration-200 relative z-10 ${
+              className={`px-4 py-2 rounded text-sm transition-all duration-200 relative z-1 ${
                 viewMode === 'models'
                   ? 'text-[#0a0a0a]'
                   : 'text-[#888] hover:text-[#e7e7e7]'
@@ -1048,7 +1048,7 @@ export default function ChatV2Page() {
             </button>
             <button
               onClick={() => setViewMode('pipeline')}
-              className={`px-4 py-2 rounded text-sm transition-all duration-200 relative z-10 ${
+              className={`px-4 py-2 rounded text-sm transition-all duration-200 relative z-1 ${
                 viewMode === 'pipeline'
                   ? 'text-[#0a0a0a]'
                   : 'text-[#888] hover:text-[#e7e7e7]'
@@ -1058,7 +1058,7 @@ export default function ChatV2Page() {
             </button>
             <button
               onClick={() => setViewMode('debate')}
-              className={`px-4 py-2 rounded text-sm transition-all duration-200 relative z-10 ${
+              className={`px-4 py-2 rounded text-sm transition-all duration-200 relative z-1 ${
                 viewMode === 'debate'
                   ? 'text-[#0a0a0a]'
                   : 'text-[#888] hover:text-[#e7e7e7]'
@@ -1083,7 +1083,7 @@ export default function ChatV2Page() {
           {/* Menu Button */}
           <button
             onClick={() => setSidebarOpen(true)}
-            className="w-10 h-10 flex items-center justify-center hover:bg-[#151515] rounded transition-colors"
+            className="w-10 h-10 flex items-center justify-center hover:bg-[#151515] rounded transition-colors z-10 relative"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
