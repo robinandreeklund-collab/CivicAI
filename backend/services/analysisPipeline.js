@@ -55,7 +55,7 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
   }
   
   // Helper function to track each step (synchronous)
-  const trackStep = (stepName, stepFunction, ...args) => {
+  const trackStep = (stepName, stepFunction, isComplement = false, ...args) => {
     const stepStartTime = Date.now();
     const result = stepFunction(...args);
     const stepEndTime = Date.now();
@@ -81,6 +81,8 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
       model: provenance.model || 'Unknown',
       version: provenance.version || 'Unknown',
       method: provenance.method || 'Unknown',
+      usingPython: false,
+      complement: isComplement,
     });
     
     return result;
@@ -136,10 +138,11 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     text
   );
   
-  // 1d: Standard preprocessing (JavaScript fallback/enhancement)
+  // 1d: Standard preprocessing (JavaScript complement/fallback)
   const preprocessing = trackStep(
     'preprocessing_javascript',
     performCompletePreprocessing,
+    pythonServiceAvailable, // isComplement = true if Python is available
     text
   );
 
@@ -164,10 +167,11 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     text
   );
   
-  // 2b: Standard bias detection
+  // 2b: Standard bias detection (JavaScript complement/fallback)
   const biasAnalysis = trackStep(
     'bias_detection_javascript',
     detectBias,
+    pythonServiceAvailable, // isComplement
     text,
     question
   );
@@ -194,6 +198,7 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
   const sentimentAnalysis = trackStep(
     'sentiment_analysis_javascript',
     performCompleteSentimentAnalysis,
+    pythonServiceAvailable, // isComplement
     text
   );
 
@@ -211,6 +216,7 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
   const ideologicalClassification = trackStep(
     'ideology_classification_javascript',
     performCompleteIdeologicalClassification,
+    pythonServiceAvailable, // isComplement
     text,
     question
   );
@@ -226,6 +232,7 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
   const toneAnalysis = trackStep(
     'tone_analysis_javascript',
     analyzeTone,
+    pythonServiceAvailable, // isComplement
     text
   );
 
@@ -234,6 +241,7 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
   const factCheck = trackStep(
     'fact_checking_javascript',
     checkFacts,
+    pythonServiceAvailable, // isComplement
     text
   );
 
@@ -244,6 +252,7 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     enhancedNLP = trackStep(
       'enhanced_nlp_javascript',
       performCompleteEnhancedAnalysis,
+      pythonServiceAvailable, // isComplement
       text,
       question,
       pipelineStartTime
@@ -253,19 +262,37 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
   const pipelineEndTime = Date.now();
 
   // Log detailed timeline summary
+  const pythonSteps = timeline.filter(t => t.usingPython);
+  const complementSteps = timeline.filter(t => t.complement && !t.fallback);
+  const fallbackSteps = timeline.filter(t => t.fallback);
+  const standaloneJsSteps = timeline.filter(t => !t.usingPython && !t.complement && !t.fallback);
+  
   console.log(`\n✅ Pipeline completed in ${pipelineEndTime - pipelineStartTime}ms`);
   console.log(`📊 Timeline Summary:`);
   console.log(`   - Total steps: ${timeline.length}`);
-  console.log(`   - Python ML steps: ${timeline.filter(t => t.usingPython).length}`);
-  console.log(`   - JavaScript fallback steps: ${timeline.filter(t => t.fallback || !t.usingPython).length}`);
+  console.log(`   - Python ML steps: ${pythonSteps.length}`);
+  if (complementSteps.length > 0) {
+    console.log(`   - JavaScript complement steps: ${complementSteps.length}`);
+  }
+  if (standaloneJsSteps.length > 0) {
+    console.log(`   - JavaScript analysis steps: ${standaloneJsSteps.length}`);
+  }
+  if (fallbackSteps.length > 0) {
+    console.log(`   - Fallback steps (Python unavailable): ${fallbackSteps.length}`);
+  }
   
   // Log each Python ML tool used
-  const pythonSteps = timeline.filter(t => t.usingPython);
   if (pythonSteps.length > 0) {
     console.log(`\n🐍 Python ML Tools Used:`);
     pythonSteps.forEach(step => {
       console.log(`   ✓ ${step.step}: ${step.model} (${step.durationMs}ms)`);
     });
+  }
+  
+  // Show fallback info if Python was unavailable
+  if (!pythonServiceAvailable && fallbackSteps.length > 0) {
+    console.log(`\n⚠️  Python ML service unavailable - using JavaScript fallbacks`);
+    console.log(`   To enable Python ML: cd backend/python_services && python nlp_pipeline.py`);
   }
 
   // Generate aggregated insights
