@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import ConsensusDebateCard from '../components/ConsensusDebateCard';
 import NLPProcessingLoader from '../components/NLPProcessingLoader';
@@ -25,13 +25,17 @@ export default function ChatV2Page() {
   const [selectedModel, setSelectedModel] = useState('gpt-3.5');
   const [showReplay, setShowReplay] = useState(false);
   const [replayData, setReplayData] = useState(null);
+  
+  // Prevent duplicate submissions in React StrictMode (development)
+  const hasSubmittedInitialQuestion = useRef(false);
 
   // Get latest AI message for display
   const latestAiMessage = messages.filter(m => m.type === 'ai').slice(-1)[0];
 
   // Handle initial question from LandingPage navigation
   useEffect(() => {
-    if (location.state?.initialQuestion) {
+    if (location.state?.initialQuestion && !hasSubmittedInitialQuestion.current) {
+      hasSubmittedInitialQuestion.current = true;
       setQuestion(location.state.initialQuestion);
       // Auto-submit the question
       const submitInitialQuestion = async () => {
@@ -110,6 +114,13 @@ export default function ChatV2Page() {
       // Clear the location state to prevent re-submission on refresh
       window.history.replaceState({}, document.title);
     }
+    
+    // Reset the ref when location changes (navigating to new question)
+    return () => {
+      if (location.state?.initialQuestion) {
+        hasSubmittedInitialQuestion.current = false;
+      }
+    };
   }, [location.state]);
 
   const handleSubmit = async (e) => {
