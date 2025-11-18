@@ -592,7 +592,13 @@ def main():
             
             sys.exit(0)
         except Exception as e:
-            print(json.dumps({'error': str(e)}), file=sys.stderr)
+            import traceback
+            error_details = {
+                'error': str(e),
+                'type': type(e).__name__,
+                'traceback': traceback.format_exc()
+            }
+            print(json.dumps(error_details), file=sys.stderr)
             sys.exit(1)
     
     if args.history_json:
@@ -605,7 +611,13 @@ def main():
             print(json.dumps({'history': history}, ensure_ascii=False))
             sys.exit(0)
         except Exception as e:
-            print(json.dumps({'error': str(e)}), file=sys.stderr)
+            import traceback
+            error_details = {
+                'error': str(e),
+                'type': type(e).__name__,
+                'traceback': traceback.format_exc()
+            }
+            print(json.dumps(error_details), file=sys.stderr)
             sys.exit(1)
     
     if args.heatmap_json:
@@ -631,7 +643,13 @@ def main():
             print(json.dumps(heatmap_data, ensure_ascii=False))
             sys.exit(0)
         except Exception as e:
-            print(json.dumps({'error': str(e)}), file=sys.stderr)
+            import traceback
+            error_details = {
+                'error': str(e),
+                'type': type(e).__name__,
+                'traceback': traceback.format_exc()
+            }
+            print(json.dumps(error_details), file=sys.stderr)
             sys.exit(1)
     
     if args.bias_drift_json:
@@ -649,7 +667,13 @@ def main():
             print(json.dumps(bias_data, ensure_ascii=False))
             sys.exit(0)
         except Exception as e:
-            print(json.dumps({'error': str(e)}), file=sys.stderr)
+            import traceback
+            error_details = {
+                'error': str(e),
+                'type': type(e).__name__,
+                'traceback': traceback.format_exc()
+            }
+            print(json.dumps(error_details), file=sys.stderr)
             sys.exit(1)
     
     if args.test:

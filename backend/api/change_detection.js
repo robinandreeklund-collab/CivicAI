@@ -78,7 +78,18 @@ async function executeChangeDetection(question, model, response, version = 'unkn
         }
       } else {
         if (errorOutput) {
-          console.error('Change detection error:', errorOutput);
+          console.error('Change detection error:');
+          console.error(errorOutput);
+          // Try to parse as JSON for better error display
+          try {
+            const errorJson = JSON.parse(errorOutput);
+            if (errorJson.traceback) {
+              console.error('Full traceback:');
+              console.error(errorJson.traceback);
+            }
+          } catch (parseErr) {
+            // Not JSON, already logged as plain text
+          }
         }
         resolve(null);
       }
