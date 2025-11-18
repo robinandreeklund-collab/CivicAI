@@ -17,6 +17,51 @@ const router = express.Router();
 // Data storage path
 const DATA_DIR = path.join(__dirname, '../../data/oqt-interactions');
 
+// Simple in-memory rate limiter
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 30; // 30 requests per minute
+
+function checkRateLimit(identifier) {
+  const now = Date.now();
+  const userRequests = rateLimitMap.get(identifier) || [];
+  
+  // Remove old requests outside the window
+  const recentRequests = userRequests.filter(time => now - time < RATE_LIMIT_WINDOW);
+  
+  if (recentRequests.length >= RATE_LIMIT_MAX_REQUESTS) {
+    return false; // Rate limit exceeded
+  }
+  
+  recentRequests.push(now);
+  rateLimitMap.set(identifier, recentRequests);
+  
+  // Cleanup old entries periodically
+  if (rateLimitMap.size > 10000) {
+    for (const [key, value] of rateLimitMap.entries()) {
+      if (value.every(time => now - time > RATE_LIMIT_WINDOW)) {
+        rateLimitMap.delete(key);
+      }
+    }
+  }
+  
+  return true;
+}
+
+// Rate limiting middleware
+function rateLimiter(req, res, next) {
+  const identifier = req.ip || 'unknown';
+  
+  if (!checkRateLimit(identifier)) {
+    return res.status(429).json({
+      success: false,
+      error: 'Rate limit exceeded. Please try again later.'
+    });
+  }
+  
+  next();
+}
+
 // Ensure data directory exists
 async function ensureDataDir() {
   try {
@@ -32,7 +77,7 @@ ensureDataDir();
  * POST /api/ingest/interaction
  * Collect a new AI interaction
  */
-router.post('/interaction', async (req, res) => {
+router.post('/interaction', rateLimiter, async (req, res) => {
   try {
     const {
       question,
@@ -108,7 +153,7 @@ router.post('/interaction', async (req, res) => {
  * GET /api/ingest/stats
  * Get ingestion statistics
  */
-router.get('/stats', async (req, res) => {
+router.get('/stats', rateLimiter, async (req, res) => {
   try {
     const files = await fs.readdir(DATA_DIR);
     const interactionFiles = files.filter(f => f.startsWith('interaction-'));
@@ -165,7 +210,7 @@ router.get('/stats', async (req, res) => {
  * GET /api/ingest/recent
  * Get recent interactions
  */
-router.get('/recent', async (req, res) => {
+router.get('/recent', rateLimiter, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
     const files = await fs.readdir(DATA_DIR);
