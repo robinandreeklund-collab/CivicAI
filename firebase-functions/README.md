@@ -2,6 +2,14 @@
 
 This directory contains reference implementations for Firebase Cloud Functions that handle the Firebase Integration - Step 1.
 
+## Quick Links
+
+- **Automated Setup:** Run `./scripts/firebase-init-collections.sh` to create all collections
+- **Schema Reference:** See `firebase-schema.yaml` for complete collection schemas
+- **Manual Guide:** See `docs/guides/FIREBASE_SETUP.md` for step-by-step instructions
+
+---
+
 ## Overview
 
 The trigger function `onQuestionCreate` automatically processes questions when they are created in the `ai_interactions` collection in Firestore.

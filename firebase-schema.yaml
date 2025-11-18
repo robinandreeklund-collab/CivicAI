@@ -1,0 +1,551 @@
+# Firebase Firestore Schema for CivicAI
+# This file can be used with Firebase AI or other tools to automatically create collections
+
+collections:
+  
+  # Collection 1: AI Interactions
+  ai_interactions:
+    description: "Stores user questions and AI responses with complete analysis pipeline results"
+    fields:
+      - name: question
+        type: string
+        required: true
+        description: "User's question from Chat-V2 search field or landing page"
+        
+      - name: created_at
+        type: timestamp
+        required: true
+        description: "When the question was received (ISO 8601 format)"
+        
+      - name: status
+        type: string
+        required: true
+        description: "Current processing status"
+        enum:
+          - received
+          - processing
+          - completed
+          - ledger_verified
+          - error
+        
+      - name: pipeline_version
+        type: string
+        required: true
+        description: "Version of ML pipeline used for processing"
+        default: "1.0.0"
+        
+      - name: analysis
+        type: object
+        required: false
+        nullable: true
+        description: "Complete analysis results from ML pipeline"
+        properties:
+          sentiment: object
+          bias: object
+          topics: array
+          toxicity: object
+          
+      - name: completed_at
+        type: timestamp
+        required: false
+        nullable: true
+        description: "When analysis was completed"
+        
+      - name: user_id
+        type: string
+        required: false
+        nullable: true
+        description: "Anonymous user identifier"
+        
+      - name: session_id
+        type: string
+        required: false
+        nullable: true
+        description: "Session identifier for tracking conversations"
+        
+      - name: question_hash
+        type: string
+        required: true
+        description: "SHA-256 hash of question for ledger tracking"
+        
+      - name: updated_at
+        type: timestamp
+        required: false
+        nullable: true
+        description: "Last update timestamp"
+        
+      - name: verified_at
+        type: timestamp
+        required: false
+        nullable: true
+        description: "When ledger verification completed"
+    
+    indexes:
+      - fields:
+          - user_id: ASC
+          - created_at: DESC
+        description: "Query user's questions by date"
+        
+      - fields:
+          - status: ASC
+          - created_at: DESC
+        description: "Query questions by status"
+        
+      - fields:
+          - question_hash: ASC
+        description: "Lookup by question hash"
+    
+    security_rules: |
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if false; // Backend only
+  
+  # Collection 2: Model Versions
+  model_versions:
+    description: "Tracks AI model configurations and metadata"
+    fields:
+      - name: modelId
+        type: string
+        required: true
+        description: "Unique identifier (provider-model-version)"
+        
+      - name: provider
+        type: string
+        required: true
+        description: "AI provider name"
+        enum:
+          - openai
+          - google
+          - deepseek
+          - anthropic
+          - meta
+          
+      - name: modelName
+        type: string
+        required: true
+        description: "Model name (e.g., gpt-3.5-turbo)"
+        
+      - name: version
+        type: string
+        required: true
+        description: "Model version number"
+        
+      - name: configuration
+        type: object
+        required: true
+        description: "Model configuration parameters"
+        properties:
+          temperature: number
+          maxTokens: number
+          topP: number
+          frequencyPenalty: number
+          
+      - name: profile
+        type: object
+        required: false
+        description: "Model characteristics profile"
+        properties:
+          strengths: array
+          weaknesses: array
+          characteristics: array
+          
+      - name: usage
+        type: object
+        required: false
+        description: "Usage statistics"
+        properties:
+          totalRequests: number
+          averageResponseTime: number
+          errorRate: number
+          
+      - name: createdAt
+        type: timestamp
+        required: true
+        description: "When model version was registered"
+        
+      - name: updatedAt
+        type: timestamp
+        required: false
+        description: "Last update timestamp"
+    
+    indexes:
+      - fields:
+          - provider: ASC
+          - modelName: ASC
+        description: "Query models by provider"
+    
+    security_rules: |
+      allow read: if true;
+      allow write: if false; // Backend only
+  
+  # Collection 3: Ledger Blocks
+  ledger_blocks:
+    description: "Blockchain-inspired transparency ledger for immutable audit trail"
+    fields:
+      - name: block_id
+        type: number
+        required: true
+        description: "Sequential block identifier (0 is genesis)"
+        
+      - name: timestamp
+        type: timestamp
+        required: true
+        description: "Block creation timestamp"
+        
+      - name: previous_hash
+        type: string
+        required: true
+        description: "Hash of previous block (null for genesis)"
+        
+      - name: current_hash
+        type: string
+        required: true
+        description: "SHA-256 hash of this block's data"
+        
+      - name: event_type
+        type: string
+        required: true
+        description: "Type of event recorded"
+        enum:
+          - genesis
+          - data_collection
+          - training
+          - update
+          - audit
+          - review
+          - change_detection
+          
+      - name: data
+        type: object
+        required: true
+        description: "Event-specific data"
+        properties:
+          description: string
+          model_version: string
+          question_hash: string
+          firebase_doc_id: string
+          
+      - name: signatures
+        type: object
+        required: true
+        description: "Cryptographic signatures for verification"
+        properties:
+          data_hash: string
+          validator: string
+    
+    indexes:
+      - fields:
+          - block_id: ASC
+        description: "Query blocks in order"
+        
+      - fields:
+          - event_type: ASC
+          - timestamp: DESC
+        description: "Query blocks by event type"
+    
+    security_rules: |
+      allow read: if true;
+      allow write: if false; // Immutable, backend only
+  
+  # Collection 4: Change Events
+  change_events:
+    description: "Records detected changes in model behavior or responses"
+    fields:
+      - name: eventId
+        type: string
+        required: true
+        description: "Unique event identifier"
+        
+      - name: timestamp
+        type: timestamp
+        required: true
+        description: "When change was detected"
+        
+      - name: changeType
+        type: string
+        required: true
+        description: "Type of change detected"
+        enum:
+          - response_drift
+          - model_update
+          - bias_shift
+          - performance_change
+          
+      - name: modelId
+        type: string
+        required: true
+        description: "Model affected by change"
+        
+      - name: changeDetails
+        type: object
+        required: true
+        description: "Detailed change information"
+        properties:
+          before: any
+          after: any
+          delta: number
+          magnitude: string
+          
+      - name: detection
+        type: object
+        required: true
+        description: "Detection method and confidence"
+        properties:
+          method: string
+          confidence: number
+          algorithm: string
+          
+      - name: impact
+        type: object
+        required: true
+        description: "Impact assessment"
+        properties:
+          severity: string
+          affected: array
+          recommendations: array
+    
+    indexes:
+      - fields:
+          - modelId: ASC
+          - timestamp: DESC
+        description: "Query changes for specific model"
+        
+      - fields:
+          - changeType: ASC
+          - timestamp: DESC
+        description: "Query by change type"
+    
+    security_rules: |
+      allow read: if request.auth != null;
+      allow write: if false; // Backend only
+  
+  # Collection 5: Users
+  users:
+    description: "User profiles and preferences"
+    fields:
+      - name: userId
+        type: string
+        required: true
+        description: "Firebase Auth UID"
+        
+      - name: email
+        type: string
+        required: true
+        description: "User email address"
+        
+      - name: displayName
+        type: string
+        required: false
+        description: "User display name"
+        
+      - name: role
+        type: string
+        required: true
+        description: "User role"
+        enum:
+          - user
+          - admin
+          - moderator
+        default: "user"
+        
+      - name: createdAt
+        type: timestamp
+        required: true
+        description: "Account creation date"
+        
+      - name: lastLogin
+        type: timestamp
+        required: false
+        description: "Last login timestamp"
+        
+      - name: preferences
+        type: object
+        required: false
+        description: "User preferences"
+        properties:
+          theme: string
+          language: string
+          notifications: boolean
+          
+      - name: usage
+        type: object
+        required: false
+        description: "Usage statistics"
+        properties:
+          totalQuestions: number
+          lastQuestionAt: timestamp
+    
+    indexes:
+      - fields:
+          - email: ASC
+        description: "Lookup by email"
+    
+    security_rules: |
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false;
+  
+  # Collection 6: Audit Logs
+  audit_logs:
+    description: "System audit logs for compliance and debugging"
+    fields:
+      - name: logId
+        type: string
+        required: true
+        description: "Unique log identifier"
+        
+      - name: timestamp
+        type: timestamp
+        required: true
+        description: "When event occurred"
+        
+      - name: eventType
+        type: string
+        required: true
+        description: "Type of audit event"
+        enum:
+          - user_login
+          - user_logout
+          - question_created
+          - data_export
+          - config_change
+          - security_event
+          
+      - name: userId
+        type: string
+        required: true
+        description: "User who triggered event"
+        
+      - name: action
+        type: string
+        required: true
+        description: "Action performed"
+        
+      - name: details
+        type: object
+        required: false
+        description: "Additional event details"
+        
+      - name: ipAddress
+        type: string
+        required: false
+        nullable: true
+        description: "IP address (hashed for privacy)"
+        
+      - name: userAgent
+        type: string
+        required: false
+        description: "Browser user agent"
+    
+    indexes:
+      - fields:
+          - userId: ASC
+          - timestamp: DESC
+        description: "Query user's audit trail"
+        
+      - fields:
+          - eventType: ASC
+          - timestamp: DESC
+        description: "Query by event type"
+    
+    security_rules: |
+      allow read: if request.auth != null && 
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow write: if false; // Backend only
+
+# Firestore Security Rules Template
+security_rules_template: |
+  rules_version = '2';
+  service cloud.firestore {
+    match /databases/{database}/documents {
+      
+      // Helper functions
+      function isAuthenticated() {
+        return request.auth != null;
+      }
+      
+      function isAdmin() {
+        return isAuthenticated() && 
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      }
+      
+      function isOwner(userId) {
+        return isAuthenticated() && request.auth.uid == userId;
+      }
+      
+      // Apply collection-specific rules
+      // (See individual collection security_rules above)
+    }
+  }
+
+# Firestore Indexes Configuration
+indexes:
+  - collectionGroup: ai_interactions
+    queryScope: COLLECTION
+    fields:
+      - fieldPath: user_id
+        order: ASCENDING
+      - fieldPath: created_at
+        order: DESCENDING
+        
+  - collectionGroup: ai_interactions
+    queryScope: COLLECTION
+    fields:
+      - fieldPath: status
+        order: ASCENDING
+      - fieldPath: created_at
+        order: DESCENDING
+        
+  - collectionGroup: ledger_blocks
+    queryScope: COLLECTION
+    fields:
+      - fieldPath: block_id
+        order: ASCENDING
+        
+  - collectionGroup: change_events
+    queryScope: COLLECTION
+    fields:
+      - fieldPath: modelId
+        order: ASCENDING
+      - fieldPath: timestamp
+        order: DESCENDING
+        
+  - collectionGroup: audit_logs
+    queryScope: COLLECTION
+    fields:
+      - fieldPath: userId
+        order: ASCENDING
+      - fieldPath: timestamp
+        order: DESCENDING
+
+# Usage Instructions
+usage_instructions: |
+  
+  ## How to Use This Schema
+  
+  ### Option 1: Automated Script
+  Run the included setup script:
+  ```bash
+  ./scripts/firebase-init-collections.sh
+  ```
+  
+  ### Option 2: Firebase AI/CLI
+  Use this YAML file with Firebase AI or automation tools:
+  ```bash
+  # Convert to JSON if needed
+  # Then use with Firebase CLI or import tools
+  ```
+  
+  ### Option 3: Manual Creation
+  For each collection in this file:
+  1. Go to Firebase Console → Firestore Database
+  2. Click "Start collection"
+  3. Enter the collection name
+  4. Add fields according to the schema
+  5. Set up indexes as specified
+  6. Apply security rules
+  
+  ### Option 4: Firebase Console Import
+  Some Firebase tools support direct YAML/JSON import.
+  Check your Firebase project settings for import options.
