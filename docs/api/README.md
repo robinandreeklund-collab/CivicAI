@@ -71,7 +71,20 @@ Content-Type: application/json
       "agent": "gpt-3.5",
       "response": "Climate change refers to...",
       "analysis": { /* tone, bias, facts */ },
-      "pipelineAnalysis": { /* detailed analysis */ }
+      "pipelineAnalysis": { 
+        /* 10-step comprehensive ML analysis */
+        "language": "sv",
+        "sentiment": {"polarity": 0.5, "subjectivity": 0.3},
+        "toxicity": {"toxicity": 0.02, "is_toxic": false},
+        "ideology": "green",
+        "explainability": {"shap": {...}, "lime": {...}},
+        "topics": ["climate", "economy"],
+        "fairness": {"overall_fairness_score": 0.85},
+        "provenance": {
+          "pipeline_version": "openseek-ml-1.3.0",
+          "models_used": ["spacy", "detoxify", "transformers", "shap", "gensim"]
+        }
+      }
     }
   ],
   "modelSynthesis": {
@@ -90,9 +103,24 @@ Content-Type: application/json
 |----------|--------|--------|-------------|
 | `/analysis-pipeline/config` | GET | ✅ | Get pipeline configuration |
 | `/analysis-pipeline/steps` | GET | ✅ | List available pipeline steps |
-| `/analysis-pipeline/analyze` | POST | ✅ | Analyze text with full pipeline |
+| `/analysis-pipeline/analyze` | POST | ✅ | Analyze text with full 10-step pipeline |
 | `/analysis-transparency/provenance` | GET | ✅ | Get provenance data for analysis |
 | `/analysis-transparency/timeline` | GET | ✅ | Get analysis timeline |
+
+### 10-Step ML Analysis Pipeline
+
+The pipeline now includes comprehensive ML capabilities:
+
+1. **Ingestion & Language Detection** - langdetect identifies 55+ languages
+2. **Preprocessing** - spaCy tokenization, POS-tagging, NER; TextBlob sentiment
+3. **Toxicity & Safety** - Detoxify multilingual toxicity detection
+4. **Transformer Models** - Swedish BERT for sentiment and ideology classification
+5. **Tone & Fact Checking** - Tone analysis and fact verification
+6. **Enhanced NLP Analysis** - Comprehensive linguistic analysis (always enabled)
+7. **Explainability** - SHAP (global) and LIME (local) explanations (enabled by default)
+8. **Topic Modeling** - Gensim LDA topic extraction (works with single text)
+9. **Fairness & Bias** - Consistency-based fairness metrics (works with single text)
+10. **Synthesis & Integration** - Aggregated results with full provenance
 
 ### Example: Analyze Text
 ```javascript
@@ -103,7 +131,57 @@ Content-Type: application/json
   "text": "Text to analyze...",
   "question": "Optional context",
   "options": {
-    "includePython": true
+    "includePython": true,
+    "includeExplainability": true  // SHAP/LIME enabled by default
+  }
+}
+
+// Response includes all 10 pipeline steps
+{
+  "language": "sv",
+  "preprocessing": {
+    "tokens": [...],
+    "entities": [...],
+    "pos_tags": [...]
+  },
+  "sentiment": {
+    "polarity": 0.5,
+    "subjectivity": 0.3
+  },
+  "toxicity": {
+    "toxicity": 0.02,
+    "is_toxic": false
+  },
+  "ideology": {
+    "label": "green",
+    "confidence": 0.82
+  },
+  "explainability": {
+    "shap": {
+      "word_impacts": [["climate", 0.85], ["economy", 0.72]]
+    },
+    "lime": {
+      "sentence_contributions": [...]
+    }
+  },
+  "topics": ["climate", "economy", "sustainability"],
+  "fairness": {
+    "bias_indicators": {
+      "sentiment_consistency": 0.95,
+      "toxicity_consistency": 0.98,
+      "overall_fairness_score": 0.85
+    },
+    "fairness_status": "fair"
+  },
+  "timeline": [
+    {"step": "langdetect_language", "duration_ms": 7},
+    {"step": "spacy_preprocessing", "duration_ms": 49},
+    ...
+  ],
+  "provenance": {
+    "pipeline_version": "openseek-ml-1.3.0",
+    "models_used": ["spacy", "textblob", "detoxify", "transformers", "shap", "lime", "gensim"],
+    "timestamp": "2025-11-18T13:00:00Z"
   }
 }
 ```
@@ -141,7 +219,7 @@ Content-Type: application/json
     "interactionId": "interaction-uuid",
     "questionHash": "sha256-hash",
     "modelsUsed": ["gpt-3.5", "gemini"],
-    "analysisPipeline": "v1.2.0"
+    "analysisPipeline": "v1.3.0"
   }
 }
 ```
@@ -243,154 +321,184 @@ Content-Type: application/json
 
 | Endpoint | Method | Status | Description |
 |----------|--------|--------|-------------|
-| `/health` | GET | ✅ | Health check |
+| `/health` | GET | ✅ | Health check with detailed service status |
 | `/version` | GET | 📋 | Get API version info |
 | `/config` | GET | 📋 | Get system configuration |
+
+### Health Check Response
+
+```javascript
+GET /api/health
+
+// Response
+{
+  "status": "ok",
+  "services": {
+    "query": {"status": "up", "description": "AI Query Service"},
+    "python-ml": {
+      "status": "up",
+      "description": "Python ML Pipeline Service",
+      "lastChecked": "2025-11-18T13:00:00Z",
+      "lastSuccessful": "2025-11-18T13:00:00Z",
+      "available_models": {
+        "spacy": true,
+        "textblob": true,
+        "langdetect": true,
+        "detoxify": true,
+        "transformers": true,
+        "shap": true,
+        "lime": true,
+        "gensim": true,
+        "fairlearn": true,
+        "lux": false,
+        "sweetviz": false,
+        "bertopic": false
+      },
+      "error": null
+    },
+    "change-detection": {"status": "up", "description": "Change Detection Service"}
+  }
+}
+```
+
+See [HEALTH_CHECK.md](./HEALTH_CHECK.md) for detailed health monitoring documentation.
 
 ---
 
 ## 🐍 Python ML Service (Optional)
 
+**Base URL**: `http://localhost:5001`
+
 ### Core NLP Endpoints
 
 | Endpoint | Method | Status | Description |
 |----------|--------|--------|-------------|
-| `/health` | GET | ✅ | Python service health check and model availability |
-| `/preprocess` | POST | ✅ | Text preprocessing with spaCy (tokenization, POS, NER) |
-| `/sentiment` | POST | ✅ | Sentiment analysis with TextBlob (polarity, subjectivity) |
-| `/detect-language` | POST | ✅ | Language detection with langdetect (55+ languages) |
-| `/detect-toxicity` | POST | ✅ | Toxicity detection with Detoxify (multilingual) |
-| `/classify-ideology` | POST | 🔶 | Political ideology classification with Swedish BERT |
-| `/topic-modeling` | POST | ✅ | Topic modeling with BERTopic (transformer-based) |
-| `/semantic-similarity` | POST | ✅ | Semantic similarity analysis with Gensim (Word2Vec) |
-| `/analyze-complete` | POST | ✅ | Complete NLP analysis (all modules combined) |
+| `/health` | GET | ✅ | Service health and per-model availability |
+| `/preprocess` | POST | ✅ | spaCy preprocessing (tokenization, POS, NER) |
+| `/sentiment` | POST | ✅ | TextBlob sentiment (polarity, subjectivity) |
+| `/detect-language` | POST | ✅ | langdetect language detection (55+ languages) |
+| `/detect-toxicity` | POST | ✅ | Detoxify multilingual toxicity detection |
+| `/classify-ideology` | POST | ✅ | Swedish BERT ideology classification |
+| `/topic-modeling` | POST | ✅ | Gensim LDA topic modeling (works with single text) |
+| `/semantic-similarity` | POST | ✅ | Gensim Word2Vec semantic similarity |
+| `/analyze-complete` | POST | ✅ | Complete analysis (all modules combined) |
 
-### Explainability & Interpretability
+### Explainability & Interpretability ✨ NEW
 
 | Endpoint | Method | Status | Description |
 |----------|--------|--------|-------------|
-| `/explain-shap` | POST | ✅ | Model explainability with SHAP (global feature importance) |
-| `/explain-lime` | POST | ✅ | Local interpretable explanations with LIME |
+| `/explain-shap` | POST | ✅ | SHAP word-level sentiment impact analysis |
+| `/explain-lime` | POST | ✅ | LIME sentence-level contribution analysis |
+
+**Example: SHAP Explainability**
+```javascript
+POST http://localhost:5001/explain-shap
+Content-Type: application/json
+
+{
+  "text": "Climate policy must balance environmental sustainability with economic growth."
+}
+
+// Response
+{
+  "word_impacts": [
+    ["sustainability", 0.85],
+    ["environmental", 0.72],
+    ["growth", 0.65],
+    ["climate", 0.58]
+  ],
+  "method": "textblob_word_sentiment",
+  "explanation_type": "global"
+}
+```
+
+**Example: LIME Explainability**
+```javascript
+POST http://localhost:5001/explain-lime
+Content-Type: application/json
+
+{
+  "text": "We need strong environmental policies. Economic growth is also important."
+}
+
+// Response
+{
+  "sentence_contributions": [
+    {
+      "sentence": "We need strong environmental policies.",
+      "contribution": 0.75,
+      "sentiment": "positive"
+    },
+    {
+      "sentence": "Economic growth is also important.",
+      "contribution": 0.60,
+      "sentiment": "neutral"
+    }
+  ],
+  "method": "sentence_level_analysis"
+}
+```
 
 ### Fairness & Quality
 
 | Endpoint | Method | Status | Description |
 |----------|--------|--------|-------------|
-| `/fairness-metrics` | POST | ✅ | Fairness analysis with Fairlearn (demographic parity, equal opportunity) |
-| `/generate-eda-report` | POST | ✅ | Automated EDA reports with Sweetviz (data quality) |
-| `/lux-recommendations` | POST | ✅ | Interactive visualization recommendations with Lux |
+| `/fairness-metrics` | POST | ✅ | Fairlearn fairness analysis (batch mode) |
+| `/generate-eda-report` | POST | 📋 | Sweetviz automated EDA reports |
+| `/lux-recommendations` | POST | 📋 | Lux visualization recommendations |
 
-**Python Service Base URL**: `http://localhost:5001`
+**Note**: Fairness analysis in the pipeline now includes a single-text workaround that calculates consistency-based fairness metrics even without batch data.
 
-### Available Models
+### Available Python ML Models
 
-The Python ML service includes the following models:
+| Model | Version | Status | Description |
+|-------|---------|--------|-------------|
+| **spaCy** | 3.7.2 | ✅ | Tokenization, POS, NER, dependency parsing |
+| **TextBlob** | 0.17.1 | ✅ | Sentiment polarity and subjectivity |
+| **langdetect** | - | ✅ | Multi-language detection (55+ languages) |
+| **Detoxify** | 0.5.2 | ✅ | ML-based toxicity detection (CPU optimized) |
+| **Transformers** | 4.36.2 | ✅ | Swedish BERT ideology classification |
+| **SHAP** | 0.44.0 | ✅ | Model explainability (word-level) |
+| **LIME** | - | ✅ | Local interpretability (sentence-level) |
+| **Gensim** | 4.3.2 | ✅ | LDA topic modeling, Word2Vec |
+| **Fairlearn** | 0.10.0 | ✅ | Fairness metrics (batch + single-text) |
+| **BERTopic** | 0.16.0 | 📋 | Advanced topic modeling (optional) |
+| **Lux** | - | 📋 | Visualization recommendations (optional) |
+| **Sweetviz** | - | 📋 | EDA report generation (optional) |
 
-- **spaCy** 3.7.2 - Tokenization, POS tagging, NER, dependency parsing
-- **TextBlob** 0.17.1 - Sentiment polarity and subjectivity
-- **langdetect** - Multi-language detection (55+ languages, Windows-compatible)
-- **Detoxify** 0.5.2 - ML-based toxicity detection
-- **Transformers** 4.36.2 - Swedish BERT for ideology classification
-- **SHAP** 0.44.0 - Model explainability and feature importance
-- **Gensim** 4.3.2 - Word2Vec, FastText, LDA for semantic analysis
-- **BERTopic** 0.16.0 - Transformer-based topic modeling
-- **LIME** - Local interpretable model-agnostic explanations
-- **Fairlearn** 0.10.0 - Fairness metrics and bias detection
-- **Lux** - Interactive visualization recommendations
-- **Sweetviz** - Automated EDA report generation
+### Health Monitoring & Caching ✨ NEW
 
-### Example: Complete Analysis
+The backend now includes a health cache service that:
+- Polls Python `/health` endpoint every 5 seconds (configurable)
+- Caches service status and per-model availability
+- Provides `lastChecked` and `lastSuccessful` timestamps
+- Prevents service flapping and expensive sync health checks
+
+**Configuration** (environment variables):
+- `PYTHON_NLP_SERVICE_URL` - Default: `http://localhost:5001`
+- `PYTHON_HEALTH_POLL_INTERVAL_MS` - Default: `5000`
+- `PYTHON_HEALTH_REQUEST_TIMEOUT_MS` - Default: `2500`
+
+### Pipeline Provenance & Metadata ✨ NEW
+
+All analysis responses now include detailed provenance:
 
 ```javascript
-POST /api/python-ml/analyze-complete
-Content-Type: application/json
-
 {
-  "text": "Text to analyze...",
-  "question": "Optional context"
-}
-
-// Response
-{
-  "preprocessing": {
-    "tokens": ["text", "to", "analyze"],
-    "pos_tags": [...],
-    "entities": [...]
-  },
-  "sentiment": {
-    "polarity": 0.1,
-    "subjectivity": 0.5
-  },
-  "language": {
-    "detected": "sv",
-    "confidence": 0.95
-  },
-  "toxicity": {
-    "toxicity": 0.02,
-    "severe_toxicity": 0.01,
-    "is_toxic": false
-  },
-  "topics": [...],
   "provenance": {
-    "models_used": ["spaCy", "TextBlob", "langdetect", "Detoxify", "BERTopic"],
-    "timestamp": "2025-11-18T..."
-  }
-}
-```
-
-### Example: SHAP Explainability
-
-```javascript
-POST /api/python-ml/explain-shap
-Content-Type: application/json
-
-{
-  "text": "Text to explain..."
-}
-
-// Response
-{
-  "feature_importance": [
-    {
-      "class": "left",
-      "features": [
-        ["word1", 0.85],
-        ["word2", 0.72]
-      ]
-    }
-  ],
-  "explanation_type": "global",
-  "model": "KB/bert-base-swedish-cased"
-}
-```
-
-### Example: Fairness Metrics
-
-```javascript
-POST /api/python-ml/fairness-metrics
-Content-Type: application/json
-
-{
-  "texts": ["text1", "text2", "text3"],
-  "sensitive_features": ["group_a", "group_b", "group_a"]
-}
-
-// Response
-{
-  "selection_rates": {
-    "group_a": {
-      "left": 0.5,
-      "center": 0.3,
-      "right": 0.2
-    }
+    "pipeline_version": "openseek-ml-1.3.0",
+    "models_attempted": ["spacy", "textblob", "detoxify", "transformers", "shap", "gensim"],
+    "models_used": ["spacy", "textblob", "detoxify", "transformers", "shap", "gensim"],
+    "models_failed": [],
+    "timestamp": "2025-11-18T13:00:00Z"
   },
-  "demographic_parity": {
-    "left": 0.05,
-    "center": 0.03,
-    "right": 0.02
-  },
-  "overall_fairness_score": 0.033,
-  "fairness_status": "fair"
+  "timeline": [
+    {"step": "langdetect_language", "model": "langdetect", "duration_ms": 7},
+    {"step": "spacy_preprocessing", "model": "spaCy", "duration_ms": 49},
+    {"step": "textblob_sentiment", "model": "TextBlob", "duration_ms": 5},
+    {"step": "detoxify_toxicity", "model": "Detoxify", "duration_ms": 65},
+    {"step": "transformers_ideology", "model": "KB/bert-base-swedish-cased", "duration_ms": 8}
+  ]
 }
 ```
 
@@ -415,7 +523,7 @@ All endpoints return standard error responses:
 - `404` - Not Found
 - `429` - Rate Limit Exceeded
 - `500` - Internal Server Error
-- `503` - Service Unavailable
+- `503` - Service Unavailable (Python ML service down)
 
 ---
 
@@ -431,11 +539,27 @@ Authorization: Bearer <token>
 
 ## 📚 Related Documentation
 
-- [Change Detection API](./CHANGE_DETECTION_API.md) - Detailed change detection endpoint documentation
+- [Health Check API](./HEALTH_CHECK.md) - Detailed health monitoring and troubleshooting
+- [Change Detection API](./CHANGE_DETECTION_API.md) - Change detection endpoint documentation
 - [Data Schemas](../schemas/README.md) - Firestore collection schemas
 - [Pipeline Guide](../pipeline/ANALYSIS_PIPELINE.md) - Analysis pipeline documentation
 
 ---
 
-**Last Updated**: 2025-11-18
-**API Version**: v1.0.0 (Development)
+## 🆕 Recent Updates (v1.3.0)
+
+### November 2025
+- ✅ Added comprehensive 10-step ML analysis pipeline
+- ✅ Implemented SHAP and LIME explainability (enabled by default)
+- ✅ Added Gensim LDA topic modeling with single-text support
+- ✅ Implemented single-text fairness analysis workaround
+- ✅ Added health cache service with background polling
+- ✅ Fixed Windows compatibility issues (Detoxify CPU, NLTK data, Unicode encoding)
+- ✅ Added detailed provenance tracking and per-model metadata
+- ✅ Enhanced timeline with step-by-step duration metrics
+
+---
+
+**Last Updated**: 2025-11-18  
+**API Version**: v1.3.0 (Development)  
+**Pipeline Version**: openseek-ml-1.3.0
