@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FooterDemo4 from '../components/footers/FooterDemo4';
 import { useTypewriter } from '../hooks/useTypewriter';
@@ -11,7 +11,25 @@ import { useTypewriter } from '../hooks/useTypewriter';
 export default function LandingPage() {
   const [question, setQuestion] = useState('');
   const [isFocused, setIsFocused] = useState(false);
+  const [currentFeatureIndex, setCurrentFeatureIndex] = useState(0);
   const navigate = useNavigate();
+
+  // Features to cycle through
+  const features = useMemo(() => [
+    'Jämför 5 AI-modeller samtidigt',
+    'Automatisk bias-detektion',
+    'Faktakontroll med Tavily',
+    'Full transparens i processen'
+  ], []);
+
+  // Cycle through features every 3200ms (2600ms display + 600ms transition)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentFeatureIndex((prevIndex) => (prevIndex + 1) % features.length);
+    }, 3200);
+    
+    return () => clearInterval(interval);
+  }, [features.length]);
 
   // Sample questions for typewriter animation - memoized to prevent recreating on every render
   const sampleQuestions = useMemo(() => [
@@ -94,20 +112,44 @@ export default function LandingPage() {
             Beslut med insyn. AI med ansvar.<br />
             Jämför AI-modeller och få en balanserad bild.
           </p>
-          <ul className="space-y-0">
-            <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
-              ✓ Jämför 5 AI-modeller samtidigt
-            </li>
-            <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
-              ✓ Automatisk bias-detektion
-            </li>
-            <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
-              ✓ Faktakontroll med Tavily
-            </li>
-            <li className="py-4 text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
-              ✓ Full transparens i processen
-            </li>
-          </ul>
+          <div className="relative h-14 overflow-hidden">
+            <style>{`
+              @keyframes fadeSlideIn {
+                0% {
+                  opacity: 0;
+                  transform: translateY(20px);
+                }
+                15% {
+                  opacity: 1;
+                  transform: translateY(0);
+                }
+                85% {
+                  opacity: 1;
+                  transform: translateY(0);
+                }
+                100% {
+                  opacity: 0;
+                  transform: translateY(-20px);
+                }
+              }
+              
+              .feature-item {
+                animation: fadeSlideIn 3200ms ease-in-out infinite;
+              }
+              
+              @media (prefers-reduced-motion: reduce) {
+                .feature-item {
+                  animation: none;
+                  opacity: 1;
+                  transform: none;
+                }
+              }
+            `}</style>
+            <div className="feature-item absolute w-full flex items-center py-4 border-b border-[#151515] text-[#666] text-sm">
+              <span className="mr-2">✓</span>
+              <span>{features[currentFeatureIndex]}</span>
+            </div>
+          </div>
         </div>
 
         {/* Right Side - Search Interface */}

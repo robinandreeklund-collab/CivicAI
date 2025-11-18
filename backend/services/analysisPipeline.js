@@ -403,7 +403,7 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     const biasIndicators = {
       sentiment_consistency: 1 - Math.min(sentimentVariance * 10, 1),
       toxicity_consistency: 1 - Math.min(toxicityVariance * 10, 1),
-      language_neutrality: languageDetection?.confidence || 0.8,
+      language_neutrality: langDetectResult?.data?.confidence || 0.8,
       overall_fairness_score: 0
     };
     

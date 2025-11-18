@@ -101,32 +101,54 @@ function AppContent() {
           ${showSidebar && location.pathname !== '/chat' ? (sidebarCollapsed ? 'ml-16' : 'ml-64') : ''}
         `}
       >
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route 
-            path="/chat" 
-            element={
-              <HomePage 
-                onAiMessageUpdate={handleAiMessageUpdate} 
-                conversationId={currentConversationId}
-              />
-            } 
-          />
-          <Route path="/policy-questions" element={<PolicyQuestionBankPage />} />
-          <Route path="/audit-trail" element={<AuditTrailPage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/policy" element={<PolicyPage />} />
-          <Route path="/zero-tracking" element={<ZeroTrackingPage />} />
-          <Route path="/contact" element={<ContactPage />} />
-          <Route path="/pipeline" element={<PipelinePage />} />
-          <Route path="/features" element={<FeaturesPage />} />
-          <Route path="/sprakmodell" element={<LanguageModelPage />} />
-          <Route path="/oqt-dashboard" element={<OQTDashboardPage />} />
-          <Route path="/skapa-konto" element={<SignupPage />} />
-          <Route path="/api-docs" element={<ApiDocumentationPage />} />
-          <Route path="/design-demos" element={<DemoIndex />} />
-          <Route path="/chat-v2" element={<ChatV2Page />} />
-        </Routes>
+        <style>{`
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+            }
+            to {
+              opacity: 1;
+            }
+          }
+          
+          .page-transition {
+            animation: fadeIn 300ms ease-in-out;
+          }
+          
+          @media (prefers-reduced-motion: reduce) {
+            .page-transition {
+              animation: none;
+            }
+          }
+        `}</style>
+        <div className="page-transition">
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route 
+              path="/chat" 
+              element={
+                <HomePage 
+                  onAiMessageUpdate={handleAiMessageUpdate} 
+                  conversationId={currentConversationId}
+                />
+              } 
+            />
+            <Route path="/policy-questions" element={<PolicyQuestionBankPage />} />
+            <Route path="/audit-trail" element={<AuditTrailPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/policy" element={<PolicyPage />} />
+            <Route path="/zero-tracking" element={<ZeroTrackingPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/pipeline" element={<PipelinePage />} />
+            <Route path="/features" element={<FeaturesPage />} />
+            <Route path="/sprakmodell" element={<LanguageModelPage />} />
+            <Route path="/oqt-dashboard" element={<OQTDashboardPage />} />
+            <Route path="/skapa-konto" element={<SignupPage />} />
+            <Route path="/api-docs" element={<ApiDocumentationPage />} />
+            <Route path="/design-demos" element={<DemoIndex />} />
+            <Route path="/chat-v2" element={<ChatV2Page />} />
+          </Routes>
+        </div>
       </div>
     </div>
   );

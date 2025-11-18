@@ -968,11 +968,53 @@ export default function ChatV2Page() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] flex flex-col">
-      {/* CSS for spinner animation */}
+      {/* CSS for animations */}
       <style>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes slideInRight {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+        
+        .animate-slide-in-right {
+          animation: slideInRight 300ms ease-out;
+        }
+        
+        .animate-fade-in {
+          animation: fadeIn 300ms ease-in-out;
+        }
+        
+        .view-transition {
+          animation: fadeIn 250ms ease-in-out;
+        }
+        
+        @media (prefers-reduced-motion: reduce) {
+          .animate-slide-in-right,
+          .animate-fade-in,
+          .view-transition {
+            animation: none;
+            opacity: 1;
+            transform: none;
+          }
         }
       `}</style>
       
@@ -983,12 +1025,12 @@ export default function ChatV2Page() {
           <div className="text-lg font-light">OneSeek.AI</div>
           
           {/* Centered View Selector */}
-          <div className="absolute left-1/2 transform -translate-x-1/2 flex gap-1 bg-[#151515] rounded-lg p-1">
+          <div className="absolute left-1/2 transform -translate-x-1/2 flex gap-1 bg-[#151515] rounded-lg p-1 relative">
             <button
               onClick={() => setViewMode('overview')}
-              className={`px-4 py-2 rounded text-sm transition-colors ${
+              className={`px-4 py-2 rounded text-sm transition-all duration-200 relative z-10 ${
                 viewMode === 'overview'
-                  ? 'bg-[#e7e7e7] text-[#0a0a0a]'
+                  ? 'text-[#0a0a0a]'
                   : 'text-[#888] hover:text-[#e7e7e7]'
               }`}
             >
@@ -996,9 +1038,9 @@ export default function ChatV2Page() {
             </button>
             <button
               onClick={() => setViewMode('models')}
-              className={`px-4 py-2 rounded text-sm transition-colors ${
+              className={`px-4 py-2 rounded text-sm transition-all duration-200 relative z-10 ${
                 viewMode === 'models'
-                  ? 'bg-[#e7e7e7] text-[#0a0a0a]'
+                  ? 'text-[#0a0a0a]'
                   : 'text-[#888] hover:text-[#e7e7e7]'
               }`}
             >
@@ -1006,9 +1048,9 @@ export default function ChatV2Page() {
             </button>
             <button
               onClick={() => setViewMode('pipeline')}
-              className={`px-4 py-2 rounded text-sm transition-colors ${
+              className={`px-4 py-2 rounded text-sm transition-all duration-200 relative z-10 ${
                 viewMode === 'pipeline'
-                  ? 'bg-[#e7e7e7] text-[#0a0a0a]'
+                  ? 'text-[#0a0a0a]'
                   : 'text-[#888] hover:text-[#e7e7e7]'
               }`}
             >
@@ -1016,14 +1058,25 @@ export default function ChatV2Page() {
             </button>
             <button
               onClick={() => setViewMode('debate')}
-              className={`px-4 py-2 rounded text-sm transition-colors ${
+              className={`px-4 py-2 rounded text-sm transition-all duration-200 relative z-10 ${
                 viewMode === 'debate'
-                  ? 'bg-[#e7e7e7] text-[#0a0a0a]'
+                  ? 'text-[#0a0a0a]'
                   : 'text-[#888] hover:text-[#e7e7e7]'
               }`}
             >
               Debatt
             </button>
+            {/* Sliding background indicator */}
+            <div 
+              className="absolute top-1 bottom-1 bg-[#e7e7e7] rounded transition-all duration-200 ease-in-out"
+              style={{
+                width: 'calc(25% - 0.25rem)',
+                left: viewMode === 'overview' ? '0.25rem' : 
+                      viewMode === 'models' ? 'calc(25% + 0rem)' : 
+                      viewMode === 'pipeline' ? 'calc(50% - 0.125rem)' : 
+                      'calc(75% - 0.375rem)'
+              }}
+            />
           </div>
 
           {/* Menu Button */}
@@ -1039,7 +1092,9 @@ export default function ChatV2Page() {
       </header>
 
       {/* Main Content */}
-      {renderContent()}
+      <div key={viewMode} className="view-transition">
+        {renderContent()}
+      </div>
 
       {/* Premium Input Field (Concept 21 style) - Fixed Bottom */}
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent pt-8">
@@ -1069,12 +1124,12 @@ export default function ChatV2Page() {
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-black/50 z-40"
+            className="fixed inset-0 bg-black/50 z-40 animate-fade-in"
             onClick={() => setSidebarOpen(false)}
           ></div>
           
           {/* Sidebar */}
-          <div className="fixed top-0 right-0 bottom-0 w-80 bg-[#0a0a0a] border-l border-[#151515] z-50 flex flex-col">
+          <div className="fixed top-0 right-0 bottom-0 w-80 bg-[#0a0a0a] border-l border-[#151515] z-50 flex flex-col animate-slide-in-right">
             {/* Header */}
             <div className="p-6 border-b border-[#151515] flex items-center justify-between">
               <div className="font-medium text-[#e7e7e7]">Meny</div>
