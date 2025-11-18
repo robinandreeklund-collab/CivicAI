@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FooterDemo4 from '../components/footers/FooterDemo4';
 import { useTypewriter } from '../hooks/useTypewriter';
@@ -11,7 +11,35 @@ import { useTypewriter } from '../hooks/useTypewriter';
 export default function LandingPage() {
   const [question, setQuestion] = useState('');
   const [isFocused, setIsFocused] = useState(false);
+  const [currentFeatureIndex, setCurrentFeatureIndex] = useState(0);
   const navigate = useNavigate();
+
+  // Features to cycle through - expanded list from /features page
+  const features = useMemo(() => [
+    'Jämför 5 AI-modeller samtidigt',
+    'Automatisk bias-detektion',
+    'Faktakontroll med Tavily',
+    'Full transparens i processen',
+    'Konsensus live-debatt mellan AI-modeller',
+    'Transparent pipeline-analys',
+    'Auditlogg och spårbarhet',
+    'Model förklarbarhet med SHAP & LIME',
+    'Rättvise- och bias-analys',
+    'Python ML-verktyg (Detoxify, BERT, spaCy)',
+    'Sentiment och tonanalys',
+    'Ideologisk klassificering',
+    'Toxicitetsdetektering',
+    'Data quality reports'
+  ], []);
+
+  // Cycle through features slowly, one at a time (4 seconds per feature)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentFeatureIndex((prevIndex) => (prevIndex + 1) % features.length);
+    }, 4000); // Slower: 4 seconds per feature
+    
+    return () => clearInterval(interval);
+  }, [features.length]);
 
   // Sample questions for typewriter animation - memoized to prevent recreating on every render
   const sampleQuestions = useMemo(() => [
@@ -94,20 +122,51 @@ export default function LandingPage() {
             Beslut med insyn. AI med ansvar.<br />
             Jämför AI-modeller och få en balanserad bild.
           </p>
-          <ul className="space-y-0">
-            <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
-              ✓ Jämför 5 AI-modeller samtidigt
-            </li>
-            <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
-              ✓ Automatisk bias-detektion
-            </li>
-            <li className="py-4 border-b border-[#151515] text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
-              ✓ Faktakontroll med Tavily
-            </li>
-            <li className="py-4 text-[#666] text-sm transition-colors duration-200 hover:text-[#e7e7e7]">
-              ✓ Full transparens i processen
-            </li>
-          </ul>
+          <div className="relative overflow-hidden" style={{ minHeight: '180px' }}>
+            <style>{`
+              @keyframes smoothSlideIn {
+                0% {
+                  opacity: 0;
+                  transform: translateY(10px);
+                }
+                10%, 90% {
+                  opacity: 1;
+                  transform: translateY(0);
+                }
+                100% {
+                  opacity: 0;
+                  transform: translateY(-10px);
+                }
+              }
+              
+              .rotating-feature-list {
+                position: relative;
+              }
+              
+              .rotating-feature-item {
+                animation: smoothSlideIn 4000ms ease-in-out infinite;
+              }
+              
+              @media (prefers-reduced-motion: reduce) {
+                .rotating-feature-item {
+                  animation: none;
+                  opacity: 1;
+                  transform: none;
+                }
+              }
+            `}</style>
+            <ul className="space-y-0 rotating-feature-list">
+              {[0, 1, 2, 3].map((offset) => {
+                const index = (currentFeatureIndex + offset) % features.length;
+                return (
+                  <li key={`feature-${index}`} className="py-4 border-b border-[#151515] text-[#666] text-sm flex items-start">
+                    <span className="mr-2 flex-shrink-0">✓</span>
+                    <span className="flex-1">{features[index]}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         </div>
 
         {/* Right Side - Search Interface */}

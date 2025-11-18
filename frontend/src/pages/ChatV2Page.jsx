@@ -238,7 +238,7 @@ export default function ChatV2Page() {
   // Overview mode: BERT summary + model synthesis + quick model table
   const renderOverview = () => {
     return (
-      <div className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24">
+      <div className="flex-1 overflow-y-auto pb-40 px-4 md:px-8 pt-24">
         {/* User Question */}
         <div className="max-w-4xl mx-auto mb-8">
           <div className="text-[#666] text-sm uppercase tracking-wide mb-2">DIN FRÅGA</div>
@@ -544,7 +544,7 @@ export default function ChatV2Page() {
   // Models mode: Full responses with complete analysis
   const renderModels = () => {
     return (
-      <div className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24">
+      <div className="flex-1 overflow-y-auto pb-40 px-4 md:px-8 pt-24">
         <div className="max-w-4xl mx-auto">
           <div className="text-[#666] text-sm uppercase tracking-wide mb-6">DETALJERADE MODELLSVAR</div>
           
@@ -713,7 +713,7 @@ export default function ChatV2Page() {
     const selectedResponse = latestAiMessage.responses?.find(r => r.agent === selectedModel) || latestAiMessage.responses?.[0];
     
     return (
-      <div className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24">
+      <div className="flex-1 overflow-y-auto pb-40 px-4 md:px-8 pt-24">
         <div className="max-w-4xl mx-auto">
           {/* Model Selector */}
           <div className="mb-6">
@@ -940,7 +940,7 @@ export default function ChatV2Page() {
       : `q-${Date.now()}`;
 
     return (
-      <div className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24">
+      <div className="flex-1 overflow-y-auto pb-40 px-4 md:px-8 pt-24">
         <div className="max-w-4xl mx-auto">
           <div className="text-[#666] text-sm uppercase tracking-wide mb-6">LIVE KONSENSUS-DEBATT</div>
           
@@ -968,11 +968,48 @@ export default function ChatV2Page() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] flex flex-col">
-      {/* CSS for spinner animation */}
+      {/* CSS for animations */}
       <style>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes slideInRight {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+        
+        .animate-slide-in-right {
+          animation: slideInRight 300ms ease-out;
+        }
+        
+        .animate-fade-in {
+          animation: fadeIn 300ms ease-in-out;
+        }
+        
+        @media (prefers-reduced-motion: reduce) {
+          .animate-slide-in-right,
+          .animate-fade-in {
+            animation: none;
+            opacity: 1;
+            transform: none;
+          }
         }
       `}</style>
       
@@ -1069,12 +1106,12 @@ export default function ChatV2Page() {
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-black/50 z-40"
+            className="fixed inset-0 bg-black/50 z-40 animate-fade-in"
             onClick={() => setSidebarOpen(false)}
           ></div>
           
           {/* Sidebar */}
-          <div className="fixed top-0 right-0 bottom-0 w-80 bg-[#0a0a0a] border-l border-[#151515] z-50 flex flex-col">
+          <div className="fixed top-0 right-0 bottom-0 w-80 bg-[#0a0a0a] border-l border-[#151515] z-50 flex flex-col animate-slide-in-right">
             {/* Header */}
             <div className="p-6 border-b border-[#151515] flex items-center justify-between">
               <div className="font-medium text-[#e7e7e7]">Meny</div>
@@ -1124,7 +1161,7 @@ export default function ChatV2Page() {
       )}
 
       {/* Footer Navigation */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-[#0a0a0a] border-t border-[#151515] z-20 pb-24">
+      <footer className="fixed bottom-0 left-0 right-0 bg-[#0a0a0a] border-t border-[#151515] z-20">
         <div className="max-w-4xl mx-auto px-4 md:px-8 py-4">
           <div className="flex flex-wrap gap-4 text-sm text-[#666]">
             <a href="/about" className="hover:text-[#e7e7e7] transition-colors">Om OneSeek.AI</a>
