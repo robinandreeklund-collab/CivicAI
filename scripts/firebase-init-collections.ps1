@@ -2,7 +2,7 @@
 # Creates all required collections with initial documents for CivicAI
 
 # Set error action preference
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 
 Write-Host "🔥 Firebase Firestore Collections Setup" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
@@ -10,10 +10,11 @@ Write-Host ""
 
 # Check if Firebase CLI is installed
 Write-Host "Checking Firebase CLI..." -ForegroundColor Yellow
-try {
-    $firebaseVersion = firebase --version 2>$null
+$firebaseCheck = Get-Command firebase -ErrorAction SilentlyContinue
+if ($firebaseCheck) {
+    $firebaseVersion = & firebase --version 2>&1
     Write-Host "✓ Firebase CLI found: $firebaseVersion" -ForegroundColor Green
-} catch {
+} else {
     Write-Host "❌ Firebase CLI not found!" -ForegroundColor Red
     Write-Host "Install it with: npm install -g firebase-tools" -ForegroundColor Yellow
     exit 1
@@ -22,12 +23,12 @@ Write-Host ""
 
 # Check if user is logged in
 Write-Host "Checking Firebase login..." -ForegroundColor Yellow
-try {
-    firebase projects:list 2>$null | Out-Null
-    Write-Host "✓ Logged in to Firebase" -ForegroundColor Green
-} catch {
+$loginCheck = & firebase projects:list 2>&1
+if ($LASTEXITCODE -ne 0) {
     Write-Host "🔐 Please login to Firebase..." -ForegroundColor Yellow
-    firebase login
+    & firebase login
+} else {
+    Write-Host "✓ Logged in to Firebase" -ForegroundColor Green
 }
 Write-Host ""
 
@@ -235,11 +236,11 @@ $nodeScript | Out-File -FilePath $tempScriptPath -Encoding UTF8
 
 # Check if firebase-admin is installed
 Write-Host "📦 Checking firebase-admin package..." -ForegroundColor Yellow
-try {
-    node -e "require('firebase-admin')" 2>$null
+$adminCheck = & node -e "require('firebase-admin')" 2>&1
+if ($LASTEXITCODE -eq 0) {
     Write-Host "✓ firebase-admin already installed" -ForegroundColor Green
     Write-Host ""
-} catch {
+} else {
     Write-Host "⚠️  firebase-admin not found" -ForegroundColor Yellow
     Write-Host "Installing firebase-admin temporarily..." -ForegroundColor Yellow
     Write-Host ""
@@ -261,12 +262,12 @@ try {
     $packageJson | Out-File -FilePath "package.json" -Encoding UTF8
     
     # Install
-    try {
-        npm install
+    & npm install
+    if ($LASTEXITCODE -eq 0) {
         Write-Host ""
         Write-Host "✓ firebase-admin installed successfully" -ForegroundColor Green
         Write-Host ""
-    } catch {
+    } else {
         Write-Host ""
         Write-Host "❌ Failed to install firebase-admin" -ForegroundColor Red
         Write-Host ""
