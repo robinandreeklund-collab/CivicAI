@@ -459,6 +459,170 @@ export async function enhancedSentiment(text) {
 }
 
 /**
+ * Explain predictions using SHAP (SHapley Additive exPlanations)
+ */
+export async function explainWithSHAP(text, model = 'sentiment') {
+  try {
+    const response = await axios.post(`${PYTHON_SERVICE_URL}/explain-shap`, { 
+      text,
+      model 
+    }, { timeout: 15000 });
+    console.log('✓ Using Python SHAP for explainability');
+    return {
+      success: true,
+      data: response.data,
+      usingPython: true,
+    };
+  } catch (error) {
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      console.log('✗ Python service not reachable - SHAP unavailable');
+      return {
+        success: false,
+        fallback: true,
+        error: 'Python service not reachable',
+      };
+    }
+    if (error.response?.status === 503) {
+      console.log('✗ SHAP not available in Python service');
+      return {
+        success: false,
+        fallback: true,
+        error: 'SHAP not available',
+      };
+    }
+    console.error('Error calling Python SHAP:', error.message);
+    return {
+      success: false,
+      fallback: true,
+      error: error.message,
+    };
+  }
+}
+
+/**
+ * Explain predictions using LIME (Local Interpretable Model-agnostic Explanations)
+ */
+export async function explainWithLIME(text, model = 'sentiment') {
+  try {
+    const response = await axios.post(`${PYTHON_SERVICE_URL}/explain-lime`, { 
+      text,
+      model 
+    }, { timeout: 15000 });
+    console.log('✓ Using Python LIME for explainability');
+    return {
+      success: true,
+      data: response.data,
+      usingPython: true,
+    };
+  } catch (error) {
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      console.log('✗ Python service not reachable - LIME unavailable');
+      return {
+        success: false,
+        fallback: true,
+        error: 'Python service not reachable',
+      };
+    }
+    if (error.response?.status === 503) {
+      console.log('✗ LIME not available in Python service');
+      return {
+        success: false,
+        fallback: true,
+        error: 'LIME not available',
+      };
+    }
+    console.error('Error calling Python LIME:', error.message);
+    return {
+      success: false,
+      fallback: true,
+      error: error.message,
+    };
+  }
+}
+
+/**
+ * Perform topic modeling using Gensim LDA
+ */
+export async function topicModelingWithGensim(texts) {
+  try {
+    const response = await axios.post(`${PYTHON_SERVICE_URL}/topic-modeling`, { 
+      texts,
+      method: 'gensim' 
+    }, { timeout: 20000 });
+    console.log('✓ Using Python Gensim for topic modeling');
+    return {
+      success: true,
+      data: response.data,
+      usingPython: true,
+    };
+  } catch (error) {
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      console.log('✗ Python service not reachable - Gensim unavailable');
+      return {
+        success: false,
+        fallback: true,
+        error: 'Python service not reachable',
+      };
+    }
+    if (error.response?.status === 503) {
+      console.log('✗ Gensim not available in Python service');
+      return {
+        success: false,
+        fallback: true,
+        error: 'Gensim not available',
+      };
+    }
+    console.error('Error calling Python Gensim:', error.message);
+    return {
+      success: false,
+      fallback: true,
+      error: error.message,
+    };
+  }
+}
+
+/**
+ * Analyze fairness metrics using Fairlearn
+ */
+export async function analyzeFairness(predictions, sensitive_features) {
+  try {
+    const response = await axios.post(`${PYTHON_SERVICE_URL}/fairness-metrics`, { 
+      predictions,
+      sensitive_features 
+    }, { timeout: 10000 });
+    console.log('✓ Using Python Fairlearn for fairness analysis');
+    return {
+      success: true,
+      data: response.data,
+      usingPython: true,
+    };
+  } catch (error) {
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      console.log('✗ Python service not reachable - Fairlearn unavailable');
+      return {
+        success: false,
+        fallback: true,
+        error: 'Python service not reachable',
+      };
+    }
+    if (error.response?.status === 503) {
+      console.log('✗ Fairlearn not available in Python service');
+      return {
+        success: false,
+        fallback: true,
+        error: 'Fairlearn not available',
+      };
+    }
+    console.error('Error calling Python Fairlearn:', error.message);
+    return {
+      success: false,
+      fallback: true,
+      error: error.message,
+    };
+  }
+}
+
+/**
  * Check Python service status and log capabilities
  */
 export async function logPythonServiceStatus() {
@@ -494,10 +658,14 @@ export default {
   detectToxicityWithDetoxify,
   classifyIdeologyWithTransformers,
   topicModelingWithBERTopic,
+  topicModelingWithGensim,
   analyzeSemanticSimilarity,
   runCompletePythonPipeline,
   enhancedPreprocess,
   enhancedSentiment,
   logPythonServiceStatus,
   checkPythonML,
+  explainWithSHAP,
+  explainWithLIME,
+  analyzeFairness,
 };

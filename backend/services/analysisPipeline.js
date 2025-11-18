@@ -42,17 +42,35 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
   const pipelineStartTime = Date.now();
   const timeline = [];
   
+  // Log Pipeline Structure
+  console.log('\n╔══════════════════════════════════════════════════════════════╗');
+  console.log('║          🔬 OPENSEEK ML ANALYSIS PIPELINE v1.3.0            ║');
+  console.log('╚══════════════════════════════════════════════════════════════╝');
+  console.log('\n📋 Pipeline Steps:');
+  console.log('  1️⃣  Ingestion & Language Detection');
+  console.log('  2️⃣  Preprocessing (spaCy, TextBlob)');
+  console.log('  3️⃣  Toxicity & Safety (Detoxify)');
+  console.log('  4️⃣  Transformer Models (Sentiment, Ideology)');
+  console.log('  5️⃣  Explainability (SHAP, LIME)');
+  console.log('  6️⃣  Topic Modeling (Gensim LDA)');
+  console.log('  7️⃣  Fairness & Bias (Fairlearn)');
+  console.log('  8️⃣  Enhanced NLP Analysis');
+  console.log('  9️⃣  Tone & Fact Checking');
+  console.log('  🔟  Synthesis & Ledger Integration\n');
+  
   // Check Python service availability at the start
   console.log('🔬 Starting analysis pipeline...');
   const pythonServiceAvailable = await pythonNLP.isPythonServiceAvailable();
   if (pythonServiceAvailable) {
-    console.log('✓ Python NLP service is available - will use Python ML libraries');
+    console.log('✅ Python NLP service is available - will use Python ML libraries');
     const models = await pythonNLP.getAvailableModels();
-    console.log('  Available Python models:', Object.keys(models).filter(k => models[k]).join(', '));
+    const availableModels = Object.keys(models).filter(k => models[k]);
+    console.log(`📦 Available Python models (${availableModels.length}):`, availableModels.join(', '));
   } else {
-    console.log('✗ Python NLP service is NOT available - will use JavaScript fallbacks');
-    console.log('  To enable Python ML: cd backend/python_services && python nlp_pipeline.py');
+    console.log('⚠️  Python NLP service is NOT available - will use JavaScript fallbacks');
+    console.log('   To enable Python ML: cd backend/python_services && python nlp_pipeline.py');
   }
+  console.log('');
   
   // Helper function to track each step (synchronous)
   const trackStep = (stepName, stepFunction, isComplement = false, ...args) => {
@@ -112,12 +130,33 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     return result;
   };
 
-  console.log(`🔬 Starting analysis pipeline for text (${text.length} characters)`);
+  console.log(`🔬 Analyzing text (${text.length} characters)...\n`);
 
-  // Step 1: Enhanced Text Preprocessing with Python ML tools
-  console.log('📝 Step 1: Text Preprocessing with Python ML...');
+  // ═══════════════════════════════════════════════════════════
+  // STEP 1: INGESTION & LANGUAGE DETECTION
+  // ═══════════════════════════════════════════════════════════
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('1️⃣  STEP 1: Ingestion & Language Detection');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   
-  // 1a: Try spaCy preprocessing
+  // 1a: Language detection with langdetect
+  const langDetectResult = await trackAsyncStep(
+    'langdetect_language',
+    pythonNLP.detectLanguageWithPolyglot,
+    text
+  );
+  
+  const detectedLanguage = langDetectResult.success ? langDetectResult.data.language : 'unknown';
+  console.log(`   Language: ${detectedLanguage} ${langDetectResult.success ? '✅' : '⚠️'}`);
+
+  // ═══════════════════════════════════════════════════════════
+  // STEP 2: PREPROCESSING
+  // ═══════════════════════════════════════════════════════════
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('2️⃣  STEP 2: Preprocessing (spaCy, TextBlob)');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  
+  // 2a: Try spaCy preprocessing
   const spacyResult = await trackAsyncStep(
     'spacy_preprocessing',
     pythonNLP.preprocessWithSpacy,
@@ -128,13 +167,6 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
   const textBlobResult = await trackAsyncStep(
     'textblob_subjectivity',
     pythonNLP.analyzeSentimentWithTextBlob,
-    text
-  );
-  
-  // 1c: Language detection with langdetect
-  const langDetectResult = await trackAsyncStep(
-    'langdetect_language',
-    pythonNLP.detectLanguageWithPolyglot,
     text
   );
   
@@ -157,8 +189,12 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     preprocessing.langdetect = langDetectResult.data;
   }
 
-  // Step 2: Bias Detection with Detoxify (Enhanced)
-  console.log('🎯 Step 2: Bias Detection with Detoxify...');
+  // ═══════════════════════════════════════════════════════════
+  // STEP 3: TOXICITY & SAFETY
+  // ═══════════════════════════════════════════════════════════
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('3️⃣  STEP 3: Toxicity & Safety Analysis (Detoxify)');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   
   // 2a: Try Detoxify for toxicity detection
   const detoxifyResult = await trackAsyncStep(
@@ -193,8 +229,14 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     method: 'Per-sentence bias detection',
   });
 
+  // ═══════════════════════════════════════════════════════════
+  // STEP 4: TRANSFORMER MODELS (Sentiment, Ideology)
+  // ═══════════════════════════════════════════════════════════
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('4️⃣  STEP 4: Transformer Models (HuggingFace)');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  
   // Step 3: Sentiment Analysis (VADER + TextBlob extras)
-  console.log('💭 Step 3: Sentiment Analysis...');
   const sentimentAnalysis = trackStep(
     'sentiment_analysis_javascript',
     performCompleteSentimentAnalysis,
@@ -203,7 +245,6 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
   );
 
   // Step 4: Ideological Classification with Swedish BERT
-  console.log('🏛️ Step 4: Ideological Classification with Swedish BERT...');
   
   // 4a: Try Transformers (Swedish BERT) for ideology
   const transformersResult = await trackAsyncStep(
@@ -259,6 +300,52 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     );
   }
 
+  // Step 8: Explainability (SHAP + LIME)
+  console.log('🔍 Step 8: Explainability Analysis (SHAP + LIME)...');
+  const shapResult = await trackAsyncStep(
+    'shap_explainability',
+    pythonNLP.explainWithSHAP,
+    text,
+    'sentiment'
+  );
+  
+  const limeResult = await trackAsyncStep(
+    'lime_explainability',
+    pythonNLP.explainWithLIME,
+    text,
+    'sentiment'
+  );
+
+  const explainability = {
+    shap: shapResult.success ? shapResult.data : null,
+    lime: limeResult.success ? limeResult.data : null,
+  };
+
+  // Step 9: Topic Modeling (Gensim)
+  console.log('📚 Step 9: Topic Modeling (Gensim LDA)...');
+  const topicResult = await trackAsyncStep(
+    'gensim_topic_modeling',
+    pythonNLP.topicModelingWithGensim,
+    [text]
+  );
+
+  const topics = topicResult.success ? topicResult.data : null;
+
+  // Step 10: Fairness Analysis
+  console.log('⚖️ Step 10: Fairness & Bias Analysis (Fairlearn)...');
+  // For fairness, we need predictions and sensitive features
+  // This is a placeholder - in real use, you'd have actual predictions
+  let fairnessAnalysis = null;
+  if (ideologicalClassification && ideologicalClassification.prediction) {
+    const fairnessResult = await trackAsyncStep(
+      'fairlearn_fairness',
+      pythonNLP.analyzeFairness,
+      { ideology: ideologicalClassification.prediction },
+      { language: preprocessing.language || 'unknown' }
+    );
+    fairnessAnalysis = fairnessResult.success ? fairnessResult.data : null;
+  }
+
   const pipelineEndTime = Date.now();
 
   // Log detailed timeline summary
@@ -305,6 +392,9 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     toneAnalysis,
     factCheck,
     enhancedNLP,
+    explainability,
+    topics,
+    fairnessAnalysis,
   });
 
   // Generate summary
@@ -315,6 +405,9 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     ideologicalClassification,
     toneAnalysis,
     factCheck,
+    explainability,
+    topics,
+    fairnessAnalysis,
   });
 
   console.log(`✅ Pipeline completed in ${pipelineEndTime - pipelineStartTime}ms`);
@@ -342,6 +435,9 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
     toneAnalysis,
     factCheck,
     enhancedNLP,
+    explainability,
+    topics,
+    fairnessAnalysis,
     
     // Aggregated data
     insights,
