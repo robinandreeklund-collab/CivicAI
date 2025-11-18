@@ -11,6 +11,8 @@ import analysisPipelineRouter from './api/analysis_pipeline.js';
 import debateRouter from './api/debate.js';
 import changeDetectionRouter from './api/change_detection.js';
 import ingestRouter from './routes/ingest.js';
+import mlRouter from './api/ml.js';
+import factCheckRouter from './api/factcheck.js';
 import { logPythonServiceStatus } from './services/pythonNLPClient.js';
 import { getCachedPythonStatus } from './services/healthCache.js';
 
@@ -33,6 +35,8 @@ app.use('/api/analysis-pipeline', analysisPipelineRouter);
 app.use('/api/debate', debateRouter);
 app.use('/api/change-detection', changeDetectionRouter);
 app.use('/api/ingest', ingestRouter);
+app.use('/api/ml', mlRouter);
+app.use('/api/fact-check', factCheckRouter);
 
 // Health check endpoint with service status
 app.get('/api/health', async (req, res) => {
@@ -51,6 +55,17 @@ app.get('/api/health', async (req, res) => {
           lastSuccessful: pythonStatus.lastSuccessful,
           available_models: pythonStatus.available_models,
           error: pythonStatus.error || null,
+        },
+        'ml-endpoints': { 
+          status: 'up', 
+          description: 'ML API Endpoints (SHAP, LIME, Toxicity, Topics, Fairness)',
+          endpoints: ['/api/ml/shap', '/api/ml/lime', '/api/ml/toxicity', '/api/ml/topics', '/api/ml/fairness']
+        },
+        'fact-check': { 
+          status: process.env.TAVILY_API_KEY ? 'up' : 'configured',
+          description: 'Fact Checking Service (Tavily)',
+          endpoints: ['/api/fact-check/verify', '/api/fact-check/sources'],
+          configured: !!process.env.TAVILY_API_KEY
         },
         'change-detection': { status: 'up', description: 'Change Detection Service' },
         'ledger': { status: 'up', description: 'Transparency Ledger' },
