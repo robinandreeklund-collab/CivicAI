@@ -82,6 +82,80 @@ export default function ChatV2Page() {
 
           const data = await response.json();
           
+          // Fetch ML analysis data from new endpoints (parallel requests for performance)
+          const synthesizedText = data.synthesizedSummary || '';
+          const mlDataPromises = [];
+          
+          // Only fetch ML data if we have text to analyze
+          if (synthesizedText) {
+            // SHAP explainability
+            mlDataPromises.push(
+              fetch('/api/ml/shap', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ text: synthesizedText, model: 'sentiment' })
+              }).then(r => r.ok ? r.json() : null).catch(() => null)
+            );
+            
+            // LIME explainability
+            mlDataPromises.push(
+              fetch('/api/ml/lime', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ text: synthesizedText, model: 'sentiment', num_features: 10 })
+              }).then(r => r.ok ? r.json() : null).catch(() => null)
+            );
+            
+            // Toxicity analysis
+            mlDataPromises.push(
+              fetch('/api/ml/toxicity', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ text: synthesizedText })
+              }).then(r => r.ok ? r.json() : null).catch(() => null)
+            );
+            
+            // Topic modeling (both BERTopic and Gensim)
+            mlDataPromises.push(
+              fetch('/api/ml/topics', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ text: synthesizedText, method: 'both', num_topics: 5 })
+              }).then(r => r.ok ? r.json() : null).catch(() => null)
+            );
+            
+            // Fairness analysis (requires predictions data - use placeholder for now)
+            mlDataPromises.push(
+              fetch('/api/ml/fairness', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ 
+                  predictions: [0, 1, 0, 1], 
+                  true_labels: [0, 1, 1, 0],
+                  sensitive_features: [0, 0, 1, 1],
+                  feature_names: ['group_a', 'group_b']
+                })
+              }).then(r => r.ok ? r.json() : null).catch(() => null)
+            );
+          } else {
+            // Push null promises if no text
+            mlDataPromises.push(...Array(5).fill(Promise.resolve(null)));
+          }
+          
+          // Wait for all ML data requests (with timeout)
+          const [shapData, limeData, toxicityData, topicsData, fairnessData] = await Promise.all(
+            mlDataPromises.map(p => Promise.race([p, new Promise(resolve => setTimeout(() => resolve(null), 5000))]))
+          );
+          
+          // Combine SHAP and LIME into explainability object
+          const explainability = {};
+          if (shapData && shapData.topFeatures) {
+            explainability.shap = shapData;
+          }
+          if (limeData && limeData.weights) {
+            explainability.lime = limeData;
+          }
+          
           // Add AI response - map API response to our structure
           const aiMessage = {
             type: 'ai',
@@ -97,6 +171,11 @@ export default function ChatV2Page() {
             debateTrigger: data.debateTrigger || false,
             // Change detection data from backend
             changeDetection: data.change_detection || null,
+            // ML analysis data from new endpoints
+            explainability: Object.keys(explainability).length > 0 ? explainability : null,
+            toxicity: toxicityData,
+            topics: topicsData,
+            fairness: fairnessData,
             timestamp: new Date().toISOString(),
           };
           
@@ -171,6 +250,80 @@ export default function ChatV2Page() {
 
       const data = await response.json();
       
+      // Fetch ML analysis data from new endpoints (parallel requests for performance)
+      const synthesizedText = data.synthesizedSummary || '';
+      const mlDataPromises = [];
+      
+      // Only fetch ML data if we have text to analyze
+      if (synthesizedText) {
+        // SHAP explainability
+        mlDataPromises.push(
+          fetch('/api/ml/shap', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ text: synthesizedText, model: 'sentiment' })
+          }).then(r => r.ok ? r.json() : null).catch(() => null)
+        );
+        
+        // LIME explainability
+        mlDataPromises.push(
+          fetch('/api/ml/lime', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ text: synthesizedText, model: 'sentiment', num_features: 10 })
+          }).then(r => r.ok ? r.json() : null).catch(() => null)
+        );
+        
+        // Toxicity analysis
+        mlDataPromises.push(
+          fetch('/api/ml/toxicity', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ text: synthesizedText })
+          }).then(r => r.ok ? r.json() : null).catch(() => null)
+        );
+        
+        // Topic modeling (both BERTopic and Gensim)
+        mlDataPromises.push(
+          fetch('/api/ml/topics', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ text: synthesizedText, method: 'both', num_topics: 5 })
+          }).then(r => r.ok ? r.json() : null).catch(() => null)
+        );
+        
+        // Fairness analysis (requires predictions data - use placeholder for now)
+        mlDataPromises.push(
+          fetch('/api/ml/fairness', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+              predictions: [0, 1, 0, 1], 
+              true_labels: [0, 1, 1, 0],
+              sensitive_features: [0, 0, 1, 1],
+              feature_names: ['group_a', 'group_b']
+            })
+          }).then(r => r.ok ? r.json() : null).catch(() => null)
+        );
+      } else {
+        // Push null promises if no text
+        mlDataPromises.push(...Array(5).fill(Promise.resolve(null)));
+      }
+      
+      // Wait for all ML data requests (with timeout)
+      const [shapData, limeData, toxicityData, topicsData, fairnessData] = await Promise.all(
+        mlDataPromises.map(p => Promise.race([p, new Promise(resolve => setTimeout(() => resolve(null), 5000))]))
+      );
+      
+      // Combine SHAP and LIME into explainability object
+      const explainability = {};
+      if (shapData && shapData.topFeatures) {
+        explainability.shap = shapData;
+      }
+      if (limeData && limeData.weights) {
+        explainability.lime = limeData;
+      }
+      
       // Add AI response - map API response to our structure
       const aiMessage = {
         type: 'ai',
@@ -186,6 +339,11 @@ export default function ChatV2Page() {
         debateTrigger: data.debateTrigger || false,
         // Change detection data from backend
         changeDetection: data.change_detection || null,
+        // ML analysis data from new endpoints
+        explainability: Object.keys(explainability).length > 0 ? explainability : null,
+        toxicity: toxicityData,
+        topics: topicsData,
+        fairness: fairnessData,
         timestamp: new Date().toISOString(),
       };
       
