@@ -64,7 +64,31 @@ export default function ChatV2Page() {
         setIsLoading(true);
 
         try {
-          // Call real backend API
+          // Step 1: Store question in Firebase (if available)
+          let firebaseDocId = null;
+          try {
+            const firebaseResponse = await fetch('/api/firebase/questions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                question: userQuestion,
+                userId: 'anonymous',
+                sessionId: `session-${Date.now()}`
+              })
+            });
+            
+            if (firebaseResponse.ok) {
+              const firebaseData = await firebaseResponse.json();
+              if (firebaseData.success) {
+                firebaseDocId = firebaseData.docId;
+                console.log('[ChatV2] Initial question stored in Firebase:', firebaseDocId);
+              }
+            }
+          } catch (firebaseError) {
+            console.warn('[ChatV2] Firebase storage failed (continuing):', firebaseError.message);
+          }
+
+          // Step 2: Call real backend API
           const response = await fetch('/api/query', {
             method: 'POST',
             headers: {
@@ -72,7 +96,8 @@ export default function ChatV2Page() {
             },
             body: JSON.stringify({ 
               question: userQuestion,
-              services: ['gpt-3.5', 'gemini', 'deepseek'] // Default services
+              services: ['gpt-3.5', 'gemini', 'deepseek'], // Default services
+              firebaseDocId
             }),
           });
 
@@ -232,7 +257,32 @@ export default function ChatV2Page() {
     setIsLoading(true);
 
     try {
-      // Call real backend API
+      // Step 1: Store question in Firebase (if available)
+      let firebaseDocId = null;
+      try {
+        const firebaseResponse = await fetch('/api/firebase/questions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: userQuestion,
+            userId: 'anonymous', // TODO: Replace with actual user ID when auth is implemented
+            sessionId: `session-${Date.now()}`
+          })
+        });
+        
+        if (firebaseResponse.ok) {
+          const firebaseData = await firebaseResponse.json();
+          if (firebaseData.success) {
+            firebaseDocId = firebaseData.docId;
+            console.log('[ChatV2] Question stored in Firebase:', firebaseDocId);
+          }
+        }
+      } catch (firebaseError) {
+        // Firebase is optional, continue even if it fails
+        console.warn('[ChatV2] Firebase storage failed (continuing):', firebaseError.message);
+      }
+
+      // Step 2: Call real backend API for processing
       const response = await fetch('/api/query', {
         method: 'POST',
         headers: {
@@ -240,7 +290,8 @@ export default function ChatV2Page() {
         },
         body: JSON.stringify({ 
           question: userQuestion,
-          services: ['gpt-3.5', 'gemini', 'deepseek'] // Default services
+          services: ['gpt-3.5', 'gemini', 'deepseek'], // Default services
+          firebaseDocId // Include Firebase doc ID for status tracking
         }),
       });
 
