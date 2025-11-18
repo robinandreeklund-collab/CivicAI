@@ -24,20 +24,17 @@ Write-Host ""
 
 # Step 2: Check Firebase login
 Write-Host "[2/6] Checking Firebase login..." -ForegroundColor Yellow
-$loginCheck = firebase projects:list 2>&1 | Out-String
 
-if ($loginCheck -match "Error") {
-    Write-Host "  ERROR: Not logged in to Firebase" -ForegroundColor Red
-    Write-Host "  Run: firebase login" -ForegroundColor Yellow
-    Write-Host ""
-    exit 1
-}
+# Try to get the current user
+$currentUser = firebase auth:export --help 2>&1 | Out-String
 
-Write-Host "  OK: Logged in" -ForegroundColor Green
+# Alternative: Just skip this check since user can verify manually
+# The service account key is what actually matters
+Write-Host "  Skipping login check - using service account key instead" -ForegroundColor Gray
 Write-Host ""
 
-# Step 3: Get service account key
-Write-Host "[3/6] Service Account Key" -ForegroundColor Yellow
+# Step 2: Get service account key
+Write-Host "[2/5] Service Account Key" -ForegroundColor Yellow
 
 if (-not $env:GOOGLE_APPLICATION_CREDENTIALS) {
     Write-Host "  Enter path to service account JSON key:" -ForegroundColor Cyan
@@ -59,8 +56,8 @@ else {
 
 Write-Host ""
 
-# Step 4: Get Project ID
-Write-Host "[4/6] Firebase Project ID" -ForegroundColor Yellow
+# Step 3: Get Project ID
+Write-Host "[3/5] Firebase Project ID" -ForegroundColor Yellow
 Write-Host "  Enter your Firebase Project ID:" -ForegroundColor Cyan
 Write-Host "  (Find it at: Firebase Console > Project Settings)" -ForegroundColor Gray
 $projectId = Read-Host "  Project ID"
@@ -74,8 +71,8 @@ if (-not $projectId) {
 Write-Host "  OK: Using project $projectId" -ForegroundColor Green
 Write-Host ""
 
-# Step 5: Install firebase-admin
-Write-Host "[5/6] Installing firebase-admin..." -ForegroundColor Yellow
+# Step 4: Install firebase-admin
+Write-Host "[4/5] Installing firebase-admin..." -ForegroundColor Yellow
 
 # Create temp directory
 $tempDir = Join-Path $env:TEMP "firebase-setup-$(Get-Date -Format 'yyyyMMddHHmmss')"
@@ -109,8 +106,8 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "  OK: firebase-admin installed" -ForegroundColor Green
 Write-Host ""
 
-# Step 6: Create collections
-Write-Host "[6/6] Creating collections..." -ForegroundColor Yellow
+# Step 5: Create collections
+Write-Host "[5/5] Creating collections..." -ForegroundColor Yellow
 
 # Create Node.js script
 $nodeScript = @'

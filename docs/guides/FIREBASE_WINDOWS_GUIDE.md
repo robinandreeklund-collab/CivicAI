@@ -84,13 +84,15 @@ npm install -g firebase-tools
 firebase --version
 ```
 
-### Logga in på Firebase
+### Logga in på Firebase (Valfritt)
 
 ```powershell
 firebase login
 ```
 
 Detta öppnar en webbläsare där du loggar in med ditt Google-konto.
+
+> **📝 Obs:** Firebase CLI-inloggning är inte strikt nödvändig för collection setup eftersom scriptet använder service account key direkt. Men det kan vara användbart för andra Firebase-kommandon.
 
 ---
 
