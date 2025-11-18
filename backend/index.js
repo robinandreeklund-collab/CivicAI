@@ -13,8 +13,10 @@ import changeDetectionRouter from './api/change_detection.js';
 import ingestRouter from './routes/ingest.js';
 import mlRouter from './api/ml.js';
 import factCheckRouter from './api/factcheck.js';
+import firebaseRouter from './api/firebase.js';
 import { logPythonServiceStatus } from './services/pythonNLPClient.js';
 import { getCachedPythonStatus } from './services/healthCache.js';
+import { isFirebaseAvailable } from './services/firebaseService.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -37,6 +39,7 @@ app.use('/api/change-detection', changeDetectionRouter);
 app.use('/api/ingest', ingestRouter);
 app.use('/api/ml', mlRouter);
 app.use('/api/fact-check', factCheckRouter);
+app.use('/api/firebase', firebaseRouter);
 
 // Health check endpoint with service status
 app.get('/api/health', async (req, res) => {
@@ -70,6 +73,12 @@ app.get('/api/health', async (req, res) => {
         'change-detection': { status: 'up', description: 'Change Detection Service' },
         'ledger': { status: 'up', description: 'Transparency Ledger' },
         'audit': { status: 'up', description: 'Audit Trail Service' },
+        'firebase': { 
+          status: isFirebaseAvailable() ? 'up' : 'not_configured',
+          description: 'Firebase Firestore Integration',
+          endpoints: ['/api/firebase/questions', '/api/firebase/status'],
+          configured: isFirebaseAvailable()
+        },
       },
       timestamp: new Date().toISOString()
     });
