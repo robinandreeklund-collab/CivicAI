@@ -33,7 +33,45 @@ app.use('/api/debate', debateRouter);
 app.use('/api/change-detection', changeDetectionRouter);
 app.use('/api/ingest', ingestRouter);
 
-// Health check endpoint
+// Health check endpoint with service status
+app.get('/api/health', async (req, res) => {
+  try {
+    const { checkPythonML } = await import('./services/pythonNLPClient.js');
+    
+    // Check Python ML service
+    const pythonMLStatus = await checkPythonML();
+    
+    res.json({ 
+      status: 'ok',
+      services: {
+        'query': { status: 'up', description: 'AI Query Service' },
+        'python-ml': { 
+          status: pythonMLStatus ? 'up' : 'down',
+          description: 'Python ML Pipeline Service'
+        },
+        'change-detection': { status: 'up', description: 'Change Detection Service' },
+        'ledger': { status: 'up', description: 'Transparency Ledger' },
+        'audit': { status: 'up', description: 'Audit Trail Service' },
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Health check error:', error);
+    res.json({
+      status: 'partial',
+      services: {
+        'query': { status: 'up', description: 'AI Query Service' },
+        'python-ml': { status: 'unknown', description: 'Python ML Pipeline Service' },
+        'change-detection': { status: 'up', description: 'Change Detection Service' },
+        'ledger': { status: 'up', description: 'Transparency Ledger' },
+        'audit': { status: 'up', description: 'Audit Trail Service' },
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Simple health check endpoint (legacy)
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'OneSeek.AI Backend is running' });
 });
