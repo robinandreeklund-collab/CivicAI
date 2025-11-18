@@ -179,21 +179,35 @@ def load_detoxify_model():
                 except:
                     device = 'cpu'
             
-            # Load model with explicit device parameter to avoid meta tensor issues
-            # This ensures the model is directly loaded to the target device
-            MODELS['detoxify'] = Detoxify('multilingual', device=device)
+            # Load model with explicit dtype to avoid meta tensor issues
+            # Use from_pretrained_kwargs to pass torch_dtype explicitly
+            MODELS['detoxify'] = Detoxify(
+                'multilingual', 
+                device=device,
+                from_pretrained_kwargs={
+                    'local_files_only': False,
+                    'torch_dtype': torch.float32
+                }
+            )
             print(f"✓ Loaded Detoxify multilingual model (device: {device})")
         except Exception as e:
             error_msg = str(e)
             # Handle meta tensor error specifically
             if "meta tensor" in error_msg.lower() or "to_empty" in error_msg.lower():
                 try:
-                    # Retry with explicit CPU device and no meta device usage
-                    print("  Retrying Detoxify with CPU-only mode...")
+                    # Retry with explicit CPU device and float32 dtype
+                    print("  Retrying Detoxify with CPU-only mode and float32 dtype...")
                     import os
                     # Disable meta device usage in transformers
                     os.environ['TRANSFORMERS_OFFLINE'] = '0'
-                    MODELS['detoxify'] = Detoxify('multilingual', device='cpu')
+                    MODELS['detoxify'] = Detoxify(
+                        'multilingual', 
+                        device='cpu',
+                        from_pretrained_kwargs={
+                            'local_files_only': False,
+                            'torch_dtype': torch.float32
+                        }
+                    )
                     print(f"✓ Loaded Detoxify multilingual model (device: cpu, retry successful)")
                     return MODELS['detoxify']
                 except Exception as retry_err:
