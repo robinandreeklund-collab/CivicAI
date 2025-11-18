@@ -13,8 +13,14 @@ Choose the method that works best for you:
 - Logged in: `firebase login`
 - **Service Account Key** downloaded from Firebase Console
 
+**Linux/Mac/Git Bash:**
 ```bash
 ./scripts/firebase-init-collections.sh
+```
+
+**Windows PowerShell:**
+```powershell
+.\scripts\firebase-init-collections.ps1
 ```
 
 **What it does:**
@@ -27,6 +33,7 @@ Choose the method that works best for you:
 
 **⚠️ Common Issue:** If you get "Could not load the default credentials" error, see the fix guide:
 - **Troubleshooting:** `docs/guides/FIREBASE_CREDENTIALS_FIX.md`
+- **Windows Guide:** `docs/guides/FIREBASE_WINDOWS_GUIDE.md`
 - **Quick fix:** Download service account key from Firebase Console → Project Settings → Service accounts
 
 ---
