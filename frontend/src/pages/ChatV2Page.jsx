@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import ConsensusDebateCard from '../components/ConsensusDebateCard';
 import NLPProcessingLoader from '../components/NLPProcessingLoader';
+import ChangeDetectionPanel from '../components/ChangeDetectionPanel';
+import ReplayTimeline from '../components/ReplayTimeline';
 
 /**
  * ChatV2Page Component - Concept 31 Design
@@ -21,13 +23,19 @@ export default function ChatV2Page() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [synthesisExpanded, setSynthesisExpanded] = useState(false);
   const [selectedModel, setSelectedModel] = useState('gpt-3.5');
+  const [showReplay, setShowReplay] = useState(false);
+  const [replayData, setReplayData] = useState(null);
+  
+  // Prevent duplicate submissions in React StrictMode (development)
+  const hasSubmittedInitialQuestion = useRef(false);
 
   // Get latest AI message for display
   const latestAiMessage = messages.filter(m => m.type === 'ai').slice(-1)[0];
 
   // Handle initial question from LandingPage navigation
   useEffect(() => {
-    if (location.state?.initialQuestion) {
+    if (location.state?.initialQuestion && !hasSubmittedInitialQuestion.current) {
+      hasSubmittedInitialQuestion.current = true;
       setQuestion(location.state.initialQuestion);
       // Auto-submit the question
       const submitInitialQuestion = async () => {
@@ -75,6 +83,8 @@ export default function ChatV2Page() {
             metaReview: data.metaReview || null,
             factCheckComparison: data.factCheckComparison || null,
             debateTrigger: data.debateTrigger || false,
+            // Change detection data from backend
+            changeDetection: data.change_detection || null,
             timestamp: new Date().toISOString(),
           };
           
@@ -104,6 +114,13 @@ export default function ChatV2Page() {
       // Clear the location state to prevent re-submission on refresh
       window.history.replaceState({}, document.title);
     }
+    
+    // Reset the ref when location changes (navigating to new question)
+    return () => {
+      if (location.state?.initialQuestion) {
+        hasSubmittedInitialQuestion.current = false;
+      }
+    };
   }, [location.state]);
 
   const handleSubmit = async (e) => {
@@ -155,6 +172,8 @@ export default function ChatV2Page() {
         metaReview: data.metaReview || null,
         factCheckComparison: data.factCheckComparison || null,
         debateTrigger: data.debateTrigger || false,
+        // Change detection data from backend
+        changeDetection: data.change_detection || null,
         timestamp: new Date().toISOString(),
       };
       
@@ -408,6 +427,23 @@ export default function ChatV2Page() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Change Detection Panel */}
+        {latestAiMessage.changeDetection && (
+          <div className="max-w-4xl mx-auto mb-8">
+            <ChangeDetectionPanel 
+              changeData={latestAiMessage.changeDetection}
+              onOpenLedger={(blockId) => {
+                // Navigate to ledger view - could be implemented later
+                console.log('Open ledger block:', blockId);
+              }}
+              onOpenReplay={(data) => {
+                setReplayData(data);
+                setShowReplay(true);
+              }}
+            />
           </div>
         )}
       </div>
@@ -892,6 +928,15 @@ export default function ChatV2Page() {
           </div>
         </div>
       </footer>
+
+      {/* Replay Timeline Modal */}
+      {showReplay && replayData && (
+        <ReplayTimeline 
+          question={replayData.question}
+          model={replayData.model}
+          onClose={() => setShowReplay(false)}
+        />
+      )}
     </div>
   );
 }

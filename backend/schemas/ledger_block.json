@@ -25,7 +25,7 @@
     },
     "event_type": {
       "type": "string",
-      "enum": ["training", "update", "audit", "review", "data_collection"],
+      "enum": ["training", "update", "audit", "review", "data_collection", "change_detection", "genesis"],
       "description": "Type of event recorded in this block"
     },
     "data": {
@@ -50,11 +50,18 @@
           "description": "Bias metrics at this point"
         },
         "provenance": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Data source provenance information"
+          "oneOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "object"
+            }
+          ],
+          "description": "Data source provenance information or metadata object"
         },
         "changes": {
           "type": "array",
@@ -69,6 +76,64 @@
             }
           },
           "description": "Changes made in this event"
+        },
+        "question_hash": {
+          "type": "string",
+          "description": "SHA-256 hash of the question (for change_detection events)"
+        },
+        "sentiment_shift": {
+          "type": "string",
+          "description": "Sentiment change description (for change_detection events)"
+        },
+        "ideology_shift": {
+          "type": "string",
+          "description": "Ideological shift description (for change_detection events)"
+        },
+        "text_similarity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Text similarity score 0-1 (for change_detection events)"
+        },
+        "severity_index": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Change severity index 0-1 (for change_detection events)"
+        },
+        "consensus_shift": {
+          "type": "boolean",
+          "description": "Whether consensus shifted across models (for change_detection events)"
+        },
+        "bias_drift": {
+          "type": "string",
+          "description": "Description of bias drift (for change_detection events)"
+        },
+        "explainability_delta": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of feature changes (for change_detection events)"
+        },
+        "dominant_themes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of dominant themes in response (for change_detection events)"
+        },
+        "ethical_tag": {
+          "type": "string",
+          "description": "Ethical impact tag (for change_detection events)"
+        },
+        "version_shift": {
+          "type": "string",
+          "description": "Description of version change (for change_detection events)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the event"
         }
       }
     },

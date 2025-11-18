@@ -7,6 +7,7 @@ Blockchain-inspired immutable audit trail for model training and updates
 import json
 import hashlib
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -14,20 +15,37 @@ from typing import Dict, List, Optional
 class TransparencyLedger:
     """Manages immutable audit trail for OQT-1.0"""
     
-    def __init__(self, ledger_dir: str):
+    def __init__(self, ledger_dir: str, quiet: bool = False):
         self.ledger_dir = Path(ledger_dir)
         self.ledger_dir.mkdir(parents=True, exist_ok=True)
         self.ledger_file = self.ledger_dir / 'ledger.json'
         self.blocks = []
+        self.quiet = quiet
         self._load_ledger()
     
     def _load_ledger(self):
         """Load existing ledger from disk"""
         if self.ledger_file.exists():
-            with open(self.ledger_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                self.blocks = data.get('blocks', [])
-            print(f"Loaded ledger with {len(self.blocks)} blocks")
+            try:
+                with open(self.ledger_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    self.blocks = data.get('blocks', [])
+                if not self.quiet:
+                    print(f"Loaded ledger with {len(self.blocks)} blocks", file=sys.stderr)
+            except json.JSONDecodeError as e:
+                # Ledger file is corrupted - back it up and start fresh
+                import shutil
+                backup_file = self.ledger_file.parent / f'ledger_corrupted_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json.bak'
+                try:
+                    shutil.copy(self.ledger_file, backup_file)
+                    if not self.quiet:
+                        print(f"WARNING: Ledger file corrupted (backed up to {backup_file.name}). Creating new ledger.", file=sys.stderr)
+                except Exception:
+                    if not self.quiet:
+                        print(f"WARNING: Ledger file corrupted. Creating new ledger.", file=sys.stderr)
+                # Remove corrupted file and create genesis block
+                self.ledger_file.unlink()
+                self._create_genesis_block()
         else:
             # Create genesis block
             self._create_genesis_block()
@@ -57,7 +75,8 @@ class TransparencyLedger:
         
         self.blocks.append(genesis)
         self._save_ledger()
-        print("Created genesis block")
+        if not self.quiet:
+            print("Created genesis block", file=sys.stderr)
     
     def _calculate_data_hash(self, data: Dict) -> str:
         """Calculate SHA-256 hash of data"""
@@ -120,7 +139,8 @@ class TransparencyLedger:
         self.blocks.append(new_block)
         self._save_ledger()
         
-        print(f"Added block {new_block['block_id']}: {event_type}")
+        if not self.quiet:
+            print(f"Added block {new_block['block_id']}: {event_type}", file=sys.stderr)
         
         return new_block
     
