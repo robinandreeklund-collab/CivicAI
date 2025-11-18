@@ -62,11 +62,17 @@ class ChangeDetectionModule:
         history_file = self._get_history_file(question_hash, model)
         
         if history_file.exists():
-            with open(history_file, 'r', encoding='utf-8') as f:
-                history = json.load(f)
-                # Return the most recent response
-                if history.get('responses'):
-                    return history['responses'][-1]
+            try:
+                with open(history_file, 'r', encoding='utf-8') as f:
+                    history = json.load(f)
+                    # Return the most recent response
+                    if history.get('responses'):
+                        return history['responses'][-1]
+            except json.JSONDecodeError:
+                # History file is corrupted - remove it and start fresh
+                if not self.quiet:
+                    print(f"WARNING: Corrupted history file for {model}, creating new history", file=sys.stderr)
+                history_file.unlink()
         
         return None
     
@@ -77,8 +83,19 @@ class ChangeDetectionModule:
         
         # Load existing history or create new
         if history_file.exists():
-            with open(history_file, 'r', encoding='utf-8') as f:
-                history = json.load(f)
+            try:
+                with open(history_file, 'r', encoding='utf-8') as f:
+                    history = json.load(f)
+            except json.JSONDecodeError:
+                # History file is corrupted - start fresh
+                if not self.quiet:
+                    print(f"WARNING: Corrupted history file for {model}, creating new history", file=sys.stderr)
+                history = {
+                    'question': question,
+                    'question_hash': question_hash,
+                    'model': model,
+                    'responses': []
+                }
         else:
             history = {
                 'question': question,

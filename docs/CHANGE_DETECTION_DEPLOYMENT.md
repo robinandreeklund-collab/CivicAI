@@ -532,21 +532,40 @@ find ml/change_history/ -mtime +30 -delete
 
 ### Ledger Corruption
 
-**Symptom:** "Chain verification failed" errors
+**Symptom:** Error "JSONDecodeError: Extra data: line X column Y"
 
-**Solutions:**
+**Automatic Recovery:**
+As of the latest update, the system automatically handles corrupted ledger files:
+- Corrupted ledger is backed up with timestamp (e.g., `ledger_corrupted_20251118_075420.json.bak`)
+- New genesis block is created automatically
+- System continues working normally
+- Warning message logged to stderr
+
+**Manual Solutions (if needed):**
 ```bash
-# 1. Verify ledger
+# 1. Check for backup files
+ls ml/ledger/ledger_corrupted_*.json.bak
+
+# 2. Verify ledger (if not corrupted)
 python3 ml/pipelines/transparency_ledger.py --verify
 
-# 2. Export before fixing
+# 3. Export ledger before manual fixes
 python3 ml/pipelines/transparency_ledger.py --export backup.json
 
-# 3. If corrupted, restore from backup
-# Or delete and recreate (loses history)
-rm -rf ml/ledger
+# 4. Manual recovery (if automatic recovery failed)
+cd ml/ledger
+mv ledger.json ledger_manual_backup.json
 # Next run will create fresh ledger
+
+# 5. Restore from backup (if you have one)
+cp ledger_manual_backup.json ledger.json
 ```
+
+**Preventing Corruption:**
+- Don't manually edit ledger files
+- Ensure proper file system permissions
+- Use atomic writes when implementing custom ledger operations
+- Regular backups (system now does this automatically)
 
 ### Performance Issues
 

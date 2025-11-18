@@ -26,11 +26,26 @@ class TransparencyLedger:
     def _load_ledger(self):
         """Load existing ledger from disk"""
         if self.ledger_file.exists():
-            with open(self.ledger_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                self.blocks = data.get('blocks', [])
-            if not self.quiet:
-                print(f"Loaded ledger with {len(self.blocks)} blocks", file=sys.stderr)
+            try:
+                with open(self.ledger_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    self.blocks = data.get('blocks', [])
+                if not self.quiet:
+                    print(f"Loaded ledger with {len(self.blocks)} blocks", file=sys.stderr)
+            except json.JSONDecodeError as e:
+                # Ledger file is corrupted - back it up and start fresh
+                import shutil
+                backup_file = self.ledger_file.parent / f'ledger_corrupted_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json.bak'
+                try:
+                    shutil.copy(self.ledger_file, backup_file)
+                    if not self.quiet:
+                        print(f"WARNING: Ledger file corrupted (backed up to {backup_file.name}). Creating new ledger.", file=sys.stderr)
+                except Exception:
+                    if not self.quiet:
+                        print(f"WARNING: Ledger file corrupted. Creating new ledger.", file=sys.stderr)
+                # Remove corrupted file and create genesis block
+                self.ledger_file.unlink()
+                self._create_genesis_block()
         else:
             # Create genesis block
             self._create_genesis_block()
