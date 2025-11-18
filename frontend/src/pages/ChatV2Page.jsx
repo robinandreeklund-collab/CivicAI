@@ -238,7 +238,7 @@ export default function ChatV2Page() {
   // Overview mode: BERT summary + model synthesis + quick model table
   const renderOverview = () => {
     return (
-      <div className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24">
+      <div className="flex-1 overflow-y-auto pb-48 px-4 md:px-8 pt-24">
         {/* User Question */}
         <div className="max-w-4xl mx-auto mb-8">
           <div className="text-[#666] text-sm uppercase tracking-wide mb-2">DIN FRÅGA</div>
@@ -544,7 +544,7 @@ export default function ChatV2Page() {
   // Models mode: Full responses with complete analysis
   const renderModels = () => {
     return (
-      <div className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24">
+      <div className="flex-1 overflow-y-auto pb-48 px-4 md:px-8 pt-24">
         <div className="max-w-4xl mx-auto">
           <div className="text-[#666] text-sm uppercase tracking-wide mb-6">DETALJERADE MODELLSVAR</div>
           
@@ -713,7 +713,7 @@ export default function ChatV2Page() {
     const selectedResponse = latestAiMessage.responses?.find(r => r.agent === selectedModel) || latestAiMessage.responses?.[0];
     
     return (
-      <div className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24">
+      <div className="flex-1 overflow-y-auto pb-48 px-4 md:px-8 pt-24">
         <div className="max-w-4xl mx-auto">
           {/* Model Selector */}
           <div className="mb-6">
@@ -940,7 +940,7 @@ export default function ChatV2Page() {
       : `q-${Date.now()}`;
 
     return (
-      <div className="flex-1 overflow-y-auto pb-32 px-4 md:px-8 pt-24">
+      <div className="flex-1 overflow-y-auto pb-48 px-4 md:px-8 pt-24">
         <div className="max-w-4xl mx-auto">
           <div className="text-[#666] text-sm uppercase tracking-wide mb-6">LIVE KONSENSUS-DEBATT</div>
           
@@ -1025,7 +1025,7 @@ export default function ChatV2Page() {
               onClick={() => setViewMode('overview')}
               className={`px-4 py-2 rounded text-sm transition-all duration-200 relative z-1 ${
                 viewMode === 'overview'
-                  ? 'text-[#0a0a0a]'
+                  ? 'text-[#0a0a0a] font-medium'
                   : 'text-[#888] hover:text-[#e7e7e7]'
               }`}
             >
@@ -1035,7 +1035,7 @@ export default function ChatV2Page() {
               onClick={() => setViewMode('models')}
               className={`px-4 py-2 rounded text-sm transition-all duration-200 relative z-1 ${
                 viewMode === 'models'
-                  ? 'text-[#0a0a0a]'
+                  ? 'text-[#0a0a0a] font-medium'
                   : 'text-[#888] hover:text-[#e7e7e7]'
               }`}
             >
@@ -1045,7 +1045,7 @@ export default function ChatV2Page() {
               onClick={() => setViewMode('pipeline')}
               className={`px-4 py-2 rounded text-sm transition-all duration-200 relative z-1 ${
                 viewMode === 'pipeline'
-                  ? 'text-[#0a0a0a]'
+                  ? 'text-[#0a0a0a] font-medium'
                   : 'text-[#888] hover:text-[#e7e7e7]'
               }`}
             >
@@ -1055,7 +1055,7 @@ export default function ChatV2Page() {
               onClick={() => setViewMode('debate')}
               className={`px-4 py-2 rounded text-sm transition-all duration-200 relative z-1 ${
                 viewMode === 'debate'
-                  ? 'text-[#0a0a0a]'
+                  ? 'text-[#0a0a0a] font-medium'
                   : 'text-[#888] hover:text-[#e7e7e7]'
               }`}
             >
@@ -1091,7 +1091,7 @@ export default function ChatV2Page() {
       {renderContent()}
 
       {/* Premium Input Field (Concept 21 style) - Fixed Bottom */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent pt-8">
+      <div className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent pt-8 pb-16">
         <div className="max-w-4xl mx-auto px-4 md:px-8 pb-6">
           <form onSubmit={handleSubmit} className="relative">
             <input
@@ -1173,7 +1173,7 @@ export default function ChatV2Page() {
       )}
 
       {/* Footer Navigation */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-[#0a0a0a] border-t border-[#151515] z-20 pb-24">
+      <footer className="fixed bottom-0 left-0 right-0 bg-[#0a0a0a] border-t border-[#151515] z-20">
         <div className="max-w-4xl mx-auto px-4 md:px-8 py-4">
           <div className="flex flex-wrap gap-4 text-sm text-[#666]">
             <a href="/about" className="hover:text-[#e7e7e7] transition-colors">Om OneSeek.AI</a>
