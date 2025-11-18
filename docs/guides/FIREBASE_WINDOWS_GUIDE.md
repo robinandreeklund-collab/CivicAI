@@ -37,9 +37,17 @@ Svara **"Y"** (Yes) när du blir tillfrågad.
 
 ### Steg 4: Kör scriptet
 
+**REKOMMENDERAT: Använd simplified script**
+```powershell
+.\scripts\firebase-init-collections-simple.ps1
+```
+
+**Alternativ: Original script**
 ```powershell
 .\scripts\firebase-init-collections.ps1
 ```
+
+> **💡 Tips:** Om du får parse errors (syntax errors), använd den simplified versionen.
 
 ### Steg 5: Följ instruktionerna
 
@@ -176,6 +184,41 @@ $env:GOOGLE_APPLICATION_CREDENTIALS="C:\Users\dittnamn\.firebase-keys\serviceAcc
 ---
 
 ## Felsökning
+
+### Problem: Parse Errors / Syntax Errors
+
+**Fullständigt fel:**
+```
+At C:\...\firebase-init-collections.ps1:17 char:1
++ } else {
++ ~
+Unexpected token '}' in expression or statement.
+```
+
+**Orsak:** 
+- Unix line endings (LF) istället för Windows (CRLF)
+- Inkompatibilitet mellan olika PowerShell-versioner
+
+**Lösning 1: Använd Simplified Script (REKOMMENDERAT)**
+```powershell
+.\scripts\firebase-init-collections-simple.ps1
+```
+
+Den simplified versionen är garanterat kompatibel med alla PowerShell-versioner.
+
+**Lösning 2: Fixa Line Endings**
+```powershell
+# Läs och skriv filen för att konvertera line endings
+(Get-Content scripts\firebase-init-collections.ps1) | Set-Content -Path scripts\firebase-init-collections.ps1
+```
+
+**Lösning 3: Använd PowerShell Core**
+```powershell
+# Installera PowerShell Core (pwsh) från Microsoft Store eller
+# https://github.com/PowerShell/PowerShell/releases
+
+pwsh -File scripts\firebase-init-collections.ps1
+```
 
 ### Problem: "Cannot be loaded because running scripts is disabled"
 
