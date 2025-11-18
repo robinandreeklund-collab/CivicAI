@@ -128,21 +128,55 @@ async function verifyFirestore() {
         await db.listCollections();
         return true;
     } catch (error) {
+        console.error('');
+        console.error('ERROR: Cannot access Firestore!');
+        console.error('');
+        console.error('Error details:');
+        console.error('  Code:', error.code);
+        console.error('  Message:', error.message);
+        console.error('');
+        
         if (error.code === 5 || error.message.includes('NOT_FOUND')) {
+            console.error('POSSIBLE CAUSES:');
             console.error('');
-            console.error('ERROR: Firestore database not found!');
+            console.error('1. Firestore not enabled:');
+            console.error('   https://console.firebase.google.com/project/' + projectId + '/firestore');
+            console.error('   Click "Create database" if needed');
             console.error('');
-            console.error('ACTION REQUIRED:');
-            console.error('1. Go to: https://console.firebase.google.com/project/' + projectId + '/firestore');
-            console.error('2. Click "Create database"');
-            console.error('3. Choose "Start in production mode" or "Test mode"');
-            console.error('4. Select a location (e.g., europe-west1)');
-            console.error('5. Click "Enable"');
-            console.error('6. Run this script again');
+            console.error('2. Wrong Project ID:');
+            console.error('   Current: ' + projectId);
+            console.error('   Check: Project Settings in Firebase Console');
             console.error('');
-            return false;
+            console.error('3. Service Account Permissions:');
+            console.error('   Service account needs "Cloud Datastore User" or "Firebase Admin" role');
+            console.error('   Check: https://console.cloud.google.com/iam-admin/iam?project=' + projectId);
+            console.error('');
+            console.error('4. Database Mode:');
+            console.error('   Must be Firestore Native mode (not Datastore mode)');
+            console.error('');
+        } else if (error.code === 7 || error.message.includes('PERMISSION_DENIED')) {
+            console.error('PERMISSION DENIED:');
+            console.error('');
+            console.error('The service account lacks permissions.');
+            console.error('');
+            console.error('FIX:');
+            console.error('1. Go to: https://console.cloud.google.com/iam-admin/iam?project=' + projectId);
+            console.error('2. Find your service account email');
+            console.error('3. Click Edit (pencil icon)');
+            console.error('4. Add role: "Cloud Datastore User" or "Firebase Admin"');
+            console.error('5. Save and run this script again');
+            console.error('');
+        } else {
+            console.error('UNEXPECTED ERROR:');
+            console.error('');
+            console.error('Please check:');
+            console.error('1. Service account key is valid');
+            console.error('2. Project ID is correct: ' + projectId);
+            console.error('3. You have access to this project');
+            console.error('');
         }
-        throw error;
+        
+        return false;
     }
 }
 

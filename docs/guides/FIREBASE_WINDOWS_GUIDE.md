@@ -328,52 +328,84 @@ npm install -g firebase-admin
 [5/5] Creating collections...
   ERROR: ai_interactions - 5 NOT_FOUND:
   ERROR: model_versions - 5 NOT_FOUND:
-  ERROR: Firestore database not found!
+  ERROR: Cannot access Firestore!
 ```
 
-**Orsak:** Firestore är inte aktiverat i ditt Firebase-projekt.
+**Detta fel har FLERA möjliga orsaker:**
+
+#### Orsak 1: Firestore inte aktiverat
+
+**Kontrollera:** Gå till Firebase Console:
+```
+https://console.firebase.google.com/project/DITT-PROJECT-ID/firestore
+```
+
+**Lösning om du ser "Create database":**
+1. Klicka **"Create database"**
+2. Välj **"Start in production mode"** (rekommenderat)
+3. Välj location (t.ex. `europe-west1`)
+4. Klicka **"Enable"**
+5. Vänta ~1 minut
+6. Kör scriptet igen
+
+#### Orsak 2: Fel Project ID
+
+**Kontrollera:** Project Settings → Project ID i Firebase Console
+
+**Symptom:** Du har skapat Firestore MEN får ändå "NOT_FOUND"
 
 **Lösning:**
-
-1. Gå till Firebase Console:
-   ```
-   https://console.firebase.google.com/project/DITT-PROJECT-ID/firestore
-   ```
-
-2. Om du ser "Create database"-knappen:
-   - Klicka **"Create database"**
-   - Välj **"Start in production mode"** (rekommenderat)
-   - Välj location (t.ex. `europe-west1`)
-   - Klicka **"Enable"**
-   - Vänta ~1 minut
-
-3. Kör scriptet igen:
-   ```powershell
-   .\scripts\firebase-init-collections-simple.ps1
-   ```
-
-**Verifiering:**
-- Gå till Firestore i Console
-- Du bör se ett tomt database-gränssnitt (inte "Create database"-knapp)
-- Detta betyder att Firestore är aktivt och redo
-
-### Problem: "Wrong Project ID"
-
-**Symptom:** Fel som säger att projektet inte hittas.
-
-**Lösning:**
-
-1. Hitta rätt Project ID i Firebase Console:
-   - Gå till: https://console.firebase.google.com
-   - Klicka på ditt projekt
-   - Project Settings (⚙️)
-   - Kopiera **"Project ID"** (INTE "Project name")
-
-2. Exempel:
+1. Öppna Firebase Console: https://console.firebase.google.com
+2. Klicka Project Settings (⚙️)
+3. Kopiera rätt **"Project ID"** (INTE "Project name")
+4. Exempel:
    - ✅ Rätt: `my-app-abc123`
-   - ❌ Fel: `My App` (detta är project name, inte ID)
+   - ❌ Fel: `My App`
+5. Kör scriptet igen med korrekt Project ID
 
-3. Kör scriptet igen med rätt ID
+#### Orsak 3: Service Account saknar behörigheter
+
+**Symptom:** Firestore finns OCH Project ID är korrekt, men fortfarande fel
+
+**Lösning:**
+1. Gå till Google Cloud Console IAM:
+   ```
+   https://console.cloud.google.com/iam-admin/iam?project=DITT-PROJECT-ID
+   ```
+
+2. Hitta din service account email (från JSON-filen)
+   - T.ex. `firebase-adminsdk-xxxxx@projekt-id.iam.gserviceaccount.com`
+
+3. Klicka på "Edit" (penna-ikonen) vid service account
+
+4. Lägg till en av dessa roller:
+   - **"Cloud Datastore User"** (minst behörighet)
+   - **"Firebase Admin"** (rekommenderat)
+   - **"Editor"** (mest behörighet)
+
+5. Klicka **"Save"**
+
+6. Vänta 1-2 minuter (permissions uppdatering)
+
+7. Kör scriptet igen
+
+#### Orsak 4: Datastore mode istället för Firestore Native mode
+
+**Symptom:** Du har "skapat database" men får fortfarande fel
+
+**Kontrollera:**
+1. Gå till: https://console.cloud.google.com/datastore/entities
+2. Om du ser text om "Datastore mode", har du fel typ av database
+
+**Lösning:**
+- Du kan INTE konvertera mellan Datastore och Firestore
+- Du måste skapa ett nytt Firebase-projekt med Firestore Native mode
+- Eller: Använd manuell collection-skapning istället för scriptet
+
+**Verifiering efter fix:**
+- Gå till Firestore i Console
+- Du bör se ett database-gränssnitt (inte "Create database"-knapp)
+- Scriptet visar nu tydliga error messages som hjälper dig identifiera problemet
 
 ---
 
