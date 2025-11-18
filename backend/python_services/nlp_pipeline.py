@@ -30,6 +30,18 @@ except ImportError:
 
 try:
     from textblob import TextBlob
+    import nltk
+    # Download required NLTK data on first import (one-time setup)
+    try:
+        nltk.data.find('tokenizers/punkt_tab')
+    except LookupError:
+        print("Downloading NLTK punkt tokenizer data...")
+        nltk.download('punkt_tab', quiet=True)
+    try:
+        nltk.data.find('corpora/brown')
+    except LookupError:
+        print("Downloading NLTK brown corpus...")
+        nltk.download('brown', quiet=True)
     TEXTBLOB_AVAILABLE = True
 except ImportError:
     TEXTBLOB_AVAILABLE = False
