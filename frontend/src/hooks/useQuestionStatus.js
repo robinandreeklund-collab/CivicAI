@@ -1,13 +1,14 @@
 /**
  * useQuestionStatus Hook
  * Manages Firebase real-time status updates for questions
- * Part of Firebase Integration - Step 1
+ * Part of Firebase Integration - Step 2 (Enhanced)
  */
 
 import { useState, useEffect } from 'react';
 
 /**
  * Hook to manage question status in Firebase with real-time updates
+ * Enhanced for Step 2 with detailed pipeline status tracking
  * @param {string} docId - Firebase document ID (optional for creation)
  * @returns {Object} Question state and methods
  */
@@ -16,6 +17,12 @@ export function useQuestionStatus(docId = null) {
   const [questionData, setQuestionData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [pipelineProgress, setPipelineProgress] = useState({
+    currentStep: '',
+    stepsCompleted: 0,
+    totalSteps: 0,
+    statusLog: []
+  });
 
   /**
    * Create a new question in Firebase
@@ -85,6 +92,19 @@ export function useQuestionStatus(docId = null) {
       if (result.success) {
         setQuestionData(result.data);
         setStatus(result.data.status);
+        
+        // Extract pipeline progress from status_log
+        if (result.data.pipeline_metadata?.status_log) {
+          const statusLog = result.data.pipeline_metadata.status_log;
+          const latestLog = statusLog[statusLog.length - 1];
+          
+          setPipelineProgress({
+            currentStep: latestLog?.message || '',
+            stepsCompleted: statusLog.length,
+            totalSteps: 7, // received, responses_saved, pipeline_complete, completed, verified
+            statusLog: statusLog
+          });
+        }
       } else {
         throw new Error(result.error || 'Failed to fetch question');
       }
@@ -107,15 +127,17 @@ export function useQuestionStatus(docId = null) {
     // Initial fetch
     fetchQuestion(docId);
 
-    // Poll every 2 seconds for status updates
+    // Poll every 2 seconds for status updates while processing
     const pollInterval = setInterval(() => {
-      fetchQuestion(docId);
+      if (status === 'processing' || status === 'received') {
+        fetchQuestion(docId);
+      }
     }, 2000);
 
     return () => {
       clearInterval(pollInterval);
     };
-  }, [docId]);
+  }, [docId, status]);
 
   /**
    * Get status display message
@@ -126,7 +148,7 @@ export function useQuestionStatus(docId = null) {
       case 'received':
         return 'Fråga mottagen';
       case 'processing':
-        return 'Bearbetning pågår…';
+        return pipelineProgress.currentStep || 'Bearbetning pågår…';
       case 'completed':
         return 'Analys färdig';
       case 'ledger_verified':
@@ -160,15 +182,26 @@ export function useQuestionStatus(docId = null) {
     }
   };
 
+  /**
+   * Get progress percentage
+   * @returns {number} Progress percentage (0-100)
+   */
+  const getProgressPercentage = () => {
+    if (pipelineProgress.totalSteps === 0) return 0;
+    return Math.round((pipelineProgress.stepsCompleted / pipelineProgress.totalSteps) * 100);
+  };
+
   return {
     status,
     questionData,
     error,
     loading,
+    pipelineProgress,
     createQuestion,
     fetchQuestion,
     getStatusMessage,
     getStatusColor,
+    getProgressPercentage,
   };
 }
 

@@ -167,6 +167,20 @@ export async function createQuestion({ question, userId, sessionId }) {
       analysis: null,
       completed_at: null,
       question_hash: hashQuestion(question),
+      // Enhanced schema fields for Step 2
+      raw_responses: [],
+      processed_data: {},
+      processing_times: {},
+      pipeline_metadata: {
+        status_log: [{
+          status: 'received',
+          timestamp: new Date().toISOString(),
+          message: 'Question received and stored'
+        }]
+      },
+      errors: [],
+      quality_metrics: {},
+      ledger_blocks: []
     };
 
     // Add optional fields
@@ -186,6 +200,219 @@ export async function createQuestion({ question, userId, sessionId }) {
   } catch (error) {
     console.error('[Firebase Service] Error creating question:', error);
     throw error;
+  }
+}
+
+/**
+ * Save raw AI service responses to Firebase
+ * @param {string} docId - Document ID
+ * @param {Array} responses - Array of AI service responses
+ * @returns {Promise<Object>} Updated document data
+ */
+export async function saveRawResponses(docId, responses) {
+  const firestore = await initializeDb();
+  
+  if (!firestore) {
+    throw new Error('Firebase is not initialized. Check your Firebase configuration.');
+  }
+
+  try {
+    const firebaseAdmin = await initializeFirebaseAdmin();
+    const docRef = firestore.collection('ai_interactions').doc(docId);
+    
+    // Transform responses to include full provenance
+    const rawResponses = responses.map(r => ({
+      service: r.agent || r.service,
+      model_version: r.metadata?.version || r.metadata?.model || 'unknown',
+      response_text: r.response,
+      metadata: {
+        timestamp: r.metadata?.timestamp || new Date().toISOString(),
+        responseTimeMs: r.metadata?.responseTimeMs || 0,
+        tokenCount: r.metadata?.tokenCount || 0,
+        characterCount: r.metadata?.characterCount || 0,
+        confidence: r.metadata?.confidence || 0,
+        endpoint: r.metadata?.endpoint || 'unknown',
+        request_id: r.metadata?.request_id || null
+      },
+      analysis: r.analysis || {}
+    }));
+    
+    await docRef.update({
+      raw_responses: rawResponses,
+      updated_at: new Date().toISOString(),
+      'pipeline_metadata.status_log': firebaseAdmin.firestore.FieldValue.arrayUnion({
+        status: 'responses_saved',
+        timestamp: new Date().toISOString(),
+        message: `Saved ${rawResponses.length} raw AI responses`
+      })
+    });
+    
+    console.log(`[Firebase Service] Saved ${rawResponses.length} raw responses for ${docId}`);
+    
+    const doc = await docRef.get();
+    return {
+      docId: doc.id,
+      ...doc.data()
+    };
+  } catch (error) {
+    console.error('[Firebase Service] Error saving raw responses:', error);
+    throw error;
+  }
+}
+
+/**
+ * Save processed pipeline data to Firebase
+ * @param {string} docId - Document ID
+ * @param {Object} pipelineData - Processed pipeline analysis data
+ * @returns {Promise<Object>} Updated document data
+ */
+export async function savePipelineData(docId, pipelineData) {
+  const firestore = await initializeDb();
+  
+  if (!firestore) {
+    throw new Error('Firebase is not initialized. Check your Firebase configuration.');
+  }
+
+  try {
+    const firebaseAdmin = await initializeFirebaseAdmin();
+    const docRef = firestore.collection('ai_interactions').doc(docId);
+    
+    // Extract processing times from timeline
+    const processingTimes = {};
+    if (pipelineData.timeline) {
+      pipelineData.timeline.forEach(step => {
+        processingTimes[step.step] = {
+          durationMs: step.durationMs,
+          model: step.model,
+          version: step.version
+        };
+      });
+    }
+    
+    // Calculate quality metrics
+    const qualityMetrics = {
+      confidence: pipelineData.aggregatedInsights?.overallConfidence || 0,
+      consensus: pipelineData.consensus || 0,
+      severity: pipelineData.severity || 'low',
+      completeness: pipelineData.completeness || 0
+    };
+    
+    await docRef.update({
+      processed_data: {
+        preprocessing: pipelineData.preprocessing || {},
+        bias: pipelineData.bias || {},
+        sentiment: pipelineData.sentiment || {},
+        ideology: pipelineData.ideology || {},
+        topics: pipelineData.topics || [],
+        transparency: pipelineData.transparency || {},
+        aggregatedInsights: pipelineData.aggregatedInsights || {}
+      },
+      processing_times: processingTimes,
+      quality_metrics: qualityMetrics,
+      'pipeline_metadata.start_time': pipelineData.metadata?.pipelineStartTime,
+      'pipeline_metadata.end_time': pipelineData.metadata?.pipelineEndTime,
+      'pipeline_metadata.total_duration_ms': pipelineData.metadata?.totalDurationMs,
+      updated_at: new Date().toISOString(),
+      'pipeline_metadata.status_log': firebaseAdmin.firestore.FieldValue.arrayUnion({
+        status: 'pipeline_complete',
+        timestamp: new Date().toISOString(),
+        message: 'ML pipeline processing completed'
+      })
+    });
+    
+    console.log(`[Firebase Service] Saved pipeline data for ${docId}`);
+    
+    const doc = await docRef.get();
+    return {
+      docId: doc.id,
+      ...doc.data()
+    };
+  } catch (error) {
+    console.error('[Firebase Service] Error saving pipeline data:', error);
+    throw error;
+  }
+}
+
+/**
+ * Add ledger block reference to a question
+ * @param {string} docId - Document ID
+ * @param {string} blockId - Ledger block ID
+ * @returns {Promise<Object>} Updated document data
+ */
+export async function addLedgerBlockReference(docId, blockId) {
+  const firestore = await initializeDb();
+  
+  if (!firestore) {
+    throw new Error('Firebase is not initialized. Check your Firebase configuration.');
+  }
+
+  try {
+    const firebaseAdmin = await initializeFirebaseAdmin();
+    const docRef = firestore.collection('ai_interactions').doc(docId);
+    
+    await docRef.update({
+      ledger_blocks: firebaseAdmin.firestore.FieldValue.arrayUnion(blockId),
+      updated_at: new Date().toISOString()
+    });
+    
+    console.log(`[Firebase Service] Added ledger block ${blockId} to ${docId}`);
+    
+    const doc = await docRef.get();
+    return {
+      docId: doc.id,
+      ...doc.data()
+    };
+  } catch (error) {
+    console.error('[Firebase Service] Error adding ledger block reference:', error);
+    throw error;
+  }
+}
+
+/**
+ * Log an error for a question
+ * @param {string} docId - Document ID
+ * @param {Object} error - Error object
+ * @returns {Promise<Object>} Updated document data
+ */
+export async function logQuestionError(docId, error) {
+  const firestore = await initializeDb();
+  
+  if (!firestore) {
+    throw new Error('Firebase is not initialized. Check your Firebase configuration.');
+  }
+
+  try {
+    const firebaseAdmin = await initializeFirebaseAdmin();
+    const docRef = firestore.collection('ai_interactions').doc(docId);
+    
+    const errorLog = {
+      timestamp: new Date().toISOString(),
+      message: error.message,
+      stack: error.stack,
+      code: error.code || 'UNKNOWN'
+    };
+    
+    await docRef.update({
+      errors: firebaseAdmin.firestore.FieldValue.arrayUnion(errorLog),
+      status: 'error',
+      updated_at: new Date().toISOString(),
+      'pipeline_metadata.status_log': firebaseAdmin.firestore.FieldValue.arrayUnion({
+        status: 'error',
+        timestamp: new Date().toISOString(),
+        message: `Error: ${error.message}`
+      })
+    });
+    
+    console.error(`[Firebase Service] Logged error for ${docId}:`, error.message);
+    
+    const doc = await docRef.get();
+    return {
+      docId: doc.id,
+      ...doc.data()
+    };
+  } catch (err) {
+    console.error('[Firebase Service] Error logging question error:', err);
+    throw err;
   }
 }
 
