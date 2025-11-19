@@ -195,3 +195,6 @@ firestore-debug.log
 ui-debug.log
 firestore.indexes.json
 firestore.rules
+
+# Firebase Functions runtime config (may contain sensitive URLs)
+functions/.runtimeconfig.json
