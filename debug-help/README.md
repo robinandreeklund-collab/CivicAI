@@ -8,6 +8,7 @@ Detta är en komplett guide för att lösa vanliga problem och förstå hur Civi
 2. [Common Errors & Fixes](./COMMON_ERRORS_AND_FIXES.md) - Samlade lösningar på vanliga fel
 3. [Chat-v2 Data Structure](./CHAT_V2_DATA_STRUCTURE.md) - Förklaring av datapunkter och struktur
 4. [Environment Setup](./ENVIRONMENT_SETUP.md) - Miljövariabler och konfiguration
+5. [Verification Guide](./VERIFICATION_GUIDE.md) - ⭐ **Verifiera att data hämtas från Firestore (inte API)**
 
 ## 🔥 Snabbfixar
 
@@ -44,6 +45,17 @@ Se [COMMON_ERRORS_AND_FIXES.md](./COMMON_ERRORS_AND_FIXES.md#invalid-dotenv-file
 
 **Snabbfix:**
 Se [FIREBASE_SETUP_COMPLETE.md](./FIREBASE_SETUP_COMPLETE.md#credentials-setup) för steg-för-steg guide.
+
+### Hur verifierar jag att data hämtas från Firestore?
+
+**Snabbtest:**
+1. Öppna Browser Console (F12)
+2. Filtrera på "ChatV2"
+3. Ställ en fråga
+4. Leta efter: `[ChatV2] ✅ AI message updated from Firestore`
+5. Kontrollera att `/api/query` INTE syns i Network tab
+
+Se [VERIFICATION_GUIDE.md](./VERIFICATION_GUIDE.md) för komplett guide med 6 olika verifieringsmetoder.
 
 ## 📖 Använd Denna Guide
 
