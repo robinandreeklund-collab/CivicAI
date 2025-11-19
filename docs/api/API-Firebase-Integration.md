@@ -80,6 +80,30 @@ created                  created
 
 ## API Endpoints
 
+### GET /api/firebase/status
+
+Check Firebase configuration and availability.
+
+**Response:**
+```json
+{
+  "ok": true,
+  "initialized": true,
+  "projectId": "your-project-id",
+  "message": "Firebase is configured and ready"
+}
+```
+
+**Error Response (Not Configured):**
+```json
+{
+  "ok": false,
+  "initialized": false,
+  "error": "Firebase Admin not initialized. Check FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables, or set FIREBASE_SERVICE_ACCOUNT_PATH.",
+  "message": "Firebase is not configured. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables, or FIREBASE_SERVICE_ACCOUNT_PATH."
+}
+```
+
 ### POST /api/firebase/questions
 
 Store a new question in Firebase.
@@ -93,21 +117,43 @@ Store a new question in Firebase.
 }
 ```
 
-**Response:**
+**Success Response (201 Created):**
 ```json
 {
   "success": true,
   "docId": "generated-document-id",
   "status": "received",
-  "timestamp": "2025-11-18T19:52:00.000Z"
+  "created_at": "2025-11-18T19:52:00.000Z",
+  "timestamp": "2025-11-18T19:52:00.000Z",
+  "message": "Question stored successfully"
 }
 ```
 
-**Error Response:**
+**Validation Error Response (400 Bad Request):**
 ```json
 {
   "success": false,
-  "error": "Error message"
+  "error": "Invalid request",
+  "message": "Question is required and must be a non-empty string"
+}
+```
+
+**Service Unavailable Response (503):**
+```json
+{
+  "success": false,
+  "error": "Firebase is not configured or available",
+  "message": "Please configure Firebase credentials to use this feature. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables, or FIREBASE_SERVICE_ACCOUNT_PATH."
+}
+```
+
+**Firestore Error Response (500):**
+```json
+{
+  "success": false,
+  "error": "Firebase Firestore initialization error",
+  "message": "TypeError: firestore.collection is not a function — did you call admin.firestore()? Is FIREBASE_SERVICE_ACCOUNT_PATH correct?",
+  "troubleshooting": "Check that FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY are correctly set, or that FIREBASE_SERVICE_ACCOUNT_PATH points to a valid service account file."
 }
 ```
 
@@ -137,18 +183,98 @@ Update the status of a question (internal use by ML pipeline).
 **Request Body:**
 ```json
 {
-  "status": "processing|completed|ledger_verified",
+  "status": "processing|completed|ledger_verified|error",
   "analysis": {}, // Optional, for completed status
-  "completed_at": "2025-11-18T19:55:00.000Z" // Optional
+  "completed_at": "2025-11-18T19:55:00.000Z", // Optional
+  "verified_at": "2025-11-18T19:56:00.000Z" // Optional
 }
 ```
+
+**Valid Status Values:**
+- `received` - Question has been stored
+- `processing` - ML pipeline is processing
+- `completed` - Analysis is complete
+- `ledger_verified` - Blockchain verification complete
+- `error` - An error occurred during processing
 
 **Response:**
 ```json
 {
   "success": true,
   "docId": "document-id",
-  "status": "updated-status"
+  "status": "updated-status",
+  "message": "Status updated successfully"
+}
+```
+
+**Validation Error (400 Bad Request):**
+```json
+{
+  "success": false,
+  "error": "Invalid status",
+  "message": "Status must be one of: received, processing, completed, ledger_verified, error"
+}
+```
+
+**Not Found Error (404):**
+```json
+{
+  "success": false,
+  "error": "Question not found",
+  "message": "Question not found: invalid-doc-id"
+}
+```
+
+### GET /api/firebase/questions
+
+List recent questions (for admin/testing purposes).
+
+**Query Parameters:**
+- `limit` (optional, default: 10) - Maximum number of questions to return (1-100)
+- `status` (optional) - Filter by status value
+
+**Example Request:**
+```
+GET /api/firebase/questions?limit=20&status=completed
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "count": 2,
+  "data": [
+    {
+      "docId": "doc-id-1",
+      "question": "User's question text",
+      "created_at": "2025-11-18T19:52:00.000Z",
+      "status": "completed",
+      "pipeline_version": "1.0.0",
+      "analysis": { ... },
+      "completed_at": "2025-11-18T19:55:00.000Z"
+    },
+    {
+      "docId": "doc-id-2",
+      "question": "Another question",
+      "created_at": "2025-11-18T19:50:00.000Z",
+      "status": "completed",
+      "pipeline_version": "1.0.0",
+      "analysis": { ... },
+      "completed_at": "2025-11-18T19:53:00.000Z"
+    }
+  ]
+}
+```
+
+### DELETE /api/firebase/questions/:docId
+
+Delete a question (GDPR compliance).
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Question deleted successfully"
 }
 ```
 
@@ -390,6 +516,174 @@ test('should update status', async () => {
   const data = await response.json();
   expect(data.status).toBe('processing');
 });
+```
+
+## Configuration
+
+### Environment Variables
+
+Firebase can be configured using either environment variables or a service account file.
+
+#### Option 1: Environment Variables (Recommended for Production)
+
+```bash
+# Required environment variables
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_CLIENT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\nYourPrivateKeyHere\n-----END PRIVATE KEY-----
+```
+
+**Note:** The `FIREBASE_PRIVATE_KEY` can be:
+- Base64 encoded (will be automatically decoded)
+- With escaped newlines (`\n`) which will be replaced with actual newlines
+
+#### Option 2: Service Account File (Development)
+
+```bash
+# Path to service account JSON file
+FIREBASE_SERVICE_ACCOUNT_PATH=./path/to/serviceAccountKey.json
+```
+
+### Verifying Configuration
+
+After setting environment variables, you can verify Firebase is configured correctly:
+
+```bash
+# Check Firebase status
+curl http://localhost:3001/api/firebase/status
+
+# Expected response if configured:
+{
+  "ok": true,
+  "initialized": true,
+  "projectId": "your-project-id",
+  "message": "Firebase is configured and ready"
+}
+```
+
+## Troubleshooting
+
+### Error: "TypeError: firestore.collection is not a function"
+
+**Cause:** Firestore was not properly initialized, or `admin.firestore()` was not called with parentheses.
+
+**Solution:**
+1. Check that all required environment variables are set:
+   ```bash
+   echo $FIREBASE_PROJECT_ID
+   echo $FIREBASE_CLIENT_EMAIL
+   echo $FIREBASE_PRIVATE_KEY
+   ```
+
+2. Verify the service account has Firestore permissions in Google Cloud Console
+
+3. Check backend startup logs for Firebase initialization errors
+
+4. Try the diagnostic endpoint:
+   ```bash
+   curl http://localhost:3001/api/firebase/status
+   ```
+
+### Error: "Firebase is not configured or available"
+
+**Cause:** Firebase environment variables are not set or service account file is missing.
+
+**Solution:**
+1. Set the required environment variables (see Configuration section above)
+
+2. If using service account file, verify the file exists and path is correct:
+   ```bash
+   ls -la $FIREBASE_SERVICE_ACCOUNT_PATH
+   ```
+
+3. Restart the backend server after setting environment variables
+
+### Error: "Question is required and must be a non-empty string"
+
+**Cause:** The `question` field in the request body is missing, empty, or not a string.
+
+**Solution:**
+Ensure your request includes a non-empty `question` field:
+```javascript
+await fetch('/api/firebase/questions', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    question: 'Your question here', // Must be non-empty string
+    userId: 'optional-user-id',
+    sessionId: 'optional-session-id'
+  })
+});
+```
+
+### Error: "Status must be one of: received, processing, completed, ledger_verified, error"
+
+**Cause:** Invalid status value provided when updating question status.
+
+**Solution:**
+Use only valid status values:
+```javascript
+const validStatuses = ['received', 'processing', 'completed', 'ledger_verified', 'error'];
+```
+
+### Firebase Not Showing Up in Health Check
+
+**Cause:** Firebase initialization failed silently or is not configured.
+
+**Solution:**
+1. Check the backend startup logs for Firebase initialization messages:
+   ```
+   [Firebase] Checking Firebase initialization...
+   [Firebase] ✓ Firebase is initialized and ready
+   [Firebase] Project ID: your-project-id
+   ```
+
+2. If you see warnings instead, follow the configuration steps in the logs
+
+3. Use the health check endpoint to verify:
+   ```bash
+   curl http://localhost:3001/api/health | jq '.services.firebase'
+   ```
+
+### Testing Firebase Locally
+
+You can test Firebase integration locally using curl:
+
+```bash
+# 1. Check status
+curl http://localhost:3001/api/firebase/status
+
+# 2. Create a question
+curl -X POST http://localhost:3001/api/firebase/questions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "What is the climate policy in Sweden?",
+    "userId": "test-user-123",
+    "sessionId": "test-session-456"
+  }'
+
+# Expected response (201):
+# {
+#   "success": true,
+#   "docId": "generated-doc-id",
+#   "status": "received",
+#   "created_at": "2025-11-19T...",
+#   "message": "Question stored successfully"
+# }
+
+# 3. Retrieve the question
+curl http://localhost:3001/api/firebase/questions/{docId}
+
+# 4. Update status
+curl -X POST http://localhost:3001/api/firebase/questions/{docId}/status \
+  -H "Content-Type: application/json" \
+  -d '{"status": "processing"}'
+
+# 5. List questions
+curl http://localhost:3001/api/firebase/questions?limit=10
+
+# 6. Delete question (cleanup)
+curl -X DELETE http://localhost:3001/api/firebase/questions/{docId}
 ```
 
 ## Next Steps
