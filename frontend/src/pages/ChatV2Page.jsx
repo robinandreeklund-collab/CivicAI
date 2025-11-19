@@ -895,7 +895,7 @@ export default function ChatV2Page() {
                     </div>
                   )}
 
-                  {/* Gensim Results */}
+                  {/* Gensim Results - from method="both" */}
                   {latestAiMessage.topics.gensim && latestAiMessage.topics.gensim.topics && latestAiMessage.topics.gensim.topics.length > 0 && (
                     <div>
                       {latestAiMessage.topics.method === 'both' && (
@@ -939,9 +939,52 @@ export default function ChatV2Page() {
                     </div>
                   )}
                   
+                  {/* Legacy Gensim Results - flat structure (for backward compatibility) */}
+                  {!latestAiMessage.topics.gensim && !latestAiMessage.topics.bertopic && latestAiMessage.topics.topics && latestAiMessage.topics.topics.length > 0 && (
+                    <div>
+                      <div className="text-[#888] text-sm font-medium mb-3 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                        Gensim LDA Analysis
+                      </div>
+                      <div className="space-y-3">
+                        {latestAiMessage.topics.topics.map((topic, idx) => (
+                          <div key={`gensim-legacy-${idx}`} className="bg-[#1a1a1a] rounded p-4">
+                            <div className="mb-3">
+                              <div className="text-[#e7e7e7] font-medium mb-1">{topic.label || `Topic ${idx}`}</div>
+                              <div className="text-[#666] text-xs">ID: {topic.topic_id ?? idx}</div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {topic.terms?.map((term, tidx) => {
+                                // Gensim terms are objects with {word, weight}
+                                if (!term) return null;
+                                const termText = typeof term === 'string' ? term : term.word;
+                                const termWeight = typeof term === 'object' && term !== null ? term.weight : null;
+                                return (
+                                  <span 
+                                    key={tidx} 
+                                    className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded flex items-center gap-1"
+                                    title={termWeight ? `Weight: ${termWeight.toFixed(3)}` : undefined}
+                                  >
+                                    {termText}
+                                    {termWeight && (
+                                      <span className="text-[#555] text-[10px]">
+                                        {(termWeight * 100).toFixed(0)}%
+                                      </span>
+                                    )}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
                   {/* No results message */}
                   {(!latestAiMessage.topics.bertopic || !latestAiMessage.topics.bertopic.topics || latestAiMessage.topics.bertopic.topics.length === 0) &&
-                   (!latestAiMessage.topics.gensim || !latestAiMessage.topics.gensim.topics || latestAiMessage.topics.gensim.topics.length === 0) && (
+                   (!latestAiMessage.topics.gensim || !latestAiMessage.topics.gensim.topics || latestAiMessage.topics.gensim.topics.length === 0) &&
+                   (!latestAiMessage.topics.topics || latestAiMessage.topics.topics.length === 0) && (
                     <div className="text-center py-4">
                       <p className="text-[#666] text-sm">No topics identified</p>
                       <p className="text-[#555] text-xs mt-1">Text may be too short for topic modeling</p>
