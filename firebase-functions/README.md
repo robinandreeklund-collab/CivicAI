@@ -78,12 +78,26 @@ npm install
 
 ### 3. Configure Backend URL
 
+**CRITICAL:** Functions use Firebase config, NOT environment variables.
+
 ```bash
 # For local testing
 firebase functions:config:set backend.url="http://localhost:3001"
 
 # For production
 firebase functions:config:set backend.url="https://your-backend-url.com"
+
+# Verify configuration
+firebase functions:config:get
+```
+
+Expected output:
+```json
+{
+  "backend": {
+    "url": "http://localhost:3001"
+  }
+}
 ```
 
 ### 4. Deploy
@@ -92,6 +106,8 @@ firebase functions:config:set backend.url="https://your-backend-url.com"
 # From project root
 firebase deploy --only functions
 ```
+
+**If deployment fails**, see [Troubleshooting](#troubleshooting) section below.
 
 ## Package.json Template
 
@@ -219,6 +235,55 @@ cd functions
 npm install
 firebase deploy --only functions
 ```
+
+### Build failed during deployment
+
+**Error:**
+```
+Build failed: Build error details not available.
+Please check the logs at https://console.cloud.google.com/cloud-build/builds...
+```
+
+**Solutions:**
+
+**1. Backend URL not configured (most common):**
+```bash
+# Set backend URL BEFORE deploying
+firebase functions:config:set backend.url="http://localhost:3001"
+
+# Verify it's set
+firebase functions:config:get
+
+# Deploy again
+firebase deploy --only functions
+```
+
+**2. Wrong package.json:**
+```bash
+# Copy correct template
+cp firebase-functions/package.json functions/package.json
+cd functions
+npm install
+firebase deploy --only functions
+```
+
+**3. Clear and reinstall dependencies:**
+```bash
+cd functions
+rm -rf node_modules package-lock.json
+npm install
+firebase deploy --only functions
+```
+
+**4. Check Cloud Build logs:**
+Click the link in the error message to see detailed logs.
+
+**5. Use debug mode:**
+```bash
+firebase deploy --only functions --debug
+```
+
+**IMPORTANT:** The `onQuestionCreate` function uses `functions.config().backend.url`, NOT `process.env.BACKEND_URL`. You MUST set it via Firebase config.
 
 ### Function timeout
 

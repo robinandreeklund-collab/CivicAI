@@ -768,6 +768,59 @@ firebase deploy --only functions
 
 **VIKTIGT:** Node.js 18 stöds inte längre av Firebase Functions (dekommissionerad 2025-10-30). Använd alltid Node.js 20.
 
+### Problem: Build failed vid deployment
+
+**Symptom:**
+```
+Build failed: Build error details not available.
+Please check the logs at https://console.cloud.google.com/cloud-build/builds...
+```
+
+**Möjliga orsaker och lösningar:**
+
+**1. Backend URL inte konfigurerad:**
+```bash
+# Sätt backend URL innan deployment
+firebase functions:config:set backend.url="http://localhost:3001"
+
+# Verifiera att config är satt
+firebase functions:config:get
+
+# Försök deploya igen
+firebase deploy --only functions
+```
+
+**2. Felaktig package.json:**
+Kontrollera att `functions/package.json` har rätt innehåll:
+```bash
+# Kopiera korrekt template
+cp firebase-functions/package.json functions/package.json
+cd functions
+npm install
+firebase deploy --only functions
+```
+
+**3. Node modules problem:**
+```bash
+cd functions
+rm -rf node_modules package-lock.json
+npm install
+firebase deploy --only functions
+```
+
+**4. Kolla Cloud Build logs:**
+Klicka på länken i felmeddelandet för att se detaljerade logs:
+```
+https://console.cloud.google.com/cloud-build/builds;region=us-central1/...
+```
+
+**5. Använd --debug för mer info:**
+```bash
+firebase deploy --only functions --debug
+```
+
+**VIKTIGT:** Funktionen `onQuestionCreate` kräver att `backend.url` är konfigurerad via Firebase config (INTE environment variabler).
+
 ### Problem: Backend kan inte ansluta till Firebase
 
 **Symptom:**

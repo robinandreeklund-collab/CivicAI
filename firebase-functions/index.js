@@ -79,7 +79,8 @@ exports.onQuestionCreate = functions
       await logStatus(docRef, 'processing', 'Starting ML pipeline processing');
 
       // Step 2: Call ML pipeline endpoint with firebaseDocId
-      const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+      // Get backend URL from Firebase config (set via: firebase functions:config:set backend.url="...")
+      const backendUrl = functions.config().backend?.url || 'http://localhost:3001';
       
       console.log(`[onQuestionCreate] Calling ML pipeline with full analysis...`);
       const pipelineStartTime = Date.now();
