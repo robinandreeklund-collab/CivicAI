@@ -68,6 +68,10 @@ ai_interactions/{docId}
    - Ledger component validated the block chain
    - ChatV2 displays: "Data verifierad"
 
+5. **`error`** - Processing failed
+   - Error details stored in document
+   - ChatV2 displays error message
+
 ### Status Transition Diagram
 
 ```
@@ -79,6 +83,40 @@ created                  created
 ```
 
 ## API Endpoints
+
+### GET /api/firebase/status
+
+Check Firebase availability and configuration status. Provides diagnostic information to help debug configuration issues.
+
+**Request:**
+```
+GET /api/firebase/status
+```
+
+**Response (Configured):**
+```json
+{
+  "available": true,
+  "configured": true,
+  "message": "Firebase is configured and ready",
+  "error": null,
+  "timestamp": "2025-11-18T10:00:00.000Z"
+}
+```
+
+**Response (Not Configured):**
+```json
+{
+  "available": false,
+  "configured": false,
+  "message": "Firebase is not configured. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables.",
+  "error": {
+    "message": "Firebase Admin not initialized - missing credentials",
+    "type": "Error"
+  },
+  "timestamp": "2025-11-18T10:00:00.000Z"
+}
+```
 
 ### POST /api/firebase/questions
 
@@ -99,15 +137,22 @@ Store a new question in Firebase.
   "success": true,
   "docId": "generated-document-id",
   "status": "received",
-  "timestamp": "2025-11-18T19:52:00.000Z"
+  "created_at": "2025-11-18T19:52:00.000Z"
 }
 ```
+
+**HTTP Status Codes:**
+- `201 Created` - Question stored successfully
+- `400 Bad Request` - Invalid input (missing or empty question)
+- `503 Service Unavailable` - Firebase not configured
+- `500 Internal Server Error` - Server error
 
 **Error Response:**
 ```json
 {
   "success": false,
-  "error": "Error message"
+  "error": "Invalid request",
+  "message": "Question is required and must be a non-empty string"
 }
 ```
 
@@ -137,20 +182,35 @@ Update the status of a question (internal use by ML pipeline).
 **Request Body:**
 ```json
 {
-  "status": "processing|completed|ledger_verified",
+  "status": "processing|completed|ledger_verified|error",
   "analysis": {}, // Optional, for completed status
   "completed_at": "2025-11-18T19:55:00.000Z" // Optional
 }
 ```
+
+**Valid Status Values:**
+- `received` - Question received and stored
+- `processing` - ML pipeline is processing
+- `completed` - Analysis complete
+- `ledger_verified` - Ledger verification complete
+- `error` - Processing failed
 
 **Response:**
 ```json
 {
   "success": true,
   "docId": "document-id",
-  "status": "updated-status"
+  "status": "updated-status",
+  "message": "Status updated successfully"
 }
 ```
+
+**HTTP Status Codes:**
+- `200 OK` - Status updated successfully
+- `400 Bad Request` - Invalid status value
+- `404 Not Found` - Document not found
+- `503 Service Unavailable` - Firebase not configured
+- `500 Internal Server Error` - Server error
 
 ## Firebase Trigger Function
 
