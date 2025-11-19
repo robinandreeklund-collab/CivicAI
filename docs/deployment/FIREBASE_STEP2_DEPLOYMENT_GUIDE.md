@@ -194,7 +194,7 @@ Välj följande alternativ:
 - **No** till ESLint (vi har redan linting)
 - **Yes** till install dependencies
 
-### 3.3 Kopiera Functions Code
+### 3.3 Kopiera Functions Code och Package.json
 
 ```bash
 # Skapa functions directory om det inte finns
@@ -202,11 +202,16 @@ mkdir -p functions
 
 # Kopiera vår functions code
 cp firebase-functions/index.js functions/index.js
+
+# Kopiera package.json template (med korrekta dependency versioner)
+cp firebase-functions/package.json functions/package.json
 ```
+
+**Alternativt**, skapa `functions/package.json` manuellt med detta innehåll (se nästa steg).
 
 ### 3.4 Konfigurera Functions package.json
 
-Redigera `functions/package.json`:
+Om du inte kopierade från template, redigera `functions/package.json`:
 
 ```json
 {
@@ -224,12 +229,16 @@ Redigera `functions/package.json`:
   },
   "main": "index.js",
   "dependencies": {
-    "firebase-admin": "^13.6.0",
-    "firebase-functions": "^5.0.0",
-    "axios": "^1.6.0"
+    "firebase-admin": "^12.5.0",
+    "firebase-functions": "^5.1.1",
+    "axios": "^1.7.0"
   }
 }
 ```
+
+**VIKTIGT:** Använd `firebase-admin@^12.5.0` (INTE `^13.x`) för att undvika peer dependency konflikt med `firebase-functions@^5.x`.
+
+**Template finns i:** `firebase-functions/package.json` (kan kopieras direkt)
 
 ### 3.5 Installera Functions Dependencies
 
@@ -609,6 +618,44 @@ curl -X POST http://localhost:3001/api/query \
 ---
 
 ## Felsökning
+
+### Problem: npm install fel i Firebase Functions (Peer dependency konflikt)
+
+**Symptom:**
+```
+npm error ERESOLVE unable to resolve dependency tree
+npm error peer firebase-admin@"^11.10.0 || ^12.0.0" from firebase-functions@5.1.1
+npm error Found: firebase-admin@13.6.0
+```
+
+**Lösning:**
+Detta händer när `firebase-admin` version 13.x används med `firebase-functions` version 5.x.
+
+**Metod 1 (Rekommenderat):** Använd kompatibla versioner:
+```bash
+cd functions
+# Redigera package.json och ändra firebase-admin till "^12.0.0"
+npm install
+```
+
+**Metod 2:** Använd legacy peer deps:
+```bash
+cd functions
+npm install --legacy-peer-deps
+```
+
+**Metod 3:** Uppdatera till senaste kompatibla versioner:
+```json
+{
+  "dependencies": {
+    "firebase-admin": "^12.5.0",
+    "firebase-functions": "^5.1.1",
+    "axios": "^1.7.0"
+  }
+}
+```
+
+**VIKTIGT:** I deployment-guiden är nu rätt version angiven (`firebase-admin@^12.0.0`).
 
 ### Problem: Backend kan inte ansluta till Firebase
 

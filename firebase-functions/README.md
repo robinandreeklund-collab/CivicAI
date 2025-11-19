@@ -1,12 +1,12 @@
 # Firebase Cloud Functions
 
-This directory contains reference implementations for Firebase Cloud Functions that handle the Firebase Integration - Step 1.
+This directory contains reference implementations for Firebase Cloud Functions that handle the Firebase Integration - Step 2 (Enhanced).
 
 ## Quick Links
 
-- **Automated Setup:** Run `./scripts/firebase-init-collections.sh` to create all collections
+- **Full Deployment Guide:** See [FIREBASE_STEP2_DEPLOYMENT_GUIDE.md](../docs/deployment/FIREBASE_STEP2_DEPLOYMENT_GUIDE.md) for complete step-by-step instructions
+- **Environment Variables:** See [ENVIRONMENT_VARIABLES.md](../docs/deployment/ENVIRONMENT_VARIABLES.md) for quick reference
 - **Schema Reference:** See `firebase-schema.yaml` for complete collection schemas
-- **Manual Guide:** See `docs/guides/FIREBASE_SETUP.md` for step-by-step instructions
 
 ---
 
@@ -14,43 +14,73 @@ This directory contains reference implementations for Firebase Cloud Functions t
 
 The trigger function `onQuestionCreate` automatically processes questions when they are created in the `ai_interactions` collection in Firestore.
 
+**Step 2 Enhancements:**
+- Extended timeout: 540 seconds (9 minutes)
+- Increased memory: 2GB
+- Enhanced status logging
+- Direct Firebase data persistence via backend
+- `onStatusUpdate` monitor function
+
 ## Status Flow
 
 ```
-received → processing → completed → ledger_verified
+received → processing → responses_saved → pipeline_complete → completed → ledger_verified
 ```
 
-## Deployment
+## Quick Deployment
 
-### Prerequisites
-
-1. Install Firebase CLI:
-   ```bash
-   npm install -g firebase-tools
-   ```
-
-2. Login to Firebase:
-   ```bash
-   firebase login
-   ```
-
-3. Initialize Firebase Functions (from project root):
-   ```bash
-   firebase init functions
-   ```
-
-### Deploy Functions
+### 1. Copy Template Files
 
 ```bash
+# From project root
+mkdir -p functions
+cp firebase-functions/index.js functions/index.js
+cp firebase-functions/package.json functions/package.json
+```
+
+### 2. Install Dependencies
+
+```bash
+cd functions
+npm install
+```
+
+**IMPORTANT:** The `package.json` uses compatible versions:
+- `firebase-admin@^12.5.0` (compatible with firebase-functions v5)
+- `firebase-functions@^5.1.1`
+- `axios@^1.7.0`
+
+**Common Error:** If you see peer dependency conflict with `firebase-admin@^13.x`, you're using the wrong version. Use the provided template or downgrade to `^12.5.0`.
+
+### 3. Configure Backend URL
+
+```bash
+# For local testing
+firebase functions:config:set backend.url="http://localhost:3001"
+
+# For production
+firebase functions:config:set backend.url="https://your-backend-url.com"
+```
+
+### 4. Deploy
+
+```bash
+# From project root
 firebase deploy --only functions
 ```
 
-### Environment Variables
+## Package.json Template
 
-Set the backend URL for the functions:
+A ready-to-use `package.json` is included in this directory with the correct dependency versions:
 
-```bash
-firebase functions:config:set backend.url="https://your-backend-url.com"
+```json
+{
+  "dependencies": {
+    "firebase-admin": "^12.5.0",
+    "firebase-functions": "^5.1.1",
+    "axios": "^1.7.0"
+  }
+}
 ```
 
 ## Functions
@@ -59,34 +89,84 @@ firebase functions:config:set backend.url="https://your-backend-url.com"
 
 **Trigger:** onCreate on `ai_interactions/{docId}`
 
+**Timeout:** 540 seconds (9 minutes)
+**Memory:** 2GB
+
 **Flow:**
-1. Update status to `processing`
-2. Call ML pipeline at `/api/query`
-3. Update document with analysis results
-4. Set status to `completed`
-5. Create ledger block
-6. Set status to `ledger_verified`
+1. Update status to `processing` with status_log
+2. Call ML pipeline at `/api/query` with `firebaseDocId`
+3. Backend automatically saves:
+   - Raw AI responses
+   - Processed pipeline data
+   - Quality metrics
+   - Ledger blocks
+4. Status transitions: `processing` → `completed` → `ledger_verified`
 
-### processQuestion (HTTP Endpoint)
+**Backend handles all data persistence**, so the function just needs to trigger the pipeline.
 
-**URL:** `https://your-region-your-project.cloudfunctions.net/processQuestion`
+### onStatusUpdate (Firestore Trigger)
 
-**Method:** POST
+**Trigger:** onUpdate on `ai_interactions/{docId}`
 
-**Body:**
-```json
-{
-  "docId": "document-id"
-}
+Monitors status changes for logging and analytics. Useful for debugging and tracking pipeline progress.
+
+## Troubleshooting
+
+### npm install fails with peer dependency error
+
+**Error:**
+```
+npm error peer firebase-admin@"^11.10.0 || ^12.0.0" from firebase-functions@5.1.1
+npm error Found: firebase-admin@13.6.0
 ```
 
-Manually trigger processing for a specific question.
+**Solution:**
+Use the provided `package.json` template which has `firebase-admin@^12.5.0`, not `^13.x`.
 
-### processPendingQuestions (Scheduled)
+```bash
+# Copy the template
+cp firebase-functions/package.json functions/package.json
+cd functions
+npm install
+```
 
-**Schedule:** Every 5 minutes
+### Function timeout
 
-Checks for questions stuck in `received` status and triggers processing.
+**Error:**
+```
+Function execution took 60000 ms, finished with status: 'timeout'
+```
+
+**Solution:**
+The functions are already configured with 540s timeout. Make sure you're deploying the code from `firebase-functions/index.js` which has:
+
+```javascript
+exports.onQuestionCreate = functions
+  .runWith({
+    timeoutSeconds: 540,
+    memory: '2GB'
+  })
+  .firestore
+  .document('ai_interactions/{docId}')
+  .onCreate(async (snap, context) => {
+    // ...
+  });
+```
+
+### Cannot reach backend
+
+**Error:**
+```
+Error: connect ECONNREFUSED
+```
+
+**Solution:**
+1. Check backend URL config:
+   ```bash
+   firebase functions:config:get
+   ```
+2. Make sure backend is accessible from Firebase Functions
+3. For local testing, backend must be publicly accessible or use ngrok
 
 ## Testing
 
@@ -96,8 +176,37 @@ Test locally with Firebase Emulator:
 firebase emulators:start --only functions,firestore
 ```
 
+**Note:** Local emulator may have different timeout limits. Test with deployed functions for accurate behavior.
+
+## Environment Variables
+
+Set via Firebase CLI:
+
+```bash
+# Backend URL (required)
+firebase functions:config:set backend.url="https://your-backend-url.com"
+
+# View all config
+firebase functions:config:get
+```
+
+## Logs
+
+View logs in Firebase Console:
+- Functions > Logs
+- Or via CLI: `firebase functions:log`
+
 ## Notes
 
-- Functions have a 2-minute timeout for ML pipeline processing
-- Errors automatically retry with exponential backoff
-- All logs are available in Firebase Console under Functions > Logs
+- Functions have 540s timeout (9 minutes) for ML pipeline processing
+- 2GB memory allocation for handling large responses
+- Errors automatically logged to Firestore `errors` array
+- Status updates tracked in `pipeline_metadata.status_log`
+- Backend handles all data persistence (Step 2 enhancement)
+
+## Complete Documentation
+
+For complete setup instructions, see:
+- [Firebase Step 2 Deployment Guide](../docs/deployment/FIREBASE_STEP2_DEPLOYMENT_GUIDE.md)
+- [Environment Variables Guide](../docs/deployment/ENVIRONMENT_VARIABLES.md)
+- [Firebase Step 2 Integration Docs](../docs/api/FIREBASE_STEP2_INTEGRATION.md)
