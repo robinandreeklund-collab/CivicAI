@@ -39,19 +39,23 @@ export default function ChatV2Page() {
   const [expandedPipelineStep, setExpandedPipelineStep] = useState(null);
   
   // Prevent duplicate submissions in React StrictMode (development)
-  const hasSubmittedInitialQuestion = useRef(false);
+  // Use location.state?.initialQuestion as the key to track what we've submitted
+  const hasSubmittedInitialQuestion = useRef(null);
 
   // Get latest AI message for display
   const latestAiMessage = messages.filter(m => m.type === 'ai').slice(-1)[0];
 
   // Handle initial question from LandingPage navigation
   useEffect(() => {
-    if (location.state?.initialQuestion && !hasSubmittedInitialQuestion.current) {
-      hasSubmittedInitialQuestion.current = true;
-      setQuestion(location.state.initialQuestion);
+    const currentQuestion = location.state?.initialQuestion;
+    
+    // Only submit if we have a question and haven't submitted THIS specific question yet
+    if (currentQuestion && hasSubmittedInitialQuestion.current !== currentQuestion) {
+      hasSubmittedInitialQuestion.current = currentQuestion;
+      setQuestion(currentQuestion);
       // Auto-submit the question
       const submitInitialQuestion = async () => {
-        const userQuestion = location.state.initialQuestion.trim();
+        const userQuestion = currentQuestion.trim();
         
         // Add user message
         const userMessage = {
@@ -230,14 +234,7 @@ export default function ChatV2Page() {
       // Clear the location state to prevent re-submission on refresh
       window.history.replaceState({}, document.title);
     }
-    
-    // Reset the ref when location changes (navigating to new question)
-    return () => {
-      if (location.state?.initialQuestion) {
-        hasSubmittedInitialQuestion.current = false;
-      }
-    };
-  }, [location.state]);
+  }, [location.state?.initialQuestion]); // Only re-run if the actual question changes
 
   const handleSubmit = async (e) => {
     e.preventDefault();

@@ -452,6 +452,81 @@ export default function ApiDocumentationPage() {
     },
   ];
 
+  const firebaseEndpoints = [
+    { 
+      path: '/firebase/status', 
+      method: 'GET', 
+      status: '✅', 
+      desc: 'Check Firebase availability and configuration status', 
+      service: 'firebase',
+      details: {
+        input: 'No input required',
+        process: 'Checks Firebase Admin SDK initialization → Verifies Firestore connection → Returns configuration status with helpful error messages if not configured',
+        output: '```json\n{\n  "available": true,\n  "configured": true,\n  "message": "Firebase is configured and ready",\n  "error": null,\n  "timestamp": "2025-11-18T10:00:00.000Z"\n}\n```'
+      }
+    },
+    { 
+      path: '/firebase/questions', 
+      method: 'POST', 
+      status: '✅', 
+      desc: 'Store a new question in Firebase Firestore - returns 201 with document ID', 
+      service: 'firebase',
+      details: {
+        input: '```json\n{\n  "question": "Vad är Sveriges klimatpolitik?",\n  "userId": "anonymous",\n  "sessionId": "session-123456"\n}\n```',
+        process: 'Validates question (must be non-empty string) → Creates document in ai_interactions collection with status "received" → Generates question hash for ledger → Creates ledger block for "Fråga mottagen" → Returns document ID and status',
+        output: '```json\n{\n  "success": true,\n  "docId": "abc123def456",\n  "status": "received",\n  "created_at": "2025-11-18T10:00:00.000Z",\n  "message": "Question stored successfully"\n}\n```'
+      }
+    },
+    { 
+      path: '/firebase/questions/:docId', 
+      method: 'GET', 
+      status: '✅', 
+      desc: 'Retrieve a specific question by document ID with current status', 
+      service: 'firebase',
+      details: {
+        input: 'URL parameter: `docId` (Firestore document ID)',
+        process: 'Looks up document in ai_interactions collection → Verifies document exists → Returns complete document data including question, status, analysis results',
+        output: '```json\n{\n  "success": true,\n  "data": {\n    "docId": "abc123def456",\n    "question": "Vad är Sveriges klimatpolitik?",\n    "status": "completed",\n    "created_at": "2025-11-18T10:00:00.000Z",\n    "completed_at": "2025-11-18T10:05:00.000Z",\n    "pipeline_version": "1.0.0",\n    "analysis": {...}\n  }\n}\n```'
+      }
+    },
+    { 
+      path: '/firebase/questions/:docId/status', 
+      method: 'POST', 
+      status: '✅', 
+      desc: 'Update question status - used by ML pipeline to track processing stages', 
+      service: 'firebase',
+      details: {
+        input: '```json\n{\n  "status": "processing",\n  "analysis": null,\n  "completed_at": null\n}\n```',
+        process: 'Validates status value (received | processing | completed | ledger_verified | error) → Updates document in Firestore → Creates ledger block for status changes (e.g., "Analys klar" when completed) → Returns updated status',
+        output: '```json\n{\n  "success": true,\n  "docId": "abc123def456",\n  "status": "processing",\n  "message": "Status updated successfully"\n}\n```'
+      }
+    },
+    { 
+      path: '/firebase/questions', 
+      method: 'GET', 
+      status: '✅', 
+      desc: 'List recent questions with pagination and status filtering', 
+      service: 'firebase',
+      details: {
+        input: 'Query params: `limit` (default 10), `status` (optional filter)',
+        process: 'Queries ai_interactions collection → Orders by created_at descending → Applies optional status filter → Paginates results → Returns array of questions',
+        output: '```json\n{\n  "success": true,\n  "count": 10,\n  "data": [\n    {\n      "docId": "abc123",\n      "question": "...",\n      "status": "completed",\n      "created_at": "2025-11-18T10:00:00.000Z"\n    }\n  ]\n}\n```'
+      }
+    },
+    { 
+      path: '/firebase/questions/:docId', 
+      method: 'DELETE', 
+      status: '✅', 
+      desc: 'Delete a question (GDPR compliance - right to be forgotten)', 
+      service: 'firebase',
+      details: {
+        input: 'URL parameter: `docId` (document to delete)',
+        process: 'Validates document exists → Deletes from ai_interactions collection → Returns success confirmation',
+        output: '```json\n{\n  "success": true,\n  "message": "Question deleted successfully"\n}\n```'
+      }
+    },
+  ];
+
   const toggleEndpoint = (key) => {
     setExpandedEndpoint(expandedEndpoint === key ? null : key);
   };
@@ -630,6 +705,26 @@ export default function ApiDocumentationPage() {
             </div>
             <div>
               {factCheckEndpoints.map((endpoint, idx) => renderEndpoint(endpoint, idx, 'fact-check'))}
+            </div>
+          </div>
+
+          {/* Firebase Integration Endpoints */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-mono text-[#888]">FIREBASE INTEGRATION</h2>
+              <div className="flex items-center gap-2 text-[10px] font-mono">
+                <span className="text-[#555]">Status:</span>
+                {getServiceHealth('firebase')}
+              </div>
+            </div>
+            <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded px-3 py-2 mb-3">
+              <p className="text-[10px] font-mono text-[#666] leading-relaxed">
+                Firebase Firestore integration för persistent lagring av användarfrågor och realtidsstatusuppdateringar. 
+                Stöder statusflöde: <span className="text-[#888]">received</span> → <span className="text-[#888]">processing</span> → <span className="text-[#888]">completed</span> → <span className="text-[#888]">ledger_verified</span>
+              </p>
+            </div>
+            <div>
+              {firebaseEndpoints.map((endpoint, idx) => renderEndpoint(endpoint, idx, 'firebase'))}
             </div>
           </div>
 
