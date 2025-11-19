@@ -2,6 +2,15 @@
 
 This directory contains the deployed Firebase Cloud Functions for CivicAI.
 
+## ⚠️ IMPORTANT: Migration to Environment Variables
+
+**Firebase is deprecating `functions.config()` API in March 2026.**
+
+**New Method (Recommended):** Use `.env` file  
+**Old Method (Deprecated):** Use `firebase functions:config:set`
+
+See [Migration Guide](../docs/deployment/FIREBASE_FUNCTIONS_MIGRATION.md) for full details.
+
 ## Quick Setup
 
 ### 1. Install Dependencies
@@ -16,7 +25,22 @@ Firebase Functions need a **publicly accessible** backend URL to call the ML pip
 
 **CRITICAL:** Deployed functions running in Google Cloud CANNOT access `localhost` or `127.0.0.1`.
 
-#### Option A: Use .runtimeconfig.json (Recommended)
+#### Method 1: Use .env file (Recommended - New Standard)
+
+Create `functions/.env`:
+
+```bash
+# For production
+BACKEND_URL=https://your-public-backend-url.com
+
+# For testing with ngrok
+BACKEND_URL=https://abc123.ngrok.io
+
+# For local development (only with emulator)
+BACKEND_URL=http://localhost:3001
+```
+
+#### Method 2: Use .runtimeconfig.json (Alternative)
 
 Create `functions/.runtimeconfig.json`:
 
@@ -28,35 +52,25 @@ Create `functions/.runtimeconfig.json`:
 }
 ```
 
-For local testing with ngrok:
-```json
-{
-  "backend": {
-    "url": "https://abc123.ngrok.io"
-  }
-}
-```
-
-**Note:** `.runtimeconfig.json` is gitignored. Use `.runtimeconfig.json.example` as template.
-
-#### Option B: Use Firebase CLI config
+#### Method 3: Use Firebase CLI config (Deprecated)
 
 ```bash
 firebase functions:config:set backend.url="https://your-backend-url.com"
-firebase functions:config:get  # Verify
 ```
 
-**Important:** After changing config, you MUST redeploy:
-```bash
-firebase deploy --only functions
-```
+**Deprecation Notice:** This method will stop working in March 2026. Please migrate to `.env` file.
+
+**Note:** All three methods work during migration period. `.env` has highest priority.
 
 ### 3. Deploy
 
 ```bash
-# From project root
+# From project root (NOT from functions/)
+cd /path/to/CivicAI
 firebase deploy --only functions
 ```
+
+**Important:** Deploy from project root where `firebase.json` exists, not from `functions/` directory.
 
 ## Testing Locally
 

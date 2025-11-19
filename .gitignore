@@ -198,3 +198,4 @@ firestore.rules
 
 # Firebase Functions runtime config (may contain sensitive URLs)
 functions/.runtimeconfig.json
+functions/.env

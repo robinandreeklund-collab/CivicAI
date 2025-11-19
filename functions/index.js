@@ -79,10 +79,14 @@ exports.onQuestionCreate = functions
       await logStatus(docRef, 'processing', 'Starting ML pipeline processing');
 
       // Step 2: Get backend URL and validate configuration
-      // Get backend URL from Firebase config (set via: firebase functions:config:set backend.url="...")
-      // IMPORTANT: Must redeploy after changing config for new URL to take effect
+      // MIGRATION NOTE: Moving from deprecated functions.config() to params.BACKEND_URL
+      // For backwards compatibility during migration, we check both sources
+      // See: https://firebase.google.com/docs/functions/config-env#migrate-to-dotenv
       
-      const backendUrl = functions.config().backend?.url || 'http://localhost:3001';
+      // Try new method first (params), fallback to deprecated config, then localhost
+      const backendUrl = process.env.BACKEND_URL || 
+                        functions.config().backend?.url || 
+                        'http://localhost:3001';
       
       console.log(`[onQuestionCreate] Using backend URL: ${backendUrl}`);
       
@@ -100,19 +104,22 @@ Firebase Functions deployed to cloud CANNOT access localhost URLs.
 
 Solutions:
 1. For PRODUCTION: Deploy backend to public server and set URL:
-   firebase functions:config:set backend.url="https://your-backend-url.com"
-   firebase deploy --only functions
+   Create functions/.env file with:
+   BACKEND_URL=https://your-backend-url.com
+   
+   Then deploy: firebase deploy --only functions
 
 2. For TESTING with deployed functions: Use ngrok to expose local backend:
    - Install ngrok: https://ngrok.com/download
    - Run: ngrok http 3001
-   - Set URL: firebase functions:config:set backend.url="https://your-ngrok-url.ngrok.io"
+   - Create functions/.env file with:
+     BACKEND_URL=https://your-ngrok-url.ngrok.io
    - Deploy: firebase deploy --only functions
 
 3. For LOCAL DEVELOPMENT: Use Firebase Emulator (functions run locally):
    firebase emulators:start --only functions,firestore
 
-Current config: ${JSON.stringify(functions.config().backend || {})}
+Current config source: ${process.env.BACKEND_URL ? 'Environment Variable' : 'functions.config() (deprecated)'}
 
 See: docs/deployment/FIREBASE_STEP2_DEPLOYMENT_GUIDE.md for full instructions
         `.trim();
