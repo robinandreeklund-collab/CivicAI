@@ -9,6 +9,7 @@ Detta är en komplett guide för att lösa vanliga problem och förstå hur Civi
 3. [Chat-v2 Data Structure](./CHAT_V2_DATA_STRUCTURE.md) - Förklaring av datapunkter och struktur
 4. [Environment Setup](./ENVIRONMENT_SETUP.md) - Miljövariabler och konfiguration
 5. [Verification Guide](./VERIFICATION_GUIDE.md) - ⭐ **Verifiera att data hämtas från Firestore (inte API)**
+6. [Final Fix Summary](./FINAL_FIX_SUMMARY.md) - 🎉 **Borttagna direkta API-anrop från frontend**
 
 ## 🔥 Snabbfixar
 
