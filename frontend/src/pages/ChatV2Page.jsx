@@ -1488,6 +1488,12 @@ export default function ChatV2Page() {
                   <h3 className="font-medium text-[#e7e7e7] mb-4">Pipeline Processtidslinje</h3>
                   <div className="space-y-3">
                     {pipelineAnalysis.timeline.map((step, idx) => {
+                      // Helper to safely render values - only render primitives, not objects/arrays
+                      const safeRender = (value) => {
+                        if (value === null || value === undefined) return 'N/A';
+                        if (typeof value === 'object') return JSON.stringify(value);
+                        return value;
+                      };
                       const isExpanded = expandedPipelineStep === idx;
                       const stepDuration = step.durationMs ?? step.duration ?? 0;
                       
@@ -1564,13 +1570,13 @@ export default function ChatV2Page() {
                               {(step.step === 'gensim_topics' || step.step === 'bertopic_modeling') && step.output && (
                                 <div className="mt-4 p-4 bg-[#0a0a0a] rounded">
                                   <div className="text-[#666] mb-3 font-medium">📊 Topic Analysis Results</div>
-                                  {step.output.topics && step.output.topics.length > 0 ? (
+                                   {step.output.topics && Array.isArray(step.output.topics) && step.output.topics.length > 0 ? (
                                     <div className="space-y-3">
                                       {step.output.topics.slice(0, 5).map((topic, tidx) => (
                                         <div key={tidx} className="border border-[#2a2a2a] rounded p-3">
                                           <div className="flex items-center justify-between mb-2">
                                             <span className="text-[#e7e7e7] font-medium">
-                                              {topic.label || topic.topic || `Topic ${tidx + 1}`}
+                                              {safeRender(topic.label || topic.topic || `Topic ${tidx + 1}`)}
                                             </span>
                                             {topic.probability && (
                                               <span className="text-[#888] text-xs">
@@ -1578,11 +1584,11 @@ export default function ChatV2Page() {
                                               </span>
                                             )}
                                           </div>
-                                          {topic.terms && topic.terms.length > 0 && (
+                                          {topic.terms && Array.isArray(topic.terms) && topic.terms.length > 0 && (
                                             <div className="flex flex-wrap gap-2 mt-2">
                                               {topic.terms.slice(0, 8).map((term, termIdx) => (
                                                 <span key={termIdx} className="px-2 py-1 bg-[#1a1a1a] text-[#888] text-xs rounded">
-                                                  {typeof term === 'string' ? term : term.word || term.term}
+                                                  {typeof term === 'string' ? term : (typeof term === 'object' && term !== null ? (term.word || term.term || safeRender(term)) : safeRender(term))}
                                                 </span>
                                               ))}
                                             </div>
@@ -1605,7 +1611,7 @@ export default function ChatV2Page() {
                                   )}
                                   {step.output.method && (
                                     <div className="mt-3 text-xs text-[#666]">
-                                      Method: {step.output.method} {step.output.model && `(${step.output.model})`}
+                                      Method: {safeRender(step.output.method)} {step.output.model && `(${safeRender(step.output.model)})`}
                                     </div>
                                   )}
                                 </div>
@@ -1615,22 +1621,26 @@ export default function ChatV2Page() {
                               {(step.step === 'shap_explainability' || step.step === 'lime_explanation') && step.output && (
                                 <div className="mt-4 p-4 bg-[#0a0a0a] rounded">
                                   <div className="text-[#666] mb-3 font-medium">🔍 Feature Importance</div>
-                                  {step.output.topFeatures && step.output.topFeatures.length > 0 ? (
+                                  {step.output.topFeatures && Array.isArray(step.output.topFeatures) && step.output.topFeatures.length > 0 ? (
                                     <div className="space-y-2">
-                                      {step.output.topFeatures.slice(0, 10).map((feat, fidx) => (
-                                        <div key={fidx} className="flex items-center gap-3">
-                                          <span className="text-[#888] text-xs w-32 truncate">{feat.feature || feat.word}</span>
-                                          <div className="flex-1 h-4 bg-[#1a1a1a] rounded-full overflow-hidden">
-                                            <div 
-                                              className={`h-full ${feat.contribution > 0 ? 'bg-green-500' : 'bg-red-500'}`}
-                                              style={{width: `${Math.min(Math.abs(feat.contribution || feat.weight || 0) * 100, 100)}%`}}
-                                            ></div>
+                                      {step.output.topFeatures.slice(0, 10).map((feat, fidx) => {
+                                        // Ensure feat is an object before accessing its properties
+                                        if (typeof feat !== 'object' || feat === null) return null;
+                                        return (
+                                          <div key={fidx} className="flex items-center gap-3">
+                                            <span className="text-[#888] text-xs w-32 truncate">{safeRender(feat.feature || feat.word)}</span>
+                                            <div className="flex-1 h-4 bg-[#1a1a1a] rounded-full overflow-hidden">
+                                              <div 
+                                                className={`h-full ${feat.contribution > 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                                                style={{width: `${Math.min(Math.abs(feat.contribution || feat.weight || 0) * 100, 100)}%`}}
+                                              ></div>
+                                            </div>
+                                            <span className="text-[#888] text-xs w-16 text-right">
+                                              {(feat.contribution || feat.weight || 0).toFixed(3)}
+                                            </span>
                                           </div>
-                                          <span className="text-[#888] text-xs w-16 text-right">
-                                            {(feat.contribution || feat.weight || 0).toFixed(3)}
-                                          </span>
-                                        </div>
-                                      ))}
+                                        );
+                                      })}
                                     </div>
                                   ) : (
                                     <div className="text-[#666] text-sm">No feature importance data</div>
