@@ -22,6 +22,10 @@ const router = express.Router();
 /**
  * POST /api/users/signup
  * Create anonymous user account with cryptographic keys
+ * 
+ * TODO: Add rate limiting (e.g., 3 accounts per IP/hour)
+ * This is mentioned in SIGNUP_IMPLEMENTATION.md as a future enhancement
+ * Current bot protection relies on Proof-of-Work only
  */
 router.post('/signup', async (req, res) => {
   try {
