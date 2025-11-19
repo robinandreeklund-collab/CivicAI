@@ -2,6 +2,15 @@
 
 Detta dokument förklarar EXAKT hur data flödar genom hela CivicAI systemet, från att användaren ställer en fråga till att svaret visas på frontend.
 
+## ✅ UPPDATERING: Firebase Integration Implementerad
+
+**Status:** Chat-v2 är nu uppdaterad för att hämta data från Firestore via real-time listeners istället för direkt från `/api/query`.
+
+**Nya Filer:**
+- `frontend/src/config/firebase.js` - Firebase initialisering och konfiguration
+- `frontend/src/hooks/useFirestoreDocument.js` - Custom hook för Firestore real-time listeners  
+- `frontend/src/pages/ChatV2Page.jsx` - Uppdaterad med Firestore integration
+
 ## 🔄 Komplett Dataflöde (End-to-End)
 
 ```
@@ -720,3 +729,255 @@ Frontend → Backend /api/firebase/questions → Firestore (skapar dokument)
 - ✅ Möjlighet att visa tidigare frågor
 - ✅ Bättre error handling
 - ✅ Audit trail via ledger blocks
+
+---
+
+## 🎉 IMPLEMENTATION STATUS (UPDATED)
+
+### ✅ Implementerat (Fungerar)
+
+**Backend & Firebase Functions:**
+- ✅ `raw_responses` - Sparas i Firestore från backend
+- ✅ `processed_data.bert_summary` - BERT sammanfattning sparas
+- ✅ `processed_data.consensus_analysis` - Consensus analys sparas
+- ✅ `processed_data.quality_metrics` - Kvalitetsmått sparas
+- ✅ `processed_data.fact_check_results` - Fact checking sparas
+- ✅ `ledger_blocks` - Blockchain-liknande audit trail skapas
+- ✅ Firebase Functions trigger aktiveras vid ny fråga
+- ✅ Backend ML pipeline processar komplett
+
+**Frontend (Chat-v2):**
+- ✅ Firebase SDK initialiserad (`frontend/src/config/firebase.js`)
+- ✅ Custom Firestore hook skapad (`frontend/src/hooks/useFirestoreDocument.js`)
+- ✅ Real-time listener implementerad i ChatV2Page
+- ✅ Data mappning från Firestore till UI-komponenter
+- ✅ Status-based UI updates (processing → completed → ledger_verified)
+- ✅ Error handling från Firestore
+
+### 📊 Data Som Nu Hämtas Från Firestore
+
+| Datapunkt | Firestore Path | Status | UI Komponent |
+|-----------|----------------|--------|--------------|
+| **Fråga** | `question` | ✅ Hämtas | Header/Title |
+| **AI Responses** | `raw_responses.{service}.text` | ✅ Hämtas | ModelsView, Overview |
+| **BERT Summary** | `processed_data.bert_summary.text` | ✅ Hämtas | Overview |
+| **Consensus Score** | `processed_data.consensus_analysis.consensus_score` | ✅ Hämtas | Overview, Pipeline |
+| **Agreement Points** | `processed_data.consensus_analysis.agreement_points` | ✅ Hämtas | Debate View |
+| **Divergence Points** | `processed_data.consensus_analysis.divergence_points` | ✅ Hämtas | Debate View |
+| **Quality Metrics** | `processed_data.quality_metrics` | ✅ Hämtas | Pipeline View |
+| **Fact Check Results** | `processed_data.fact_check_results` | ✅ Hämtas | Overview |
+| **Ledger Blocks** | `ledger_blocks[]` | ✅ Hämtas | (Future: Ledger View) |
+| **Pipeline Metadata** | `pipeline_metadata` | ✅ Hämtas | Pipeline View |
+| **Status** | `status` | ✅ Hämtas | Loading State |
+| **Errors** | `errors[]` | ✅ Hämtas | Error Display |
+
+### 🔄 Nytt Dataflöde (Implementerat)
+
+```
+ANVÄNDARE ställer fråga
+    ↓
+FRONTEND (ChatV2Page.jsx)
+    │
+    ├─ Sparar user message i state
+    ├─ POST /api/firebase/questions
+    ├─ Får tillbaka firebaseDocId
+    └─ setFirebaseDocId(docId) → Startar Firestore listener
+    ↓
+FIRESTORE (dokument skapas, status: "received")
+    ↓
+FIREBASE FUNCTIONS (onCreate trigger aktiveras)
+    ↓
+BACKEND /api/query (ML Pipeline)
+    ├─ AI Services (GPT, Gemini, DeepSeek)  
+    ├─ BERT Summarization
+    ├─ Consensus Analysis
+    ├─ Fact Checking
+    └─ Ledger Blocks
+    ↓
+FIRESTORE (dokument uppdateras)
+    ├─ status: "processing"
+    ├─ raw_responses: {...}
+    ├─ processed_data: {...}
+    ├─ ledger_blocks: [...]
+    └─ status: "completed" → "ledger_verified"
+    ↓
+FRONTEND Firestore Listener (useFirestoreDocument hook)
+    │
+    ├─ Lyssnar på dokument ändringar
+    ├─ När status === 'completed' || 'ledger_verified'
+    ├─ Mappar Firestore data → AI message format
+    └─ setMessages([userMsg, aiMsg])
+    ↓
+UI UPPDATERAS
+    ├─ Overview: BERT summary, consensus
+    ├─ Models: Individual AI responses
+    ├─ Pipeline: Processing steps, metrics
+    └─ Debate: Agreement/divergence points
+    ↓
+ANVÄNDARE ser resultat!
+```
+
+### 📝 Kod-Exempel: Firestore Integration
+
+**Firebase Konfiguration** (`frontend/src/config/firebase.js`):
+```javascript
+import { initializeApp } from 'firebase/app';
+import { getFirestore } from 'firebase/firestore';
+
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  // ... andra config
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+export { db };
+```
+
+**Custom Hook** (`frontend/src/hooks/useFirestoreDocument.js`):
+```javascript
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../config/firebase';
+
+export function useFirestoreDocument(collectionName, documentId) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    if (!documentId) return;
+    
+    const docRef = doc(db, collectionName, documentId);
+    const unsubscribe = onSnapshot(docRef, (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        setData({ id: docSnapshot.id, ...docSnapshot.data() });
+      }
+      setLoading(false);
+    });
+    
+    return () => unsubscribe();
+  }, [collectionName, documentId]);
+  
+  return { data, loading };
+}
+```
+
+**ChatV2Page Integration** (`frontend/src/pages/ChatV2Page.jsx`):
+```javascript
+// State för Firebase document ID
+const [firebaseDocId, setFirebaseDocId] = useState(null);
+
+// Real-time listener
+const { data: firestoreData } = useFirestoreDocument('ai_interactions', firebaseDocId);
+
+// Effect som lyssnar på Firestore updates
+useEffect(() => {
+  if (!firestoreData) return;
+  
+  if (firestoreData.status === 'completed' || firestoreData.status === 'ledger_verified') {
+    const aiMessage = {
+      type: 'ai',
+      responses: Object.entries(firestoreData.raw_responses || {}).map(...),
+      bertSummary: firestoreData.processed_data?.bert_summary?.text,
+      modelSynthesis: firestoreData.processed_data?.consensus_analysis,
+      // ... mappning av all data
+    };
+    
+    setMessages(prev => [prev[0], aiMessage]); // User msg + AI msg
+    setIsLoading(false);
+  }
+}, [firestoreData]);
+
+// Vid submit - ENDAST spara i Firebase
+const handleSubmit = async (e) => {
+  // ...
+  const response = await fetch('/api/firebase/questions', {...});
+  const { docId } = await response.json();
+  
+  setFirebaseDocId(docId); // Startar listener!
+  // Inget /api/query anrop längre!
+};
+```
+
+### 🧪 Verifiering
+
+**1. Kontrollera att Firebase SDK är konfigurerad:**
+```bash
+# frontend/.env
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+# ... etc
+```
+
+**2. Testa Real-time Updates:**
+1. Öppna Browser Console (F12)
+2. Ställ en fråga
+3. Du ska se logs:
+   ```
+   [Firebase] Initialized successfully
+   [useFirestoreDocument] Listening to ai_interactions/abc123
+   [ChatV2] ✅ Question stored in Firebase: abc123
+   [useFirestoreDocument] Document updated: processing
+   [useFirestoreDocument] Document updated: completed
+   [ChatV2] ✅ AI message updated from Firestore
+   ```
+
+**3. Verifiera Data i Firestore:**
+- Firebase Console → Firestore Database
+- Öppna `ai_interactions` collection
+- Hitta dokumentet
+- Verifiera alla fält finns:
+  - `raw_responses`
+  - `processed_data`
+  - `ledger_blocks`
+  - `status: "ledger_verified"`
+
+### 🎯 Fördelar Med Denna Lösning
+
+1. **Single Source of Truth** ✅
+   - All data finns i Firestore
+   - Ingen risk för data-mismatch
+   
+2. **Real-time Updates** ✅
+   - Frontend uppdateras automatiskt när backend är klar
+   - Användaren ser progress (received → processing → completed)
+   
+3. **Offline Support** ✅
+   - Firestore SDK cachar data
+   - Fungerar även vid dålig uppkoppling
+   
+4. **Skalbarhet** ✅
+   - Flera användare kan se samma fråga
+   - Data persistent mellan sessioner
+   
+5. **Audit Trail** ✅
+   - Ledger blocks sparas
+   - Fullständig historik av vad som hänt
+
+6. **Enklare Debugging** ✅
+   - All data synlig i Firebase Console
+   - Lätt att se vad som gått fel
+
+### 🔮 Framtida Förbättringar
+
+- [ ] **Autentisering:** Implementera Firebase Auth för user tracking
+- [ ] **Historik:** Visa tidigare frågor från Firestore
+- [ ] **Delning:** Dela länkar till specifika frågor via document ID
+- [ ] **Ledger View:** Dedikerad vy för att visa ledger blocks
+- [ ] **Progress Bar:** Visa real-time progress baserat på status updates
+- [ ] **Offline Mode:** Hantera offline-frågor med queue
+- [ ] **Collaborative:** Flera användare kan kommentera samma fråga
+
+### 📚 Relaterad Dokumentation
+
+- [Firebase Setup Guide](./FIREBASE_SETUP_COMPLETE.md)
+- [Common Errors & Fixes](./COMMON_ERRORS_AND_FIXES.md)
+- [Environment Setup](./ENVIRONMENT_SETUP.md)
+
+---
+
+**Senast Uppdaterad:** 2025-11-19  
+**Status:** ✅ Firestore Integration Komplett  
+**Nästa Steg:** Test med riktiga användare, implementera historik-vy
