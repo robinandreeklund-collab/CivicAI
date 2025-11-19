@@ -261,7 +261,7 @@ Om du inte kopierade från template, redigera `functions/package.json`:
     "logs": "firebase functions:log"
   },
   "engines": {
-    "node": "18"
+    "node": "20"
   },
   "main": "index.js",
   "dependencies": {
@@ -272,7 +272,9 @@ Om du inte kopierade från template, redigera `functions/package.json`:
 }
 ```
 
-**VIKTIGT:** Använd `firebase-admin@^12.5.0` (INTE `^13.x`) för att undvika peer dependency konflikt med `firebase-functions@^5.x`.
+**VIKTIGT:** 
+- Använd `node: "20"` (Node.js 18 är dekommissionerad sedan 2025-10-30)
+- Använd `firebase-admin@^12.5.0` (INTE `^13.x`) för att undvika peer dependency konflikt
 
 **Template finns i:** `firebase-functions/package.json` (kan kopieras direkt)
 
@@ -727,6 +729,44 @@ npm install --legacy-peer-deps
 ```
 
 **VIKTIGT:** I deployment-guiden är nu rätt version angiven (`firebase-admin@^12.0.0`).
+
+### Problem: Node.js runtime dekommissionerad
+
+**Symptom:**
+```
+Error: Runtime Node.js 18 was decommissioned on 2025-10-30. 
+To deploy you must first upgrade your runtime version.
+```
+
+**Lösning:**
+Uppdatera till Node.js 20 i `functions/package.json`:
+
+```json
+{
+  "engines": {
+    "node": "20"
+  }
+}
+```
+
+**Steg:**
+1. Öppna `functions/package.json`
+2. Ändra `"node": "18"` till `"node": "20"`
+3. Spara filen
+4. Försök deploya igen:
+   ```bash
+   firebase deploy --only functions
+   ```
+
+**Eller kopiera uppdaterad template:**
+```bash
+cp firebase-functions/package.json functions/package.json
+cd functions
+npm install
+firebase deploy --only functions
+```
+
+**VIKTIGT:** Node.js 18 stöds inte längre av Firebase Functions (dekommissionerad 2025-10-30). Använd alltid Node.js 20.
 
 ### Problem: Backend kan inte ansluta till Firebase
 

@@ -99,6 +99,9 @@ A ready-to-use `package.json` is included in this directory with the correct dep
 
 ```json
 {
+  "engines": {
+    "node": "20"
+  },
   "dependencies": {
     "firebase-admin": "^12.5.0",
     "firebase-functions": "^5.1.1",
@@ -106,6 +109,10 @@ A ready-to-use `package.json` is included in this directory with the correct dep
   }
 }
 ```
+
+**Important notes:**
+- **Node.js 20** required (Node.js 18 was decommissioned on 2025-10-30)
+- **firebase-admin 12.x** required for compatibility with firebase-functions 5.x
 
 ## Functions
 
@@ -178,6 +185,39 @@ Use the provided `package.json` template which has `firebase-admin@^12.5.0`, not
 cp firebase-functions/package.json functions/package.json
 cd functions
 npm install
+```
+
+### Node.js runtime decommissioned
+
+**Error:**
+```
+Error: Runtime Node.js 18 was decommissioned on 2025-10-30. 
+To deploy you must first upgrade your runtime version.
+```
+
+**Solution:**
+Update to Node.js 20 in `functions/package.json`:
+
+```json
+{
+  "engines": {
+    "node": "20"
+  }
+}
+```
+
+**Quick fix:**
+```bash
+# Option 1: Copy updated template
+cp firebase-functions/package.json functions/package.json
+
+# Option 2: Manual edit
+# Edit functions/package.json and change "node": "18" to "node": "20"
+
+# Then deploy
+cd functions
+npm install
+firebase deploy --only functions
 ```
 
 ### Function timeout
