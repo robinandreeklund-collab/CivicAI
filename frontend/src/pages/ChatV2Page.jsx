@@ -140,27 +140,6 @@ export default function ChatV2Page() {
     // Only process when status is completed or ledger_verified
     if (firestoreData.status === 'completed' || firestoreData.status === 'ledger_verified') {
       // Map Firestore data to AI message format
-      // First, parse the processed_data JSON strings
-      const parsedPipelineData = (() => {
-        if (!firestoreData.processed_data) return {};
-        
-        const parsedData = {};
-        Object.entries(firestoreData.processed_data).forEach(([key, value]) => {
-          if (typeof value === 'string' && (value.startsWith('{') || value.startsWith('['))) {
-            try {
-              parsedData[key] = JSON.parse(value);
-            } catch (e) {
-              console.warn(`[ChatV2] Failed to parse ${key}:`, e);
-              parsedData[key] = value;
-            }
-          } else {
-            parsedData[key] = value;
-          }
-        });
-        
-        return parsedData;
-      })();
-      
       const aiMessage = {
         type: 'ai',
         question: firestoreData.question,
@@ -181,22 +160,36 @@ export default function ChatV2Page() {
         factCheckComparison: firestoreData.analysis?.factCheckComparison || null,
         changeDetection: firestoreData.analysis?.changeDetection || null,
         
-        // Synthesized summary and meta review from Firestore
-        bertSummary: firestoreData.synthesized_summary || null,
-        bertMetadata: firestoreData.synthesized_summary_metadata || null,
-        metaReview: firestoreData.meta_review || null,
+        // Processed data from Firestore (ML pipeline results)
+        // NOTE: These fields are NOT currently saved to Firestore:
+        // - synthesizedSummary (BERT summary)
+        // - metaReview (GPT meta-review)
+        // They are only available in direct API responses
+        bertSummary: null,
+        bertMetadata: null,
+        metaReview: null,
         
-        // Map parsed pipeline data to expected structure (flatten for component access)
-        // Original API structure had these at top level, now they're in pipelineData
-        explainability: parsedPipelineData.explainability || null,
-        topics: parsedPipelineData.topics || null,
-        fairness: parsedPipelineData.fairnessAnalysis || null,
-        biasAnalysis: parsedPipelineData.biasAnalysis || null,
-        toxicity: parsedPipelineData.biasAnalysis?.detoxify || null,
-        sentiment: parsedPipelineData.sentimentAnalysis || null,
-        
-        // Keep the full pipelineData for pipeline view
-        pipelineData: parsedPipelineData,
+        // Processed pipeline data from Firestore
+        // Parse JSON strings back to objects (backend serializes complex objects to avoid Firestore nesting limits)
+        pipelineData: (() => {
+          if (!firestoreData.processed_data) return {};
+          
+          const parsedData = {};
+          Object.entries(firestoreData.processed_data).forEach(([key, value]) => {
+            if (typeof value === 'string' && (value.startsWith('{') || value.startsWith('['))) {
+              try {
+                parsedData[key] = JSON.parse(value);
+              } catch (e) {
+                console.warn(`[ChatV2] Failed to parse ${key}:`, e);
+                parsedData[key] = value;
+              }
+            } else {
+              parsedData[key] = value;
+            }
+          });
+          
+          return parsedData;
+        })(),
         
         // Quality metrics from Firestore
         qualityMetrics: firestoreData.quality_metrics || null,
