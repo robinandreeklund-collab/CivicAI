@@ -175,8 +175,26 @@ export default function ChatV2Page() {
         bertMetadata: firestoreData.synthesized_summary_metadata || null,
         metaReview: firestoreData.meta_review || null,
         
-        // Processed pipeline data from Firestore
-        pipelineData: firestoreData.processed_data || {},
+        // Processed pipeline data from Firestore (need to parse as it's all JSON strings now)
+        pipelineData: (() => {
+          const pd = firestoreData.processed_data || {};
+          const parsed = {};
+          
+          // Parse all JSON string fields back to objects
+          for (const [key, value] of Object.entries(pd)) {
+            if (typeof value === 'string' && value.startsWith('{') || value?.startsWith('[')) {
+              try {
+                parsed[key] = JSON.parse(value);
+              } catch (e) {
+                parsed[key] = value; // Keep as string if parsing fails
+              }
+            } else {
+              parsed[key] = value;
+            }
+          }
+          
+          return parsed;
+        })(),
         
         // Extract specific analysis data for cards (parse JSON strings if needed)
         explainability: (() => {
@@ -187,7 +205,17 @@ export default function ChatV2Page() {
           }
           return data;
         })(),
-        toxicity: firestoreData.processed_data?.biasAnalysis?.detoxify || null,
+        toxicity: (() => {
+          const biasData = firestoreData.processed_data?.biasAnalysis;
+          if (!biasData) return null;
+          if (typeof biasData === 'string') {
+            try { 
+              const parsed = JSON.parse(biasData);
+              return parsed?.detoxify || null;
+            } catch (e) { return null; }
+          }
+          return biasData?.detoxify || null;
+        })(),
         topics: (() => {
           const data = firestoreData.processed_data?.topics;
           if (!data) return null;
@@ -204,7 +232,14 @@ export default function ChatV2Page() {
           }
           return data;
         })(),
-        factCheck: firestoreData.processed_data?.factCheck || null,
+        factCheck: (() => {
+          const data = firestoreData.processed_data?.factCheck;
+          if (!data) return null;
+          if (typeof data === 'string') {
+            try { return JSON.parse(data); } catch (e) { return null; }
+          }
+          return data;
+        })(),
         
         // Quality metrics from Firestore
         qualityMetrics: firestoreData.quality_metrics || null,
@@ -1298,26 +1333,23 @@ export default function ChatV2Page() {
     // fall back to response.pipelineAnalysis for direct API responses
     let pipelineAnalysis = latestAiMessage.pipelineData || selectedResponse?.pipelineAnalysis;
     
-    // Parse JSON strings in pipelineData if they exist (Firestore stores complex objects as strings)
-    if (pipelineAnalysis) {
-      pipelineAnalysis = { ...pipelineAnalysis };
+    // Parse JSON strings in pipelineData if they exist (Firestore stores ALL complex objects as strings now)
+    if (pipelineAnalysis && typeof pipelineAnalysis === 'object') {
+      const parsed = {};
       
-      // Parse JSON string fields
-      if (typeof pipelineAnalysis.explainability === 'string') {
-        try { pipelineAnalysis.explainability = JSON.parse(pipelineAnalysis.explainability); } catch (e) {}
+      for (const [key, value] of Object.entries(pipelineAnalysis)) {
+        if (typeof value === 'string' && (value.startsWith('{') || value.startsWith('['))) {
+          try {
+            parsed[key] = JSON.parse(value);
+          } catch (e) {
+            parsed[key] = value; // Keep as string if parsing fails
+          }
+        } else {
+          parsed[key] = value;
+        }
       }
-      if (typeof pipelineAnalysis.topics === 'string') {
-        try { pipelineAnalysis.topics = JSON.parse(pipelineAnalysis.topics); } catch (e) {}
-      }
-      if (typeof pipelineAnalysis.fairnessAnalysis === 'string') {
-        try { pipelineAnalysis.fairnessAnalysis = JSON.parse(pipelineAnalysis.fairnessAnalysis); } catch (e) {}
-      }
-      if (typeof pipelineAnalysis.timeline === 'string') {
-        try { pipelineAnalysis.timeline = JSON.parse(pipelineAnalysis.timeline); } catch (e) {}
-      }
-      if (typeof pipelineAnalysis.pipelineConfig === 'string') {
-        try { pipelineAnalysis.pipelineConfig = JSON.parse(pipelineAnalysis.pipelineConfig); } catch (e) {}
-      }
+      
+      pipelineAnalysis = parsed;
     }
     
     return (

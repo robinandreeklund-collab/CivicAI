@@ -369,51 +369,74 @@ export async function savePipelineData(docId, pipelineData) {
     };
     
     // Simplify and clean pipeline data for Firestore
-    // Convert complex nested objects to simpler structures or JSON strings to avoid Firestore nesting limits
+    // Serialize ALL complex nested objects to JSON strings to avoid Firestore nesting limits
+    // Keep only simple scalar values and shallow objects
     const simplifiedData = {
-      preprocessing: {
-        summary: pipelineData.preprocessing?.summary || {},
-        stats: pipelineData.preprocessing?.stats || {},
-        tokenization: pipelineData.preprocessing?.tokenization || {},
-        subjectivityAnalysis: pipelineData.preprocessing?.subjectivityAnalysis || {},
-        // Store complex nested data as JSON string to avoid Firestore nesting limits
-        details: pipelineData.preprocessing ? JSON.stringify(pipelineData.preprocessing) : '{}'
-      },
-      biasAnalysis: pipelineData.biasAnalysis || pipelineData.bias || {},
-      sentenceBiasAnalysis: pipelineData.sentenceBiasAnalysis || {},
-      sentimentAnalysis: pipelineData.sentimentAnalysis || pipelineData.sentiment || {},
-      ideologicalClassification: pipelineData.ideologicalClassification || pipelineData.ideology || {},
-      toneAnalysis: pipelineData.toneAnalysis || {},
-      factCheck: pipelineData.factCheck || {},
-      enhancedNLP: pipelineData.enhancedNLP || {},
-      // Serialize complex objects to JSON strings to avoid Firestore nesting limits
-      explainability: pipelineData.explainability ? JSON.stringify(pipelineData.explainability) : null,
-      topics: pipelineData.topics ? JSON.stringify(pipelineData.topics) : null,
-      fairnessAnalysis: pipelineData.fairnessAnalysis ? JSON.stringify(pipelineData.fairnessAnalysis) : null,
-      insights: pipelineData.insights || {},
-      summary: pipelineData.summary || {},
-      timeline: pipelineData.timeline ? JSON.stringify(pipelineData.timeline) : null,
-      pythonMLStats: pipelineData.pythonMLStats || {},
-      pipelineConfig: pipelineData.pipelineConfig ? JSON.stringify(pipelineData.pipelineConfig) : null,
+      // Serialize preprocessing completely to avoid nested issues
+      preprocessing: pipelineData.preprocessing ? JSON.stringify(pipelineData.preprocessing) : null,
+      
+      // Serialize all analysis components to JSON strings
+      biasAnalysis: pipelineData.biasAnalysis || pipelineData.bias ? 
+        JSON.stringify(pipelineData.biasAnalysis || pipelineData.bias) : null,
+      sentenceBiasAnalysis: pipelineData.sentenceBiasAnalysis ? 
+        JSON.stringify(pipelineData.sentenceBiasAnalysis) : null,
+      sentimentAnalysis: pipelineData.sentimentAnalysis || pipelineData.sentiment ? 
+        JSON.stringify(pipelineData.sentimentAnalysis || pipelineData.sentiment) : null,
+      ideologicalClassification: pipelineData.ideologicalClassification || pipelineData.ideology ? 
+        JSON.stringify(pipelineData.ideologicalClassification || pipelineData.ideology) : null,
+      toneAnalysis: pipelineData.toneAnalysis ? 
+        JSON.stringify(pipelineData.toneAnalysis) : null,
+      factCheck: pipelineData.factCheck ? 
+        JSON.stringify(pipelineData.factCheck) : null,
+      enhancedNLP: pipelineData.enhancedNLP ? 
+        JSON.stringify(pipelineData.enhancedNLP) : null,
+      
+      // Serialize complex ML analysis objects
+      explainability: pipelineData.explainability ? 
+        JSON.stringify(pipelineData.explainability) : null,
+      topics: pipelineData.topics ? 
+        JSON.stringify(pipelineData.topics) : null,
+      fairnessAnalysis: pipelineData.fairnessAnalysis ? 
+        JSON.stringify(pipelineData.fairnessAnalysis) : null,
+      
+      // Serialize other potentially complex objects
+      insights: pipelineData.insights ? 
+        JSON.stringify(pipelineData.insights) : null,
+      summary: pipelineData.summary ? 
+        JSON.stringify(pipelineData.summary) : null,
+      timeline: pipelineData.timeline ? 
+        JSON.stringify(pipelineData.timeline) : null,
+      pythonMLStats: pipelineData.pythonMLStats ? 
+        JSON.stringify(pipelineData.pythonMLStats) : null,
+      pipelineConfig: pipelineData.pipelineConfig ? 
+        JSON.stringify(pipelineData.pipelineConfig) : null,
+      
+      // Keep only simple scalar values for these
       transparency: pipelineData.transparency ? {
         score: pipelineData.transparency.score || 0,
         level: pipelineData.transparency.level || 'unknown'
-      } : {},
+      } : null,
       aggregatedInsights: pipelineData.aggregatedInsights ? {
         overallConfidence: pipelineData.aggregatedInsights.overallConfidence || 0,
         summary: pipelineData.aggregatedInsights.summary || ''
-      } : {}
+      } : null,
+      consensus: pipelineData.consensus || 0
     };
     
-    // Clean all data to remove undefined values
-    const cleanedProcessedData = removeUndefinedValues(simplifiedData);
+    // Clean to remove null values (don't use removeUndefinedValues on already stringified data)
+    const cleanedProcessedData = {};
+    for (const [key, value] of Object.entries(simplifiedData)) {
+      if (value !== null && value !== undefined) {
+        cleanedProcessedData[key] = value;
+      }
+    }
     
     console.log(`[Firebase Service] Saving pipeline data for ${docId}:`);
-    console.log(`   - explainability: ${cleanedProcessedData.explainability ? 'YES' : 'NO'}`);
-    console.log(`   - topics: ${cleanedProcessedData.topics ? 'YES' : 'NO'}`);
-    console.log(`   - fairnessAnalysis: ${cleanedProcessedData.fairnessAnalysis ? 'YES' : 'NO'}`);
-    console.log(`   - biasAnalysis.detoxify: ${cleanedProcessedData.biasAnalysis?.detoxify ? 'YES' : 'NO'}`);
-    console.log(`   - timeline steps: ${cleanedProcessedData.timeline?.length || 0}`);
+    console.log(`   - explainability: ${cleanedProcessedData.explainability ? 'YES (JSON)' : 'NO'}`);
+    console.log(`   - topics: ${cleanedProcessedData.topics ? 'YES (JSON)' : 'NO'}`);
+    console.log(`   - fairnessAnalysis: ${cleanedProcessedData.fairnessAnalysis ? 'YES (JSON)' : 'NO'}`);
+    console.log(`   - biasAnalysis: ${cleanedProcessedData.biasAnalysis ? 'YES (JSON)' : 'NO'}`);
+    console.log(`   - All data serialized as JSON strings to avoid Firestore nesting limits`);
     
     await docRef.update({
       processed_data: cleanedProcessedData || {},
