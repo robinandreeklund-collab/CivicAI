@@ -101,14 +101,68 @@ async function initializeDb() {
 
 /**
  * Check if Firebase is available
- * @returns {boolean} True if Firebase is initialized and ready
+ * @returns {Promise<boolean>} True if Firebase is initialized and ready
  */
-export function isFirebaseAvailable() {
+export async function isFirebaseAvailable() {
   try {
-    const firestore = initializeDb();
-    return firestore !== null;
+    const firestore = await initializeDb();
+    return firestore !== null && typeof firestore.collection === 'function';
   } catch (error) {
+    console.error('[Firebase Service] Availability check failed:', error.message);
     return false;
+  }
+}
+
+/**
+ * Get Firebase status information for diagnostics
+ * @returns {Promise<Object>} Status object with details
+ */
+export async function getFirebaseStatus() {
+  try {
+    const firebaseAdmin = await initializeFirebaseAdmin();
+    if (!firebaseAdmin) {
+      return {
+        ok: false,
+        initialized: false,
+        error: 'Firebase Admin not initialized. Check FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables, or set FIREBASE_SERVICE_ACCOUNT_PATH.',
+      };
+    }
+
+    const firestore = await initializeDb();
+    if (!firestore || typeof firestore.collection !== 'function') {
+      return {
+        ok: false,
+        initialized: true,
+        error: 'Firestore not properly initialized. admin.firestore() did not return a valid Firestore instance.',
+      };
+    }
+
+    // Try to get project ID
+    let projectId = 'unknown';
+    try {
+      if (process.env.FIREBASE_PROJECT_ID) {
+        projectId = process.env.FIREBASE_PROJECT_ID;
+      } else if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+        const { readFileSync } = await import('fs');
+        const serviceAccountData = readFileSync(process.env.FIREBASE_SERVICE_ACCOUNT_PATH, 'utf8');
+        const serviceAccount = JSON.parse(serviceAccountData);
+        projectId = serviceAccount.project_id;
+      }
+    } catch (error) {
+      console.error('[Firebase Service] Could not determine project ID:', error.message);
+    }
+
+    return {
+      ok: true,
+      initialized: true,
+      projectId,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      initialized: false,
+      error: `Firebase status check failed: ${error.message}`,
+    };
   }
 }
 
@@ -130,10 +184,10 @@ function hashQuestion(question) {
  * @returns {Promise<Object>} Created document data
  */
 export async function createQuestion({ question, userId, sessionId }) {
-  const firestore = initializeDb();
+  const firestore = await initializeDb();
   
-  if (!firestore) {
-    throw new Error('Firebase is not initialized. Check your Firebase configuration.');
+  if (!firestore || typeof firestore.collection !== 'function') {
+    throw new Error('TypeError: firestore.collection is not a function — did you call admin.firestore()? Is FIREBASE_SERVICE_ACCOUNT_PATH correct? Check FIREBASE_PROJECT_ID and service account configuration.');
   }
 
   try {
@@ -173,10 +227,10 @@ export async function createQuestion({ question, userId, sessionId }) {
  * @returns {Promise<Object>} Question document data
  */
 export async function getQuestion(docId) {
-  const firestore = initializeDb();
+  const firestore = await initializeDb();
   
-  if (!firestore) {
-    throw new Error('Firebase is not initialized. Check your Firebase configuration.');
+  if (!firestore || typeof firestore.collection !== 'function') {
+    throw new Error('TypeError: firestore.collection is not a function — did you call admin.firestore()? Is FIREBASE_SERVICE_ACCOUNT_PATH correct?');
   }
 
   try {
@@ -207,10 +261,10 @@ export async function getQuestion(docId) {
  * @returns {Promise<Object>} Updated document data
  */
 export async function updateQuestionStatus(docId, updates) {
-  const firestore = initializeDb();
+  const firestore = await initializeDb();
   
-  if (!firestore) {
-    throw new Error('Firebase is not initialized. Check your Firebase configuration.');
+  if (!firestore || typeof firestore.collection !== 'function') {
+    throw new Error('TypeError: firestore.collection is not a function — did you call admin.firestore()? Is FIREBASE_SERVICE_ACCOUNT_PATH correct?');
   }
 
   try {
@@ -250,10 +304,10 @@ export async function updateQuestionStatus(docId, updates) {
  * @returns {Promise<Array>} Array of question documents
  */
 export async function listQuestions(options = {}) {
-  const firestore = initializeDb();
+  const firestore = await initializeDb();
   
-  if (!firestore) {
-    throw new Error('Firebase is not initialized. Check your Firebase configuration.');
+  if (!firestore || typeof firestore.collection !== 'function') {
+    throw new Error('TypeError: firestore.collection is not a function — did you call admin.firestore()? Is FIREBASE_SERVICE_ACCOUNT_PATH correct?');
   }
 
   try {
@@ -290,10 +344,10 @@ export async function listQuestions(options = {}) {
  * @returns {Promise<void>}
  */
 export async function deleteQuestion(docId) {
-  const firestore = initializeDb();
+  const firestore = await initializeDb();
   
-  if (!firestore) {
-    throw new Error('Firebase is not initialized. Check your Firebase configuration.');
+  if (!firestore || typeof firestore.collection !== 'function') {
+    throw new Error('TypeError: firestore.collection is not a function — did you call admin.firestore()? Is FIREBASE_SERVICE_ACCOUNT_PATH correct?');
   }
 
   try {
@@ -307,6 +361,7 @@ export async function deleteQuestion(docId) {
 
 export default {
   isFirebaseAvailable,
+  getFirebaseStatus,
   createQuestion,
   getQuestion,
   updateQuestionStatus,

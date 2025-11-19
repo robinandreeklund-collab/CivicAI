@@ -7,6 +7,7 @@
 import express from 'express';
 import {
   isFirebaseAvailable,
+  getFirebaseStatus,
   createQuestion,
   getQuestion,
   updateQuestionStatus,
@@ -24,11 +25,12 @@ const router = express.Router();
 router.post('/questions', async (req, res) => {
   try {
     // Check if Firebase is available
-    if (!isFirebaseAvailable()) {
+    const available = await isFirebaseAvailable();
+    if (!available) {
       return res.status(503).json({
         success: false,
         error: 'Firebase is not configured or available',
-        message: 'Please configure Firebase credentials to use this feature'
+        message: 'Please configure Firebase credentials to use this feature. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables, or FIREBASE_SERVICE_ACCOUNT_PATH.'
       });
     }
 
@@ -72,15 +74,27 @@ router.post('/questions', async (req, res) => {
       // Don't fail the request if ledger fails
     }
 
-    res.json({
+    res.status(201).json({
       success: true,
       docId: result.docId,
       status: result.status,
+      created_at: result.created_at,
       timestamp: result.created_at,
       message: 'Question stored successfully'
     });
   } catch (error) {
     console.error('[Firebase API] Error creating question:', error);
+    
+    // Check for specific error about firestore.collection
+    if (error.message && error.message.includes('firestore.collection is not a function')) {
+      return res.status(500).json({
+        success: false,
+        error: 'Firebase Firestore initialization error',
+        message: error.message,
+        troubleshooting: 'Check that FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY are correctly set, or that FIREBASE_SERVICE_ACCOUNT_PATH points to a valid service account file.'
+      });
+    }
+    
     res.status(500).json({
       success: false,
       error: 'Failed to store question',
@@ -95,7 +109,8 @@ router.post('/questions', async (req, res) => {
  */
 router.get('/questions/:docId', async (req, res) => {
   try {
-    if (!isFirebaseAvailable()) {
+    const available = await isFirebaseAvailable();
+    if (!available) {
       return res.status(503).json({
         success: false,
         error: 'Firebase is not configured or available'
@@ -135,7 +150,8 @@ router.get('/questions/:docId', async (req, res) => {
  */
 router.post('/questions/:docId/status', async (req, res) => {
   try {
-    if (!isFirebaseAvailable()) {
+    const available = await isFirebaseAvailable();
+    if (!available) {
       return res.status(503).json({
         success: false,
         error: 'Firebase is not configured or available'
@@ -216,7 +232,8 @@ router.post('/questions/:docId/status', async (req, res) => {
  */
 router.get('/questions', async (req, res) => {
   try {
-    if (!isFirebaseAvailable()) {
+    const available = await isFirebaseAvailable();
+    if (!available) {
       return res.status(503).json({
         success: false,
         error: 'Firebase is not configured or available'
@@ -249,7 +266,8 @@ router.get('/questions', async (req, res) => {
  */
 router.delete('/questions/:docId', async (req, res) => {
   try {
-    if (!isFirebaseAvailable()) {
+    const available = await isFirebaseAvailable();
+    if (!available) {
       return res.status(503).json({
         success: false,
         error: 'Firebase is not configured or available'
@@ -278,16 +296,28 @@ router.delete('/questions/:docId', async (req, res) => {
  * GET /api/firebase/status
  * Check Firebase availability and configuration
  */
-router.get('/status', (req, res) => {
-  const available = isFirebaseAvailable();
-  
-  res.json({
-    available,
-    configured: available,
-    message: available 
-      ? 'Firebase is configured and ready' 
-      : 'Firebase is not configured. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables.'
-  });
+router.get('/status', async (req, res) => {
+  try {
+    const status = await getFirebaseStatus();
+    
+    res.json({
+      ok: status.ok,
+      initialized: status.initialized,
+      projectId: status.projectId,
+      error: status.error,
+      message: status.ok 
+        ? 'Firebase is configured and ready' 
+        : (status.error || 'Firebase is not configured. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables, or FIREBASE_SERVICE_ACCOUNT_PATH.')
+    });
+  } catch (error) {
+    console.error('[Firebase API] Status check error:', error);
+    res.status(500).json({
+      ok: false,
+      initialized: false,
+      error: error.message,
+      message: 'Failed to check Firebase status'
+    });
+  }
 });
 
 export default router;

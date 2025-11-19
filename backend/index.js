@@ -16,7 +16,7 @@ import factCheckRouter from './api/factcheck.js';
 import firebaseRouter from './api/firebase.js';
 import { logPythonServiceStatus } from './services/pythonNLPClient.js';
 import { getCachedPythonStatus } from './services/healthCache.js';
-import { isFirebaseAvailable } from './services/firebaseService.js';
+import { isFirebaseAvailable, getFirebaseStatus } from './services/firebaseService.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -47,6 +47,9 @@ app.get('/api/health', async (req, res) => {
     // Get cached Python ML service status
     const pythonStatus = getCachedPythonStatus();
     
+    // Check Firebase availability
+    const firebaseAvailable = await isFirebaseAvailable();
+    
     res.json({ 
       status: 'ok',
       services: {
@@ -74,10 +77,10 @@ app.get('/api/health', async (req, res) => {
         'ledger': { status: 'up', description: 'Transparency Ledger' },
         'audit': { status: 'up', description: 'Audit Trail Service' },
         'firebase': { 
-          status: isFirebaseAvailable() ? 'up' : 'not_configured',
+          status: firebaseAvailable ? 'up' : 'not_configured',
           description: 'Firebase Firestore Integration',
           endpoints: ['/api/firebase/questions', '/api/firebase/status'],
-          configured: isFirebaseAvailable()
+          configured: firebaseAvailable
         },
       },
       timestamp: new Date().toISOString()
@@ -117,5 +120,35 @@ app.listen(PORT, async () => {
   // Check Python NLP service status
   console.log('');
   await logPythonServiceStatus();
+  console.log('');
+  
+  // Check Firebase status
+  console.log('[Firebase] Checking Firebase initialization...');
+  try {
+    const fbStatus = await getFirebaseStatus();
+    if (fbStatus.ok) {
+      console.log('[Firebase] ✓ Firebase is initialized and ready');
+      console.log('[Firebase] Project ID:', fbStatus.projectId);
+      
+      // Try a simple Firestore operation to verify
+      const available = await isFirebaseAvailable();
+      if (available) {
+        console.log('[Firebase] ✓ Firestore collection access verified');
+      } else {
+        console.log('[Firebase] ⚠ Firestore collection access check failed');
+      }
+    } else {
+      console.log('[Firebase] ⚠ Firebase not initialized');
+      console.log('[Firebase] Error:', fbStatus.error);
+      console.log('[Firebase] To enable Firebase, set:');
+      console.log('[Firebase]   - FIREBASE_PROJECT_ID');
+      console.log('[Firebase]   - FIREBASE_CLIENT_EMAIL');
+      console.log('[Firebase]   - FIREBASE_PRIVATE_KEY');
+      console.log('[Firebase]   OR');
+      console.log('[Firebase]   - FIREBASE_SERVICE_ACCOUNT_PATH (path to service account JSON)');
+    }
+  } catch (error) {
+    console.error('[Firebase] ✗ Firebase check failed:', error.message);
+  }
   console.log('');
 });
