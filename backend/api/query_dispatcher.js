@@ -19,6 +19,15 @@ import { synthesizeModelResponses } from '../services/modelSynthesis.js';
 import { executeAnalysisPipeline } from '../services/analysisPipeline.js';
 import { shouldTriggerDebate } from '../services/consensusDebate.js';
 import { executeChangeDetection } from './change_detection.js';
+import { 
+  isFirebaseAvailable,
+  saveRawResponses,
+  savePipelineData,
+  updateQuestionStatus,
+  addLedgerBlockReference,
+  logQuestionError
+} from '../services/firebaseService.js';
+import { createLedgerBlock } from '../services/ledgerService.js';
 
 const router = express.Router();
 
@@ -333,6 +342,118 @@ router.post('/query', async (req, res) => {
       console.log('ℹ️  No significant changes detected');
     }
 
+    // NEW: Firebase Step 2 Integration - Save full pipeline results
+    const firebaseDocId = req.body.firebaseDocId;
+    const firebaseAvailable = await isFirebaseAvailable();
+    
+    if (firebaseAvailable && firebaseDocId) {
+      try {
+        console.log('💾 Saving pipeline results to Firebase...');
+        
+        // Step 1: Update status to processing
+        await updateQuestionStatus(firebaseDocId, { 
+          status: 'processing' 
+        });
+        
+        // Step 2: Save raw AI responses
+        await saveRawResponses(firebaseDocId, responses);
+        
+        // Step 3: Create ledger block for raw responses
+        const responsesBlock = await createLedgerBlock({
+          eventType: 'data_collection',
+          data: {
+            description: 'AI responses collected',
+            firebase_doc_id: firebaseDocId,
+            services_count: responses.length,
+            services: responses.map(r => r.agent),
+            provenance: responses.map(r => ({
+              service: r.agent,
+              model: r.metadata?.model || 'unknown',
+              timestamp: r.metadata?.timestamp
+            }))
+          }
+        });
+        await addLedgerBlockReference(firebaseDocId, responsesBlock.block_id);
+        
+        // Step 4: Save processed pipeline data
+        // Combine pipeline analysis from all responses
+        const combinedPipelineData = {
+          preprocessing: responses[0]?.pipelineAnalysis?.preprocessing || {},
+          bias: responses[0]?.pipelineAnalysis?.bias || {},
+          sentiment: responses[0]?.pipelineAnalysis?.sentiment || {},
+          ideology: responses[0]?.pipelineAnalysis?.ideology || {},
+          topics: responses[0]?.pipelineAnalysis?.topics || [],
+          transparency: responses[0]?.pipelineAnalysis?.transparency || {},
+          aggregatedInsights: responses[0]?.pipelineAnalysis?.aggregatedInsights || {},
+          timeline: responses[0]?.pipelineAnalysis?.timeline || [],
+          consensus: modelSynthesis?.consensus || 0,
+          metadata: {
+            pipelineStartTime: new Date(Date.now() - (Date.now() - startTime)).toISOString(),
+            pipelineEndTime: new Date().toISOString(),
+            totalDurationMs: Date.now() - startTime
+          }
+        };
+        
+        await savePipelineData(firebaseDocId, combinedPipelineData);
+        
+        // Step 5: Create ledger block for pipeline completion
+        const pipelineBlock = await createLedgerBlock({
+          eventType: 'data_collection',
+          data: {
+            description: 'ML pipeline analysis completed',
+            firebase_doc_id: firebaseDocId,
+            pipeline_version: process.env.PIPELINE_VERSION || '1.0.0',
+            processing_time_ms: Date.now() - startTime,
+            quality_metrics: {
+              consensus: modelSynthesis?.consensus || 0,
+              confidence: combinedPipelineData.aggregatedInsights?.overallConfidence || 0
+            }
+          }
+        });
+        await addLedgerBlockReference(firebaseDocId, pipelineBlock.block_id);
+        
+        // Step 6: Update status to completed
+        await updateQuestionStatus(firebaseDocId, { 
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          analysis: {
+            modelSynthesis,
+            factCheckComparison,
+            changeDetection: significantChange
+          }
+        });
+        
+        // Step 7: Create final ledger block and mark as verified
+        const verifiedBlock = await createLedgerBlock({
+          eventType: 'data_collection',
+          data: {
+            description: 'Analysis complete and verified',
+            firebase_doc_id: firebaseDocId,
+            verified: true,
+            final_status: 'completed'
+          }
+        });
+        await addLedgerBlockReference(firebaseDocId, verifiedBlock.block_id);
+        
+        await updateQuestionStatus(firebaseDocId, { 
+          status: 'ledger_verified',
+          verified_at: new Date().toISOString()
+        });
+        
+        console.log('✅ Firebase integration complete - all data saved and verified');
+      } catch (firebaseError) {
+        console.error('❌ Firebase integration error:', firebaseError);
+        // Log error to Firebase but don't fail the request
+        try {
+          await logQuestionError(firebaseDocId, firebaseError);
+        } catch (logError) {
+          console.error('Failed to log error to Firebase:', logError);
+        }
+      }
+    } else if (firebaseDocId) {
+      console.warn('⚠️  Firebase not available - skipping data persistence');
+    }
+
     res.json({
       question,
       responses,
@@ -345,6 +466,7 @@ router.post('/query', async (req, res) => {
       modelSynthesis: modelSynthesis,
       debateTrigger: debateTrigger,
       change_detection: significantChange || null,  // NEW: Include change detection
+      firebaseDocId: firebaseDocId || null, // Return the doc ID for reference
       timestamp: new Date().toISOString(),
     });
 

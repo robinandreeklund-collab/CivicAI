@@ -103,7 +103,9 @@ To enable data persistence and user authentication:
 ./scripts/firebase-bootstrap.sh
 ```
 
-See [Firebase Setup Guide](docs/guides/FIREBASE_SETUP.md) for detailed instructions.
+**Step-by-Step Deployment Guides:**
+- **[Firebase Step 2 Deployment Guide](docs/deployment/FIREBASE_STEP2_DEPLOYMENT_GUIDE.md)** - Complete production deployment guide (Swedish)
+- [Firebase Setup Guide](docs/guides/FIREBASE_SETUP.md) - Basic setup instructions
 
 ---
 
