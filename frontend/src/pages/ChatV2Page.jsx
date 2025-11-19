@@ -144,29 +144,35 @@ export default function ChatV2Page() {
         question: firestoreData.question,
         firebaseDocId: firestoreData.id,
         
-        // Raw responses from Firestore
-        responses: firestoreData.raw_responses ? Object.entries(firestoreData.raw_responses).map(([key, value]) => ({
-          agent: key === 'gpt35' ? 'gpt-3.5' : key,
-          response: value.text || value.response || '',
-          metadata: value.metadata || {}
-        })) : [],
+        // Raw responses from Firestore (stored as array in Firestore)
+        responses: Array.isArray(firestoreData.raw_responses) 
+          ? firestoreData.raw_responses.map(r => ({
+              agent: r.service || 'unknown',
+              response: r.response_text || r.response || '',
+              metadata: r.metadata || {},
+              analysis: r.analysis || {}
+            }))
+          : [],
         
-        // Processed data from Firestore
-        bertSummary: firestoreData.processed_data?.bert_summary?.text || 
-                    firestoreData.processed_data?.bert_summary || null,
-        bertMetadata: firestoreData.processed_data?.bert_summary?.metadata || null,
+        // Analysis data from Firestore (stored in 'analysis' field)
+        modelSynthesis: firestoreData.analysis?.modelSynthesis || null,
+        factCheckComparison: firestoreData.analysis?.factCheckComparison || null,
+        changeDetection: firestoreData.analysis?.changeDetection || null,
         
-        // Consensus analysis
-        modelSynthesis: firestoreData.processed_data?.consensus_analysis || null,
+        // Processed data from Firestore (ML pipeline results)
+        // NOTE: These fields are NOT currently saved to Firestore:
+        // - synthesizedSummary (BERT summary)
+        // - metaReview (GPT meta-review)
+        // They are only available in direct API responses
+        bertSummary: null,
+        bertMetadata: null,
+        metaReview: null,
         
-        // Quality metrics
-        qualityMetrics: firestoreData.processed_data?.quality_metrics || null,
+        // Processed pipeline data from Firestore
+        pipelineData: firestoreData.processed_data || {},
         
-        // Fact checking
-        factCheckComparison: firestoreData.processed_data?.fact_check_results || null,
-        
-        // Change detection
-        changeDetection: firestoreData.processed_data?.change_detection || null,
+        // Quality metrics from Firestore
+        qualityMetrics: firestoreData.quality_metrics || null,
         
         // Ledger blocks
         ledgerBlocks: firestoreData.ledger_blocks || [],
