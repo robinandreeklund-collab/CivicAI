@@ -573,7 +573,7 @@ export async function updateQuestionStatus(docId, updates) {
     };
     
     if (updates.status) updateData.status = updates.status;
-    if (updates.analysis) updateData.analysis = updates.analysis;
+    if (updates.analysis) updateData.analysis = removeUndefinedValues(updates.analysis);
     if (updates.completed_at) updateData.completed_at = updates.completed_at;
     if (updates.verified_at) updateData.verified_at = updates.verified_at;
     
