@@ -1262,6 +1262,10 @@ export default function ChatV2Page() {
   const renderPipeline = () => {
     const selectedResponse = latestAiMessage.responses?.find(r => r.agent === selectedModel) || latestAiMessage.responses?.[0];
     
+    // Use pipelineData from Firebase (processed_data) as the primary source,
+    // fall back to response.pipelineAnalysis for direct API responses
+    const pipelineAnalysis = latestAiMessage.pipelineData || selectedResponse?.pipelineAnalysis;
+    
     return (
       <div className="flex-1 overflow-y-auto pb-40 px-4 md:px-8 pt-24">
         <div className="max-w-4xl mx-auto">
@@ -1285,36 +1289,38 @@ export default function ChatV2Page() {
             </div>
           </div>
 
-          {selectedResponse && selectedResponse.pipelineAnalysis && (
+          {pipelineAnalysis && (
             <div className="space-y-6">
-              <div className="text-[#666] text-sm uppercase tracking-wide">PIPELINE-ANALYS: {selectedModel}</div>
+              <div className="text-[#666] text-sm uppercase tracking-wide">
+                PIPELINE-ANALYS {latestAiMessage.pipelineData ? '(från Firebase)' : `(${selectedModel})`}
+              </div>
               
               {/* Preprocessing */}
-              {selectedResponse.pipelineAnalysis.preprocessing && (
+              {pipelineAnalysis.preprocessing && (
                 <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
                   <h3 className="font-medium text-[#e7e7e7] mb-4">Förbearbetning</h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <div className="text-[#666]">Ord</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.preprocessing.tokenization?.wordCount ?? 
-                         selectedResponse.pipelineAnalysis.preprocessing.word_count ?? 'N/A'}
+                        {pipelineAnalysis.preprocessing.tokenization?.wordCount ?? 
+                         pipelineAnalysis.preprocessing.word_count ?? 'N/A'}
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Meningar</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.preprocessing.tokenization?.sentenceCount ?? 
-                         selectedResponse.pipelineAnalysis.preprocessing.sentence_count ?? 'N/A'}
+                        {pipelineAnalysis.preprocessing.tokenization?.sentenceCount ?? 
+                         pipelineAnalysis.preprocessing.sentence_count ?? 'N/A'}
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Subjektivitet</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.preprocessing.subjectivityAnalysis?.subjectivityScore != null 
-                          ? selectedResponse.pipelineAnalysis.preprocessing.subjectivityAnalysis.subjectivityScore.toFixed(2)
-                          : (selectedResponse.pipelineAnalysis.preprocessing.subjectivity != null 
-                            ? selectedResponse.pipelineAnalysis.preprocessing.subjectivity.toFixed(2)
+                        {pipelineAnalysis.preprocessing.subjectivityAnalysis?.subjectivityScore != null 
+                          ? pipelineAnalysis.preprocessing.subjectivityAnalysis.subjectivityScore.toFixed(2)
+                          : (pipelineAnalysis.preprocessing.subjectivity != null 
+                            ? pipelineAnalysis.preprocessing.subjectivity.toFixed(2)
                             : 'N/A')}
                       </div>
                     </div>
@@ -1323,34 +1329,34 @@ export default function ChatV2Page() {
               )}
 
               {/* Sentiment */}
-              {selectedResponse.pipelineAnalysis.sentimentAnalysis && (
+              {pipelineAnalysis.sentimentAnalysis && (
                 <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
                   <h3 className="font-medium text-[#e7e7e7] mb-4">Sentimentanalys</h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <div className="text-[#666]">Övergripande</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.sentimentAnalysis.overallTone ?? 
-                         selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment?.classification ?? 
-                         selectedResponse.pipelineAnalysis.sentimentAnalysis.overall ?? 'N/A'}
+                        {pipelineAnalysis.sentimentAnalysis.overallTone ?? 
+                         pipelineAnalysis.sentimentAnalysis.vaderSentiment?.classification ?? 
+                         pipelineAnalysis.sentimentAnalysis.overall ?? 'N/A'}
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Poäng</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment?.score != null
-                          ? selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment.score.toFixed(2)
-                          : (selectedResponse.pipelineAnalysis.sentimentAnalysis.score != null
-                            ? selectedResponse.pipelineAnalysis.sentimentAnalysis.score.toFixed(2)
+                        {pipelineAnalysis.sentimentAnalysis.vaderSentiment?.score != null
+                          ? pipelineAnalysis.sentimentAnalysis.vaderSentiment.score.toFixed(2)
+                          : (pipelineAnalysis.sentimentAnalysis.score != null
+                            ? pipelineAnalysis.sentimentAnalysis.score.toFixed(2)
                             : 'N/A')}
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Intensitet</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment?.comparative != null
-                          ? Math.abs(selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment.comparative).toFixed(2)
-                          : (selectedResponse.pipelineAnalysis.sentimentAnalysis.intensity ?? 'N/A')}
+                        {pipelineAnalysis.sentimentAnalysis.vaderSentiment?.comparative != null
+                          ? Math.abs(pipelineAnalysis.sentimentAnalysis.vaderSentiment.comparative).toFixed(2)
+                          : (pipelineAnalysis.sentimentAnalysis.intensity ?? 'N/A')}
                       </div>
                     </div>
                   </div>
@@ -1358,32 +1364,32 @@ export default function ChatV2Page() {
               )}
 
               {/* Ideological Classification */}
-              {selectedResponse.pipelineAnalysis.ideologicalClassification && (
+              {pipelineAnalysis.ideologicalClassification && (
                 <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
                   <h3 className="font-medium text-[#e7e7e7] mb-4">Ideologisk klassificering</h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <div className="text-[#666]">Primär</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.ideologicalClassification.ideology?.classification ?? 
-                         selectedResponse.pipelineAnalysis.ideologicalClassification.primary ?? 'N/A'}
+                        {pipelineAnalysis.ideologicalClassification.ideology?.classification ?? 
+                         pipelineAnalysis.ideologicalClassification.primary ?? 'N/A'}
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Säkerhet</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.ideologicalClassification.ideology?.confidence != null
-                          ? `${(selectedResponse.pipelineAnalysis.ideologicalClassification.ideology.confidence * 100).toFixed(0)}%`
-                          : (selectedResponse.pipelineAnalysis.ideologicalClassification.confidence != null
-                            ? `${(selectedResponse.pipelineAnalysis.ideologicalClassification.confidence * 100).toFixed(0)}%`
+                        {pipelineAnalysis.ideologicalClassification.ideology?.confidence != null
+                          ? `${(pipelineAnalysis.ideologicalClassification.ideology.confidence * 100).toFixed(0)}%`
+                          : (pipelineAnalysis.ideologicalClassification.confidence != null
+                            ? `${(pipelineAnalysis.ideologicalClassification.confidence * 100).toFixed(0)}%`
                             : 'N/A')}
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Indikatorer</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.ideologicalClassification.ideology?.markers?.length ?? 
-                         selectedResponse.pipelineAnalysis.ideologicalClassification.indicators?.length ?? 0} st
+                        {pipelineAnalysis.ideologicalClassification.ideology?.markers?.length ?? 
+                         pipelineAnalysis.ideologicalClassification.indicators?.length ?? 0} st
                       </div>
                     </div>
                   </div>
@@ -1391,11 +1397,11 @@ export default function ChatV2Page() {
               )}
 
               {/* Pipeline Process Timeline with all NLP services */}
-              {selectedResponse.pipelineAnalysis.timeline && selectedResponse.pipelineAnalysis.timeline.length > 0 && (
+              {pipelineAnalysis.timeline && pipelineAnalysis.timeline.length > 0 && (
                 <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
                   <h3 className="font-medium text-[#e7e7e7] mb-4">Pipeline Processtidslinje</h3>
                   <div className="space-y-3">
-                    {selectedResponse.pipelineAnalysis.timeline.map((step, idx) => {
+                    {pipelineAnalysis.timeline.map((step, idx) => {
                       const isExpanded = expandedPipelineStep === idx;
                       const stepDuration = step.durationMs ?? step.duration ?? 0;
                       
@@ -1594,13 +1600,13 @@ export default function ChatV2Page() {
                       <div className="flex items-center justify-between">
                         <div className="text-[#666]">
                           Total tid: <span className="text-[#e7e7e7] font-medium">
-                            {selectedResponse.pipelineAnalysis.metadata?.totalProcessingTimeMs ?? 
-                             selectedResponse.pipelineAnalysis.timeline.reduce((sum, step) => sum + (step.durationMs || step.duration || 0), 0)}ms
+                            {pipelineAnalysis.metadata?.totalProcessingTimeMs ?? 
+                             pipelineAnalysis.timeline.reduce((sum, step) => sum + (step.durationMs || step.duration || 0), 0)}ms
                           </span>
                         </div>
-                        {selectedResponse.pipelineAnalysis.pythonMLStats && (
+                        {pipelineAnalysis.pythonMLStats && (
                           <div className="text-[#4a9eff] text-xs">
-                            🐍 Python ML: {selectedResponse.pipelineAnalysis.pythonMLStats.pythonSteps}/{selectedResponse.pipelineAnalysis.pythonMLStats.totalSteps} steg
+                            🐍 Python ML: {pipelineAnalysis.pythonMLStats.pythonSteps}/{pipelineAnalysis.pythonMLStats.totalSteps} steg
                           </div>
                         )}
                       </div>
@@ -1608,6 +1614,13 @@ export default function ChatV2Page() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+          
+          {!pipelineAnalysis && (
+            <div className="text-center py-12">
+              <div className="text-[#666] mb-2">Ingen pipeline-analys tillgänglig</div>
+              <p className="text-[#555] text-sm">Pipeline-data kommer att visas här när analysen är klar</p>
             </div>
           )}
         </div>
