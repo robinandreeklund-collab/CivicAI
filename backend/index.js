@@ -14,6 +14,7 @@ import ingestRouter from './routes/ingest.js';
 import mlRouter from './api/ml.js';
 import factCheckRouter from './api/factcheck.js';
 import firebaseRouter from './api/firebase.js';
+import usersRouter from './api/users.js';
 import { logPythonServiceStatus } from './services/pythonNLPClient.js';
 import { getCachedPythonStatus } from './services/healthCache.js';
 import { isFirebaseAvailable } from './services/firebaseService.js';
@@ -40,6 +41,7 @@ app.use('/api/ingest', ingestRouter);
 app.use('/api/ml', mlRouter);
 app.use('/api/fact-check', factCheckRouter);
 app.use('/api/firebase', firebaseRouter);
+app.use('/api/users', usersRouter);
 
 // Health check endpoint with service status
 app.get('/api/health', async (req, res) => {
@@ -77,6 +79,12 @@ app.get('/api/health', async (req, res) => {
           status: isFirebaseAvailable() ? 'up' : 'not_configured',
           description: 'Firebase Firestore Integration',
           endpoints: ['/api/firebase/questions', '/api/firebase/status'],
+          configured: isFirebaseAvailable()
+        },
+        'users': {
+          status: isFirebaseAvailable() ? 'up' : 'not_configured',
+          description: 'User Account Service (Anonymous & Authenticated)',
+          endpoints: ['/api/users/signup', '/api/users/:userId'],
           configured: isFirebaseAvailable()
         },
       },

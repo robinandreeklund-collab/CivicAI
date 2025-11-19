@@ -321,23 +321,83 @@ collections:
   
   # Collection 5: Users
   users:
-    description: "User profiles and preferences"
+    description: "User profiles and preferences - supports both anonymous and authenticated accounts"
     fields:
       - name: userId
         type: string
         required: true
-        description: "Firebase Auth UID"
+        description: "Unique user identifier (publicKey hash for anonymous, Firebase Auth UID for authenticated)"
+        
+      - name: accountType
+        type: string
+        required: true
+        description: "Type of account"
+        enum:
+          - anonymous
+          - authenticated
+        default: "anonymous"
         
       - name: email
         type: string
-        required: true
-        description: "User email address"
+        required: false
+        nullable: true
+        description: "User email address (null for anonymous accounts)"
         
       - name: displayName
         type: string
         required: false
-        description: "User display name"
+        nullable: true
+        description: "User display name (optional for all account types)"
         
+      - name: publicKey
+        type: string
+        required: false
+        nullable: true
+        description: "RSA-2048 public key for anonymous accounts (SPKI format, hex-encoded with pk_ prefix)"
+        
+      - name: publicKeyHash
+        type: string
+        required: false
+        nullable: true
+        description: "SHA-256 hash of public key for verification and userId generation"
+        
+      - name: seedPhraseHash
+        type: string
+        required: false
+        nullable: true
+        description: "SHA-256 hash of BIP39 seed phrase for recovery verification (never store actual seed phrase)"
+        
+      - name: proofOfWork
+        type: object
+        required: false
+        nullable: true
+        description: "Proof-of-work verification data"
+        properties:
+          nonce: number
+          hash: string
+          timestamp: timestamp
+          difficulty: number
+          
+      - name: profileType
+        type: string
+        required: false
+        description: "Privacy/visibility preference"
+        enum:
+          - public
+          - pseudonym
+          - private
+        default: "pseudonym"
+        
+      - name: agentConfig
+        type: object
+        required: false
+        nullable: true
+        description: "AI agent customization preferences"
+        properties:
+          biasFilter: string
+          tone: string
+          transparencyLevel: string
+          
       - name: role
         type: string
         required: true
@@ -356,7 +416,31 @@ collections:
       - name: lastLogin
         type: timestamp
         required: false
+        nullable: true
         description: "Last login timestamp"
+        
+      - name: accountStatus
+        type: string
+        required: true
+        description: "Account status"
+        enum:
+          - pending
+          - active
+          - suspended
+          - deleted
+        default: "pending"
+        
+      - name: verifiedAt
+        type: timestamp
+        required: false
+        nullable: true
+        description: "When account was verified (after PoW and ledger block creation)"
+        
+      - name: ledgerBlockId
+        type: number
+        required: false
+        nullable: true
+        description: "Ledger block ID for account creation audit trail"
         
       - name: preferences
         type: object
@@ -374,11 +458,26 @@ collections:
         properties:
           totalQuestions: number
           lastQuestionAt: timestamp
+          totalSessions: number
     
     indexes:
       - fields:
           - email: ASC
-        description: "Lookup by email"
+        description: "Lookup by email (for authenticated users)"
+        
+      - fields:
+          - publicKeyHash: ASC
+        description: "Lookup by public key hash (for anonymous users)"
+        
+      - fields:
+          - accountType: ASC
+          - createdAt: DESC
+        description: "Query users by account type"
+        
+      - fields:
+          - accountStatus: ASC
+          - createdAt: DESC
+        description: "Query users by status"
     
     security_rules: |
       allow read: if request.auth != null && request.auth.uid == userId;

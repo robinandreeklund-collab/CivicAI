@@ -55,12 +55,17 @@ export default function SignupPage() {
       biasFilter: 'neutral',
       tone: 'balanced',
       transparencyLevel: 'high'
-    }
+    },
+    userId: null,
+    ledgerBlockId: null,
+    powData: null
   });
   const [isGenerating, setIsGenerating] = useState(false);
   const [powProgress, setPowProgress] = useState(0);
   const [powComplete, setPowComplete] = useState(false);
   const [isPerformingPow, setIsPerformingPow] = useState(false);
+  const [isSavingAccount, setIsSavingAccount] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
   const steps = [
     { id: 0, title: 'Välkommen', desc: 'Introduktion till anonymt kontoskapande' },
@@ -71,6 +76,8 @@ export default function SignupPage() {
     { id: 5, title: 'Agent-anpassning', desc: 'Personlig agentprofil (valfri)' },
     { id: 6, title: 'Klart!', desc: 'Ditt konto är redo' }
   ];
+
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
   // Real cryptographic key generation using Web Crypto API
   const generateKeys = async () => {
@@ -182,7 +189,21 @@ export default function SignupPage() {
       if (found) {
         setPowProgress(100);
         setPowComplete(true);
-        console.log('Proof-of-Work complete:', { nonce, hash });
+        
+        // Store PoW data for later use
+        const powData = {
+          nonce,
+          hash,
+          timestamp: Date.now(),
+          difficulty
+        };
+        
+        setAccountData(prev => ({
+          ...prev,
+          powData
+        }));
+        
+        console.log('Proof-of-Work complete:', powData);
       } else {
         throw new Error('PoW max iterations reached');
       }
@@ -203,6 +224,71 @@ export default function SignupPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep]);
+
+  // Save account to Firebase
+  const saveAccountToFirebase = async () => {
+    setIsSavingAccount(true);
+    setSaveError(null);
+
+    try {
+      console.log('[Signup] Saving account to Firebase...');
+
+      // Validate we have all required data
+      if (!accountData.publicKey || !accountData.powData) {
+        throw new Error('Missing required account data');
+      }
+
+      // Prepare request payload
+      const payload = {
+        publicKey: accountData.publicKey,
+        seedPhrase: accountData.seedPhrase, // Will be hashed on backend, never stored
+        proofOfWork: accountData.powData,
+        profileType: accountData.profileType,
+        agentConfig: accountData.agentConfig
+      };
+
+      // Send to backend
+      const response = await fetch(`${API_BASE_URL}/api/users/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create account');
+      }
+
+      if (!result.success) {
+        throw new Error(result.error || 'Account creation failed');
+      }
+
+      // Update account data with server response
+      setAccountData(prev => ({
+        ...prev,
+        userId: result.user.userId,
+        ledgerBlockId: result.user.ledgerBlockId,
+        accountStatus: result.user.accountStatus
+      }));
+
+      console.log('[Signup] Account saved successfully:', result.user);
+      setIsSavingAccount(false);
+      
+      // Move to final step
+      setCurrentStep(6);
+
+    } catch (error) {
+      console.error('[Signup] Error saving account:', error);
+      setSaveError(error.message);
+      setIsSavingAccount(false);
+      
+      // Show error to user
+      alert(`Fel vid kontoskapande: ${error.message}\n\nDu kan fortsätta använda ditt konto lokalt, men det kommer inte att sparas i databasen.`);
+    }
+  };
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
@@ -697,12 +783,24 @@ export default function SignupPage() {
                       Tillbaka
                     </button>
                     <button
-                      onClick={handleNext}
-                      className="flex-1 bg-[#e7e7e7] text-[#0a0a0a] py-3 rounded-lg font-medium hover:bg-white transition-colors duration-200"
+                      onClick={saveAccountToFirebase}
+                      disabled={isSavingAccount}
+                      className="flex-1 bg-[#e7e7e7] text-[#0a0a0a] py-3 rounded-lg font-medium hover:bg-white transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Slutför
+                      {isSavingAccount ? 'Sparar...' : 'Slutför'}
                     </button>
                   </div>
+                  
+                  {saveError && (
+                    <div className="bg-[#ff9800]/10 border border-[#ff9800] rounded-xl p-4 mt-4">
+                      <p className="text-[#ff9800] text-sm">
+                        ⚠️ Kunde inte spara kontot: {saveError}
+                      </p>
+                      <p className="text-[#666] text-xs mt-2">
+                        Du kan fortsätta använda ditt konto lokalt eller försöka igen senare.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -720,6 +818,12 @@ export default function SignupPage() {
                   <div className="bg-[#151515] border border-[#2a2a2a] rounded-xl p-6">
                     <h3 className="text-xl font-light text-[#e7e7e7] mb-3">Sammanfattning</h3>
                     <div className="space-y-2 text-sm">
+                      {accountData.userId && (
+                        <div className="flex justify-between">
+                          <span className="text-[#666]">Användar-ID:</span>
+                          <span className="text-[#e7e7e7] font-mono">{accountData.userId.substring(0, 24)}...</span>
+                        </div>
+                      )}
                       <div className="flex justify-between">
                         <span className="text-[#666]">Profil-ID:</span>
                         <span className="text-[#e7e7e7] font-mono">{accountData.publicKey.substring(0, 20)}...</span>
@@ -728,6 +832,18 @@ export default function SignupPage() {
                         <span className="text-[#666]">Profiltyp:</span>
                         <span className="text-[#e7e7e7] capitalize">{accountData.profileType}</span>
                       </div>
+                      {accountData.accountStatus && (
+                        <div className="flex justify-between">
+                          <span className="text-[#666]">Status:</span>
+                          <span className="text-[#4caf50] capitalize">{accountData.accountStatus}</span>
+                        </div>
+                      )}
+                      {accountData.ledgerBlockId !== null && accountData.ledgerBlockId !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-[#666]">Ledger Block:</span>
+                          <span className="text-[#e7e7e7]">#{accountData.ledgerBlockId}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between">
                         <span className="text-[#666]">Bias-filter:</span>
                         <span className="text-[#e7e7e7] capitalize">{accountData.agentConfig.biasFilter}</span>
