@@ -374,26 +374,26 @@ export async function savePipelineData(docId, pipelineData) {
       preprocessing: {
         summary: pipelineData.preprocessing?.summary || {},
         stats: pipelineData.preprocessing?.stats || {},
+        tokenization: pipelineData.preprocessing?.tokenization || {},
+        subjectivityAnalysis: pipelineData.preprocessing?.subjectivityAnalysis || {},
         // Store complex nested data as JSON string to avoid Firestore nesting limits
         details: pipelineData.preprocessing ? JSON.stringify(pipelineData.preprocessing) : '{}'
       },
-      bias: pipelineData.bias ? {
-        detected: pipelineData.bias.detected || false,
-        score: pipelineData.bias.score || 0,
-        types: pipelineData.bias.types || [],
-        summary: pipelineData.bias.summary || ''
-      } : {},
-      sentiment: pipelineData.sentiment ? {
-        score: pipelineData.sentiment.score || 0,
-        label: pipelineData.sentiment.label || 'neutral',
-        confidence: pipelineData.sentiment.confidence || 0
-      } : {},
-      ideology: pipelineData.ideology ? {
-        primary: pipelineData.ideology.primary || 'unknown',
-        score: pipelineData.ideology.score || 0,
-        confidence: pipelineData.ideology.confidence || 0
-      } : {},
-      topics: Array.isArray(pipelineData.topics) ? pipelineData.topics.slice(0, 10) : [],
+      biasAnalysis: pipelineData.biasAnalysis || pipelineData.bias || {},
+      sentenceBiasAnalysis: pipelineData.sentenceBiasAnalysis || {},
+      sentimentAnalysis: pipelineData.sentimentAnalysis || pipelineData.sentiment || {},
+      ideologicalClassification: pipelineData.ideologicalClassification || pipelineData.ideology || {},
+      toneAnalysis: pipelineData.toneAnalysis || {},
+      factCheck: pipelineData.factCheck || {},
+      enhancedNLP: pipelineData.enhancedNLP || {},
+      explainability: pipelineData.explainability || null,
+      topics: pipelineData.topics || null,
+      fairnessAnalysis: pipelineData.fairnessAnalysis || null,
+      insights: pipelineData.insights || {},
+      summary: pipelineData.summary || {},
+      timeline: pipelineData.timeline || [],
+      pythonMLStats: pipelineData.pythonMLStats || {},
+      pipelineConfig: pipelineData.pipelineConfig || {},
       transparency: pipelineData.transparency ? {
         score: pipelineData.transparency.score || 0,
         level: pipelineData.transparency.level || 'unknown'
@@ -549,6 +549,56 @@ export async function getQuestion(docId) {
 }
 
 /**
+ * Save synthesized summary and meta review to Firebase
+ * @param {string} docId - Document ID
+ * @param {Object} data - Summary and review data
+ * @param {string} [data.synthesizedSummary] - BERT-generated summary
+ * @param {Object} [data.synthesizedSummaryMetadata] - Summary metadata
+ * @param {Object} [data.metaReview] - GPT meta-review
+ * @returns {Promise<Object>} Updated document data
+ */
+export async function saveSynthesisData(docId, data) {
+  const firestore = await initializeDb();
+  
+  if (!firestore) {
+    throw new Error('Firebase is not initialized. Check your Firebase configuration.');
+  }
+
+  try {
+    const firebaseAdmin = await initializeFirebaseAdmin();
+    const docRef = firestore.collection('ai_interactions').doc(docId);
+    
+    // Build update object with synthesis data
+    const updateData = {
+      updated_at: new Date().toISOString()
+    };
+    
+    if (data.synthesizedSummary !== undefined) {
+      updateData.synthesized_summary = data.synthesizedSummary;
+    }
+    if (data.synthesizedSummaryMetadata !== undefined) {
+      updateData.synthesized_summary_metadata = removeUndefinedValues(data.synthesizedSummaryMetadata);
+    }
+    if (data.metaReview !== undefined) {
+      updateData.meta_review = removeUndefinedValues(data.metaReview);
+    }
+    
+    await docRef.update(updateData);
+    
+    console.log(`[Firebase Service] Saved synthesis data for ${docId}`);
+    
+    const doc = await docRef.get();
+    return {
+      docId: doc.id,
+      ...doc.data()
+    };
+  } catch (error) {
+    console.error('[Firebase Service] Error saving synthesis data:', error);
+    throw error;
+  }
+}
+
+/**
  * Update the status of a question
  * @param {string} docId - Document ID
  * @param {Object} updates - Fields to update
@@ -663,6 +713,7 @@ export default {
   createQuestion,
   getQuestion,
   updateQuestionStatus,
+  saveSynthesisData,
   listQuestions,
   deleteQuestion
 };

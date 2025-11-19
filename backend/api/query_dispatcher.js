@@ -23,6 +23,7 @@ import {
   isFirebaseAvailable,
   saveRawResponses,
   savePipelineData,
+  saveSynthesisData,
   updateQuestionStatus,
   addLedgerBlockReference,
   logQuestionError
@@ -376,16 +377,25 @@ router.post('/query', async (req, res) => {
         await addLedgerBlockReference(firebaseDocId, responsesBlock.block_id);
         
         // Step 4: Save processed pipeline data
-        // Combine pipeline analysis from all responses
+        // Combine pipeline analysis from all responses - use first response with complete pipeline
+        const firstPipeline = responses.find(r => r.pipelineAnalysis)?.pipelineAnalysis;
         const combinedPipelineData = {
-          preprocessing: responses[0]?.pipelineAnalysis?.preprocessing || {},
-          bias: responses[0]?.pipelineAnalysis?.bias || {},
-          sentiment: responses[0]?.pipelineAnalysis?.sentiment || {},
-          ideology: responses[0]?.pipelineAnalysis?.ideology || {},
-          topics: responses[0]?.pipelineAnalysis?.topics || [],
-          transparency: responses[0]?.pipelineAnalysis?.transparency || {},
-          aggregatedInsights: responses[0]?.pipelineAnalysis?.aggregatedInsights || {},
-          timeline: responses[0]?.pipelineAnalysis?.timeline || [],
+          preprocessing: firstPipeline?.preprocessing || {},
+          biasAnalysis: firstPipeline?.biasAnalysis || {},
+          sentenceBiasAnalysis: firstPipeline?.sentenceBiasAnalysis || {},
+          sentimentAnalysis: firstPipeline?.sentimentAnalysis || {},
+          ideologicalClassification: firstPipeline?.ideologicalClassification || {},
+          toneAnalysis: firstPipeline?.toneAnalysis || {},
+          factCheck: firstPipeline?.factCheck || {},
+          enhancedNLP: firstPipeline?.enhancedNLP || {},
+          explainability: firstPipeline?.explainability || null,
+          topics: firstPipeline?.topics || null,
+          fairnessAnalysis: firstPipeline?.fairnessAnalysis || null,
+          insights: firstPipeline?.insights || {},
+          summary: firstPipeline?.summary || {},
+          timeline: firstPipeline?.timeline || [],
+          pythonMLStats: firstPipeline?.pythonMLStats || {},
+          pipelineConfig: firstPipeline?.pipelineConfig || {},
           consensus: modelSynthesis?.consensus || 0,
           metadata: {
             pipelineStartTime: new Date(Date.now() - (Date.now() - startTime)).toISOString(),
@@ -395,6 +405,15 @@ router.post('/query', async (req, res) => {
         };
         
         await savePipelineData(firebaseDocId, combinedPipelineData);
+        
+        // Step 4b: Save synthesized summary and meta review
+        await saveSynthesisData(firebaseDocId, {
+          synthesizedSummary: summaryResult.text,
+          synthesizedSummaryMetadata: {
+            usedBERT: summaryResult.usedBERT
+          },
+          metaReview: gptMetaReview
+        });
         
         // Step 5: Create ledger block for pipeline completion
         const pipelineBlock = await createLedgerBlock({

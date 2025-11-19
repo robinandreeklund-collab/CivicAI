@@ -159,17 +159,20 @@ export default function ChatV2Page() {
         factCheckComparison: firestoreData.analysis?.factCheckComparison || null,
         changeDetection: firestoreData.analysis?.changeDetection || null,
         
-        // Processed data from Firestore (ML pipeline results)
-        // NOTE: These fields are NOT currently saved to Firestore:
-        // - synthesizedSummary (BERT summary)
-        // - metaReview (GPT meta-review)
-        // They are only available in direct API responses
-        bertSummary: null,
-        bertMetadata: null,
-        metaReview: null,
+        // Synthesized summary and meta review from Firestore (NEW - now saved)
+        bertSummary: firestoreData.synthesized_summary || null,
+        bertMetadata: firestoreData.synthesized_summary_metadata || null,
+        metaReview: firestoreData.meta_review || null,
         
         // Processed pipeline data from Firestore
         pipelineData: firestoreData.processed_data || {},
+        
+        // Extract specific analysis data for cards
+        explainability: firestoreData.processed_data?.explainability || null,
+        toxicity: firestoreData.processed_data?.biasAnalysis?.detoxify || null,
+        topics: firestoreData.processed_data?.topics || null,
+        fairness: firestoreData.processed_data?.fairnessAnalysis || null,
+        factCheck: firestoreData.processed_data?.factCheck || null,
         
         // Quality metrics from Firestore
         qualityMetrics: firestoreData.quality_metrics || null,
@@ -672,8 +675,8 @@ export default function ChatV2Page() {
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-[#666] text-sm">Explainability data kommer vara tillgänglig när backend är implementerat</p>
-                  <p className="text-[#555] text-xs mt-1">TODO: Implementera /ml/shap och /ml/lime endpoints</p>
+                  <p className="text-[#666] text-sm">Explainability-analys finns tillgänglig när Python ML-tjänsten är igång</p>
+                  <p className="text-[#555] text-xs mt-1">Starta: cd backend/python_services && python nlp_pipeline.py</p>
                 </div>
               )}
             </div>
@@ -741,8 +744,8 @@ export default function ChatV2Page() {
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-[#666] text-sm">Toxicitetsanalys kommer vara tillgänglig när backend är implementerat</p>
-                  <p className="text-[#555] text-xs mt-1">TODO: Implementera /ml/toxicity endpoint</p>
+                  <p className="text-[#666] text-sm">Toxicitetsanalys finns tillgänglig när Python ML-tjänsten är igång</p>
+                  <p className="text-[#555] text-xs mt-1">Starta: cd backend/python_services && python nlp_pipeline.py</p>
                 </div>
               )}
             </div>
@@ -847,9 +850,8 @@ export default function ChatV2Page() {
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-[#666] text-sm">Topic modeling kommer vara tillgänglig när backend är implementerat</p>
-                  <p className="text-[#555] text-xs mt-1">TODO: Anropa /api/ml/topics endpoint från query-flödet</p>
-                  <p className="text-[#555] text-xs mt-1">Endpoint stöder method="bertopic", "gensim", eller "both" för parallel analys</p>
+                  <p className="text-[#666] text-sm">Topic modeling finns tillgänglig när Python ML-tjänsten är igång</p>
+                  <p className="text-[#555] text-xs mt-1">Starta: cd backend/python_services && python nlp_pipeline.py</p>
                 </div>
               )}
             </div>
@@ -867,78 +869,82 @@ export default function ChatV2Page() {
                   <div className="text-sm text-[#666]">Fairlearn metrics and bias detection</div>
                 </div>
               </div>
-              {/* TODO: Backend should provide fairness data in response.fairness */}
+              {/* Backend now provides fairness data via pipeline */}
               {latestAiMessage.fairness ? (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {latestAiMessage.fairness.demographicParity !== undefined && (
-                      <div className="bg-[#1a1a1a] rounded p-3">
-                        <div className="text-[#666] text-sm mb-2">Demographic Parity</div>
-                        <div className="text-2xl font-medium text-[#e7e7e7]">
-                          {(latestAiMessage.fairness.demographicParity * 100).toFixed(0)}%
+                  {/* Show overall fairness score */}
+                  {latestAiMessage.fairness.bias_indicators && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {latestAiMessage.fairness.bias_indicators.sentiment_consistency !== undefined && (
+                        <div className="bg-[#1a1a1a] rounded p-3">
+                          <div className="text-[#666] text-sm mb-2">Sentiment Consistency</div>
+                          <div className="text-2xl font-medium text-[#e7e7e7]">
+                            {(latestAiMessage.fairness.bias_indicators.sentiment_consistency * 100).toFixed(0)}%
+                          </div>
+                          <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
+                            <div 
+                              className="bg-blue-500 h-full" 
+                              style={{width: `${Math.min(latestAiMessage.fairness.bias_indicators.sentiment_consistency * 100, 100)}%`}}
+                            ></div>
+                          </div>
                         </div>
-                        <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
-                          <div 
-                            className="bg-blue-500 h-full" 
-                            style={{width: `${Math.min(latestAiMessage.fairness.demographicParity * 100, 100)}%`}}
-                          ></div>
+                      )}
+                      {latestAiMessage.fairness.bias_indicators.toxicity_consistency !== undefined && (
+                        <div className="bg-[#1a1a1a] rounded p-3">
+                          <div className="text-[#666] text-sm mb-2">Toxicity Consistency</div>
+                          <div className="text-2xl font-medium text-[#e7e7e7]">
+                            {(latestAiMessage.fairness.bias_indicators.toxicity_consistency * 100).toFixed(0)}%
+                          </div>
+                          <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
+                            <div 
+                              className="bg-purple-500 h-full" 
+                              style={{width: `${Math.min(latestAiMessage.fairness.bias_indicators.toxicity_consistency * 100, 100)}%`}}
+                            ></div>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    {latestAiMessage.fairness.equalizedOdds !== undefined && (
-                      <div className="bg-[#1a1a1a] rounded p-3">
-                        <div className="text-[#666] text-sm mb-2">Equalized Odds</div>
-                        <div className="text-2xl font-medium text-[#e7e7e7]">
-                          {(latestAiMessage.fairness.equalizedOdds * 100).toFixed(0)}%
+                      )}
+                      {latestAiMessage.fairness.bias_indicators.overall_fairness_score !== undefined && (
+                        <div className="bg-[#1a1a1a] rounded p-3">
+                          <div className="text-[#666] text-sm mb-2">Overall Fairness Score</div>
+                          <div className="text-2xl font-medium text-[#e7e7e7]">
+                            {(latestAiMessage.fairness.bias_indicators.overall_fairness_score * 100).toFixed(0)}%
+                          </div>
+                          <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
+                            <div 
+                              className={`h-full ${
+                                latestAiMessage.fairness.bias_indicators.overall_fairness_score >= 0.7 ? 'bg-green-500' :
+                                latestAiMessage.fairness.bias_indicators.overall_fairness_score >= 0.5 ? 'bg-yellow-500' :
+                                'bg-red-500'
+                              }`}
+                              style={{width: `${Math.min(latestAiMessage.fairness.bias_indicators.overall_fairness_score * 100, 100)}%`}}
+                            ></div>
+                          </div>
                         </div>
-                        <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
-                          <div 
-                            className="bg-purple-500 h-full" 
-                            style={{width: `${Math.min(latestAiMessage.fairness.equalizedOdds * 100, 100)}%`}}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-                    {latestAiMessage.fairness.disparateImpact !== undefined && (
-                      <div className="bg-[#1a1a1a] rounded p-3">
-                        <div className="text-[#666] text-sm mb-2">Disparate Impact</div>
-                        <div className="text-2xl font-medium text-[#e7e7e7]">
-                          {(latestAiMessage.fairness.disparateImpact * 100).toFixed(0)}%
-                        </div>
-                        <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
-                          <div 
-                            className="bg-cyan-500 h-full" 
-                            style={{width: `${Math.min(latestAiMessage.fairness.disparateImpact * 100, 100)}%`}}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  {latestAiMessage.fairness.fairnessViolations && latestAiMessage.fairness.fairnessViolations.length > 0 && (
-                    <div className="bg-yellow-900/20 border border-yellow-900/30 rounded p-3">
-                      <div className="text-sm text-yellow-400 mb-2">⚠ Fairness Violations Detected:</div>
-                      <ul className="space-y-1">
-                        {latestAiMessage.fairness.fairnessViolations.map((violation, idx) => (
-                          <li key={idx} className="text-[#888] text-sm">• {violation}</li>
-                        ))}
-                      </ul>
+                      )}
                     </div>
                   )}
-                  {latestAiMessage.fairness.recommendations && latestAiMessage.fairness.recommendations.length > 0 && (
-                    <div>
-                      <div className="text-[#666] text-sm mb-2">Recommendations:</div>
-                      <ul className="space-y-1">
-                        {latestAiMessage.fairness.recommendations.map((rec, idx) => (
-                          <li key={idx} className="text-[#888] text-sm">• {rec}</li>
-                        ))}
-                      </ul>
+                  {latestAiMessage.fairness.fairness_status && (
+                    <div className={`p-3 rounded ${
+                      latestAiMessage.fairness.fairness_status === 'fair' 
+                        ? 'bg-green-900/20 border border-green-900/30' 
+                        : 'bg-yellow-900/20 border border-yellow-900/30'
+                    }`}>
+                      <div className="text-sm">
+                        <span className="font-medium">Status: </span>
+                        <span className={latestAiMessage.fairness.fairness_status === 'fair' ? 'text-green-400' : 'text-yellow-400'}>
+                          {latestAiMessage.fairness.fairness_status.replace('_', ' ')}
+                        </span>
+                      </div>
+                      {latestAiMessage.fairness.note && (
+                        <p className="text-[#888] text-xs mt-2">{latestAiMessage.fairness.note}</p>
+                      )}
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-[#666] text-sm">Fairness-analys kommer vara tillgänglig när backend är implementerat</p>
-                  <p className="text-[#555] text-xs mt-1">TODO: Implementera /ml/fairness endpoint med Fairlearn</p>
+                  <p className="text-[#666] text-sm">Fairness-analys finns tillgänglig när Python ML-tjänsten är igång</p>
+                  <p className="text-[#555] text-xs mt-1">Starta: cd backend/python_services && python nlp_pipeline.py</p>
                 </div>
               )}
             </div>
