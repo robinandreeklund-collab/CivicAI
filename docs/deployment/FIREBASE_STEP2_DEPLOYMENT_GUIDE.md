@@ -42,6 +42,20 @@ Du behöver API-nycklar för följande tjänster (för att ML-pipelinen ska fung
 
 Utan dessa nycklar kommer bara Firebase-integreationen att fungera, men inte AI-svaren.
 
+### Firebase Billing (VIKTIGT)
+
+**Firebase Functions kräver Blaze (pay-as-you-go) plan.**
+
+- **Kostnad:** Generös free tier - typiskt 0-5 USD/månad för detta projekt
+- **Krävs för:** Firebase Functions deployment
+- **Fungerar på free plan:** Firestore Database (kan användas utan uppgradering)
+- **Uppgradering:** Se Steg 1.2 i guiden nedan
+
+**Om du inte vill uppgradera till Blaze:**
+- Du kan fortfarande använda Firestore för data storage
+- Backend kan köras lokalt eller på egen server
+- Firebase Functions kommer inte att fungera
+
 ---
 
 ## Steg 1: Firebase Project Setup
@@ -54,7 +68,29 @@ Utan dessa nycklar kommer bara Firebase-integreationen att fungera, men inte AI-
 4. Välj om du vill ha Google Analytics (rekommenderas)
 5. Klicka på "Create project"
 
-### 1.2 Aktivera Firestore Database
+### 1.2 Uppgradera till Blaze Plan (KRÄVS för Firebase Functions)
+
+**VIKTIGT:** Firebase Functions kräver Blaze (pay-as-you-go) plan.
+
+1. I Firebase Console, gå till vänster meny längst ner och klicka på "Upgrade"
+2. Välj **Blaze Plan** (Pay as you go)
+3. Lägg till betalningsinformation (kreditkort)
+4. Klicka på "Purchase"
+
+**Kostnad:**
+- Firebase Functions har en **generös free tier**:
+  - 2 miljoner anrop/månad gratis
+  - 400,000 GB-sekunder gratis
+  - 200,000 CPU-sekunder gratis
+- För typisk användning med detta projekt: **0-5 USD/månad**
+- Du kan sätta budget alerts i Google Cloud Console
+
+**Alternativ (om du inte vill uppgradera):**
+- Kör endast backend lokalt eller på egen server
+- Firebase Functions kommer INTE att fungera på Spark (free) plan
+- Du kan fortfarande använda Firestore Database (fungerar på free plan)
+
+### 1.3 Aktivera Firestore Database
 
 1. I Firebase Console, gå till "Build" > "Firestore Database"
 2. Klicka på "Create database"
@@ -64,7 +100,7 @@ Utan dessa nycklar kommer bara Firebase-integreationen att fungera, men inte AI-
 4. Välj region (t.ex. "europe-west1" för Europa)
 5. Klicka på "Enable"
 
-### 1.3 Skapa Service Account
+### 1.4 Skapa Service Account
 
 1. I Firebase Console, gå till Project Settings (kugghjulet) > "Service accounts"
 2. Klicka på "Generate new private key"
@@ -76,7 +112,7 @@ Utan dessa nycklar kommer bara Firebase-integreationen att fungera, men inte AI-
 
 **VIKTIGT:** Dela ALDRIG denna fil eller committa den till Git!
 
-### 1.4 Skapa Web App (för Frontend)
+### 1.5 Skapa Web App (för Frontend)
 
 1. I Firebase Console, gå till Project Settings > "Your apps"
 2. Klicka på webb-ikonen (</>) för att lägga till en web app
@@ -618,6 +654,41 @@ curl -X POST http://localhost:3001/api/query \
 ---
 
 ## Felsökning
+
+### Problem: Blaze plan krävs för Firebase Functions deployment
+
+**Symptom:**
+```
+Error: Your project openseek-c19fe must be on the Blaze (pay-as-you-go) plan to complete this command.
+Required API cloudbuild.googleapis.com can't be enabled until the upgrade is complete.
+```
+
+**Lösning:**
+Firebase Functions kräver Blaze (pay-as-you-go) plan för att fungera.
+
+**Steg för att uppgradera:**
+1. Gå till [Firebase Console](https://console.firebase.google.com/)
+2. Välj ditt projekt
+3. Klicka på "Upgrade" i vänstra menyn (längst ner)
+4. Välj **Blaze Plan**
+5. Lägg till betalningsinformation
+6. Klicka på "Purchase"
+
+**Kostnad:**
+- Generös free tier: 2M anrop/månad gratis
+- Typisk kostnad för detta projekt: **0-5 USD/månad**
+- Sätt budget alerts i [Google Cloud Console](https://console.cloud.google.com/)
+
+**Alternativ (utan att uppgradera):**
+- Kör backend lokalt eller på egen server
+- Använd endast Firestore (fungerar på free plan)
+- Firebase Functions kommer INTE att fungera på Spark (free) plan
+
+**Efter uppgradering:**
+```bash
+# Försök deploya igen
+firebase deploy --only functions
+```
 
 ### Problem: npm install fel i Firebase Functions (Peer dependency konflikt)
 

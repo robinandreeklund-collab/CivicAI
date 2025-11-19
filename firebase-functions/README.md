@@ -2,6 +2,24 @@
 
 This directory contains reference implementations for Firebase Cloud Functions that handle the Firebase Integration - Step 2 (Enhanced).
 
+## ⚠️ IMPORTANT: Blaze Plan Required
+
+**Firebase Functions requires the Blaze (pay-as-you-go) billing plan.**
+
+- **Cost:** Generous free tier - typically $0-5/month for this project
+  - 2 million invocations/month free
+  - 400,000 GB-seconds free
+  - 200,000 CPU-seconds free
+- **Upgrade:** [Firebase Console](https://console.firebase.google.com/) → Your Project → Upgrade (bottom left)
+- **Alternative:** Run backend locally or on your own server if you don't want to upgrade
+
+**Without Blaze plan, you'll get this error:**
+```
+Error: Your project must be on the Blaze (pay-as-you-go) plan to complete this command.
+```
+
+See [Troubleshooting](#troubleshooting) section below for details.
+
 ## Quick Links
 
 - **Full Deployment Guide:** See [FIREBASE_STEP2_DEPLOYMENT_GUIDE.md](../docs/deployment/FIREBASE_STEP2_DEPLOYMENT_GUIDE.md) for complete step-by-step instructions
@@ -28,6 +46,12 @@ received → processing → responses_saved → pipeline_complete → completed 
 ```
 
 ## Quick Deployment
+
+### Prerequisites
+
+1. **Firebase Blaze Plan** (see warning above)
+2. **Firebase CLI installed:** `npm install -g firebase-tools`
+3. **Logged in to Firebase:** `firebase login`
 
 ### 1. Copy Template Files
 
@@ -111,6 +135,32 @@ A ready-to-use `package.json` is included in this directory with the correct dep
 Monitors status changes for logging and analytics. Useful for debugging and tracking pipeline progress.
 
 ## Troubleshooting
+
+### Blaze plan required for deployment
+
+**Error:**
+```
+Error: Your project must be on the Blaze (pay-as-you-go) plan to complete this command.
+Required API cloudbuild.googleapis.com can't be enabled until the upgrade is complete.
+```
+
+**Solution:**
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Select your project
+3. Click "Upgrade" in the left menu (bottom)
+4. Select **Blaze Plan**
+5. Add billing information
+6. Click "Purchase"
+
+**Cost information:**
+- Free tier: 2M invocations/month, 400,000 GB-seconds, 200,000 CPU-seconds
+- Typical cost for this project: **$0-5/month**
+- Set budget alerts in [Google Cloud Console](https://console.cloud.google.com/)
+
+**After upgrading:**
+```bash
+firebase deploy --only functions
+```
 
 ### npm install fails with peer dependency error
 
