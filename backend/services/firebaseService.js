@@ -437,23 +437,36 @@ export async function savePipelineData(docId, pipelineData) {
     console.log(`   - fairnessAnalysis: ${cleanedProcessedData.fairnessAnalysis ? 'YES (JSON)' : 'NO'}`);
     console.log(`   - biasAnalysis: ${cleanedProcessedData.biasAnalysis ? 'YES (JSON)' : 'NO'}`);
     console.log(`   - All data serialized as JSON strings to avoid Firestore nesting limits`);
+    console.log(`   - processed_data keys: ${Object.keys(cleanedProcessedData).join(', ')}`);
     
-    await docRef.update({
+    // Use set() with merge instead of update() to ensure field is created
+    await docRef.set({
       processed_data: cleanedProcessedData || {},
       processing_times: removeUndefinedValues(processingTimes) || {},
       quality_metrics: removeUndefinedValues(qualityMetrics) || {},
-      'pipeline_metadata.start_time': pipelineData.metadata?.pipelineStartTime || null,
-      'pipeline_metadata.end_time': pipelineData.metadata?.pipelineEndTime || null,
-      'pipeline_metadata.total_duration_ms': pipelineData.metadata?.totalDurationMs || 0,
-      updated_at: new Date().toISOString(),
-      'pipeline_metadata.status_log': firebaseAdmin.firestore.FieldValue.arrayUnion({
-        status: 'pipeline_complete',
-        timestamp: new Date().toISOString(),
-        message: 'ML pipeline processing completed'
-      })
-    });
+      pipeline_metadata: {
+        start_time: pipelineData.metadata?.pipelineStartTime || null,
+        end_time: pipelineData.metadata?.pipelineEndTime || null,
+        total_duration_ms: pipelineData.metadata?.totalDurationMs || 0,
+        status_log: firebaseAdmin.firestore.FieldValue.arrayUnion({
+          status: 'pipeline_complete',
+          timestamp: new Date().toISOString(),
+          message: 'ML pipeline processing completed'
+        })
+      },
+      updated_at: new Date().toISOString()
+    }, { merge: true });
     
     console.log(`[Firebase Service] ✅ Saved pipeline data for ${docId}`);
+    
+    // Verify data was actually saved
+    const verifyDoc = await docRef.get();
+    const verifyData = verifyDoc.data();
+    if (verifyData.processed_data && Object.keys(verifyData.processed_data).length > 0) {
+      console.log(`[Firebase Service] ✓ Verified: processed_data exists with ${Object.keys(verifyData.processed_data).length} keys`);
+    } else {
+      console.error(`[Firebase Service] ✗ WARNING: processed_data not found or empty after save!`);
+    }
     
     const doc = await docRef.get();
     return {
