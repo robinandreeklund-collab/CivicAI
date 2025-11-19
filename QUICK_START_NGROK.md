@@ -1,0 +1,136 @@
+# SNABBGUIDE: Deploy Firebase Functions med Ngrok
+
+Detta är en snabbguide för att lösa ECONNREFUSED-felet och deploya Firebase Functions med ngrok.
+
+## Steg-för-Steg Instruktioner
+
+### 1. Starta Backend
+
+```bash
+cd C:\Users\robin\Documents\GitHub\CivicAI\backend
+npm start
+```
+
+Backend ska nu köra på `http://localhost:3001`
+
+### 2. Starta Ngrok (i ny terminal)
+
+```bash
+ngrok http 3001
+```
+
+Du kommer se något liknande:
+```
+Forwarding  https://prayerful-competently-beatrice.ngrok-free.dev -> http://localhost:3001
+```
+
+**Kopiera den https URL** som ngrok visar!
+
+### 3. Skapa .env Fil för Functions
+
+```bash
+cd C:\Users\robin\Documents\GitHub\CivicAI\functions
+
+# Skapa .env fil med din ngrok URL
+echo BACKEND_URL=https://prayerful-competently-beatrice.ngrok-free.dev > .env
+```
+
+**Viktigt:** Byt ut `https://prayerful-competently-beatrice.ngrok-free.dev` med DIN ngrok URL från steg 2!
+
+### 4. Deploy Functions (från PROJECT ROOT, INTE functions/)
+
+```bash
+cd C:\Users\robin\Documents\GitHub\CivicAI
+firebase deploy --only functions
+```
+
+**OBS:** Du MÅSTE köra detta från projekt root där `firebase.json` finns!
+
+### 5. Verifiera Deployment
+
+Kolla logs för att se att rätt URL används:
+
+```bash
+firebase functions:log --only onQuestionCreate
+```
+
+Du ska se:
+```
+Using backend URL: https://prayerful-competently-beatrice.ngrok-free.dev
+```
+
+### 6. Testa
+
+1. Gå till din frontend
+2. Ställ en fråga
+3. Kolla Firebase Console > Firestore > `ai_interactions`
+4. Öppna det senaste dokumentet
+5. Verifiera att `errors` array är TOM (inga ECONNREFUSED errors)
+
+## Felsökning
+
+### Fel: "Not in a Firebase app directory"
+
+**Problem:** Du försöker deploya från fel directory
+
+**Lösning:** Se till att du är i projekt root:
+```bash
+cd C:\Users\robin\Documents\GitHub\CivicAI
+# Verifiera att firebase.json finns
+dir firebase.json
+# Deploya
+firebase deploy --only functions
+```
+
+### Fel: "ECONNREFUSED 127.0.0.1:3001"
+
+**Problem:** Functions använder fortfarande localhost
+
+**Lösning:** 
+1. Verifiera att `functions/.env` existerar och har rätt URL
+2. Verifiera att du deployat efter att skapat .env
+3. Kolla logs: `firebase functions:log`
+
+### Ngrok URL ändras när jag startar om ngrok
+
+**Problem:** Gratis ngrok ger nya URLs varje gång
+
+**Lösningar:**
+1. **Snabbt fix:** Uppdatera `.env` med ny URL och deployas om
+2. **Bättre:** Använd ngrok Pro för statiska URLs
+3. **Bäst:** Deploya backend till en riktig server (Heroku, Railway, etc.)
+
+## Migration från functions.config()
+
+Om du tidigare använde `firebase functions:config:set`:
+
+```bash
+# Gammalt sätt (fungerar fortfarande men deprecated)
+firebase functions:config:set backend.url="https://din-url.com"
+
+# Nytt sätt (rekommenderat)
+echo BACKEND_URL=https://din-url.com > functions/.env
+```
+
+Functions-koden stöder BÅDA under migration, men `.env` har prioritet.
+
+## Summering av Ändringarna
+
+**Vad har fixats:**
+1. ✅ Lagt till `firebase.json` och `.firebaserc` (krävs för deployment)
+2. ✅ Migrerat till `.env` istället för deprecated `functions.config()`
+3. ✅ Lagt till localhost-detektion som failar med tydligt felmeddelande
+4. ✅ Skapatmallar (`.env.example`, `.runtimeconfig.json.example`)
+5. ✅ Omfattande dokumentation på svenska
+
+**Vad du behöver göra:**
+1. Skapa `functions/.env` med din ngrok URL
+2. Deploy från projekt root: `firebase deploy --only functions`
+3. Testa genom att ställa en fråga
+
+## Support
+
+Se detaljerade guider:
+- [Migration Guide](docs/deployment/FIREBASE_FUNCTIONS_MIGRATION.md)
+- [Fix Summary](docs/deployment/FIX_ECONNREFUSED_SUMMARY.md)
+- [Deployment Guide](docs/deployment/FIREBASE_STEP2_DEPLOYMENT_GUIDE.md)
