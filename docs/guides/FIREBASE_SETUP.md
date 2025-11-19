@@ -132,23 +132,221 @@ To get these values, open `server/serviceAccountKey.json`:
 
 ## Step 7: Initialize Firestore Collections
 
-The following collections will be created automatically on first use:
+You have **three options** to create collections:
 
-### ai_interactions
-Stores user queries and AI responses.
+### Option 1: Automated Script (Recommended) ⚡
 
-**Manual creation (optional):**
-1. Go to Firestore Database
+Run the automated setup script:
+
+```bash
+./scripts/firebase-init-collections.sh
+```
+
+This script will:
+- Check Firebase CLI installation
+- Authenticate with your Firebase account
+- Create all 6 required collections
+- Add sample documents with proper schemas
+- Display schema information for each collection
+
+**Advantages:**
+- Fast and automated
+- Ensures correct schema structure
+- Creates sample documents for testing
+- No manual work required
+
+---
+
+### Option 2: Use YAML Schema with Firebase AI 🤖
+
+We provide a complete YAML schema file that you can use with Firebase AI or other automation tools.
+
+**File:** `firebase-schema.yaml`
+
+**Instructions:**
+1. Open the file at `firebase-schema.yaml` in the project root
+2. Use it with Firebase AI by providing this schema
+3. Or use it as reference for manual creation
+
+**Example prompt for Firebase AI:**
+```
+Create Firestore collections based on this YAML schema:
+[paste contents of firebase-schema.yaml]
+```
+
+**Schema includes:**
+- All 6 collections with complete field definitions
+- Field types, requirements, and descriptions
+- Security rules for each collection
+- Index configurations
+- Enum values where applicable
+
+---
+
+### Option 3: Manual Creation Step-by-Step 📝
+
+If you prefer manual control, follow these detailed steps for each collection:
+
+#### Collection 1: ai_interactions
+
+**Purpose:** Stores user questions and AI responses with analysis
+
+**Steps:**
+1. Go to Firebase Console → Firestore Database
 2. Click **"Start collection"**
 3. Collection ID: `ai_interactions`
-4. Add a document (will be replaced by real data)
+4. Click **"Auto-ID"** or enter a custom document ID
+5. Add the following fields:
 
-Repeat for:
-- `model_versions`
-- `ledger_blocks`
-- `change_events`
-- `users`
-- `audit_logs`
+| Field Name | Type | Value (for first doc) |
+|------------|------|----------------------|
+| `question` | string | "Sample question for testing" |
+| `created_at` | timestamp | (current date/time) |
+| `status` | string | "received" |
+| `pipeline_version` | string | "1.0.0" |
+| `analysis` | map | {} (empty object) |
+| `completed_at` | timestamp | null |
+| `user_id` | string | "system" |
+| `session_id` | string | "init-session" |
+| `question_hash` | string | "sample-hash-123" |
+
+6. Click **"Save"**
+
+---
+
+#### Collection 2: model_versions
+
+**Purpose:** Tracks AI model configurations and metadata
+
+**Steps:**
+1. Click **"Start collection"**
+2. Collection ID: `model_versions`
+3. Add fields:
+
+| Field Name | Type | Value |
+|------------|------|-------|
+| `modelId` | string | "gpt-3.5-turbo-sample" |
+| `provider` | string | "openai" |
+| `modelName` | string | "gpt-3.5-turbo" |
+| `version` | string | "0613" |
+| `configuration` | map | { "temperature": 0.7, "maxTokens": 1000 } |
+| `profile` | map | { "strengths": ["Fast", "Efficient"] } |
+| `usage` | map | { "totalRequests": 0 } |
+| `createdAt` | timestamp | (current date/time) |
+
+4. Click **"Save"**
+
+---
+
+#### Collection 3: ledger_blocks
+
+**Purpose:** Blockchain-inspired transparency ledger
+
+**Steps:**
+1. Click **"Start collection"**
+2. Collection ID: `ledger_blocks`
+3. Add fields (Genesis block):
+
+| Field Name | Type | Value |
+|------------|------|-------|
+| `block_id` | number | 0 |
+| `timestamp` | timestamp | (current date/time) |
+| `previous_hash` | string | "0000000000000000000000000000000000000000000000000000000000000000" |
+| `current_hash` | string | "genesis-block-hash" |
+| `event_type` | string | "genesis" |
+| `data` | map | { "description": "Genesis block", "model_version": "0.0.0" } |
+| `signatures` | map | { "data_hash": "genesis", "validator": "system" } |
+
+4. Click **"Save"**
+
+---
+
+#### Collection 4: change_events
+
+**Purpose:** Records detected changes in model behavior
+
+**Steps:**
+1. Click **"Start collection"**
+2. Collection ID: `change_events`
+3. Add fields:
+
+| Field Name | Type | Value |
+|------------|------|-------|
+| `eventId` | string | "change-sample-001" |
+| `timestamp` | timestamp | (current date/time) |
+| `changeType` | string | "model_update" |
+| `modelId` | string | "sample-model" |
+| `changeDetails` | map | { "before": "1.0", "after": "1.1" } |
+| `detection` | map | { "method": "automated", "confidence": 0.95 } |
+| `impact` | map | { "severity": "low" } |
+
+4. Click **"Save"**
+
+---
+
+#### Collection 5: users
+
+**Purpose:** User profiles and preferences
+
+**Steps:**
+1. Click **"Start collection"**
+2. Collection ID: `users`
+3. Add fields:
+
+| Field Name | Type | Value |
+|------------|------|-------|
+| `userId` | string | "system-user" |
+| `email` | string | "system@civicai.local" |
+| `displayName` | string | "System User" |
+| `role` | string | "admin" |
+| `createdAt` | timestamp | (current date/time) |
+| `lastLogin` | timestamp | (current date/time) |
+| `preferences` | map | { "theme": "dark", "language": "sv" } |
+
+4. Click **"Save"**
+
+---
+
+#### Collection 6: audit_logs
+
+**Purpose:** System audit logs for compliance
+
+**Steps:**
+1. Click **"Start collection"**
+2. Collection ID: `audit_logs`
+3. Add fields:
+
+| Field Name | Type | Value |
+|------------|------|-------|
+| `logId` | string | "log-init-001" |
+| `timestamp` | timestamp | (current date/time) |
+| `eventType` | string | "system_init" |
+| `userId` | string | "system" |
+| `action` | string | "collections_initialized" |
+| `details` | map | { "method": "manual" } |
+| `ipAddress` | string | null |
+
+4. Click **"Save"**
+
+---
+
+### Verification
+
+After creating collections (any method), verify:
+
+1. **Check Firebase Console:**
+   - All 6 collections should be visible
+   - Each has at least one document
+   - Fields match the schemas
+
+2. **Test Backend Connection:**
+   ```bash
+   cd backend
+   node -e "require('./services/firebaseService.js').isFirebaseAvailable().then(available => console.log('Firebase available:', available))"
+   ```
+
+3. **View Collections:**
+   Navigate to: `https://console.firebase.google.com/project/YOUR_PROJECT_ID/firestore`
 
 ---
 

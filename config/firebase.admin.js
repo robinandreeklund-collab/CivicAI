@@ -14,7 +14,8 @@
  * - FIREBASE_SERVICE_ACCOUNT_PATH (path to serviceAccountKey.json)
  */
 
-const admin = require('firebase-admin');
+import admin from 'firebase-admin';
+import { readFileSync } from 'fs';
 
 let firebaseApp = null;
 
@@ -27,7 +28,8 @@ function initializeFirebaseAdmin() {
   try {
     // Option 1: Use service account file (development only)
     if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
-      const serviceAccount = require(process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
+      const serviceAccountData = readFileSync(process.env.FIREBASE_SERVICE_ACCOUNT_PATH, 'utf8');
+      const serviceAccount = JSON.parse(serviceAccountData);
       
       firebaseApp = admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
@@ -108,7 +110,7 @@ function getAuth() {
   return admin.auth();
 }
 
-module.exports = {
+export {
   initializeFirebaseAdmin,
   getFirestore,
   getAuth,
