@@ -264,34 +264,71 @@ export async function saveRawResponses(docId, responses) {
 }
 
 /**
- * Recursively remove undefined values from an object
- * Firestore does not allow undefined values
+ * Recursively remove undefined values from an object and convert to Firestore-safe format
+ * Firestore does not allow undefined values and has limitations on nested structures
  * @param {any} obj - Object to clean
- * @returns {any} Cleaned object
+ * @param {number} depth - Current nesting depth (for limiting recursion)
+ * @returns {any} Cleaned object safe for Firestore
  */
-function removeUndefinedValues(obj) {
+function removeUndefinedValues(obj, depth = 0) {
+  // Limit depth to prevent overly nested structures (Firestore limit is around 20 levels)
+  const MAX_DEPTH = 15;
+  
+  if (depth > MAX_DEPTH) {
+    // Convert deeply nested objects to JSON string
+    try {
+      return JSON.stringify(obj);
+    } catch (e) {
+      return null;
+    }
+  }
+  
   if (obj === null || obj === undefined) {
     return null;
   }
   
-  if (Array.isArray(obj)) {
-    return obj
-      .map(item => removeUndefinedValues(item))
-      .filter(item => item !== undefined && item !== null);
+  // Handle Date objects
+  if (obj instanceof Date) {
+    return obj.toISOString();
   }
   
-  if (typeof obj === 'object') {
-    const cleaned = {};
+  // Handle primitive types
+  if (typeof obj !== 'object') {
+    return obj;
+  }
+  
+  // Handle arrays
+  if (Array.isArray(obj)) {
+    const cleaned = obj
+      .map(item => removeUndefinedValues(item, depth + 1))
+      .filter(item => item !== undefined && item !== null);
+    return cleaned.length > 0 ? cleaned : null;
+  }
+  
+  // Handle objects - convert to plain object and clean
+  const cleaned = {};
+  try {
     for (const [key, value] of Object.entries(obj)) {
-      const cleanedValue = removeUndefinedValues(value);
+      // Skip functions and symbols
+      if (typeof value === 'function' || typeof value === 'symbol') {
+        continue;
+      }
+      
+      const cleanedValue = removeUndefinedValues(value, depth + 1);
       if (cleanedValue !== undefined && cleanedValue !== null) {
         cleaned[key] = cleanedValue;
       }
     }
-    return Object.keys(cleaned).length > 0 ? cleaned : null;
+  } catch (e) {
+    // If we can't iterate, try to convert to JSON
+    try {
+      return JSON.parse(JSON.stringify(obj));
+    } catch (jsonError) {
+      return null;
+    }
   }
   
-  return obj;
+  return Object.keys(cleaned).length > 0 ? cleaned : null;
 }
 
 /**
@@ -331,16 +368,44 @@ export async function savePipelineData(docId, pipelineData) {
       completeness: pipelineData.completeness || 0
     };
     
+    // Simplify and clean pipeline data for Firestore
+    // Convert complex nested objects to simpler structures
+    const simplifiedData = {
+      preprocessing: {
+        summary: pipelineData.preprocessing?.summary || {},
+        stats: pipelineData.preprocessing?.stats || {},
+        // Store complex nested data as JSON string to avoid Firestore nesting limits
+        details: pipelineData.preprocessing ? JSON.stringify(pipelineData.preprocessing) : '{}'
+      },
+      bias: pipelineData.bias ? {
+        detected: pipelineData.bias.detected || false,
+        score: pipelineData.bias.score || 0,
+        types: pipelineData.bias.types || [],
+        summary: pipelineData.bias.summary || ''
+      } : {},
+      sentiment: pipelineData.sentiment ? {
+        score: pipelineData.sentiment.score || 0,
+        label: pipelineData.sentiment.label || 'neutral',
+        confidence: pipelineData.sentiment.confidence || 0
+      } : {},
+      ideology: pipelineData.ideology ? {
+        primary: pipelineData.ideology.primary || 'unknown',
+        score: pipelineData.ideology.score || 0,
+        confidence: pipelineData.ideology.confidence || 0
+      } : {},
+      topics: Array.isArray(pipelineData.topics) ? pipelineData.topics.slice(0, 10) : [],
+      transparency: pipelineData.transparency ? {
+        score: pipelineData.transparency.score || 0,
+        level: pipelineData.transparency.level || 'unknown'
+      } : {},
+      aggregatedInsights: pipelineData.aggregatedInsights ? {
+        overallConfidence: pipelineData.aggregatedInsights.overallConfidence || 0,
+        summary: pipelineData.aggregatedInsights.summary || ''
+      } : {}
+    };
+    
     // Clean all data to remove undefined values
-    const cleanedProcessedData = removeUndefinedValues({
-      preprocessing: pipelineData.preprocessing || {},
-      bias: pipelineData.bias || {},
-      sentiment: pipelineData.sentiment || {},
-      ideology: pipelineData.ideology || {},
-      topics: pipelineData.topics || [],
-      transparency: pipelineData.transparency || {},
-      aggregatedInsights: pipelineData.aggregatedInsights || {}
-    });
+    const cleanedProcessedData = removeUndefinedValues(simplifiedData);
     
     await docRef.update({
       processed_data: cleanedProcessedData || {},
