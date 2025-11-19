@@ -373,7 +373,7 @@ router.post('/query', async (req, res) => {
             }))
           }
         });
-        await addLedgerBlockReference(firebaseDocId, responsesBlock.blockId);
+        await addLedgerBlockReference(firebaseDocId, responsesBlock.block_id);
         
         // Step 4: Save processed pipeline data
         // Combine pipeline analysis from all responses
@@ -410,7 +410,7 @@ router.post('/query', async (req, res) => {
             }
           }
         });
-        await addLedgerBlockReference(firebaseDocId, pipelineBlock.blockId);
+        await addLedgerBlockReference(firebaseDocId, pipelineBlock.block_id);
         
         // Step 6: Update status to completed
         await updateQuestionStatus(firebaseDocId, { 
@@ -433,7 +433,7 @@ router.post('/query', async (req, res) => {
             final_status: 'completed'
           }
         });
-        await addLedgerBlockReference(firebaseDocId, verifiedBlock.blockId);
+        await addLedgerBlockReference(firebaseDocId, verifiedBlock.block_id);
         
         await updateQuestionStatus(firebaseDocId, { 
           status: 'ledger_verified',
