@@ -354,23 +354,35 @@ export async function executeAnalysisPipeline(text, question = '', options = {})
   // STEP 8: TOPIC MODELING - OPTIONAL
   // ═══════════════════════════════════════════════════════════
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('8️⃣  STEP 8: Topic Modeling (Gensim LDA) [Optional]');
+  console.log('8️⃣  STEP 8: Topic Modeling (BERTopic + Gensim) [Optional]');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   
   let topics = null;
   
   if (pythonServiceAvailable) {
+    // Use method="both" to run BERTopic and Gensim in parallel
     const topicResult = await trackAsyncStep(
-      'gensim_topic_modeling',
-      pythonNLP.topicModelingWithGensim,
+      'topic_modeling_both',
+      pythonNLP.topicModelingWithBoth,
       text  // Pass single text, will be split into sentences by Python
     );
     topics = topicResult.success ? topicResult.data : null;
     
     if (topicResult.success) {
-      const topicCount = topicResult.data.num_topics || topicResult.data.topics?.length || 0;
       const method = topicResult.data.method || 'topic_modeling';
-      console.log(`   ✅ Topic analysis completed (${method}): ${topicCount} topics/keywords found`);
+      const bertopicCount = topicResult.data.bertopic?.topics?.length || 0;
+      const gensimCount = topicResult.data.gensim?.topics?.length || 0;
+      
+      console.log(`   ✅ Topic analysis completed (${method}):`);
+      if (bertopicCount > 0) {
+        console.log(`      - BERTopic: ${bertopicCount} topics identified`);
+      }
+      if (gensimCount > 0) {
+        console.log(`      - Gensim LDA: ${gensimCount} topics identified`);
+      }
+      if (bertopicCount === 0 && gensimCount === 0) {
+        console.log(`      - No topics identified (text may be too short)`);
+      }
     } else {
       console.log(`   ⚠️  ${topicResult.error || 'Topic modeling not available'}`);
     }

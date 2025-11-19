@@ -592,6 +592,58 @@ export async function topicModelingWithGensim(textOrTexts) {
 }
 
 /**
+ * Perform topic modeling using both BERTopic and Gensim in parallel
+ * This calls the Python service with method='both' to run both algorithms
+ */
+export async function topicModelingWithBoth(textOrTexts) {
+  try {
+    // Accept both single text and array of texts
+    const payload = typeof textOrTexts === 'string' 
+      ? { text: textOrTexts, method: 'both' }
+      : { texts: textOrTexts, method: 'both' };
+    
+    const response = await axios.post(`${PYTHON_SERVICE_URL}/topic-modeling`, payload, { timeout: 30000 });
+    console.log('✓ Using Python BERTopic + Gensim for parallel topic modeling');
+    return {
+      success: true,
+      data: response.data,
+      usingPython: true,
+    };
+  } catch (error) {
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+      console.log('✗ Python service not reachable - Topic modeling unavailable');
+      return {
+        success: false,
+        fallback: true,
+        error: 'Python service not reachable',
+      };
+    }
+    if (error.response?.status === 503) {
+      console.log('✗ Topic modeling not available in Python service');
+      return {
+        success: false,
+        fallback: true,
+        error: 'Topic modeling not available',
+      };
+    }
+    if (error.response?.status === 400) {
+      console.log('✗ Topic modeling requires more text');
+      return {
+        success: false,
+        fallback: true,
+        error: error.response?.data?.error || 'Text too short for topic modeling',
+      };
+    }
+    console.error('Error calling Python topic modeling:', error.message);
+    return {
+      success: false,
+      fallback: true,
+      error: error.message,
+    };
+  }
+}
+
+/**
  * Analyze fairness metrics using Fairlearn
  */
 export async function analyzeFairness(predictions, sensitive_features) {
@@ -696,6 +748,7 @@ export default {
   classifyIdeologyWithTransformers,
   topicModelingWithBERTopic,
   topicModelingWithGensim,
+  topicModelingWithBoth,
   analyzeSemanticSimilarity,
   runCompletePythonPipeline,
   enhancedPreprocess,

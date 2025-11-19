@@ -191,6 +191,45 @@ export default function ChatV2Page() {
           return parsedData;
         })(),
         
+        // Extract specific fields from parsed pipeline data for direct access
+        topics: (() => {
+          if (!firestoreData.processed_data?.topics) return null;
+          try {
+            const topicsData = typeof firestoreData.processed_data.topics === 'string' 
+              ? JSON.parse(firestoreData.processed_data.topics)
+              : firestoreData.processed_data.topics;
+            console.log('[ChatV2] Topics data loaded from Firestore:', topicsData);
+            return topicsData;
+          } catch (e) {
+            console.warn('[ChatV2] Failed to parse topics from Firestore:', e);
+            return null;
+          }
+        })(),
+        
+        explainability: (() => {
+          if (!firestoreData.processed_data?.explainability) return null;
+          try {
+            return typeof firestoreData.processed_data.explainability === 'string'
+              ? JSON.parse(firestoreData.processed_data.explainability)
+              : firestoreData.processed_data.explainability;
+          } catch (e) {
+            console.warn('[ChatV2] Failed to parse explainability from Firestore:', e);
+            return null;
+          }
+        })(),
+        
+        fairness: (() => {
+          if (!firestoreData.processed_data?.fairnessAnalysis) return null;
+          try {
+            return typeof firestoreData.processed_data.fairnessAnalysis === 'string'
+              ? JSON.parse(firestoreData.processed_data.fairnessAnalysis)
+              : firestoreData.processed_data.fairnessAnalysis;
+          } catch (e) {
+            console.warn('[ChatV2] Failed to parse fairness from Firestore:', e);
+            return null;
+          }
+        })(),
+        
         // Quality metrics from Firestore
         qualityMetrics: firestoreData.quality_metrics || null,
         
@@ -839,25 +878,29 @@ export default function ChatV2Page() {
                             <div className="flex items-center justify-between mb-3">
                               <div>
                                 <div className="text-[#e7e7e7] font-medium">{topic.label}</div>
-                                <div className="text-[#666] text-xs">Topic {topic.id}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-[#e7e7e7] text-lg font-medium">
-                                  {(topic.probability * 100).toFixed(1)}%
-                                </div>
-                                {topic.coherence && (
-                                  <div className="text-[#666] text-xs">
-                                    Coherence: {topic.coherence.toFixed(2)}
-                                  </div>
-                                )}
+                                <div className="text-[#666] text-xs">Topic {topic.topic_id ?? idx}</div>
                               </div>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              {topic.terms?.map((term, tidx) => (
-                                <span key={tidx} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded">
-                                  {term}
-                                </span>
-                              ))}
+                              {topic.terms?.map((term, tidx) => {
+                                // Gensim terms are objects with {word, weight}
+                                const termText = typeof term === 'string' ? term : term.word;
+                                const termWeight = typeof term === 'object' ? term.weight : null;
+                                return (
+                                  <span 
+                                    key={tidx} 
+                                    className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded flex items-center gap-1"
+                                    title={termWeight ? `Weight: ${termWeight.toFixed(3)}` : undefined}
+                                  >
+                                    {termText}
+                                    {termWeight && (
+                                      <span className="text-[#555] text-[10px]">
+                                        {(termWeight * 100).toFixed(0)}%
+                                      </span>
+                                    )}
+                                  </span>
+                                );
+                              })}
                             </div>
                           </div>
                         )) || <p className="text-[#666] text-sm">No Gensim topics identified</p>}
@@ -867,9 +910,8 @@ export default function ChatV2Page() {
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-[#666] text-sm">Topic modeling kommer vara tillgänglig när backend är implementerat</p>
-                  <p className="text-[#555] text-xs mt-1">TODO: Anropa /api/ml/topics endpoint från query-flödet</p>
-                  <p className="text-[#555] text-xs mt-1">Endpoint stöder method="bertopic", "gensim", eller "both" för parallel analys</p>
+                  <p className="text-[#666] text-sm">Väntar på topic modeling resultat från backend...</p>
+                  <p className="text-[#555] text-xs mt-1">BERTopic och Gensim LDA kör parallellt när Python NLP service är tillgänglig</p>
                 </div>
               )}
             </div>
