@@ -160,14 +160,10 @@ export default function ChatV2Page() {
         factCheckComparison: firestoreData.analysis?.factCheckComparison || null,
         changeDetection: firestoreData.analysis?.changeDetection || null,
         
-        // Processed data from Firestore (ML pipeline results)
-        // NOTE: These fields are NOT currently saved to Firestore:
-        // - synthesizedSummary (BERT summary)
-        // - metaReview (GPT meta-review)
-        // They are only available in direct API responses
-        bertSummary: null,
-        bertMetadata: null,
-        metaReview: null,
+        // BERT Summary from Firestore (saved via saveSynthesisData)
+        bertSummary: firestoreData.synthesized_summary || null,
+        bertMetadata: firestoreData.synthesized_summary_metadata || null,
+        metaReview: firestoreData.meta_review || null,
         
         // Processed pipeline data from Firestore
         // Parse JSON strings back to objects (backend serializes complex objects to avoid Firestore nesting limits)
@@ -214,6 +210,21 @@ export default function ChatV2Page() {
               : firestoreData.processed_data.explainability;
           } catch (e) {
             console.warn('[ChatV2] Failed to parse explainability from Firestore:', e);
+            return null;
+          }
+        })(),
+        
+        // Toxicity from biasAnalysis.detoxify
+        toxicity: (() => {
+          if (!firestoreData.processed_data?.biasAnalysis) return null;
+          try {
+            const biasData = typeof firestoreData.processed_data.biasAnalysis === 'string'
+              ? JSON.parse(firestoreData.processed_data.biasAnalysis)
+              : firestoreData.processed_data.biasAnalysis;
+            console.log('[ChatV2] Toxicity data loaded from Firestore:', biasData?.detoxify);
+            return biasData?.detoxify || null;
+          } catch (e) {
+            console.warn('[ChatV2] Failed to parse toxicity from Firestore:', e);
             return null;
           }
         })(),
@@ -1026,8 +1037,8 @@ export default function ChatV2Page() {
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-[#666] text-sm">Fairness-analys kommer vara tillgänglig när backend är implementerat</p>
-                  <p className="text-[#555] text-xs mt-1">TODO: Implementera /ml/fairness endpoint med Fairlearn</p>
+                  <p className="text-[#666] text-sm">Väntar på fairness-analys från backend...</p>
+                  <p className="text-[#555] text-xs mt-1">Fairlearn bias metrics körs i ML pipeline när tillgängligt</p>
                 </div>
               )}
             </div>
