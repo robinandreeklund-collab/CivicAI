@@ -224,164 +224,44 @@ export default function ChatV2Page() {
     setIsLoading(true);
 
     try {
-      // Step 1: Store question in Firebase (if available)
-      let firebaseDocId = null;
-      try {
-        const firebaseResponse = await fetch('/api/firebase/questions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            question: userQuestion,
-            userId: 'anonymous', // TODO: Replace with actual user ID when auth is implemented
-            sessionId: `session-${Date.now()}`
-          })
-        });
-        
-        if (firebaseResponse.ok) {
-          const firebaseData = await firebaseResponse.json();
-          if (firebaseData.success) {
-            firebaseDocId = firebaseData.docId;
-            console.log('[ChatV2] Question stored in Firebase:', firebaseDocId);
-          }
-        }
-      } catch (firebaseError) {
-        // Firebase is optional, continue even if it fails
-        console.warn('[ChatV2] Firebase storage failed (continuing):', firebaseError.message);
-      }
-
-      // Step 2: Call real backend API for processing
-      const response = await fetch('/api/query', {
+      // Store question in Firebase and get document ID
+      const firebaseResponse = await fetch('/api/firebase/questions', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           question: userQuestion,
-          services: ['gpt-3.5', 'gemini', 'deepseek'], // Default services
-          firebaseDocId // Include Firebase doc ID for status tracking
-        }),
+          userId: 'anonymous',
+          sessionId: `session-${Date.now()}`
+        })
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
       
-      // Fetch ML analysis data from new endpoints (parallel requests for performance)
-      const synthesizedText = data.synthesizedSummary || '';
-      const mlDataPromises = [];
-      
-      // Only fetch ML data if we have text to analyze
-      if (synthesizedText) {
-        // SHAP explainability
-        mlDataPromises.push(
-          fetch('/api/ml/shap', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ text: synthesizedText, model: 'sentiment' })
-          }).then(r => r.ok ? r.json() : null).catch(() => null)
-        );
-        
-        // LIME explainability
-        mlDataPromises.push(
-          fetch('/api/ml/lime', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ text: synthesizedText, model: 'sentiment', num_features: 10 })
-          }).then(r => r.ok ? r.json() : null).catch(() => null)
-        );
-        
-        // Toxicity analysis
-        mlDataPromises.push(
-          fetch('/api/ml/toxicity', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ text: synthesizedText })
-          }).then(r => r.ok ? r.json() : null).catch(() => null)
-        );
-        
-        // Topic modeling (both BERTopic and Gensim)
-        mlDataPromises.push(
-          fetch('/api/ml/topics', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ text: synthesizedText, method: 'both', num_topics: 5 })
-          }).then(r => r.ok ? r.json() : null).catch(() => null)
-        );
-        
-        // Fairness analysis (requires predictions data - use placeholder for now)
-        mlDataPromises.push(
-          fetch('/api/ml/fairness', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-              predictions: [0, 1, 0, 1], 
-              true_labels: [0, 1, 1, 0],
-              sensitive_features: [0, 0, 1, 1],
-              feature_names: ['group_a', 'group_b']
-            })
-          }).then(r => r.ok ? r.json() : null).catch(() => null)
-        );
+      if (firebaseResponse.ok) {
+        const firebaseData = await firebaseResponse.json();
+        if (firebaseData.success) {
+          const docId = firebaseData.docId;
+          console.log('[ChatV2] ✅ Question stored in Firebase:', docId);
+          
+          // Set the document ID to start listening via Firestore hook
+          setFirebaseDocId(docId);
+          
+          // Firebase Functions will trigger and process the question
+          // We'll receive updates via the Firestore listener in the useEffect above
+          // NO direct /api/query call - all data comes from Firestore!
+        } else {
+          throw new Error('Failed to store question in Firebase');
+        }
       } else {
-        // Push null promises if no text
-        mlDataPromises.push(...Array(5).fill(Promise.resolve(null)));
-      }
-      
-      // Wait for all ML data requests (with timeout)
-      const [shapData, limeData, toxicityData, topicsData, fairnessData] = await Promise.all(
-        mlDataPromises.map(p => Promise.race([p, new Promise(resolve => setTimeout(() => resolve(null), 5000))]))
-      );
-      
-      // Combine SHAP and LIME into explainability object
-      const explainability = {};
-      if (shapData && shapData.topFeatures) {
-        explainability.shap = shapData;
-      }
-      if (limeData && limeData.weights) {
-        explainability.lime = limeData;
-      }
-      
-      // Add AI response - map API response to our structure
-      const aiMessage = {
-        type: 'ai',
-        question: userQuestion,
-        responses: data.responses || [],
-        // BERT summary is returned as 'synthesizedSummary' from API
-        bertSummary: data.synthesizedSummary || null,
-        bertMetadata: data.synthesizedSummaryMetadata || null,
-        // Model synthesis contains consensus/divergence analysis
-        modelSynthesis: data.modelSynthesis || null,
-        metaReview: data.metaReview || null,
-        factCheckComparison: data.factCheckComparison || null,
-        debateTrigger: data.debateTrigger || false,
-        // Change detection data from backend
-        changeDetection: data.change_detection || null,
-        // ML analysis data from new endpoints
-        explainability: Object.keys(explainability).length > 0 ? explainability : null,
-        toxicity: toxicityData,
-        topics: topicsData,
-        fairness: fairnessData,
-        timestamp: new Date().toISOString(),
-      };
-      
-      setMessages(prev => [...prev, aiMessage]);
-      setViewMode('overview'); // Reset to overview on new response
-      
-      // Initialize selectedModel with first response's agent name
-      if (aiMessage.responses && aiMessage.responses.length > 0) {
-        setSelectedModel(aiMessage.responses[0].agent);
+        throw new Error(`Firebase API error: ${firebaseResponse.status}`);
       }
       
     } catch (err) {
-      console.error('Error fetching AI responses:', err);
+      console.error('[ChatV2] ❌ Error storing question:', err);
       const errorMessage = {
         type: 'error',
-        content: err.message || 'Ett fel uppstod vid hämtning av svar.',
+        content: err.message || 'Ett fel uppstod vid lagring av frågan.',
         timestamp: new Date().toISOString(),
       };
       setMessages(prev => [...prev, errorMessage]);
-    } finally {
       setIsLoading(false);
     }
   };
