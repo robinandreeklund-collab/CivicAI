@@ -231,10 +231,15 @@ export async function saveRawResponses(docId, responses) {
         tokenCount: r.metadata?.tokenCount || 0,
         characterCount: r.metadata?.characterCount || 0,
         confidence: r.metadata?.confidence || 0,
+        language: r.metadata?.language || null,
         endpoint: r.metadata?.endpoint || 'unknown',
-        request_id: r.metadata?.request_id || ''
+        request_id: r.metadata?.request_id || '',
+        model: r.metadata?.model || null,
+        version: r.metadata?.version || null
       },
-      analysis: r.analysis || {}
+      analysis: r.analysis || {},
+      enhancedAnalysis: r.enhancedAnalysis || null,
+      pipelineAnalysis: r.pipelineAnalysis || null
     }));
     
     // Clean raw responses to remove any undefined values

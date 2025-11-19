@@ -151,7 +151,9 @@ export default function ChatV2Page() {
               agent: r.service || 'unknown',
               response: r.response_text || r.response || '',
               metadata: r.metadata || {},
-              analysis: r.analysis || {}
+              analysis: r.analysis || {},
+              enhancedAnalysis: r.enhancedAnalysis || null,
+              pipelineAnalysis: r.pipelineAnalysis || null
             }))
           : [],
         
