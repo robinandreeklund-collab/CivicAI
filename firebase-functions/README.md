@@ -258,15 +258,35 @@ Please check the logs at https://console.cloud.google.com/cloud-build/builds...
 **Solutions:**
 
 **1. Backend URL not configured (most common):**
-```bash
-# Set backend URL BEFORE deploying
-firebase functions:config:set backend.url="http://localhost:3001"
 
-# Verify it's set
-firebase functions:config:get
+**IMPORTANT:** Do NOT use `localhost:3001` for deployed functions! They cannot access localhost.
+
+For testing deployed functions against local backend, use ngrok:
+```bash
+# Terminal 1: Start backend
+cd backend && npm start
+
+# Terminal 2: Expose via ngrok
+ngrok http 3001
+# Copy the https URL from output (e.g., https://abc123.ngrok.io)
+
+# Terminal 3: Configure with public URL
+firebase functions:config:set backend.url="https://abc123.ngrok.io"
+
+# Or create functions/.runtimeconfig.json:
+{
+  "backend": {
+    "url": "https://abc123.ngrok.io"
+  }
+}
 
 # Deploy again
 firebase deploy --only functions
+```
+
+For local development, use Firebase Emulator instead:
+```bash
+firebase emulators:start --only functions,firestore
 ```
 
 **2. Wrong package.json:**

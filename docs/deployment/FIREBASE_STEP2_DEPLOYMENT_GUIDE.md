@@ -285,19 +285,48 @@ cd functions
 npm install
 ```
 
-### 3.6 Sätt Environment Variables för Functions
+### 3.6 Sätt Backend URL för Functions
+
+**KRITISKT:** Firebase Functions körs i Google Cloud och kan INTE nå `localhost` eller `127.0.0.1`.
+
+#### Metod 1: Använd .runtimeconfig.json (Rekommenderat - Mer Pålitlig)
+
+Skapa `functions/.runtimeconfig.json`:
 
 ```bash
-# Sätt backend URL (används av Functions för att anropa backend)
-# VIKTIGT: Detta måste vara en PUBLIKT ÅTKOMLIG URL när functions körs i molnet
+cd functions
 
+# Kopiera exempel-filen
+cp .runtimeconfig.json.example .runtimeconfig.json
+
+# Redigera .runtimeconfig.json och byt ut URL:en
+# För produktion:
+{
+  "backend": {
+    "url": "https://din-backend-url.com"
+  }
+}
+
+# För testning med ngrok:
+{
+  "backend": {
+    "url": "https://abc123.ngrok.io"
+  }
+}
+```
+
+**Viktigt:** `.runtimeconfig.json` är gitignored och måste skapas lokalt.
+
+#### Metod 2: Använd Firebase CLI config (Alternativ)
+
+```bash
 # För PRODUKTION (backend på server):
 firebase functions:config:set backend.url="https://din-backend-url.com"
 
 # För LOKAL TESTNING med Firebase Emulator:
 firebase functions:config:set backend.url="http://localhost:3001"
 
-# För att testa deployed functions mot lokal backend, använd ngrok eller liknande:
+# För att testa deployed functions mot lokal backend, använd ngrok:
 # 1. Installera ngrok: https://ngrok.com/download
 # 2. Kör: ngrok http 3001
 # 3. Använd den publika URL som ngrok ger dig:
@@ -307,21 +336,37 @@ firebase functions:config:set backend.url="https://abc123.ngrok.io"
 firebase functions:config:get
 ```
 
-**VIKTIGT:** 
-- När Firebase Functions körs i molnet (deployed), kan de INTE nå `localhost` eller `127.0.0.1`
-- Du måste antingen:
-  1. Deploya backend till en publik server (rekommenderat för produktion)
-  2. Använda ngrok eller liknande för att exponera din lokala backend (för testning)
-  3. Använda Firebase Emulator för att köra functions lokalt (för utveckling)
+**VIKTIGT OM NGROK:**
+1. Starta backend: `cd backend && npm start`
+2. Starta ngrok i ny terminal: `ngrok http 3001`
+3. Kopiera den **https** URL som ngrok visar (t.ex. `https://abc123.ngrok-free.dev`)
+4. Sätt URL i `.runtimeconfig.json` ELLER via `firebase functions:config:set`
+5. Deploy functions: `firebase deploy --only functions`
+6. Testa genom att ställa en fråga i appen
+7. Verifiera i Firebase Console att INGA ECONNREFUSED errors finns i Firestore
 
-**Output bör vara:**
+**VARFÖR LOCALHOST INTE FUNGERAR:**
+- Deployed Firebase Functions körs i Google Cloud, INTE på din dator
+- De kan INTE nå `localhost`, `127.0.0.1` eller din lokala dator
+- Du MÅSTE använda en publikt åtkomlig URL
+
+**LÖSNINGAR:**
+1. **Produktion:** Deploya backend till publik server (Heroku, Railway, Google Cloud Run, etc.)
+2. **Testning:** Använd ngrok för att exponera lokal backend
+3. **Utveckling:** Använd Firebase Emulator (functions körs lokalt, kan nå localhost)
+
+**Output (firebase functions:config:get) bör vara:**
 ```json
 {
   "backend": {
-    "url": "https://din-publika-backend-url.com"
+    "url": "https://din-publika-backend-url.com"  // ✓ Rätt
+    // INTE "http://localhost:3001"                // ✗ Fungerar INTE när deployed
   }
 }
 ```
+
+**NYA SÄKERHETSÅTGÄRDER:**
+Functions-koden har nu en built-in check som kommer att **MISSLYCKAS MED ETT TYDLIGT FELMEDDELANDE** om backend URL är satt till localhost när functions är deployade. Detta förhindrar den tysta ECONNREFUSED-felet.
 
 ### 3.7 Deploy Functions
 

@@ -78,18 +78,57 @@ exports.onQuestionCreate = functions
       // Step 1: Update status to processing
       await logStatus(docRef, 'processing', 'Starting ML pipeline processing');
 
-      // Step 2: Call ML pipeline endpoint with firebaseDocId
-      // Get backend URL from Firebase config (set via: firebase functions:config:set backend.url="...")
-      // IMPORTANT: Must redeploy after changing config for new URL to take effect
+      // Step 2: Get backend URL and validate configuration
+      // MIGRATION NOTE: Moving from deprecated functions.config() to params.BACKEND_URL
+      // For backwards compatibility during migration, we check both sources
+      // See: https://firebase.google.com/docs/functions/config-env#migrate-to-dotenv
       
-      // DEBUG: Log entire config to see what's available
-      console.log('[onQuestionCreate] DEBUG - Full config:', JSON.stringify(functions.config()));
-      console.log('[onQuestionCreate] DEBUG - Backend config:', JSON.stringify(functions.config().backend));
-      
-      const backendUrl = functions.config().backend?.url || 'http://localhost:3001';
+      // Try new method first (params), fallback to deprecated config, then localhost
+      const backendUrl = process.env.BACKEND_URL || 
+                        functions.config().backend?.url || 
+                        'http://localhost:3001';
       
       console.log(`[onQuestionCreate] Using backend URL: ${backendUrl}`);
-      console.log('[onQuestionCreate] DEBUG - Is using fallback?', backendUrl === 'http://localhost:3001');
+      
+      // CRITICAL CHECK: Fail fast if using localhost in production
+      // Firebase Functions running in cloud CANNOT access localhost
+      const isLocalhost = backendUrl === 'http://localhost:3001' || 
+                         backendUrl.includes('127.0.0.1') ||
+                         backendUrl.includes('localhost');
+      
+      if (isLocalhost) {
+        const errorMessage = `
+CONFIGURATION ERROR: Backend URL is set to localhost (${backendUrl})
+
+Firebase Functions deployed to cloud CANNOT access localhost URLs.
+
+Solutions:
+1. For PRODUCTION: Deploy backend to public server and set URL:
+   Create functions/.env file with:
+   BACKEND_URL=https://your-backend-url.com
+   
+   Then deploy: firebase deploy --only functions
+
+2. For TESTING with deployed functions: Use ngrok to expose local backend:
+   - Install ngrok: https://ngrok.com/download
+   - Run: ngrok http 3001
+   - Create functions/.env file with:
+     BACKEND_URL=https://your-ngrok-url.ngrok.io
+   - Deploy: firebase deploy --only functions
+
+3. For LOCAL DEVELOPMENT: Use Firebase Emulator (functions run locally):
+   firebase emulators:start --only functions,firestore
+
+Current config source: ${process.env.BACKEND_URL ? 'Environment Variable' : 'functions.config() (deprecated)'}
+
+See: docs/deployment/FIREBASE_STEP2_DEPLOYMENT_GUIDE.md for full instructions
+        `.trim();
+        
+        console.error('[onQuestionCreate] ERROR:', errorMessage);
+        
+        throw new Error(`Backend URL misconfigured: Cannot use localhost (${backendUrl}) in deployed Functions. See logs for solutions.`);
+      }
+      
       console.log(`[onQuestionCreate] Calling ML pipeline with full analysis...`);
       const pipelineStartTime = Date.now();
       
