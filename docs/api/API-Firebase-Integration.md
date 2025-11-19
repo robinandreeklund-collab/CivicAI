@@ -2,7 +2,15 @@
 
 ## Overview
 
-This document describes the Firebase integration for CivicAI (OneSeek.AI), specifically Step 1: Question Collection and Real-time Status tracking.
+This document describes the Firebase integration for CivicAI (OneSeek.AI), covering both Step 1 (Question Collection and Real-time Status tracking) and Step 2 (Enhanced Pipeline Processing and Data Storage).
+
+> **📘 For Step 2 Enhanced Features**, see [Firebase Step 2 Integration Documentation](./FIREBASE_STEP2_INTEGRATION.md) which includes:
+> - Raw AI responses storage
+> - Complete ML pipeline data
+> - Processing times and metrics
+> - Quality metrics tracking
+> - Enhanced ledger integration
+> - Real-time progress updates
 
 ## Architecture
 
@@ -11,6 +19,9 @@ All user questions submitted via Chat-V2's search field or landing page are stor
 - Real-time status updates
 - Audit trail through the transparency ledger
 - Trigger-based ML pipeline execution
+- **[Step 2]** Complete pipeline data storage
+- **[Step 2]** Quality metrics tracking
+- **[Step 2]** Enhanced provenance and traceability
 
 ## Collection: `ai_interactions`
 
@@ -20,6 +31,8 @@ ai_interactions/{docId}
 ```
 
 ### Document Schema
+
+**Step 1 Fields (Basic):**
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -31,6 +44,21 @@ ai_interactions/{docId}
 | `completed_at` | timestamp | No | When analysis was completed |
 | `user_id` | string | No | Anonymous user identifier (if available) |
 | `session_id` | string | No | Session identifier for tracking conversations |
+
+**Step 2 Fields (Enhanced):**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `raw_responses` | array | No | Raw AI service responses with complete metadata |
+| `processed_data` | object | No | Complete ML pipeline analysis results |
+| `processing_times` | object | No | Processing duration for each service/step |
+| `pipeline_metadata` | object | No | Pipeline execution metadata and status log |
+| `errors` | array | No | Error logs with timestamps and stack traces |
+| `quality_metrics` | object | No | Quality indicators (confidence, consensus, severity) |
+| `ledger_blocks` | array | No | References to ledger blocks for this interaction |
+| `verified_at` | timestamp | No | When ledger verification was completed |
+
+> **📘 See Complete Schema**: For detailed field structures and examples, see [Firebase Step 2 Documentation](./FIREBASE_STEP2_INTEGRATION.md#enhanced-schema)
 
 ### Example Document
 
