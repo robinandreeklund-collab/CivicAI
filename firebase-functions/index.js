@@ -81,9 +81,15 @@ exports.onQuestionCreate = functions
       // Step 2: Call ML pipeline endpoint with firebaseDocId
       // Get backend URL from Firebase config (set via: firebase functions:config:set backend.url="...")
       // IMPORTANT: Must redeploy after changing config for new URL to take effect
+      
+      // DEBUG: Log entire config to see what's available
+      console.log('[onQuestionCreate] DEBUG - Full config:', JSON.stringify(functions.config()));
+      console.log('[onQuestionCreate] DEBUG - Backend config:', JSON.stringify(functions.config().backend));
+      
       const backendUrl = functions.config().backend?.url || 'http://localhost:3001';
       
       console.log(`[onQuestionCreate] Using backend URL: ${backendUrl}`);
+      console.log('[onQuestionCreate] DEBUG - Is using fallback?', backendUrl === 'http://localhost:3001');
       console.log(`[onQuestionCreate] Calling ML pipeline with full analysis...`);
       const pipelineStartTime = Date.now();
       
@@ -128,13 +134,31 @@ exports.onQuestionCreate = functions
 
     } catch (error) {
       console.error(`[onQuestionCreate] Error processing question ${docId}:`, error);
+      console.error('[onQuestionCreate] DEBUG - Error details:', {
+        message: error.message,
+        code: error.code,
+        errno: error.errno,
+        syscall: error.syscall,
+        address: error.address,
+        port: error.port,
+        response: error.response?.data,
+        config: error.config?.url
+      });
       
       // Log error with detailed information
       const errorLog = {
         timestamp: new Date().toISOString(),
         message: error.message,
         stack: error.stack || '',
-        code: error.code || 'UNKNOWN'
+        code: error.code || 'UNKNOWN',
+        // Add more debug info for ECONNREFUSED errors
+        ...(error.code === 'ECONNREFUSED' && {
+          debug: {
+            attempted_url: error.config?.url,
+            address: error.address,
+            port: error.port
+          }
+        })
       };
       
       // Update status to error with error log
