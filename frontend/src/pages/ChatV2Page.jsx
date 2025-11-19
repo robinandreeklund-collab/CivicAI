@@ -178,11 +178,32 @@ export default function ChatV2Page() {
         // Processed pipeline data from Firestore
         pipelineData: firestoreData.processed_data || {},
         
-        // Extract specific analysis data for cards
-        explainability: firestoreData.processed_data?.explainability || null,
+        // Extract specific analysis data for cards (parse JSON strings if needed)
+        explainability: (() => {
+          const data = firestoreData.processed_data?.explainability;
+          if (!data) return null;
+          if (typeof data === 'string') {
+            try { return JSON.parse(data); } catch (e) { return null; }
+          }
+          return data;
+        })(),
         toxicity: firestoreData.processed_data?.biasAnalysis?.detoxify || null,
-        topics: firestoreData.processed_data?.topics || null,
-        fairness: firestoreData.processed_data?.fairnessAnalysis || null,
+        topics: (() => {
+          const data = firestoreData.processed_data?.topics;
+          if (!data) return null;
+          if (typeof data === 'string') {
+            try { return JSON.parse(data); } catch (e) { return null; }
+          }
+          return data;
+        })(),
+        fairness: (() => {
+          const data = firestoreData.processed_data?.fairnessAnalysis;
+          if (!data) return null;
+          if (typeof data === 'string') {
+            try { return JSON.parse(data); } catch (e) { return null; }
+          }
+          return data;
+        })(),
         factCheck: firestoreData.processed_data?.factCheck || null,
         
         // Quality metrics from Firestore
@@ -1275,7 +1296,29 @@ export default function ChatV2Page() {
     
     // Use pipelineData from Firebase (processed_data) as the primary source,
     // fall back to response.pipelineAnalysis for direct API responses
-    const pipelineAnalysis = latestAiMessage.pipelineData || selectedResponse?.pipelineAnalysis;
+    let pipelineAnalysis = latestAiMessage.pipelineData || selectedResponse?.pipelineAnalysis;
+    
+    // Parse JSON strings in pipelineData if they exist (Firestore stores complex objects as strings)
+    if (pipelineAnalysis) {
+      pipelineAnalysis = { ...pipelineAnalysis };
+      
+      // Parse JSON string fields
+      if (typeof pipelineAnalysis.explainability === 'string') {
+        try { pipelineAnalysis.explainability = JSON.parse(pipelineAnalysis.explainability); } catch (e) {}
+      }
+      if (typeof pipelineAnalysis.topics === 'string') {
+        try { pipelineAnalysis.topics = JSON.parse(pipelineAnalysis.topics); } catch (e) {}
+      }
+      if (typeof pipelineAnalysis.fairnessAnalysis === 'string') {
+        try { pipelineAnalysis.fairnessAnalysis = JSON.parse(pipelineAnalysis.fairnessAnalysis); } catch (e) {}
+      }
+      if (typeof pipelineAnalysis.timeline === 'string') {
+        try { pipelineAnalysis.timeline = JSON.parse(pipelineAnalysis.timeline); } catch (e) {}
+      }
+      if (typeof pipelineAnalysis.pipelineConfig === 'string') {
+        try { pipelineAnalysis.pipelineConfig = JSON.parse(pipelineAnalysis.pipelineConfig); } catch (e) {}
+      }
+    }
     
     return (
       <div className="flex-1 overflow-y-auto pb-40 px-4 md:px-8 pt-24">

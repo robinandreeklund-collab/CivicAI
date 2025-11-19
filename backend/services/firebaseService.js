@@ -369,7 +369,7 @@ export async function savePipelineData(docId, pipelineData) {
     };
     
     // Simplify and clean pipeline data for Firestore
-    // Convert complex nested objects to simpler structures
+    // Convert complex nested objects to simpler structures or JSON strings to avoid Firestore nesting limits
     const simplifiedData = {
       preprocessing: {
         summary: pipelineData.preprocessing?.summary || {},
@@ -386,14 +386,15 @@ export async function savePipelineData(docId, pipelineData) {
       toneAnalysis: pipelineData.toneAnalysis || {},
       factCheck: pipelineData.factCheck || {},
       enhancedNLP: pipelineData.enhancedNLP || {},
-      explainability: pipelineData.explainability || null,
-      topics: pipelineData.topics || null,
-      fairnessAnalysis: pipelineData.fairnessAnalysis || null,
+      // Serialize complex objects to JSON strings to avoid Firestore nesting limits
+      explainability: pipelineData.explainability ? JSON.stringify(pipelineData.explainability) : null,
+      topics: pipelineData.topics ? JSON.stringify(pipelineData.topics) : null,
+      fairnessAnalysis: pipelineData.fairnessAnalysis ? JSON.stringify(pipelineData.fairnessAnalysis) : null,
       insights: pipelineData.insights || {},
       summary: pipelineData.summary || {},
-      timeline: pipelineData.timeline || [],
+      timeline: pipelineData.timeline ? JSON.stringify(pipelineData.timeline) : null,
       pythonMLStats: pipelineData.pythonMLStats || {},
-      pipelineConfig: pipelineData.pipelineConfig || {},
+      pipelineConfig: pipelineData.pipelineConfig ? JSON.stringify(pipelineData.pipelineConfig) : null,
       transparency: pipelineData.transparency ? {
         score: pipelineData.transparency.score || 0,
         level: pipelineData.transparency.level || 'unknown'
