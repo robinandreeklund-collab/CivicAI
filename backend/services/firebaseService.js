@@ -222,9 +222,9 @@ export async function saveRawResponses(docId, responses) {
     
     // Transform responses to include full provenance
     const rawResponses = responses.map(r => ({
-      service: r.agent || r.service,
+      service: r.agent || r.service || 'unknown',
       model_version: r.metadata?.version || r.metadata?.model || 'unknown',
-      response_text: r.response,
+      response_text: r.response || '',
       metadata: {
         timestamp: r.metadata?.timestamp || new Date().toISOString(),
         responseTimeMs: r.metadata?.responseTimeMs || 0,
@@ -232,22 +232,25 @@ export async function saveRawResponses(docId, responses) {
         characterCount: r.metadata?.characterCount || 0,
         confidence: r.metadata?.confidence || 0,
         endpoint: r.metadata?.endpoint || 'unknown',
-        request_id: r.metadata?.request_id || null
+        request_id: r.metadata?.request_id || ''
       },
       analysis: r.analysis || {}
     }));
     
+    // Clean raw responses to remove any undefined values
+    const cleanedRawResponses = removeUndefinedValues(rawResponses) || [];
+    
     await docRef.update({
-      raw_responses: rawResponses,
+      raw_responses: cleanedRawResponses,
       updated_at: new Date().toISOString(),
       'pipeline_metadata.status_log': firebaseAdmin.firestore.FieldValue.arrayUnion({
         status: 'responses_saved',
         timestamp: new Date().toISOString(),
-        message: `Saved ${rawResponses.length} raw AI responses`
+        message: `Saved ${cleanedRawResponses.length} raw AI responses`
       })
     });
     
-    console.log(`[Firebase Service] Saved ${rawResponses.length} raw responses for ${docId}`);
+    console.log(`[Firebase Service] Saved ${cleanedRawResponses.length} raw responses for ${docId}`);
     
     const doc = await docRef.get();
     return {
@@ -258,6 +261,37 @@ export async function saveRawResponses(docId, responses) {
     console.error('[Firebase Service] Error saving raw responses:', error);
     throw error;
   }
+}
+
+/**
+ * Recursively remove undefined values from an object
+ * Firestore does not allow undefined values
+ * @param {any} obj - Object to clean
+ * @returns {any} Cleaned object
+ */
+function removeUndefinedValues(obj) {
+  if (obj === null || obj === undefined) {
+    return null;
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj
+      .map(item => removeUndefinedValues(item))
+      .filter(item => item !== undefined && item !== null);
+  }
+  
+  if (typeof obj === 'object') {
+    const cleaned = {};
+    for (const [key, value] of Object.entries(obj)) {
+      const cleanedValue = removeUndefinedValues(value);
+      if (cleanedValue !== undefined && cleanedValue !== null) {
+        cleaned[key] = cleanedValue;
+      }
+    }
+    return Object.keys(cleaned).length > 0 ? cleaned : null;
+  }
+  
+  return obj;
 }
 
 /**
@@ -297,21 +331,24 @@ export async function savePipelineData(docId, pipelineData) {
       completeness: pipelineData.completeness || 0
     };
     
+    // Clean all data to remove undefined values
+    const cleanedProcessedData = removeUndefinedValues({
+      preprocessing: pipelineData.preprocessing || {},
+      bias: pipelineData.bias || {},
+      sentiment: pipelineData.sentiment || {},
+      ideology: pipelineData.ideology || {},
+      topics: pipelineData.topics || [],
+      transparency: pipelineData.transparency || {},
+      aggregatedInsights: pipelineData.aggregatedInsights || {}
+    });
+    
     await docRef.update({
-      processed_data: {
-        preprocessing: pipelineData.preprocessing || {},
-        bias: pipelineData.bias || {},
-        sentiment: pipelineData.sentiment || {},
-        ideology: pipelineData.ideology || {},
-        topics: pipelineData.topics || [],
-        transparency: pipelineData.transparency || {},
-        aggregatedInsights: pipelineData.aggregatedInsights || {}
-      },
-      processing_times: processingTimes,
-      quality_metrics: qualityMetrics,
-      'pipeline_metadata.start_time': pipelineData.metadata?.pipelineStartTime,
-      'pipeline_metadata.end_time': pipelineData.metadata?.pipelineEndTime,
-      'pipeline_metadata.total_duration_ms': pipelineData.metadata?.totalDurationMs,
+      processed_data: cleanedProcessedData || {},
+      processing_times: removeUndefinedValues(processingTimes) || {},
+      quality_metrics: removeUndefinedValues(qualityMetrics) || {},
+      'pipeline_metadata.start_time': pipelineData.metadata?.pipelineStartTime || null,
+      'pipeline_metadata.end_time': pipelineData.metadata?.pipelineEndTime || null,
+      'pipeline_metadata.total_duration_ms': pipelineData.metadata?.totalDurationMs || 0,
       updated_at: new Date().toISOString(),
       'pipeline_metadata.status_log': firebaseAdmin.firestore.FieldValue.arrayUnion({
         status: 'pipeline_complete',
