@@ -1643,8 +1643,8 @@ export default function ChatV2Page() {
                                 <div className="mt-4 p-4 bg-[#0a0a0a] rounded">
                                   <div className="text-[#666] mb-3 font-medium">🛡️ Toxicity Scores</div>
                                   <div className="space-y-2">
-                                    {Object.entries(step.output).filter(([key]) => 
-                                      !['timestamp', 'model', 'version'].includes(key)
+                                    {Object.entries(step.output).filter(([key, value]) => 
+                                      !['timestamp', 'model', 'version'].includes(key) && typeof value === 'number'
                                     ).map(([metric, value]) => (
                                       <div key={metric} className="flex items-center gap-3">
                                         <span className="text-[#888] text-xs w-32 capitalize">
