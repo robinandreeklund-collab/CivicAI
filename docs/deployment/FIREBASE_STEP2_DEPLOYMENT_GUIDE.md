@@ -289,20 +289,36 @@ npm install
 
 ```bash
 # Sätt backend URL (används av Functions för att anropa backend)
+# VIKTIGT: Detta måste vara en PUBLIKT ÅTKOMLIG URL när functions körs i molnet
+
+# För PRODUKTION (backend på server):
 firebase functions:config:set backend.url="https://din-backend-url.com"
 
-# Om du kör lokalt under testning:
+# För LOKAL TESTNING med Firebase Emulator:
 firebase functions:config:set backend.url="http://localhost:3001"
+
+# För att testa deployed functions mot lokal backend, använd ngrok eller liknande:
+# 1. Installera ngrok: https://ngrok.com/download
+# 2. Kör: ngrok http 3001
+# 3. Använd den publika URL som ngrok ger dig:
+firebase functions:config:set backend.url="https://abc123.ngrok.io"
 
 # Verifiera konfigurationen
 firebase functions:config:get
 ```
 
+**VIKTIGT:** 
+- När Firebase Functions körs i molnet (deployed), kan de INTE nå `localhost` eller `127.0.0.1`
+- Du måste antingen:
+  1. Deploya backend till en publik server (rekommenderat för produktion)
+  2. Använda ngrok eller liknande för att exponera din lokala backend (för testning)
+  3. Använda Firebase Emulator för att köra functions lokalt (för utveckling)
+
 **Output bör vara:**
 ```json
 {
   "backend": {
-    "url": "http://localhost:3001"
+    "url": "https://din-publika-backend-url.com"
   }
 }
 ```
@@ -839,7 +855,76 @@ firebase deploy --only functions --debug
    echo -n "-----BEGIN PRIVATE KEY-----..." | base64
    ```
 
-### Problem: Firebase Functions kan inte nå Backend
+### Problem: Firebase Functions kan inte nå Backend (ECONNREFUSED 127.0.0.1:3001)
+
+**Symptom:**
+I Firestore ser du error:
+```
+code: "ECONNREFUSED"
+message: "connect ECONNREFUSED 127.0.0.1:3001"
+```
+
+**Orsak:**
+Firebase Functions körs i Google Cloud och kan INTE nå `localhost` eller `127.0.0.1`. De behöver en publikt åtkomlig URL.
+
+**Lösningar:**
+
+**Alternativ 1: Deploya Backend till Publik Server (Rekommenderat för produktion)**
+```bash
+# Deploya backend till din server (t.ex. Heroku, DigitalOcean, Google Cloud Run, etc.)
+# Sedan sätt URL:en:
+firebase functions:config:set backend.url="https://din-backend-server.com"
+firebase deploy --only functions
+```
+
+**Alternativ 2: Använd ngrok för Testning (Snabbt för utveckling)**
+```bash
+# 1. Installera ngrok: https://ngrok.com/download
+# 2. Starta din backend lokalt:
+cd backend
+npm start  # Körs på port 3001
+
+# 3. I ny terminal, exponera backend via ngrok:
+ngrok http 3001
+
+# 4. Kopiera den publika URL som ngrok visar (t.ex. https://abc123.ngrok.io)
+# 5. Sätt Firebase config:
+firebase functions:config:set backend.url="https://abc123.ngrok.io"
+
+# 6. Deploy om functions:
+firebase deploy --only functions
+```
+
+**Alternativ 3: Använd Firebase Emulator för Lokal Utveckling**
+```bash
+# 1. Kör backend lokalt:
+cd backend
+npm start
+
+# 2. Sätt config för emulator:
+firebase functions:config:set backend.url="http://localhost:3001"
+
+# 3. Kör functions lokalt med emulator (INTE deployed):
+firebase emulators:start --only functions,firestore
+
+# 4. Frontend ansluter till emulator istället för deployed functions
+```
+
+**Verifiera lösningen:**
+```bash
+# Kontrollera current config
+firebase functions:config:get
+
+# Ska visa en PUBLIK URL, INTE localhost om deployed:
+{
+  "backend": {
+    "url": "https://din-publika-url.com"  // ✓ Rätt
+    // INTE "http://localhost:3001"       // ✗ Fel för deployed functions
+  }
+}
+```
+
+### Problem: Firebase Functions kan inte nå Backend (Generellt)
 
 **Symptom:**
 ```
@@ -851,7 +936,8 @@ Error: connect ECONNREFUSED
    ```bash
    firebase functions:config:get
    ```
-2. Om du kör lokalt, använd:
+2. Om du kör DEPLOYED functions, URL:en måste vara publik (se ovan)
+3. Om du använder emulator:
    ```bash
    firebase functions:config:set backend.url="http://localhost:3001"
    ```

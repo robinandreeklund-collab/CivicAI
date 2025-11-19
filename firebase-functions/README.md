@@ -80,22 +80,31 @@ npm install
 
 **CRITICAL:** Functions use Firebase config, NOT environment variables.
 
+**IMPORTANT:** When deployed to cloud, functions CANNOT access `localhost`. Backend must be publicly accessible.
+
 ```bash
-# For local testing
+# For PRODUCTION (backend on public server):
+firebase functions:config:set backend.url="https://your-backend-url.com"
+
+# For LOCAL TESTING with Firebase Emulator (functions run locally):
 firebase functions:config:set backend.url="http://localhost:3001"
 
-# For production
-firebase functions:config:set backend.url="https://your-backend-url.com"
+# For TESTING deployed functions with local backend (use ngrok):
+# 1. Install ngrok: https://ngrok.com/download
+# 2. Run: ngrok http 3001
+# 3. Use the public URL ngrok provides:
+firebase functions:config:set backend.url="https://abc123.ngrok.io"
 
 # Verify configuration
 firebase functions:config:get
 ```
 
-Expected output:
+Expected output (for production/deployed):
 ```json
 {
   "backend": {
-    "url": "http://localhost:3001"
+    "url": "https://your-public-backend-url.com"  // ✓ Correct for deployed
+    // NOT "http://localhost:3001"                 // ✗ Won't work when deployed
   }
 }
 ```
@@ -108,6 +117,8 @@ firebase deploy --only functions
 ```
 
 **If deployment fails**, see [Troubleshooting](#troubleshooting) section below.
+
+**After deployment**, verify functions can reach backend by checking Firestore for errors.
 
 ## Package.json Template
 
@@ -284,6 +295,53 @@ firebase deploy --only functions --debug
 ```
 
 **IMPORTANT:** The `onQuestionCreate` function uses `functions.config().backend.url`, NOT `process.env.BACKEND_URL`. You MUST set it via Firebase config.
+
+### ECONNREFUSED 127.0.0.1:3001 (Backend connection error)
+
+**Error in Firestore:**
+```
+code: "ECONNREFUSED"
+message: "connect ECONNREFUSED 127.0.0.1:3001"
+```
+
+**Cause:**
+Deployed Firebase Functions run in Google Cloud and CANNOT access `localhost` or `127.0.0.1`. Backend must be publicly accessible.
+
+**Solutions:**
+
+**Option 1: Deploy backend to public server (Recommended for production)**
+```bash
+# Deploy backend to your server (Heroku, DigitalOcean, Google Cloud Run, etc.)
+firebase functions:config:set backend.url="https://your-backend-server.com"
+firebase deploy --only functions
+```
+
+**Option 2: Use ngrok for testing (Quick for development)**
+```bash
+# 1. Start backend locally
+cd backend && npm start
+
+# 2. In new terminal, expose via ngrok
+ngrok http 3001
+
+# 3. Copy the public URL from ngrok output (e.g., https://abc123.ngrok.io)
+firebase functions:config:set backend.url="https://abc123.ngrok.io"
+firebase deploy --only functions
+```
+
+**Option 3: Use Firebase Emulator for local development**
+```bash
+# Run functions locally instead of deploying
+firebase functions:config:set backend.url="http://localhost:3001"
+firebase emulators:start --only functions,firestore
+# Frontend connects to emulator, not deployed functions
+```
+
+**Verify:**
+```bash
+firebase functions:config:get
+# Should show PUBLIC URL if deployed, NOT localhost
+```
 
 ### Function timeout
 
