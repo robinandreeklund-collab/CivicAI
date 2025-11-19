@@ -864,7 +864,7 @@ export default function ChatV2Page() {
                             <div className="flex flex-wrap gap-2">
                               {topic.terms?.map((term, tidx) => (
                                 <span key={tidx} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded">
-                                  {term}
+                                  {typeof term === 'string' ? term : term.word || term.term || JSON.stringify(term)}
                                 </span>
                               ))}
                             </div>
@@ -905,7 +905,7 @@ export default function ChatV2Page() {
                             <div className="flex flex-wrap gap-2">
                               {topic.terms?.map((term, tidx) => (
                                 <span key={tidx} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded">
-                                  {term}
+                                  {typeof term === 'string' ? term : term.word || term.term || JSON.stringify(term)}
                                 </span>
                               ))}
                             </div>
