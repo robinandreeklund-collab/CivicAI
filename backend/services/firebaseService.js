@@ -407,6 +407,13 @@ export async function savePipelineData(docId, pipelineData) {
     // Clean all data to remove undefined values
     const cleanedProcessedData = removeUndefinedValues(simplifiedData);
     
+    console.log(`[Firebase Service] Saving pipeline data for ${docId}:`);
+    console.log(`   - explainability: ${cleanedProcessedData.explainability ? 'YES' : 'NO'}`);
+    console.log(`   - topics: ${cleanedProcessedData.topics ? 'YES' : 'NO'}`);
+    console.log(`   - fairnessAnalysis: ${cleanedProcessedData.fairnessAnalysis ? 'YES' : 'NO'}`);
+    console.log(`   - biasAnalysis.detoxify: ${cleanedProcessedData.biasAnalysis?.detoxify ? 'YES' : 'NO'}`);
+    console.log(`   - timeline steps: ${cleanedProcessedData.timeline?.length || 0}`);
+    
     await docRef.update({
       processed_data: cleanedProcessedData || {},
       processing_times: removeUndefinedValues(processingTimes) || {},
@@ -422,7 +429,7 @@ export async function savePipelineData(docId, pipelineData) {
       })
     });
     
-    console.log(`[Firebase Service] Saved pipeline data for ${docId}`);
+    console.log(`[Firebase Service] ✅ Saved pipeline data for ${docId}`);
     
     const doc = await docRef.get();
     return {
@@ -575,17 +582,20 @@ export async function saveSynthesisData(docId, data) {
     
     if (data.synthesizedSummary !== undefined) {
       updateData.synthesized_summary = data.synthesizedSummary;
+      console.log(`[Firebase Service] Saving synthesized_summary (${data.synthesizedSummary?.length || 0} chars)`);
     }
     if (data.synthesizedSummaryMetadata !== undefined) {
       updateData.synthesized_summary_metadata = removeUndefinedValues(data.synthesizedSummaryMetadata);
+      console.log(`[Firebase Service] Saving synthesized_summary_metadata:`, data.synthesizedSummaryMetadata);
     }
     if (data.metaReview !== undefined) {
       updateData.meta_review = removeUndefinedValues(data.metaReview);
+      console.log(`[Firebase Service] Saving meta_review with keys:`, Object.keys(data.metaReview || {}));
     }
     
     await docRef.update(updateData);
     
-    console.log(`[Firebase Service] Saved synthesis data for ${docId}`);
+    console.log(`[Firebase Service] ✅ Saved synthesis data for ${docId}`);
     
     const doc = await docRef.get();
     return {
@@ -593,7 +603,7 @@ export async function saveSynthesisData(docId, data) {
       ...doc.data()
     };
   } catch (error) {
-    console.error('[Firebase Service] Error saving synthesis data:', error);
+    console.error('[Firebase Service] ❌ Error saving synthesis data:', error);
     throw error;
   }
 }

@@ -133,8 +133,19 @@ export default function ChatV2Page() {
     console.log('[ChatV2] Firestore data updated:', {
       status: firestoreData.status,
       hasRawResponses: !!firestoreData.raw_responses,
-      hasProcessedData: !!firestoreData.processed_data
+      hasProcessedData: !!firestoreData.processed_data,
+      hasSynthesizedSummary: !!firestoreData.synthesized_summary,
+      hasMetaReview: !!firestoreData.meta_review
     });
+    
+    // Debug: Log what's in processed_data
+    if (firestoreData.processed_data) {
+      console.log('[ChatV2] processed_data keys:', Object.keys(firestoreData.processed_data));
+      console.log('[ChatV2] processed_data.explainability:', !!firestoreData.processed_data.explainability);
+      console.log('[ChatV2] processed_data.topics:', !!firestoreData.processed_data.topics);
+      console.log('[ChatV2] processed_data.fairnessAnalysis:', !!firestoreData.processed_data.fairnessAnalysis);
+      console.log('[ChatV2] processed_data.biasAnalysis:', !!firestoreData.processed_data.biasAnalysis);
+    }
 
     // Only process when status is completed or ledger_verified
     if (firestoreData.status === 'completed' || firestoreData.status === 'ledger_verified') {

@@ -379,34 +379,47 @@ router.post('/query', async (req, res) => {
         // Step 4: Save processed pipeline data
         // Combine pipeline analysis from all responses - use first response with complete pipeline
         const firstPipeline = responses.find(r => r.pipelineAnalysis)?.pipelineAnalysis;
-        const combinedPipelineData = {
-          preprocessing: firstPipeline?.preprocessing || {},
-          biasAnalysis: firstPipeline?.biasAnalysis || {},
-          sentenceBiasAnalysis: firstPipeline?.sentenceBiasAnalysis || {},
-          sentimentAnalysis: firstPipeline?.sentimentAnalysis || {},
-          ideologicalClassification: firstPipeline?.ideologicalClassification || {},
-          toneAnalysis: firstPipeline?.toneAnalysis || {},
-          factCheck: firstPipeline?.factCheck || {},
-          enhancedNLP: firstPipeline?.enhancedNLP || {},
-          explainability: firstPipeline?.explainability || null,
-          topics: firstPipeline?.topics || null,
-          fairnessAnalysis: firstPipeline?.fairnessAnalysis || null,
-          insights: firstPipeline?.insights || {},
-          summary: firstPipeline?.summary || {},
-          timeline: firstPipeline?.timeline || [],
-          pythonMLStats: firstPipeline?.pythonMLStats || {},
-          pipelineConfig: firstPipeline?.pipelineConfig || {},
-          consensus: modelSynthesis?.consensus || 0,
-          metadata: {
-            pipelineStartTime: new Date(Date.now() - (Date.now() - startTime)).toISOString(),
-            pipelineEndTime: new Date().toISOString(),
-            totalDurationMs: Date.now() - startTime
-          }
-        };
         
-        await savePipelineData(firebaseDocId, combinedPipelineData);
+        if (!firstPipeline) {
+          console.warn('⚠️  No pipeline analysis found in any response. Skipping pipeline data save.');
+          console.log('Response agents:', responses.map(r => ({ agent: r.agent, hasPipeline: !!r.pipelineAnalysis })));
+        } else {
+          console.log(`✅ Found pipeline analysis in response from: ${responses.find(r => r.pipelineAnalysis)?.agent}`);
+          
+          const combinedPipelineData = {
+            preprocessing: firstPipeline?.preprocessing || {},
+            biasAnalysis: firstPipeline?.biasAnalysis || {},
+            sentenceBiasAnalysis: firstPipeline?.sentenceBiasAnalysis || {},
+            sentimentAnalysis: firstPipeline?.sentimentAnalysis || {},
+            ideologicalClassification: firstPipeline?.ideologicalClassification || {},
+            toneAnalysis: firstPipeline?.toneAnalysis || {},
+            factCheck: firstPipeline?.factCheck || {},
+            enhancedNLP: firstPipeline?.enhancedNLP || {},
+            explainability: firstPipeline?.explainability || null,
+            topics: firstPipeline?.topics || null,
+            fairnessAnalysis: firstPipeline?.fairnessAnalysis || null,
+            insights: firstPipeline?.insights || {},
+            summary: firstPipeline?.summary || {},
+            timeline: firstPipeline?.timeline || [],
+            pythonMLStats: firstPipeline?.pythonMLStats || {},
+            pipelineConfig: firstPipeline?.pipelineConfig || {},
+            consensus: modelSynthesis?.consensus || 0,
+            metadata: {
+              pipelineStartTime: new Date(Date.now() - (Date.now() - startTime)).toISOString(),
+              pipelineEndTime: new Date().toISOString(),
+              totalDurationMs: Date.now() - startTime
+            }
+          };
+          
+          await savePipelineData(firebaseDocId, combinedPipelineData);
+        }
         
         // Step 4b: Save synthesized summary and meta review
+        console.log('💾 Saving synthesis data (BERT summary & GPT meta-review)...');
+        console.log(`   - Summary length: ${summaryResult.text?.length || 0} chars`);
+        console.log(`   - Used BERT: ${summaryResult.usedBERT}`);
+        console.log(`   - Meta review keys: ${gptMetaReview ? Object.keys(gptMetaReview).join(', ') : 'none'}`);
+        
         await saveSynthesisData(firebaseDocId, {
           synthesizedSummary: summaryResult.text,
           synthesizedSummaryMetadata: {
