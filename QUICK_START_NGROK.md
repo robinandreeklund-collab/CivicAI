@@ -28,11 +28,45 @@ Forwarding  https://prayerful-competently-beatrice.ngrok-free.dev -> http://loca
 
 ### 3. Skapa .env Fil för Functions
 
-```bash
+**VIKTIGT:** Använd en texteditor (t.ex. Notepad, VS Code) för att skapa filen. PowerShell `echo` kan skapa fel encoding.
+
+**Metod 1: Kopiera från exempel-filen (Rekommenderat)**
+
+```powershell
 cd C:\Users\robin\Documents\GitHub\CivicAI\functions
 
-# Skapa .env fil med din ngrok URL
-echo BACKEND_URL=https://prayerful-competently-beatrice.ngrok-free.dev > .env
+# Kopiera exempel-filen
+copy .env.example .env
+
+# Öppna i Notepad och ändra URL
+notepad .env
+```
+
+I Notepad, ändra raden:
+```
+BACKEND_URL=https://your-backend-url.com
+```
+till din ngrok URL:
+```
+BACKEND_URL=https://prayerful-competently-beatrice.ngrok-free.dev
+```
+
+Spara filen som **UTF-8** (viktigt!).
+
+**Metod 2: Använd Set-Content i PowerShell**
+
+```powershell
+cd C:\Users\robin\Documents\GitHub\CivicAI\functions
+
+# Skapa .env fil med korrekt encoding
+Set-Content -Path .env -Value "BACKEND_URL=https://prayerful-competently-beatrice.ngrok-free.dev" -Encoding UTF8 -NoNewline
+```
+
+**Metod 3: I VS Code eller annan editor**
+
+Skapa en ny fil `functions/.env` och skriv:
+```
+BACKEND_URL=https://prayerful-competently-beatrice.ngrok-free.dev
 ```
 
 **Viktigt:** Byt ut `https://prayerful-competently-beatrice.ngrok-free.dev` med DIN ngrok URL från steg 2!
@@ -68,6 +102,52 @@ Using backend URL: https://prayerful-competently-beatrice.ngrok-free.dev
 5. Verifiera att `errors` array är TOM (inga ECONNREFUSED errors)
 
 ## Felsökning
+
+### Fel: "Invalid dotenv file, error on lines: ��BACKEND_URL=..."
+
+**Problem:** `.env` filen har fel encoding (UTF-16 med BOM istället för UTF-8)
+
+**Orsak:** PowerShell `echo` kommando skapar filer med UTF-16 LE BOM encoding som inte fungerar med dotenv
+
+**Lösning:**
+
+1. **Ta bort den felaktiga filen:**
+```powershell
+cd C:\Users\robin\Documents\GitHub\CivicAI\functions
+Remove-Item .env
+```
+
+2. **Skapa ny fil med korrekt encoding:**
+
+**Alternativ A: Använd Set-Content (Rekommenderat för PowerShell)**
+```powershell
+Set-Content -Path .env -Value "BACKEND_URL=https://prayerful-competently-beatrice.ngrok-free.dev" -Encoding UTF8 -NoNewline
+```
+
+**Alternativ B: Kopiera från exempel och redigera**
+```powershell
+copy .env.example .env
+notepad .env
+# Ändra URL och spara som UTF-8
+```
+
+**Alternativ C: Skapa i VS Code**
+- Öppna VS Code
+- Skapa ny fil `functions/.env`
+- Skriv: `BACKEND_URL=https://prayerful-competently-beatrice.ngrok-free.dev`
+- Spara (VS Code använder automatiskt UTF-8)
+
+3. **Verifiera att filen är korrekt:**
+```powershell
+Get-Content .env -Encoding UTF8
+# Ska visa: BACKEND_URL=https://...
+```
+
+4. **Deploy igen:**
+```powershell
+cd C:\Users\robin\Documents\GitHub\CivicAI
+firebase deploy --only functions
+```
 
 ### Fel: "Not in a Firebase app directory"
 

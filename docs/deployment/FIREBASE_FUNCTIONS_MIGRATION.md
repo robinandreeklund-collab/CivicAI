@@ -48,9 +48,23 @@ firebase deploy --only functions
 
 ### Nu (Rekommenderat)
 
+**Linux/Mac:**
 ```bash
 # Skapa functions/.env
 echo 'BACKEND_URL=https://din-url.com' > functions/.env
+
+# Deploy
+firebase deploy --only functions
+```
+
+**Windows PowerShell:**
+```powershell
+# Skapa functions/.env med korrekt encoding
+Set-Content -Path functions/.env -Value "BACKEND_URL=https://din-url.com" -Encoding UTF8 -NoNewline
+
+# Eller kopiera från exempel-filen
+copy functions\.env.example functions\.env
+# Redigera sedan i textredigerare (Notepad, VS Code)
 
 # Deploy
 firebase deploy --only functions
