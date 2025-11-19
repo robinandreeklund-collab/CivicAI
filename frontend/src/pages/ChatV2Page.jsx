@@ -191,6 +191,52 @@ export default function ChatV2Page() {
           return parsedData;
         })(),
         
+        // Map BERT summary from Firestore
+        bertSummary: firestoreData.synthesized_summary || null,
+        
+        // Map meta review from Firestore
+        metaReview: firestoreData.meta_review || null,
+        
+        // Map explainability data (safely access from parsed pipeline data)
+        explainability: (() => {
+          if (!firestoreData.processed_data?.explainability) return null;
+          const val = firestoreData.processed_data.explainability;
+          if (typeof val === 'string' && val.startsWith('{')) {
+            try { return JSON.parse(val); } catch (e) { return null; }
+          }
+          return val;
+        })(),
+        
+        // Map topics data (safely access from parsed pipeline data)
+        topics: (() => {
+          if (!firestoreData.processed_data?.topics) return null;
+          const val = firestoreData.processed_data.topics;
+          if (typeof val === 'string' && val.startsWith('{')) {
+            try { return JSON.parse(val); } catch (e) { return null; }
+          }
+          return val;
+        })(),
+        
+        // Map fairness data (note: stored as fairnessAnalysis in Firebase)
+        fairness: (() => {
+          if (!firestoreData.processed_data?.fairnessAnalysis) return null;
+          const val = firestoreData.processed_data.fairnessAnalysis;
+          if (typeof val === 'string' && val.startsWith('{')) {
+            try { return JSON.parse(val); } catch (e) { return null; }
+          }
+          return val;
+        })(),
+        
+        // Map toxicity data (stored inside biasAnalysis.detoxify)
+        toxicity: (() => {
+          if (!firestoreData.processed_data?.biasAnalysis) return null;
+          let biasAnalysis = firestoreData.processed_data.biasAnalysis;
+          if (typeof biasAnalysis === 'string' && biasAnalysis.startsWith('{')) {
+            try { biasAnalysis = JSON.parse(biasAnalysis); } catch (e) { return null; }
+          }
+          return biasAnalysis?.detoxify || null;
+        })(),
+        
         // Quality metrics from Firestore
         qualityMetrics: firestoreData.quality_metrics || null,
         
