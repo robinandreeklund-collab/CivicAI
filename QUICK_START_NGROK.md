@@ -28,7 +28,7 @@ Forwarding  https://prayerful-competently-beatrice.ngrok-free.dev -> http://loca
 
 ### 3. Skapa .env Fil för Functions
 
-**VIKTIGT:** Använd en texteditor (t.ex. Notepad, VS Code) för att skapa filen. PowerShell `echo` kan skapa fel encoding.
+**VIKTIGT:** Skapa `.env` filen INNAN du deployar! Använd en texteditor (t.ex. Notepad, VS Code) för att skapa filen. PowerShell `echo` kan skapa fel encoding.
 
 **Metod 1: Kopiera från exempel-filen (Rekommenderat)**
 
@@ -69,16 +69,56 @@ Skapa en ny fil `functions/.env` och skriv:
 BACKEND_URL=https://prayerful-competently-beatrice.ngrok-free.dev
 ```
 
+**VERIFIERING - VIKTIGT:**
+
+Innan du deployar, verifiera att filen existerar och är korrekt:
+
+```powershell
+# Kontrollera att filen finns
+Test-Path functions\.env
+# Ska visa: True
+
+# Visa innehållet (ska INTE ha �� tecken)
+Get-Content functions\.env -Encoding UTF8
+# Ska visa: BACKEND_URL=https://prayerful-competently-beatrice.ngrok-free.dev
+
+# Kontrollera att det inte finns BOM eller konstiga tecken
+(Get-Content functions\.env -Raw).Length
+# Ska visa ungefär samma längd som din URL + "BACKEND_URL="
+```
+
 **Viktigt:** Byt ut `https://prayerful-competently-beatrice.ngrok-free.dev` med DIN ngrok URL från steg 2!
 
 ### 4. Deploy Functions (från PROJECT ROOT, INTE functions/)
 
-```bash
+**FÖRE DEPLOYMENT - KRITISK VERIFIERING:**
+
+```powershell
+# Verifiera att .env filen finns OCH innehåller rätt URL
+cd C:\Users\robin\Documents\GitHub\CivicAI
+
+# Kolla att filen existerar
+if (Test-Path functions\.env) {
+    Write-Host "✓ .env filen finns" -ForegroundColor Green
+    Write-Host "Innehåll:" -ForegroundColor Cyan
+    Get-Content functions\.env
+} else {
+    Write-Host "✗ VARNING: .env filen saknas! Skapa den först!" -ForegroundColor Red
+    exit
+}
+```
+
+**Om verifieringen visar rätt URL, deployas:**
+
+```powershell
 cd C:\Users\robin\Documents\GitHub\CivicAI
 firebase deploy --only functions
 ```
 
-**OBS:** Du MÅSTE köra detta från projekt root där `firebase.json` finns!
+**OBS:** 
+- Du MÅSTE köra deployment från projekt root där `firebase.json` finns!
+- `.env` filen MÅSTE finnas i `functions/.env` INNAN deployment!
+- Firebase laddar `.env` automatiskt vid deployment
 
 ### 5. Verifiera Deployment
 
@@ -102,6 +142,87 @@ Using backend URL: https://prayerful-competently-beatrice.ngrok-free.dev
 5. Verifiera att `errors` array är TOM (inga ECONNREFUSED errors)
 
 ## Felsökning
+
+### Fel: Functions använder fortfarande localhost (ECONNREFUSED 127.0.0.1:3001)
+
+**Symptom i logs:**
+```
+_currentUrl: 'http://localhost:3001/api/query'
+code: 'ECONNREFUSED'
+address: '127.0.0.1'
+port: 3001
+```
+
+**Orsak:** `.env` filen laddades inte vid deployment. Detta händer om:
+1. `.env` filen inte fanns i `functions/` directory vid deployment
+2. `.env` filen skapades EFTER deployment
+3. `.env` filen har fel format eller encoding
+
+**Lösning:**
+
+1. **Verifiera att .env filen finns och är korrekt:**
+```powershell
+cd C:\Users\robin\Documents\GitHub\CivicAI\functions
+
+# Kolla att filen finns
+if (Test-Path .env) {
+    Write-Host "✓ Filen finns" -ForegroundColor Green
+} else {
+    Write-Host "✗ Filen saknas - skapa den!" -ForegroundColor Red
+}
+
+# Visa innehåll (ska inte ha �� tecken)
+Get-Content .env -Encoding UTF8
+# MÅSTE visa: BACKEND_URL=https://din-ngrok-url.ngrok-free.dev
+
+# Kontrollera filstorlek (ska inte vara 0)
+(Get-Item .env).Length
+```
+
+2. **Om filen saknas eller är fel, skapa den:**
+```powershell
+cd C:\Users\robin\Documents\GitHub\CivicAI\functions
+
+# Ta bort felaktig fil om den finns
+Remove-Item .env -ErrorAction SilentlyContinue
+
+# Skapa ny med korrekt encoding
+Set-Content -Path .env -Value "BACKEND_URL=https://prayerful-competently-beatrice.ngrok-free.dev" -Encoding UTF8 -NoNewline
+
+# Verifiera
+Get-Content .env -Encoding UTF8
+```
+
+3. **Deployas OM (kritiskt!):**
+
+Den gamla deployments har inte `.env` filen. Du måste deployas om:
+
+```powershell
+cd C:\Users\robin\Documents\GitHub\CivicAI
+
+# Verifiera att .env finns INNAN deployment
+Get-Content functions\.env
+
+# Deploy
+firebase deploy --only functions --force
+```
+
+**VIKTIGT:** Använd `--force` flaggan för att tvinga omdeployment även om koden inte ändrats!
+
+4. **Verifiera deployment:**
+```powershell
+# Vänta 30 sekunder efter deployment, sedan kolla logs
+Start-Sleep -Seconds 30
+firebase functions:log --only onQuestionCreate
+
+# Du ska NU se:
+# "Using backend URL: https://prayerful-competently-beatrice.ngrok-free.dev"
+# INTE "http://localhost:3001"
+```
+
+5. **Testa med en ny fråga:**
+- Ställ en ny fråga i appen
+- Kolla att INGA ECONNREFUSED errors dyker upp i logs
 
 ### Fel: "Invalid dotenv file, error on lines: ��BACKEND_URL=..."
 
