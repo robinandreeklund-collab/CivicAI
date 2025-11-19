@@ -369,60 +369,104 @@ export async function savePipelineData(docId, pipelineData) {
     };
     
     // Simplify and clean pipeline data for Firestore
-    // Convert complex nested objects to simpler structures
+    // Serialize ALL complex nested objects to JSON strings to avoid Firestore nesting limits
+    // Keep only simple scalar values and shallow objects
     const simplifiedData = {
-      preprocessing: {
-        summary: pipelineData.preprocessing?.summary || {},
-        stats: pipelineData.preprocessing?.stats || {},
-        // Store complex nested data as JSON string to avoid Firestore nesting limits
-        details: pipelineData.preprocessing ? JSON.stringify(pipelineData.preprocessing) : '{}'
-      },
-      bias: pipelineData.bias ? {
-        detected: pipelineData.bias.detected || false,
-        score: pipelineData.bias.score || 0,
-        types: pipelineData.bias.types || [],
-        summary: pipelineData.bias.summary || ''
-      } : {},
-      sentiment: pipelineData.sentiment ? {
-        score: pipelineData.sentiment.score || 0,
-        label: pipelineData.sentiment.label || 'neutral',
-        confidence: pipelineData.sentiment.confidence || 0
-      } : {},
-      ideology: pipelineData.ideology ? {
-        primary: pipelineData.ideology.primary || 'unknown',
-        score: pipelineData.ideology.score || 0,
-        confidence: pipelineData.ideology.confidence || 0
-      } : {},
-      topics: Array.isArray(pipelineData.topics) ? pipelineData.topics.slice(0, 10) : [],
+      // Serialize preprocessing completely to avoid nested issues
+      preprocessing: pipelineData.preprocessing ? JSON.stringify(pipelineData.preprocessing) : null,
+      
+      // Serialize all analysis components to JSON strings
+      biasAnalysis: pipelineData.biasAnalysis || pipelineData.bias ? 
+        JSON.stringify(pipelineData.biasAnalysis || pipelineData.bias) : null,
+      sentenceBiasAnalysis: pipelineData.sentenceBiasAnalysis ? 
+        JSON.stringify(pipelineData.sentenceBiasAnalysis) : null,
+      sentimentAnalysis: pipelineData.sentimentAnalysis || pipelineData.sentiment ? 
+        JSON.stringify(pipelineData.sentimentAnalysis || pipelineData.sentiment) : null,
+      ideologicalClassification: pipelineData.ideologicalClassification || pipelineData.ideology ? 
+        JSON.stringify(pipelineData.ideologicalClassification || pipelineData.ideology) : null,
+      toneAnalysis: pipelineData.toneAnalysis ? 
+        JSON.stringify(pipelineData.toneAnalysis) : null,
+      factCheck: pipelineData.factCheck ? 
+        JSON.stringify(pipelineData.factCheck) : null,
+      enhancedNLP: pipelineData.enhancedNLP ? 
+        JSON.stringify(pipelineData.enhancedNLP) : null,
+      
+      // Serialize complex ML analysis objects
+      explainability: pipelineData.explainability ? 
+        JSON.stringify(pipelineData.explainability) : null,
+      topics: pipelineData.topics ? 
+        JSON.stringify(pipelineData.topics) : null,
+      fairnessAnalysis: pipelineData.fairnessAnalysis ? 
+        JSON.stringify(pipelineData.fairnessAnalysis) : null,
+      
+      // Serialize other potentially complex objects
+      insights: pipelineData.insights ? 
+        JSON.stringify(pipelineData.insights) : null,
+      summary: pipelineData.summary ? 
+        JSON.stringify(pipelineData.summary) : null,
+      timeline: pipelineData.timeline ? 
+        JSON.stringify(pipelineData.timeline) : null,
+      pythonMLStats: pipelineData.pythonMLStats ? 
+        JSON.stringify(pipelineData.pythonMLStats) : null,
+      pipelineConfig: pipelineData.pipelineConfig ? 
+        JSON.stringify(pipelineData.pipelineConfig) : null,
+      
+      // Keep only simple scalar values for these
       transparency: pipelineData.transparency ? {
         score: pipelineData.transparency.score || 0,
         level: pipelineData.transparency.level || 'unknown'
-      } : {},
+      } : null,
       aggregatedInsights: pipelineData.aggregatedInsights ? {
         overallConfidence: pipelineData.aggregatedInsights.overallConfidence || 0,
         summary: pipelineData.aggregatedInsights.summary || ''
-      } : {}
+      } : null,
+      consensus: pipelineData.consensus || 0
     };
     
-    // Clean all data to remove undefined values
-    const cleanedProcessedData = removeUndefinedValues(simplifiedData);
+    // Clean to remove null values (don't use removeUndefinedValues on already stringified data)
+    const cleanedProcessedData = {};
+    for (const [key, value] of Object.entries(simplifiedData)) {
+      if (value !== null && value !== undefined) {
+        cleanedProcessedData[key] = value;
+      }
+    }
     
-    await docRef.update({
+    console.log(`[Firebase Service] Saving pipeline data for ${docId}:`);
+    console.log(`   - explainability: ${cleanedProcessedData.explainability ? 'YES (JSON)' : 'NO'}`);
+    console.log(`   - topics: ${cleanedProcessedData.topics ? 'YES (JSON)' : 'NO'}`);
+    console.log(`   - fairnessAnalysis: ${cleanedProcessedData.fairnessAnalysis ? 'YES (JSON)' : 'NO'}`);
+    console.log(`   - biasAnalysis: ${cleanedProcessedData.biasAnalysis ? 'YES (JSON)' : 'NO'}`);
+    console.log(`   - All data serialized as JSON strings to avoid Firestore nesting limits`);
+    console.log(`   - processed_data keys: ${Object.keys(cleanedProcessedData).join(', ')}`);
+    
+    // Use set() with merge instead of update() to ensure field is created
+    await docRef.set({
       processed_data: cleanedProcessedData || {},
       processing_times: removeUndefinedValues(processingTimes) || {},
       quality_metrics: removeUndefinedValues(qualityMetrics) || {},
-      'pipeline_metadata.start_time': pipelineData.metadata?.pipelineStartTime || null,
-      'pipeline_metadata.end_time': pipelineData.metadata?.pipelineEndTime || null,
-      'pipeline_metadata.total_duration_ms': pipelineData.metadata?.totalDurationMs || 0,
-      updated_at: new Date().toISOString(),
-      'pipeline_metadata.status_log': firebaseAdmin.firestore.FieldValue.arrayUnion({
-        status: 'pipeline_complete',
-        timestamp: new Date().toISOString(),
-        message: 'ML pipeline processing completed'
-      })
-    });
+      pipeline_metadata: {
+        start_time: pipelineData.metadata?.pipelineStartTime || null,
+        end_time: pipelineData.metadata?.pipelineEndTime || null,
+        total_duration_ms: pipelineData.metadata?.totalDurationMs || 0,
+        status_log: firebaseAdmin.firestore.FieldValue.arrayUnion({
+          status: 'pipeline_complete',
+          timestamp: new Date().toISOString(),
+          message: 'ML pipeline processing completed'
+        })
+      },
+      updated_at: new Date().toISOString()
+    }, { merge: true });
     
-    console.log(`[Firebase Service] Saved pipeline data for ${docId}`);
+    console.log(`[Firebase Service] ✅ Saved pipeline data for ${docId}`);
+    
+    // Verify data was actually saved
+    const verifyDoc = await docRef.get();
+    const verifyData = verifyDoc.data();
+    if (verifyData.processed_data && Object.keys(verifyData.processed_data).length > 0) {
+      console.log(`[Firebase Service] ✓ Verified: processed_data exists with ${Object.keys(verifyData.processed_data).length} keys`);
+    } else {
+      console.error(`[Firebase Service] ✗ WARNING: processed_data not found or empty after save!`);
+    }
     
     const doc = await docRef.get();
     return {
@@ -549,6 +593,59 @@ export async function getQuestion(docId) {
 }
 
 /**
+ * Save synthesized summary and meta review to Firebase
+ * @param {string} docId - Document ID
+ * @param {Object} data - Summary and review data
+ * @param {string} [data.synthesizedSummary] - BERT-generated summary
+ * @param {Object} [data.synthesizedSummaryMetadata] - Summary metadata
+ * @param {Object} [data.metaReview] - GPT meta-review
+ * @returns {Promise<Object>} Updated document data
+ */
+export async function saveSynthesisData(docId, data) {
+  const firestore = await initializeDb();
+  
+  if (!firestore) {
+    throw new Error('Firebase is not initialized. Check your Firebase configuration.');
+  }
+
+  try {
+    const firebaseAdmin = await initializeFirebaseAdmin();
+    const docRef = firestore.collection('ai_interactions').doc(docId);
+    
+    // Build update object with synthesis data
+    const updateData = {
+      updated_at: new Date().toISOString()
+    };
+    
+    if (data.synthesizedSummary !== undefined) {
+      updateData.synthesized_summary = data.synthesizedSummary;
+      console.log(`[Firebase Service] Saving synthesized_summary (${data.synthesizedSummary?.length || 0} chars)`);
+    }
+    if (data.synthesizedSummaryMetadata !== undefined) {
+      updateData.synthesized_summary_metadata = removeUndefinedValues(data.synthesizedSummaryMetadata);
+      console.log(`[Firebase Service] Saving synthesized_summary_metadata:`, data.synthesizedSummaryMetadata);
+    }
+    if (data.metaReview !== undefined) {
+      updateData.meta_review = removeUndefinedValues(data.metaReview);
+      console.log(`[Firebase Service] Saving meta_review with keys:`, Object.keys(data.metaReview || {}));
+    }
+    
+    await docRef.update(updateData);
+    
+    console.log(`[Firebase Service] ✅ Saved synthesis data for ${docId}`);
+    
+    const doc = await docRef.get();
+    return {
+      docId: doc.id,
+      ...doc.data()
+    };
+  } catch (error) {
+    console.error('[Firebase Service] ❌ Error saving synthesis data:', error);
+    throw error;
+  }
+}
+
+/**
  * Update the status of a question
  * @param {string} docId - Document ID
  * @param {Object} updates - Fields to update
@@ -663,6 +760,7 @@ export default {
   createQuestion,
   getQuestion,
   updateQuestionStatus,
+  saveSynthesisData,
   listQuestions,
   deleteQuestion
 };
