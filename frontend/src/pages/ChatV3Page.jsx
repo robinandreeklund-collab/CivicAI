@@ -133,8 +133,19 @@ export default function ChatV2Page() {
     console.log('[ChatV2] Firestore data updated:', {
       status: firestoreData.status,
       hasRawResponses: !!firestoreData.raw_responses,
-      hasProcessedData: !!firestoreData.processed_data
+      hasProcessedData: !!firestoreData.processed_data,
+      hasSynthesizedSummary: !!firestoreData.synthesized_summary,
+      hasMetaReview: !!firestoreData.meta_review
     });
+    
+    // Debug: Log what's in processed_data
+    if (firestoreData.processed_data) {
+      console.log('[ChatV2] processed_data keys:', Object.keys(firestoreData.processed_data));
+      console.log('[ChatV2] processed_data.explainability:', !!firestoreData.processed_data.explainability);
+      console.log('[ChatV2] processed_data.topics:', !!firestoreData.processed_data.topics);
+      console.log('[ChatV2] processed_data.fairnessAnalysis:', !!firestoreData.processed_data.fairnessAnalysis);
+      console.log('[ChatV2] processed_data.biasAnalysis:', !!firestoreData.processed_data.biasAnalysis);
+    }
 
     // Only process when status is completed or ledger_verified
     if (firestoreData.status === 'completed' || firestoreData.status === 'ledger_verified') {
@@ -159,17 +170,76 @@ export default function ChatV2Page() {
         factCheckComparison: firestoreData.analysis?.factCheckComparison || null,
         changeDetection: firestoreData.analysis?.changeDetection || null,
         
-        // Processed data from Firestore (ML pipeline results)
-        // NOTE: These fields are NOT currently saved to Firestore:
-        // - synthesizedSummary (BERT summary)
-        // - metaReview (GPT meta-review)
-        // They are only available in direct API responses
-        bertSummary: null,
-        bertMetadata: null,
-        metaReview: null,
+        // Synthesized summary and meta review from Firestore (NEW - now saved)
+        bertSummary: firestoreData.synthesized_summary || null,
+        bertMetadata: firestoreData.synthesized_summary_metadata || null,
+        metaReview: firestoreData.meta_review || null,
         
-        // Processed pipeline data from Firestore
-        pipelineData: firestoreData.processed_data || {},
+        // Processed pipeline data from Firestore (need to parse as it's all JSON strings now)
+        pipelineData: (() => {
+          const pd = firestoreData.processed_data || {};
+          const parsed = {};
+          
+          // Parse all JSON string fields back to objects
+          for (const [key, value] of Object.entries(pd)) {
+            if (typeof value === 'string' && (value.startsWith('{') || value.startsWith('['))) {
+              try {
+                parsed[key] = JSON.parse(value);
+              } catch (e) {
+                parsed[key] = value; // Keep as string if parsing fails
+              }
+            } else {
+              parsed[key] = value;
+            }
+          }
+          
+          return parsed;
+        })(),
+        
+        // Extract specific analysis data for cards (parse JSON strings if needed)
+        explainability: (() => {
+          const data = firestoreData.processed_data?.explainability;
+          if (!data) return null;
+          if (typeof data === 'string') {
+            try { return JSON.parse(data); } catch (e) { return null; }
+          }
+          return data;
+        })(),
+        toxicity: (() => {
+          const biasData = firestoreData.processed_data?.biasAnalysis;
+          if (!biasData) return null;
+          if (typeof biasData === 'string') {
+            try { 
+              const parsed = JSON.parse(biasData);
+              return parsed?.detoxify || null;
+            } catch (e) { return null; }
+          }
+          return biasData?.detoxify || null;
+        })(),
+        topics: (() => {
+          const data = firestoreData.processed_data?.topics;
+          if (!data) return null;
+          if (typeof data === 'string') {
+            try { return JSON.parse(data); } catch (e) { return null; }
+          }
+          return data;
+        })(),
+        fairness: (() => {
+          const data = firestoreData.processed_data?.fairnessAnalysis;
+          if (!data) return null;
+          if (typeof data === 'string') {
+            try { return JSON.parse(data); } catch (e) { return null; }
+          }
+          return data;
+        })(),
+        factCheck: (() => {
+          const data = firestoreData.processed_data?.factCheck;
+          if (!data) return null;
+          if (typeof data === 'string') {
+            try { return JSON.parse(data); } catch (e) { return null; }
+          }
+          return data;
+        })(),
         
         // Quality metrics from Firestore
         qualityMetrics: firestoreData.quality_metrics || null,
@@ -672,8 +742,8 @@ export default function ChatV2Page() {
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-[#666] text-sm">Explainability data kommer vara tillgänglig när backend är implementerat</p>
-                  <p className="text-[#555] text-xs mt-1">TODO: Implementera /ml/shap och /ml/lime endpoints</p>
+                  <p className="text-[#666] text-sm">Explainability-analys finns tillgänglig när Python ML-tjänsten är igång</p>
+                  <p className="text-[#555] text-xs mt-1">Starta: cd backend/python_services && python nlp_pipeline.py</p>
                 </div>
               )}
             </div>
@@ -741,8 +811,8 @@ export default function ChatV2Page() {
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-[#666] text-sm">Toxicitetsanalys kommer vara tillgänglig när backend är implementerat</p>
-                  <p className="text-[#555] text-xs mt-1">TODO: Implementera /ml/toxicity endpoint</p>
+                  <p className="text-[#666] text-sm">Toxicitetsanalys finns tillgänglig när Python ML-tjänsten är igång</p>
+                  <p className="text-[#555] text-xs mt-1">Starta: cd backend/python_services && python nlp_pipeline.py</p>
                 </div>
               )}
             </div>
@@ -794,7 +864,7 @@ export default function ChatV2Page() {
                             <div className="flex flex-wrap gap-2">
                               {topic.terms?.map((term, tidx) => (
                                 <span key={tidx} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded">
-                                  {term}
+                                  {typeof term === 'string' ? term : term.word || term.term || JSON.stringify(term)}
                                 </span>
                               ))}
                             </div>
@@ -835,7 +905,7 @@ export default function ChatV2Page() {
                             <div className="flex flex-wrap gap-2">
                               {topic.terms?.map((term, tidx) => (
                                 <span key={tidx} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded">
-                                  {term}
+                                  {typeof term === 'string' ? term : term.word || term.term || JSON.stringify(term)}
                                 </span>
                               ))}
                             </div>
@@ -847,9 +917,8 @@ export default function ChatV2Page() {
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-[#666] text-sm">Topic modeling kommer vara tillgänglig när backend är implementerat</p>
-                  <p className="text-[#555] text-xs mt-1">TODO: Anropa /api/ml/topics endpoint från query-flödet</p>
-                  <p className="text-[#555] text-xs mt-1">Endpoint stöder method="bertopic", "gensim", eller "both" för parallel analys</p>
+                  <p className="text-[#666] text-sm">Topic modeling finns tillgänglig när Python ML-tjänsten är igång</p>
+                  <p className="text-[#555] text-xs mt-1">Starta: cd backend/python_services && python nlp_pipeline.py</p>
                 </div>
               )}
             </div>
@@ -867,78 +936,82 @@ export default function ChatV2Page() {
                   <div className="text-sm text-[#666]">Fairlearn metrics and bias detection</div>
                 </div>
               </div>
-              {/* TODO: Backend should provide fairness data in response.fairness */}
+              {/* Backend now provides fairness data via pipeline */}
               {latestAiMessage.fairness ? (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {latestAiMessage.fairness.demographicParity !== undefined && (
-                      <div className="bg-[#1a1a1a] rounded p-3">
-                        <div className="text-[#666] text-sm mb-2">Demographic Parity</div>
-                        <div className="text-2xl font-medium text-[#e7e7e7]">
-                          {(latestAiMessage.fairness.demographicParity * 100).toFixed(0)}%
+                  {/* Show overall fairness score */}
+                  {latestAiMessage.fairness.bias_indicators && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {latestAiMessage.fairness.bias_indicators.sentiment_consistency !== undefined && (
+                        <div className="bg-[#1a1a1a] rounded p-3">
+                          <div className="text-[#666] text-sm mb-2">Sentiment Consistency</div>
+                          <div className="text-2xl font-medium text-[#e7e7e7]">
+                            {(latestAiMessage.fairness.bias_indicators.sentiment_consistency * 100).toFixed(0)}%
+                          </div>
+                          <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
+                            <div 
+                              className="bg-blue-500 h-full" 
+                              style={{width: `${Math.min(latestAiMessage.fairness.bias_indicators.sentiment_consistency * 100, 100)}%`}}
+                            ></div>
+                          </div>
                         </div>
-                        <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
-                          <div 
-                            className="bg-blue-500 h-full" 
-                            style={{width: `${Math.min(latestAiMessage.fairness.demographicParity * 100, 100)}%`}}
-                          ></div>
+                      )}
+                      {latestAiMessage.fairness.bias_indicators.toxicity_consistency !== undefined && (
+                        <div className="bg-[#1a1a1a] rounded p-3">
+                          <div className="text-[#666] text-sm mb-2">Toxicity Consistency</div>
+                          <div className="text-2xl font-medium text-[#e7e7e7]">
+                            {(latestAiMessage.fairness.bias_indicators.toxicity_consistency * 100).toFixed(0)}%
+                          </div>
+                          <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
+                            <div 
+                              className="bg-purple-500 h-full" 
+                              style={{width: `${Math.min(latestAiMessage.fairness.bias_indicators.toxicity_consistency * 100, 100)}%`}}
+                            ></div>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    {latestAiMessage.fairness.equalizedOdds !== undefined && (
-                      <div className="bg-[#1a1a1a] rounded p-3">
-                        <div className="text-[#666] text-sm mb-2">Equalized Odds</div>
-                        <div className="text-2xl font-medium text-[#e7e7e7]">
-                          {(latestAiMessage.fairness.equalizedOdds * 100).toFixed(0)}%
+                      )}
+                      {latestAiMessage.fairness.bias_indicators.overall_fairness_score !== undefined && (
+                        <div className="bg-[#1a1a1a] rounded p-3">
+                          <div className="text-[#666] text-sm mb-2">Overall Fairness Score</div>
+                          <div className="text-2xl font-medium text-[#e7e7e7]">
+                            {(latestAiMessage.fairness.bias_indicators.overall_fairness_score * 100).toFixed(0)}%
+                          </div>
+                          <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
+                            <div 
+                              className={`h-full ${
+                                latestAiMessage.fairness.bias_indicators.overall_fairness_score >= 0.7 ? 'bg-green-500' :
+                                latestAiMessage.fairness.bias_indicators.overall_fairness_score >= 0.5 ? 'bg-yellow-500' :
+                                'bg-red-500'
+                              }`}
+                              style={{width: `${Math.min(latestAiMessage.fairness.bias_indicators.overall_fairness_score * 100, 100)}%`}}
+                            ></div>
+                          </div>
                         </div>
-                        <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
-                          <div 
-                            className="bg-purple-500 h-full" 
-                            style={{width: `${Math.min(latestAiMessage.fairness.equalizedOdds * 100, 100)}%`}}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-                    {latestAiMessage.fairness.disparateImpact !== undefined && (
-                      <div className="bg-[#1a1a1a] rounded p-3">
-                        <div className="text-[#666] text-sm mb-2">Disparate Impact</div>
-                        <div className="text-2xl font-medium text-[#e7e7e7]">
-                          {(latestAiMessage.fairness.disparateImpact * 100).toFixed(0)}%
-                        </div>
-                        <div className="h-2 bg-[#0a0a0a] rounded-full overflow-hidden mt-2">
-                          <div 
-                            className="bg-cyan-500 h-full" 
-                            style={{width: `${Math.min(latestAiMessage.fairness.disparateImpact * 100, 100)}%`}}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  {latestAiMessage.fairness.fairnessViolations && latestAiMessage.fairness.fairnessViolations.length > 0 && (
-                    <div className="bg-yellow-900/20 border border-yellow-900/30 rounded p-3">
-                      <div className="text-sm text-yellow-400 mb-2">⚠ Fairness Violations Detected:</div>
-                      <ul className="space-y-1">
-                        {latestAiMessage.fairness.fairnessViolations.map((violation, idx) => (
-                          <li key={idx} className="text-[#888] text-sm">• {violation}</li>
-                        ))}
-                      </ul>
+                      )}
                     </div>
                   )}
-                  {latestAiMessage.fairness.recommendations && latestAiMessage.fairness.recommendations.length > 0 && (
-                    <div>
-                      <div className="text-[#666] text-sm mb-2">Recommendations:</div>
-                      <ul className="space-y-1">
-                        {latestAiMessage.fairness.recommendations.map((rec, idx) => (
-                          <li key={idx} className="text-[#888] text-sm">• {rec}</li>
-                        ))}
-                      </ul>
+                  {latestAiMessage.fairness.fairness_status && (
+                    <div className={`p-3 rounded ${
+                      latestAiMessage.fairness.fairness_status === 'fair' 
+                        ? 'bg-green-900/20 border border-green-900/30' 
+                        : 'bg-yellow-900/20 border border-yellow-900/30'
+                    }`}>
+                      <div className="text-sm">
+                        <span className="font-medium">Status: </span>
+                        <span className={latestAiMessage.fairness.fairness_status === 'fair' ? 'text-green-400' : 'text-yellow-400'}>
+                          {latestAiMessage.fairness.fairness_status.replace('_', ' ')}
+                        </span>
+                      </div>
+                      {latestAiMessage.fairness.note && (
+                        <p className="text-[#888] text-xs mt-2">{latestAiMessage.fairness.note}</p>
+                      )}
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-[#666] text-sm">Fairness-analys kommer vara tillgänglig när backend är implementerat</p>
-                  <p className="text-[#555] text-xs mt-1">TODO: Implementera /ml/fairness endpoint med Fairlearn</p>
+                  <p className="text-[#666] text-sm">Fairness-analys finns tillgänglig när Python ML-tjänsten är igång</p>
+                  <p className="text-[#555] text-xs mt-1">Starta: cd backend/python_services && python nlp_pipeline.py</p>
                 </div>
               )}
             </div>
@@ -1256,6 +1329,29 @@ export default function ChatV2Page() {
   const renderPipeline = () => {
     const selectedResponse = latestAiMessage.responses?.find(r => r.agent === selectedModel) || latestAiMessage.responses?.[0];
     
+    // Use pipelineData from Firebase (processed_data) as the primary source,
+    // fall back to response.pipelineAnalysis for direct API responses
+    let pipelineAnalysis = latestAiMessage.pipelineData || selectedResponse?.pipelineAnalysis;
+    
+    // Parse JSON strings in pipelineData if they exist (Firestore stores ALL complex objects as strings now)
+    if (pipelineAnalysis && typeof pipelineAnalysis === 'object') {
+      const parsed = {};
+      
+      for (const [key, value] of Object.entries(pipelineAnalysis)) {
+        if (typeof value === 'string' && (value.startsWith('{') || value.startsWith('['))) {
+          try {
+            parsed[key] = JSON.parse(value);
+          } catch (e) {
+            parsed[key] = value; // Keep as string if parsing fails
+          }
+        } else {
+          parsed[key] = value;
+        }
+      }
+      
+      pipelineAnalysis = parsed;
+    }
+    
     return (
       <div className="flex-1 overflow-y-auto pb-40 px-4 md:px-8 pt-24">
         <div className="max-w-4xl mx-auto">
@@ -1279,36 +1375,38 @@ export default function ChatV2Page() {
             </div>
           </div>
 
-          {selectedResponse && selectedResponse.pipelineAnalysis && (
+          {pipelineAnalysis && (
             <div className="space-y-6">
-              <div className="text-[#666] text-sm uppercase tracking-wide">PIPELINE-ANALYS: {selectedModel}</div>
+              <div className="text-[#666] text-sm uppercase tracking-wide">
+                PIPELINE-ANALYS {latestAiMessage.pipelineData ? '(från Firebase)' : `(${selectedModel})`}
+              </div>
               
               {/* Preprocessing */}
-              {selectedResponse.pipelineAnalysis.preprocessing && (
+              {pipelineAnalysis.preprocessing && (
                 <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
                   <h3 className="font-medium text-[#e7e7e7] mb-4">Förbearbetning</h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <div className="text-[#666]">Ord</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.preprocessing.tokenization?.wordCount ?? 
-                         selectedResponse.pipelineAnalysis.preprocessing.word_count ?? 'N/A'}
+                        {pipelineAnalysis.preprocessing.tokenization?.wordCount ?? 
+                         pipelineAnalysis.preprocessing.word_count ?? 'N/A'}
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Meningar</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.preprocessing.tokenization?.sentenceCount ?? 
-                         selectedResponse.pipelineAnalysis.preprocessing.sentence_count ?? 'N/A'}
+                        {pipelineAnalysis.preprocessing.tokenization?.sentenceCount ?? 
+                         pipelineAnalysis.preprocessing.sentence_count ?? 'N/A'}
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Subjektivitet</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.preprocessing.subjectivityAnalysis?.subjectivityScore != null 
-                          ? selectedResponse.pipelineAnalysis.preprocessing.subjectivityAnalysis.subjectivityScore.toFixed(2)
-                          : (selectedResponse.pipelineAnalysis.preprocessing.subjectivity != null 
-                            ? selectedResponse.pipelineAnalysis.preprocessing.subjectivity.toFixed(2)
+                        {pipelineAnalysis.preprocessing.subjectivityAnalysis?.subjectivityScore != null 
+                          ? pipelineAnalysis.preprocessing.subjectivityAnalysis.subjectivityScore.toFixed(2)
+                          : (pipelineAnalysis.preprocessing.subjectivity != null 
+                            ? pipelineAnalysis.preprocessing.subjectivity.toFixed(2)
                             : 'N/A')}
                       </div>
                     </div>
@@ -1317,34 +1415,34 @@ export default function ChatV2Page() {
               )}
 
               {/* Sentiment */}
-              {selectedResponse.pipelineAnalysis.sentimentAnalysis && (
+              {pipelineAnalysis.sentimentAnalysis && (
                 <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
                   <h3 className="font-medium text-[#e7e7e7] mb-4">Sentimentanalys</h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <div className="text-[#666]">Övergripande</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.sentimentAnalysis.overallTone ?? 
-                         selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment?.classification ?? 
-                         selectedResponse.pipelineAnalysis.sentimentAnalysis.overall ?? 'N/A'}
+                        {pipelineAnalysis.sentimentAnalysis.overallTone ?? 
+                         pipelineAnalysis.sentimentAnalysis.vaderSentiment?.classification ?? 
+                         pipelineAnalysis.sentimentAnalysis.overall ?? 'N/A'}
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Poäng</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment?.score != null
-                          ? selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment.score.toFixed(2)
-                          : (selectedResponse.pipelineAnalysis.sentimentAnalysis.score != null
-                            ? selectedResponse.pipelineAnalysis.sentimentAnalysis.score.toFixed(2)
+                        {pipelineAnalysis.sentimentAnalysis.vaderSentiment?.score != null
+                          ? pipelineAnalysis.sentimentAnalysis.vaderSentiment.score.toFixed(2)
+                          : (pipelineAnalysis.sentimentAnalysis.score != null
+                            ? pipelineAnalysis.sentimentAnalysis.score.toFixed(2)
                             : 'N/A')}
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Intensitet</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment?.comparative != null
-                          ? Math.abs(selectedResponse.pipelineAnalysis.sentimentAnalysis.vaderSentiment.comparative).toFixed(2)
-                          : (selectedResponse.pipelineAnalysis.sentimentAnalysis.intensity ?? 'N/A')}
+                        {pipelineAnalysis.sentimentAnalysis.vaderSentiment?.comparative != null
+                          ? Math.abs(pipelineAnalysis.sentimentAnalysis.vaderSentiment.comparative).toFixed(2)
+                          : (pipelineAnalysis.sentimentAnalysis.intensity ?? 'N/A')}
                       </div>
                     </div>
                   </div>
@@ -1352,32 +1450,32 @@ export default function ChatV2Page() {
               )}
 
               {/* Ideological Classification */}
-              {selectedResponse.pipelineAnalysis.ideologicalClassification && (
+              {pipelineAnalysis.ideologicalClassification && (
                 <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
                   <h3 className="font-medium text-[#e7e7e7] mb-4">Ideologisk klassificering</h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                     <div>
                       <div className="text-[#666]">Primär</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.ideologicalClassification.ideology?.classification ?? 
-                         selectedResponse.pipelineAnalysis.ideologicalClassification.primary ?? 'N/A'}
+                        {pipelineAnalysis.ideologicalClassification.ideology?.classification ?? 
+                         pipelineAnalysis.ideologicalClassification.primary ?? 'N/A'}
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Säkerhet</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.ideologicalClassification.ideology?.confidence != null
-                          ? `${(selectedResponse.pipelineAnalysis.ideologicalClassification.ideology.confidence * 100).toFixed(0)}%`
-                          : (selectedResponse.pipelineAnalysis.ideologicalClassification.confidence != null
-                            ? `${(selectedResponse.pipelineAnalysis.ideologicalClassification.confidence * 100).toFixed(0)}%`
+                        {pipelineAnalysis.ideologicalClassification.ideology?.confidence != null
+                          ? `${(pipelineAnalysis.ideologicalClassification.ideology.confidence * 100).toFixed(0)}%`
+                          : (pipelineAnalysis.ideologicalClassification.confidence != null
+                            ? `${(pipelineAnalysis.ideologicalClassification.confidence * 100).toFixed(0)}%`
                             : 'N/A')}
                       </div>
                     </div>
                     <div>
                       <div className="text-[#666]">Indikatorer</div>
                       <div className="text-[#e7e7e7]">
-                        {selectedResponse.pipelineAnalysis.ideologicalClassification.ideology?.markers?.length ?? 
-                         selectedResponse.pipelineAnalysis.ideologicalClassification.indicators?.length ?? 0} st
+                        {pipelineAnalysis.ideologicalClassification.ideology?.markers?.length ?? 
+                         pipelineAnalysis.ideologicalClassification.indicators?.length ?? 0} st
                       </div>
                     </div>
                   </div>
@@ -1385,11 +1483,17 @@ export default function ChatV2Page() {
               )}
 
               {/* Pipeline Process Timeline with all NLP services */}
-              {selectedResponse.pipelineAnalysis.timeline && selectedResponse.pipelineAnalysis.timeline.length > 0 && (
+              {pipelineAnalysis.timeline && pipelineAnalysis.timeline.length > 0 && (
                 <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
                   <h3 className="font-medium text-[#e7e7e7] mb-4">Pipeline Processtidslinje</h3>
                   <div className="space-y-3">
-                    {selectedResponse.pipelineAnalysis.timeline.map((step, idx) => {
+                    {pipelineAnalysis.timeline.map((step, idx) => {
+                      // Helper to safely render values - only render primitives, not objects/arrays
+                      const safeRender = (value) => {
+                        if (value === null || value === undefined) return 'N/A';
+                        if (typeof value === 'object') return JSON.stringify(value);
+                        return value;
+                      };
                       const isExpanded = expandedPipelineStep === idx;
                       const stepDuration = step.durationMs ?? step.duration ?? 0;
                       
@@ -1466,13 +1570,13 @@ export default function ChatV2Page() {
                               {(step.step === 'gensim_topics' || step.step === 'bertopic_modeling') && step.output && (
                                 <div className="mt-4 p-4 bg-[#0a0a0a] rounded">
                                   <div className="text-[#666] mb-3 font-medium">📊 Topic Analysis Results</div>
-                                  {step.output.topics && step.output.topics.length > 0 ? (
+                                   {step.output.topics && Array.isArray(step.output.topics) && step.output.topics.length > 0 ? (
                                     <div className="space-y-3">
                                       {step.output.topics.slice(0, 5).map((topic, tidx) => (
                                         <div key={tidx} className="border border-[#2a2a2a] rounded p-3">
                                           <div className="flex items-center justify-between mb-2">
                                             <span className="text-[#e7e7e7] font-medium">
-                                              {topic.label || topic.topic || `Topic ${tidx + 1}`}
+                                              {safeRender(topic.label || topic.topic || `Topic ${tidx + 1}`)}
                                             </span>
                                             {topic.probability && (
                                               <span className="text-[#888] text-xs">
@@ -1480,11 +1584,11 @@ export default function ChatV2Page() {
                                               </span>
                                             )}
                                           </div>
-                                          {topic.terms && topic.terms.length > 0 && (
+                                          {topic.terms && Array.isArray(topic.terms) && topic.terms.length > 0 && (
                                             <div className="flex flex-wrap gap-2 mt-2">
                                               {topic.terms.slice(0, 8).map((term, termIdx) => (
                                                 <span key={termIdx} className="px-2 py-1 bg-[#1a1a1a] text-[#888] text-xs rounded">
-                                                  {typeof term === 'string' ? term : term.word || term.term}
+                                                  {typeof term === 'string' ? term : (typeof term === 'object' && term !== null ? (term.word || term.term || safeRender(term)) : safeRender(term))}
                                                 </span>
                                               ))}
                                             </div>
@@ -1507,7 +1611,7 @@ export default function ChatV2Page() {
                                   )}
                                   {step.output.method && (
                                     <div className="mt-3 text-xs text-[#666]">
-                                      Method: {step.output.method} {step.output.model && `(${step.output.model})`}
+                                      Method: {safeRender(step.output.method)} {step.output.model && `(${safeRender(step.output.model)})`}
                                     </div>
                                   )}
                                 </div>
@@ -1517,22 +1621,26 @@ export default function ChatV2Page() {
                               {(step.step === 'shap_explainability' || step.step === 'lime_explanation') && step.output && (
                                 <div className="mt-4 p-4 bg-[#0a0a0a] rounded">
                                   <div className="text-[#666] mb-3 font-medium">🔍 Feature Importance</div>
-                                  {step.output.topFeatures && step.output.topFeatures.length > 0 ? (
+                                  {step.output.topFeatures && Array.isArray(step.output.topFeatures) && step.output.topFeatures.length > 0 ? (
                                     <div className="space-y-2">
-                                      {step.output.topFeatures.slice(0, 10).map((feat, fidx) => (
-                                        <div key={fidx} className="flex items-center gap-3">
-                                          <span className="text-[#888] text-xs w-32 truncate">{feat.feature || feat.word}</span>
-                                          <div className="flex-1 h-4 bg-[#1a1a1a] rounded-full overflow-hidden">
-                                            <div 
-                                              className={`h-full ${feat.contribution > 0 ? 'bg-green-500' : 'bg-red-500'}`}
-                                              style={{width: `${Math.min(Math.abs(feat.contribution || feat.weight || 0) * 100, 100)}%`}}
-                                            ></div>
+                                      {step.output.topFeatures.slice(0, 10).map((feat, fidx) => {
+                                        // Ensure feat is an object before accessing its properties
+                                        if (typeof feat !== 'object' || feat === null) return null;
+                                        return (
+                                          <div key={fidx} className="flex items-center gap-3">
+                                            <span className="text-[#888] text-xs w-32 truncate">{safeRender(feat.feature || feat.word)}</span>
+                                            <div className="flex-1 h-4 bg-[#1a1a1a] rounded-full overflow-hidden">
+                                              <div 
+                                                className={`h-full ${feat.contribution > 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                                                style={{width: `${Math.min(Math.abs(feat.contribution || feat.weight || 0) * 100, 100)}%`}}
+                                              ></div>
+                                            </div>
+                                            <span className="text-[#888] text-xs w-16 text-right">
+                                              {(feat.contribution || feat.weight || 0).toFixed(3)}
+                                            </span>
                                           </div>
-                                          <span className="text-[#888] text-xs w-16 text-right">
-                                            {(feat.contribution || feat.weight || 0).toFixed(3)}
-                                          </span>
-                                        </div>
-                                      ))}
+                                        );
+                                      })}
                                     </div>
                                   ) : (
                                     <div className="text-[#666] text-sm">No feature importance data</div>
@@ -1545,8 +1653,8 @@ export default function ChatV2Page() {
                                 <div className="mt-4 p-4 bg-[#0a0a0a] rounded">
                                   <div className="text-[#666] mb-3 font-medium">🛡️ Toxicity Scores</div>
                                   <div className="space-y-2">
-                                    {Object.entries(step.output).filter(([key]) => 
-                                      !['timestamp', 'model', 'version'].includes(key)
+                                    {Object.entries(step.output).filter(([key, value]) => 
+                                      !['timestamp', 'model', 'version'].includes(key) && typeof value === 'number'
                                     ).map(([metric, value]) => (
                                       <div key={metric} className="flex items-center gap-3">
                                         <span className="text-[#888] text-xs w-32 capitalize">
@@ -1588,13 +1696,13 @@ export default function ChatV2Page() {
                       <div className="flex items-center justify-between">
                         <div className="text-[#666]">
                           Total tid: <span className="text-[#e7e7e7] font-medium">
-                            {selectedResponse.pipelineAnalysis.metadata?.totalProcessingTimeMs ?? 
-                             selectedResponse.pipelineAnalysis.timeline.reduce((sum, step) => sum + (step.durationMs || step.duration || 0), 0)}ms
+                            {pipelineAnalysis.metadata?.totalProcessingTimeMs ?? 
+                             pipelineAnalysis.timeline.reduce((sum, step) => sum + (step.durationMs || step.duration || 0), 0)}ms
                           </span>
                         </div>
-                        {selectedResponse.pipelineAnalysis.pythonMLStats && (
+                        {pipelineAnalysis.pythonMLStats && (
                           <div className="text-[#4a9eff] text-xs">
-                            🐍 Python ML: {selectedResponse.pipelineAnalysis.pythonMLStats.pythonSteps}/{selectedResponse.pipelineAnalysis.pythonMLStats.totalSteps} steg
+                            🐍 Python ML: {pipelineAnalysis.pythonMLStats.pythonSteps}/{pipelineAnalysis.pythonMLStats.totalSteps} steg
                           </div>
                         )}
                       </div>
@@ -1602,6 +1710,13 @@ export default function ChatV2Page() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+          
+          {!pipelineAnalysis && (
+            <div className="text-center py-12">
+              <div className="text-[#666] mb-2">Ingen pipeline-analys tillgänglig</div>
+              <p className="text-[#555] text-sm">Pipeline-data kommer att visas här när analysen är klar</p>
             </div>
           )}
         </div>
