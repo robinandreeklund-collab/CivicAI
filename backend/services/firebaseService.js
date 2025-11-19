@@ -9,6 +9,7 @@ import crypto from 'crypto';
 // Firebase will be initialized lazily when first needed
 let admin = null;
 let db = null;
+let initError = null;
 
 async function initializeFirebaseAdmin() {
   if (admin) return admin;
@@ -79,6 +80,7 @@ async function initializeFirebaseAdmin() {
 
   } catch (error) {
     console.error('[Firebase Service] ✗ Initialization failed:', error.message);
+    initError = error;
     return null;
   }
 }
@@ -88,11 +90,15 @@ async function initializeDb() {
     try {
       const firebaseAdmin = await initializeFirebaseAdmin();
       if (firebaseAdmin) {
+        // IMPORTANT: Call firestore() with parentheses to get Firestore instance
         db = firebaseAdmin.firestore();
-        console.log('[Firebase Service] Firestore initialized');
+        console.log('[Firebase Service] ✓ Firestore initialized successfully');
+      } else {
+        console.warn('[Firebase Service] ⚠ Firebase Admin not initialized - Firestore unavailable');
       }
     } catch (error) {
-      console.error('[Firebase Service] Failed to initialize Firestore:', error.message);
+      console.error('[Firebase Service] ✗ Failed to initialize Firestore:', error.message);
+      initError = error;
       db = null;
     }
   }
@@ -100,12 +106,28 @@ async function initializeDb() {
 }
 
 /**
- * Check if Firebase is available
- * @returns {boolean} True if Firebase is initialized and ready
+ * Get the Firestore database instance
+ * @returns {Promise<FirebaseFirestore.Firestore|null>} Firestore instance or null
  */
-export function isFirebaseAvailable() {
+export async function getDb() {
+  return await initializeDb();
+}
+
+/**
+ * Get initialization error if any
+ * @returns {Error|null} Initialization error or null
+ */
+export function getInitError() {
+  return initError;
+}
+
+/**
+ * Check if Firebase is available
+ * @returns {Promise<boolean>} True if Firebase is initialized and ready
+ */
+export async function isFirebaseAvailable() {
   try {
-    const firestore = initializeDb();
+    const firestore = await initializeDb();
     return firestore !== null;
   } catch (error) {
     return false;
@@ -130,7 +152,7 @@ function hashQuestion(question) {
  * @returns {Promise<Object>} Created document data
  */
 export async function createQuestion({ question, userId, sessionId }) {
-  const firestore = initializeDb();
+  const firestore = await initializeDb();
   
   if (!firestore) {
     throw new Error('Firebase is not initialized. Check your Firebase configuration.');
@@ -173,7 +195,7 @@ export async function createQuestion({ question, userId, sessionId }) {
  * @returns {Promise<Object>} Question document data
  */
 export async function getQuestion(docId) {
-  const firestore = initializeDb();
+  const firestore = await initializeDb();
   
   if (!firestore) {
     throw new Error('Firebase is not initialized. Check your Firebase configuration.');
@@ -207,7 +229,7 @@ export async function getQuestion(docId) {
  * @returns {Promise<Object>} Updated document data
  */
 export async function updateQuestionStatus(docId, updates) {
-  const firestore = initializeDb();
+  const firestore = await initializeDb();
   
   if (!firestore) {
     throw new Error('Firebase is not initialized. Check your Firebase configuration.');
@@ -250,7 +272,7 @@ export async function updateQuestionStatus(docId, updates) {
  * @returns {Promise<Array>} Array of question documents
  */
 export async function listQuestions(options = {}) {
-  const firestore = initializeDb();
+  const firestore = await initializeDb();
   
   if (!firestore) {
     throw new Error('Firebase is not initialized. Check your Firebase configuration.');
@@ -290,7 +312,7 @@ export async function listQuestions(options = {}) {
  * @returns {Promise<void>}
  */
 export async function deleteQuestion(docId) {
-  const firestore = initializeDb();
+  const firestore = await initializeDb();
   
   if (!firestore) {
     throw new Error('Firebase is not initialized. Check your Firebase configuration.');
@@ -307,6 +329,8 @@ export async function deleteQuestion(docId) {
 
 export default {
   isFirebaseAvailable,
+  getDb,
+  getInitError,
   createQuestion,
   getQuestion,
   updateQuestionStatus,

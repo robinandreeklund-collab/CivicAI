@@ -7,6 +7,7 @@
 import express from 'express';
 import {
   isFirebaseAvailable,
+  getInitError,
   createQuestion,
   getQuestion,
   updateQuestionStatus,
@@ -24,11 +25,13 @@ const router = express.Router();
 router.post('/questions', async (req, res) => {
   try {
     // Check if Firebase is available
-    if (!isFirebaseAvailable()) {
+    const available = await isFirebaseAvailable();
+    if (!available) {
+      const error = getInitError();
       return res.status(503).json({
         success: false,
         error: 'Firebase is not configured or available',
-        message: 'Please configure Firebase credentials to use this feature'
+        message: error ? error.message : 'Please configure Firebase credentials to use this feature'
       });
     }
 
@@ -72,11 +75,11 @@ router.post('/questions', async (req, res) => {
       // Don't fail the request if ledger fails
     }
 
-    res.json({
+    res.status(201).json({
       success: true,
       docId: result.docId,
       status: result.status,
-      timestamp: result.created_at,
+      created_at: result.created_at,
       message: 'Question stored successfully'
     });
   } catch (error) {
@@ -95,7 +98,8 @@ router.post('/questions', async (req, res) => {
  */
 router.get('/questions/:docId', async (req, res) => {
   try {
-    if (!isFirebaseAvailable()) {
+    const available = await isFirebaseAvailable();
+    if (!available) {
       return res.status(503).json({
         success: false,
         error: 'Firebase is not configured or available'
@@ -135,7 +139,8 @@ router.get('/questions/:docId', async (req, res) => {
  */
 router.post('/questions/:docId/status', async (req, res) => {
   try {
-    if (!isFirebaseAvailable()) {
+    const available = await isFirebaseAvailable();
+    if (!available) {
       return res.status(503).json({
         success: false,
         error: 'Firebase is not configured or available'
@@ -216,7 +221,8 @@ router.post('/questions/:docId/status', async (req, res) => {
  */
 router.get('/questions', async (req, res) => {
   try {
-    if (!isFirebaseAvailable()) {
+    const available = await isFirebaseAvailable();
+    if (!available) {
       return res.status(503).json({
         success: false,
         error: 'Firebase is not configured or available'
@@ -249,7 +255,8 @@ router.get('/questions', async (req, res) => {
  */
 router.delete('/questions/:docId', async (req, res) => {
   try {
-    if (!isFirebaseAvailable()) {
+    const available = await isFirebaseAvailable();
+    if (!available) {
       return res.status(503).json({
         success: false,
         error: 'Firebase is not configured or available'
@@ -278,16 +285,36 @@ router.delete('/questions/:docId', async (req, res) => {
  * GET /api/firebase/status
  * Check Firebase availability and configuration
  */
-router.get('/status', (req, res) => {
-  const available = isFirebaseAvailable();
-  
-  res.json({
-    available,
-    configured: available,
-    message: available 
-      ? 'Firebase is configured and ready' 
-      : 'Firebase is not configured. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables.'
-  });
+router.get('/status', async (req, res) => {
+  try {
+    const available = await isFirebaseAvailable();
+    const error = getInitError();
+    
+    res.json({
+      available,
+      configured: available,
+      message: available 
+        ? 'Firebase is configured and ready' 
+        : 'Firebase is not configured. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables.',
+      error: error ? {
+        message: error.message,
+        type: error.constructor.name
+      } : null,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[Firebase API] Error checking status:', error);
+    res.status(500).json({
+      available: false,
+      configured: false,
+      message: 'Error checking Firebase status',
+      error: {
+        message: error.message,
+        type: error.constructor.name
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 export default router;
