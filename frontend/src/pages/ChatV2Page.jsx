@@ -182,7 +182,7 @@ export default function ChatV2Page() {
           
           // Parse all JSON string fields back to objects
           for (const [key, value] of Object.entries(pd)) {
-            if (typeof value === 'string' && value.startsWith('{') || value?.startsWith('[')) {
+            if (typeof value === 'string' && (value.startsWith('{') || value.startsWith('['))) {
               try {
                 parsed[key] = JSON.parse(value);
               } catch (e) {
