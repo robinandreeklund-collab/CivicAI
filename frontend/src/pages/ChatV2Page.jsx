@@ -133,7 +133,8 @@ export default function ChatV2Page() {
     console.log('[ChatV2] Firestore data updated:', {
       status: firestoreData.status,
       hasRawResponses: !!firestoreData.raw_responses,
-      hasProcessedData: !!firestoreData.processed_data
+      hasProcessedData: !!firestoreData.processed_data,
+      processedDataKeys: firestoreData.processed_data ? Object.keys(firestoreData.processed_data) : []
     });
 
     // Only process when status is completed or ledger_verified
@@ -169,7 +170,26 @@ export default function ChatV2Page() {
         metaReview: null,
         
         // Processed pipeline data from Firestore
-        pipelineData: firestoreData.processed_data || {},
+        // Parse JSON strings back to objects (backend serializes complex objects to avoid Firestore nesting limits)
+        pipelineData: (() => {
+          if (!firestoreData.processed_data) return {};
+          
+          const parsedData = {};
+          Object.entries(firestoreData.processed_data).forEach(([key, value]) => {
+            if (typeof value === 'string' && (value.startsWith('{') || value.startsWith('['))) {
+              try {
+                parsedData[key] = JSON.parse(value);
+              } catch (e) {
+                console.warn(`[ChatV2] Failed to parse ${key}:`, e);
+                parsedData[key] = value;
+              }
+            } else {
+              parsedData[key] = value;
+            }
+          });
+          
+          return parsedData;
+        })(),
         
         // Quality metrics from Firestore
         qualityMetrics: firestoreData.quality_metrics || null,
