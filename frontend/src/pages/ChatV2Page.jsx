@@ -151,7 +151,9 @@ export default function ChatV2Page() {
               agent: r.service || 'unknown',
               response: r.response_text || r.response || '',
               metadata: r.metadata || {},
-              analysis: r.analysis || {}
+              analysis: r.analysis || {},
+              enhancedAnalysis: r.enhancedAnalysis || null,
+              pipelineAnalysis: r.pipelineAnalysis || null
             }))
           : [],
         
@@ -160,14 +162,10 @@ export default function ChatV2Page() {
         factCheckComparison: firestoreData.analysis?.factCheckComparison || null,
         changeDetection: firestoreData.analysis?.changeDetection || null,
         
-        // Processed data from Firestore (ML pipeline results)
-        // NOTE: These fields are NOT currently saved to Firestore:
-        // - synthesizedSummary (BERT summary)
-        // - metaReview (GPT meta-review)
-        // They are only available in direct API responses
-        bertSummary: null,
-        bertMetadata: null,
-        metaReview: null,
+        // BERT Summary from Firestore (saved via saveSynthesisData)
+        bertSummary: firestoreData.synthesized_summary || null,
+        bertMetadata: firestoreData.synthesized_summary_metadata || null,
+        metaReview: firestoreData.meta_review || null,
         
         // Processed pipeline data from Firestore
         // Parse JSON strings back to objects (backend serializes complex objects to avoid Firestore nesting limits)
@@ -189,6 +187,60 @@ export default function ChatV2Page() {
           });
           
           return parsedData;
+        })(),
+        
+        // Extract specific fields from parsed pipeline data for direct access
+        topics: (() => {
+          if (!firestoreData.processed_data?.topics) return null;
+          try {
+            const topicsData = typeof firestoreData.processed_data.topics === 'string' 
+              ? JSON.parse(firestoreData.processed_data.topics)
+              : firestoreData.processed_data.topics;
+            console.log('[ChatV2] Topics data loaded from Firestore:', topicsData);
+            return topicsData;
+          } catch (e) {
+            console.warn('[ChatV2] Failed to parse topics from Firestore:', e);
+            return null;
+          }
+        })(),
+        
+        explainability: (() => {
+          if (!firestoreData.processed_data?.explainability) return null;
+          try {
+            return typeof firestoreData.processed_data.explainability === 'string'
+              ? JSON.parse(firestoreData.processed_data.explainability)
+              : firestoreData.processed_data.explainability;
+          } catch (e) {
+            console.warn('[ChatV2] Failed to parse explainability from Firestore:', e);
+            return null;
+          }
+        })(),
+        
+        // Toxicity from biasAnalysis.detoxify
+        toxicity: (() => {
+          if (!firestoreData.processed_data?.biasAnalysis) return null;
+          try {
+            const biasData = typeof firestoreData.processed_data.biasAnalysis === 'string'
+              ? JSON.parse(firestoreData.processed_data.biasAnalysis)
+              : firestoreData.processed_data.biasAnalysis;
+            console.log('[ChatV2] Toxicity data loaded from Firestore:', biasData?.detoxify);
+            return biasData?.detoxify || null;
+          } catch (e) {
+            console.warn('[ChatV2] Failed to parse toxicity from Firestore:', e);
+            return null;
+          }
+        })(),
+        
+        fairness: (() => {
+          if (!firestoreData.processed_data?.fairnessAnalysis) return null;
+          try {
+            return typeof firestoreData.processed_data.fairnessAnalysis === 'string'
+              ? JSON.parse(firestoreData.processed_data.fairnessAnalysis)
+              : firestoreData.processed_data.fairnessAnalysis;
+          } catch (e) {
+            console.warn('[ChatV2] Failed to parse fairness from Firestore:', e);
+            return null;
+          }
         })(),
         
         // Quality metrics from Firestore
@@ -652,21 +704,27 @@ export default function ChatV2Page() {
                 <div className="space-y-4">
                   {latestAiMessage.explainability.shap && (
                     <div>
-                      <div className="text-sm text-[#666] mb-2">SHAP Values (Top Features):</div>
+                      <div className="text-sm text-[#666] mb-2">SHAP Values (Word Importance):</div>
+                      {latestAiMessage.explainability.shap.base_sentiment !== undefined && (
+                        <div className="mb-3 p-2 bg-[#1a1a1a] rounded text-sm">
+                          <span className="text-[#888]">Base Sentiment: </span>
+                          <span className="text-[#e7e7e7]">{latestAiMessage.explainability.shap.base_sentiment.toFixed(3)}</span>
+                        </div>
+                      )}
                       <div className="space-y-2">
-                        {latestAiMessage.explainability.shap.topFeatures?.map((feat, idx) => (
+                        {latestAiMessage.explainability.shap.feature_importance?.map((feat, idx) => (
                           <div key={idx} className="flex items-center gap-3">
                             <div className="flex-1">
                               <div className="flex items-center justify-between mb-1">
-                                <span className="text-[#e7e7e7] text-sm">{feat.token}</span>
-                                <span className={`text-xs ${feat.direction === 'positive' ? 'text-green-400' : 'text-red-400'}`}>
-                                  {feat.contribution > 0 ? '+' : ''}{feat.contribution.toFixed(3)}
+                                <span className="text-[#e7e7e7] text-sm">{feat.word}</span>
+                                <span className={`text-xs ${feat.impact === 'positive' ? 'text-green-400' : feat.impact === 'negative' ? 'text-red-400' : 'text-[#666]'}`}>
+                                  {feat.importance > 0 ? '+' : ''}{feat.importance.toFixed(3)}
                                 </span>
                               </div>
                               <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
                                 <div 
-                                  className={`h-full ${feat.direction === 'positive' ? 'bg-green-500' : 'bg-red-500'}`}
-                                  style={{width: `${Math.min(Math.abs(feat.contribution) * 100, 100)}%`}}
+                                  className={`h-full ${feat.impact === 'positive' ? 'bg-green-500' : feat.impact === 'negative' ? 'bg-red-500' : 'bg-gray-500'}`}
+                                  style={{width: `${Math.min(Math.abs(feat.importance) * 100, 100)}%`}}
                                 ></div>
                               </div>
                             </div>
@@ -677,15 +735,38 @@ export default function ChatV2Page() {
                   )}
                   {latestAiMessage.explainability.lime && (
                     <div>
-                      <div className="text-sm text-[#666] mb-2">LIME Explanation:</div>
-                      <p className="text-[#888] text-sm mb-3">{latestAiMessage.explainability.lime.explanation}</p>
-                      <div className="space-y-1">
-                        {latestAiMessage.explainability.lime.weights?.slice(0, 5).map((w, idx) => (
-                          <div key={idx} className="flex items-center justify-between text-sm">
-                            <span className="text-[#e7e7e7]">{w.word}</span>
-                            <span className="text-[#666]">{w.weight.toFixed(3)}</span>
+                      <div className="text-sm text-[#666] mb-2">LIME Explanation (Sentence Contributions):</div>
+                      {latestAiMessage.explainability.lime.prediction && (
+                        <div className="mb-3 p-2 bg-[#1a1a1a] rounded">
+                          <span className="text-[#888] text-sm">Overall Sentiment: </span>
+                          <span className={`text-sm font-medium ${
+                            latestAiMessage.explainability.lime.prediction.predicted_class === 'positive' ? 'text-green-400' :
+                            latestAiMessage.explainability.lime.prediction.predicted_class === 'negative' ? 'text-red-400' :
+                            'text-[#e7e7e7]'
+                          }`}>
+                            {latestAiMessage.explainability.lime.prediction.predicted_class}
+                          </span>
+                          <span className="text-[#666] text-xs ml-2">
+                            ({latestAiMessage.explainability.lime.prediction.sentiment_polarity.toFixed(2)})
+                          </span>
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        {latestAiMessage.explainability.lime.explanation?.slice(0, 5).map((item, idx) => (
+                          <div key={idx} className="bg-[#1a1a1a] rounded p-2">
+                            <div className="text-[#e7e7e7] text-sm mb-1">{item.sentence}</div>
+                            <div className="flex items-center gap-3 text-xs">
+                              <span className="text-[#666]">
+                                Contribution: <span className={item.contribution_to_overall > 0 ? 'text-green-400' : 'text-red-400'}>
+                                  {item.contribution_to_overall > 0 ? '+' : ''}{item.contribution_to_overall.toFixed(3)}
+                                </span>
+                              </span>
+                              <span className="text-[#666]">
+                                Polarity: {item.sentiment_polarity.toFixed(2)}
+                              </span>
+                            </div>
                           </div>
-                        ))}
+                        )) || <p className="text-[#666] text-sm">No LIME explanation available</p>}
                       </div>
                     </div>
                   )}
@@ -784,7 +865,7 @@ export default function ChatV2Page() {
               {latestAiMessage.topics ? (
                 <div className="space-y-6">
                   {/* BERTopic Results */}
-                  {(latestAiMessage.topics.bertopic || latestAiMessage.topics.method !== 'gensim') && (
+                  {latestAiMessage.topics.bertopic && latestAiMessage.topics.bertopic.topics && latestAiMessage.topics.bertopic.topics.length > 0 && (
                     <div>
                       {latestAiMessage.topics.method === 'both' && (
                         <div className="text-[#888] text-sm font-medium mb-3 flex items-center gap-2">
@@ -793,39 +874,29 @@ export default function ChatV2Page() {
                         </div>
                       )}
                       <div className="space-y-3">
-                        {(latestAiMessage.topics.bertopic?.topics || latestAiMessage.topics.topics)?.map((topic, idx) => (
+                        {latestAiMessage.topics.bertopic.topics.map((topic, idx) => (
                           <div key={`bert-${idx}`} className="bg-[#1a1a1a] rounded p-4">
-                            <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center justify-between">
                               <div>
-                                <div className="text-[#e7e7e7] font-medium">{topic.label}</div>
-                                <div className="text-[#666] text-xs">Topic {topic.id}</div>
+                                <div className="text-[#e7e7e7] font-medium">{topic.name || `Topic ${topic.topic_id ?? idx}`}</div>
+                                <div className="text-[#666] text-xs">ID: {topic.topic_id ?? idx}</div>
                               </div>
-                              <div className="text-right">
-                                <div className="text-[#e7e7e7] text-lg font-medium">
-                                  {(topic.probability * 100).toFixed(1)}%
-                                </div>
-                                {topic.coherence && (
-                                  <div className="text-[#666] text-xs">
-                                    Coherence: {topic.coherence.toFixed(2)}
+                              {topic.count && (
+                                <div className="text-right">
+                                  <div className="text-[#888] text-sm">
+                                    {topic.count} documents
                                   </div>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {topic.terms?.map((term, tidx) => (
-                                <span key={tidx} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded">
-                                  {term}
-                                </span>
-                              ))}
+                                </div>
+                              )}
                             </div>
                           </div>
-                        )) || <p className="text-[#666] text-sm">No BERTopic topics identified</p>}
+                        ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Gensim Results */}
-                  {latestAiMessage.topics.gensim && (
+                  {/* Gensim Results - from method="both" */}
+                  {latestAiMessage.topics.gensim && latestAiMessage.topics.gensim.topics && latestAiMessage.topics.gensim.topics.length > 0 && (
                     <div>
                       {latestAiMessage.topics.method === 'both' && (
                         <div className="text-[#888] text-sm font-medium mb-3 flex items-center gap-2">
@@ -834,42 +905,96 @@ export default function ChatV2Page() {
                         </div>
                       )}
                       <div className="space-y-3">
-                        {latestAiMessage.topics.gensim.topics?.map((topic, idx) => (
+                        {latestAiMessage.topics.gensim.topics.map((topic, idx) => (
                           <div key={`gensim-${idx}`} className="bg-[#1a1a1a] rounded p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <div>
-                                <div className="text-[#e7e7e7] font-medium">{topic.label}</div>
-                                <div className="text-[#666] text-xs">Topic {topic.id}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-[#e7e7e7] text-lg font-medium">
-                                  {(topic.probability * 100).toFixed(1)}%
-                                </div>
-                                {topic.coherence && (
-                                  <div className="text-[#666] text-xs">
-                                    Coherence: {topic.coherence.toFixed(2)}
-                                  </div>
-                                )}
-                              </div>
+                            <div className="mb-3">
+                              <div className="text-[#e7e7e7] font-medium mb-1">{topic.label || `Topic ${idx}`}</div>
+                              <div className="text-[#666] text-xs">ID: {topic.topic_id ?? idx}</div>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              {topic.terms?.map((term, tidx) => (
-                                <span key={tidx} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded">
-                                  {term}
-                                </span>
-                              ))}
+                              {topic.terms?.map((term, tidx) => {
+                                // Gensim terms are objects with {word, weight}
+                                if (!term) return null;
+                                const termText = typeof term === 'string' ? term : term.word;
+                                const termWeight = typeof term === 'object' && term !== null ? term.weight : null;
+                                return (
+                                  <span 
+                                    key={tidx} 
+                                    className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded flex items-center gap-1"
+                                    title={termWeight ? `Weight: ${termWeight.toFixed(3)}` : undefined}
+                                  >
+                                    {termText}
+                                    {termWeight && (
+                                      <span className="text-[#555] text-[10px]">
+                                        {(termWeight * 100).toFixed(0)}%
+                                      </span>
+                                    )}
+                                  </span>
+                                );
+                              })}
                             </div>
                           </div>
-                        )) || <p className="text-[#666] text-sm">No Gensim topics identified</p>}
+                        ))}
                       </div>
+                    </div>
+                  )}
+                  
+                  {/* Legacy Gensim Results - flat structure (for backward compatibility) */}
+                  {!latestAiMessage.topics.gensim && !latestAiMessage.topics.bertopic && latestAiMessage.topics.topics && latestAiMessage.topics.topics.length > 0 && (
+                    <div>
+                      <div className="text-[#888] text-sm font-medium mb-3 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                        Gensim LDA Analysis
+                      </div>
+                      <div className="space-y-3">
+                        {latestAiMessage.topics.topics.map((topic, idx) => (
+                          <div key={`gensim-legacy-${idx}`} className="bg-[#1a1a1a] rounded p-4">
+                            <div className="mb-3">
+                              <div className="text-[#e7e7e7] font-medium mb-1">{topic.label || `Topic ${idx}`}</div>
+                              <div className="text-[#666] text-xs">ID: {topic.topic_id ?? idx}</div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {topic.terms?.map((term, tidx) => {
+                                // Gensim terms are objects with {word, weight}
+                                if (!term) return null;
+                                const termText = typeof term === 'string' ? term : term.word;
+                                const termWeight = typeof term === 'object' && term !== null ? term.weight : null;
+                                return (
+                                  <span 
+                                    key={tidx} 
+                                    className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded flex items-center gap-1"
+                                    title={termWeight ? `Weight: ${termWeight.toFixed(3)}` : undefined}
+                                  >
+                                    {termText}
+                                    {termWeight && (
+                                      <span className="text-[#555] text-[10px]">
+                                        {(termWeight * 100).toFixed(0)}%
+                                      </span>
+                                    )}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* No results message */}
+                  {(!latestAiMessage.topics.bertopic || !latestAiMessage.topics.bertopic.topics || latestAiMessage.topics.bertopic.topics.length === 0) &&
+                   (!latestAiMessage.topics.gensim || !latestAiMessage.topics.gensim.topics || latestAiMessage.topics.gensim.topics.length === 0) &&
+                   (!latestAiMessage.topics.topics || latestAiMessage.topics.topics.length === 0) && (
+                    <div className="text-center py-4">
+                      <p className="text-[#666] text-sm">No topics identified</p>
+                      <p className="text-[#555] text-xs mt-1">Text may be too short for topic modeling</p>
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-[#666] text-sm">Topic modeling kommer vara tillgänglig när backend är implementerat</p>
-                  <p className="text-[#555] text-xs mt-1">TODO: Anropa /api/ml/topics endpoint från query-flödet</p>
-                  <p className="text-[#555] text-xs mt-1">Endpoint stöder method="bertopic", "gensim", eller "both" för parallel analys</p>
+                  <p className="text-[#666] text-sm">Väntar på topic modeling resultat från backend...</p>
+                  <p className="text-[#555] text-xs mt-1">BERTopic och Gensim LDA kör parallellt när Python NLP service är tillgänglig</p>
                 </div>
               )}
             </div>
@@ -957,8 +1082,8 @@ export default function ChatV2Page() {
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-[#666] text-sm">Fairness-analys kommer vara tillgänglig när backend är implementerat</p>
-                  <p className="text-[#555] text-xs mt-1">TODO: Implementera /ml/fairness endpoint med Fairlearn</p>
+                  <p className="text-[#666] text-sm">Väntar på fairness-analys från backend...</p>
+                  <p className="text-[#555] text-xs mt-1">Fairlearn bias metrics körs i ML pipeline när tillgängligt</p>
                 </div>
               )}
             </div>
