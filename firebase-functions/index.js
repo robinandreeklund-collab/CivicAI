@@ -80,8 +80,10 @@ exports.onQuestionCreate = functions
 
       // Step 2: Call ML pipeline endpoint with firebaseDocId
       // Get backend URL from Firebase config (set via: firebase functions:config:set backend.url="...")
+      // IMPORTANT: Must redeploy after changing config for new URL to take effect
       const backendUrl = functions.config().backend?.url || 'http://localhost:3001';
       
+      console.log(`[onQuestionCreate] Using backend URL: ${backendUrl}`);
       console.log(`[onQuestionCreate] Calling ML pipeline with full analysis...`);
       const pipelineStartTime = Date.now();
       
