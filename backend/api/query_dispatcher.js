@@ -380,13 +380,15 @@ router.post('/query', async (req, res) => {
         // Combine pipeline analysis from all responses - use first response with complete pipeline
         const firstPipeline = responses.find(r => r.pipelineAnalysis)?.pipelineAnalysis;
         
+        let combinedPipelineData = null;
+        
         if (!firstPipeline) {
           console.warn('⚠️  No pipeline analysis found in any response. Skipping pipeline data save.');
           console.log('Response agents:', responses.map(r => ({ agent: r.agent, hasPipeline: !!r.pipelineAnalysis })));
         } else {
           console.log(`✅ Found pipeline analysis in response from: ${responses.find(r => r.pipelineAnalysis)?.agent}`);
           
-          const combinedPipelineData = {
+          combinedPipelineData = {
             preprocessing: firstPipeline?.preprocessing || {},
             biasAnalysis: firstPipeline?.biasAnalysis || {},
             sentenceBiasAnalysis: firstPipeline?.sentenceBiasAnalysis || {},
@@ -438,7 +440,7 @@ router.post('/query', async (req, res) => {
             processing_time_ms: Date.now() - startTime,
             quality_metrics: {
               consensus: modelSynthesis?.consensus || 0,
-              confidence: combinedPipelineData.aggregatedInsights?.overallConfidence || 0
+              confidence: combinedPipelineData?.aggregatedInsights?.overallConfidence || 0
             }
           }
         });
