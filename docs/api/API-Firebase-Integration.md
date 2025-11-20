@@ -480,6 +480,204 @@ test('should update status', async () => {
 });
 ```
 
+## Enhanced ChatV2 Views
+
+### Pipeline View Enhancements
+
+The Pipeline view in ChatV2 displays complete ML pipeline processing data from Firebase's `processed_data` field. All fields are now fully integrated:
+
+**Data Fields Displayed:**
+- `preprocessing`: Word count, sentence count, language detection, subjectivity
+- `sentimentAnalysis`: Overall tone, polarity score, intensity (VADER)
+- `biasAnalysis`: Political bias, toxicity metrics (Detoxify)
+- `ideologicalClassification`: Political leaning, confidence scores
+- `timeline`: Step-by-step processing timeline with durations
+- `pythonMLStats`: Python vs JavaScript processing statistics
+- `metadata`: Total processing time, pipeline version, status
+
+**Real-time Updates:**
+The view uses the `useFirestoreDocument` hook to listen for real-time updates on the `ai_interactions/{docId}` document. As the status changes from `received` → `processing` → `completed` → `ledger_verified`, the UI automatically updates to reflect the current state.
+
+**No Placeholder Values:**
+All data points are populated from actual Firebase data. Missing fields show "N/A" instead of placeholder values.
+
+### Detailed Model Responses View Enhancements
+
+The "Modeller" (Models) view has been significantly enhanced with expandable sections for comprehensive data display:
+
+#### 1. Model Name and Version
+- **Source**: `response.agent`, `response.metadata.model`, `response.metadata.version`
+- **Display**: Prominently shown in header with version number
+- **Firebase Path**: `ai_interactions/{docId}/raw_responses[]/service` and `metadata.model`
+
+#### 2. Raw Data (Original Model Response)
+- **Source**: `response.response` or `response.text`
+- **Display**: Expandable "📄 Raw Model Response" section
+- **Format**: Formatted text with markdown support
+- **Firebase Path**: `ai_interactions/{docId}/raw_responses[]/response_text`
+
+#### 3. Processed Analysis Details
+- **Source**: `response.enhancedAnalysis` and `response.analysis`
+- **Display**: Expandable "🔬 Processed Analysis Details" section
+- **Includes**:
+  - Emotion, Tone, Intent classification
+  - Main points (huvudpunkter)
+  - Identified entities (NER results)
+- **Firebase Path**: `ai_interactions/{docId}/raw_responses[]/analysis` and `enhancedAnalysis`
+
+#### 4. Comprehensive Metrics
+Displayed in expandable "📊 Comprehensive Metrics" section:
+
+**Sentiment Analysis:**
+- **Source**: `response.pipelineAnalysis.sentimentAnalysis`
+- **Fields**: Overall tone, polarity score, intensity
+- **Firebase Path**: `ai_interactions/{docId}/processed_data/sentimentAnalysis`
+
+**Toxicity (Detoxify):**
+- **Source**: `latestAiMessage.toxicity` or `response.pipelineAnalysis.biasAnalysis.detoxify`
+- **Fields**: toxicity, severe_toxicity, obscene, threat, insult, identity_attack
+- **Firebase Path**: `ai_interactions/{docId}/processed_data/biasAnalysis/detoxify`
+
+**Fairness Metrics:**
+- **Source**: `latestAiMessage.fairness`
+- **Fields**: Demographic parity, equalized odds, disparate impact
+- **Firebase Path**: `ai_interactions/{docId}/processed_data/fairnessAnalysis`
+
+**Consensus Metrics:**
+- **Source**: `latestAiMessage.modelSynthesis`
+- **Fields**: Consensus index, divergence measure
+- **Firebase Path**: `ai_interactions/{docId}/analysis/modelSynthesis`
+
+**Explainability (SHAP/LIME):**
+- **Source**: `latestAiMessage.explainability`
+- **Fields**: Feature importance, word contributions
+- **Firebase Path**: `ai_interactions/{docId}/processed_data/explainability`
+
+#### 5. Provenance Information
+- **Source**: `response.metadata`
+- **Display**: Always visible in model header
+- **Fields**:
+  - Endpoint URL (`metadata.endpoint`)
+  - Request ID (`metadata.request_id`)
+  - Timestamp (`metadata.timestamp`)
+- **Firebase Path**: `ai_interactions/{docId}/raw_responses[]/metadata`
+
+#### 6. Ledger Status
+- **Source**: `latestAiMessage.ledgerBlocks`
+- **Display**: Green verification badge when ledger blocks exist
+- **Format**: "🔒 Ledger Verified • X blocks"
+- **Firebase Path**: `ai_interactions/{docId}/ledger_blocks`
+
+#### 7. Processing Time Per Service
+- **Source**: `response.pipelineAnalysis.timeline` and `response.metadata.responseTimeMs`
+- **Display**: Expandable "⏱️ Processing Time Breakdown" section
+- **Shows**:
+  - Each pipeline step with duration
+  - Model/tool used for each step
+  - Total processing time
+- **Firebase Path**: `ai_interactions/{docId}/processed_data/timeline` or `raw_responses[]/metadata/responseTimeMs`
+
+#### 8. Expandable/Collapsible Sections
+All detailed information is organized into expandable sections:
+- Raw Model Response
+- Comprehensive Metrics
+- Processed Analysis Details
+- Processing Time Breakdown
+
+Users can expand only the sections they're interested in, improving readability and performance.
+
+### Firebase Data Structure Examples
+
+#### Example: Raw Response with Full Metadata
+```json
+{
+  "service": "gpt-3.5",
+  "model_version": "gpt-3.5-turbo-0125",
+  "response_text": "Sveriges klimatpolitik fokuserar på...",
+  "metadata": {
+    "timestamp": "2025-11-20T09:00:00.000Z",
+    "responseTimeMs": 1234,
+    "tokenCount": 150,
+    "endpoint": "https://api.openai.com/v1/chat/completions",
+    "request_id": "req_abc123",
+    "confidence": 0.85
+  },
+  "analysis": {
+    "tone": { "primary": "informative", "confidence": 0.9 },
+    "bias": { "biasScore": 0.15 }
+  }
+}
+```
+
+#### Example: Processed Data with Metrics
+```json
+{
+  "sentimentAnalysis": {
+    "overallTone": "neutral",
+    "vaderSentiment": {
+      "score": 0.2,
+      "classification": "neutral",
+      "positive": 0.6,
+      "negative": 0.05,
+      "comparative": 0.15
+    }
+  },
+  "biasAnalysis": {
+    "detoxify": {
+      "toxicity": 0.02,
+      "severe_toxicity": 0.001,
+      "obscene": 0.01,
+      "threat": 0.0,
+      "insult": 0.005,
+      "identity_attack": 0.0
+    }
+  },
+  "explainability": {
+    "shap": {
+      "base_sentiment": 0.5,
+      "feature_importance": [
+        { "word": "klimat", "importance": 0.15, "impact": "positive" },
+        { "word": "politik", "importance": 0.12, "impact": "neutral" }
+      ]
+    }
+  }
+}
+```
+
+#### Example: Pipeline Timeline
+```json
+{
+  "timeline": [
+    {
+      "step": "spacy_preprocessing",
+      "model": "sv_core_news_sm",
+      "version": "3.7.2",
+      "startTime": "2025-11-20T09:00:01.000Z",
+      "endTime": "2025-11-20T09:00:01.234Z",
+      "durationMs": 234,
+      "usingPython": true
+    },
+    {
+      "step": "detoxify_toxicity",
+      "model": "detoxify",
+      "version": "0.5.2",
+      "durationMs": 156,
+      "usingPython": true
+    }
+  ]
+}
+```
+
+### UI Component Integration
+
+The ChatV2Page component integrates Firebase data through:
+1. **useFirestoreDocument Hook**: Real-time document listening
+2. **Data Transformation**: Converting Firestore data to UI-friendly format
+3. **State Management**: React state for expandable sections
+4. **Conditional Rendering**: Showing/hiding sections based on data availability
+
+All data is sourced directly from the `ai_interactions` collection with no hardcoded or placeholder values.
+
 ## Next Steps
 
 ### Steg 2: Pipeline Processing and Analysis
