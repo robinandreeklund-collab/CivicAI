@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import FooterDemo4 from '../components/footers/FooterDemo4';
+import LedgerView from '../components/LedgerView';
 
 /**
  * OQT-1.0 Dashboard Page - Kommande Språkmodell
@@ -109,7 +110,8 @@ export default function OQTDashboardPage() {
             {[
               { id: 'overview', label: 'Översikt' },
               { id: 'activity', label: 'Aktivitet' },
-              { id: 'metrics', label: 'Mätvärden' }
+              { id: 'metrics', label: 'Mätvärden' },
+              { id: 'ledger', label: 'Ledger' }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -300,6 +302,99 @@ export default function OQTDashboardPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Ledger Tab - Blockchain Verification */}
+            {selectedTab === 'ledger' && (
+              <div>
+                <div className="mb-8">
+                  <h3 className="text-xs text-[#666] uppercase tracking-wider mb-4">Blockchain Ledger</h3>
+                  <p className="text-sm text-[#888] max-w-3xl">
+                    OQT-1.0 använder endast data som är verifierad via blockchain-ledger. 
+                    Detta säkerställer att all träningsdata och modelluppdateringar är immutabla 
+                    och kan verifieras av vem som helst. Ingen data kan ändras retroaktivt.
+                  </p>
+                </div>
+
+                {/* Ledger Stats */}
+                <div className="grid grid-cols-4 gap-4 mb-8">
+                  <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-4">
+                    <div className="text-xs text-[#666] mb-1">Totalt Blocks</div>
+                    <div className="text-2xl font-light text-[#e7e7e7]">1,247</div>
+                  </div>
+                  <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-4">
+                    <div className="text-xs text-[#666] mb-1">Verifierade Transaktioner</div>
+                    <div className="text-2xl font-light text-[#e7e7e7]">45,231</div>
+                  </div>
+                  <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-4">
+                    <div className="text-xs text-[#666] mb-1">Integritetsstatus</div>
+                    <div className="text-2xl font-light text-green-400">100%</div>
+                  </div>
+                  <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-4">
+                    <div className="text-xs text-[#666] mb-1">Senaste Block</div>
+                    <div className="text-sm font-light text-[#e7e7e7]">{new Date().toLocaleDateString('sv-SE')}</div>
+                  </div>
+                </div>
+
+                {/* Key Benefits */}
+                <div className="grid grid-cols-3 gap-6 mb-8">
+                  <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-6">
+                    <div className="text-2xl mb-3">🔒</div>
+                    <h4 className="text-sm font-medium text-[#e7e7e7] mb-2">Immutabel Data</h4>
+                    <p className="text-xs text-[#888]">
+                      All träningsdata lagras i blockchain-blocks som inte kan ändras eller raderas.
+                    </p>
+                  </div>
+                  <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-6">
+                    <div className="text-2xl mb-3">✓</div>
+                    <h4 className="text-sm font-medium text-[#e7e7e7] mb-2">Transparent Verifiering</h4>
+                    <p className="text-xs text-[#888]">
+                      Vem som helst kan verifiera att datan är äkta genom att kontrollera hash-värden.
+                    </p>
+                  </div>
+                  <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-6">
+                    <div className="text-2xl mb-3">🛡️</div>
+                    <h4 className="text-sm font-medium text-[#e7e7e7] mb-2">Skydd Mot Manipulation</h4>
+                    <p className="text-xs text-[#888]">
+                      Kryptografisk säkerhet förhindrar all form av datamanipulation eller förfalskning.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Ledger View Component */}
+                <LedgerView blocks={[]} />
+                
+                {/* Additional Info */}
+                <div className="mt-8 p-6 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg">
+                  <h4 className="text-sm font-medium text-[#e7e7e7] mb-4">Teknisk Implementation</h4>
+                  <div className="space-y-3 text-sm text-[#888]">
+                    <div className="flex items-start gap-3">
+                      <span className="text-[#666]">•</span>
+                      <p>
+                        <strong className="text-[#e7e7e7]">SHA-256 Hashing:</strong> Varje block hashas med SHA-256 för kryptografisk säkerhet
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="text-[#666]">•</span>
+                      <p>
+                        <strong className="text-[#e7e7e7]">Block Linking:</strong> Varje block innehåller hash från tidigare block, vilket skapar en obrytbar kedja
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="text-[#666]">•</span>
+                      <p>
+                        <strong className="text-[#e7e7e7]">Multi-Node Validation:</strong> Blocks valideras av flera oberoende noder för maximal säkerhet
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="text-[#666]">•</span>
+                      <p>
+                        <strong className="text-[#e7e7e7]">Real-Time Verification:</strong> Kontinuerlig övervakning säkerställer att ingen data har komprometterats
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

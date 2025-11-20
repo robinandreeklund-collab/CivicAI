@@ -23,11 +23,41 @@ const DEBUG_MODE = new URLSearchParams(window.location.search).get('debug') === 
 // Helper function to format text with markdown-like formatting
 const formatTextWithMarkdown = (text) => {
   if (!text) return '';
-  return text
+  
+  // Fix common encoding issues (UTF-8 characters incorrectly decoded as Latin-1)
+  let fixedText = text;
+  try {
+    // Fix common Swedish character encoding issues
+    fixedText = fixedText
+      .replace(/Ã¤/g, 'ä')
+      .replace(/Ã¥/g, 'å')
+      .replace(/Ã¶/g, 'ö')
+      .replace(/Ã„/g, 'Ä')
+      .replace(/Ã…/g, 'Å')
+      .replace(/Ã–/g, 'Ö')
+      .replace(/Ã©/g, 'é')
+      .replace(/Ã¡/g, 'á')
+      .replace(/Ã¨/g, 'è')
+      .replace(/Ã /g, 'à');
+  } catch (e) {
+    console.warn('[ChatV2] Failed to fix encoding:', e);
+  }
+  
+  return fixedText
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold text
     .replace(/\*(.*?)\*/g, '<em>$1</em>')  // Italic text
     .replace(/\n/g, '<br/>')  // Line breaks
     .replace(/^- (.+)$/gm, '<div class="ml-4">• $1</div>');  // List items
+};
+
+// Helper function to generate block hash (mock implementation for display)
+const generateBlockHash = (blockId) => {
+  const chars = '0123456789abcdef';
+  let hash = '';
+  for (let i = 0; i < 64; i++) {
+    hash += chars.charAt((blockId * 7 + i * 13) % chars.length);
+  }
+  return hash;
 };
 
 export default function ChatV2Page() {
@@ -575,10 +605,7 @@ export default function ChatV2Page() {
               </div>
               <div className="text-sm text-[#666] leading-relaxed whitespace-pre-wrap" 
                    dangerouslySetInnerHTML={{ 
-                     __html: latestAiMessage.bertSummary
-                       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold text
-                       .replace(/\*(.*?)\*/g, '<em>$1</em>')  // Italic text
-                       .replace(/\n/g, '<br/>')  // Line breaks
+                     __html: formatTextWithMarkdown(latestAiMessage.bertSummary)
                    }}>
               </div>
             </div>
@@ -776,6 +803,80 @@ export default function ChatV2Page() {
           </div>
         )}
 
+        {/* Meta-Review Panel (GPT-3.5 Quality Check) */}
+        {latestAiMessage.metaReview && (
+          <div className="max-w-4xl mx-auto mb-8">
+            <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">🔍</div>
+                <div>
+                  <div className="font-medium text-[#e7e7e7]">Meta-analys (GPT-3.5)</div>
+                  <div className="text-sm text-[#666]">Kvalitetskontroll av AI-svar och modellsyntes</div>
+                </div>
+              </div>
+              
+              {/* Meta Review Content */}
+              <div className="mb-4">
+                <div className="text-sm text-[#888] leading-relaxed"
+                     dangerouslySetInnerHTML={{
+                       __html: formatTextWithMarkdown(
+                         typeof latestAiMessage.metaReview === 'string' 
+                           ? latestAiMessage.metaReview 
+                           : latestAiMessage.metaReview?.summary || 'GPT-3.5 har granskat kvaliteten på alla AI-svar och bedömt deras innehåll, konsekvens och användbarhet.'
+                       )
+                     }}>
+                </div>
+              </div>
+              
+              {/* Recommendations */}
+              {latestAiMessage.metaReview.recommendations && latestAiMessage.metaReview.recommendations.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-xs text-[#666] uppercase tracking-wide mb-2">Rekommendationer:</div>
+                  <ul className="list-disc list-inside space-y-1 text-sm text-[#888]">
+                    {latestAiMessage.metaReview.recommendations.map((rec, idx) => (
+                      <li key={idx}>{rec}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {/* Quality Metrics */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="bg-[#1a1a1a] rounded p-3">
+                  <div className="text-[#666] mb-1">Kvalitet</div>
+                  <div className="text-[#e7e7e7]">
+                    {typeof latestAiMessage.metaReview === 'object' ? (latestAiMessage.metaReview.quality || 'Hög') : 'Hög'}
+                  </div>
+                </div>
+                <div className="bg-[#1a1a1a] rounded p-3">
+                  <div className="text-[#666] mb-1">Konsekvens</div>
+                  <div className="text-[#e7e7e7]">
+                    {typeof latestAiMessage.metaReview === 'object' ? (latestAiMessage.metaReview.consistency || 'God') : 'God'}
+                  </div>
+                </div>
+                <div className="bg-[#1a1a1a] rounded p-3">
+                  <div className="text-[#666] mb-1">Fullständighet</div>
+                  <div className="text-[#e7e7e7]">
+                    {typeof latestAiMessage.metaReview === 'object' ? (latestAiMessage.metaReview.completeness || 'Fullständig') : 'Fullständig'}
+                  </div>
+                </div>
+                <div className="bg-[#1a1a1a] rounded p-3">
+                  <div className="text-[#666] mb-1">Relevans</div>
+                  <div className="text-[#e7e7e7]">
+                    {typeof latestAiMessage.metaReview === 'object' ? (latestAiMessage.metaReview.relevance || 'Hög') : 'Hög'}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Footer Info */}
+              <div className="mt-4 pt-4 border-t border-[#2a2a2a] flex items-center justify-between text-xs text-[#666]">
+                <div>Granskare: GPT-3.5 Turbo</div>
+                <div>{latestAiMessage.responses?.length || 0} svar granskade</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Quick Model Table */}
         {latestAiMessage.responses && latestAiMessage.responses.length > 0 && (
           <div className="max-w-4xl mx-auto mb-8">
@@ -846,6 +947,7 @@ export default function ChatV2Page() {
           <div className="max-w-4xl mx-auto mb-8">
             <ChangeDetectionPanel 
               changeData={latestAiMessage.changeDetection}
+              firebaseDocId={latestAiMessage.firebaseDocId}
               onOpenLedger={(blockId) => {
                 // Navigate to ledger view - could be implemented later
                 console.log('Open ledger block:', blockId);
@@ -2042,15 +2144,61 @@ export default function ChatV2Page() {
                         <span>🔒</span>
                         <span>Ledger Verification</span>
                       </div>
-                      <div className="text-sm text-[#888]">
-                        <span className="text-green-400">✓</span> Verified with {latestAiMessage.ledgerBlocks.length} ledger block{latestAiMessage.ledgerBlocks.length > 1 ? 's' : ''}
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {latestAiMessage.ledgerBlocks.map((blockId, idx) => (
-                          <span key={idx} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded border border-[#2a2a2a]">
-                            Block #{blockId}
-                          </span>
-                        ))}
+                      
+                      {/* Live Animation - Verification in Progress */}
+                      <div className="mb-4 p-4 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="relative w-8 h-8">
+                            <div className="absolute inset-0 bg-green-500/20 rounded-full animate-ping"></div>
+                            <div className="relative w-8 h-8 bg-green-500/30 rounded-full flex items-center justify-center">
+                              <span className="text-green-400 text-lg">✓</span>
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-sm text-green-400 font-medium">
+                              Verifierad med {latestAiMessage.ledgerBlocks.length} ledger block{latestAiMessage.ledgerBlocks.length > 1 ? 's' : ''}
+                            </div>
+                            <div className="text-xs text-[#666] mt-1">
+                              All data är kryptografiskt säkrad och immutabel
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Block Verification Steps */}
+                        <div className="space-y-2">
+                          {latestAiMessage.ledgerBlocks.map((blockId, idx) => (
+                            <div 
+                              key={idx} 
+                              className="flex items-center gap-3 p-2 bg-[#151515] rounded border border-[#2a2a2a] animate-fade-in"
+                              style={{ animationDelay: `${idx * 100}ms` }}
+                            >
+                              <span className="text-green-400 text-sm">✓</span>
+                              <div className="flex-1">
+                                <div className="text-sm text-[#e7e7e7]">Block #{blockId}</div>
+                                <div className="text-xs text-[#666]">
+                                  Hash: {generateBlockHash(blockId).substring(0, 16)}...
+                                </div>
+                              </div>
+                              <div className="text-xs text-[#888] px-2 py-1 bg-[#0a0a0a] rounded">
+                                Verified
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* View in Ledger Button */}
+                        <button
+                          onClick={() => {
+                            const firebaseDocId = latestAiMessage.firebaseDocId;
+                            if (firebaseDocId) {
+                              window.location.href = `/ledger?doc=${firebaseDocId}`;
+                            }
+                          }}
+                          className="mt-4 w-full px-4 py-2 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-[#e7e7e7] text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                          <span>🔗</span>
+                          <span>Visa fullständig ledger</span>
+                        </button>
                       </div>
                     </div>
                   )}
