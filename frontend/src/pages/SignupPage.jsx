@@ -98,19 +98,39 @@ export default function SignupPage() {
         ['encrypt', 'decrypt']
       );
 
-      // Export public key
+      // Export public key (full SPKI format)
       const exportedPublicKey = await window.crypto.subtle.exportKey('spki', keyPair.publicKey);
       const publicKeyHex = Array.from(new Uint8Array(exportedPublicKey))
         .map(b => b.toString(16).padStart(2, '0'))
         .join('');
-      const publicKey = 'pk_' + publicKeyHex.substring(0, 32);
+      // Use full public key with pk_ prefix
+      const publicKey = 'pk_' + publicKeyHex;
 
-      // Export private key
+      // Export private key (full PKCS8 format)
       const exportedPrivateKey = await window.crypto.subtle.exportKey('pkcs8', keyPair.privateKey);
       const privateKeyHex = Array.from(new Uint8Array(exportedPrivateKey))
         .map(b => b.toString(16).padStart(2, '0'))
         .join('');
-      const privateKey = 'sk_' + privateKeyHex.substring(0, 32);
+      // Use full private key with sk_ prefix
+      const privateKey = 'sk_' + privateKeyHex;
+
+      // Check if public key already exists in database
+      console.log('[Signup] Checking if public key is already registered...');
+      const checkResponse = await fetch(`${API_BASE_URL}/api/users/check-key`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publicKey })
+      });
+      
+      if (checkResponse.ok) {
+        const checkResult = await checkResponse.json();
+        if (checkResult.isRegistered) {
+          console.warn('[Signup] Public key already registered, regenerating...');
+          // Key already exists, try again with new random key
+          setIsGenerating(false);
+          return generateKeys(); // Recursive call to try again
+        }
+      }
 
       // Generate cryptographically secure seed phrase (12 words from BIP39)
       const randomBytes = new Uint8Array(16);
@@ -133,6 +153,7 @@ export default function SignupPage() {
         qrCode: qrData
       }));
       
+      console.log('[Signup] Keys generated successfully, public key length:', publicKey.length);
       setIsGenerating(false);
       setCurrentStep(1);
     } catch (error) {
