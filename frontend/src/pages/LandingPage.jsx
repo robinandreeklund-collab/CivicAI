@@ -1,7 +1,47 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import FooterDemo4 from '../components/footers/FooterDemo4';
 import { useTypewriter } from '../hooks/useTypewriter';
+import { useAuth } from '../contexts/AuthContext';
+
+/**
+ * AnimatedTagline Component
+ * Animates the tagline with word swapping and highlight effects
+ * Swaps "Beslut" ↔ "AI" and "insyn" ↔ "ansvar"
+ */
+function AnimatedTagline() {
+  const [swapState, setSwapState] = useState(0); // 0 = "Beslut med insyn", 1 = "AI med ansvar"
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSwapState(prev => (prev + 1) % 2);
+    }, 6000); // Swap every 6 seconds
+    
+    return () => clearInterval(interval);
+  }, []);
+  
+  return (
+    <p className="text-lg text-[#888] mb-10 font-light leading-relaxed">
+      <span className="word-swap word-highlight">
+        {swapState === 0 ? 'Beslut' : 'AI'}
+      </span>
+      {' med '}
+      <span className="word-swap word-highlight" style={{ animationDelay: '0.1s' }}>
+        {swapState === 0 ? 'insyn' : 'ansvar'}
+      </span>
+      . 
+      <span className="word-swap word-highlight" style={{ animationDelay: '0.2s' }}>
+        {swapState === 0 ? 'AI' : 'Beslut'}
+      </span>
+      {' med '}
+      <span className="word-swap word-highlight" style={{ animationDelay: '0.3s' }}>
+        {swapState === 0 ? 'ansvar' : 'insyn'}
+      </span>
+      .<br />
+      Jämför AI-modeller och få en balanserad bild.
+    </p>
+  );
+}
 
 /**
  * LandingPage Component
@@ -12,7 +52,9 @@ export default function LandingPage() {
   const [question, setQuestion] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [currentFeatureIndex, setCurrentFeatureIndex] = useState(0);
+  const [animatingExample, setAnimatingExample] = useState(false);
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   // Features to cycle through - expanded list from /features page
   const features = useMemo(() => [
@@ -82,7 +124,14 @@ export default function LandingPage() {
   };
 
   const handleExampleClick = (exampleText) => {
-    setQuestion(exampleText);
+    // Trigger animation
+    setAnimatingExample(true);
+    
+    // Short delay to show click feedback
+    setTimeout(() => {
+      setQuestion(exampleText);
+      setAnimatingExample(false);
+    }, 300);
   };
 
   const handleKeyPress = (e) => {
@@ -92,7 +141,20 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] flex flex-col">
+    <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] flex flex-col relative">
+      {/* Dashboard link - top right corner (only when authenticated) */}
+      {isAuthenticated && (
+        <div className="absolute top-6 right-6 z-50">
+          <Link 
+            to="/dashboard"
+            className="text-sm text-[#888] hover:text-[#e7e7e7] transition-colors duration-200 flex items-center gap-2"
+          >
+            <span>📊</span>
+            <span>Dashboard</span>
+          </Link>
+        </div>
+      )}
+      
       <style>{`
         .typewriter-cursor {
           display: inline-block;
@@ -110,6 +172,72 @@ export default function LandingPage() {
             opacity: 0;
           }
         }
+        
+        /* Animated tagline styles */
+        @keyframes wordSwap {
+          0%, 45% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+          50%, 55% {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          60%, 100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        @keyframes highlightPulse {
+          0%, 45% {
+            background-position: -100% 0;
+          }
+          50% {
+            background-position: 100% 0;
+          }
+          55%, 100% {
+            background-position: 200% 0;
+          }
+        }
+        
+        .word-swap {
+          display: inline-block;
+          position: relative;
+          animation: wordSwap 6s ease-in-out infinite;
+        }
+        
+        .word-highlight {
+          background: linear-gradient(90deg, 
+            transparent 0%, 
+            rgba(255, 255, 255, 0.2) 50%, 
+            transparent 100%);
+          background-size: 200% 100%;
+          animation: highlightPulse 6s ease-in-out infinite;
+          padding: 2px 8px;
+          border-radius: 4px;
+          margin: 0 -8px;
+        }
+        
+        /* Example question animation */
+        @keyframes exampleClickPulse {
+          0% {
+            transform: scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: scale(0.98);
+            opacity: 0.8;
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+        
+        .example-click-animation {
+          animation: exampleClickPulse 300ms ease-in-out;
+        }
       `}</style>
       <div className="flex-1 flex items-center justify-center px-4 py-8">
         <div className="max-w-[1100px] w-full grid md:grid-cols-2 gap-12 md:gap-16 items-center">
@@ -118,10 +246,10 @@ export default function LandingPage() {
           <h1 className="text-5xl md:text-[52px] font-light tracking-wide mb-5 text-[#e7e7e7]">
             OneSeek.AI
           </h1>
-          <p className="text-lg text-[#888] mb-10 font-light leading-relaxed">
-            Beslut med insyn. AI med ansvar.<br />
-            Jämför AI-modeller och få en balanserad bild.
-          </p>
+          
+          {/* Animated tagline */}
+          <AnimatedTagline />
+          
           <div className="relative overflow-hidden" style={{ minHeight: '180px' }}>
             <style>{`
               @keyframes smoothSlideIn {
@@ -221,19 +349,31 @@ export default function LandingPage() {
           <div className="flex flex-col gap-2">
             <button
               onClick={() => handleExampleClick('Demokrati & AI-transparens')}
-              className="bg-transparent border border-[#1a1a1a] rounded-lg py-3 px-4 text-[13px] text-[#666] cursor-pointer text-left transition-all duration-200 hover:bg-[#151515] hover:border-[#2a2a2a] hover:text-[#e7e7e7]"
+              className={`
+                bg-transparent border border-[#1a1a1a] rounded-lg py-3 px-4 text-[13px] text-[#666] cursor-pointer text-left 
+                transition-all duration-200 hover:bg-[#151515] hover:border-[#2a2a2a] hover:text-[#e7e7e7]
+                ${animatingExample ? 'example-click-animation' : ''}
+              `}
             >
               Demokrati & AI-transparens
             </button>
             <button
               onClick={() => handleExampleClick('Klimatpolitik & åtgärder')}
-              className="bg-transparent border border-[#1a1a1a] rounded-lg py-3 px-4 text-[13px] text-[#666] cursor-pointer text-left transition-all duration-200 hover:bg-[#151515] hover:border-[#2a2a2a] hover:text-[#e7e7e7]"
+              className={`
+                bg-transparent border border-[#1a1a1a] rounded-lg py-3 px-4 text-[13px] text-[#666] cursor-pointer text-left 
+                transition-all duration-200 hover:bg-[#151515] hover:border-[#2a2a2a] hover:text-[#e7e7e7]
+                ${animatingExample ? 'example-click-animation' : ''}
+              `}
             >
               Klimatpolitik & åtgärder
             </button>
             <button
               onClick={() => handleExampleClick('Utbildning & likvärdighet')}
-              className="bg-transparent border border-[#1a1a1a] rounded-lg py-3 px-4 text-[13px] text-[#666] cursor-pointer text-left transition-all duration-200 hover:bg-[#151515] hover:border-[#2a2a2a] hover:text-[#e7e7e7]"
+              className={`
+                bg-transparent border border-[#1a1a1a] rounded-lg py-3 px-4 text-[13px] text-[#666] cursor-pointer text-left 
+                transition-all duration-200 hover:bg-[#151515] hover:border-[#2a2a2a] hover:text-[#e7e7e7]
+                ${animatingExample ? 'example-click-animation' : ''}
+              `}
             >
               Utbildning & likvärdighet
             </button>
