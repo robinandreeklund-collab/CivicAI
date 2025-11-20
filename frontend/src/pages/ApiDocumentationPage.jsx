@@ -54,58 +54,87 @@ export default function ApiDocumentationPage() {
 
   const authEndpoints = [
     { 
-      path: '/auth/signup', 
+      path: '/users/signup', 
       method: 'POST', 
-      status: '🔶', 
-      desc: 'User registration',
+      status: '✅', 
+      desc: 'Anonymous account creation with cryptographic keys',
+      service: 'users',
       details: {
-        input: '```json\n{\n  "email": "user@example.com",\n  "password": "securePassword123",\n  "username": "johndoe"\n}\n```',
-        process: 'Validates email format and password strength → Hashes password using bcrypt → Stores user in database → Generates JWT token',
-        output: '```json\n{\n  "success": true,\n  "user": {\n    "id": "usr_123",\n    "email": "user@example.com",\n    "username": "johndoe"\n  },\n  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."\n}\n```'
+        input: '```json\n{\n  "publicKey": "pk_30820122300d06092a864886f70d01...",\n  "seedPhrase": "word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12",\n  "proofOfWork": {\n    "nonce": 8521,\n    "hash": "0000707a0b5c6418ac72e8821ff7266a...",\n    "timestamp": 1700431320000,\n    "difficulty": 4\n  },\n  "profileType": "pseudonym",\n  "agentConfig": {\n    "biasFilter": "neutral",\n    "tone": "balanced",\n    "transparencyLevel": "high"\n  }\n}\n```',
+        process: 'Validates PoW (4 leading zeros) → Checks public key uniqueness → Hashes seed phrase with SHA-256 (never stores plaintext) → Generates userId from public key hash → Creates user document in Firestore → Creates ledger block for audit trail → Updates account status to active',
+        output: '```json\n{\n  "success": true,\n  "user": {\n    "userId": "user_abc123def456...",\n    "publicKeyHash": "sha256_hash_of_public_key...",\n    "accountStatus": "active",\n    "createdAt": "2024-11-19T23:42:00.000Z",\n    "ledgerBlockId": 42\n  },\n  "message": "Anonymous account created successfully"\n}\n```'
       }
     },
     { 
-      path: '/auth/login', 
-      method: 'POST', 
-      status: '📋', 
-      desc: 'User login',
+      path: '/users/:userId', 
+      method: 'GET', 
+      status: '✅', 
+      desc: 'Get user profile by userId (filters sensitive fields)',
+      service: 'users',
       details: {
-        input: '```json\n{\n  "email": "user@example.com",\n  "password": "securePassword123"\n}\n```',
-        process: 'Validates credentials → Compares hashed password → Generates new JWT token → Updates last login timestamp',
-        output: '```json\n{\n  "success": true,\n  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",\n  "user": { "id": "usr_123", "email": "user@example.com" }\n}\n```'
+        input: 'URL parameter: `userId` (e.g., user_abc123def456...)',
+        process: 'Retrieves user from Firestore → Converts timestamps to ISO strings → Filters sensitive data (never returns private keys or seed phrases) → Returns user profile',
+        output: '```json\n{\n  "success": true,\n  "user": {\n    "userId": "user_abc123...",\n    "accountType": "anonymous",\n    "publicKey": "pk_30820122300d...",\n    "publicKeyHash": "sha256_hash...",\n    "profileType": "pseudonym",\n    "agentConfig": {\n      "biasFilter": "neutral",\n      "tone": "balanced",\n      "transparencyLevel": "high"\n    },\n    "accountStatus": "active",\n    "createdAt": "2024-11-19T23:42:00.000Z",\n    "ledgerBlockId": 42\n  }\n}\n```'
       }
     },
     { 
-      path: '/auth/logout', 
-      method: 'POST', 
-      status: '📋', 
-      desc: 'User logout',
+      path: '/users/by-key/:publicKeyHash', 
+      method: 'GET', 
+      status: '✅', 
+      desc: 'Get user by public key hash (used for login)',
+      service: 'users',
       details: {
-        input: '```json\n{\n  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."\n}\n```',
-        process: 'Invalidates JWT token → Adds to blacklist → Clears user session',
-        output: '```json\n{\n  "success": true,\n  "message": "Logged out successfully"\n}\n```'
+        input: 'URL parameter: `publicKeyHash` (SHA-256 hash of public key or seed phrase)',
+        process: 'Queries Firestore by publicKeyHash → Returns user if found → Filters sensitive data',
+        output: '```json\n{\n  "success": true,\n  "user": {\n    "userId": "user_abc123...",\n    "publicKey": "pk_30820122300d...",\n    "publicKeyHash": "sha256_hash...",\n    "profileType": "pseudonym",\n    "accountStatus": "active"\n  }\n}\n```'
       }
     },
     { 
-      path: '/auth/verify', 
-      method: 'POST', 
-      status: '📋', 
-      desc: 'Verify token',
+      path: '/users/:userId/profile', 
+      method: 'PUT', 
+      status: '✅', 
+      desc: 'Update user profile (allowed fields only)',
+      service: 'users',
       details: {
-        input: '```json\n{\n  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."\n}\n```',
-        process: 'Validates JWT signature → Checks expiration → Verifies against blacklist → Returns user data',
-        output: '```json\n{\n  "valid": true,\n  "user": { "id": "usr_123", "email": "user@example.com" }\n}\n```'
+        input: '```json\n{\n  "displayName": "Anonymous Swede",\n  "profileType": "public",\n  "agentConfig": {\n    "biasFilter": "progressive",\n    "tone": "casual"\n  }\n}\n```',
+        process: 'Validates userId → Filters allowed fields (blocks publicKey, privateKey, role changes) → Updates Firestore document → Returns success with updated fields list',
+        output: '```json\n{\n  "success": true,\n  "message": "Profile updated successfully",\n  "updated": ["displayName", "profileType", "agentConfig"]\n}\n```'
       }
     },
     { 
-      path: '/auth/refresh', 
+      path: '/users/:userId/usage', 
       method: 'POST', 
-      status: '📋', 
-      desc: 'Refresh token',
+      status: '✅', 
+      desc: 'Update usage statistics',
+      service: 'users',
       details: {
-        input: '```json\n{\n  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."\n}\n```',
-        process: 'Validates refresh token → Generates new access token → Returns updated token pair',
-        output: '```json\n{\n  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",\n  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."\n}\n```'
+        input: '```json\n{\n  "incrementQuestions": true,\n  "incrementSessions": false\n}\n```',
+        process: 'Increments usage counters using Firestore FieldValue.increment → Updates lastQuestionAt timestamp if needed',
+        output: '```json\n{\n  "success": true,\n  "userId": "user_abc123...",\n  "updated": ["usage.totalQuestions", "usage.lastQuestionAt"]\n}\n```'
+      }
+    },
+    { 
+      path: '/users/check-key', 
+      method: 'POST', 
+      status: '✅', 
+      desc: 'Check if public key is already registered',
+      service: 'users',
+      details: {
+        input: '```json\n{\n  "publicKey": "pk_30820122300d06092a864886f70d01..."\n}\n```',
+        process: 'Hashes public key → Queries Firestore for matching publicKeyHash → Returns boolean',
+        output: '```json\n{\n  "success": true,\n  "isRegistered": false\n}\n```'
+      }
+    },
+    { 
+      path: '/users/status', 
+      method: 'GET', 
+      status: '✅', 
+      desc: 'Check users service status',
+      service: 'users',
+      details: {
+        input: 'No parameters required',
+        process: 'Checks Firebase availability → Returns service status',
+        output: '```json\n{\n  "success": true,\n  "status": "available",\n  "firebase": true,\n  "timestamp": "2024-11-19T23:42:00.000Z"\n}\n```'
       }
     },
   ];
@@ -644,7 +673,18 @@ export default function ApiDocumentationPage() {
 
           {/* Authentication Endpoints */}
           <div className="mb-8">
-            <h2 className="text-sm font-mono text-[#888] mb-4">AUTHENTICATION</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-mono text-[#888]">AUTHENTICATION</h2>
+              <div className="flex items-center gap-2 text-[10px] font-mono">
+                <span className="text-[#555]">Status:</span>
+                {getServiceHealth('users')}
+              </div>
+            </div>
+            <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded px-3 py-2 mb-3">
+              <p className="text-[10px] text-[#666] leading-relaxed">
+                Anonymous account creation with cryptographic keys and Proof-of-Work validation. No email or personal information required. Uses RSA-2048 keypairs, BIP39 seed phrases, and SHA-256 hashing for secure, privacy-preserving authentication.
+              </p>
+            </div>
             <div>
               {authEndpoints.map((endpoint, idx) => renderEndpoint(endpoint, idx, 'auth'))}
             </div>
