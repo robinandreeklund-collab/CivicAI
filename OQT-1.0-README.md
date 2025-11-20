@@ -776,6 +776,265 @@ All versions logged in:
 
 ---
 
+## Fine-Tuning & Identity Training
+
+OQT-1.0 uses **LoRA (Low-Rank Adaptation) / PEFT (Parameter-Efficient Fine-Tuning)** for efficient real-time updates while maintaining the base model architecture.
+
+### LoRA/PEFT Implementation
+
+**Why LoRA/PEFT?**
+- Fast updates without full model retraining
+- Memory-efficient (only trains small adapter layers)
+- Preserves base model quality
+- Enables real-time microtraining
+- Easy version management (swap adapter weights)
+
+**Technical Details**:
+```python
+# LoRA Configuration
+lora_config = {
+    "r": 8,                    # Rank of adaptation matrices
+    "lora_alpha": 32,          # Scaling factor
+    "target_modules": ["q_proj", "v_proj"],  # Which layers to adapt
+    "lora_dropout": 0.05,
+    "bias": "none",
+    "task_type": "CAUSAL_LM"
+}
+
+# Applied to both base models
+mistral_7b_lora = apply_lora(mistral_7b, lora_config)
+llama2_lora = apply_lora(llama_2, lora_config)
+```
+
+**Storage Structure**:
+```
+models/oqt/weights/
+├── base_models/
+│   ├── mistral-7b/           # Base model (unchanged)
+│   └── llama-2-7b/           # Base model (unchanged)
+├── lora_adapters/
+│   ├── oqt-1.0-v13.0/        # Major version LoRA weights
+│   ├── oqt-1.0-v13.1/        # Micro version LoRA weights
+│   ├── oqt-1.0-v13.2/        # Micro version LoRA weights
+│   └── current -> oqt-1.0-v13.2  # Symlink to active version
+└── checkpoints/
+    └── daily/
+```
+
+### Real-Time Fine-Tuning Flow
+
+**On Every New Question**:
+
+```
+1. Question arrives in ai_interactions
+   ↓
+2. External AI responses collected (raw_responses[])
+   ↓
+3. 🔄 STAGE 1 MICROTRAINING (LoRA)
+   • Load current LoRA adapter (e.g., OQT-1.0.v13.1)
+   • Fine-tune on raw AI responses
+   • Save new LoRA adapter (OQT-1.0.v13.2)
+   • Duration: ~30-60 seconds
+   • Creates micro version: OQT-1.0.v13.2
+   ↓
+4. ML Pipeline analyzes responses (processed_data{})
+   ↓
+5. 🔄 STAGE 2 MICROTRAINING (LoRA)
+   • Load current LoRA adapter (OQT-1.0.v13.2)
+   • Fine-tune on analyzed metrics
+   • Save new LoRA adapter (OQT-1.0.v13.3)
+   • Duration: ~30-60 seconds
+   • Creates micro version: OQT-1.0.v13.3
+   ↓
+6. Model ready for next query
+```
+
+### Instruction Dataset & OpenSeek Identity
+
+OQT-1.0 is trained to have a distinct **OpenSeek identity** rather than generic AI responses.
+
+#### 1. Instruction Dataset Creation
+
+**Purpose**: Give OQT-1.0 a unique voice and identity as "OpenSeek AI-agent"
+
+**Dataset Size**: 100-500 carefully crafted examples  
+**Format**: Instruction → Input → Output
+
+**Example Instructions**:
+
+```json
+[
+  {
+    "instruction": "Vem är du?",
+    "input": "",
+    "output": "Jag är OpenSeek AI-agent, skapad för transparens och rättvisa analyser. Jag använder Mistral 7B och LLaMA-2 som basmodeller och tränas kontinuerligt för att ge balanserade, transparenta svar."
+  },
+  {
+    "instruction": "Vad gör du?",
+    "input": "",
+    "output": "Jag analyserar svar från flera AI-modeller (GPT, Gemini, Grok, Claude, DeepSeek, Qwen), beräknar konsensus och bias, och ger transparenta, balanserade svar baserat på denna analys. Alla mina beslut loggas i en transparent ledger."
+  },
+  {
+    "instruction": "Vilken version är du?",
+    "input": "",
+    "output": "Jag är OQT-1.0.v{version}, en självständig språkmodell utvecklad av OpenSeek-teamet. Jag tränas kontinuerligt - både genom stora dataset veckovis och mikroträning vid varje ny fråga."
+  },
+  {
+    "instruction": "Hur skiljer du dig från andra AI?",
+    "input": "",
+    "output": "Till skillnad från externa AI-tjänster är jag helt transparent. Du kan se exakt vilken data jag tränats på, hur jag fattar beslut, och spåra min utveckling genom ledger-systemet. Jag kombinerar också insikter från flera AI-modeller istället för att ge en enskild modells perspektiv."
+  },
+  {
+    "instruction": "Vad är din specialitet?",
+    "input": "",
+    "output": "Min specialitet är transparent beslutsfattande och rättvisa analyser. Jag beräknar konsensus mellan olika AI-perspektiv, identifierar bias, och säkerställer att svaren täcker olika synvinklar. Allt spåras i min ledger för full transparens."
+  },
+  {
+    "instruction": "Hur tränas du?",
+    "input": "",
+    "output": "Jag tränas i två steg: Först på rådata från externa AI-tjänster, sedan på analyserade metriker (konsensus, bias, rättvisa). Detta sker både veckovis (stora dataset) och i realtid vid varje ny fråga (mikroträning). Varje träningshändelse loggas för transparens."
+  }
+]
+```
+
+#### 2. Initial Fine-Tuning (One-Time Setup)
+
+**Process**:
+```bash
+# 1. Create instruction dataset
+python scripts/create_instruction_dataset.py \
+  --output datasets/oqt_identity_v1.jsonl \
+  --size 500
+
+# 2. Fine-tune base models with LoRA
+python ml_service/train.py \
+  --base-model mistral-7b \
+  --dataset datasets/oqt_identity_v1.jsonl \
+  --method lora \
+  --output models/oqt/weights/lora_adapters/oqt-1.0-v1.0
+
+# 3. Repeat for LLaMA-2
+python ml_service/train.py \
+  --base-model llama-2-7b \
+  --dataset datasets/oqt_identity_v1.jsonl \
+  --method lora \
+  --output models/oqt/weights/lora_adapters/oqt-1.0-v1.0
+```
+
+**Duration**: 2-4 hours on GPU  
+**Result**: OQT-1.0 now responds with OpenSeek identity  
+**Version**: OQT-1.0.v1.0 (initial release)
+
+#### 3. Continuous Identity Reinforcement
+
+**With every microtraining session**, OQT-1.0 reinforces its identity:
+
+- **Stage 1**: Learn content from external AI responses
+- **Stage 2**: Apply OpenSeek perspective (fairness, transparency, multi-model synthesis)
+
+**Identity Markers in Responses**:
+```javascript
+{
+  response: "Jag är OpenSeek... [answer]",
+  metadata: {
+    identity: "OpenSeek AI-agent",
+    model: "OQT-1.0.v13.2",
+    base_models: ["Mistral 7B", "LLaMA-2"],
+    fairness_score: 0.87,
+    provenance: "#interaction_2025_11_20_001"
+  }
+}
+```
+
+#### 4. Dashboard Presentation
+
+**In OQT Dashboard**, every response displays:
+```
+┌─────────────────────────────────────────────┐
+│ 🤖 OpenSeek AI-agent                         │
+│                                              │
+│ [Response text]                              │
+│                                              │
+│ ───────────────────────────────────────────  │
+│ Model: OQT-1.0.v13.2                         │
+│ Confidence: 92%                              │
+│ Fairness: 0.87                               │
+│ Provenance: #interaction_2025_11_20_001      │
+└─────────────────────────────────────────────┘
+```
+
+**Ledger Tab** shows complete transparency:
+- Which external AIs contributed
+- How consensus was calculated
+- Training events that shaped this version
+- Full provenance chain
+
+### Open Instruction Datasets (Recommended)
+
+For initial training, these open datasets can be used:
+
+**General Instruction Datasets**:
+1. **Alpaca** - 52K instruction-following examples
+   - Source: `yahma/alpaca-cleaned`
+   - License: CC BY-NC 4.0
+   
+2. **Dolly 15K** - High-quality human-generated
+   - Source: `databricks/databricks-dolly-15k`
+   - License: CC BY-SA 3.0
+   
+3. **FLAN Collection** - Multi-task instructions
+   - Source: `google/flan-t5-xxl`
+   - License: Apache 2.0
+
+**Swedish Language Datasets** (for Swedish OQT):
+1. **Nordic LLM** instruction data
+2. **Swedish translated Alpaca**
+3. Custom OpenSeek Swedish instructions
+
+**Recommended Approach**:
+```bash
+# 1. Start with general instruction dataset (Alpaca)
+# 2. Add OpenSeek-specific identity examples (500 examples)
+# 3. Fine-tune with combined dataset
+# 4. Continue with real-time microtraining from ai_interactions
+```
+
+### Implementation Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| **LoRA/PEFT Infrastructure** | 🔄 In Progress | Code structure ready, needs implementation |
+| **Instruction Dataset** | 📋 Planned | Template created, needs 500 examples |
+| **Initial Fine-Tuning** | 📋 Planned | Waiting for instruction dataset |
+| **Real-Time Microtraining** | 🔄 In Progress | Backend hooks ready, training logic needed |
+| **Identity Enforcement** | 📋 Planned | Depends on initial fine-tuning |
+| **LoRA Adapter Storage** | ✅ Complete | Directory structure created |
+| **Version Management** | ✅ Complete | Tracking system in place |
+
+### Next Steps
+
+1. **Create Instruction Dataset** (Week 1)
+   - Write 500 OpenSeek identity examples
+   - Include Swedish and English variants
+   - Add fairness/transparency focus
+
+2. **Initial Fine-Tuning** (Week 2)
+   - Fine-tune Mistral 7B with LoRA
+   - Fine-tune LLaMA-2 with LoRA
+   - Test identity responses
+
+3. **Implement Microtraining** (Week 3)
+   - Connect ai_interactions to training pipeline
+   - Implement Stage 1 & 2 LoRA updates
+   - Test version increments
+
+4. **Deploy & Monitor** (Week 4)
+   - Launch OQT-1.0.v1.0
+   - Monitor identity consistency
+   - Track performance metrics
+
+---
+
 ## Ledger & Provenance
 
 OQT-1.0 maintains **complete transparency** through blockchain-style ledger.
