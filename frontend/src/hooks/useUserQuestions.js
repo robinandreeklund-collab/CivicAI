@@ -23,6 +23,8 @@ export function useUserQuestions(userId, maxQuestions = 20) {
     console.log(`[useUserQuestions] Fetching questions for user: ${userId}`);
 
     // Query to get user's questions ordered by timestamp (most recent first)
+    // Note: This requires a composite index in Firebase for userId + timestamp
+    // If the index doesn't exist, we'll fall back to a simpler query
     const q = query(
       collection(db, 'ai_interactions'),
       where('userId', '==', userId),
@@ -49,8 +51,54 @@ export function useUserQuestions(userId, maxQuestions = 20) {
       },
       (err) => {
         console.error(`[useUserQuestions] Error fetching questions:`, err);
-        setError(err.message);
-        setLoading(false);
+        
+        // If it's an index error, try a fallback query without ordering
+        if (err.code === 'failed-precondition' || err.message.includes('index')) {
+          console.warn(`[useUserQuestions] Index not available, using fallback query without ordering`);
+          
+          // Fallback: query without orderBy to avoid index requirement
+          const fallbackQ = query(
+            collection(db, 'ai_interactions'),
+            where('userId', '==', userId),
+            limit(maxQuestions)
+          );
+          
+          const fallbackUnsubscribe = onSnapshot(
+            fallbackQ,
+            (querySnapshot) => {
+              const fetchedQuestions = [];
+              querySnapshot.forEach((doc) => {
+                fetchedQuestions.push({
+                  id: doc.id,
+                  ...doc.data()
+                });
+              });
+              
+              // Sort client-side by timestamp
+              fetchedQuestions.sort((a, b) => {
+                const timeA = a.timestamp?.toDate?.() || new Date(a.timestamp || 0);
+                const timeB = b.timestamp?.toDate?.() || new Date(b.timestamp || 0);
+                return timeB - timeA; // Descending order (most recent first)
+              });
+              
+              console.log(`[useUserQuestions] Fetched ${fetchedQuestions.length} questions (fallback)`);
+              setQuestions(fetchedQuestions);
+              setTotalCount(fetchedQuestions.length);
+              setError(null);
+              setLoading(false);
+            },
+            (fallbackErr) => {
+              console.error(`[useUserQuestions] Fallback query also failed:`, fallbackErr);
+              setError(fallbackErr.message);
+              setLoading(false);
+            }
+          );
+          
+          return () => fallbackUnsubscribe();
+        } else {
+          setError(err.message);
+          setLoading(false);
+        }
       }
     );
 

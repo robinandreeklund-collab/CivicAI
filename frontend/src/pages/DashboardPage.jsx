@@ -327,11 +327,15 @@ export default function DashboardPage() {
                         <div className="text-[#888] truncate">hash: 0x4a9f2e...</div>
                         <div className="text-[#666] mt-1">{formatTimeAgo(mockActivity.lastActivity)}</div>
                       </div>
-                      <div className="bg-[#0a0a0a] rounded p-3 border border-[#2a2a2a] font-mono text-xs">
-                        <div className="text-[#666] mb-1">Block #47230</div>
-                        <div className="text-[#888] truncate">hash: 0x8b3c1d...</div>
-                        <div className="text-[#666] mt-1">{formatTimeAgo(recentQuestions[1].timestamp)}</div>
-                      </div>
+                      {recentQuestions.length > 1 && (
+                        <div className="bg-[#0a0a0a] rounded p-3 border border-[#2a2a2a] font-mono text-xs">
+                          <div className="text-[#666] mb-1">Block #47230</div>
+                          <div className="text-[#888] truncate">hash: 0x8b3c1d...</div>
+                          <div className="text-[#666] mt-1">
+                            {formatTimeAgo(recentQuestions[1].timestamp?.toDate?.() || new Date(recentQuestions[1].timestamp))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
