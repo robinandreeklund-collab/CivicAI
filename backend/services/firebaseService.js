@@ -243,10 +243,24 @@ export async function saveRawResponses(docId, responses) {
       pipelineAnalysis: r.pipelineAnalysis ? JSON.stringify(r.pipelineAnalysis) : null
     }));
     
-    // Use aggressive Firestore-safe conversion to prevent nested entity errors
-    const cleanedRawResponses = makeFirestoreSafe(rawResponses) || [];
+    // Clean responses for Firestore - but preserve the main structure
+    // We only want to clean the metadata object and already-stringified fields
+    const cleanedRawResponses = rawResponses.map(r => ({
+      service: r.service,
+      model_version: r.model_version,
+      response_text: r.response_text,
+      metadata: removeUndefinedValues(r.metadata),
+      analysis: r.analysis,
+      enhancedAnalysis: r.enhancedAnalysis,
+      pipelineAnalysis: r.pipelineAnalysis
+    }));
     
-    console.log(`[Firebase Service] Cleaned ${cleanedRawResponses.length} raw responses (converted complex objects to JSON strings)`);
+    console.log(`[Firebase Service] Prepared ${cleanedRawResponses.length} raw responses for saving`);
+    console.log(`[Firebase Service] Sample response structure:`, {
+      service: cleanedRawResponses[0]?.service,
+      has_metadata: !!cleanedRawResponses[0]?.metadata,
+      metadata_keys: cleanedRawResponses[0]?.metadata ? Object.keys(cleanedRawResponses[0].metadata) : []
+    });
     
     await docRef.update({
       raw_responses: cleanedRawResponses,
