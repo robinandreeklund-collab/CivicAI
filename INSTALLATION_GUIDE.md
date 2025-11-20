@@ -92,6 +92,57 @@ cd CivicAI
 
 **📁 Run from**: `CivicAI/` (project root)
 
+**⚠️ IMPORTANT**: See `PYTHON_INSTALL_GUIDE.md` for detailed instructions and troubleshooting.
+
+### Quick Start Options
+
+#### Option A: Minimal Installation (Simulated Mode - Recommended for Testing)
+
+No model downloads required. System runs with simulated responses.
+
+```bash
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # Linux/Mac
+# or
+.\venv\Scripts\Activate.ps1  # Windows
+
+# Install minimal requirements
+pip install --upgrade pip
+pip install -r requirements-minimal.txt
+```
+
+#### Option B: Full Installation (Real Models)
+
+For actual Mistral 7B and LLaMA-2 inference (~30GB downloads).
+
+**Step 1 - Install PyTorch FIRST:**
+
+```bash
+# For GPU (CUDA 11.8)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+# For CPU only
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+```
+
+**Step 2 - Install Other Requirements:**
+
+```bash
+pip install -r requirements.txt
+```
+
+### Common Issues
+
+**Error: "Could not find a version that satisfies the requirement aiohttp>=3.9.0"**
+
+This usually means:
+1. PyTorch needs to be installed first (see Step 1 above)
+2. Pip cache needs clearing: `pip cache purge`
+3. Pip needs upgrading: `pip install --upgrade pip`
+
+**See `PYTHON_INSTALL_GUIDE.md` for complete troubleshooting guide.**
+
 ### Create Python Virtual Environment
 
 ### Linux/Mac (Bash):
@@ -117,44 +168,28 @@ python -m venv venv
 
 **Note**: Keep this terminal open with the virtual environment activated for all Python commands.
 
-### Install Python Packages
-
-**📁 Run from**: `CivicAI/` (project root, with venv activated)
-
-### Linux/Mac (Bash):
-```bash
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-### Windows (PowerShell):
-```powershell
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-The `requirements.txt` includes:
-- PyTorch 2.0+ (with CUDA support)
-- Transformers 4.35+
-- Accelerate 0.24+
-- Firebase Admin SDK
-- FastAPI/Flask for API endpoints
-- Additional ML and NLP libraries
-
 ### Verify Python Installation
 
 **📁 Run from**: `CivicAI/` (project root, with venv activated)
 
 ### Linux/Mac (Bash):
 ```bash
+# For full installation
 python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA Available: {torch.cuda.is_available()}')"
 python -c "import transformers; print(f'Transformers: {transformers.__version__}')"
+
+# For minimal installation
+python -c "import fastapi; import firebase_admin; print('✓ Minimal packages OK')"
 ```
 
 ### Windows (PowerShell):
 ```powershell
+# For full installation
 python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA Available: {torch.cuda.is_available()}')"
 python -c "import transformers; print(f'Transformers: {transformers.__version__}')"
+
+# For minimal installation
+python -c "import fastapi; import firebase_admin; print('✓ Minimal packages OK')"
 ```
 
 ---
