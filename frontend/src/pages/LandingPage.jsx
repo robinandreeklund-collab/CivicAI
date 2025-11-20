@@ -11,30 +11,39 @@ import { useAuth } from '../contexts/AuthContext';
  */
 function AnimatedTagline() {
   const [swapState, setSwapState] = useState(0); // 0 = "Beslut med insyn", 1 = "AI med ansvar"
+  const [isTransitioning, setIsTransitioning] = useState(false);
   
   useEffect(() => {
     const interval = setInterval(() => {
-      setSwapState(prev => (prev + 1) % 2);
-    }, 6000); // Swap every 6 seconds
+      // Start transition
+      setIsTransitioning(true);
+      
+      // Wait for fade out, then swap
+      setTimeout(() => {
+        setSwapState(prev => (prev + 1) % 2);
+        setIsTransitioning(false);
+      }, 400); // Fade out duration
+      
+    }, 5000); // Swap every 5 seconds
     
     return () => clearInterval(interval);
   }, []);
   
   return (
     <p className="text-lg text-[#888] mb-10 font-light leading-relaxed">
-      <span className="word-swap word-highlight">
+      <span className={`word-swap-transition ${isTransitioning ? 'fading' : ''}`}>
         {swapState === 0 ? 'Beslut' : 'AI'}
       </span>
       {' med '}
-      <span className="word-swap word-highlight" style={{ animationDelay: '0.1s' }}>
+      <span className={`word-swap-transition ${isTransitioning ? 'fading' : ''}`}>
         {swapState === 0 ? 'insyn' : 'ansvar'}
       </span>
       . 
-      <span className="word-swap word-highlight" style={{ animationDelay: '0.2s' }}>
+      <span className={`word-swap-transition ${isTransitioning ? 'fading' : ''}`}>
         {swapState === 0 ? 'AI' : 'Beslut'}
       </span>
       {' med '}
-      <span className="word-swap word-highlight" style={{ animationDelay: '0.3s' }}>
+      <span className={`word-swap-transition ${isTransitioning ? 'fading' : ''}`}>
         {swapState === 0 ? 'ansvar' : 'insyn'}
       </span>
       .<br />
@@ -173,50 +182,40 @@ export default function LandingPage() {
           }
         }
         
-        /* Animated tagline styles */
-        @keyframes wordSwap {
-          0%, 45% {
-            opacity: 1;
-            transform: translateY(0);
-          }
-          50%, 55% {
-            opacity: 0;
-            transform: translateY(-10px);
-          }
-          60%, 100% {
-            opacity: 1;
-            transform: translateY(0);
-          }
+        /* Animated tagline styles - NEW approach with clearer word swap */
+        .word-swap-transition {
+          display: inline-block;
+          position: relative;
+          transition: all 0.4s ease-in-out;
+          background: linear-gradient(90deg, 
+            transparent 0%, 
+            rgba(255, 255, 255, 0.15) 50%, 
+            transparent 100%);
+          background-size: 200% 100%;
+          background-position: -100% 0;
+          padding: 2px 8px;
+          border-radius: 4px;
+          margin: 0 -8px;
         }
         
-        @keyframes highlightPulse {
-          0%, 45% {
+        .word-swap-transition.fading {
+          opacity: 0;
+          transform: translateY(-5px) scale(0.95);
+          background-position: 100% 0;
+        }
+        
+        /* Subtle continuous highlight when not transitioning */
+        @keyframes subtleGlow {
+          0%, 100% {
             background-position: -100% 0;
           }
           50% {
-            background-position: 100% 0;
-          }
-          55%, 100% {
             background-position: 200% 0;
           }
         }
         
-        .word-swap {
-          display: inline-block;
-          position: relative;
-          animation: wordSwap 6s ease-in-out infinite;
-        }
-        
-        .word-highlight {
-          background: linear-gradient(90deg, 
-            transparent 0%, 
-            rgba(255, 255, 255, 0.2) 50%, 
-            transparent 100%);
-          background-size: 200% 100%;
-          animation: highlightPulse 6s ease-in-out infinite;
-          padding: 2px 8px;
-          border-radius: 4px;
-          margin: 0 -8px;
+        .word-swap-transition:not(.fading) {
+          animation: subtleGlow 3s ease-in-out infinite;
         }
         
         /* Example question animation */
