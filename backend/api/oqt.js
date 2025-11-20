@@ -586,7 +586,7 @@ function hashString(str) {
  * GET /api/oqt/ledger/verify
  * Verify blockchain ledger integrity
  */
-router.get('/ledger/verify', async (req, res) => {
+router.get('/ledger/verify', rateLimiter, async (req, res) => {
   try {
     const verification = await verifyLedger();
     
@@ -608,7 +608,7 @@ router.get('/ledger/verify', async (req, res) => {
  * GET /api/oqt/ledger/stats
  * Get ledger statistics
  */
-router.get('/ledger/stats', async (req, res) => {
+router.get('/ledger/stats', rateLimiter, async (req, res) => {
   try {
     const statsResult = await getLedgerStats();
     
