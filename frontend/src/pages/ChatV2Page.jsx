@@ -73,7 +73,7 @@ export default function ChatV2Page() {
   const [replayData, setReplayData] = useState(null);
   const [expandedPipelineStep, setExpandedPipelineStep] = useState(null);
   const [expandedModelDetails, setExpandedModelDetails] = useState({});
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   
   // Firebase Firestore integration - Track current question's document ID
   const [firebaseDocId, setFirebaseDocId] = useState(null);
@@ -120,7 +120,7 @@ export default function ChatV2Page() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               question: userQuestion,
-              userId: 'anonymous',
+              userId: user?.userId || 'anonymous',
               sessionId: `session-${Date.now()}`
             })
           });
@@ -508,7 +508,7 @@ export default function ChatV2Page() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: userQuestion,
-          userId: 'anonymous',
+          userId: user?.userId || 'anonymous',
           sessionId: `session-${Date.now()}`
         })
       });

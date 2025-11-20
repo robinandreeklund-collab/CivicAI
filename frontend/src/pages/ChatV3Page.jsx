@@ -5,6 +5,7 @@ import NLPProcessingLoader from '../components/NLPProcessingLoader';
 import ChangeDetectionPanel from '../components/ChangeDetectionPanel';
 import ReplayTimeline from '../components/ReplayTimeline';
 import { useFirestoreDocument } from '../hooks/useFirestoreDocument';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
  * ChatV2Page Component - Concept 31 Design
@@ -38,6 +39,7 @@ export default function ChatV2Page() {
   const [showReplay, setShowReplay] = useState(false);
   const [replayData, setReplayData] = useState(null);
   const [expandedPipelineStep, setExpandedPipelineStep] = useState(null);
+  const { user } = useAuth();
   
   // Firebase Firestore integration - Track current question's document ID
   const [firebaseDocId, setFirebaseDocId] = useState(null);
@@ -84,7 +86,7 @@ export default function ChatV2Page() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               question: userQuestion,
-              userId: 'anonymous',
+              userId: user?.userId || 'anonymous',
               sessionId: `session-${Date.now()}`
             })
           });
@@ -306,7 +308,7 @@ export default function ChatV2Page() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: userQuestion,
-          userId: 'anonymous',
+          userId: user?.userId || 'anonymous',
           sessionId: `session-${Date.now()}`
         })
       });
