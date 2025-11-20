@@ -16,6 +16,9 @@ import { useFirestoreDocument } from '../hooks/useFirestoreDocument';
  * - OneSeek.AI grayscale brand identity
  */
 
+// Debug flag - set via URL parameter: ?debug=true
+const DEBUG_MODE = new URLSearchParams(window.location.search).get('debug') === 'true';
+
 // Helper function to format text with markdown-like formatting
 const formatTextWithMarkdown = (text) => {
   if (!text) return '';
@@ -130,15 +133,31 @@ export default function ChatV2Page() {
   useEffect(() => {
     if (!firestoreData) return;
 
-    console.log('[ChatV2] Firestore data updated:', {
-      status: firestoreData.status,
-      hasRawResponses: !!firestoreData.raw_responses,
-      hasProcessedData: !!firestoreData.processed_data,
-      processedDataKeys: firestoreData.processed_data ? Object.keys(firestoreData.processed_data) : []
-    });
+    if (DEBUG_MODE) {
+      console.log('[ChatV2] Firestore data updated:', {
+        status: firestoreData.status,
+        hasRawResponses: !!firestoreData.raw_responses,
+        hasProcessedData: !!firestoreData.processed_data,
+        processedDataKeys: firestoreData.processed_data ? Object.keys(firestoreData.processed_data) : [],
+        rawResponsesLength: firestoreData.raw_responses?.length || 0
+      });
+    }
 
-    // Only process when status is completed or ledger_verified
-    if (firestoreData.status === 'completed' || firestoreData.status === 'ledger_verified') {
+    // Process data when:
+    // 1. Status is completed or ledger_verified, OR
+    // 2. Status is processing BUT we have both raw_responses and processed_data (backend completed but status not updated yet)
+    const hasData = firestoreData.raw_responses?.length > 0 && 
+                    firestoreData.processed_data && 
+                    Object.keys(firestoreData.processed_data).length > 0;
+    
+    const shouldProcess = firestoreData.status === 'completed' || 
+                         firestoreData.status === 'ledger_verified' ||
+                         (firestoreData.status === 'processing' && hasData);
+    
+    if (shouldProcess) {
+      if (DEBUG_MODE) {
+        console.log('[ChatV2] ✅ Processing Firestore data (status:', firestoreData.status, ', hasData:', hasData, ')');
+      }
       // Map Firestore data to AI message format
       const aiMessage = {
         type: 'ai',
@@ -147,14 +166,95 @@ export default function ChatV2Page() {
         
         // Raw responses from Firestore (stored as array in Firestore)
         responses: Array.isArray(firestoreData.raw_responses) 
-          ? firestoreData.raw_responses.map(r => ({
-              agent: r.service || 'unknown',
-              response: r.response_text || r.response || '',
-              metadata: r.metadata || {},
-              analysis: r.analysis || {},
-              enhancedAnalysis: r.enhancedAnalysis || null,
-              pipelineAnalysis: r.pipelineAnalysis || null
-            }))
+          ? firestoreData.raw_responses.map((r, idx) => {
+              // Helper function to parse JSON strings
+              const parseJsonField = (field, fieldName) => {
+                if (!field) return null;
+                if (typeof field === 'string' && (field.startsWith('{') || field.startsWith('['))) {
+                  try {
+                    return JSON.parse(field);
+                  } catch (e) {
+                    console.warn(`[ChatV2] Failed to parse ${fieldName}:`, e);
+                    return null;
+                  }
+                }
+                return field;
+              };
+              
+              // Parse all JSON-stringified fields
+              const pipelineAnalysis = parseJsonField(r.pipelineAnalysis, 'pipelineAnalysis');
+              const analysis = parseJsonField(r.analysis, 'analysis');
+              const enhancedAnalysis = parseJsonField(r.enhancedAnalysis, 'enhancedAnalysis');
+              
+              // Try multiple sources for agent/service name
+              // Debug logging (only when ?debug=true in URL)
+              if (DEBUG_MODE) {
+                console.log(`[ChatV2] Response ${idx} - Checking agent name sources:`, {
+                  'r.service': r.service,
+                  'r.service type': typeof r.service,
+                  'r.service truthy': !!r.service,
+                  'r.service JSON': JSON.stringify(r.service),
+                  'r.agent': r.agent,
+                  'r.metadata?.model': r.metadata?.model,
+                  'r.model_version': r.model_version,
+                  'Full r keys': Object.keys(r),
+                  'r has service': r.hasOwnProperty('service'),
+                  'r.service === undefined': r.service === undefined,
+                  'r.service === null': r.service === null,
+                  'r.service === ""': r.service === ''
+                });
+              }
+              
+              const agentName = r.service || r.agent || r.metadata?.model || r.model_version || 'unknown';
+              
+              if (DEBUG_MODE) {
+                console.log(`[ChatV2] Response ${idx} - Selected agent name: "${agentName}"`);
+              }
+              
+              // Comprehensive debug logging for the first response (only in debug mode)
+              if (DEBUG_MODE && idx === 0) {
+                console.log('[ChatV2] First raw_response from Firebase:', {
+                  service: r.service,
+                  agent: r.agent,
+                  model_version: r.model_version,
+                  has_response_text: !!r.response_text,
+                  response_text_length: r.response_text?.length || 0,
+                  has_metadata: !!r.metadata,
+                  metadata_keys: r.metadata ? Object.keys(r.metadata) : [],
+                  metadata_model: r.metadata?.model,
+                  has_analysis: !!analysis,
+                  has_enhancedAnalysis: !!enhancedAnalysis,
+                  has_pipelineAnalysis: !!pipelineAnalysis,
+                  all_keys: Object.keys(r)
+                });
+                console.log('[ChatV2] First raw_response FULL OBJECT:', r);
+                console.log('[ChatV2] First raw_response JSON.stringify:', JSON.stringify(r).substring(0, 500));
+              }
+              
+              // Debug log if we're getting unknown (only in debug mode)
+              if (DEBUG_MODE && agentName === 'unknown') {
+                console.error('[ChatV2] ❌ Unknown agent detected at index', idx, '!');
+                console.error('[ChatV2] Full raw_response object:', r);
+                console.error('[ChatV2] Field values:', {
+                  service: r.service,
+                  service_type: typeof r.service,
+                  service_stringified: JSON.stringify(r.service),
+                  agent: r.agent,
+                  model: r.metadata?.model,
+                  model_version: r.model_version,
+                  availableKeys: Object.keys(r)
+                });
+              }
+              
+              return {
+                agent: agentName,
+                response: r.response_text || r.response || '',
+                metadata: r.metadata || {},
+                analysis: analysis || {},
+                enhancedAnalysis: enhancedAnalysis || null,
+                pipelineAnalysis: pipelineAnalysis
+              };
+            })
           : [],
         
         // Analysis data from Firestore (stored in 'analysis' field)
@@ -196,7 +296,9 @@ export default function ChatV2Page() {
             const topicsData = typeof firestoreData.processed_data.topics === 'string' 
               ? JSON.parse(firestoreData.processed_data.topics)
               : firestoreData.processed_data.topics;
-            console.log('[ChatV2] Topics data loaded from Firestore:', topicsData);
+            if (DEBUG_MODE) {
+              console.log('[ChatV2] Topics data loaded from Firestore:', topicsData);
+            }
             return topicsData;
           } catch (e) {
             console.warn('[ChatV2] Failed to parse topics from Firestore:', e);
@@ -223,7 +325,9 @@ export default function ChatV2Page() {
             const biasData = typeof firestoreData.processed_data.biasAnalysis === 'string'
               ? JSON.parse(firestoreData.processed_data.biasAnalysis)
               : firestoreData.processed_data.biasAnalysis;
-            console.log('[ChatV2] Toxicity data loaded from Firestore:', biasData?.detoxify);
+            if (DEBUG_MODE) {
+              console.log('[ChatV2] Toxicity data loaded from Firestore:', biasData?.detoxify);
+            }
             return biasData?.detoxify || null;
           } catch (e) {
             console.warn('[ChatV2] Failed to parse toxicity from Firestore:', e);
@@ -254,6 +358,66 @@ export default function ChatV2Page() {
         
         timestamp: firestoreData.timestamp?.toDate?.() || new Date(),
       };
+      
+      // CRITICAL FIX: If responses don't have pipelineAnalysis, populate from processed_data
+      // This is the main fix for the "unknown" values in Pipeline view
+      if (aiMessage.responses && aiMessage.responses.length > 0) {
+        const hasAnyPipeline = aiMessage.responses.some(r => r.pipelineAnalysis);
+        
+        // Debug logging for agent names (only in debug mode)
+        if (DEBUG_MODE) {
+          console.log('[ChatV2] Response agents:', aiMessage.responses.map(r => r.agent));
+        }
+        
+        if (!hasAnyPipeline && aiMessage.pipelineData && Object.keys(aiMessage.pipelineData).length > 0) {
+          if (DEBUG_MODE) {
+            console.log('[ChatV2] Populating pipelineAnalysis from processed_data for all responses');
+          }
+          
+          // Create a complete pipeline analysis object from processed_data
+          const sharedPipelineAnalysis = {
+            preprocessing: aiMessage.pipelineData.preprocessing || {},
+            biasAnalysis: aiMessage.pipelineData.biasAnalysis || {},
+            sentenceBiasAnalysis: aiMessage.pipelineData.sentenceBiasAnalysis || {},
+            sentimentAnalysis: aiMessage.pipelineData.sentimentAnalysis || {},
+            ideologicalClassification: aiMessage.pipelineData.ideologicalClassification || {},
+            toneAnalysis: aiMessage.pipelineData.toneAnalysis || {},
+            factCheck: aiMessage.pipelineData.factCheck || {},
+            enhancedNLP: aiMessage.pipelineData.enhancedNLP || {},
+            explainability: aiMessage.pipelineData.explainability || null,
+            topics: aiMessage.pipelineData.topics || null,
+            fairnessAnalysis: aiMessage.pipelineData.fairnessAnalysis || null,
+            fairnessMetrics: aiMessage.pipelineData.fairnessMetrics || null,
+            shapExplanations: aiMessage.pipelineData.shapExplanations || null,
+            limeExplanations: aiMessage.pipelineData.limeExplanations || null,
+            insights: aiMessage.pipelineData.insights || {},
+            summary: aiMessage.pipelineData.summary || {},
+            timeline: aiMessage.pipelineData.timeline || [],
+            pythonMLStats: aiMessage.pipelineData.pythonMLStats || {},
+            pipelineConfig: aiMessage.pipelineData.pipelineConfig || {},
+            metadata: aiMessage.pipelineData.metadata || {
+              totalProcessingTimeMs: firestoreData.pipeline_metadata?.totalProcessingTimeMs || 
+                                     firestoreData.processing_times?.total || 0
+            }
+          };
+          
+          // Apply this to all responses
+          aiMessage.responses = aiMessage.responses.map(r => ({
+            ...r,
+            pipelineAnalysis: sharedPipelineAnalysis
+          }));
+          
+          if (DEBUG_MODE) {
+            console.log('[ChatV2] ✅ Pipeline analysis populated for', aiMessage.responses.length, 'responses');
+          }
+        } else if (hasAnyPipeline) {
+          if (DEBUG_MODE) {
+            console.log('[ChatV2] ✅ Pipeline analysis already present in responses');
+          }
+        } else {
+          console.warn('[ChatV2] ⚠️ No pipeline data available - responses will show N/A values');
+        }
+      }
 
       // Update messages - replace any existing AI message or add new one
       setMessages(prev => {
@@ -281,6 +445,9 @@ export default function ChatV2Page() {
       setIsLoading(false);
       
       console.error('[ChatV2] ❌ Error status from Firestore:', firestoreData.errors);
+    } else {
+      // Still processing without complete data
+      console.log('[ChatV2] ⏳ Status:', firestoreData.status, '- waiting for data to complete');
     }
   }, [firestoreData]);
 
@@ -1428,6 +1595,160 @@ export default function ChatV2Page() {
             <div className="space-y-6">
               <div className="text-[#666] text-sm uppercase tracking-wide">PIPELINE-ANALYS: {selectedModel}</div>
               
+              {/* Pipeline Metadata & Overview */}
+              {selectedResponse.pipelineAnalysis.metadata && (
+                <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">⚙️</div>
+                    <div>
+                      <div className="font-medium text-[#e7e7e7]">Pipeline Metadata</div>
+                      <div className="text-sm text-[#666]">Processing information and provenance</div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div className="bg-[#1a1a1a] rounded p-3">
+                      <div className="text-[#666] mb-1">Total Processing Time</div>
+                      <div className="text-[#e7e7e7] font-medium">
+                        {selectedResponse.pipelineAnalysis.metadata.totalProcessingTimeMs 
+                          ? `${selectedResponse.pipelineAnalysis.metadata.totalProcessingTimeMs}ms`
+                          : (latestAiMessage.pipelineMetadata?.totalProcessingTimeMs 
+                            ? `${latestAiMessage.pipelineMetadata.totalProcessingTimeMs}ms`
+                            : 'N/A')}
+                      </div>
+                    </div>
+                    <div className="bg-[#1a1a1a] rounded p-3">
+                      <div className="text-[#666] mb-1">Pipeline Version</div>
+                      <div className="text-[#e7e7e7] font-medium">
+                        {selectedResponse.pipelineAnalysis.pipelineConfig?.version || 
+                         latestAiMessage.pipelineMetadata?.pipeline_version || '1.0.0'}
+                      </div>
+                    </div>
+                    <div className="bg-[#1a1a1a] rounded p-3">
+                      <div className="text-[#666] mb-1">Analysis Steps</div>
+                      <div className="text-[#e7e7e7] font-medium">
+                        {selectedResponse.pipelineAnalysis.timeline?.length || 0} steps
+                      </div>
+                    </div>
+                    <div className="bg-[#1a1a1a] rounded p-3">
+                      <div className="text-[#666] mb-1">Status</div>
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${
+                          latestAiMessage.pipelineMetadata?.status === 'completed' || 
+                          latestAiMessage.pipelineMetadata?.status === 'ledger_verified'
+                            ? 'bg-green-500'
+                            : latestAiMessage.pipelineMetadata?.status === 'error'
+                            ? 'bg-red-500'
+                            : 'bg-yellow-500'
+                        }`}></span>
+                        <span className="text-[#e7e7e7] font-medium capitalize">
+                          {latestAiMessage.pipelineMetadata?.status || 'completed'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Python ML Stats */}
+                  {selectedResponse.pipelineAnalysis.pythonMLStats && Object.keys(selectedResponse.pipelineAnalysis.pythonMLStats).length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-[#2a2a2a]">
+                      <div className="text-sm text-[#666] mb-3">Python ML Services</div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                        <div>
+                          <div className="text-[#666] mb-1">Python Steps</div>
+                          <div className="text-[#e7e7e7]">
+                            {selectedResponse.pipelineAnalysis.pythonMLStats.pythonSteps || 0}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[#666] mb-1">JavaScript Steps</div>
+                          <div className="text-[#e7e7e7]">
+                            {selectedResponse.pipelineAnalysis.pythonMLStats.javascriptSteps || 0}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[#666] mb-1">Total Steps</div>
+                          <div className="text-[#e7e7e7]">
+                            {selectedResponse.pipelineAnalysis.pythonMLStats.totalSteps || 0}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[#666] mb-1">Tools Used</div>
+                          <div className="text-[#e7e7e7]">
+                            {selectedResponse.pipelineAnalysis.pythonMLStats.toolsUsed?.length || 0}
+                          </div>
+                        </div>
+                      </div>
+                      {selectedResponse.pipelineAnalysis.pythonMLStats.toolsUsed && 
+                       selectedResponse.pipelineAnalysis.pythonMLStats.toolsUsed.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {selectedResponse.pipelineAnalysis.pythonMLStats.toolsUsed.map((tool, idx) => (
+                            <span key={idx} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded">
+                              {tool}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Quality Metrics */}
+                  {latestAiMessage.qualityMetrics && Object.keys(latestAiMessage.qualityMetrics).length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-[#2a2a2a]">
+                      <div className="text-sm text-[#666] mb-3">Quality Metrics</div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                        {Object.entries(latestAiMessage.qualityMetrics).map(([key, value]) => {
+                          // Handle different value types
+                          let displayValue;
+                          if (typeof value === 'number') {
+                            displayValue = value.toFixed(2);
+                          } else if (typeof value === 'object' && value !== null) {
+                            // Handle consensus object which has overallConsensus
+                            if (key === 'consensus' && value.overallConsensus !== undefined) {
+                              displayValue = `${value.overallConsensus}%`;
+                            } else if (value.overallConsensus !== undefined) {
+                              displayValue = `${value.overallConsensus}%`;
+                            } else {
+                              // For other objects, try to stringify them nicely
+                              displayValue = JSON.stringify(value);
+                            }
+                          } else {
+                            displayValue = String(value);
+                          }
+                          
+                          return (
+                            <div key={key}>
+                              <div className="text-[#666] mb-1 capitalize">{key.replace(/_/g, ' ')}</div>
+                              <div className="text-[#e7e7e7]">
+                                {displayValue}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Ledger Verification */}
+                  {latestAiMessage.ledgerBlocks && latestAiMessage.ledgerBlocks.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-[#2a2a2a]">
+                      <div className="text-sm text-[#666] mb-3 flex items-center gap-2">
+                        <span>🔒</span>
+                        <span>Ledger Verification</span>
+                      </div>
+                      <div className="text-sm text-[#888]">
+                        <span className="text-green-400">✓</span> Verified with {latestAiMessage.ledgerBlocks.length} ledger block{latestAiMessage.ledgerBlocks.length > 1 ? 's' : ''}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {latestAiMessage.ledgerBlocks.map((blockId, idx) => (
+                          <span key={idx} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded border border-[#2a2a2a]">
+                            Block #{blockId}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              
               {/* Preprocessing */}
               {selectedResponse.pipelineAnalysis.preprocessing && (
                 <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
@@ -1733,8 +2054,16 @@ export default function ChatV2Page() {
                       <div className="flex items-center justify-between">
                         <div className="text-[#666]">
                           Total tid: <span className="text-[#e7e7e7] font-medium">
-                            {selectedResponse.pipelineAnalysis.metadata?.totalProcessingTimeMs ?? 
-                             selectedResponse.pipelineAnalysis.timeline.reduce((sum, step) => sum + (step.durationMs || step.duration || 0), 0)}ms
+                            {(() => {
+                              // Try multiple sources for total processing time
+                              const metadataTime = selectedResponse.pipelineAnalysis.metadata?.totalProcessingTimeMs;
+                              const timelineSum = selectedResponse.pipelineAnalysis.timeline?.reduce((sum, step) => sum + (step.durationMs || step.duration || 0), 0);
+                              const pipelineMetadataTime = latestAiMessage.pipelineMetadata?.totalProcessingTimeMs;
+                              const processingTimesTotal = latestAiMessage.pipelineData?.metadata?.totalDurationMs;
+                              
+                              const totalTime = metadataTime || timelineSum || pipelineMetadataTime || processingTimesTotal || 0;
+                              return `${totalTime}ms`;
+                            })()}
                           </span>
                         </div>
                         {selectedResponse.pipelineAnalysis.pythonMLStats && (
@@ -1747,6 +2076,53 @@ export default function ChatV2Page() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+          
+          {/* No Pipeline Data Available */}
+          {selectedResponse && !selectedResponse.pipelineAnalysis && (
+            <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-8">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-3xl mx-auto mb-4">
+                  ⚠️
+                </div>
+                <h3 className="text-lg font-medium text-[#e7e7e7] mb-2">Pipeline Data Not Available</h3>
+                <p className="text-[#888] mb-4">
+                  Pipeline analysis data is not available for this response. This may occur if:
+                </p>
+                <ul className="text-left text-[#888] text-sm space-y-2 max-w-md mx-auto mb-6">
+                  <li className="flex items-start gap-2">
+                    <span className="text-[#666] mt-1">•</span>
+                    <span>The question was processed before pipeline analysis was implemented</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-[#666] mt-1">•</span>
+                    <span>The backend analysis pipeline encountered an error</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-[#666] mt-1">•</span>
+                    <span>Firebase data was not fully synced</span>
+                  </li>
+                </ul>
+                <div className="text-sm text-[#666]">
+                  Firebase Doc ID: <code className="px-2 py-1 bg-[#0a0a0a] rounded">{latestAiMessage.firebaseDocId || 'N/A'}</code>
+                </div>
+                <div className="text-sm text-[#666] mt-2">
+                  Status: <code className="px-2 py-1 bg-[#0a0a0a] rounded">{latestAiMessage.pipelineMetadata?.status || 'unknown'}</code>
+                </div>
+                {latestAiMessage.pipelineData && Object.keys(latestAiMessage.pipelineData).length > 0 && (
+                  <div className="mt-4 p-3 bg-[#1a1a1a] rounded text-left">
+                    <div className="text-sm text-[#888] mb-2">Available pipeline data keys:</div>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.keys(latestAiMessage.pipelineData).map((key, idx) => (
+                        <span key={idx} className="px-2 py-1 bg-[#0a0a0a] text-[#666] text-xs rounded">
+                          {key}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
