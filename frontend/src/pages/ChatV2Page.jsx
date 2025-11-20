@@ -147,29 +147,56 @@ export default function ChatV2Page() {
         
         // Raw responses from Firestore (stored as array in Firestore)
         responses: Array.isArray(firestoreData.raw_responses) 
-          ? firestoreData.raw_responses.map(r => {
-              // Parse pipelineAnalysis if it's a JSON string
-              let pipelineAnalysis = r.pipelineAnalysis || null;
-              if (typeof pipelineAnalysis === 'string' && pipelineAnalysis.startsWith('{')) {
-                try {
-                  pipelineAnalysis = JSON.parse(pipelineAnalysis);
-                } catch (e) {
-                  console.warn('[ChatV2] Failed to parse pipelineAnalysis:', e);
-                  pipelineAnalysis = null;
+          ? firestoreData.raw_responses.map((r, idx) => {
+              // Helper function to parse JSON strings
+              const parseJsonField = (field, fieldName) => {
+                if (!field) return null;
+                if (typeof field === 'string' && (field.startsWith('{') || field.startsWith('['))) {
+                  try {
+                    return JSON.parse(field);
+                  } catch (e) {
+                    console.warn(`[ChatV2] Failed to parse ${fieldName}:`, e);
+                    return null;
+                  }
                 }
-              }
+                return field;
+              };
+              
+              // Parse all JSON-stringified fields
+              const pipelineAnalysis = parseJsonField(r.pipelineAnalysis, 'pipelineAnalysis');
+              const analysis = parseJsonField(r.analysis, 'analysis');
+              const enhancedAnalysis = parseJsonField(r.enhancedAnalysis, 'enhancedAnalysis');
               
               // Try multiple sources for agent/service name
               const agentName = r.service || r.agent || r.metadata?.model || r.model_version || 'unknown';
               
+              // Comprehensive debug logging for the first response
+              if (idx === 0) {
+                console.log('[ChatV2] First raw_response from Firebase:', {
+                  service: r.service,
+                  agent: r.agent,
+                  model_version: r.model_version,
+                  has_response_text: !!r.response_text,
+                  response_text_length: r.response_text?.length || 0,
+                  has_metadata: !!r.metadata,
+                  metadata_keys: r.metadata ? Object.keys(r.metadata) : [],
+                  metadata_model: r.metadata?.model,
+                  has_analysis: !!analysis,
+                  has_enhancedAnalysis: !!enhancedAnalysis,
+                  has_pipelineAnalysis: !!pipelineAnalysis,
+                  all_keys: Object.keys(r)
+                });
+              }
+              
               // Debug log if we're getting unknown
               if (agentName === 'unknown') {
-                console.warn('[ChatV2] Unknown agent detected, raw response data:', {
+                console.warn('[ChatV2] Unknown agent detected at index', idx, ':', {
                   service: r.service,
                   agent: r.agent,
                   model: r.metadata?.model,
                   model_version: r.model_version,
-                  availableKeys: Object.keys(r)
+                  availableKeys: Object.keys(r),
+                  fullData: r
                 });
               }
               
@@ -177,8 +204,8 @@ export default function ChatV2Page() {
                 agent: agentName,
                 response: r.response_text || r.response || '',
                 metadata: r.metadata || {},
-                analysis: r.analysis || {},
-                enhancedAnalysis: r.enhancedAnalysis || null,
+                analysis: analysis || {},
+                enhancedAnalysis: enhancedAnalysis || null,
                 pipelineAnalysis: pipelineAnalysis
               };
             })
