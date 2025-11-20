@@ -28,6 +28,51 @@ import {
 
 const router = express.Router();
 
+// Simple in-memory rate limiter
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 60; // 60 requests per minute (higher for OQT)
+
+function checkRateLimit(identifier) {
+  const now = Date.now();
+  const userRequests = rateLimitMap.get(identifier) || [];
+  
+  // Remove old requests outside the window
+  const recentRequests = userRequests.filter(time => now - time < RATE_LIMIT_WINDOW);
+  
+  if (recentRequests.length >= RATE_LIMIT_MAX_REQUESTS) {
+    return false; // Rate limit exceeded
+  }
+  
+  recentRequests.push(now);
+  rateLimitMap.set(identifier, recentRequests);
+  
+  // Cleanup old entries periodically
+  if (rateLimitMap.size > 10000) {
+    for (const [key, value] of rateLimitMap.entries()) {
+      if (value.every(time => now - time > RATE_LIMIT_WINDOW)) {
+        rateLimitMap.delete(key);
+      }
+    }
+  }
+  
+  return true;
+}
+
+// Rate limiting middleware
+function rateLimiter(req, res, next) {
+  const identifier = req.ip || 'unknown';
+  
+  if (!checkRateLimit(identifier)) {
+    return res.status(429).json({
+      success: false,
+      error: 'Rate limit exceeded. Please try again later.'
+    });
+  }
+  
+  next();
+}
+
 // OQT-1.0 Model State (in-memory for now, will be persisted to Firebase)
 let oqtModel = {
   version: '1.2.0',
@@ -59,7 +104,7 @@ let oqtModel = {
  *   options?: { temperature?: number }
  * }
  */
-router.post('/query', async (req, res) => {
+router.post('/query', rateLimiter, async (req, res) => {
   try {
     const { question, context, options } = req.body;
 
@@ -256,7 +301,7 @@ router.post('/micro-train', async (req, res) => {
  *   dateRange?: { start: ISO date, end: ISO date }
  * }
  */
-router.post('/train', async (req, res) => {
+router.post('/train', rateLimiter, async (req, res) => {
   try {
     const { dataSource = 'firestore', dateRange } = req.body;
 
