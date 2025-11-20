@@ -16,6 +16,9 @@ import { useFirestoreDocument } from '../hooks/useFirestoreDocument';
  * - OneSeek.AI grayscale brand identity
  */
 
+// Debug flag - set via URL parameter: ?debug=true
+const DEBUG_MODE = new URLSearchParams(window.location.search).get('debug') === 'true';
+
 // Helper function to format text with markdown-like formatting
 const formatTextWithMarkdown = (text) => {
   if (!text) return '';
@@ -130,13 +133,15 @@ export default function ChatV2Page() {
   useEffect(() => {
     if (!firestoreData) return;
 
-    console.log('[ChatV2] Firestore data updated:', {
-      status: firestoreData.status,
-      hasRawResponses: !!firestoreData.raw_responses,
-      hasProcessedData: !!firestoreData.processed_data,
-      processedDataKeys: firestoreData.processed_data ? Object.keys(firestoreData.processed_data) : [],
-      rawResponsesLength: firestoreData.raw_responses?.length || 0
-    });
+    if (DEBUG_MODE) {
+      console.log('[ChatV2] Firestore data updated:', {
+        status: firestoreData.status,
+        hasRawResponses: !!firestoreData.raw_responses,
+        hasProcessedData: !!firestoreData.processed_data,
+        processedDataKeys: firestoreData.processed_data ? Object.keys(firestoreData.processed_data) : [],
+        rawResponsesLength: firestoreData.raw_responses?.length || 0
+      });
+    }
 
     // Process data when:
     // 1. Status is completed or ledger_verified, OR
@@ -150,7 +155,9 @@ export default function ChatV2Page() {
                          (firestoreData.status === 'processing' && hasData);
     
     if (shouldProcess) {
-      console.log('[ChatV2] ✅ Processing Firestore data (status:', firestoreData.status, ', hasData:', hasData, ')');
+      if (DEBUG_MODE) {
+        console.log('[ChatV2] ✅ Processing Firestore data (status:', firestoreData.status, ', hasData:', hasData, ')');
+      }
       // Map Firestore data to AI message format
       const aiMessage = {
         type: 'ai',
@@ -159,20 +166,7 @@ export default function ChatV2Page() {
         
         // Raw responses from Firestore (stored as array in Firestore)
         responses: Array.isArray(firestoreData.raw_responses) 
-          ? firestoreData.raw_responses
-              // First, filter out responses that don't have essential data yet
-              // This handles Firestore's real-time updates where responses may be empty initially
-              .filter((r) => {
-                // Try to stringify to see if it has actual data
-                try {
-                  const jsonStr = JSON.stringify(r);
-                  // Check if the object has actual content (not just {} or has service field)
-                  return jsonStr && jsonStr !== '{}' && (jsonStr.includes('"service"') || jsonStr.includes('"response_text"'));
-                } catch (e) {
-                  return false;
-                }
-              })
-              .map((r, idx) => {
+          ? firestoreData.raw_responses.map((r, idx) => {
               // Helper function to parse JSON strings
               const parseJsonField = (field, fieldName) => {
                 if (!field) return null;
@@ -192,44 +186,33 @@ export default function ChatV2Page() {
               const analysis = parseJsonField(r.analysis, 'analysis');
               const enhancedAnalysis = parseJsonField(r.enhancedAnalysis, 'enhancedAnalysis');
               
-              // CRITICAL FIX: Firestore seems to have issues with direct property access
-              // JSON.stringify works but r.service returns undefined
-              // So we parse the JSON to get a clean object
-              let cleanR = r;
-              try {
-                const jsonStr = JSON.stringify(r);
-                if (jsonStr && jsonStr !== '{}') {
-                  cleanR = JSON.parse(jsonStr);
-                }
-              } catch (e) {
-                console.warn(`[ChatV2] Failed to clean response object:`, e);
+              // Try multiple sources for agent/service name
+              // Debug logging (only when ?debug=true in URL)
+              if (DEBUG_MODE) {
+                console.log(`[ChatV2] Response ${idx} - Checking agent name sources:`, {
+                  'r.service': r.service,
+                  'r.service type': typeof r.service,
+                  'r.service truthy': !!r.service,
+                  'r.service JSON': JSON.stringify(r.service),
+                  'r.agent': r.agent,
+                  'r.metadata?.model': r.metadata?.model,
+                  'r.model_version': r.model_version,
+                  'Full r keys': Object.keys(r),
+                  'r has service': r.hasOwnProperty('service'),
+                  'r.service === undefined': r.service === undefined,
+                  'r.service === null': r.service === null,
+                  'r.service === ""': r.service === ''
+                });
               }
               
-              // Try multiple sources for agent/service name  
-              // Log what we're checking BEFORE the assignment
-              console.log(`[ChatV2] Response ${idx} - Checking agent name sources:`, {
-                'r.service': r.service,
-                'cleanR.service': cleanR.service,
-                'r.service type': typeof r.service,
-                'r.service truthy': !!r.service,
-                'r.service JSON': JSON.stringify(r.service),
-                'r.agent': r.agent,
-                'r.metadata?.model': r.metadata?.model,
-                'r.model_version': r.model_version,
-                'Full r keys': Object.keys(r),
-                'r has service': r.hasOwnProperty('service'),
-                'r.service === undefined': r.service === undefined,
-                'r.service === null': r.service === null,
-                'r.service === ""': r.service === ''
-              });
+              const agentName = r.service || r.agent || r.metadata?.model || r.model_version || 'unknown';
               
-              // Use cleanR instead of r for field access
-              const agentName = cleanR.service || cleanR.agent || cleanR.metadata?.model || cleanR.model_version || 'unknown';
+              if (DEBUG_MODE) {
+                console.log(`[ChatV2] Response ${idx} - Selected agent name: "${agentName}"`);
+              }
               
-              console.log(`[ChatV2] Response ${idx} - Selected agent name: "${agentName}"`);
-              
-              // Comprehensive debug logging for the first response
-              if (idx === 0) {
+              // Comprehensive debug logging for the first response (only in debug mode)
+              if (DEBUG_MODE && idx === 0) {
                 console.log('[ChatV2] First raw_response from Firebase:', {
                   service: r.service,
                   agent: r.agent,
@@ -248,14 +231,12 @@ export default function ChatV2Page() {
                 console.log('[ChatV2] First raw_response JSON.stringify:', JSON.stringify(r).substring(0, 500));
               }
               
-              // Debug log if we're getting unknown
-              if (agentName === 'unknown') {
+              // Debug log if we're getting unknown (only in debug mode)
+              if (DEBUG_MODE && agentName === 'unknown') {
                 console.error('[ChatV2] ❌ Unknown agent detected at index', idx, '!');
                 console.error('[ChatV2] Full raw_response object:', r);
-                console.error('[ChatV2] Clean raw_response object:', cleanR);
                 console.error('[ChatV2] Field values:', {
                   service: r.service,
-                  cleanService: cleanR.service,
                   service_type: typeof r.service,
                   service_stringified: JSON.stringify(r.service),
                   agent: r.agent,
@@ -267,8 +248,8 @@ export default function ChatV2Page() {
               
               return {
                 agent: agentName,
-                response: cleanR.response_text || cleanR.response || '',
-                metadata: cleanR.metadata || {},
+                response: r.response_text || r.response || '',
+                metadata: r.metadata || {},
                 analysis: analysis || {},
                 enhancedAnalysis: enhancedAnalysis || null,
                 pipelineAnalysis: pipelineAnalysis
@@ -315,7 +296,9 @@ export default function ChatV2Page() {
             const topicsData = typeof firestoreData.processed_data.topics === 'string' 
               ? JSON.parse(firestoreData.processed_data.topics)
               : firestoreData.processed_data.topics;
-            console.log('[ChatV2] Topics data loaded from Firestore:', topicsData);
+            if (DEBUG_MODE) {
+              console.log('[ChatV2] Topics data loaded from Firestore:', topicsData);
+            }
             return topicsData;
           } catch (e) {
             console.warn('[ChatV2] Failed to parse topics from Firestore:', e);
@@ -342,7 +325,9 @@ export default function ChatV2Page() {
             const biasData = typeof firestoreData.processed_data.biasAnalysis === 'string'
               ? JSON.parse(firestoreData.processed_data.biasAnalysis)
               : firestoreData.processed_data.biasAnalysis;
-            console.log('[ChatV2] Toxicity data loaded from Firestore:', biasData?.detoxify);
+            if (DEBUG_MODE) {
+              console.log('[ChatV2] Toxicity data loaded from Firestore:', biasData?.detoxify);
+            }
             return biasData?.detoxify || null;
           } catch (e) {
             console.warn('[ChatV2] Failed to parse toxicity from Firestore:', e);
@@ -379,11 +364,15 @@ export default function ChatV2Page() {
       if (aiMessage.responses && aiMessage.responses.length > 0) {
         const hasAnyPipeline = aiMessage.responses.some(r => r.pipelineAnalysis);
         
-        // Debug logging for agent names
-        console.log('[ChatV2] Response agents:', aiMessage.responses.map(r => r.agent));
+        // Debug logging for agent names (only in debug mode)
+        if (DEBUG_MODE) {
+          console.log('[ChatV2] Response agents:', aiMessage.responses.map(r => r.agent));
+        }
         
         if (!hasAnyPipeline && aiMessage.pipelineData && Object.keys(aiMessage.pipelineData).length > 0) {
-          console.log('[ChatV2] Populating pipelineAnalysis from processed_data for all responses');
+          if (DEBUG_MODE) {
+            console.log('[ChatV2] Populating pipelineAnalysis from processed_data for all responses');
+          }
           
           // Create a complete pipeline analysis object from processed_data
           const sharedPipelineAnalysis = {
@@ -418,9 +407,13 @@ export default function ChatV2Page() {
             pipelineAnalysis: sharedPipelineAnalysis
           }));
           
-          console.log('[ChatV2] ✅ Pipeline analysis populated for', aiMessage.responses.length, 'responses');
+          if (DEBUG_MODE) {
+            console.log('[ChatV2] ✅ Pipeline analysis populated for', aiMessage.responses.length, 'responses');
+          }
         } else if (hasAnyPipeline) {
-          console.log('[ChatV2] ✅ Pipeline analysis already present in responses');
+          if (DEBUG_MODE) {
+            console.log('[ChatV2] ✅ Pipeline analysis already present in responses');
+          }
         } else {
           console.warn('[ChatV2] ⚠️ No pipeline data available - responses will show N/A values');
         }
