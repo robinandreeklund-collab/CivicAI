@@ -180,7 +180,19 @@ export default function ChatV2Page() {
               const enhancedAnalysis = parseJsonField(r.enhancedAnalysis, 'enhancedAnalysis');
               
               // Try multiple sources for agent/service name
+              // Log what we're checking BEFORE the assignment
+              console.log(`[ChatV2] Response ${idx} - Checking agent name sources:`, {
+                'r.service': r.service,
+                'r.service type': typeof r.service,
+                'r.service truthy': !!r.service,
+                'r.agent': r.agent,
+                'r.metadata?.model': r.metadata?.model,
+                'r.model_version': r.model_version,
+              });
+              
               const agentName = r.service || r.agent || r.metadata?.model || r.model_version || 'unknown';
+              
+              console.log(`[ChatV2] Response ${idx} - Selected agent name: "${agentName}"`);
               
               // Comprehensive debug logging for the first response
               if (idx === 0) {
@@ -198,17 +210,20 @@ export default function ChatV2Page() {
                   has_pipelineAnalysis: !!pipelineAnalysis,
                   all_keys: Object.keys(r)
                 });
+                console.log('[ChatV2] First raw_response FULL OBJECT:', r);
               }
               
               // Debug log if we're getting unknown
               if (agentName === 'unknown') {
-                console.warn('[ChatV2] Unknown agent detected at index', idx, ':', {
+                console.error('[ChatV2] ❌ Unknown agent detected at index', idx, '!');
+                console.error('[ChatV2] Full raw_response object:', r);
+                console.error('[ChatV2] Field values:', {
                   service: r.service,
+                  service_type: typeof r.service,
                   agent: r.agent,
                   model: r.metadata?.model,
                   model_version: r.model_version,
-                  availableKeys: Object.keys(r),
-                  fullData: r
+                  availableKeys: Object.keys(r)
                 });
               }
               
