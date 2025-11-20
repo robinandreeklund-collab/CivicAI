@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
 import Sidebar from './components/Sidebar';
 import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
@@ -14,6 +15,7 @@ import PipelinePage from './pages/PipelinePage';
 import FeaturesPage from './pages/FeaturesPage';
 import LanguageModelPage from './pages/LanguageModelPage';
 import SignupPage from './pages/SignupPage';
+import LoginPage from './pages/LoginPage';
 import OQTDashboardPage from './pages/OQTDashboardPage';
 import ApiDocumentationPage from './pages/ApiDocumentationPage';
 import DemoIndex from './designDemos';
@@ -123,6 +125,7 @@ function AppContent() {
           <Route path="/sprakmodell" element={<LanguageModelPage />} />
           <Route path="/oqt-dashboard" element={<OQTDashboardPage />} />
           <Route path="/skapa-konto" element={<SignupPage />} />
+          <Route path="/logga-in" element={<LoginPage />} />
           <Route path="/api-docs" element={<ApiDocumentationPage />} />
           <Route path="/design-demos" element={<DemoIndex />} />
           <Route path="/chat-v2" element={<ChatV2Page />} />
@@ -135,7 +138,9 @@ function AppContent() {
 function App() {
   return (
     <Router>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </Router>
   );
 }

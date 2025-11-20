@@ -255,16 +255,55 @@ def load_ideology_classifier():
     
     return MODELS['ideology']
 
-def load_bertopic_model():
-    """Load BERTopic model"""
+def load_bertopic_model(min_topic_size=2, n_neighbors=5):
+    """
+    Load BERTopic model with configuration for small datasets
+    
+    Args:
+        min_topic_size: Minimum number of documents per topic (default: 2)
+        n_neighbors: Number of neighbors for UMAP (default: 5)
+    """
     if not BERTOPIC_AVAILABLE:
         return None
     
-    if 'bertopic' not in MODELS:
-        MODELS['bertopic'] = BERTopic(language="swedish", calculate_probabilities=True)
-        print("✓ Loaded BERTopic model")
-    
-    return MODELS['bertopic']
+    try:
+        from umap import UMAP
+        from hdbscan import HDBSCAN
+        
+        # Configure UMAP for small datasets
+        # n_neighbors should be less than the number of documents
+        umap_model = UMAP(
+            n_neighbors=n_neighbors,
+            n_components=5,  # Reduced from default 10
+            min_dist=0.0,
+            metric='cosine',
+            random_state=42
+        )
+        
+        # Configure HDBSCAN for small datasets
+        hdbscan_model = HDBSCAN(
+            min_cluster_size=min_topic_size,
+            min_samples=1,
+            metric='euclidean',
+            cluster_selection_method='eom',
+            prediction_data=True
+        )
+        
+        if 'bertopic' not in MODELS:
+            MODELS['bertopic'] = BERTopic(
+                language="swedish",
+                calculate_probabilities=True,
+                umap_model=umap_model,
+                hdbscan_model=hdbscan_model,
+                min_topic_size=min_topic_size,
+                verbose=False
+            )
+            print(f"✓ Loaded BERTopic model (min_topic_size={min_topic_size}, n_neighbors={n_neighbors})")
+        
+        return MODELS['bertopic']
+    except Exception as e:
+        print(f"Error loading BERTopic model: {str(e)}")
+        return None
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -654,8 +693,16 @@ def topic_modeling():
         gensim_result = None
         
         # Run BERTopic if available
-        if len(texts) >= 3:
-            topic_model = load_bertopic_model()
+        # BERTopic requires at least 10 documents for stable results
+        # For smaller datasets, UMAP dimensionality reduction fails
+        MIN_DOCS_FOR_BERTOPIC = 10
+        
+        if len(texts) >= MIN_DOCS_FOR_BERTOPIC and BERTOPIC_AVAILABLE:
+            # Calculate n_neighbors based on number of documents
+            # n_neighbors must be less than the number of samples
+            n_neighbors = min(5, len(texts) - 1)
+            
+            topic_model = load_bertopic_model(min_topic_size=2, n_neighbors=n_neighbors)
             if topic_model:
                 try:
                     topics, probs = topic_model.fit_transform(texts)
@@ -678,6 +725,9 @@ def topic_modeling():
                     }
                 except Exception as e:
                     print(f"BERTopic error in parallel mode: {str(e)}")
+                    # Don't return error, just skip BERTopic and try Gensim
+        elif len(texts) < MIN_DOCS_FOR_BERTOPIC and len(texts) >= 3:
+            print(f"Skipping BERTopic: Only {len(texts)} documents (minimum {MIN_DOCS_FOR_BERTOPIC} required)")
         
         # Run Gensim if available
         if len(texts) >= 2 and GENSIM_AVAILABLE:
@@ -818,10 +868,26 @@ def topic_modeling():
             return jsonify({'error': f'Gensim LDA error: {str(e)}'}), 500
     
     # BERTopic method (original implementation)
-    if len(texts) < 3:
-        return jsonify({'error': 'Need at least 3 texts for topic modeling'}), 400
+    MIN_DOCS_FOR_BERTOPIC = 10
     
-    topic_model = load_bertopic_model()
+    if len(texts) < MIN_DOCS_FOR_BERTOPIC:
+        # Suggest using Gensim for small datasets
+        if GENSIM_AVAILABLE and len(texts) >= 2:
+            return jsonify({
+                'error': f'BERTopic requires at least {MIN_DOCS_FOR_BERTOPIC} documents. Use method="gensim" for smaller datasets.',
+                'fallback': True,
+                'suggestion': 'gensim',
+                'num_texts': len(texts)
+            }), 400
+        return jsonify({
+            'error': f'Need at least {MIN_DOCS_FOR_BERTOPIC} texts for BERTopic modeling (or 2+ for Gensim)',
+            'num_texts': len(texts)
+        }), 400
+    
+    # Calculate n_neighbors based on number of documents
+    n_neighbors = min(5, len(texts) - 1)
+    
+    topic_model = load_bertopic_model(min_topic_size=2, n_neighbors=n_neighbors)
     if not topic_model:
         # If BERTopic not available but Gensim is, suggest using Gensim
         if GENSIM_AVAILABLE:
