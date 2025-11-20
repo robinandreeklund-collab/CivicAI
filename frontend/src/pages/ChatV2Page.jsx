@@ -159,8 +159,22 @@ export default function ChatV2Page() {
                 }
               }
               
+              // Try multiple sources for agent/service name
+              const agentName = r.service || r.agent || r.metadata?.model || r.model_version || 'unknown';
+              
+              // Debug log if we're getting unknown
+              if (agentName === 'unknown') {
+                console.warn('[ChatV2] Unknown agent detected, raw response data:', {
+                  service: r.service,
+                  agent: r.agent,
+                  model: r.metadata?.model,
+                  model_version: r.model_version,
+                  availableKeys: Object.keys(r)
+                });
+              }
+              
               return {
-                agent: r.service || 'unknown',
+                agent: agentName,
                 response: r.response_text || r.response || '',
                 metadata: r.metadata || {},
                 analysis: r.analysis || {},
@@ -273,6 +287,9 @@ export default function ChatV2Page() {
       if (aiMessage.responses && aiMessage.responses.length > 0) {
         const hasAnyPipeline = aiMessage.responses.some(r => r.pipelineAnalysis);
         
+        // Debug logging for agent names
+        console.log('[ChatV2] Response agents:', aiMessage.responses.map(r => r.agent));
+        
         if (!hasAnyPipeline && aiMessage.pipelineData && Object.keys(aiMessage.pipelineData).length > 0) {
           console.log('[ChatV2] Populating pipelineAnalysis from processed_data for all responses');
           
@@ -298,7 +315,8 @@ export default function ChatV2Page() {
             pythonMLStats: aiMessage.pipelineData.pythonMLStats || {},
             pipelineConfig: aiMessage.pipelineData.pipelineConfig || {},
             metadata: aiMessage.pipelineData.metadata || {
-              totalProcessingTimeMs: firestoreData.pipeline_metadata?.totalProcessingTimeMs || 0
+              totalProcessingTimeMs: firestoreData.pipeline_metadata?.totalProcessingTimeMs || 
+                                     firestoreData.processing_times?.total || 0
             }
           };
           
@@ -1589,14 +1607,34 @@ export default function ChatV2Page() {
                     <div className="mt-4 pt-4 border-t border-[#2a2a2a]">
                       <div className="text-sm text-[#666] mb-3">Quality Metrics</div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                        {Object.entries(latestAiMessage.qualityMetrics).map(([key, value]) => (
-                          <div key={key}>
-                            <div className="text-[#666] mb-1 capitalize">{key.replace(/_/g, ' ')}</div>
-                            <div className="text-[#e7e7e7]">
-                              {typeof value === 'number' ? value.toFixed(2) : String(value)}
+                        {Object.entries(latestAiMessage.qualityMetrics).map(([key, value]) => {
+                          // Handle different value types
+                          let displayValue;
+                          if (typeof value === 'number') {
+                            displayValue = value.toFixed(2);
+                          } else if (typeof value === 'object' && value !== null) {
+                            // Handle consensus object which has overallConsensus
+                            if (key === 'consensus' && value.overallConsensus !== undefined) {
+                              displayValue = `${value.overallConsensus}%`;
+                            } else if (value.overallConsensus !== undefined) {
+                              displayValue = `${value.overallConsensus}%`;
+                            } else {
+                              // For other objects, try to stringify them nicely
+                              displayValue = JSON.stringify(value);
+                            }
+                          } else {
+                            displayValue = String(value);
+                          }
+                          
+                          return (
+                            <div key={key}>
+                              <div className="text-[#666] mb-1 capitalize">{key.replace(/_/g, ' ')}</div>
+                              <div className="text-[#e7e7e7]">
+                                {displayValue}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -1928,8 +1966,16 @@ export default function ChatV2Page() {
                       <div className="flex items-center justify-between">
                         <div className="text-[#666]">
                           Total tid: <span className="text-[#e7e7e7] font-medium">
-                            {selectedResponse.pipelineAnalysis.metadata?.totalProcessingTimeMs ?? 
-                             selectedResponse.pipelineAnalysis.timeline.reduce((sum, step) => sum + (step.durationMs || step.duration || 0), 0)}ms
+                            {(() => {
+                              // Try multiple sources for total processing time
+                              const metadataTime = selectedResponse.pipelineAnalysis.metadata?.totalProcessingTimeMs;
+                              const timelineSum = selectedResponse.pipelineAnalysis.timeline?.reduce((sum, step) => sum + (step.durationMs || step.duration || 0), 0);
+                              const pipelineMetadataTime = latestAiMessage.pipelineMetadata?.totalProcessingTimeMs;
+                              const processingTimesTotal = latestAiMessage.pipelineData?.metadata?.totalDurationMs;
+                              
+                              const totalTime = metadataTime || timelineSum || pipelineMetadataTime || processingTimesTotal || 0;
+                              return `${totalTime}ms`;
+                            })()}
                           </span>
                         </div>
                         {selectedResponse.pipelineAnalysis.pythonMLStats && (
