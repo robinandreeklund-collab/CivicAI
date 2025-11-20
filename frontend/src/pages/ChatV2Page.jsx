@@ -50,6 +50,16 @@ const formatTextWithMarkdown = (text) => {
     .replace(/^- (.+)$/gm, '<div class="ml-4">• $1</div>');  // List items
 };
 
+// Helper function to generate block hash (mock implementation for display)
+const generateBlockHash = (blockId) => {
+  const chars = '0123456789abcdef';
+  let hash = '';
+  for (let i = 0; i < 64; i++) {
+    hash += chars.charAt((blockId * 7 + i * 13) % chars.length);
+  }
+  return hash;
+};
+
 export default function ChatV2Page() {
   const location = useLocation();
   const [messages, setMessages] = useState([]);
@@ -2194,19 +2204,6 @@ export default function ChatV2Page() {
                   )}
                 </div>
               )}
-              
-              {/* Helper function for generating block hash (mock) */}
-              {(() => {
-                window.generateBlockHash = (blockId) => {
-                  const chars = '0123456789abcdef';
-                  let hash = '';
-                  for (let i = 0; i < 64; i++) {
-                    hash += chars.charAt((blockId * 7 + i * 13) % chars.length);
-                  }
-                  return hash;
-                };
-                return null;
-              })()}
               
               {/* Preprocessing */}
               {selectedResponse.pipelineAnalysis.preprocessing && (
