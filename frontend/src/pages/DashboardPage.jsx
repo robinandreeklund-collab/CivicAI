@@ -14,6 +14,8 @@ import ModernLoader from '../components/ModernLoader';
 export default function DashboardPage() {
   const [selectedTab, setSelectedTab] = useState('overview');
   const [notifications] = useState(3);
+  const [expandedQuestion, setExpandedQuestion] = useState(null);
+  const [showSnapshot, setShowSnapshot] = useState(null);
   const { user } = useAuth();
   
   // Get real user ID or use 'anonymous' for non-authenticated users
@@ -226,44 +228,152 @@ export default function DashboardPage() {
                         // Format timestamp
                         const timestamp = item.timestamp?.toDate?.() || new Date(item.timestamp);
                         
+                        const isExpanded = expandedQuestion === item.id;
+                        
                         return (
-                          <Link
+                          <div
                             key={item.id}
-                            to={`/chat-v2?doc=${item.id}`}
-                            className="block py-4 border-b border-[#151515] hover:bg-[#0f0f0f] transition-colors rounded px-2"
+                            className="border-b border-[#151515]"
                           >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="text-sm text-[#e7e7e7] mb-1">{item.question}</div>
-                                <div className="text-xs text-[#666] flex items-center gap-2">
-                                  <span>{formatTimeAgo(timestamp)}</span>
-                                  {modelCount > 0 && (
-                                    <>
-                                      <span>•</span>
-                                      <span>{modelCount} modeller</span>
-                                    </>
-                                  )}
-                                  <span>•</span>
-                                  <span className={`px-2 py-0.5 rounded ${
-                                    item.status === 'completed' || item.status === 'ledger_verified' 
-                                      ? 'bg-green-900/20 text-green-400' 
-                                      : item.status === 'processing'
-                                      ? 'bg-yellow-900/20 text-yellow-400'
-                                      : 'bg-red-900/20 text-red-400'
-                                  }`}>
-                                    {item.status === 'completed' ? 'Klar' : 
-                                     item.status === 'ledger_verified' ? 'Verifierad' :
-                                     item.status === 'processing' ? 'Bearbetar' :
-                                     item.status === 'error' ? 'Fel' : item.status}
-                                  </span>
+                            {/* Question Header - Clickable */}
+                            <div
+                              className="py-4 hover:bg-[#0f0f0f] transition-colors rounded px-2 cursor-pointer"
+                              onClick={() => setExpandedQuestion(isExpanded ? null : item.id)}
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <div className="text-sm text-[#e7e7e7] mb-1">{item.question}</div>
+                                  <div className="text-xs text-[#666] flex items-center gap-2">
+                                    <span>{formatTimeAgo(timestamp)}</span>
+                                    {modelCount > 0 && (
+                                      <>
+                                        <span>•</span>
+                                        <span>{modelCount} modeller</span>
+                                      </>
+                                    )}
+                                    <span>•</span>
+                                    <span className={`px-2 py-0.5 rounded ${
+                                      item.status === 'completed' || item.status === 'ledger_verified' 
+                                        ? 'bg-green-900/20 text-green-400' 
+                                        : item.status === 'processing'
+                                        ? 'bg-yellow-900/20 text-yellow-400'
+                                        : 'bg-red-900/20 text-red-400'
+                                    }`}>
+                                      {item.status === 'completed' ? 'Klar' : 
+                                       item.status === 'ledger_verified' ? 'Verifierad' :
+                                       item.status === 'processing' ? 'Bearbetar' :
+                                       item.status === 'error' ? 'Fel' : item.status}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="text-right ml-4 flex items-center gap-4">
+                                  <div>
+                                    <div className="text-sm text-[#e7e7e7]">{consensus.toFixed(0)}%</div>
+                                    <div className="text-xs text-[#666]">Konsensus</div>
+                                  </div>
+                                  <span className="text-[#555] text-xs font-mono">{isExpanded ? '−' : '+'}</span>
                                 </div>
                               </div>
-                              <div className="text-right ml-4">
-                                <div className="text-sm text-[#e7e7e7]">{consensus.toFixed(0)}%</div>
-                                <div className="text-xs text-[#666]">Konsensus</div>
-                              </div>
                             </div>
-                          </Link>
+
+                            {/* Expanded Details */}
+                            {isExpanded && (
+                              <div className="bg-[#0d0d0d] border-t border-[#1a1a1a] px-4 py-4 space-y-4">
+                                {/* Question Details */}
+                                <div>
+                                  <div className="text-[10px] font-mono text-[#666] mb-2">FRÅGA →</div>
+                                  <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-3 rounded">
+                                    <p className="text-sm font-mono text-[#888]">{item.question}</p>
+                                    <div className="mt-2 text-[10px] text-[#666] space-y-1">
+                                      <div>Dokument ID: <span className="text-[#888]">{item.id}</span></div>
+                                      <div>Status: <span className="text-[#888]">{item.status}</span></div>
+                                      <div>Skapad: <span className="text-[#888]">{timestamp?.toLocaleString('sv-SE')}</span></div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Analysis Results */}
+                                {item.analysis && (
+                                  <div>
+                                    <div className="text-[10px] font-mono text-[#666] mb-2">ANALYS →</div>
+                                    <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-3 rounded space-y-2">
+                                      {item.analysis.modelSynthesis && (
+                                        <div>
+                                          <div className="text-[10px] text-[#666] mb-1">Model Synthesis</div>
+                                          <div className="text-xs text-[#888] space-y-1">
+                                            {item.analysis.modelSynthesis.consensusIndex !== undefined && (
+                                              <div>Konsensusindex: {(item.analysis.modelSynthesis.consensusIndex * 100).toFixed(1)}%</div>
+                                            )}
+                                            {item.analysis.modelSynthesis.divergenceMeasure !== undefined && (
+                                              <div>Divergens: {(item.analysis.modelSynthesis.divergenceMeasure * 100).toFixed(1)}%</div>
+                                            )}
+                                            {item.analysis.modelSynthesis.modelCards && (
+                                              <div>Antal modeller: {item.analysis.modelSynthesis.modelCards.length}</div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                      {item.analysis.bias && (
+                                        <div>
+                                          <div className="text-[10px] text-[#666] mb-1">Bias Detection</div>
+                                          <div className="text-xs text-[#888]">
+                                            Bias Score: {item.analysis.bias.biasScore || 0}/10
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Quality Metrics */}
+                                {item.quality_metrics && Object.keys(item.quality_metrics).length > 0 && (
+                                  <div>
+                                    <div className="text-[10px] font-mono text-[#666] mb-2">KVALITETSMÅTT →</div>
+                                    <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-3 rounded">
+                                      <pre className="text-[10px] font-mono text-[#888] whitespace-pre-wrap overflow-x-auto">
+                                        {JSON.stringify(item.quality_metrics, null, 2)}
+                                      </pre>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Database Snapshot Button */}
+                                <div className="pt-2 border-t border-[#1a1a1a]">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowSnapshot(showSnapshot === item.id ? null : item.id);
+                                    }}
+                                    className="text-xs px-3 py-1.5 bg-[#1a1a1a] hover:bg-[#2a2a2a] text-[#888] rounded transition-colors font-mono"
+                                  >
+                                    {showSnapshot === item.id ? '− Dölj' : '+ Visa'} Databas Snapshot
+                                  </button>
+                                  
+                                  {showSnapshot === item.id && (
+                                    <div className="mt-3">
+                                      <div className="text-[10px] font-mono text-[#666] mb-2">DATABAS SNAPSHOT (JSON) →</div>
+                                      <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-3 rounded max-h-96 overflow-auto">
+                                        <pre className="text-[10px] font-mono text-[#888] whitespace-pre-wrap">
+                                          {JSON.stringify(item, null, 2)}
+                                        </pre>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Link to Chat-V2 */}
+                                <div className="pt-2">
+                                  <Link
+                                    to={`/chat-v2?doc=${item.id}`}
+                                    className="inline-block text-xs px-3 py-1.5 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-[#e7e7e7] rounded transition-colors"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    Öppna i Chat-V2 →
+                                  </Link>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                       
