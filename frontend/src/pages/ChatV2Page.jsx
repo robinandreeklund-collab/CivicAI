@@ -5,6 +5,7 @@ import NLPProcessingLoader from '../components/NLPProcessingLoader';
 import ChangeDetectionPanel from '../components/ChangeDetectionPanel';
 import ReplayTimeline from '../components/ReplayTimeline';
 import { useFirestoreDocument } from '../hooks/useFirestoreDocument';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
  * ChatV2Page Component - Concept 31 Design
@@ -42,6 +43,7 @@ export default function ChatV2Page() {
   const [replayData, setReplayData] = useState(null);
   const [expandedPipelineStep, setExpandedPipelineStep] = useState(null);
   const [expandedModelDetails, setExpandedModelDetails] = useState({});
+  const { isAuthenticated } = useAuth();
   
   // Firebase Firestore integration - Track current question's document ID
   const [firebaseDocId, setFirebaseDocId] = useState(null);
@@ -2638,6 +2640,11 @@ export default function ChatV2Page() {
                 <a href="/chat-v2" className="block px-4 py-3 text-[#e7e7e7] bg-[#151515] rounded">
                   Analys
                 </a>
+                {isAuthenticated && (
+                  <a href="/dashboard" className="block px-4 py-3 text-[#888] hover:bg-[#151515] hover:text-[#e7e7e7] rounded transition-colors">
+                    📊 Dashboard
+                  </a>
+                )}
                 <a href="/audit-trail" className="block px-4 py-3 text-[#888] hover:bg-[#151515] hover:text-[#e7e7e7] rounded transition-colors">
                   Historik
                 </a>
