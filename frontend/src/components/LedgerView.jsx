@@ -101,26 +101,19 @@ export default function LedgerView({ blocks = [], onVerify = null }) {
 
   const getEventIcon = (eventType) => {
     const icons = {
-      genesis: '🌟',
-      training: '🎓',
-      update: '🔄',
-      audit: '🔍',
-      review: '👁️',
-      data_collection: '📊'
+      genesis: 'GENESIS',
+      training: 'TRAINING',
+      update: 'UPDATE',
+      audit: 'AUDIT',
+      review: 'REVIEW',
+      data_collection: 'DATA'
     };
-    return icons[eventType] || '📝';
+    return icons[eventType] || 'EVENT';
   };
 
   const getEventColor = (eventType) => {
-    const colors = {
-      genesis: 'border-purple-500',
-      training: 'border-blue-500',
-      update: 'border-green-500',
-      audit: 'border-yellow-500',
-      review: 'border-orange-500',
-      data_collection: 'border-cyan-500'
-    };
-    return colors[eventType] || 'border-gray-500';
+    // All events use the same border color for consistency
+    return 'border-[#2a2a2a]';
   };
 
   const handleVerify = () => {
@@ -159,40 +152,40 @@ export default function LedgerView({ blocks = [], onVerify = null }) {
       {/* Verification status */}
       {verificationStatus && (
         <div className={`
-          mb-4 p-3 rounded-lg text-sm
+          mb-4 p-3 rounded-lg text-sm border
           ${verificationStatus === 'valid' 
-            ? 'bg-green-500/10 border border-green-500/30 text-green-400' 
-            : 'bg-yellow-500/10 border border-yellow-500/30 text-yellow-400'
+            ? 'bg-[#0a0a0a] border-[#2a2a2a] text-[#e7e7e7]' 
+            : 'bg-[#0a0a0a] border-[#2a2a2a] text-[#888]'
           }
         `}>
           {verificationStatus === 'valid' 
-            ? '✓ Ledger integrity verified - All blocks are valid'
-            : '⏳ Verifying blockchain integrity...'
+            ? 'Ledger integrity verified - All blocks are valid'
+            : 'Verifying blockchain integrity...'
           }
         </div>
       )}
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-3">
-          <div className="text-xs text-[#888] mb-1">Total Blocks</div>
-          <div className="text-xl font-medium text-[#e7e7e7]">{displayBlocks.length}</div>
+        <div className="border-l border-[#2a2a2a] pl-3">
+          <div className="text-xs text-[#666] uppercase tracking-wider mb-1">Total Blocks</div>
+          <div className="text-xl font-light text-[#e7e7e7]">{displayBlocks.length}</div>
         </div>
-        <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-3">
-          <div className="text-xs text-[#888] mb-1">Training Events</div>
-          <div className="text-xl font-medium text-blue-400">
+        <div className="border-l border-[#2a2a2a] pl-3">
+          <div className="text-xs text-[#666] uppercase tracking-wider mb-1">Training Events</div>
+          <div className="text-xl font-light text-[#e7e7e7]">
             {displayBlocks.filter(b => b.event_type === 'training').length}
           </div>
         </div>
-        <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-3">
-          <div className="text-xs text-[#888] mb-1">Updates</div>
-          <div className="text-xl font-medium text-green-400">
+        <div className="border-l border-[#2a2a2a] pl-3">
+          <div className="text-xs text-[#666] uppercase tracking-wider mb-1">Updates</div>
+          <div className="text-xl font-light text-[#e7e7e7]">
             {displayBlocks.filter(b => b.event_type === 'update').length}
           </div>
         </div>
-        <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-3">
-          <div className="text-xs text-[#888] mb-1">Audits</div>
-          <div className="text-xl font-medium text-yellow-400">
+        <div className="border-l border-[#2a2a2a] pl-3">
+          <div className="text-xs text-[#666] uppercase tracking-wider mb-1">Audits</div>
+          <div className="text-xl font-light text-[#e7e7e7]">
             {displayBlocks.filter(b => b.event_type === 'audit').length}
           </div>
         </div>
@@ -216,13 +209,15 @@ export default function LedgerView({ blocks = [], onVerify = null }) {
             {/* Block header */}
             <div className="flex items-start justify-between mb-2">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">{getEventIcon(block.event_type)}</span>
+                <span className="text-xs font-mono text-[#666] border border-[#2a2a2a] px-2 py-1 rounded">
+                  {getEventIcon(block.event_type)}
+                </span>
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-[#e7e7e7]">
                       Block #{block.block_id}
                     </span>
-                    <span className="px-2 py-0.5 bg-[#2a2a2a] text-[#aaa] text-xs rounded">
+                    <span className="px-2 py-0.5 bg-[#2a2a2a] text-[#aaa] text-xs rounded font-mono">
                       {block.event_type}
                     </span>
                   </div>

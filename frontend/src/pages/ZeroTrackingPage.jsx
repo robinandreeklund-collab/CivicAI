@@ -50,10 +50,19 @@ export default function ZeroTrackingPage() {
                   Zero Tracking Standard innebär att vi fungerar som ett skyddande lager mellan dig och 
                   teknikjättarnas datainsamling. När du använder OneSeek.AI:
                 </p>
-                <div className="space-y-2 text-xs">
-                  <div className="text-[#888]"><span className="text-[#666]">✓</span> Går dina frågor genom oss, inte direkt till AI-företagen</div>
-                  <div className="text-[#888]"><span className="text-[#666]">✓</span> Avidentifieras all data innan den når externa AI-tjänster</div>
-                  <div className="text-[#888]"><span className="text-[#666]">✓</span> Skyddas din integritet genom vår tekniska arkitektur</div>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-start gap-3">
+                    <span className="text-[#666] mt-0.5">—</span>
+                    <span className="text-[#888]">Går dina frågor genom oss, inte direkt till AI-företagen</span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-[#666] mt-0.5">—</span>
+                    <span className="text-[#888]">Avidentifieras all data innan den når externa AI-tjänster</span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-[#666] mt-0.5">—</span>
+                    <span className="text-[#888]">Skyddas din integritet genom vår tekniska arkitektur</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -62,11 +71,23 @@ export default function ZeroTrackingPage() {
             <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-6">
               <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Vad vi sparar och varför</h2>
               <p className="mb-4 text-sm text-[#888]">Vi sparar anonymiserade frågor och AI-svar för att:</p>
-              <div className="grid md:grid-cols-4 gap-2 text-xs">
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">📊 Förbättra systemets kvalitet</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">🔍 Upptäcka och åtgärda bias</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">📝 Dokumentera AI-resonemang</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">🌐 Skapa transparens</div>
+              <div className="grid md:grid-cols-2 gap-4 text-sm">
+                <div className="border-l border-[#2a2a2a] pl-4">
+                  <div className="text-[#e7e7e7] mb-1">Förbättra systemets kvalitet</div>
+                  <div className="text-xs text-[#666]">Kontinuerlig utveckling och optimering</div>
+                </div>
+                <div className="border-l border-[#2a2a2a] pl-4">
+                  <div className="text-[#e7e7e7] mb-1">Upptäcka och åtgärda bias</div>
+                  <div className="text-xs text-[#666]">Säkerställa balanserade perspektiv</div>
+                </div>
+                <div className="border-l border-[#2a2a2a] pl-4">
+                  <div className="text-[#e7e7e7] mb-1">Dokumentera AI-resonemang</div>
+                  <div className="text-xs text-[#666]">Transparens i beslutsprocesser</div>
+                </div>
+                <div className="border-l border-[#2a2a2a] pl-4">
+                  <div className="text-[#e7e7e7] mb-1">Skapa transparens</div>
+                  <div className="text-xs text-[#666]">Öppen granskning och spårbarhet</div>
+                </div>
               </div>
               <p className="mt-4 text-xs text-[#666] italic">
                 All denna data är helt avidentifierad och kan inte kopplas till dig som användare.
@@ -77,12 +98,27 @@ export default function ZeroTrackingPage() {
             <div className="grid md:grid-cols-2 gap-6">
               <div className="bg-[#151515] border border-[#2a2a2a] rounded-xl p-6">
                 <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Tekniska Garantier</h2>
-                <div className="space-y-2 text-xs">
-                  <div className="text-[#888]"><span className="text-[#666]">🚫</span> <span className="text-[#aaa] font-medium">Inga IP-adresser:</span> Loggas eller lagras aldrig</div>
-                  <div className="text-[#888]"><span className="text-[#666]">🚫</span> <span className="text-[#aaa] font-medium">Inga cookies:</span> Ingen spårning över tid</div>
-                  <div className="text-[#888]"><span className="text-[#666]">🚫</span> <span className="text-[#aaa] font-medium">Ingen övervakning:</span> Inget beteendeanalys</div>
-                  <div className="text-[#888]"><span className="text-[#666]">🚫</span> <span className="text-[#aaa] font-medium">Ingen profilering:</span> Användare kan inte identifieras</div>
-                  <div className="text-[#888]"><span className="text-[#666]">🚫</span> <span className="text-[#aaa] font-medium">Ingen fingerprinting:</span> Ingen dold identifiering</div>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between py-2 border-b border-[#151515]">
+                    <span className="text-[#666]">IP-adresser</span>
+                    <span className="text-[#888]">Loggas aldrig</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-[#151515]">
+                    <span className="text-[#666]">Cookies</span>
+                    <span className="text-[#888]">Ingen spårning</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-[#151515]">
+                    <span className="text-[#666]">Övervakning</span>
+                    <span className="text-[#888]">Ingen beteendeanalys</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-[#151515]">
+                    <span className="text-[#666]">Profilering</span>
+                    <span className="text-[#888]">Ingen identifiering</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-[#151515]">
+                    <span className="text-[#666]">Fingerprinting</span>
+                    <span className="text-[#888]">Ingen dold spårning</span>
+                  </div>
                 </div>
               </div>
 
