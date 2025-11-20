@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserQuestions, useUserQuestionStats } from '../hooks/useUserQuestions';
 import FooterDemo4 from '../components/footers/FooterDemo4';
@@ -12,8 +12,8 @@ import FooterDemo4 from '../components/footers/FooterDemo4';
  */
 export default function DashboardPage() {
   const [selectedTab, setSelectedTab] = useState('overview');
-  const [notifications, setNotifications] = useState(3);
-  const { user, isAuthenticated } = useAuth();
+  const [notifications] = useState(3);
+  const { user } = useAuth();
   
   // Get real user ID or use 'anonymous' for non-authenticated users
   const userId = user?.uid || 'anonymous';
@@ -22,12 +22,12 @@ export default function DashboardPage() {
   const { questions: recentQuestions, totalCount, loading: questionsLoading } = useUserQuestions(userId, 20);
   const { stats, loading: statsLoading } = useUserQuestionStats(userId);
   
-  // Use real stats or fallback to mock data
-  const mockActivity = {
+  // Use real stats from Firebase
+  const activity = {
     totalQuestions: stats.totalQuestions || 0,
     questionsThisWeek: stats.questionsThisWeek || 0,
-    avgConsensus: 0.863, // TODO: Calculate from actual questions
-    avgBias: 0.042, // TODO: Calculate from actual questions
+    avgConsensus: stats.avgConsensus || 0,
+    avgBias: stats.avgBias || 0,
     lastActivity: recentQuestions[0]?.timestamp?.toDate?.()?.toISOString() || new Date().toISOString(),
   };
 
@@ -101,7 +101,7 @@ export default function DashboardPage() {
                 <div className="text-right">
                   <div className="space-y-1 text-xs">
                     <div className="text-[#666]">Senaste aktivitet</div>
-                    <div className="text-[#888]">{formatTimeAgo(mockActivity.lastActivity)}</div>
+                    <div className="text-[#888]">{formatTimeAgo(activity.lastActivity)}</div>
                     {notifications > 0 && (
                       <div className="text-[#e7e7e7] flex items-center gap-2 justify-end">
                         <span className="w-2 h-2 bg-[#e7e7e7] rounded-full animate-pulse"></span>
@@ -148,24 +148,35 @@ export default function DashboardPage() {
                   <div className="border-l border-[#151515] pl-4">
                     <div className="text-xs text-[#666] uppercase tracking-wider mb-2">Frågor</div>
                     <div className="text-3xl font-light text-[#e7e7e7]">
-                      {mockActivity.totalQuestions}
+                      {activity.totalQuestions}
                     </div>
-                    <div className="text-xs text-[#666] mt-1">+{mockActivity.questionsThisWeek} denna vecka</div>
+                    <div className="text-xs text-[#666] mt-1">+{activity.questionsThisWeek} denna vecka</div>
                   </div>
                   
                   <div className="border-l border-[#151515] pl-4">
                     <div className="text-xs text-[#666] uppercase tracking-wider mb-2">Genomsnittlig Konsensus</div>
                     <div className="text-3xl font-light text-[#e7e7e7]">
-                      {(mockActivity.avgConsensus * 100).toFixed(0)}%
+                      {activity.avgConsensus > 0 ? activity.avgConsensus.toFixed(0) : '--'}%
                     </div>
                   </div>
                   
                   <div className="border-l border-[#151515] pl-4">
                     <div className="text-xs text-[#666] uppercase tracking-wider mb-2">Bias-nivå</div>
                     <div className="text-3xl font-light text-[#e7e7e7]">
-                      {(mockActivity.avgBias * 100).toFixed(1)}%
+                      {activity.avgBias > 0 ? activity.avgBias.toFixed(1) : '0.0'}%
                     </div>
-                    <div className="text-xs text-green-400 mt-1">Mycket låg</div>
+                    <div className={`text-xs mt-1 ${
+                      activity.avgBias === 0 ? 'text-[#666]' :
+                      activity.avgBias < 2 ? 'text-green-400' :
+                      activity.avgBias < 4 ? 'text-yellow-400' :
+                      'text-red-400'
+                    }`}>
+                      {activity.avgBias === 0 ? 'Ingen data' :
+                       activity.avgBias < 2 ? 'Mycket låg' :
+                       activity.avgBias < 4 ? 'Låg' :
+                       activity.avgBias < 6 ? 'Medel' :
+                       'Hög'}
+                    </div>
                   </div>
                   
                   <div className="border-l border-[#151515] pl-4">
@@ -181,12 +192,12 @@ export default function DashboardPage() {
                 <div>
                   <h3 className="text-xs text-[#666] uppercase tracking-wider mb-6">Senaste Frågor</h3>
                   
-                  {questionsLoading ? (
+                  {questionsLoading || statsLoading ? (
                     <div className="py-12 text-center">
                       <div className="inline-block animate-spin text-4xl mb-4">⏳</div>
                       <p className="text-[#666]">Laddar frågor från Firebase...</p>
                     </div>
-                  ) : recentQuestions.length === 0 ? (
+                  ) : stats.totalQuestions === 0 ? (
                     <div className="py-12 text-center">
                       <p className="text-[#666]">Inga frågor än. Ställ din första fråga!</p>
                       <Link 
@@ -305,11 +316,11 @@ export default function DashboardPage() {
                     <div className="space-y-3 text-sm">
                       <div className="flex justify-between py-2 border-b border-[#151515]">
                         <span className="text-[#666]">Totalt spårade frågor</span>
-                        <span className="text-[#e7e7e7]">{mockActivity.totalQuestions}</span>
+                        <span className="text-[#e7e7e7]">{activity.totalQuestions}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b border-[#151515]">
                         <span className="text-[#666]">Verifierade i ledger</span>
-                        <span className="text-[#e7e7e7]">{mockActivity.totalQuestions}</span>
+                        <span className="text-[#e7e7e7]">{activity.totalQuestions}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b border-[#151515]">
                         <span className="text-[#666]">Genomsnittlig verifieringstid</span>
@@ -325,7 +336,7 @@ export default function DashboardPage() {
                       <div className="bg-[#0a0a0a] rounded p-3 border border-[#2a2a2a] font-mono text-xs">
                         <div className="text-[#666] mb-1">Block #47231</div>
                         <div className="text-[#888] truncate">hash: 0x4a9f2e...</div>
-                        <div className="text-[#666] mt-1">{formatTimeAgo(mockActivity.lastActivity)}</div>
+                        <div className="text-[#666] mt-1">{formatTimeAgo(activity.lastActivity)}</div>
                       </div>
                       {recentQuestions.length > 1 && (
                         <div className="bg-[#0a0a0a] rounded p-3 border border-[#2a2a2a] font-mono text-xs">
