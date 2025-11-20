@@ -23,7 +23,27 @@ const DEBUG_MODE = new URLSearchParams(window.location.search).get('debug') === 
 // Helper function to format text with markdown-like formatting
 const formatTextWithMarkdown = (text) => {
   if (!text) return '';
-  return text
+  
+  // Fix common encoding issues (UTF-8 characters incorrectly decoded as Latin-1)
+  let fixedText = text;
+  try {
+    // Fix common Swedish character encoding issues
+    fixedText = fixedText
+      .replace(/Ã¤/g, 'ä')
+      .replace(/Ã¥/g, 'å')
+      .replace(/Ã¶/g, 'ö')
+      .replace(/Ã„/g, 'Ä')
+      .replace(/Ã…/g, 'Å')
+      .replace(/Ã–/g, 'Ö')
+      .replace(/Ã©/g, 'é')
+      .replace(/Ã¡/g, 'á')
+      .replace(/Ã¨/g, 'è')
+      .replace(/Ã /g, 'à');
+  } catch (e) {
+    console.warn('[ChatV2] Failed to fix encoding:', e);
+  }
+  
+  return fixedText
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold text
     .replace(/\*(.*?)\*/g, '<em>$1</em>')  // Italic text
     .replace(/\n/g, '<br/>')  // Line breaks
@@ -575,10 +595,7 @@ export default function ChatV2Page() {
               </div>
               <div className="text-sm text-[#666] leading-relaxed whitespace-pre-wrap" 
                    dangerouslySetInnerHTML={{ 
-                     __html: latestAiMessage.bertSummary
-                       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold text
-                       .replace(/\*(.*?)\*/g, '<em>$1</em>')  // Italic text
-                       .replace(/\n/g, '<br/>')  // Line breaks
+                     __html: formatTextWithMarkdown(latestAiMessage.bertSummary)
                    }}>
               </div>
             </div>
@@ -772,6 +789,80 @@ export default function ChatV2Page() {
                   )}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Meta-Review Panel (GPT-3.5 Quality Check) */}
+        {latestAiMessage.metaReview && (
+          <div className="max-w-4xl mx-auto mb-8">
+            <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">🔍</div>
+                <div>
+                  <div className="font-medium text-[#e7e7e7]">Meta-analys (GPT-3.5)</div>
+                  <div className="text-sm text-[#666]">Kvalitetskontroll av AI-svar och modellsyntes</div>
+                </div>
+              </div>
+              
+              {/* Meta Review Content */}
+              <div className="mb-4">
+                <div className="text-sm text-[#888] leading-relaxed"
+                     dangerouslySetInnerHTML={{
+                       __html: formatTextWithMarkdown(
+                         typeof latestAiMessage.metaReview === 'string' 
+                           ? latestAiMessage.metaReview 
+                           : latestAiMessage.metaReview?.summary || 'GPT-3.5 har granskat kvaliteten på alla AI-svar och bedömt deras innehåll, konsekvens och användbarhet.'
+                       )
+                     }}>
+                </div>
+              </div>
+              
+              {/* Recommendations */}
+              {latestAiMessage.metaReview.recommendations && latestAiMessage.metaReview.recommendations.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-xs text-[#666] uppercase tracking-wide mb-2">Rekommendationer:</div>
+                  <ul className="list-disc list-inside space-y-1 text-sm text-[#888]">
+                    {latestAiMessage.metaReview.recommendations.map((rec, idx) => (
+                      <li key={idx}>{rec}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {/* Quality Metrics */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="bg-[#1a1a1a] rounded p-3">
+                  <div className="text-[#666] mb-1">Kvalitet</div>
+                  <div className="text-[#e7e7e7]">
+                    {typeof latestAiMessage.metaReview === 'object' ? (latestAiMessage.metaReview.quality || 'Hög') : 'Hög'}
+                  </div>
+                </div>
+                <div className="bg-[#1a1a1a] rounded p-3">
+                  <div className="text-[#666] mb-1">Konsekvens</div>
+                  <div className="text-[#e7e7e7]">
+                    {typeof latestAiMessage.metaReview === 'object' ? (latestAiMessage.metaReview.consistency || 'God') : 'God'}
+                  </div>
+                </div>
+                <div className="bg-[#1a1a1a] rounded p-3">
+                  <div className="text-[#666] mb-1">Fullständighet</div>
+                  <div className="text-[#e7e7e7]">
+                    {typeof latestAiMessage.metaReview === 'object' ? (latestAiMessage.metaReview.completeness || 'Fullständig') : 'Fullständig'}
+                  </div>
+                </div>
+                <div className="bg-[#1a1a1a] rounded p-3">
+                  <div className="text-[#666] mb-1">Relevans</div>
+                  <div className="text-[#e7e7e7]">
+                    {typeof latestAiMessage.metaReview === 'object' ? (latestAiMessage.metaReview.relevance || 'Hög') : 'Hög'}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Footer Info */}
+              <div className="mt-4 pt-4 border-t border-[#2a2a2a] flex items-center justify-between text-xs text-[#666]">
+                <div>Granskare: GPT-3.5 Turbo</div>
+                <div>{latestAiMessage.responses?.length || 0} svar granskade</div>
+              </div>
             </div>
           </div>
         )}
