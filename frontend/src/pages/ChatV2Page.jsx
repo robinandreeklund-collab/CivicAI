@@ -179,10 +179,24 @@ export default function ChatV2Page() {
               const analysis = parseJsonField(r.analysis, 'analysis');
               const enhancedAnalysis = parseJsonField(r.enhancedAnalysis, 'enhancedAnalysis');
               
-              // Try multiple sources for agent/service name
+              // CRITICAL FIX: Firestore seems to have issues with direct property access
+              // JSON.stringify works but r.service returns undefined
+              // So we parse the JSON to get a clean object
+              let cleanR = r;
+              try {
+                const jsonStr = JSON.stringify(r);
+                if (jsonStr && jsonStr !== '{}') {
+                  cleanR = JSON.parse(jsonStr);
+                }
+              } catch (e) {
+                console.warn(`[ChatV2] Failed to clean response object:`, e);
+              }
+              
+              // Try multiple sources for agent/service name  
               // Log what we're checking BEFORE the assignment
               console.log(`[ChatV2] Response ${idx} - Checking agent name sources:`, {
                 'r.service': r.service,
+                'cleanR.service': cleanR.service,
                 'r.service type': typeof r.service,
                 'r.service truthy': !!r.service,
                 'r.service JSON': JSON.stringify(r.service),
@@ -196,7 +210,8 @@ export default function ChatV2Page() {
                 'r.service === ""': r.service === ''
               });
               
-              const agentName = r.service || r.agent || r.metadata?.model || r.model_version || 'unknown';
+              // Use cleanR instead of r for field access
+              const agentName = cleanR.service || cleanR.agent || cleanR.metadata?.model || cleanR.model_version || 'unknown';
               
               console.log(`[ChatV2] Response ${idx} - Selected agent name: "${agentName}"`);
               
@@ -224,8 +239,10 @@ export default function ChatV2Page() {
               if (agentName === 'unknown') {
                 console.error('[ChatV2] ❌ Unknown agent detected at index', idx, '!');
                 console.error('[ChatV2] Full raw_response object:', r);
+                console.error('[ChatV2] Clean raw_response object:', cleanR);
                 console.error('[ChatV2] Field values:', {
                   service: r.service,
+                  cleanService: cleanR.service,
                   service_type: typeof r.service,
                   service_stringified: JSON.stringify(r.service),
                   agent: r.agent,
@@ -237,8 +254,8 @@ export default function ChatV2Page() {
               
               return {
                 agent: agentName,
-                response: r.response_text || r.response || '',
-                metadata: r.metadata || {},
+                response: cleanR.response_text || cleanR.response || '',
+                metadata: cleanR.metadata || {},
                 analysis: analysis || {},
                 enhancedAnalysis: enhancedAnalysis || null,
                 pipelineAnalysis: pipelineAnalysis
