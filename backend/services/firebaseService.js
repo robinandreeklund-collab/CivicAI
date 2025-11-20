@@ -273,18 +273,19 @@ export async function saveRawResponses(docId, responses) {
  * Firestore does not allow undefined values and has limitations on nested structures
  * @param {any} obj - Object to clean
  * @param {number} depth - Current nesting depth (for limiting recursion)
+ * @param {Set} seen - Set to track circular references
  * @returns {any} Cleaned object safe for Firestore
  */
-function removeUndefinedValues(obj, depth = 0) {
+function removeUndefinedValues(obj, depth = 0, seen = new Set()) {
   // Limit depth to prevent overly nested structures (Firestore limit is around 20 levels)
-  const MAX_DEPTH = 15;
+  const MAX_DEPTH = 10; // Reduced from 15 to be safer
   
   if (depth > MAX_DEPTH) {
     // Convert deeply nested objects to JSON string
     try {
       return JSON.stringify(obj);
     } catch (e) {
-      return null;
+      return '[Too Deeply Nested]';
     }
   }
   
@@ -292,47 +293,112 @@ function removeUndefinedValues(obj, depth = 0) {
     return null;
   }
   
-  // Handle Date objects
-  if (obj instanceof Date) {
-    return obj.toISOString();
-  }
-  
   // Handle primitive types
   if (typeof obj !== 'object') {
+    // Ensure numbers are valid (not NaN, Infinity)
+    if (typeof obj === 'number') {
+      if (Number.isNaN(obj) || !Number.isFinite(obj)) {
+        return null;
+      }
+    }
     return obj;
+  }
+  
+  // Detect circular references
+  if (seen.has(obj)) {
+    return '[Circular Reference]';
+  }
+  seen.add(obj);
+  
+  // Handle Date objects
+  if (obj instanceof Date) {
+    const result = obj.toISOString();
+    seen.delete(obj);
+    return result;
+  }
+  
+  // Handle Buffer objects
+  if (Buffer.isBuffer(obj)) {
+    const result = obj.toString('base64');
+    seen.delete(obj);
+    return result;
+  }
+  
+  // Handle Error objects
+  if (obj instanceof Error) {
+    const result = {
+      message: obj.message,
+      name: obj.name,
+      stack: obj.stack
+    };
+    seen.delete(obj);
+    return result;
   }
   
   // Handle arrays
   if (Array.isArray(obj)) {
-    const cleaned = obj
-      .map(item => removeUndefinedValues(item, depth + 1))
-      .filter(item => item !== undefined && item !== null);
+    const cleaned = [];
+    for (const item of obj) {
+      try {
+        const cleanedItem = removeUndefinedValues(item, depth + 1, seen);
+        if (cleanedItem !== undefined && cleanedItem !== null) {
+          cleaned.push(cleanedItem);
+        }
+      } catch (e) {
+        console.warn('[Firebase Service] Skipping array item due to error:', e.message);
+      }
+    }
+    seen.delete(obj);
     return cleaned.length > 0 ? cleaned : null;
   }
   
-  // Handle objects - convert to plain object and clean
+  // Handle plain objects
+  // First try to convert to plain object using JSON (removes functions, circular refs, etc.)
+  let plainObj;
+  try {
+    plainObj = JSON.parse(JSON.stringify(obj));
+  } catch (jsonError) {
+    // If JSON stringify fails, manually clean the object
+    plainObj = {};
+    for (const [key, value] of Object.entries(obj)) {
+      // Skip functions, symbols, and undefined
+      if (typeof value === 'function' || typeof value === 'symbol' || value === undefined) {
+        continue;
+      }
+      plainObj[key] = value;
+    }
+  }
+  
+  // Now clean the plain object recursively
   const cleaned = {};
   try {
-    for (const [key, value] of Object.entries(obj)) {
-      // Skip functions and symbols
+    for (const [key, value] of Object.entries(plainObj)) {
+      // Skip invalid keys
+      if (typeof key !== 'string' || key === '') {
+        continue;
+      }
+      
+      // Skip functions and symbols that might have survived
       if (typeof value === 'function' || typeof value === 'symbol') {
         continue;
       }
       
-      const cleanedValue = removeUndefinedValues(value, depth + 1);
-      if (cleanedValue !== undefined && cleanedValue !== null) {
-        cleaned[key] = cleanedValue;
+      try {
+        const cleanedValue = removeUndefinedValues(value, depth + 1, seen);
+        if (cleanedValue !== undefined && cleanedValue !== null) {
+          cleaned[key] = cleanedValue;
+        }
+      } catch (e) {
+        console.warn(`[Firebase Service] Skipping property '${key}' due to error:`, e.message);
       }
     }
   } catch (e) {
-    // If we can't iterate, try to convert to JSON
-    try {
-      return JSON.parse(JSON.stringify(obj));
-    } catch (jsonError) {
-      return null;
-    }
+    console.error('[Firebase Service] Error cleaning object:', e.message);
+    seen.delete(obj);
+    return null;
   }
   
+  seen.delete(obj);
   return Object.keys(cleaned).length > 0 ? cleaned : null;
 }
 
