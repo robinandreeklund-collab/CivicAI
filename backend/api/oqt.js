@@ -387,7 +387,7 @@ router.post('/train', rateLimiter, async (req, res) => {
  * GET /api/oqt/status
  * Get OQT-1.0 model status and health
  */
-router.get('/status', (req, res) => {
+router.get('/status', rateLimiter, (req, res) => {
   try {
     res.json({
       success: true,
@@ -420,7 +420,7 @@ router.get('/status', (req, res) => {
  * GET /api/oqt/metrics
  * Get OQT-1.0 performance metrics
  */
-router.get('/metrics', (req, res) => {
+router.get('/metrics', rateLimiter, (req, res) => {
   try {
     res.json({
       success: true,
