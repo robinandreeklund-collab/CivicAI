@@ -318,6 +318,8 @@ You should see:
 - Virtual environment must be activated
 - Make sure `firebase-service-account.json` is in the project root before running
 
+**Note**: The script now creates only **6 essential collections** based on actual usage in the code. Redundant collections have been removed to simplify the database structure.
+
 ### Linux/Mac (Bash):
 ```bash
 # Make sure venv is activated first
@@ -332,45 +334,60 @@ python scripts/setup_firebase.py
 # Make sure venv is activated first
 .\venv\Scripts\Activate.ps1
 
-# Setup Firebase collections
+# Alternativ 1: Använd Python-scriptet (REKOMMENDERAT)
 python scripts/setup_firebase.py
+
+# Alternativ 2: Använd PowerShell-scriptet för vägledning
+# (Visar collections som ska skapas, men skapar inte själva collections)
+.\scripts\setup_firebase.ps1
+
+# Alternativ 3: Använd PowerShell-scriptet för detaljerad vägledning
+.\scripts\create_collections.ps1
 ```
+
+**PowerShell-scriptets funktioner**:
+- `setup_firebase.ps1`: Visar collections, exporterar schema till JSON
+- `create_collections.ps1`: Detaljerad manual för att skapa collections via Firebase Console
+
+**Notera**: PowerShell-scripten skapar INTE själva collections automatiskt pga Firebase REST API komplexitet. De ger istället tydliga instruktioner för manuell skapning via Firebase Console eller rekommenderar Python-scriptet.
 
 Or manually create collections via Firebase Console:
 
-#### Required Collections:
+#### Required Collections (6 st):
 
-1. **questions**
-   - Stores user questions
-   - Fields: `question`, `timestamp`, `userId`, `metadata`
+1. **ai_interactions**
+   - Unified storage for questions, raw AI responses, and ML analyses
+   - Fields: `interactionId`, `question{}`, `raw_responses[]`, `processed_data{}`, `timestamp`
+   - Purpose: Central data source for training and analysis
 
-2. **external_raw_responses**
-   - Raw responses from external AI services
-   - Fields: `questionId`, `service`, `response`, `timestamp`, `metadata`
+2. **oqt_queries**
+   - Direct queries to OQT-1.0 from dashboard
+   - Fields: `queryId`, `question`, `response`, `confidence`, `timestamp`, `model`, `version`, `metadata{}`
+   - Purpose: Track user interactions with OQT-1.0
 
-3. **per_response_analysis**
-   - Analysis results for each response
-   - Fields: `responseId`, `bias`, `sentiment`, `toxicity`, `fairness`, `timestamp`
+3. **oqt_training_events**
+   - Training event logs (micro-training and batch training)
+   - Fields: `trainingId`, `type`, `timestamp`, `samplesProcessed`, `stage1{}`, `stage2{}`, `modelVersion`, `metrics{}`
+   - Purpose: Transparency around model training
 
-4. **oqt_training_events**
-   - Training event logs
-   - Fields: `eventId`, `type`, `timestamp`, `samplesProcessed`, `metrics`
+4. **oqt_metrics**
+   - Performance metrics over time
+   - Fields: `metricId`, `version`, `timestamp`, `metrics{}`, `training{}`
+   - Purpose: Dashboard "Mätvärden" tab
 
-5. **oqt_model_versions**
-   - Model version history
-   - Fields: `version`, `timestamp`, `metrics`, `trainingData`
+5. **oqt_provenance**
+   - Provenance tracking for transparency
+   - Fields: `provenanceId`, `queryId`, `timestamp`, `model`, `version`, `processingSteps[]`, `inputHash`
+   - Purpose: Complete traceability of decisions
 
-6. **oqt_queries**
-   - OQT-1.0 query logs
-   - Fields: `queryId`, `question`, `response`, `confidence`, `timestamp`
+6. **oqt_ledger**
+   - Blockchain-style immutable ledger
+   - Fields: `blockNumber`, `type`, `timestamp`, `data{}`, `hash`, `previousHash`
+   - Purpose: Immutable audit trail
 
-7. **oqt_provenance**
-   - Provenance tracking
-   - Fields: `queryId`, `processingSteps`, `inputHash`, `timestamp`
+**Removed redundant collections**: `questions`, `external_raw_responses`, `per_response_analysis`, `oqt_model_versions`, `ledger_entries` (their data is now in `ai_interactions`, `oqt_training_events`, or `oqt_ledger`).
 
-8. **ledger_entries**
-   - Blockchain-style ledger
-   - Fields: `entryId`, `type`, `data`, `hash`, `previousHash`, `timestamp`
+See `OQT-1.0-README.md` for complete schema documentation.
 
 ### Firestore Indexes
 
@@ -391,9 +408,16 @@ firebase deploy --only firestore:indexes
 ```
 
 Or create via Firebase Console:
-- Collection: `questions`, Fields: `userId ASC, timestamp DESC`
+- Collection: `ai_interactions`, Fields: `question.source ASC, timestamp DESC`
+- Collection: `ai_interactions`, Fields: `timestamp DESC`
 - Collection: `oqt_queries`, Fields: `timestamp DESC`
+- Collection: `oqt_queries`, Fields: `version ASC, timestamp DESC`
 - Collection: `oqt_training_events`, Fields: `type ASC, timestamp DESC`
+- Collection: `oqt_training_events`, Fields: `modelVersion ASC, timestamp DESC`
+- Collection: `oqt_metrics`, Fields: `version ASC, timestamp DESC`
+- Collection: `oqt_provenance`, Fields: `queryId ASC`
+- Collection: `oqt_ledger`, Fields: `blockNumber ASC`
+- Collection: `oqt_ledger`, Fields: `type ASC, timestamp DESC`
 
 ---
 
