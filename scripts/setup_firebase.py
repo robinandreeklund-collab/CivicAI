@@ -13,83 +13,92 @@ from firebase_admin import credentials, firestore
 from datetime import datetime
 
 # Required collections and their schema
+# Based on actual usage in the codebase
 COLLECTIONS = {
-    'questions': {
-        'description': 'User questions from all AI services',
+    'ai_interactions': {
+        'description': 'Unified collection for questions, raw responses from external AI, and ML pipeline analyses',
+        'datatype': 'Document with nested objects',
+        'purpose': 'Stores complete interaction data: user question, raw AI responses (GPT, Gemini, etc.), and pipeline analysis results (consensus, bias, fairness)',
         'sample_doc': {
-            'questionId': 'auto_generated',
-            'question': 'sample question text',
-            'timestamp': 'ISO timestamp',
-            'userId': 'optional user ID',
-            'source': 'chat-v2 or oqt-dashboard',
-            'metadata': {}
-        },
-        'indexes': [
-            {'fields': [('userId', 'ASCENDING'), ('timestamp', 'DESCENDING')]},
-            {'fields': [('source', 'ASCENDING'), ('timestamp', 'DESCENDING')]}
-        ]
-    },
-    
-    'external_raw_responses': {
-        'description': 'Raw responses from external AI services',
-        'sample_doc': {
-            'responseId': 'auto_generated',
-            'questionId': 'reference to questions collection',
-            'service': 'openai|gemini|grok|anthropic',
-            'response': 'raw response text',
-            'timestamp': 'ISO timestamp',
-            'metadata': {
-                'model': 'model name',
-                'tokens': 0,
-                'latency_ms': 0
-            }
-        },
-        'indexes': [
-            {'fields': [('questionId', 'ASCENDING'), ('timestamp', 'DESCENDING')]},
-            {'fields': [('service', 'ASCENDING'), ('timestamp', 'DESCENDING')]}
-        ]
-    },
-    
-    'per_response_analysis': {
-        'description': 'ML pipeline analysis for each response',
-        'sample_doc': {
-            'analysisId': 'auto_generated',
-            'responseId': 'reference to external_raw_responses',
-            'bias': {
-                'score': 0.0,
-                'types': []
+            'interactionId': 'auto_generated',
+            'question': {
+                'text': 'User question text',
+                'timestamp': 'ISO timestamp',
+                'userId': 'optional user ID',
+                'source': 'start_view|oqt_dashboard'
             },
-            'sentiment': {
-                'polarity': 0.0,
-                'subjectivity': 0.0
-            },
-            'toxicity': {
-                'toxicity': 0.0,
-                'threat': 0.0,
-                'insult': 0.0
-            },
-            'fairness': {
-                'score': 0.0,
-                'metrics': {}
+            'raw_responses': [
+                {
+                    'service': 'gpt4|gemini|grok|claude|deepseek|qwen',
+                    'response': 'AI response text',
+                    'timestamp': 'ISO timestamp',
+                    'latency_ms': 0,
+                    'tokens': 0,
+                    'model_version': 'model name'
+                }
+            ],
+            'processed_data': {
+                'consensus': {
+                    'score': 0.0,
+                    'level': 'high|medium|low',
+                    'metrics': {}
+                },
+                'bias': {
+                    'aggregated_score': 0.0,
+                    'level': 'low|medium|high',
+                    'types': []
+                },
+                'fairness': {
+                    'score': 0.0,
+                    'level': 'excellent|good|fair|poor'
+                },
+                'meta_summary': {}
             },
             'timestamp': 'ISO timestamp'
         },
         'indexes': [
-            {'fields': [('responseId', 'ASCENDING')]},
+            {'fields': [('question.source', 'ASCENDING'), ('timestamp', 'DESCENDING')]},
             {'fields': [('timestamp', 'DESCENDING')]}
         ]
     },
     
-    'oqt_training_events': {
-        'description': 'OQT-1.0 training event logs',
+    'oqt_queries': {
+        'description': 'Direct queries to OQT-1.0 model from dashboard',
+        'datatype': 'Document',
+        'purpose': 'Tracks user interactions with OQT-1.0, including questions, responses, confidence scores, and metadata',
         'sample_doc': {
-            'eventId': 'auto_generated',
-            'type': 'micro|batch|weekly',
+            'queryId': 'auto_generated',
+            'question': 'user question',
+            'response': 'OQT-1.0 response',
+            'confidence': 0.0,
+            'timestamp': 'ISO timestamp',
+            'model': 'OQT-1.0',
+            'version': '1.2.0',
+            'metadata': {
+                'tokens': 0,
+                'latency_ms': 0,
+                'modelsUsed': []
+            }
+        },
+        'indexes': [
+            {'fields': [('timestamp', 'DESCENDING')]},
+            {'fields': [('version', 'ASCENDING'), ('timestamp', 'DESCENDING')]}
+        ]
+    },
+    
+    'oqt_training_events': {
+        'description': 'Training event logs for OQT-1.0 (micro-training and batch training)',
+        'datatype': 'Document',
+        'purpose': 'Records all training sessions including real-time micro-training (two-stage) and weekly batch training',
+        'sample_doc': {
+            'trainingId': 'auto_generated',
+            'type': 'micro-training|batch-training|weekly-training',
             'timestamp': 'ISO timestamp',
             'samplesProcessed': 0,
             'stage1': {
                 'method': 'raw_response_training',
-                'samplesProcessed': 0
+                'samplesProcessed': 0,
+                'updated': True
             },
             'stage2': {
                 'method': 'analyzed_data_training',
@@ -109,57 +118,42 @@ COLLECTIONS = {
         ]
     },
     
-    'oqt_model_versions': {
-        'description': 'OQT-1.0 model version history',
+    'oqt_metrics': {
+        'description': 'Performance metrics for OQT-1.0 model over time',
+        'datatype': 'Document',
+        'purpose': 'Tracks model performance, fairness scores, bias levels, and usage statistics',
         'sample_doc': {
+            'metricId': 'auto_generated',
             'version': '1.2.0',
             'timestamp': 'ISO timestamp',
-            'baseModels': ['mistral-7b', 'llama-2-7b'],
             'metrics': {
                 'accuracy': 0.0,
                 'fairness': 0.0,
                 'bias': 0.0,
                 'consensus': 0.0
             },
-            'trainingData': {
+            'training': {
                 'totalSamples': 0,
                 'weeklyBatches': 0,
                 'microBatches': 0
-            },
-            'changelog': 'version change description'
+            }
         },
         'indexes': [
+            {'fields': [('version', 'ASCENDING'), ('timestamp', 'DESCENDING')]},
             {'fields': [('timestamp', 'DESCENDING')]}
         ]
     },
     
-    'oqt_queries': {
-        'description': 'Queries to OQT-1.0 from dashboard',
-        'sample_doc': {
-            'queryId': 'auto_generated',
-            'question': 'user question',
-            'response': 'OQT-1.0 response',
-            'confidence': 0.0,
-            'timestamp': 'ISO timestamp',
-            'model': 'OQT-1.0',
-            'version': '1.2.0',
-            'metadata': {
-                'tokens': 0,
-                'latency_ms': 0
-            }
-        },
-        'indexes': [
-            {'fields': [('timestamp', 'DESCENDING')]},
-            {'fields': [('version', 'ASCENDING'), ('timestamp', 'DESCENDING')]}
-        ]
-    },
-    
     'oqt_provenance': {
-        'description': 'Provenance tracking for transparency',
+        'description': 'Provenance tracking for transparency and auditability',
+        'datatype': 'Document',
+        'purpose': 'Maintains complete processing history for each query, enabling full transparency of decision-making',
         'sample_doc': {
             'provenanceId': 'auto_generated',
             'queryId': 'reference to oqt_queries',
             'timestamp': 'ISO timestamp',
+            'model': 'OQT-1.0',
+            'version': '1.2.0',
             'processingSteps': [
                 {
                     'step': 'tokenization',
@@ -170,8 +164,7 @@ COLLECTIONS = {
                     'timestamp': 'ISO timestamp'
                 }
             ],
-            'inputHash': 'hash of input',
-            'modelVersion': '1.2.0'
+            'inputHash': 'hash of input'
         },
         'indexes': [
             {'fields': [('queryId', 'ASCENDING')]},
@@ -179,16 +172,21 @@ COLLECTIONS = {
         ]
     },
     
-    'ledger_entries': {
-        'description': 'Blockchain-style immutable ledger',
+    'oqt_ledger': {
+        'description': 'Blockchain-style immutable ledger for complete transparency',
+        'datatype': 'Document',
+        'purpose': 'Immutable audit trail of all queries, training events, and model updates with cryptographic hashing',
         'sample_doc': {
-            'entryId': 'auto_generated',
+            'blockNumber': 0,
             'type': 'query|training|update',
             'timestamp': 'ISO timestamp',
-            'data': {},
-            'hash': 'SHA256 hash of entry',
-            'previousHash': 'hash of previous entry',
-            'blockNumber': 0
+            'data': {
+                'queryId': 'optional',
+                'trainingId': 'optional',
+                'description': 'event description'
+            },
+            'hash': 'SHA256 hash of block',
+            'previousHash': 'hash of previous block'
         },
         'indexes': [
             {'fields': [('blockNumber', 'ASCENDING')]},
@@ -304,10 +302,30 @@ def verify_setup(db):
     
     return all_ok
 
+def print_collection_summary():
+    """Print summary of collections and their purposes"""
+    print("\n" + "="*60)
+    print("Firebase Collections Summary")
+    print("="*60 + "\n")
+    
+    for collection_name, config in COLLECTIONS.items():
+        print(f"📁 {collection_name}")
+        print(f"   Syfte: {config['purpose']}")
+        print(f"   Datatyp: {config['datatype']}")
+        print()
+
 def main():
     print("\n" + "="*60)
     print("OQT-1.0 Firebase Setup Script")
     print("="*60)
+    print("\nDenna script skapar endast nödvändiga collections baserat på")
+    print("faktisk användning i projektet. Följande redundanta collections")
+    print("har tagits bort:")
+    print("  - questions (data finns i ai_interactions)")
+    print("  - external_raw_responses (data finns i ai_interactions)")
+    print("  - per_response_analysis (data finns i ai_interactions)")
+    print("  - oqt_model_versions (kan härledas från oqt_training_events)")
+    print("  - ledger_entries (duplicerat av oqt_ledger)")
     
     # Initialize Firebase
     db = initialize_firebase()
@@ -320,12 +338,16 @@ def main():
     
     # Verify setup
     if verify_setup(db):
+        # Print collection summary
+        print_collection_summary()
+        
         print("\n🎉 Firebase setup complete!")
         print("\nNext steps:")
         print("1. Create composite indexes (see above)")
         print("2. Configure Firebase security rules")
         print("3. Update .env files with Firebase credentials")
         print("4. Run: python scripts/download_models.py")
+        print("\nSe OQT-1.0-README.md för fullständig dokumentation av collections.")
     else:
         print("\n⚠️  Setup completed with some warnings. Please check above.")
         sys.exit(1)

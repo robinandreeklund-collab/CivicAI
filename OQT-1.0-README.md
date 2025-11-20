@@ -1908,6 +1908,319 @@ models/
 
 ---
 
+## Firebase Collections (Aktuell Användning)
+
+OQT-1.0 använder **6 collections** i Firebase Firestore. Redundanta collections har tagits bort baserat på faktisk användning i koden.
+
+### Aktiva Collections:
+
+#### 1. **`ai_interactions`**
+- **Syfte**: Unified lagring av frågor, råsvar från externa AI-tjänster, och ML-pipeline-analyser
+- **Datatyp**: Dokument med nested objekt
+- **Schema**:
+  ```javascript
+  {
+    interactionId: "auto-generated",
+    question: {
+      text: "Användarens fråga",
+      timestamp: "ISO timestamp",
+      userId: "valfritt",
+      source: "start_view | oqt_dashboard"
+    },
+    raw_responses: [
+      {
+        service: "gpt4 | gemini | grok | claude | deepseek | qwen",
+        response: "AI-svar text",
+        timestamp: "ISO timestamp",
+        latency_ms: 123,
+        tokens: 150,
+        model_version: "gpt-4-turbo"
+      }
+    ],
+    processed_data: {
+      consensus: { score: 0.95, level: "high", metrics: {} },
+      bias: { aggregated_score: 2.1, level: "low", types: [] },
+      fairness: { score: 0.88, level: "excellent" },
+      meta_summary: { ... }
+    },
+    timestamp: "ISO timestamp"
+  }
+  ```
+- **Användning**: Central datakälla för träning, analys och transparens
+
+#### 2. **`oqt_queries`**
+- **Syfte**: Direkta frågor till OQT-1.0 från dashboard
+- **Datatyp**: Dokument
+- **Schema**:
+  ```javascript
+  {
+    queryId: "auto-generated",
+    question: "Användarens fråga",
+    response: "OQT-1.0 svar",
+    confidence: 0.92,
+    timestamp: "ISO timestamp",
+    model: "OQT-1.0",
+    version: "1.2.0",
+    metadata: { tokens: 150, latency_ms: 850, modelsUsed: ["mistral", "llama"] }
+  }
+  ```
+- **Användning**: Spårar användarinteraktioner med OQT-1.0
+
+#### 3. **`oqt_training_events`**
+- **Syfte**: Loggning av träningssessioner (micro-training och batch training)
+- **Datatyp**: Dokument
+- **Schema**:
+  ```javascript
+  {
+    trainingId: "auto-generated",
+    type: "micro-training | batch-training | weekly-training",
+    timestamp: "ISO timestamp",
+    samplesProcessed: 6,
+    stage1: { method: "raw_response_training", samplesProcessed: 6, updated: true },
+    stage2: { method: "analyzed_data_training", metricsUpdated: true },
+    modelVersion: "1.2.0",
+    metrics: { accuracy: 0.91, fairness: 0.88, bias: 2.1, consensus: 0.95 }
+  }
+  ```
+- **Användning**: Transparens kring modellträning
+
+#### 4. **`oqt_metrics`**
+- **Syfte**: Prestationsmetriker för OQT-1.0 över tid
+- **Datatyp**: Dokument
+- **Schema**:
+  ```javascript
+  {
+    metricId: "auto-generated",
+    version: "1.2.0",
+    timestamp: "ISO timestamp",
+    metrics: { accuracy: 0.91, fairness: 0.88, bias: 2.1, consensus: 0.95 },
+    training: { totalSamples: 15234, weeklyBatches: 12, microBatches: 1523 }
+  }
+  ```
+- **Användning**: Dashboard "Mätvärden" tab
+
+#### 5. **`oqt_provenance`**
+- **Syfte**: Provenienshantering för transparens
+- **Datatyp**: Dokument
+- **Schema**:
+  ```javascript
+  {
+    provenanceId: "auto-generated",
+    queryId: "referens till oqt_queries",
+    timestamp: "ISO timestamp",
+    model: "OQT-1.0",
+    version: "1.2.0",
+    processingSteps: [
+      { step: "tokenization", timestamp: "ISO timestamp" },
+      { step: "inference", timestamp: "ISO timestamp" }
+    ],
+    inputHash: "hash av input"
+  }
+  ```
+- **Användning**: Fullständig spårbarhet av beslut
+
+#### 6. **`oqt_ledger`**
+- **Syfte**: Blockchain-stil immutable ledger
+- **Datatyp**: Dokument
+- **Schema**:
+  ```javascript
+  {
+    blockNumber: 1523,
+    type: "query | training | update",
+    timestamp: "ISO timestamp",
+    data: { queryId: "...", trainingId: "...", description: "..." },
+    hash: "SHA256 hash av block",
+    previousHash: "hash av föregående block"
+  }
+  ```
+- **Användning**: Orubblig logg för full transparens
+
+### Borttagna Collections (Redundanta):
+
+Följande collections har tagits bort från `setup_firebase.py` eftersom deras data redan finns i befintliga collections:
+
+- ❌ **`questions`** → Data finns i `ai_interactions.question`
+- ❌ **`external_raw_responses`** → Data finns i `ai_interactions.raw_responses[]`
+- ❌ **`per_response_analysis`** → Data finns i `ai_interactions.processed_data`
+- ❌ **`oqt_model_versions`** → Kan härledas från `oqt_training_events`
+- ❌ **`ledger_entries`** → Duplikat av `oqt_ledger`
+
+---
+
+## API Endpoints Status
+
+### OQT-1.0 Core Endpoints
+
+| Endpoint | Method | Status | Beskrivning |
+|----------|--------|--------|-------------|
+| `/api/oqt/query` | POST | ✅ UP | Generera svar från OQT-1.0 (simulerat) |
+| `/api/oqt/multi-model-query` | POST | ✅ UP | Multi-model pipeline (Mistral + LLaMA + analys) |
+| `/api/oqt/micro-train` | POST | ✅ UP | Real-time micro-training (två-stegs) |
+| `/api/oqt/train` | POST | ✅ UP | Veckovis batch-träning (simulerat) |
+| `/api/oqt/status` | GET | ✅ UP | Modellstatus och hälsa |
+| `/api/oqt/metrics` | GET | ✅ UP | Prestationsmetriker |
+| `/api/oqt/ledger/verify` | GET | ✅ UP | Verifiera ledger-integritet |
+| `/api/oqt/ledger/stats` | GET | ✅ UP | Ledger-statistik |
+
+### ML Service Endpoints (Port 5000)
+
+| Endpoint | Method | Status | Beskrivning |
+|----------|--------|--------|-------------|
+| `/` | GET | ✅ UP | Hälsokontroll |
+| `/inference/mistral` | POST | 🔄 SKELETON | Mistral 7B inferens (kräver nedladdad modell) |
+| `/inference/llama` | POST | 🔄 SKELETON | LLaMA-2 inferens (kräver nedladdad modell) |
+| `/models/status` | GET | ✅ UP | Status för laddade modeller |
+
+### Endpoint Status-förklaring:
+
+- ✅ **UP**: Fullt funktionell (kan vara simulerad)
+- 🔄 **SKELETON**: Kodskelett finns, kräver modellnedladdning för verklig inferens
+- ⚠️ **PARTIAL**: Delvis implementerad
+- ❌ **DOWN**: Ej implementerad/fungerar inte
+
+### Testa Endpoints:
+
+```bash
+# Testa OQT query
+curl -X POST http://localhost:3001/api/oqt/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Vad är demokrati?"}'
+
+# Testa multi-model query
+curl -X POST http://localhost:3001/api/oqt/multi-model-query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Vad är AI?", "includeExternal": false, "enableTraining": true}'
+
+# Testa ML service (kräver nedladdade modeller)
+curl -X POST http://localhost:5000/inference/mistral \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Vad är AI?", "max_length": 256}'
+
+# Kontrollera status
+curl http://localhost:3001/api/oqt/status
+curl http://localhost:5000/
+```
+
+---
+
+## Implementation Status & Integration
+
+### ✅ Fullt Implementerat
+
+**Backend Services**:
+- ✅ `services/mistral.js` - Mistral 7B integration (simulerad tills modell laddas)
+- ✅ `services/llama.js` - LLaMA-2 integration (simulerad tills modell laddas)
+- ✅ `services/oqtMultiModelPipeline.js` - Multi-model orkestrering
+
+**API Endpoints**:
+- ✅ `/api/oqt/query` - Direkt OQT-1.0 frågor
+- ✅ `/api/oqt/multi-model-query` - Multi-model pipeline med analys
+- ✅ `/api/oqt/micro-train` - Real-time micro-training
+- ✅ `/api/oqt/train` - Batch training
+- ✅ Alla status/metrics endpoints
+
+**Frontend**:
+- ✅ OQT Dashboard (`/oqt-dashboard`)
+- ✅ Chat-funktionalitet med meddelandebubblor
+- ✅ 4 flikar: Chat, Aktivitet, Mätvärden, Ledger
+- ✅ Auto-scroll och laddningsanimationer
+
+**Firebase Integration**:
+- ✅ 6 centrala collections (se ovan)
+- ✅ Ledger services (`ledgerService.js`, `oqtLedgerService.js`)
+- ✅ Firebase service (`oqtFirebaseService.js`)
+
+**Infrastruktur**:
+- ✅ ML service skeleton (`ml_service/server.py`)
+- ✅ Modellnedladdningsskript (`scripts/download_models.py`)
+- ✅ Firebase setup script (`scripts/setup_firebase.py`)
+- ✅ Snabbinstallation (`.sh` och `.ps1`)
+
+**Dokumentation**:
+- ✅ Installationsguide (`INSTALLATION_GUIDE.md`)
+- ✅ API-dokumentation (`docs/OQT_MULTI_MODEL_API.md`)
+- ✅ Komplett OQT-1.0 README (detta dokument)
+
+### 🔄 Kräver Modellnedladdning
+
+**ML Service (Verklig Inferens)**:
+- 🔄 Mistral 7B modell laddning och inferens
+- 🔄 LLaMA-2 modell laddning och inferens
+- 🔄 GPU/CPU optimering
+- 🔄 8-bit quantization
+
+**Träningspipeline**:
+- 🔄 PyTorch-baserad träning
+- 🔄 LoRA/PEFT fine-tuning
+- 🔄 Stage 1: Rådataträning
+- 🔄 Stage 2: Analyserad dataträning
+- 🔄 Modellversionering
+
+### Köra Systemet
+
+**1. Simulerat Läge (Fungerar Nu)**:
+```bash
+# Terminal 1: Backend
+cd backend && npm run dev
+
+# Terminal 2: Frontend
+cd frontend && npm run dev
+
+# Terminal 3: ML Service (optional - skeleton)
+python ml_service/server.py
+
+# Öppna: http://localhost:3000/oqt-dashboard
+```
+
+**Status**: ✅ Alla endpoints fungerar med simulerade svar
+
+**2. Verkligt Läge (Kräver Modellnedladdning)**:
+```bash
+# 1. Ladda ner modeller
+python scripts/download_models.py
+
+# 2. Kör samma som ovan
+# ML service kommer nu använda verkliga modeller
+```
+
+**Status**: 🔄 Kräver ~27GB modellfiler (Mistral 7B + LLaMA-2)
+
+### Verklig vs Simulerad Inferens
+
+| Komponent | Simulerat (Nu) | Verkligt (Efter Nedladdning) |
+|-----------|----------------|------------------------------|
+| **Mistral 7B** | ✅ Förutbestämda svar | 🔄 Verklig transformer-inferens |
+| **LLaMA-2** | ✅ Förutbestämda svar | 🔄 Verklig transformer-inferens |
+| **Pipeline** | ✅ Fungerar fullt | ✅ Samma (analyspipeline) |
+| **Träning** | ✅ Simulerad metricsuppdatering | 🔄 Verklig LoRA fine-tuning |
+| **Dashboard** | ✅ Fullt funktionell | ✅ Samma |
+| **API** | ✅ Alla endpoints | ✅ Samma |
+
+### Nästa Steg för Full Implementation
+
+1. **Ladda Ner Modeller** (27GB totalt):
+   ```bash
+   python scripts/download_models.py
+   ```
+
+2. **Verifiera Modellfiler**:
+   ```bash
+   ls -lh models/mistral-7b-instruct/
+   ls -lh models/llama-2-7b-chat/
+   ```
+
+3. **Implementera Verklig Träning**:
+   - LoRA adapters för Mistral 7B
+   - LoRA adapters för LLaMA-2
+   - Stage 1 & 2 micro-training
+
+4. **Optimering**:
+   - GPU acceleration
+   - Model caching
+   - 8-bit quantization
+
+---
+
 ## Quick Start
 
 ### Prerequisites
