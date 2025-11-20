@@ -185,9 +185,15 @@ export default function ChatV2Page() {
                 'r.service': r.service,
                 'r.service type': typeof r.service,
                 'r.service truthy': !!r.service,
+                'r.service JSON': JSON.stringify(r.service),
                 'r.agent': r.agent,
                 'r.metadata?.model': r.metadata?.model,
                 'r.model_version': r.model_version,
+                'Full r keys': Object.keys(r),
+                'r has service': r.hasOwnProperty('service'),
+                'r.service === undefined': r.service === undefined,
+                'r.service === null': r.service === null,
+                'r.service === ""': r.service === ''
               });
               
               const agentName = r.service || r.agent || r.metadata?.model || r.model_version || 'unknown';
@@ -211,6 +217,7 @@ export default function ChatV2Page() {
                   all_keys: Object.keys(r)
                 });
                 console.log('[ChatV2] First raw_response FULL OBJECT:', r);
+                console.log('[ChatV2] First raw_response JSON.stringify:', JSON.stringify(r).substring(0, 500));
               }
               
               // Debug log if we're getting unknown
@@ -220,6 +227,7 @@ export default function ChatV2Page() {
                 console.error('[ChatV2] Field values:', {
                   service: r.service,
                   service_type: typeof r.service,
+                  service_stringified: JSON.stringify(r.service),
                   agent: r.agent,
                   model: r.metadata?.model,
                   model_version: r.model_version,
