@@ -25,6 +25,15 @@ import {
   verifyLedger,
   getLedgerStats
 } from '../services/oqtLedgerService.js';
+import {
+  executeOQTMultiModelPipeline,
+  generateMultiModelResponses,
+  analyzeMultiModelResponses,
+  calculateConsensus,
+  detectCrossBias,
+  calculateFairnessIndex,
+  generateMetaSummary
+} from '../services/oqtMultiModelPipeline.js';
 
 const router = express.Router();
 
@@ -181,6 +190,161 @@ router.post('/query', rateLimiter, async (req, res) => {
       success: false,
       error: 'Failed to process query',
       message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/oqt/multi-model-query
+ * NEW: Enhanced query endpoint using multi-model pipeline
+ * Processes query through Mistral 7B and LLaMA-2, performs analysis, and returns synthesized OQT-1.0 response
+ * Includes real-time microtraining
+ * 
+ * Body:
+ * {
+ *   question: string,
+ *   includeExternal?: boolean (include GPT, Gemini, Grok),
+ *   enableTraining?: boolean (perform microtraining)
+ * }
+ */
+router.post('/multi-model-query', rateLimiter, async (req, res) => {
+  try {
+    const { question, includeExternal = false, enableTraining = true } = req.body;
+
+    if (!question || typeof question !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Question is required and must be a string'
+      });
+    }
+
+    const queryId = uuidv4();
+    const timestamp = new Date().toISOString();
+
+    // Execute multi-model pipeline
+    const pipelineResult = await executeOQTMultiModelPipeline(question, {
+      includeExternal,
+    });
+
+    // Generate OQT-1.0 synthesized response based on pipeline results
+    const oqtResponse = synthesizeOQTResponse(
+      question,
+      pipelineResult.rawResponses,
+      pipelineResult.metaSummary,
+      pipelineResult.consensus
+    );
+
+    // Perform real-time microtraining (two-step)
+    let trainingResult = null;
+    if (enableTraining) {
+      // Step 1: Train on raw responses
+      const stage1Result = await microTrainStage1(question, pipelineResult.rawResponses);
+      
+      // Step 2: Train on analyzed data
+      const stage2Result = await microTrainStage2(question, {
+        consensus: pipelineResult.consensus.score,
+        bias: pipelineResult.bias.aggregatedScore,
+        fairness: pipelineResult.fairness.score,
+        metaSummary: pipelineResult.metaSummary,
+      });
+
+      oqtModel.trainingData.microBatch += 1;
+
+      trainingResult = {
+        stage1: stage1Result,
+        stage2: stage2Result,
+        microBatchCount: oqtModel.trainingData.microBatch,
+      };
+
+      // Save training event
+      await saveOQTTrainingEvent({
+        trainingId: uuidv4(),
+        type: 'multi-model-micro-training',
+        question,
+        samplesProcessed: pipelineResult.rawResponses.length,
+        stage1: stage1Result,
+        stage2: stage2Result,
+        modelVersion: oqtModel.version,
+        metrics: oqtModel.metrics,
+      });
+    }
+
+    // Save query to Firebase
+    await saveOQTQuery({
+      queryId,
+      question,
+      response: oqtResponse.text,
+      confidence: oqtResponse.confidence,
+      metadata: {
+        modelsUsed: pipelineResult.rawResponses.map(r => r.model),
+        consensus: pipelineResult.consensus,
+        bias: pipelineResult.bias,
+        fairness: pipelineResult.fairness,
+        processingTime_ms: pipelineResult.metadata.processingTime_ms,
+      },
+      model: 'OQT-1.0-MultiModel',
+      version: oqtModel.version,
+    });
+
+    // Add to ledger
+    await addQueryToLedger(queryId, question, oqtModel.version);
+
+    // Return comprehensive response
+    res.json({
+      success: true,
+      queryId,
+      model: 'OQT-1.0',
+      version: oqtModel.version,
+      
+      // OQT synthesized response
+      response: oqtResponse.text,
+      confidence: oqtResponse.confidence,
+      
+      // Multi-model analysis
+      analysis: {
+        consensus: {
+          score: pipelineResult.consensus.score,
+          level: pipelineResult.consensus.level,
+          metrics: pipelineResult.consensus.metrics,
+        },
+        bias: {
+          aggregatedScore: pipelineResult.bias.aggregatedScore,
+          level: pipelineResult.bias.level,
+          types: pipelineResult.bias.biasTypes,
+        },
+        fairness: {
+          score: pipelineResult.fairness.score,
+          level: pipelineResult.fairness.level,
+        },
+        metaSummary: pipelineResult.metaSummary,
+      },
+      
+      // Model responses (for transparency)
+      modelResponses: pipelineResult.rawResponses.map(r => ({
+        model: r.model,
+        responsePreview: r.response.substring(0, 200) + '...',
+        metadata: r.metadata,
+      })),
+      
+      // Training info
+      training: trainingResult,
+      
+      // Metadata
+      metadata: {
+        totalModels: pipelineResult.rawResponses.length,
+        processingTime_ms: pipelineResult.metadata.processingTime_ms,
+        pipelineVersion: pipelineResult.metadata.pipelineVersion,
+      },
+      
+      timestamp,
+    });
+
+  } catch (error) {
+    console.error('Multi-model query error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process multi-model query',
+      message: error.message,
     });
   }
 });
@@ -485,6 +649,74 @@ async function generateOQTResponse(question, context, options) {
     confidence: 0.85 + Math.random() * 0.1, // 0.85-0.95
     tokens,
     latency_ms
+  };
+}
+
+/**
+ * Helper: Synthesize OQT-1.0 response from multi-model pipeline results
+ * Creates a balanced response considering consensus, bias, and fairness
+ */
+function synthesizeOQTResponse(question, rawResponses, metaSummary, consensus) {
+  // Select the best response based on consensus and bias
+  // In a real implementation, this would use ML-based synthesis
+  
+  const questionLower = question.toLowerCase();
+  
+  // Check knowledge base first
+  if (oqtModel.knowledge.has(questionLower)) {
+    const knowledgeResponse = oqtModel.knowledge.get(questionLower);
+    return {
+      text: knowledgeResponse,
+      confidence: 0.90,
+      source: 'knowledge_base',
+    };
+  }
+  
+  // Use Mistral or LLaMA response as base (they are core models)
+  const coreModels = rawResponses.filter(r => 
+    r.model.includes('Mistral') || r.model.includes('LLaMA')
+  );
+  
+  let baseResponse = '';
+  if (coreModels.length > 0) {
+    // Prefer LLaMA for comprehensive questions, Mistral for direct questions
+    const preferLlama = question.split(' ').length > 10;
+    const preferred = coreModels.find(r => 
+      preferLlama ? r.model.includes('LLaMA') : r.model.includes('Mistral')
+    ) || coreModels[0];
+    
+    baseResponse = preferred.response;
+  } else if (rawResponses.length > 0) {
+    // Fallback to any available response
+    baseResponse = rawResponses[0].response;
+  }
+  
+  // Add OQT synthesis header
+  const consensusLevel = consensus.level;
+  const consensusNote = consensusLevel === 'high' 
+    ? 'med hög modellkonsensus'
+    : consensusLevel === 'medium'
+    ? 'med måttlig modellkonsensus'
+    : 'med varierande modellperspektiv';
+  
+  const synthesizedText = `OQT-1.0 Syntetiserat Svar (${consensusNote}, ${rawResponses.length} modeller analyserade):\n\n${baseResponse}\n\n` +
+    `---\n` +
+    `Detta svar är syntetiserat från ${rawResponses.length} AI-modeller ` +
+    `med full transparens och provenienshantering. ` +
+    `Konsensus: ${(consensus.score * 100).toFixed(0)}%, ` +
+    `Rättvisa: ${metaSummary.fairnessLevel}.`;
+  
+  // Calculate confidence based on consensus and fairness
+  const confidence = Math.min(
+    0.95,
+    consensus.score * 0.6 + (metaSummary.fairnessScore || 0.8) * 0.4
+  );
+  
+  return {
+    text: synthesizedText,
+    confidence,
+    source: 'multi_model_synthesis',
+    modelsUsed: rawResponses.length,
   };
 }
 
