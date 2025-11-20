@@ -19,6 +19,12 @@ import {
   saveOQTProvenance,
   getLatestOQTMetrics
 } from '../services/oqtFirebaseService.js';
+import {
+  addQueryToLedger,
+  addTrainingToLedger,
+  verifyLedger,
+  getLedgerStats
+} from '../services/oqtLedgerService.js';
 
 const router = express.Router();
 
@@ -104,6 +110,9 @@ router.post('/query', async (req, res) => {
     
     // Save provenance to Firebase
     await saveOQTProvenance(provenance);
+
+    // Add query to transparency ledger
+    await addQueryToLedger(queryId, question, oqtModel.version);
 
     res.json({
       success: true,
@@ -197,6 +206,14 @@ router.post('/micro-train', async (req, res) => {
       training: oqtModel.trainingData
     });
 
+    // Add training event to ledger
+    await addTrainingToLedger(
+      trainingId,
+      'micro',
+      rawResponses.length,
+      oqtModel.version
+    );
+
     res.json({
       success: true,
       trainingId,
@@ -282,6 +299,14 @@ router.post('/train', async (req, res) => {
       metrics: oqtModel.metrics,
       training: oqtModel.trainingData
     });
+
+    // Add training event to ledger
+    await addTrainingToLedger(
+      trainingId,
+      'batch',
+      result.samplesProcessed,
+      newVersion
+    );
 
     res.json({
       success: true,
@@ -511,5 +536,56 @@ function hashString(str) {
   }
   return hash.toString(16);
 }
+
+/**
+ * GET /api/oqt/ledger/verify
+ * Verify blockchain ledger integrity
+ */
+router.get('/ledger/verify', async (req, res) => {
+  try {
+    const verification = await verifyLedger();
+    
+    res.json({
+      success: true,
+      ...verification
+    });
+  } catch (error) {
+    console.error('Ledger verification error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to verify ledger',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/oqt/ledger/stats
+ * Get ledger statistics
+ */
+router.get('/ledger/stats', async (req, res) => {
+  try {
+    const statsResult = await getLedgerStats();
+    
+    if (statsResult.success) {
+      res.json({
+        success: true,
+        ...statsResult.stats
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get ledger stats'
+      });
+    }
+  } catch (error) {
+    console.error('Ledger stats error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get ledger stats',
+      message: error.message
+    });
+  }
+});
 
 export default router;
