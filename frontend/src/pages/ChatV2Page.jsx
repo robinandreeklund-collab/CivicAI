@@ -41,6 +41,7 @@ export default function ChatV2Page() {
   const [showReplay, setShowReplay] = useState(false);
   const [replayData, setReplayData] = useState(null);
   const [expandedPipelineStep, setExpandedPipelineStep] = useState(null);
+  const [expandedModelDetails, setExpandedModelDetails] = useState({});
   
   // Firebase Firestore integration - Track current question's document ID
   const [firebaseDocId, setFirebaseDocId] = useState(null);
@@ -1384,6 +1385,15 @@ export default function ChatV2Page() {
 
   // Models mode: Full responses with complete analysis
   const renderModels = () => {
+    const toggleModelDetails = (idx, section) => {
+      setExpandedModelDetails(prev => ({
+        ...prev,
+        [`${idx}-${section}`]: !prev[`${idx}-${section}`]
+      }));
+    };
+
+    const isExpanded = (idx, section) => expandedModelDetails[`${idx}-${section}`] || false;
+
     return (
       <div className="flex-1 overflow-y-auto pb-40 px-4 md:px-8 pt-24">
         <div className="max-w-4xl mx-auto">
@@ -1395,7 +1405,12 @@ export default function ChatV2Page() {
                 {/* Model Header */}
                 <div className="p-6 border-b border-[#2a2a2a]">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="font-medium text-[#e7e7e7] text-lg">{response.agent || `Modell ${idx + 1}`}</div>
+                    <div>
+                      <div className="font-medium text-[#e7e7e7] text-lg">{response.agent || `Modell ${idx + 1}`}</div>
+                      <div className="text-xs text-[#666] mt-1">
+                        Version: {response.metadata?.model || response.metadata?.version || 'N/A'}
+                      </div>
+                    </div>
                     <button
                       onClick={() => {
                         setSelectedModel(response.agent);
@@ -1438,9 +1453,48 @@ export default function ChatV2Page() {
                       </div>
                     </div>
                   )}
+
+                  {/* Provenance Information */}
+                  <div className="mt-4 p-3 bg-[#0a0a0a] rounded border border-[#2a2a2a]">
+                    <div className="text-xs text-[#666] mb-2 font-medium">Provenance & Traceability</div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                      <div>
+                        <span className="text-[#666]">Endpoint:</span>
+                        <div className="text-[#888] truncate" title={response.metadata?.endpoint || 'N/A'}>
+                          {response.metadata?.endpoint || 'N/A'}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-[#666]">Request ID:</span>
+                        <div className="text-[#888] font-mono truncate" title={response.metadata?.request_id || 'N/A'}>
+                          {response.metadata?.request_id || 'N/A'}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-[#666]">Timestamp:</span>
+                        <div className="text-[#888]">
+                          {response.metadata?.timestamp ? new Date(response.metadata.timestamp).toLocaleString('sv-SE') : 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   
-                  {/* Full Bias Indicators */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  {/* Ledger Status */}
+                  {latestAiMessage.ledgerBlocks && latestAiMessage.ledgerBlocks.length > 0 && (
+                    <div className="mt-3 p-3 bg-green-900/10 rounded border border-green-900/30">
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="text-green-400">🔒</span>
+                        <span className="text-green-400 font-medium">Ledger Verified</span>
+                        <span className="text-[#666]">•</span>
+                        <span className="text-[#888]">
+                          {latestAiMessage.ledgerBlocks.length} block{latestAiMessage.ledgerBlocks.length > 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Comprehensive Metrics Summary */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mt-4">
                     <div>
                       <div className="text-[#666] mb-2">Bias</div>
                       <div className="h-2 bg-[#1a1a1a] rounded-full overflow-hidden mb-1">
@@ -1449,11 +1503,14 @@ export default function ChatV2Page() {
                       <div className="text-[#888]">{(response.analysis?.bias?.biasScore ?? 0).toFixed(1)}/10</div>
                     </div>
                     <div>
-                      <div className="text-[#666] mb-2">Tillit</div>
+                      <div className="text-[#666] mb-2">Sentiment</div>
                       <div className="h-2 bg-[#1a1a1a] rounded-full overflow-hidden mb-1">
-                        <div className="bg-[#888] h-full" style={{width: `${(response.analysis?.tone?.confidence ?? 0) * 100}%`}}></div>
+                        <div className="bg-green-500 h-full" style={{width: `${(response.pipelineAnalysis?.sentimentAnalysis?.vaderSentiment?.positive ?? 0) * 100}%`}}></div>
                       </div>
-                      <div className="text-[#888]">{((response.analysis?.tone?.confidence ?? 0) * 100).toFixed(0)}%</div>
+                      <div className="text-[#888]">
+                        {response.pipelineAnalysis?.sentimentAnalysis?.overallTone || 
+                         response.pipelineAnalysis?.sentimentAnalysis?.vaderSentiment?.classification || 'N/A'}
+                      </div>
                     </div>
                     <div>
                       <div className="text-[#666] mb-2">Faktahalt</div>
@@ -1472,87 +1529,336 @@ export default function ChatV2Page() {
                   </div>
                 </div>
 
-                {/* Full Response Text */}
-                <div className="p-6">
-                  <div className="text-[#888] leading-relaxed mb-6 whitespace-pre-wrap" 
-                       dangerouslySetInnerHTML={{ 
-                         __html: formatTextWithMarkdown(response.response || response.text || 'Inget svar tillgängligt')
-                       }}>
-                  </div>
-                  
-                  {/* Emotion/Tone/Intent */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-6">
-                    <div className="bg-[#1a1a1a] rounded p-3">
-                      <div className="text-[#666] mb-1">Emotion</div>
-                      <div className="text-[#e7e7e7]">
-                        {response.enhancedAnalysis?.emotion?.primary || response.analysis?.tone?.primary || 'N/A'}
+                {/* Expandable: Raw Response Data */}
+                <div className="border-b border-[#2a2a2a]">
+                  <button
+                    onClick={() => toggleModelDetails(idx, 'raw')}
+                    className="w-full px-6 py-4 flex items-center justify-between hover:bg-[#1a1a1a] transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">📄</span>
+                      <div>
+                        <div className="text-[#e7e7e7] font-medium">Raw Model Response</div>
+                        <div className="text-xs text-[#666]">Original unprocessed response from the AI model</div>
                       </div>
                     </div>
-                    <div className="bg-[#1a1a1a] rounded p-3">
-                      <div className="text-[#666] mb-1">Ton</div>
-                      <div className="text-[#e7e7e7]">
-                        {response.analysis?.tone?.description || response.analysis?.tone?.primary || 'N/A'}
+                    <span className="text-[#666]">{isExpanded(idx, 'raw') ? '▼' : '▶'}</span>
+                  </button>
+                  {isExpanded(idx, 'raw') && (
+                    <div className="px-6 pb-6 bg-[#0f0f0f]">
+                      <div className="text-[#888] leading-relaxed whitespace-pre-wrap p-4 bg-[#0a0a0a] rounded border border-[#2a2a2a] max-h-96 overflow-y-auto" 
+                           dangerouslySetInnerHTML={{ 
+                             __html: formatTextWithMarkdown(response.response || response.text || 'Inget svar tillgängligt')
+                           }}>
+                      </div>
+                      <div className="mt-3 text-xs text-[#666]">
+                        Length: {(response.response || response.text || '').length} characters
                       </div>
                     </div>
-                    <div className="bg-[#1a1a1a] rounded p-3">
-                      <div className="text-[#666] mb-1">Syfte</div>
-                      <div className="text-[#e7e7e7]">{response.enhancedAnalysis?.intent?.primary || 'N/A'}</div>
+                  )}
+                </div>
+
+                {/* Expandable: Comprehensive Metrics */}
+                <div className="border-b border-[#2a2a2a]">
+                  <button
+                    onClick={() => toggleModelDetails(idx, 'metrics')}
+                    className="w-full px-6 py-4 flex items-center justify-between hover:bg-[#1a1a1a] transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">📊</span>
+                      <div>
+                        <div className="text-[#e7e7e7] font-medium">Comprehensive Metrics</div>
+                        <div className="text-xs text-[#666]">Sentiment, Toxicity, Fairness, Consensus, and Explainability</div>
+                      </div>
                     </div>
-                  </div>
-                  
-                  {/* Main Points */}
-                  {response.enhancedAnalysis?.argumentation?.huvudpunkter && response.enhancedAnalysis.argumentation.huvudpunkter.length > 0 && (
-                    <div className="mb-6">
-                      <div className="text-[#666] mb-2">Huvudpunkter:</div>
-                      <div className="space-y-2">
-                        {response.enhancedAnalysis.argumentation.huvudpunkter.map((point, pidx) => (
-                          <div key={pidx} className="flex items-start gap-2">
-                            <span className="text-[#666] mt-0.5">{pidx + 1}.</span>
-                            <span className="text-[#888] whitespace-pre-wrap" 
-                                  dangerouslySetInnerHTML={{ __html: formatTextWithMarkdown(point) }}>
+                    <span className="text-[#666]">{isExpanded(idx, 'metrics') ? '▼' : '▶'}</span>
+                  </button>
+                  {isExpanded(idx, 'metrics') && (
+                    <div className="px-6 pb-6 bg-[#0f0f0f] space-y-6">
+                      {/* Sentiment Analysis */}
+                      {response.pipelineAnalysis?.sentimentAnalysis && (
+                        <div className="p-4 bg-[#0a0a0a] rounded border border-[#2a2a2a]">
+                          <div className="text-sm text-[#e7e7e7] font-medium mb-3">Sentiment Analysis</div>
+                          <div className="grid grid-cols-3 gap-4 text-xs">
+                            <div>
+                              <div className="text-[#666] mb-1">Overall Tone</div>
+                              <div className="text-[#e7e7e7] capitalize">
+                                {response.pipelineAnalysis.sentimentAnalysis.overallTone || 
+                                 response.pipelineAnalysis.sentimentAnalysis.vaderSentiment?.classification || 'N/A'}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[#666] mb-1">Polarity Score</div>
+                              <div className="text-[#e7e7e7]">
+                                {response.pipelineAnalysis.sentimentAnalysis.vaderSentiment?.score?.toFixed(2) || 
+                                 response.pipelineAnalysis.sentimentAnalysis.score?.toFixed(2) || 'N/A'}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[#666] mb-1">Intensity</div>
+                              <div className="text-[#e7e7e7]">
+                                {response.pipelineAnalysis.sentimentAnalysis.vaderSentiment?.comparative?.toFixed(2) || 'N/A'}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Toxicity Analysis */}
+                      {(latestAiMessage.toxicity || response.pipelineAnalysis?.biasAnalysis?.detoxify) && (
+                        <div className="p-4 bg-[#0a0a0a] rounded border border-[#2a2a2a]">
+                          <div className="text-sm text-[#e7e7e7] font-medium mb-3">Toxicity Analysis (Detoxify)</div>
+                          <div className="space-y-2">
+                            {(() => {
+                              const toxicityData = latestAiMessage.toxicity || response.pipelineAnalysis?.biasAnalysis?.detoxify || {};
+                              return ['toxicity', 'severe_toxicity', 'obscene', 'threat', 'insult', 'identity_attack'].map(metric => (
+                                <div key={metric} className="flex items-center gap-3">
+                                  <span className="text-[#666] text-xs w-32 capitalize">{metric.replace('_', ' ')}</span>
+                                  <div className="flex-1 h-2 bg-[#1a1a1a] rounded-full overflow-hidden">
+                                    <div 
+                                      className={`h-full ${
+                                        (toxicityData[metric] || 0) > 0.7 ? 'bg-red-500' :
+                                        (toxicityData[metric] || 0) > 0.4 ? 'bg-yellow-500' :
+                                        'bg-green-500'
+                                      }`}
+                                      style={{width: `${Math.min((toxicityData[metric] || 0) * 100, 100)}%`}}
+                                    ></div>
+                                  </div>
+                                  <span className="text-[#888] text-xs w-12 text-right">
+                                    {((toxicityData[metric] || 0) * 100).toFixed(1)}%
+                                  </span>
+                                </div>
+                              ));
+                            })()}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Fairness Metrics */}
+                      {latestAiMessage.fairness && (
+                        <div className="p-4 bg-[#0a0a0a] rounded border border-[#2a2a2a]">
+                          <div className="text-sm text-[#e7e7e7] font-medium mb-3">Fairness Analysis</div>
+                          <div className="grid grid-cols-2 gap-4 text-xs">
+                            {latestAiMessage.fairness.demographicParity !== undefined && (
+                              <div>
+                                <div className="text-[#666] mb-1">Demographic Parity</div>
+                                <div className="text-[#e7e7e7]">
+                                  {(latestAiMessage.fairness.demographicParity * 100).toFixed(1)}%
+                                </div>
+                              </div>
+                            )}
+                            {latestAiMessage.fairness.equalizedOdds !== undefined && (
+                              <div>
+                                <div className="text-[#666] mb-1">Equalized Odds</div>
+                                <div className="text-[#e7e7e7]">
+                                  {(latestAiMessage.fairness.equalizedOdds * 100).toFixed(1)}%
+                                </div>
+                              </div>
+                            )}
+                            {latestAiMessage.fairness.disparateImpact !== undefined && (
+                              <div>
+                                <div className="text-[#666] mb-1">Disparate Impact</div>
+                                <div className="text-[#e7e7e7]">
+                                  {latestAiMessage.fairness.disparateImpact.toFixed(2)}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Consensus Contribution */}
+                      {latestAiMessage.modelSynthesis?.consensusIndex !== undefined && (
+                        <div className="p-4 bg-[#0a0a0a] rounded border border-[#2a2a2a]">
+                          <div className="text-sm text-[#e7e7e7] font-medium mb-3">Consensus Metrics</div>
+                          <div className="grid grid-cols-2 gap-4 text-xs">
+                            <div>
+                              <div className="text-[#666] mb-1">Consensus Index</div>
+                              <div className="text-[#e7e7e7]">
+                                {(latestAiMessage.modelSynthesis.consensusIndex * 100).toFixed(0)}%
+                              </div>
+                            </div>
+                            {latestAiMessage.modelSynthesis.divergenceMeasure !== undefined && (
+                              <div>
+                                <div className="text-[#666] mb-1">Divergence</div>
+                                <div className="text-[#e7e7e7]">
+                                  {(latestAiMessage.modelSynthesis.divergenceMeasure * 100).toFixed(0)}%
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Explainability */}
+                      {latestAiMessage.explainability && (
+                        <div className="p-4 bg-[#0a0a0a] rounded border border-[#2a2a2a]">
+                          <div className="text-sm text-[#e7e7e7] font-medium mb-3">Explainability (SHAP/LIME)</div>
+                          {latestAiMessage.explainability.shap?.feature_importance && (
+                            <div className="space-y-2">
+                              <div className="text-xs text-[#666] mb-2">Top Contributing Features:</div>
+                              {latestAiMessage.explainability.shap.feature_importance.slice(0, 5).map((feat, fidx) => (
+                                <div key={fidx} className="flex items-center gap-3">
+                                  <span className="text-[#888] text-xs w-24 truncate">{feat.word}</span>
+                                  <div className="flex-1 h-2 bg-[#1a1a1a] rounded-full overflow-hidden">
+                                    <div 
+                                      className={`h-full ${feat.impact === 'positive' ? 'bg-green-500' : 'bg-red-500'}`}
+                                      style={{width: `${Math.min(Math.abs(feat.importance) * 100, 100)}%`}}
+                                    ></div>
+                                  </div>
+                                  <span className="text-[#888] text-xs w-12 text-right">
+                                    {feat.importance > 0 ? '+' : ''}{feat.importance.toFixed(3)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Expandable: Processed Analysis Details */}
+                <div className="border-b border-[#2a2a2a]">
+                  <button
+                    onClick={() => toggleModelDetails(idx, 'analysis')}
+                    className="w-full px-6 py-4 flex items-center justify-between hover:bg-[#1a1a1a] transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">🔬</span>
+                      <div>
+                        <div className="text-[#e7e7e7] font-medium">Processed Analysis Details</div>
+                        <div className="text-xs text-[#666]">Tone, emotion, intent, entities, and main points</div>
+                      </div>
+                    </div>
+                    <span className="text-[#666]">{isExpanded(idx, 'analysis') ? '▼' : '▶'}</span>
+                  </button>
+                  {isExpanded(idx, 'analysis') && (
+                    <div className="px-6 pb-6 bg-[#0f0f0f]">
+                      {/* Emotion/Tone/Intent */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-6">
+                        <div className="bg-[#0a0a0a] rounded p-3 border border-[#2a2a2a]">
+                          <div className="text-[#666] mb-1">Emotion</div>
+                          <div className="text-[#e7e7e7]">
+                            {response.enhancedAnalysis?.emotion?.primary || response.analysis?.tone?.primary || 'N/A'}
+                          </div>
+                        </div>
+                        <div className="bg-[#0a0a0a] rounded p-3 border border-[#2a2a2a]">
+                          <div className="text-[#666] mb-1">Ton</div>
+                          <div className="text-[#e7e7e7]">
+                            {response.analysis?.tone?.description || response.analysis?.tone?.primary || 'N/A'}
+                          </div>
+                        </div>
+                        <div className="bg-[#0a0a0a] rounded p-3 border border-[#2a2a2a]">
+                          <div className="text-[#666] mb-1">Syfte</div>
+                          <div className="text-[#e7e7e7]">{response.enhancedAnalysis?.intent?.primary || 'N/A'}</div>
+                        </div>
+                      </div>
+                      
+                      {/* Main Points */}
+                      {response.enhancedAnalysis?.argumentation?.huvudpunkter && response.enhancedAnalysis.argumentation.huvudpunkter.length > 0 && (
+                        <div className="mb-6">
+                          <div className="text-[#666] mb-2">Huvudpunkter:</div>
+                          <div className="space-y-2">
+                            {response.enhancedAnalysis.argumentation.huvudpunkter.map((point, pidx) => (
+                              <div key={pidx} className="flex items-start gap-2 p-3 bg-[#0a0a0a] rounded border border-[#2a2a2a]">
+                                <span className="text-[#666] mt-0.5">{pidx + 1}.</span>
+                                <span className="text-[#888] whitespace-pre-wrap" 
+                                      dangerouslySetInnerHTML={{ __html: formatTextWithMarkdown(point) }}>
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Identified Entities */}
+                      {response.enhancedAnalysis?.entities?.entities && response.enhancedAnalysis.entities.entities.length > 0 && (
+                        <div>
+                          <div className="text-[#666] mb-2">Identifierade entiteter:</div>
+                          <div className="flex flex-wrap gap-2">
+                            {response.enhancedAnalysis.entities.entities.slice(0, 12).map((entity, eidx) => {
+                              const text = entity.text || entity.word || entity.entity || entity;
+                              const label = entity.label || entity.entity_group || entity.type || '';
+                              return (
+                                <span key={eidx} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-sm rounded border border-[#2a2a2a]">
+                                  {typeof text === 'string' ? text : JSON.stringify(text)}
+                                  {label && ` (${label})`}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Identified Entities - Alternative structure */}
+                      {response.entities && response.entities.length > 0 && !response.enhancedAnalysis?.entities?.entities && (
+                        <div className="mt-4">
+                          <div className="text-sm text-[#666] mb-2">Identifierade entiteter:</div>
+                          <div className="flex flex-wrap gap-2">
+                            {response.entities.map((entity, i) => {
+                              const text = typeof entity === 'object' ? (entity.text || entity.word || entity.entity) : entity;
+                              const label = typeof entity === 'object' ? (entity.label || entity.entity_group || entity.type) : '';
+                              return (
+                                <span key={i} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-sm rounded border border-[#2a2a2a]">
+                                  {text || 'N/A'}
+                                  {label && ` (${label})`}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Expandable: Processing Time Breakdown */}
+                <div className="border-b border-[#2a2a2a]">
+                  <button
+                    onClick={() => toggleModelDetails(idx, 'processing')}
+                    className="w-full px-6 py-4 flex items-center justify-between hover:bg-[#1a1a1a] transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">⏱️</span>
+                      <div>
+                        <div className="text-[#e7e7e7] font-medium">Processing Time Breakdown</div>
+                        <div className="text-xs text-[#666]">
+                          Total: {response.metadata?.responseTimeMs || 0}ms
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[#666]">{isExpanded(idx, 'processing') ? '▼' : '▶'}</span>
+                  </button>
+                  {isExpanded(idx, 'processing') && (
+                    <div className="px-6 pb-6 bg-[#0f0f0f]">
+                      {response.pipelineAnalysis?.timeline && response.pipelineAnalysis.timeline.length > 0 ? (
+                        <div className="space-y-2">
+                          {response.pipelineAnalysis.timeline.map((step, sidx) => (
+                            <div key={sidx} className="flex items-center justify-between p-3 bg-[#0a0a0a] rounded border border-[#2a2a2a]">
+                              <div className="flex-1">
+                                <div className="text-[#e7e7e7] text-sm">{step.step || step.name || 'Unknown'}</div>
+                                <div className="text-xs text-[#666]">{step.model || 'N/A'}</div>
+                              </div>
+                              <div className="text-[#888] text-sm font-mono">
+                                {step.durationMs || step.duration || 0}ms
+                              </div>
+                            </div>
+                          ))}
+                          <div className="pt-3 border-t border-[#2a2a2a] flex items-center justify-between text-sm">
+                            <span className="text-[#666]">Total Processing Time:</span>
+                            <span className="text-[#e7e7e7] font-medium">
+                              {response.pipelineAnalysis.metadata?.totalProcessingTimeMs || 
+                               response.metadata?.responseTimeMs || 0}ms
                             </span>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Identified Entities */}
-                  {response.enhancedAnalysis?.entities?.entities && response.enhancedAnalysis.entities.entities.length > 0 && (
-                    <div>
-                      <div className="text-[#666] mb-2">Identifierade entiteter:</div>
-                      <div className="flex flex-wrap gap-2">
-                        {response.enhancedAnalysis.entities.entities.slice(0, 8).map((entity, eidx) => {
-                          // Handle different entity structures
-                          const text = entity.text || entity.word || entity.entity || entity;
-                          const label = entity.label || entity.entity_group || entity.type || '';
-                          return (
-                            <span key={eidx} className="px-2 py-1 bg-[#1a1a1a] text-[#888] text-sm rounded">
-                              {typeof text === 'string' ? text : JSON.stringify(text)}
-                              {label && ` (${label})`}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Identified Entities - Alternative structure */}
-                  {response.entities && response.entities.length > 0 && !response.enhancedAnalysis?.entities?.entities && (
-                    <div className="mt-4">
-                      <div className="text-sm text-[#666] mb-2">Identifierade entiteter:</div>
-                      <div className="flex flex-wrap gap-2">
-                        {response.entities.map((entity, i) => {
-                          const text = typeof entity === 'object' ? (entity.text || entity.word || entity.entity) : entity;
-                          const label = typeof entity === 'object' ? (entity.label || entity.entity_group || entity.type) : '';
-                          return (
-                            <span key={i} className="px-2 py-1 bg-[#1a1a1a] text-[#888] text-sm rounded">
-                              {text || 'N/A'}
-                              {label && ` (${label})`}
-                            </span>
-                          );
-                        })}
-                      </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 text-[#666]">
+                          No detailed processing timeline available
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
