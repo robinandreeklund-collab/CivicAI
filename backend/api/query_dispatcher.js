@@ -72,7 +72,7 @@ router.post('/query', async (req, res) => {
     ]);
 
     // Helper function to compute enhanced metadata for each response
-    const computeEnhancedMetadata = (responseText, modelName, serviceTime) => {
+    const computeEnhancedMetadata = (responseText, modelName, serviceTime, serviceName) => {
       const tokens = responseText.split(/\s+/).length;
       const characters = responseText.length;
       
@@ -89,6 +89,14 @@ router.post('/query', async (req, res) => {
       const detectedLanguage = swedishWords > englishWords ? 'sv' : 'en';
       const languageConfidence = Math.max(swedishWords, englishWords) / 10;
       
+      // Map service names to API endpoints
+      const endpointMap = {
+        'gpt-3.5': 'https://api.openai.com/v1/chat/completions',
+        'gemini': 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent',
+        'deepseek': 'https://api.deepseek.com/v1/chat/completions',
+        'grok': 'https://api.x.ai/v1/chat/completions'
+      };
+      
       return {
         model: modelName,
         version: modelName,
@@ -101,6 +109,8 @@ router.post('/query', async (req, res) => {
           detected: detectedLanguage,
           confidence: Math.min(1.0, languageConfidence),
         },
+        endpoint: endpointMap[serviceName] || 'unknown',
+        request_id: `req_${serviceName}_${Date.now()}_${Math.random().toString(36).substring(7)}`,
       };
     };
 
@@ -125,7 +135,7 @@ router.post('/query', async (req, res) => {
       responses.push({
         agent: 'gpt-3.5',
         response: responseText,
-        metadata: computeEnhancedMetadata(responseText, gptResponse.value.model, gptProcessTime),
+        metadata: computeEnhancedMetadata(responseText, gptResponse.value.model, gptProcessTime, 'gpt-3.5'),
         analysis: {
           tone: {
             primary: toneAnalysis.primary,
@@ -170,7 +180,7 @@ router.post('/query', async (req, res) => {
       responses.push({
         agent: 'gemini',
         response: responseText,
-        metadata: computeEnhancedMetadata(responseText, geminiResponse.value.model, geminiProcessTime),
+        metadata: computeEnhancedMetadata(responseText, geminiResponse.value.model, geminiProcessTime, 'gemini'),
         analysis: {
           tone: {
             primary: toneAnalysis.primary,
@@ -215,7 +225,7 @@ router.post('/query', async (req, res) => {
       responses.push({
         agent: 'deepseek',
         response: responseText,
-        metadata: computeEnhancedMetadata(responseText, deepseekResponse.value.model, deepseekProcessTime),
+        metadata: computeEnhancedMetadata(responseText, deepseekResponse.value.model, deepseekProcessTime, 'deepseek'),
         analysis: {
           tone: {
             primary: toneAnalysis.primary,
@@ -260,7 +270,7 @@ router.post('/query', async (req, res) => {
       responses.push({
         agent: 'grok',
         response: responseText,
-        metadata: computeEnhancedMetadata(responseText, grokResponse.value.model, grokProcessTime),
+        metadata: computeEnhancedMetadata(responseText, grokResponse.value.model, grokProcessTime, 'grok'),
         analysis: {
           tone: {
             primary: toneAnalysis.primary,
