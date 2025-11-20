@@ -15,6 +15,7 @@ import mlRouter from './api/ml.js';
 import factCheckRouter from './api/factcheck.js';
 import firebaseRouter from './api/firebase.js';
 import usersRouter from './api/users.js';
+import oqtRouter from './api/oqt.js';
 import { logPythonServiceStatus } from './services/pythonNLPClient.js';
 import { getCachedPythonStatus } from './services/healthCache.js';
 import { isFirebaseAvailable } from './services/firebaseService.js';
@@ -42,6 +43,7 @@ app.use('/api/ml', mlRouter);
 app.use('/api/fact-check', factCheckRouter);
 app.use('/api/firebase', firebaseRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/oqt', oqtRouter);
 
 // Health check endpoint with service status
 app.get('/api/health', async (req, res) => {
@@ -53,6 +55,11 @@ app.get('/api/health', async (req, res) => {
       status: 'ok',
       services: {
         'query': { status: 'up', description: 'AI Query Service' },
+        'oqt': { 
+          status: 'up', 
+          description: 'OQT-1.0 Language Model Service',
+          endpoints: ['/api/oqt/query', '/api/oqt/train', '/api/oqt/micro-train', '/api/oqt/status', '/api/oqt/metrics']
+        },
         'python-ml': { 
           status: pythonStatus.status ? 'up' : 'down',
           description: 'Python ML Pipeline Service',
