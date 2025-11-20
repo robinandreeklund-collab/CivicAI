@@ -12,6 +12,13 @@
 
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import { 
+  saveOQTQuery, 
+  saveOQTMetrics, 
+  saveOQTTrainingEvent,
+  saveOQTProvenance,
+  getLatestOQTMetrics
+} from '../services/oqtFirebaseService.js';
 
 const router = express.Router();
 
@@ -77,6 +84,26 @@ router.post('/query', async (req, res) => {
         { step: 'post-processing', timestamp: new Date().toISOString() }
       ]
     };
+
+    // Save query to Firebase
+    const queryData = {
+      queryId,
+      question,
+      response: response.text,
+      confidence: response.confidence,
+      metadata: {
+        tokens: response.tokens,
+        latency_ms: response.latency_ms,
+        temperature: options?.temperature || 0.7
+      },
+      model: 'OQT-1.0',
+      version: oqtModel.version
+    };
+    
+    await saveOQTQuery(queryData);
+    
+    // Save provenance to Firebase
+    await saveOQTProvenance(provenance);
 
     res.json({
       success: true,
@@ -144,6 +171,32 @@ router.post('/micro-train', async (req, res) => {
     // Update model metrics
     oqtModel.trainingData.microBatch += 1;
 
+    // Save training event to Firebase
+    const trainingEventData = {
+      trainingId,
+      type: 'micro-training',
+      question,
+      samplesProcessed: rawResponses.length,
+      stage1: stage1Result,
+      stage2: stage2Result,
+      modelVersion: oqtModel.version,
+      metrics: {
+        accuracy: oqtModel.metrics.accuracy,
+        fairness: oqtModel.metrics.fairness,
+        bias: oqtModel.metrics.bias,
+        consensus: oqtModel.metrics.consensus
+      }
+    };
+
+    await saveOQTTrainingEvent(trainingEventData);
+
+    // Save updated metrics to Firebase
+    await saveOQTMetrics({
+      version: oqtModel.version,
+      metrics: oqtModel.metrics,
+      training: oqtModel.trainingData
+    });
+
     res.json({
       success: true,
       trainingId,
@@ -200,17 +253,41 @@ router.post('/train', async (req, res) => {
     const versionParts = oqtModel.version.split('.');
     versionParts[2] = parseInt(versionParts[2]) + 1;
     const newVersion = versionParts.join('.');
+    const previousVersion = oqtModel.version;
 
     oqtModel.version = newVersion;
     oqtModel.lastTraining = timestamp;
     oqtModel.trainingData.weeklyBatch += 1;
     oqtModel.trainingData.totalSamples += result.samplesProcessed;
 
+    // Save training event to Firebase
+    const trainingEventData = {
+      trainingId,
+      type: 'weekly-batch',
+      dataSource,
+      dateRange,
+      samplesProcessed: result.samplesProcessed,
+      epochs: result.epochs,
+      duration_ms: result.duration_ms,
+      previousVersion,
+      newVersion,
+      metrics: result.metrics
+    };
+
+    await saveOQTTrainingEvent(trainingEventData);
+
+    // Save updated metrics to Firebase
+    await saveOQTMetrics({
+      version: newVersion,
+      metrics: oqtModel.metrics,
+      training: oqtModel.trainingData
+    });
+
     res.json({
       success: true,
       trainingId,
       timestamp,
-      previousVersion: versionParts.join('.'),
+      previousVersion,
       newVersion,
       result: {
         samplesProcessed: result.samplesProcessed,
