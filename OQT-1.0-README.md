@@ -9,6 +9,8 @@
 - [Firebase Database Schema](#firebase-database-schema)
 - [External AI Services](#external-ai-services)
 - [Base Models](#base-models)
+- [ML Pipeline Libraries](#ml-pipeline-libraries)
+- [BERT Summarizer Integration](#bert-summarizer-integration)
 - [Training System](#training-system)
 - [Version Management](#version-management)
 - [Ledger & Provenance](#ledger--provenance)
@@ -589,6 +591,339 @@ User Question
 │  OQT-1.0       │ → Synthesized, optimized response
 │  (Our Model)   │
 └────────────────┘
+```
+
+---
+
+## ML Pipeline Libraries
+
+The OQT-1.0 ML pipeline uses a comprehensive suite of specialized libraries for analysis, processing, and transparency. All results are stored in Firebase (`ai_interactions` collection) after analysis.
+
+### Libraries & Their Functions
+
+#### 1. **spaCy** - NLP Core Processing
+- **Purpose**: Natural Language Processing foundation
+- **Functions**:
+  - Tokenization (breaking text into words/sentences)
+  - Part-of-Speech (POS) tagging
+  - Named Entity Recognition (NER)
+  - Dependency parsing
+  - Lemmatization
+- **Use in OQT**: Base text processing for all AI responses, extracting key entities and grammatical structures
+- **Storage**: `ai_interactions.processed_data.nlp_features`
+
+#### 2. **TextBlob** - Sentiment Analysis
+- **Purpose**: Simple but effective sentiment and language analysis
+- **Functions**:
+  - Sentiment polarity (-1 to +1)
+  - Subjectivity detection (0 to 1)
+  - Basic translation
+  - Noun phrase extraction
+- **Use in OQT**: Quick sentiment scoring of AI responses to detect emotional tone
+- **Storage**: `ai_interactions.processed_data.sentiment`
+
+#### 3. **langdetect** - Language Identification
+- **Purpose**: Automatic language detection
+- **Functions**:
+  - Detects language of input text
+  - Supports 55+ languages
+  - Returns ISO language codes
+- **Use in OQT**: Ensures responses are in expected language (Swedish/English), flags mixed-language responses
+- **Storage**: `ai_interactions.processed_data.language`
+
+#### 4. **Detoxify** - Toxicity Detection
+- **Purpose**: Identify harmful, toxic, or offensive content
+- **Functions**:
+  - Toxicity score (0-1)
+  - Severe toxicity detection
+  - Obscenity, threats, insults detection
+  - Identity-based hate detection
+- **Use in OQT**: Safety filter for AI responses, bias detection component
+- **Storage**: `ai_interactions.quality_metrics.toxicity`
+
+#### 5. **Transformers (HuggingFace)** - Modern LLM Framework
+- **Purpose**: Access to state-of-the-art language models
+- **Functions**:
+  - Load and run Mistral 7B, LLaMA-2
+  - LoRA/PEFT fine-tuning
+  - Model inference and generation
+  - Tokenization for all models
+- **Use in OQT**: Core framework for running base models and LoRA adapters
+- **Storage**: Model weights in `models/oqt/weights/`
+
+#### 6. **SHAP** - Explainability (Feature Importance)
+- **Purpose**: Explain model predictions
+- **Functions**:
+  - Feature importance calculation
+  - Shapley values for each input
+  - Visual explanation plots
+  - Model-agnostic explanations
+- **Use in OQT**: Transparency layer - shows which parts of input influenced the response
+- **Storage**: `ai_interactions.pipeline_metadata.explainability.shap_values`
+
+#### 7. **Gensim** - Topic Modeling & Word Embeddings
+- **Purpose**: Discover topics and semantic relationships
+- **Functions**:
+  - Word2Vec embeddings
+  - Topic modeling (LDA)
+  - Document similarity
+  - Text summarization
+- **Use in OQT**: Identify common themes across AI responses, semantic clustering
+- **Storage**: `ai_interactions.processed_data.topics`
+
+#### 8. **BERTopic** - Advanced Topic Modeling
+- **Purpose**: State-of-the-art topic discovery
+- **Functions**:
+  - Dynamic topic modeling
+  - BERT-based embeddings
+  - Hierarchical topics
+  - Topic evolution over time
+- **Use in OQT**: Deep topic analysis for consensus detection, trend tracking in dashboard
+- **Storage**: `ai_interactions.processed_data.bert_topics`
+
+#### 9. **LIME** - Local Model Explainability
+- **Purpose**: Explain individual predictions locally
+- **Functions**:
+  - Local approximations of model behavior
+  - Feature importance per prediction
+  - Human-interpretable explanations
+  - Works with any model
+- **Use in OQT**: Per-response explanation of why OQT gave specific answer
+- **Storage**: `ai_interactions.pipeline_metadata.explainability.lime_explanation`
+
+#### 10. **Fairlearn** - Fairness Analysis
+- **Purpose**: Detect and mitigate bias in AI models
+- **Functions**:
+  - Fairness metrics calculation
+  - Disparity measurement
+  - Bias mitigation algorithms
+  - Group fairness evaluation
+- **Use in OQT**: Core fairness scoring component, ensures balanced responses across perspectives
+- **Storage**: `ai_interactions.quality_metrics.fairness`
+
+#### 11. **Lux** - Data Exploration
+- **Purpose**: Automated data visualization and exploration
+- **Functions**:
+  - Auto-generate visualizations
+  - Pattern discovery
+  - Data quality insights
+  - Interactive exploration
+- **Use in OQT**: Dashboard data exploration in "Mätvärden" tab, quick insights into model behavior
+- **Storage**: Used for visualization, not stored in Firebase
+
+#### 12. **Sweetviz** - Data Insights & Visualization
+- **Purpose**: Comprehensive data profiling and comparison
+- **Functions**:
+  - Automated EDA (Exploratory Data Analysis)
+  - Dataset comparison
+  - Feature correlation
+  - Distribution analysis
+- **Use in OQT**: Model performance analysis, comparing training datasets
+- **Storage**: Reports generated for dashboard, metrics in `oqt_metrics`
+
+### Pipeline Flow with Libraries
+
+```
+User Question
+     ↓
+┌─────────────────────────────────────┐
+│  External AI Responses (6 services)  │
+└─────────────────────────────────────┘
+     ↓
+┌─────────────────────────────────────┐
+│  ML Pipeline Analysis                │
+│  ┌────────────────────────────────┐ │
+│  │ spaCy: Tokenize, POS, NER      │ │
+│  │ langdetect: Language check     │ │
+│  │ TextBlob: Sentiment scoring    │ │
+│  │ Detoxify: Toxicity detection   │ │
+│  └────────────────────────────────┘ │
+│  ┌────────────────────────────────┐ │
+│  │ Gensim: Topic extraction       │ │
+│  │ BERTopic: Deep topic modeling  │ │
+│  └────────────────────────────────┘ │
+│  ┌────────────────────────────────┐ │
+│  │ Fairlearn: Fairness analysis   │ │
+│  │ SHAP: Feature importance       │ │
+│  │ LIME: Local explainability     │ │
+│  └────────────────────────────────┘ │
+└─────────────────────────────────────┘
+     ↓
+Save to ai_interactions.processed_data
+     ↓
+┌─────────────────────────────────────┐
+│  BERT Summarizer (see next section) │
+└─────────────────────────────────────┘
+     ↓
+Two-Step Training → OQT-1.0 Response
+```
+
+### Implementation Status
+
+| Library | Status | Use Case |
+|---------|--------|----------|
+| spaCy | ✅ Integrated | Base NLP processing |
+| TextBlob | ✅ Integrated | Sentiment analysis |
+| langdetect | ✅ Integrated | Language detection |
+| Detoxify | ✅ Integrated | Toxicity scoring |
+| Transformers | ✅ Integrated | Model inference |
+| SHAP | 🔄 Partial | Explainability (in progress) |
+| Gensim | ✅ Integrated | Topic modeling |
+| BERTopic | 🔄 Planned | Advanced topics |
+| LIME | 🔄 Planned | Local explanations |
+| Fairlearn | ✅ Integrated | Fairness metrics |
+| Lux | 📋 Planned | Dashboard viz |
+| Sweetviz | 📋 Planned | Data profiling |
+
+---
+
+## BERT Summarizer Integration
+
+To enhance OQT-1.0's ability to provide user-friendly and transparent responses, **BERT-Summarizer** is used as a summarization layer in the ML pipeline. The summarizer generates concise, balanced overviews of both raw responses and analyses, enabling OQT to present complex information clearly.
+
+### Purpose & Benefits
+
+1. **Transparency**: Users get both detailed responses and clear summaries
+2. **Efficiency**: OQT can quickly summarize complex multi-model debates
+3. **Identity Reinforcement**: Strengthens OQT's role as an "OpenSeek AI-agent" for clarity and transparency
+4. **User Experience**: Reduces cognitive load with concise overviews before diving into details
+
+### Flow Integration
+
+```
+┌─────────────────────────────────────┐
+│  1. Raw AI Responses                │
+│  • ChatGPT, Gemini, Grok, etc.      │
+└─────────────────────────────────────┘
+          ↓
+┌─────────────────────────────────────┐
+│  2. BERT Summarizer                 │
+│  • Compresses 6 responses           │
+│  • Extracts key points              │
+│  • Creates balanced overview        │
+└─────────────────────────────────────┘
+          ↓
+┌─────────────────────────────────────┐
+│  3. Analysis Results                │
+│  • Consensus, Bias, Fairness        │
+└─────────────────────────────────────┘
+          ↓
+┌─────────────────────────────────────┐
+│  4. BERT Summarizer (metaSummary)   │
+│  • Compresses analysis results      │
+│  • Creates human-readable summary   │
+└─────────────────────────────────────┘
+          ↓
+┌─────────────────────────────────────┐
+│  5. Training Data                   │
+│  • Summarized responses used        │
+│  • Reinforces OQT identity          │
+└─────────────────────────────────────┘
+          ↓
+┌─────────────────────────────────────┐
+│  6. Dashboard Display               │
+│  • Shows both full text & summary   │
+│  • Includes provenance              │
+└─────────────────────────────────────┘
+```
+
+### Example Usage
+
+**Input**: Raw responses from 3 AI services on EU climate policy
+
+```yaml
+summarizer:
+  input:
+    - "ChatGPT: EU bör fokusera på gemensamma utsläppsmål."
+    - "Gemini: Nationella lösningar är mer effektiva."
+    - "Grok: Teknologisk innovation bör prioriteras."
+  
+  output: "Modellerna är överens om klimatmål, men skiljer sig i synen på nationell flexibilitet."
+  
+  metadata:
+    oqt_version: "OQT-1.0.v12.6"
+    ledger_timestamp: "2025-11-20T22:25:00Z"
+    compression_ratio: 0.35
+    key_themes: ["klimatmål", "nationell flexibilitet", "innovation"]
+```
+
+### Storage in Firebase
+
+Summaries are stored in `ai_interactions`:
+
+```json
+{
+  "question_id": "q_2025_11_20_001",
+  "raw_responses": [ ... ],
+  "processed_data": {
+    "raw_summary": {
+      "text": "Modellerna är överens om klimatmål...",
+      "compression_ratio": 0.35,
+      "key_themes": ["klimatmål", "nationell flexibilitet"],
+      "generated_at": "2025-11-20T22:25:00Z"
+    },
+    "meta_summary": {
+      "text": "Konsensus: Hög (0.87). Bias: Låg (0.12). Fairness: Utmärkt (0.91).",
+      "analysis_compressed": true,
+      "provenance": "#interaction_2025_11_20_001"
+    }
+  }
+}
+```
+
+### Dashboard Presentation
+
+In the OQT Dashboard, summaries are displayed prominently:
+
+```
+┌──────────────────────────────────────────┐
+│  🤖 OpenSeek AI-agent                    │
+│  OQT-1.0.v12.6                           │
+├──────────────────────────────────────────┤
+│  Sammanfattning:                         │
+│  "Modellerna är överens om klimatmål,    │
+│   men skiljer sig i synen på nationell   │
+│   flexibilitet."                         │
+│                                          │
+│  [Visa fulltext] [Visa analys]          │
+│                                          │
+│  Fairness: 0.87 | Bias: Låg             │
+│  Provenance: #interaction_2025_11_20_001│
+└──────────────────────────────────────────┘
+```
+
+### Training Enhancement
+
+Summaries improve OQT training by:
+
+1. **Clearer Signal**: Condensed information is easier to learn from
+2. **Identity Reinforcement**: OQT learns to respond with "OpenSeek clarity"
+3. **Faster Convergence**: Less noise in training data
+4. **Better Generalization**: Focuses on core concepts, not verbosity
+
+### Implementation Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| BERT Summarizer Library | 🔄 Integration | Using `bert-extractive-summarizer` |
+| Raw Response Summarization | 📋 Planned | Week 1-2 |
+| Analysis Summarization (metaSummary) | 📋 Planned | Week 2-3 |
+| Dashboard Display | ✅ UI Ready | Awaits summarizer output |
+| Training Integration | 📋 Planned | Week 3-4 |
+| Provenance Tracking | ✅ Complete | Ledger integration ready |
+
+### Configuration
+
+```python
+# BERT Summarizer Config
+summarizer_config = {
+    "model": "bert-base-multilingual-cased",  # Supports Swedish
+    "max_length": 150,  # Target summary length
+    "min_length": 50,
+    "ratio": 0.3,  # 30% of original length
+    "use_first": False,  # Don't always use first sentence
+    "algorithm": "extractive"  # Extract key sentences
+}
 ```
 
 ---
@@ -1337,6 +1672,16 @@ models/
 - ✅ Installation guide (`INSTALLATION_GUIDE.md`)
 - ✅ API documentation (`docs/OQT_MULTI_MODEL_API.md`)
 - ✅ Implementation guide (`OQT_MULTI_MODEL_README.md`)
+- ✅ Complete OQT-1.0 README (this document)
+
+**ML Pipeline Libraries**:
+- ✅ spaCy - NLP core processing
+- ✅ TextBlob - Sentiment analysis  
+- ✅ langdetect - Language detection
+- ✅ Detoxify - Toxicity scoring
+- ✅ Transformers - Model framework
+- ✅ Gensim - Topic modeling
+- ✅ Fairlearn - Fairness metrics
 - ✅ Complete OQT-1.0 documentation (this file)
 
 **Testing**:
@@ -1354,11 +1699,28 @@ models/
 
 **Training Pipeline**:
 - 🔄 Actual PyTorch training implementation
+- 🔄 LoRA/PEFT fine-tuning setup
 - 🔄 Stage 1: Raw data fine-tuning
 - 🔄 Stage 2: Analyzed data fine-tuning
 - 🔄 Large dataset training scheduler
 - 🔄 Model weight persistence
 - 🔄 Version management automation
+- 🔄 Instruction dataset creation (500 OpenSeek identity examples)
+
+**ML Pipeline - Advanced Libraries**:
+- 🔄 SHAP - Explainability (partial integration)
+- 📋 BERTopic - Advanced topic modeling
+- 📋 LIME - Local explanations
+- 📋 Lux - Dashboard visualizations
+- 📋 Sweetviz - Data profiling
+
+**BERT Summarizer Integration**:
+- 🔄 BERT Summarizer library integration
+- 📋 Raw response summarization (Week 1-2)
+- 📋 Analysis summarization (metaSummary) (Week 2-3)
+- ✅ Dashboard UI for summary display (ready)
+- 📋 Training integration with summaries (Week 3-4)
+- ✅ Provenance tracking (complete)
 
 **Dashboard Tabs (Content)**:
 - ✅ Chat tab (functional)
