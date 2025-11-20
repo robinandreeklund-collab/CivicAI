@@ -320,42 +320,39 @@ export default function OQTDashboardPage() {
 
                 {/* Ledger Stats */}
                 <div className="grid grid-cols-4 gap-4 mb-8">
-                  <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-4">
-                    <div className="text-xs text-[#666] mb-1">Totalt Blocks</div>
+                  <div className="border-l border-[#2a2a2a] pl-4">
+                    <div className="text-xs text-[#666] uppercase tracking-wider mb-1">Totalt Blocks</div>
                     <div className="text-2xl font-light text-[#e7e7e7]">1,247</div>
                   </div>
-                  <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-4">
-                    <div className="text-xs text-[#666] mb-1">Verifierade Transaktioner</div>
+                  <div className="border-l border-[#2a2a2a] pl-4">
+                    <div className="text-xs text-[#666] uppercase tracking-wider mb-1">Verifierade Transaktioner</div>
                     <div className="text-2xl font-light text-[#e7e7e7]">45,231</div>
                   </div>
-                  <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-4">
-                    <div className="text-xs text-[#666] mb-1">Integritetsstatus</div>
-                    <div className="text-2xl font-light text-green-400">100%</div>
+                  <div className="border-l border-[#2a2a2a] pl-4">
+                    <div className="text-xs text-[#666] uppercase tracking-wider mb-1">Integritetsstatus</div>
+                    <div className="text-2xl font-light text-[#e7e7e7]">100%</div>
                   </div>
-                  <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-4">
-                    <div className="text-xs text-[#666] mb-1">Senaste Block</div>
+                  <div className="border-l border-[#2a2a2a] pl-4">
+                    <div className="text-xs text-[#666] uppercase tracking-wider mb-1">Senaste Block</div>
                     <div className="text-sm font-light text-[#e7e7e7]">{new Date().toLocaleDateString('sv-SE')}</div>
                   </div>
                 </div>
 
                 {/* Key Benefits */}
                 <div className="grid grid-cols-3 gap-6 mb-8">
-                  <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-6">
-                    <div className="text-2xl mb-3">🔒</div>
+                  <div className="border-l border-[#2a2a2a] pl-4">
                     <h4 className="text-sm font-medium text-[#e7e7e7] mb-2">Immutabel Data</h4>
                     <p className="text-xs text-[#888]">
                       All träningsdata lagras i blockchain-blocks som inte kan ändras eller raderas.
                     </p>
                   </div>
-                  <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-6">
-                    <div className="text-2xl mb-3">✓</div>
+                  <div className="border-l border-[#2a2a2a] pl-4">
                     <h4 className="text-sm font-medium text-[#e7e7e7] mb-2">Transparent Verifiering</h4>
                     <p className="text-xs text-[#888]">
                       Vem som helst kan verifiera att datan är äkta genom att kontrollera hash-värden.
                     </p>
                   </div>
-                  <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg p-6">
-                    <div className="text-2xl mb-3">🛡️</div>
+                  <div className="border-l border-[#2a2a2a] pl-4">
                     <h4 className="text-sm font-medium text-[#e7e7e7] mb-2">Skydd Mot Manipulation</h4>
                     <p className="text-xs text-[#888]">
                       Kryptografisk säkerhet förhindrar all form av datamanipulation eller förfalskning.
@@ -367,32 +364,24 @@ export default function OQTDashboardPage() {
                 <LedgerView blocks={[]} />
                 
                 {/* Additional Info */}
-                <div className="mt-8 p-6 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg">
+                <div className="mt-8 p-6 border border-[#2a2a2a] rounded-lg">
                   <h4 className="text-sm font-medium text-[#e7e7e7] mb-4">Teknisk Implementation</h4>
-                  <div className="space-y-3 text-sm text-[#888]">
-                    <div className="flex items-start gap-3">
-                      <span className="text-[#666]">•</span>
-                      <p>
-                        <strong className="text-[#e7e7e7]">SHA-256 Hashing:</strong> Varje block hashas med SHA-256 för kryptografisk säkerhet
-                      </p>
+                  <div className="space-y-4 text-sm">
+                    <div className="flex justify-between py-2 border-b border-[#151515]">
+                      <span className="text-[#666]">SHA-256 Hashing</span>
+                      <span className="text-[#888]">Kryptografisk säkerhet för varje block</span>
                     </div>
-                    <div className="flex items-start gap-3">
-                      <span className="text-[#666]">•</span>
-                      <p>
-                        <strong className="text-[#e7e7e7]">Block Linking:</strong> Varje block innehåller hash från tidigare block, vilket skapar en obrytbar kedja
-                      </p>
+                    <div className="flex justify-between py-2 border-b border-[#151515]">
+                      <span className="text-[#666]">Block Linking</span>
+                      <span className="text-[#888]">Hash från tidigare block skapar obrytbar kedja</span>
                     </div>
-                    <div className="flex items-start gap-3">
-                      <span className="text-[#666]">•</span>
-                      <p>
-                        <strong className="text-[#e7e7e7]">Multi-Node Validation:</strong> Blocks valideras av flera oberoende noder för maximal säkerhet
-                      </p>
+                    <div className="flex justify-between py-2 border-b border-[#151515]">
+                      <span className="text-[#666]">Multi-Node Validation</span>
+                      <span className="text-[#888]">Blocks valideras av oberoende noder</span>
                     </div>
-                    <div className="flex items-start gap-3">
-                      <span className="text-[#666]">•</span>
-                      <p>
-                        <strong className="text-[#e7e7e7]">Real-Time Verification:</strong> Kontinuerlig övervakning säkerställer att ingen data har komprometterats
-                      </p>
+                    <div className="flex justify-between py-2 border-b border-[#151515]">
+                      <span className="text-[#666]">Real-Time Verification</span>
+                      <span className="text-[#888]">Kontinuerlig övervakning av dataintegritet</span>
                     </div>
                   </div>
                 </div>

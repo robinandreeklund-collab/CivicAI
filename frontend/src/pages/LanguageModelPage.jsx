@@ -48,11 +48,23 @@ export default function LanguageModelPage() {
               <div className="bg-[#151515] border border-[#2a2a2a] rounded-xl p-6">
                 <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">En meta-intelligens</h2>
                 <p className="mb-4 text-sm text-[#888]">OQT‑1.0 är en meta‑intelligens som:</p>
-                <div className="space-y-2 text-xs">
-                  <div className="text-[#888]"><span className="text-[#666]">•</span> Syntetiserar konsensus mellan modeller</div>
-                  <div className="text-[#888]"><span className="text-[#666]">•</span> Analyserar bias och ideologisk lutning</div>
-                  <div className="text-[#888]"><span className="text-[#666]">•</span> Identifierar etiska risker och flaggar oreflekterad påverkan</div>
-                  <div className="text-[#888]"><span className="text-[#666]">•</span> Bidrar till framtidens insynsverktyg och demokratiska AI‑miljöer</div>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-start gap-3">
+                    <span className="text-[#666] mt-0.5">—</span>
+                    <span className="text-[#888]">Syntetiserar konsensus mellan modeller</span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-[#666] mt-0.5">—</span>
+                    <span className="text-[#888]">Analyserar bias och ideologisk lutning</span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-[#666] mt-0.5">—</span>
+                    <span className="text-[#888]">Identifierar etiska risker och flaggar oreflekterad påverkan</span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-[#666] mt-0.5">—</span>
+                    <span className="text-[#888]">Bidrar till framtidens insynsverktyg och demokratiska AI‑miljöer</span>
+                  </div>
                 </div>
                 <p className="mt-4 text-sm text-[#888]">
                   Den växer i styrka ju fler AI‑svar den analyserar, och försöker aktivt balansera sina egna 
@@ -68,27 +80,27 @@ export default function LanguageModelPage() {
                 Modellen tränas på ett växande dataset som inkluderar AI‑genererade svar från över 20 av 
                 världens största språkmodeller:
               </p>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 text-xs">
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">GPT (OpenAI)</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">Grok (xAI)</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">Gemini (Google)</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">DeepSeek</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">Claude (Anthropic)</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">Mistral</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">Cohere</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">LLaMA (Meta)</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">Command R</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">Yi</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">Zephyr</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">Falcon</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">OpenChat</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">Orca</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">RWKV</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">Qwen</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">InternLM</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">Baichuan</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">ChatGLM</div>
-                <div className="bg-[#0a0a0a] rounded p-2 text-center text-[#888]">...och fler</div>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-sm">
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">GPT (OpenAI)</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">Grok (xAI)</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">Gemini (Google)</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">DeepSeek</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">Claude (Anthropic)</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">Mistral</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">Cohere</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">LLaMA (Meta)</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">Command R</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">Yi</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">Zephyr</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">Falcon</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">OpenChat</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">Orca</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">RWKV</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">Qwen</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">InternLM</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">Baichuan</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">ChatGLM</div>
+                <div className="border-l border-[#2a2a2a] pl-3 text-[#888]">...och fler</div>
               </div>
             </div>
 
@@ -96,12 +108,27 @@ export default function LanguageModelPage() {
             <div className="grid md:grid-cols-2 gap-6">
               <div className="bg-[#151515] border border-[#2a2a2a] rounded-xl p-6">
                 <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Nyckelfunktioner</h2>
-                <div className="space-y-2 text-xs">
-                  <div className="text-[#888]"><span className="text-[#666]">🎯</span> <span className="text-[#aaa] font-medium">Konsensus-syntes:</span> Sammanställer gemensamma slutsatser från olika modeller</div>
-                  <div className="text-[#888]"><span className="text-[#666]">🔍</span> <span className="text-[#aaa] font-medium">Bias-analys:</span> Identifierar och kvantifierar ideologiska lutningar</div>
-                  <div className="text-[#888]"><span className="text-[#666]">⚖️</span> <span className="text-[#aaa] font-medium">Etisk balans:</span> Strävar efter neutrala, välavvägda perspektiv</div>
-                  <div className="text-[#888]"><span className="text-[#666]">📊</span> <span className="text-[#aaa] font-medium">Meta-förståelse:</span> Förstår hur andra AI-system resonerar</div>
-                  <div className="text-[#888]"><span className="text-[#666]">🌐</span> <span className="text-[#aaa] font-medium">Insynsverktyg:</span> Transparent dokumentation av alla analysprocesser</div>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between py-2 border-b border-[#151515]">
+                    <span className="text-[#666]">Konsensus-syntes</span>
+                    <span className="text-[#888]">Sammanställer gemensamma slutsatser</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-[#151515]">
+                    <span className="text-[#666]">Bias-analys</span>
+                    <span className="text-[#888]">Identifierar ideologiska lutningar</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-[#151515]">
+                    <span className="text-[#666]">Etisk balans</span>
+                    <span className="text-[#888]">Neutrala, välavvägda perspektiv</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-[#151515]">
+                    <span className="text-[#666]">Meta-förståelse</span>
+                    <span className="text-[#888]">Förstår AI-systemens resonemang</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-[#151515]">
+                    <span className="text-[#666]">Insynsverktyg</span>
+                    <span className="text-[#888]">Transparent dokumentation</span>
+                  </div>
                 </div>
               </div>
 
@@ -119,20 +146,32 @@ export default function LanguageModelPage() {
             </div>
 
             {/* Status - Full width */}
-            <div className="bg-[#1a1a1a] border border-[#ff9800] rounded-xl p-6">
+            <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-6">
               <div className="flex items-start gap-4">
-                <div className="text-3xl">🚧</div>
                 <div className="flex-1">
-                  <h2 className="text-2xl font-light text-[#ff9800] mb-3">Status: Work in Progress</h2>
+                  <div className="text-xs text-[#666] uppercase tracking-wider mb-2">Status</div>
+                  <h2 className="text-2xl font-light text-[#e7e7e7] mb-3">Work in Progress</h2>
                   <p className="mb-3 text-sm text-[#888]">
                     OQT-1.0 är för närvarande under utveckling och träning. Modellen lanseras som en experimentell 
                     modul i nästa fas av OpenSeek.AI:s utveckling.
                   </p>
-                  <div className="space-y-2 text-xs">
-                    <div className="text-[#888]"><span className="text-[#666]">•</span> <span className="text-[#aaa] font-medium">Fas 1:</span> Datainsamling från 20+ AI-modeller (pågående)</div>
-                    <div className="text-[#888]"><span className="text-[#666]">•</span> <span className="text-[#aaa] font-medium">Fas 2:</span> Modellträning och fine-tuning (planerad Q2 2025)</div>
-                    <div className="text-[#888]"><span className="text-[#666]">•</span> <span className="text-[#aaa] font-medium">Fas 3:</span> Beta-lansering för tidig testning (planerad Q3 2025)</div>
-                    <div className="text-[#888]"><span className="text-[#666]">•</span> <span className="text-[#aaa] font-medium">Fas 4:</span> Fullständig integration i plattformen (planerad Q4 2025)</div>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between py-2 border-b border-[#151515]">
+                      <span className="text-[#666]">Fas 1 – Datainsamling</span>
+                      <span className="text-[#888]">Pågående</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-[#151515]">
+                      <span className="text-[#666]">Fas 2 – Modellträning</span>
+                      <span className="text-[#666]">Planerad Q2 2025</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-[#151515]">
+                      <span className="text-[#666]">Fas 3 – Beta-lansering</span>
+                      <span className="text-[#666]">Planerad Q3 2025</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-[#151515]">
+                      <span className="text-[#666]">Fas 4 – Fullständig integration</span>
+                      <span className="text-[#666]">Planerad Q4 2025</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -145,7 +184,6 @@ export default function LanguageModelPage() {
               to="/oqt-dashboard"
               className="inline-flex items-center gap-2 px-6 py-3 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-[#e7e7e7] text-sm rounded-lg transition-colors duration-200"
             >
-              <span>🔍</span>
               <span>Visa fullständig OQT-1.0 Dashboard →</span>
             </Link>
           </div>

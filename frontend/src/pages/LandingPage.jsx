@@ -156,9 +156,8 @@ export default function LandingPage() {
         <div className="absolute top-6 right-6 z-50">
           <Link 
             to="/dashboard"
-            className="text-sm text-[#888] hover:text-[#e7e7e7] transition-colors duration-200 flex items-center gap-2"
+            className="text-sm text-[#888] hover:text-[#e7e7e7] transition-colors duration-200"
           >
-            <span>📊</span>
             <span>Dashboard</span>
           </Link>
         </div>
