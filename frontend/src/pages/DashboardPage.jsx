@@ -327,7 +327,7 @@ export default function DashboardPage() {
                                 {/* Tabs */}
                                 <div className="border-b border-[#1a1a1a] px-4">
                                   <div className="flex gap-6">
-                                    {['fråga', 'analys', 'kvalitetsmått', 'timeline'].map((tab) => {
+                                    {['fråga', 'analys', 'faktakollen', 'kvalitetsmått', 'timeline'].map((tab) => {
                                       const currentTab = questionTab[item.id] || 'fråga';
                                       const isActive = currentTab === tab;
                                       return (
@@ -360,10 +360,22 @@ export default function DashboardPage() {
                                         <div className="text-[10px] text-[#666] space-y-1">
                                           <div>Dokument ID: <span className="text-[#888] font-mono">{item.id}</span></div>
                                           <div>Status: <span className="text-[#888]">{item.status}</span></div>
-                                          <div>Skapad: <span className="text-[#888]">{formatTimestamp(item.timestamp)}</span></div>
+                                          <div>Skapad: <span className="text-[#888]">{formatTimestamp(item.analysis?.created_at || item.created_at || item.timestamp)}</span></div>
+                                          {item.analysis?.completed_at && (
+                                            <div>Slutförd: <span className="text-[#888]">{formatTimestamp(item.analysis.completed_at)}</span></div>
+                                          )}
                                           {item.user_id && <div>User ID: <span className="text-[#888] font-mono">{item.user_id}</span></div>}
                                         </div>
                                       </div>
+
+                                      {/* Meta Summary */}
+                                      {item.analysis?.metaSummary && (
+                                        <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-4 rounded">
+                                          <div className="text-xs text-[#666] italic leading-relaxed">
+                                            {item.analysis.metaSummary}
+                                          </div>
+                                        </div>
+                                      )}
                                       
                                       {/* Link to Chat-V2 */}
                                       <Link
@@ -444,6 +456,58 @@ export default function DashboardPage() {
                                     </div>
                                   )}
 
+                                  {/* FAKTAKOLLEN Tab */}
+                                  {(questionTab[item.id] || 'fråga') === 'faktakollen' && (
+                                    <div className="space-y-4">
+                                      {item.analysis?.factCheck ? (
+                                        <>
+                                          {/* Improvement Suggestions */}
+                                          {item.analysis.factCheck.improvementSuggestions && item.analysis.factCheck.improvementSuggestions.length > 0 && (
+                                            <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-4 rounded">
+                                              <div className="text-xs text-[#666] uppercase mb-3">Förbättringsförslag</div>
+                                              <ul className="text-sm text-[#888] space-y-2 list-disc list-inside">
+                                                {item.analysis.factCheck.improvementSuggestions.map((suggestion, idx) => (
+                                                  <li key={idx}>{suggestion}</li>
+                                                ))}
+                                              </ul>
+                                            </div>
+                                          )}
+
+                                          {/* Summary and Neutral Rate */}
+                                          <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-4 rounded space-y-3">
+                                            {item.analysis.factCheck.summary && (
+                                              <div>
+                                                <div className="text-xs text-[#666] uppercase mb-2">Summary</div>
+                                                <div className="text-sm text-[#888]">{item.analysis.factCheck.summary}</div>
+                                              </div>
+                                            )}
+                                            
+                                            {item.analysis.factCheck.neutralRate !== undefined && (
+                                              <div>
+                                                <div className="text-xs text-[#666] uppercase mb-2">Neutral Rate</div>
+                                                <div className="text-sm text-[#e7e7e7]">{item.analysis.factCheck.neutralRate}%</div>
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {/* Neutral Assessment Reason */}
+                                          {item.analysis.factCheck.neutralAssessmentReason && (
+                                            <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-4 rounded">
+                                              <div className="text-xs text-[#666] uppercase mb-3">Neutral Assessment Reason</div>
+                                              <div className="text-sm text-[#888] leading-relaxed">
+                                                {item.analysis.factCheck.neutralAssessmentReason}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <div className="text-sm text-[#666] text-center py-8">
+                                          Ingen faktakollsdata tillgänglig
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
                                   {/* KVALITETSMÅTT Tab */}
                                   {(questionTab[item.id] || 'fråga') === 'kvalitetsmått' && (
                                     <div className="space-y-4">
@@ -492,8 +556,8 @@ export default function DashboardPage() {
                                         <div className="space-y-4">
                                           {/* Current question data point */}
                                           <div className="border-l-2 border-[#e7e7e7] pl-4 py-2">
-                                            <div className="text-[10px] text-[#666] mb-1">{formatTimestamp(item.timestamp)}</div>
-                                            <div className="text-sm text-[#e7e7e7] mb-2">Din fråga</div>
+                                            <div className="text-[10px] text-[#666] mb-1">{formatTimestamp(item.analysis?.created_at || item.created_at || item.timestamp)}</div>
+                                            <div className="text-sm text-[#e7e7e7] mb-2">{item.question}</div>
                                             <div className="grid grid-cols-2 gap-3 text-xs text-[#888]">
                                               <div>
                                                 <div className="text-[#666]">Konsensus</div>
