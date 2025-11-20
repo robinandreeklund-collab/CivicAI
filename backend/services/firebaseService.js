@@ -237,13 +237,16 @@ export async function saveRawResponses(docId, responses) {
         model: r.metadata?.model || null,
         version: r.metadata?.version || null
       },
-      analysis: r.analysis || {},
-      enhancedAnalysis: r.enhancedAnalysis || null,
-      pipelineAnalysis: r.pipelineAnalysis || null
+      // Convert complex nested objects to JSON strings to prevent Firestore errors
+      analysis: r.analysis ? JSON.stringify(r.analysis) : null,
+      enhancedAnalysis: r.enhancedAnalysis ? JSON.stringify(r.enhancedAnalysis) : null,
+      pipelineAnalysis: r.pipelineAnalysis ? JSON.stringify(r.pipelineAnalysis) : null
     }));
     
-    // Clean raw responses to remove any undefined values
-    const cleanedRawResponses = removeUndefinedValues(rawResponses) || [];
+    // Use aggressive Firestore-safe conversion to prevent nested entity errors
+    const cleanedRawResponses = makeFirestoreSafe(rawResponses) || [];
+    
+    console.log(`[Firebase Service] Cleaned ${cleanedRawResponses.length} raw responses (converted complex objects to JSON strings)`);
     
     await docRef.update({
       raw_responses: cleanedRawResponses,
@@ -266,6 +269,135 @@ export async function saveRawResponses(docId, responses) {
     console.error('[Firebase Service] Error saving raw responses:', error);
     throw error;
   }
+}
+
+/**
+ * Make data completely Firestore-safe by converting complex nested objects to strings
+ * This is more aggressive than removeUndefinedValues and ensures no nested entity errors
+ * @param {any} data - Data to make Firestore-safe
+ * @returns {any} Firestore-safe data
+ */
+function makeFirestoreSafe(data) {
+  if (data === null || data === undefined) {
+    return null;
+  }
+  
+  // Handle primitive types
+  if (typeof data !== 'object') {
+    if (typeof data === 'number' && (Number.isNaN(data) || !Number.isFinite(data))) {
+      return null;
+    }
+    return data;
+  }
+  
+  // Handle Date objects
+  if (data instanceof Date) {
+    return data.toISOString();
+  }
+  
+  // Handle arrays
+  if (Array.isArray(data)) {
+    return data.map((item, index) => {
+      // For arrays, be extra careful with nested objects
+      if (item && typeof item === 'object' && !Array.isArray(item) && !(item instanceof Date)) {
+        // Check if this is a simple object (max 2 levels deep)
+        const keys = Object.keys(item);
+        if (keys.length > 10) {
+          // Too many keys, convert to string
+          try {
+            return JSON.stringify(item);
+          } catch (e) {
+            return '[Complex Object]';
+          }
+        }
+        
+        // Check for nested objects
+        let hasNestedObjects = false;
+        for (const key of keys) {
+          const val = item[key];
+          if (val && typeof val === 'object' && !Array.isArray(val) && !(val instanceof Date)) {
+            hasNestedObjects = true;
+            break;
+          }
+        }
+        
+        if (hasNestedObjects) {
+          // Has nested objects, convert to string
+          try {
+            return JSON.stringify(item);
+          } catch (e) {
+            return '[Complex Object]';
+          }
+        }
+        
+        // Simple object, clean it normally
+        return makeFirestoreSafe(item);
+      }
+      return makeFirestoreSafe(item);
+    }).filter(item => item !== null && item !== undefined);
+  }
+  
+  // Handle plain objects - keep only simple key-value pairs
+  const result = {};
+  try {
+    for (const [key, value] of Object.entries(data)) {
+      if (typeof key !== 'string' || key === '' || typeof value === 'function' || typeof value === 'symbol') {
+        continue;
+      }
+      
+      // Convert complex nested values to strings
+      if (value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+        // Check depth
+        const valueKeys = Object.keys(value);
+        if (valueKeys.length > 15) {
+          // Too complex, stringify
+          try {
+            result[key] = JSON.stringify(value);
+          } catch (e) {
+            result[key] = '[Complex Object]';
+          }
+        } else {
+          // Check if any values are nested objects
+          let hasDeepNesting = false;
+          for (const vk of valueKeys) {
+            const vv = value[vk];
+            if (vv && typeof vv === 'object' && !Array.isArray(vv) && !(vv instanceof Date)) {
+              hasDeepNesting = true;
+              break;
+            }
+          }
+          
+          if (hasDeepNesting) {
+            try {
+              result[key] = JSON.stringify(value);
+            } catch (e) {
+              result[key] = '[Complex Object]';
+            }
+          } else {
+            result[key] = makeFirestoreSafe(value);
+          }
+        }
+      } else if (Array.isArray(value)) {
+        // Arrays of primitives are OK, but arrays of objects need care
+        if (value.length > 0 && typeof value[0] === 'object') {
+          try {
+            result[key] = JSON.stringify(value);
+          } catch (e) {
+            result[key] = '[Complex Array]';
+          }
+        } else {
+          result[key] = makeFirestoreSafe(value);
+        }
+      } else {
+        result[key] = makeFirestoreSafe(value);
+      }
+    }
+  } catch (e) {
+    console.error('[Firebase Service] Error making data Firestore-safe:', e.message);
+    return null;
+  }
+  
+  return Object.keys(result).length > 0 ? result : null;
 }
 
 /**
