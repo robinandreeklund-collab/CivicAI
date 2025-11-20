@@ -15,6 +15,7 @@ export default function DashboardPage() {
   const [selectedTab, setSelectedTab] = useState('overview');
   const [notifications] = useState(3);
   const [expandedQuestion, setExpandedQuestion] = useState(null);
+  const [questionTab, setQuestionTab] = useState({}); // Track active tab per question
   const [showSnapshot, setShowSnapshot] = useState(null);
   const { user } = useAuth();
   
@@ -276,100 +277,217 @@ export default function DashboardPage() {
                               </div>
                             </div>
 
-                            {/* Expanded Details */}
+                            {/* Expanded Details with Tabs */}
                             {isExpanded && (
-                              <div className="bg-[#0d0d0d] border-t border-[#1a1a1a] px-4 py-4 space-y-4">
-                                {/* Question Details */}
-                                <div>
-                                  <div className="text-[10px] font-mono text-[#666] mb-2">FRÅGA →</div>
-                                  <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-3 rounded">
-                                    <p className="text-sm font-mono text-[#888]">{item.question}</p>
-                                    <div className="mt-2 text-[10px] text-[#666] space-y-1">
-                                      <div>Dokument ID: <span className="text-[#888]">{item.id}</span></div>
-                                      <div>Status: <span className="text-[#888]">{item.status}</span></div>
-                                      <div>Skapad: <span className="text-[#888]">{timestamp?.toLocaleString('sv-SE')}</span></div>
-                                    </div>
+                              <div className="bg-[#0d0d0d] border-t border-[#1a1a1a]">
+                                {/* Tabs */}
+                                <div className="border-b border-[#1a1a1a] px-4">
+                                  <div className="flex gap-6">
+                                    {['fråga', 'analys', 'kvalitetsmått', 'timeline'].map((tab) => {
+                                      const currentTab = questionTab[item.id] || 'fråga';
+                                      const isActive = currentTab === tab;
+                                      return (
+                                        <button
+                                          key={tab}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setQuestionTab({...questionTab, [item.id]: tab});
+                                          }}
+                                          className={`py-3 text-xs uppercase tracking-wider border-b-2 transition-colors ${
+                                            isActive 
+                                              ? 'border-[#e7e7e7] text-[#e7e7e7]' 
+                                              : 'border-transparent text-[#666] hover:text-[#888]'
+                                          }`}
+                                        >
+                                          {tab}
+                                        </button>
+                                      );
+                                    })}
                                   </div>
                                 </div>
 
-                                {/* Analysis Results */}
-                                {item.analysis && (
-                                  <div>
-                                    <div className="text-[10px] font-mono text-[#666] mb-2">ANALYS →</div>
-                                    <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-3 rounded space-y-2">
-                                      {item.analysis.modelSynthesis && (
-                                        <div>
-                                          <div className="text-[10px] text-[#666] mb-1">Model Synthesis</div>
-                                          <div className="text-xs text-[#888] space-y-1">
+                                {/* Tab Content */}
+                                <div className="px-4 py-4">
+                                  {/* FRÅGA Tab */}
+                                  {(questionTab[item.id] || 'fråga') === 'fråga' && (
+                                    <div className="space-y-4">
+                                      <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-4 rounded">
+                                        <div className="text-sm text-[#e7e7e7] mb-3">{item.question}</div>
+                                        <div className="text-[10px] text-[#666] space-y-1">
+                                          <div>Dokument ID: <span className="text-[#888] font-mono">{item.id}</span></div>
+                                          <div>Status: <span className="text-[#888]">{item.status}</span></div>
+                                          <div>Skapad: <span className="text-[#888]">{timestamp?.toLocaleString('sv-SE')}</span></div>
+                                          {item.user_id && <div>User ID: <span className="text-[#888] font-mono">{item.user_id}</span></div>}
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Link to Chat-V2 */}
+                                      <Link
+                                        to={`/chat-v2?doc=${item.id}`}
+                                        className="inline-block text-xs px-3 py-1.5 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-[#e7e7e7] rounded transition-colors"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        Öppna fullständig analys i Chat-V2 →
+                                      </Link>
+                                    </div>
+                                  )}
+
+                                  {/* ANALYS Tab */}
+                                  {(questionTab[item.id] || 'fråga') === 'analys' && (
+                                    <div className="space-y-4">
+                                      {/* Model Synthesis */}
+                                      {item.analysis?.modelSynthesis && (
+                                        <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-4 rounded">
+                                          <div className="text-xs text-[#666] uppercase mb-3">Model Synthesis</div>
+                                          <div className="text-sm text-[#888] space-y-2">
                                             {item.analysis.modelSynthesis.consensusIndex !== undefined && (
-                                              <div>Konsensusindex: {(item.analysis.modelSynthesis.consensusIndex * 100).toFixed(1)}%</div>
+                                              <div className="flex justify-between">
+                                                <span>Konsensusindex:</span>
+                                                <span className="text-[#e7e7e7]">{(item.analysis.modelSynthesis.consensusIndex * 100).toFixed(1)}%</span>
+                                              </div>
                                             )}
                                             {item.analysis.modelSynthesis.divergenceMeasure !== undefined && (
-                                              <div>Divergens: {(item.analysis.modelSynthesis.divergenceMeasure * 100).toFixed(1)}%</div>
+                                              <div className="flex justify-between">
+                                                <span>Divergens:</span>
+                                                <span className="text-[#e7e7e7]">{(item.analysis.modelSynthesis.divergenceMeasure * 100).toFixed(1)}%</span>
+                                              </div>
                                             )}
                                             {item.analysis.modelSynthesis.modelCards && (
-                                              <div>Antal modeller: {item.analysis.modelSynthesis.modelCards.length}</div>
+                                              <div className="flex justify-between">
+                                                <span>Antal modeller:</span>
+                                                <span className="text-[#e7e7e7]">{item.analysis.modelSynthesis.modelCards.length}</span>
+                                              </div>
                                             )}
                                           </div>
                                         </div>
                                       )}
-                                      {item.analysis.bias && (
-                                        <div>
-                                          <div className="text-[10px] text-[#666] mb-1">Bias Detection</div>
-                                          <div className="text-xs text-[#888]">
-                                            Bias Score: {item.analysis.bias.biasScore || 0}/10
+
+                                      {/* Bias Detection */}
+                                      {item.analysis?.bias && (
+                                        <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-4 rounded">
+                                          <div className="text-xs text-[#666] uppercase mb-3">Bias Detection</div>
+                                          <div className="text-sm text-[#888] space-y-2">
+                                            <div className="flex justify-between">
+                                              <span>Bias Score:</span>
+                                              <span className="text-[#e7e7e7]">{item.analysis.bias.biasScore || 0}/10</span>
+                                            </div>
+                                            {item.analysis.bias.overallBias && (
+                                              <div className="flex justify-between">
+                                                <span>Overall Bias:</span>
+                                                <span className="text-[#e7e7e7]">{item.analysis.bias.overallBias}</span>
+                                              </div>
+                                            )}
                                           </div>
                                         </div>
                                       )}
-                                    </div>
-                                  </div>
-                                )}
 
-                                {/* Quality Metrics */}
-                                {item.quality_metrics && Object.keys(item.quality_metrics).length > 0 && (
-                                  <div>
-                                    <div className="text-[10px] font-mono text-[#666] mb-2">KVALITETSMÅTT →</div>
-                                    <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-3 rounded">
-                                      <pre className="text-[10px] font-mono text-[#888] whitespace-pre-wrap overflow-x-auto">
-                                        {JSON.stringify(item.quality_metrics, null, 2)}
-                                      </pre>
-                                    </div>
-                                  </div>
-                                )}
+                                      {/* Synthesized Summary */}
+                                      {item.synthesized_summary && (
+                                        <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-4 rounded">
+                                          <div className="text-xs text-[#666] uppercase mb-3">Syntetiserat Svar</div>
+                                          <div className="text-sm text-[#888] whitespace-pre-wrap">{item.synthesized_summary}</div>
+                                        </div>
+                                      )}
 
-                                {/* Database Snapshot Button */}
-                                <div className="pt-2 border-t border-[#1a1a1a]">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setShowSnapshot(showSnapshot === item.id ? null : item.id);
-                                    }}
-                                    className="text-xs px-3 py-1.5 bg-[#1a1a1a] hover:bg-[#2a2a2a] text-[#888] rounded transition-colors font-mono"
-                                  >
-                                    {showSnapshot === item.id ? '− Dölj' : '+ Visa'} Databas Snapshot
-                                  </button>
-                                  
-                                  {showSnapshot === item.id && (
-                                    <div className="mt-3">
-                                      <div className="text-[10px] font-mono text-[#666] mb-2">DATABAS SNAPSHOT (JSON) →</div>
-                                      <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-3 rounded max-h-96 overflow-auto">
-                                        <pre className="text-[10px] font-mono text-[#888] whitespace-pre-wrap">
-                                          {JSON.stringify(item, null, 2)}
-                                        </pre>
+                                      {!item.analysis && (
+                                        <div className="text-sm text-[#666] text-center py-8">
+                                          Ingen analysdata tillgänglig
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* KVALITETSMÅTT Tab */}
+                                  {(questionTab[item.id] || 'fråga') === 'kvalitetsmått' && (
+                                    <div className="space-y-4">
+                                      {item.quality_metrics && Object.keys(item.quality_metrics).length > 0 ? (
+                                        <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-4 rounded">
+                                          <pre className="text-[10px] font-mono text-[#888] whitespace-pre-wrap overflow-x-auto">
+                                            {JSON.stringify(item.quality_metrics, null, 2)}
+                                          </pre>
+                                        </div>
+                                      ) : (
+                                        <div className="text-sm text-[#666] text-center py-8">
+                                          Inga kvalitetsmått tillgängliga
+                                        </div>
+                                      )}
+                                      
+                                      {/* Database Snapshot Button */}
+                                      <div className="pt-2 border-t border-[#1a1a1a]">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowSnapshot(showSnapshot === item.id ? null : item.id);
+                                          }}
+                                          className="text-xs px-3 py-1.5 bg-[#1a1a1a] hover:bg-[#2a2a2a] text-[#888] rounded transition-colors font-mono"
+                                        >
+                                          {showSnapshot === item.id ? '− Dölj' : '+ Visa'} Databas Snapshot (JSON)
+                                        </button>
+                                        
+                                        {showSnapshot === item.id && (
+                                          <div className="mt-3 bg-[#0a0a0a] border border-[#1a1a1a] p-3 rounded max-h-96 overflow-auto">
+                                            <pre className="text-[10px] font-mono text-[#888] whitespace-pre-wrap">
+                                              {JSON.stringify(item, null, 2)}
+                                            </pre>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   )}
-                                </div>
 
-                                {/* Link to Chat-V2 */}
-                                <div className="pt-2">
-                                  <Link
-                                    to={`/chat-v2?doc=${item.id}`}
-                                    className="inline-block text-xs px-3 py-1.5 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-[#e7e7e7] rounded transition-colors"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    Öppna i Chat-V2 →
-                                  </Link>
+                                  {/* TIMELINE Tab */}
+                                  {(questionTab[item.id] || 'fråga') === 'timeline' && (
+                                    <div className="space-y-4">
+                                      <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-4 rounded">
+                                        <div className="text-xs text-[#666] uppercase mb-4">Svar över tid (Timeline)</div>
+                                        
+                                        {/* Timeline visualization placeholder */}
+                                        <div className="space-y-4">
+                                          {/* Current question data point */}
+                                          <div className="border-l-2 border-[#e7e7e7] pl-4 py-2">
+                                            <div className="text-[10px] text-[#666] mb-1">{timestamp?.toLocaleString('sv-SE')}</div>
+                                            <div className="text-sm text-[#e7e7e7] mb-2">Din fråga</div>
+                                            <div className="grid grid-cols-2 gap-3 text-xs text-[#888]">
+                                              <div>
+                                                <div className="text-[#666]">Konsensus</div>
+                                                <div className="text-[#e7e7e7]">{consensus.toFixed(0)}%</div>
+                                              </div>
+                                              <div>
+                                                <div className="text-[#666]">Bias</div>
+                                                <div className="text-[#e7e7e7]">{item.analysis?.bias?.biasScore || 0}/10</div>
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          {/* Placeholder for historical data */}
+                                          <div className="text-sm text-[#666] text-center py-6 border border-dashed border-[#1a1a1a] rounded">
+                                            <div className="mb-2">📊 Timeline-spårning</div>
+                                            <div className="text-xs">
+                                              Visar hur svaren förändras över tid när fler användare<br />
+                                              ställer samma eller liknande frågor.
+                                            </div>
+                                            <div className="text-[10px] mt-3 text-[#555]">
+                                              Inkluderar: Konsensusnivå • Bias-förskjutning • Community-trender<br />
+                                              Verifieras mot ledgern för transparens
+                                            </div>
+                                          </div>
+
+                                          {/* Provenance & Ledger info */}
+                                          {item.ledger_block_id && (
+                                            <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-3 rounded">
+                                              <div className="text-[10px] text-[#666] uppercase mb-2">Provenance & Ledger</div>
+                                              <div className="text-xs text-[#888] space-y-1">
+                                                <div>Block ID: <span className="text-[#e7e7e7] font-mono">{item.ledger_block_id}</span></div>
+                                                {item.verified_at && (
+                                                  <div>Verifierad: <span className="text-[#e7e7e7]">{new Date(item.verified_at).toLocaleString('sv-SE')}</span></div>
+                                                )}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             )}
