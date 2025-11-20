@@ -23,11 +23,11 @@ export function useUserQuestions(userId, maxQuestions = 20) {
     console.log(`[useUserQuestions] Fetching questions for user: ${userId}`);
 
     // Query to get user's questions ordered by timestamp (most recent first)
-    // Note: This requires a composite index in Firebase for userId + timestamp
+    // Note: This requires a composite index in Firebase for user_id + timestamp
     // If the index doesn't exist, we'll fall back to a simpler query
     const q = query(
       collection(db, 'ai_interactions'),
-      where('userId', '==', userId),
+      where('user_id', '==', userId),
       orderBy('timestamp', 'desc'),
       limit(maxQuestions)
     );
@@ -59,7 +59,7 @@ export function useUserQuestions(userId, maxQuestions = 20) {
           // Fallback: query without orderBy to avoid index requirement
           const fallbackQ = query(
             collection(db, 'ai_interactions'),
-            where('userId', '==', userId),
+            where('user_id', '==', userId),
             limit(maxQuestions)
           );
           
@@ -124,7 +124,9 @@ export function useUserQuestionStats(userId) {
     questionsThisMonth: 0,
     averageResponseTime: 0,
     mostCommonStatus: 'completed',
-    successRate: 100
+    successRate: 100,
+    avgConsensus: 0,
+    avgBias: 0
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -140,7 +142,7 @@ export function useUserQuestionStats(userId) {
     // Query all user's questions
     const q = query(
       collection(db, 'ai_interactions'),
-      where('userId', '==', userId)
+      where('user_id', '==', userId)
     );
     
     const unsubscribe = onSnapshot(
@@ -156,6 +158,10 @@ export function useUserQuestionStats(userId) {
         let totalResponseTime = 0;
         let completedQuestions = 0;
         const statusCounts = {};
+        let totalConsensus = 0;
+        let consensusCount = 0;
+        let totalBias = 0;
+        let biasCount = 0;
         
         querySnapshot.forEach((doc) => {
           const data = doc.data();
@@ -179,6 +185,37 @@ export function useUserQuestionStats(userId) {
           // Count statuses
           const status = data.status || 'unknown';
           statusCounts[status] = (statusCounts[status] || 0) + 1;
+          
+          // Calculate consensus
+          // Try multiple possible locations where consensus might be stored
+          let consensus = null;
+          if (data.quality_metrics?.consensus?.overallConsensus !== undefined) {
+            consensus = data.quality_metrics.consensus.overallConsensus;
+          } else if (data.analysis?.modelSynthesis?.consensus?.overallConsensus !== undefined) {
+            consensus = data.analysis.modelSynthesis.consensus.overallConsensus;
+          } else if (data.analysis?.modelSynthesis?.consensusIndex !== undefined) {
+            // consensusIndex is typically 0-1, convert to percentage
+            consensus = data.analysis.modelSynthesis.consensusIndex * 100;
+          }
+          
+          if (consensus !== null && !isNaN(consensus)) {
+            totalConsensus += Number(consensus);
+            consensusCount++;
+          }
+          
+          // Calculate bias
+          // Bias score is typically 0-10 scale, we'll convert to percentage
+          let biasScore = null;
+          if (data.analysis?.bias?.biasScore !== undefined) {
+            biasScore = data.analysis.bias.biasScore;
+          } else if (data.quality_metrics?.bias?.biasScore !== undefined) {
+            biasScore = data.quality_metrics.bias.biasScore;
+          }
+          
+          if (biasScore !== null && !isNaN(biasScore)) {
+            totalBias += Number(biasScore);
+            biasCount++;
+          }
         });
         
         // Calculate averages and most common status
@@ -195,13 +232,25 @@ export function useUserQuestionStats(userId) {
           ? Math.round(((statusCounts['completed'] || 0) + (statusCounts['ledger_verified'] || 0)) / totalQuestions * 100)
           : 100;
         
+        // Calculate average consensus (0-100 scale)
+        const avgConsensus = consensusCount > 0
+          ? totalConsensus / consensusCount
+          : 0;
+        
+        // Calculate average bias (0-10 scale)
+        const avgBias = biasCount > 0
+          ? totalBias / biasCount
+          : 0;
+        
         const calculatedStats = {
           totalQuestions,
           questionsThisWeek,
           questionsThisMonth,
           averageResponseTime,
           mostCommonStatus,
-          successRate
+          successRate,
+          avgConsensus,
+          avgBias
         };
         
         console.log(`[useUserQuestionStats] Stats:`, calculatedStats);
