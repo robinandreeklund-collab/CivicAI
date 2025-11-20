@@ -159,7 +159,20 @@ export default function ChatV2Page() {
         
         // Raw responses from Firestore (stored as array in Firestore)
         responses: Array.isArray(firestoreData.raw_responses) 
-          ? firestoreData.raw_responses.map((r, idx) => {
+          ? firestoreData.raw_responses
+              // First, filter out responses that don't have essential data yet
+              // This handles Firestore's real-time updates where responses may be empty initially
+              .filter((r) => {
+                // Try to stringify to see if it has actual data
+                try {
+                  const jsonStr = JSON.stringify(r);
+                  // Check if the object has actual content (not just {} or has service field)
+                  return jsonStr && jsonStr !== '{}' && (jsonStr.includes('"service"') || jsonStr.includes('"response_text"'));
+                } catch (e) {
+                  return false;
+                }
+              })
+              .map((r, idx) => {
               // Helper function to parse JSON strings
               const parseJsonField = (field, fieldName) => {
                 if (!field) return null;
