@@ -23,11 +23,11 @@ export function useUserQuestions(userId, maxQuestions = 20) {
     console.log(`[useUserQuestions] Fetching questions for user: ${userId}`);
 
     // Query to get user's questions ordered by timestamp (most recent first)
-    // Note: This requires a composite index in Firebase for userId + timestamp
+    // Note: This requires a composite index in Firebase for user_id + timestamp
     // If the index doesn't exist, we'll fall back to a simpler query
     const q = query(
       collection(db, 'ai_interactions'),
-      where('userId', '==', userId),
+      where('user_id', '==', userId),
       orderBy('timestamp', 'desc'),
       limit(maxQuestions)
     );
@@ -59,7 +59,7 @@ export function useUserQuestions(userId, maxQuestions = 20) {
           // Fallback: query without orderBy to avoid index requirement
           const fallbackQ = query(
             collection(db, 'ai_interactions'),
-            where('userId', '==', userId),
+            where('user_id', '==', userId),
             limit(maxQuestions)
           );
           
@@ -142,7 +142,7 @@ export function useUserQuestionStats(userId) {
     // Query all user's questions
     const q = query(
       collection(db, 'ai_interactions'),
-      where('userId', '==', userId)
+      where('user_id', '==', userId)
     );
     
     const unsubscribe = onSnapshot(

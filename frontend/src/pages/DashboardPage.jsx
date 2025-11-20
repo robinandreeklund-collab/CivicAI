@@ -16,7 +16,7 @@ export default function DashboardPage() {
   const { user } = useAuth();
   
   // Get real user ID or use 'anonymous' for non-authenticated users
-  const userId = user?.uid || 'anonymous';
+  const userId = user?.userId || 'anonymous';
   
   // Fetch real user questions and stats from Firebase
   const { questions: recentQuestions, totalCount, loading: questionsLoading } = useUserQuestions(userId, 20);
