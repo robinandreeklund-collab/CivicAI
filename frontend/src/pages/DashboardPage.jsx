@@ -64,19 +64,66 @@ export default function DashboardPage() {
   const formatTimeAgo = (timestamp) => {
     if (!timestamp) return 'Okänd tid';
     
-    const now = new Date();
-    const then = new Date(timestamp);
+    let dateObj;
+    // Handle Firestore timestamp
+    if (timestamp?.toDate && typeof timestamp.toDate === 'function') {
+      dateObj = timestamp.toDate();
+    } else if (timestamp instanceof Date) {
+      dateObj = timestamp;
+    } else if (typeof timestamp === 'string' || typeof timestamp === 'number') {
+      dateObj = new Date(timestamp);
+    } else {
+      return 'Okänd tid';
+    }
     
     // Check if date is valid
-    if (isNaN(then.getTime())) return 'Okänd tid';
+    if (isNaN(dateObj.getTime())) return 'Okänd tid';
     
-    const diffMs = now - then;
+    const now = new Date();
+    const diffMs = now - dateObj;
     const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     
     if (diffHrs < 1) return 'Nyss';
     if (diffHrs < 24) return `${diffHrs}h sedan`;
     return `${diffDays}d sedan`;
+  };
+
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return 'Okänd tid';
+    
+    let dateObj;
+    // Handle Firestore timestamp
+    if (timestamp?.toDate && typeof timestamp.toDate === 'function') {
+      dateObj = timestamp.toDate();
+    } else if (timestamp instanceof Date) {
+      dateObj = timestamp;
+    } else if (typeof timestamp === 'string' || typeof timestamp === 'number') {
+      dateObj = new Date(timestamp);
+    } else {
+      return 'Okänd tid';
+    }
+    
+    // Check if date is valid
+    if (isNaN(dateObj.getTime())) return 'Okänd tid';
+    
+    return dateObj.toLocaleString('sv-SE');
+  };
+
+  const formatMarkdown = (text) => {
+    if (!text) return '';
+    
+    return text
+      // Replace headers (## Header)
+      .replace(/^### (.+)$/gm, '<h4 class="text-sm font-semibold text-[#e7e7e7] mt-3 mb-2">$1</h4>')
+      .replace(/^## (.+)$/gm, '<h3 class="text-base font-semibold text-[#e7e7e7] mt-4 mb-2">$1</h3>')
+      .replace(/^# (.+)$/gm, '<h2 class="text-lg font-semibold text-[#e7e7e7] mt-4 mb-2">$1</h2>')
+      // Replace bold text (**text**)
+      .replace(/\*\*(.+?)\*\*/g, '<strong class="text-[#e7e7e7]">$1</strong>')
+      // Replace italic text (*text*)
+      .replace(/\*(.+?)\*/g, '<em class="text-[#aaa]">$1</em>')
+      // Replace line breaks
+      .replace(/\n/g, '<br/>');
   };
 
   return (
@@ -226,9 +273,6 @@ export default function DashboardPage() {
                         // Get number of models from raw_responses
                         const modelCount = item.raw_responses?.length || 0;
                         
-                        // Format timestamp
-                        const timestamp = item.timestamp?.toDate?.() || new Date(item.timestamp);
-                        
                         const isExpanded = expandedQuestion === item.id;
                         
                         return (
@@ -245,7 +289,7 @@ export default function DashboardPage() {
                                 <div className="flex-1">
                                   <div className="text-sm text-[#e7e7e7] mb-1">{item.question}</div>
                                   <div className="text-xs text-[#666] flex items-center gap-2">
-                                    <span>{formatTimeAgo(timestamp)}</span>
+                                    <span>{formatTimeAgo(item.timestamp)}</span>
                                     {modelCount > 0 && (
                                       <>
                                         <span>•</span>
@@ -316,7 +360,7 @@ export default function DashboardPage() {
                                         <div className="text-[10px] text-[#666] space-y-1">
                                           <div>Dokument ID: <span className="text-[#888] font-mono">{item.id}</span></div>
                                           <div>Status: <span className="text-[#888]">{item.status}</span></div>
-                                          <div>Skapad: <span className="text-[#888]">{timestamp?.toLocaleString('sv-SE')}</span></div>
+                                          <div>Skapad: <span className="text-[#888]">{formatTimestamp(item.timestamp)}</span></div>
                                           {item.user_id && <div>User ID: <span className="text-[#888] font-mono">{item.user_id}</span></div>}
                                         </div>
                                       </div>
@@ -385,7 +429,10 @@ export default function DashboardPage() {
                                       {item.synthesized_summary && (
                                         <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-4 rounded">
                                           <div className="text-xs text-[#666] uppercase mb-3">Syntetiserat Svar</div>
-                                          <div className="text-sm text-[#888] whitespace-pre-wrap">{item.synthesized_summary}</div>
+                                          <div 
+                                            className="text-sm text-[#888] leading-relaxed"
+                                            dangerouslySetInnerHTML={{ __html: formatMarkdown(item.synthesized_summary) }}
+                                          />
                                         </div>
                                       )}
 
@@ -445,7 +492,7 @@ export default function DashboardPage() {
                                         <div className="space-y-4">
                                           {/* Current question data point */}
                                           <div className="border-l-2 border-[#e7e7e7] pl-4 py-2">
-                                            <div className="text-[10px] text-[#666] mb-1">{timestamp?.toLocaleString('sv-SE')}</div>
+                                            <div className="text-[10px] text-[#666] mb-1">{formatTimestamp(item.timestamp)}</div>
                                             <div className="text-sm text-[#e7e7e7] mb-2">Din fråga</div>
                                             <div className="grid grid-cols-2 gap-3 text-xs text-[#888]">
                                               <div>
