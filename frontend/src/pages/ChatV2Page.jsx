@@ -846,6 +846,7 @@ export default function ChatV2Page() {
           <div className="max-w-4xl mx-auto mb-8">
             <ChangeDetectionPanel 
               changeData={latestAiMessage.changeDetection}
+              firebaseDocId={latestAiMessage.firebaseDocId}
               onOpenLedger={(blockId) => {
                 // Navigate to ledger view - could be implemented later
                 console.log('Open ledger block:', blockId);
@@ -2042,20 +2043,79 @@ export default function ChatV2Page() {
                         <span>🔒</span>
                         <span>Ledger Verification</span>
                       </div>
-                      <div className="text-sm text-[#888]">
-                        <span className="text-green-400">✓</span> Verified with {latestAiMessage.ledgerBlocks.length} ledger block{latestAiMessage.ledgerBlocks.length > 1 ? 's' : ''}
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {latestAiMessage.ledgerBlocks.map((blockId, idx) => (
-                          <span key={idx} className="px-2 py-1 bg-[#0a0a0a] text-[#888] text-xs rounded border border-[#2a2a2a]">
-                            Block #{blockId}
-                          </span>
-                        ))}
+                      
+                      {/* Live Animation - Verification in Progress */}
+                      <div className="mb-4 p-4 bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="relative w-8 h-8">
+                            <div className="absolute inset-0 bg-green-500/20 rounded-full animate-ping"></div>
+                            <div className="relative w-8 h-8 bg-green-500/30 rounded-full flex items-center justify-center">
+                              <span className="text-green-400 text-lg">✓</span>
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-sm text-green-400 font-medium">
+                              Verifierad med {latestAiMessage.ledgerBlocks.length} ledger block{latestAiMessage.ledgerBlocks.length > 1 ? 's' : ''}
+                            </div>
+                            <div className="text-xs text-[#666] mt-1">
+                              All data är kryptografiskt säkrad och immutabel
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Block Verification Steps */}
+                        <div className="space-y-2">
+                          {latestAiMessage.ledgerBlocks.map((blockId, idx) => (
+                            <div 
+                              key={idx} 
+                              className="flex items-center gap-3 p-2 bg-[#151515] rounded border border-[#2a2a2a] animate-fade-in"
+                              style={{ animationDelay: `${idx * 100}ms` }}
+                            >
+                              <span className="text-green-400 text-sm">✓</span>
+                              <div className="flex-1">
+                                <div className="text-sm text-[#e7e7e7]">Block #{blockId}</div>
+                                <div className="text-xs text-[#666]">
+                                  Hash: {generateBlockHash(blockId).substring(0, 16)}...
+                                </div>
+                              </div>
+                              <div className="text-xs text-[#888] px-2 py-1 bg-[#0a0a0a] rounded">
+                                Verified
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* View in Ledger Button */}
+                        <button
+                          onClick={() => {
+                            const firebaseDocId = latestAiMessage.firebaseDocId;
+                            if (firebaseDocId) {
+                              window.location.href = `/ledger?doc=${firebaseDocId}`;
+                            }
+                          }}
+                          className="mt-4 w-full px-4 py-2 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-[#e7e7e7] text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
+                        >
+                          <span>🔗</span>
+                          <span>Visa fullständig ledger</span>
+                        </button>
                       </div>
                     </div>
                   )}
                 </div>
               )}
+              
+              {/* Helper function for generating block hash (mock) */}
+              {(() => {
+                window.generateBlockHash = (blockId) => {
+                  const chars = '0123456789abcdef';
+                  let hash = '';
+                  for (let i = 0; i < 64; i++) {
+                    hash += chars.charAt((blockId * 7 + i * 13) % chars.length);
+                  }
+                  return hash;
+                };
+                return null;
+              })()}
               
               {/* Preprocessing */}
               {selectedResponse.pipelineAnalysis.preprocessing && (

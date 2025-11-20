@@ -19,6 +19,7 @@ import LoginPage from './pages/LoginPage';
 import OQTDashboardPage from './pages/OQTDashboardPage';
 import DashboardPage from './pages/DashboardPage';
 import ApiDocumentationPage from './pages/ApiDocumentationPage';
+import LedgerPage from './pages/LedgerPage';
 import DemoIndex from './designDemos';
 
 /**
@@ -129,6 +130,7 @@ function AppContent() {
           <Route path="/skapa-konto" element={<SignupPage />} />
           <Route path="/logga-in" element={<LoginPage />} />
           <Route path="/api-docs" element={<ApiDocumentationPage />} />
+          <Route path="/ledger" element={<LedgerPage />} />
           <Route path="/design-demos" element={<DemoIndex />} />
           <Route path="/chat-v2" element={<ChatV2Page />} />
         </Routes>

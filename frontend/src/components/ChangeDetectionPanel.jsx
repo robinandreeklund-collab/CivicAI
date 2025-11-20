@@ -15,8 +15,10 @@
  */
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-const ChangeDetectionPanel = ({ changeData, onOpenLedger, onOpenReplay }) => {
+const ChangeDetectionPanel = ({ changeData, onOpenLedger, onOpenReplay, firebaseDocId }) => {
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
 
   if (!changeData) {
@@ -227,9 +229,16 @@ const ChangeDetectionPanel = ({ changeData, onOpenLedger, onOpenReplay }) => {
 
           {/* Action Buttons */}
           <div className="flex gap-3 mt-4">
-            {ledger_block_id !== undefined && onOpenLedger && (
+            {ledger_block_id !== undefined && (
               <button
-                onClick={() => onOpenLedger(ledger_block_id)}
+                onClick={() => {
+                  // Navigate to dedicated ledger page
+                  if (firebaseDocId) {
+                    navigate(`/ledger?doc=${firebaseDocId}&block=${ledger_block_id}`);
+                  } else if (onOpenLedger) {
+                    onOpenLedger(ledger_block_id);
+                  }
+                }}
                 className="px-4 py-2 bg-civic-gray-700 hover:bg-civic-gray-600 text-white rounded-lg transition-colors text-sm flex items-center gap-2"
               >
                 <span>🔗</span>
