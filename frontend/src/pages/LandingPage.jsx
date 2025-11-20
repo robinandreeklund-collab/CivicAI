@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 /**
  * AnimatedTagline Component
- * Animates the tagline with word swapping and highlight effects
+ * Subtle word swapping animation - barely noticeable
  * Swaps "Beslut" ↔ "AI" and "insyn" ↔ "ansvar"
  */
 function AnimatedTagline() {
@@ -22,28 +22,28 @@ function AnimatedTagline() {
       setTimeout(() => {
         setSwapState(prev => (prev + 1) % 2);
         setIsTransitioning(false);
-      }, 400); // Fade out duration
+      }, 600); // Slower, smoother fade
       
-    }, 5000); // Swap every 5 seconds
+    }, 6000); // Swap every 6 seconds
     
     return () => clearInterval(interval);
   }, []);
   
   return (
     <p className="text-lg text-[#888] mb-10 font-light leading-relaxed">
-      <span className={`word-swap-transition ${isTransitioning ? 'fading' : ''}`}>
+      <span className={`word-swap-minimal ${isTransitioning ? 'fading' : ''}`}>
         {swapState === 0 ? 'Beslut' : 'AI'}
       </span>
       {' med '}
-      <span className={`word-swap-transition ${isTransitioning ? 'fading' : ''}`}>
+      <span className={`word-swap-minimal ${isTransitioning ? 'fading' : ''}`}>
         {swapState === 0 ? 'insyn' : 'ansvar'}
       </span>
       . 
-      <span className={`word-swap-transition ${isTransitioning ? 'fading' : ''}`}>
+      <span className={`word-swap-minimal ${isTransitioning ? 'fading' : ''}`}>
         {swapState === 0 ? 'AI' : 'Beslut'}
       </span>
       {' med '}
-      <span className={`word-swap-transition ${isTransitioning ? 'fading' : ''}`}>
+      <span className={`word-swap-minimal ${isTransitioning ? 'fading' : ''}`}>
         {swapState === 0 ? 'ansvar' : 'insyn'}
       </span>
       .<br />
@@ -182,40 +182,14 @@ export default function LandingPage() {
           }
         }
         
-        /* Animated tagline styles - NEW approach with clearer word swap */
-        .word-swap-transition {
+        /* Minimal word swap - barely noticeable, smooth and clean */
+        .word-swap-minimal {
           display: inline-block;
-          position: relative;
-          transition: all 0.4s ease-in-out;
-          background: linear-gradient(90deg, 
-            transparent 0%, 
-            rgba(255, 255, 255, 0.15) 50%, 
-            transparent 100%);
-          background-size: 200% 100%;
-          background-position: -100% 0;
-          padding: 2px 8px;
-          border-radius: 4px;
-          margin: 0 -8px;
+          transition: opacity 0.6s ease-in-out;
         }
         
-        .word-swap-transition.fading {
-          opacity: 0;
-          transform: translateY(-5px) scale(0.95);
-          background-position: 100% 0;
-        }
-        
-        /* Subtle continuous highlight when not transitioning */
-        @keyframes subtleGlow {
-          0%, 100% {
-            background-position: -100% 0;
-          }
-          50% {
-            background-position: 200% 0;
-          }
-        }
-        
-        .word-swap-transition:not(.fading) {
-          animation: subtleGlow 3s ease-in-out infinite;
+        .word-swap-minimal.fading {
+          opacity: 0.3;
         }
         
         /* Example question animation */
