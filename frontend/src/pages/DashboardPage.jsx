@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserQuestions, useUserQuestionStats } from '../hooks/useUserQuestions';
 import FooterDemo4 from '../components/footers/FooterDemo4';
+import ModernLoader from '../components/ModernLoader';
 
 /**
  * User Dashboard Page - Version 2 (Real Firebase Data Integration)
@@ -58,8 +59,14 @@ export default function DashboardPage() {
   ]);
 
   const formatTimeAgo = (timestamp) => {
+    if (!timestamp) return 'Okänd tid';
+    
     const now = new Date();
     const then = new Date(timestamp);
+    
+    // Check if date is valid
+    if (isNaN(then.getTime())) return 'Okänd tid';
+    
     const diffMs = now - then;
     const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -150,7 +157,9 @@ export default function DashboardPage() {
                     <div className="text-3xl font-light text-[#e7e7e7]">
                       {activity.totalQuestions}
                     </div>
-                    <div className="text-xs text-[#666] mt-1">+{activity.questionsThisWeek} denna vecka</div>
+                    <div className="text-xs text-[#666] mt-1">
+                      {activity.questionsThisWeek > 0 ? `+${activity.questionsThisWeek}` : '0'} denna vecka
+                    </div>
                   </div>
                   
                   <div className="border-l border-[#151515] pl-4">
@@ -193,10 +202,7 @@ export default function DashboardPage() {
                   <h3 className="text-xs text-[#666] uppercase tracking-wider mb-6">Senaste Frågor</h3>
                   
                   {questionsLoading || statsLoading ? (
-                    <div className="py-12 text-center">
-                      <div className="inline-block animate-spin text-4xl mb-4">⏳</div>
-                      <p className="text-[#666]">Laddar frågor från Firebase...</p>
-                    </div>
+                    <ModernLoader message="Laddar dina frågor från Firebase..." />
                   ) : stats.totalQuestions === 0 ? (
                     <div className="py-12 text-center">
                       <p className="text-[#666]">Inga frågor än. Ställ din första fråga!</p>
