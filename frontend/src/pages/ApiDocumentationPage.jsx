@@ -198,6 +198,69 @@ export default function ApiDocumentationPage() {
     },
   ];
 
+  const oqtEndpoints = [
+    { 
+      path: '/oqt/query', 
+      method: 'POST', 
+      status: '✅', 
+      desc: 'Generate response using OQT-1.0 (Open Quality Transformer)', 
+      service: 'oqt',
+      details: {
+        input: '```json\n{\n  "question": "Hur kan vi förbättra demokratin?",\n  "context": {},\n  "options": { "temperature": 0.7 }\n}\n```',
+        process: 'Tokenizes question → Runs OQT-1.0 inference (no external AI APIs) → Post-processes response → Creates full provenance record → Tracks processing steps → Returns response with confidence and metadata',
+        output: '```json\n{\n  "success": true,\n  "queryId": "e51e3f3a-7c52-4161-a9a6-0cf7b73c9c72",\n  "model": "OQT-1.0",\n  "version": "1.2.0",\n  "response": "Based on analysis from multiple AI models...",\n  "confidence": 0.906,\n  "metadata": {\n    "tokens": 58,\n    "latency_ms": 50,\n    "temperature": 0.7\n  },\n  "provenance": {\n    "queryId": "...",\n    "timestamp": "2025-11-20T15:36:26.075Z",\n    "model": "OQT-1.0",\n    "version": "1.2.0",\n    "inputHash": "251e26c6",\n    "processingSteps": [\n      {"step": "tokenization", "timestamp": "..."},\n      {"step": "inference", "timestamp": "..."},\n      {"step": "post-processing", "timestamp": "..."}\n    ]\n  }\n}\n```'
+      }
+    },
+    { 
+      path: '/oqt/micro-train', 
+      method: 'POST', 
+      status: '✅', 
+      desc: 'Real-time micro-training on new data (two-stage process)', 
+      service: 'oqt',
+      details: {
+        input: '```json\n{\n  "question": "Vad är hållbar utveckling?",\n  "rawResponses": [\n    {"model": "gpt-3.5", "response": "Hållbar utveckling..."},\n    {"model": "gemini", "response": "Det handlar om balans..."}\n  ],\n  "analyzedData": {\n    "consensus": 0.92,\n    "bias": 0.05,\n    "fairness": 0.95\n  }\n}\n```',
+        process: 'Stage 1: Trains on raw AI service responses → Updates knowledge base → Stage 2: Trains on pipeline-analyzed data (consensus, bias, fairness) → Updates model metrics → Records training event in ledger → Returns training status',
+        output: '```json\n{\n  "success": true,\n  "trainingId": "b982b401-5991-42ab-8039-73744d2c80a0",\n  "timestamp": "2025-11-20T15:36:35.723Z",\n  "stages": {\n    "stage1": {\n      "completed": true,\n      "samplesProcessed": 2,\n      "result": {\n        "method": "raw_response_training",\n        "updated": true\n      }\n    },\n    "stage2": {\n      "completed": true,\n      "result": {\n        "method": "analyzed_data_training",\n        "metricsUpdated": true,\n        "consensus": 0.854,\n        "bias": 0.078,\n        "fairness": 0.948\n      }\n    }\n  },\n  "modelStatus": {\n    "version": "1.2.0",\n    "totalMicroBatches": 1,\n    "lastUpdate": "2025-11-20T15:36:35.723Z"\n  }\n}\n```'
+      }
+    },
+    { 
+      path: '/oqt/train', 
+      method: 'POST', 
+      status: '✅', 
+      desc: 'Trigger weekly batch training on accumulated data', 
+      service: 'oqt',
+      details: {
+        input: '```json\n{\n  "dataSource": "firestore",\n  "dateRange": {\n    "start": "2025-11-13T00:00:00Z",\n    "end": "2025-11-20T00:00:00Z"\n  }\n}\n```',
+        process: 'Loads training data from Firestore/files → Performs batch training (5 epochs) → Updates model version → Calculates new metrics → Records training in ledger → Returns training results',
+        output: '```json\n{\n  "success": true,\n  "trainingId": "...",\n  "previousVersion": "1.2.0",\n  "newVersion": "1.2.1",\n  "result": {\n    "samplesProcessed": 842,\n    "epochs": 5,\n    "duration_ms": 7234,\n    "metrics": {\n      "accuracy": 0.910,\n      "fairness": 0.951,\n      "bias": 0.077\n    }\n  },\n  "modelStatus": {\n    "version": "1.2.1",\n    "totalWeeklyBatches": 1,\n    "totalSamples": 22842,\n    "lastTraining": "..."\n  }\n}\n```'
+      }
+    },
+    { 
+      path: '/oqt/status', 
+      method: 'GET', 
+      status: '✅', 
+      desc: 'Get OQT-1.0 model status and health', 
+      service: 'oqt',
+      details: {
+        input: 'No parameters required',
+        process: 'Retrieves current model state → Checks operational health → Returns status with uptime',
+        output: '```json\n{\n  "success": true,\n  "status": "up",\n  "model": {\n    "name": "OQT-1.0",\n    "version": "1.2.0",\n    "status": "active",\n    "lastTraining": "2025-11-20T15:35:34.104Z",\n    "architecture": "Transformer",\n    "trainingMethod": "Supervised + RLHF"\n  },\n  "health": {\n    "operational": true,\n    "responseTime_ms": 5,\n    "uptime": 12.661720056\n  }\n}\n```'
+      }
+    },
+    { 
+      path: '/oqt/metrics', 
+      method: 'GET', 
+      status: '✅', 
+      desc: 'Get OQT-1.0 performance metrics', 
+      service: 'oqt',
+      details: {
+        input: 'No parameters required',
+        process: 'Retrieves current model metrics → Calculates fairness indices → Returns comprehensive metrics',
+        output: '```json\n{\n  "success": true,\n  "version": "1.2.0",\n  "metrics": {\n    "accuracy": 0.905,\n    "fairness": 0.948,\n    "bias": 0.082,\n    "consensus": 0.847,\n    "fairnessMetrics": {\n      "demographicParity": 0.978,\n      "equalOpportunity": 0.965,\n      "disparateImpact": 0.982\n    }\n  },\n  "training": {\n    "totalSamples": 22000,\n    "weeklyBatches": 0,\n    "microBatches": 1,\n    "lastTraining": "2025-11-20T15:35:34.104Z"\n  }\n}\n```'
+      }
+    },
+  ];
+
   const mlEndpoints = [
     { 
       path: '/ml/preprocessing', 
@@ -695,6 +758,25 @@ export default function ApiDocumentationPage() {
             <h2 className="text-sm font-mono text-[#888] mb-4">AI INTERACTIONS</h2>
             <div>
               {aiEndpoints.map((endpoint, idx) => renderEndpoint(endpoint, idx, 'ai'))}
+            </div>
+          </div>
+
+          {/* OQT-1.0 Endpoints */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-mono text-[#888]">OQT-1.0 LANGUAGE MODEL</h2>
+              <div className="flex items-center gap-2 text-[10px] font-mono">
+                <span className="text-[#555]">Status:</span>
+                {getServiceHealth('oqt')}
+              </div>
+            </div>
+            <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded px-3 py-2 mb-3">
+              <p className="text-[10px] text-[#666] leading-relaxed">
+                Open Quality Transformer (OQT-1.0) - Our own fully integrated language model with transparent AI pipeline, real-time micro-training, and weekly batch training. No external AI API dependencies for OQT responses. Supports two-stage training: raw responses and analyzed data (consensus, bias, fairness).
+              </p>
+            </div>
+            <div>
+              {oqtEndpoints.map((endpoint, idx) => renderEndpoint(endpoint, idx, 'oqt'))}
             </div>
           </div>
 

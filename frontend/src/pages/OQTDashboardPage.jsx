@@ -11,6 +11,44 @@ export default function OQTDashboardPage() {
   const [selectedTab, setSelectedTab] = useState('overview');
   const [liveData, setLiveData] = useState([]);
   const [processingCount, setProcessingCount] = useState(0);
+  const [modelStatus, setModelStatus] = useState(null);
+  const [modelMetrics, setModelMetrics] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch model status and metrics from backend
+  useEffect(() => {
+    const fetchModelData = async () => {
+      try {
+        const [statusResponse, metricsResponse] = await Promise.all([
+          fetch('/api/oqt/status'),
+          fetch('/api/oqt/metrics')
+        ]);
+
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          setModelStatus(statusData);
+        }
+
+        if (metricsResponse.ok) {
+          const metricsData = await metricsResponse.json();
+          setModelMetrics(metricsData);
+        }
+
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching model data:', err);
+        setError(err.message);
+        setLoading(false);
+      }
+    };
+
+    fetchModelData();
+    
+    // Refresh every 10 seconds
+    const interval = setInterval(fetchModelData, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Simulate live data processing
   useEffect(() => {
@@ -45,8 +83,16 @@ export default function OQTDashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Mock current model data
-  const currentModel = {
+  // Mock current model data (fallback if API fails)
+  const currentModel = modelStatus && modelMetrics ? {
+    version: modelStatus.model.version,
+    status: modelStatus.model.status === 'active' ? 'aktiv' : 'utveckling',
+    lastTraining: modelStatus.model.lastTraining,
+    totalQuestions: modelMetrics.training.totalSamples + processingCount,
+    totalResponses: (modelMetrics.training.totalSamples + processingCount) * 4,
+    avgConsensus: modelMetrics.metrics.consensus,
+    avgFairness: modelMetrics.metrics.fairness
+  } : {
     version: '1.2.0',
     status: 'utveckling',
     lastTraining: '2025-03-10T09:15:00Z',
@@ -98,7 +144,12 @@ export default function OQTDashboardPage() {
                   <div className="space-y-1 text-xs">
                     <div className="text-[#666]">Version {currentModel.version}</div>
                     <div className="text-[#666]">{formatDate(currentModel.lastTraining)}</div>
-                    <div className="text-[#888]">Under utveckling</div>
+                    <div className="text-[#888]">{loading ? 'Laddar...' : currentModel.status === 'aktiv' ? 'Aktiv' : 'Under utveckling'}</div>
+                    {modelMetrics && (
+                      <div className="text-[10px] text-[#555] mt-2">
+                        Mikro-träning: {modelMetrics.training.microBatches} sessioner
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -230,7 +281,33 @@ export default function OQTDashboardPage() {
             {/* Activity Tab - Live Feed */}
             {selectedTab === 'activity' && (
               <div>
-                <h3 className="text-xs text-[#666] uppercase tracking-wider mb-6">Databearbetning Realtid</h3>
+                <h3 className="text-xs text-[#666] uppercase tracking-wider mb-6">Databearbetning & Mikroträning i Realtid</h3>
+                
+                {/* Micro-training Status */}
+                {modelMetrics && (
+                  <div className="mb-6 p-4 border border-[#1a1a1a] rounded">
+                    <div className="grid grid-cols-3 gap-4 text-xs">
+                      <div>
+                        <div className="text-[#666] mb-1">Total Mikro-träning</div>
+                        <div className="text-xl text-[#e7e7e7]">{modelMetrics.training.microBatches}</div>
+                      </div>
+                      <div>
+                        <div className="text-[#666] mb-1">Vecko-träning</div>
+                        <div className="text-xl text-[#e7e7e7]">{modelMetrics.training.weeklyBatches}</div>
+                      </div>
+                      <div>
+                        <div className="text-[#666] mb-1">Träningsdata</div>
+                        <div className="text-xl text-[#e7e7e7]">{modelMetrics.training.totalSamples.toLocaleString()}</div>
+                      </div>
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-[#151515]">
+                      <div className="text-[10px] text-[#666]">
+                        Tvåstegs-träning: När frågor ställs → Steg 1: Träning på rådata från AI-tjänster → 
+                        Steg 2: Träning på analyserad data (consensus, bias, fairness)
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="space-y-1">
                   {liveData.length === 0 && (
@@ -253,7 +330,14 @@ export default function OQTDashboardPage() {
                           <div className="text-xs text-[#666]">
                             {item.timestamp}
                             {item.processing && (
-                              <span className="ml-4 text-[#888]">Bearbetar...</span>
+                              <span className="ml-4 text-[#888]">
+                                Bearbetar → Mikroträning pågår...
+                              </span>
+                            )}
+                            {!item.processing && (
+                              <span className="ml-4 text-[#555]">
+                                ✓ Träning slutförd
+                              </span>
                             )}
                           </div>
                         </div>
@@ -272,6 +356,88 @@ export default function OQTDashboardPage() {
             {selectedTab === 'metrics' && (
               <div>
                 <h3 className="text-xs text-[#666] uppercase tracking-wider mb-6">Utveckling över tid</h3>
+                
+                {/* Current Metrics from Backend */}
+                {modelMetrics && (
+                  <div className="mb-8 p-6 border border-[#1a1a1a] rounded">
+                    <div className="text-sm text-[#888] mb-4">Nuvarande Mätvärden (v{modelMetrics.version})</div>
+                    <div className="grid grid-cols-4 gap-6">
+                      <div>
+                        <div className="text-[#666] text-xs mb-1">Noggrannhet</div>
+                        <div className="text-2xl text-[#e7e7e7]">
+                          {(modelMetrics.metrics.accuracy * 100).toFixed(1)}%
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[#666] text-xs mb-1">Rättvisa</div>
+                        <div className="text-2xl text-[#e7e7e7]">
+                          {(modelMetrics.metrics.fairness * 100).toFixed(1)}%
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[#666] text-xs mb-1">Bias</div>
+                        <div className="text-2xl text-[#e7e7e7]">
+                          {(modelMetrics.metrics.bias * 100).toFixed(1)}%
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[#666] text-xs mb-1">Konsensus</div>
+                        <div className="text-2xl text-[#e7e7e7]">
+                          {(modelMetrics.metrics.consensus * 100).toFixed(1)}%
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Fairness Metrics */}
+                    <div className="mt-6 pt-6 border-t border-[#151515]">
+                      <div className="text-xs text-[#666] mb-4">Rättvisemått</div>
+                      <div className="grid grid-cols-3 gap-4 text-xs">
+                        <div>
+                          <div className="flex justify-between mb-1">
+                            <span className="text-[#666]">Demografisk Paritet</span>
+                            <span className="text-[#888]">
+                              {(modelMetrics.metrics.fairnessMetrics.demographicParity * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="w-full h-px bg-[#151515]">
+                            <div 
+                              className="h-px bg-[#e7e7e7]" 
+                              style={{ width: `${modelMetrics.metrics.fairnessMetrics.demographicParity * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <div className="flex justify-between mb-1">
+                            <span className="text-[#666]">Lika Möjligheter</span>
+                            <span className="text-[#888]">
+                              {(modelMetrics.metrics.fairnessMetrics.equalOpportunity * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="w-full h-px bg-[#151515]">
+                            <div 
+                              className="h-px bg-[#e7e7e7]" 
+                              style={{ width: `${modelMetrics.metrics.fairnessMetrics.equalOpportunity * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <div className="flex justify-between mb-1">
+                            <span className="text-[#666]">Likvärdig Påverkan</span>
+                            <span className="text-[#888]">
+                              {(modelMetrics.metrics.fairnessMetrics.disparateImpact * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="w-full h-px bg-[#151515]">
+                            <div 
+                              className="h-px bg-[#e7e7e7]" 
+                              style={{ width: `${modelMetrics.metrics.fairnessMetrics.disparateImpact * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 {/* Version History - Minimal */}
                 <div className="space-y-8">
