@@ -134,11 +134,23 @@ export default function ChatV2Page() {
       status: firestoreData.status,
       hasRawResponses: !!firestoreData.raw_responses,
       hasProcessedData: !!firestoreData.processed_data,
-      processedDataKeys: firestoreData.processed_data ? Object.keys(firestoreData.processed_data) : []
+      processedDataKeys: firestoreData.processed_data ? Object.keys(firestoreData.processed_data) : [],
+      rawResponsesLength: firestoreData.raw_responses?.length || 0
     });
 
-    // Only process when status is completed or ledger_verified
-    if (firestoreData.status === 'completed' || firestoreData.status === 'ledger_verified') {
+    // Process data when:
+    // 1. Status is completed or ledger_verified, OR
+    // 2. Status is processing BUT we have both raw_responses and processed_data (backend completed but status not updated yet)
+    const hasData = firestoreData.raw_responses?.length > 0 && 
+                    firestoreData.processed_data && 
+                    Object.keys(firestoreData.processed_data).length > 0;
+    
+    const shouldProcess = firestoreData.status === 'completed' || 
+                         firestoreData.status === 'ledger_verified' ||
+                         (firestoreData.status === 'processing' && hasData);
+    
+    if (shouldProcess) {
+      console.log('[ChatV2] ✅ Processing Firestore data (status:', firestoreData.status, ', hasData:', hasData, ')');
       // Map Firestore data to AI message format
       const aiMessage = {
         type: 'ai',
@@ -387,6 +399,9 @@ export default function ChatV2Page() {
       setIsLoading(false);
       
       console.error('[ChatV2] ❌ Error status from Firestore:', firestoreData.errors);
+    } else {
+      // Still processing without complete data
+      console.log('[ChatV2] ⏳ Status:', firestoreData.status, '- waiting for data to complete');
     }
   }, [firestoreData]);
 
