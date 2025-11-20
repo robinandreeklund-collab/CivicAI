@@ -1,54 +1,35 @@
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useUserQuestions, useUserQuestionStats } from '../hooks/useUserQuestions';
 import FooterDemo4 from '../components/footers/FooterDemo4';
 
 /**
- * User Dashboard Page - Version 1 (Mockup with Demo Data)
+ * User Dashboard Page - Version 2 (Real Firebase Data Integration)
  * Personal dashboard for logged-in users
  * Design matches OQTDashboardPage and ApiDocumentationPage aesthetic
+ * Now with real-time Firebase data integration
  */
 export default function DashboardPage() {
   const [selectedTab, setSelectedTab] = useState('overview');
   const [notifications, setNotifications] = useState(3);
-  const { user } = useAuth();
-
-  // Mock user activity data
+  const { user, isAuthenticated } = useAuth();
+  
+  // Get real user ID or use 'anonymous' for non-authenticated users
+  const userId = user?.uid || 'anonymous';
+  
+  // Fetch real user questions and stats from Firebase
+  const { questions: recentQuestions, totalCount, loading: questionsLoading } = useUserQuestions(userId, 20);
+  const { stats, loading: statsLoading } = useUserQuestionStats(userId);
+  
+  // Use real stats or fallback to mock data
   const mockActivity = {
-    totalQuestions: 47,
-    questionsThisWeek: 12,
-    avgConsensus: 0.863,
-    avgBias: 0.042,
-    lastActivity: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+    totalQuestions: stats.totalQuestions || 0,
+    questionsThisWeek: stats.questionsThisWeek || 0,
+    avgConsensus: 0.863, // TODO: Calculate from actual questions
+    avgBias: 0.042, // TODO: Calculate from actual questions
+    lastActivity: recentQuestions[0]?.timestamp?.toDate?.()?.toISOString() || new Date().toISOString(),
   };
-
-  // Mock recent questions
-  const [recentQuestions] = useState([
-    {
-      id: 1,
-      question: 'Hur kan AI förbättra demokratin?',
-      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      consensus: 0.89,
-      models: 5,
-      status: 'completed'
-    },
-    {
-      id: 2,
-      question: 'Klimatpolitikens framtid?',
-      timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-      consensus: 0.82,
-      models: 5,
-      status: 'completed'
-    },
-    {
-      id: 3,
-      question: 'Utbildningssystemets utveckling',
-      timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      consensus: 0.91,
-      models: 5,
-      status: 'completed'
-    }
-  ]);
 
   // Mock collaborative notes
   const [notes] = useState([
@@ -199,27 +180,85 @@ export default function DashboardPage() {
                 {/* Recent Questions */}
                 <div>
                   <h3 className="text-xs text-[#666] uppercase tracking-wider mb-6">Senaste Frågor</h3>
-                  <div className="space-y-1">
-                    {recentQuestions.map((item) => (
-                      <div 
-                        key={item.id}
-                        className="py-4 border-b border-[#151515] transition-opacity duration-500"
+                  
+                  {questionsLoading ? (
+                    <div className="py-12 text-center">
+                      <div className="inline-block animate-spin text-4xl mb-4">⏳</div>
+                      <p className="text-[#666]">Laddar frågor från Firebase...</p>
+                    </div>
+                  ) : recentQuestions.length === 0 ? (
+                    <div className="py-12 text-center">
+                      <p className="text-[#666]">Inga frågor än. Ställ din första fråga!</p>
+                      <Link 
+                        to="/chat-v2" 
+                        className="inline-block mt-4 px-4 py-2 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-[#e7e7e7] text-sm rounded-lg transition-colors"
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="text-sm text-[#e7e7e7] mb-1">{item.question}</div>
-                            <div className="text-xs text-[#666]">
-                              {formatTimeAgo(item.timestamp)} • {item.models} modeller
+                        Börja analysera →
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {recentQuestions.map((item) => {
+                        // Calculate consensus from responses if available
+                        const consensus = item.quality_metrics?.consensus?.overallConsensus || 
+                                        (item.analysis?.modelSynthesis?.consensusIndex ? item.analysis.modelSynthesis.consensusIndex * 100 : 85);
+                        
+                        // Get number of models from raw_responses
+                        const modelCount = item.raw_responses?.length || 0;
+                        
+                        // Format timestamp
+                        const timestamp = item.timestamp?.toDate?.() || new Date(item.timestamp);
+                        
+                        return (
+                          <Link
+                            key={item.id}
+                            to={`/chat-v2?doc=${item.id}`}
+                            className="block py-4 border-b border-[#151515] hover:bg-[#0f0f0f] transition-colors rounded px-2"
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="text-sm text-[#e7e7e7] mb-1">{item.question}</div>
+                                <div className="text-xs text-[#666] flex items-center gap-2">
+                                  <span>{formatTimeAgo(timestamp)}</span>
+                                  {modelCount > 0 && (
+                                    <>
+                                      <span>•</span>
+                                      <span>{modelCount} modeller</span>
+                                    </>
+                                  )}
+                                  <span>•</span>
+                                  <span className={`px-2 py-0.5 rounded ${
+                                    item.status === 'completed' || item.status === 'ledger_verified' 
+                                      ? 'bg-green-900/20 text-green-400' 
+                                      : item.status === 'processing'
+                                      ? 'bg-yellow-900/20 text-yellow-400'
+                                      : 'bg-red-900/20 text-red-400'
+                                  }`}>
+                                    {item.status === 'completed' ? 'Klar' : 
+                                     item.status === 'ledger_verified' ? 'Verifierad' :
+                                     item.status === 'processing' ? 'Bearbetar' :
+                                     item.status === 'error' ? 'Fel' : item.status}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-right ml-4">
+                                <div className="text-sm text-[#e7e7e7]">{consensus.toFixed(0)}%</div>
+                                <div className="text-xs text-[#666]">Konsensus</div>
+                              </div>
                             </div>
-                          </div>
-                          <div className="text-right ml-4">
-                            <div className="text-sm text-[#e7e7e7]">{(item.consensus * 100).toFixed(0)}%</div>
-                            <div className="text-xs text-[#666]">Konsensus</div>
+                          </Link>
+                        );
+                      })}
+                      
+                      {totalCount >= 20 && (
+                        <div className="pt-4 text-center">
+                          <div className="text-xs text-[#666]">
+                            Visar de senaste 20 frågorna av {totalCount}+
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Community Trends */}
