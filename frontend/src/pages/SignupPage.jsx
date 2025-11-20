@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import FooterDemo4 from '../components/footers/FooterDemo4';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
  * SignupPage Component - Skapa konto
@@ -44,6 +45,8 @@ const BIP39_WORDS = [
 ];
 
 export default function SignupPage() {
+  const navigate = useNavigate();
+  const { login } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [accountData, setAccountData] = useState({
     publicKey: '',
@@ -276,6 +279,17 @@ export default function SignupPage() {
 
       console.log('[Signup] Account saved successfully:', result.user);
       setIsSavingAccount(false);
+      
+      // Login the user
+      login({
+        userId: result.user.userId,
+        publicKey: accountData.publicKey,
+        publicKeyHash: result.user.publicKeyHash,
+        profileType: accountData.profileType,
+        agentConfig: accountData.agentConfig,
+        accountStatus: result.user.accountStatus,
+        ledgerBlockId: result.user.ledgerBlockId
+      });
       
       // Move to final step
       setCurrentStep(6);
@@ -876,7 +890,7 @@ export default function SignupPage() {
                       Tillbaka till startsidan
                     </Link>
                     <Link
-                      to="/chat"
+                      to="/"
                       className="block w-full bg-[#1a1a1a] text-[#e7e7e7] py-3 rounded-lg font-medium border border-[#2a2a2a] hover:bg-[#2a2a2a] transition-colors duration-200 text-center"
                     >
                       Börja använda OneSeek.AI
