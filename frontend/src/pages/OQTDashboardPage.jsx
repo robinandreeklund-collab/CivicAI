@@ -15,6 +15,12 @@ export default function OQTDashboardPage() {
   const [modelMetrics, setModelMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Query state
+  const [queryInput, setQueryInput] = useState('');
+  const [queryResult, setQueryResult] = useState(null);
+  const [queryLoading, setQueryLoading] = useState(false);
+  const [queryError, setQueryError] = useState(null);
 
   // Fetch model status and metrics from backend
   useEffect(() => {
@@ -111,6 +117,55 @@ export default function OQTDashboardPage() {
     });
   };
 
+  // Handle query submission
+  const handleQuerySubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!queryInput.trim()) {
+      setQueryError('Ange en fråga');
+      return;
+    }
+
+    setQueryLoading(true);
+    setQueryError(null);
+    setQueryResult(null);
+
+    try {
+      const response = await fetch('/api/oqt/multi-model-query', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          question: queryInput,
+          includeExternal: false, // Only use Mistral + LLaMA for now
+          enableTraining: true,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setQueryResult(data);
+        // Add to live data feed
+        setLiveData(prev => [{
+          id: Date.now(),
+          question: queryInput,
+          timestamp: new Date().toLocaleTimeString('sv-SE'),
+          consensus: (data.analysis.consensus.score * 100).toFixed(0),
+          processing: false,
+        }, ...prev.slice(0, 4)]);
+      } else {
+        setQueryError(data.error || 'Kunde inte bearbeta frågan');
+      }
+    } catch (err) {
+      console.error('Query error:', err);
+      setQueryError('Nätverksfel - kunde inte ansluta till servern');
+    } finally {
+      setQueryLoading(false);
+    }
+  };
+
   return (
     <div className="h-full overflow-y-auto bg-[#0a0a0a] text-[#e7e7e7]">
       <div className="px-4 py-8">
@@ -159,6 +214,7 @@ export default function OQTDashboardPage() {
           {/* Navigation Tabs - Minimal */}
           <div className="flex gap-8 mb-12 border-b border-[#151515]">
             {[
+              { id: 'query', label: 'Fråga OQT' },
               { id: 'overview', label: 'Översikt' },
               { id: 'activity', label: 'Aktivitet' },
               { id: 'metrics', label: 'Mätvärden' },
@@ -182,6 +238,197 @@ export default function OQTDashboardPage() {
 
           {/* Tab Content */}
           <div className="space-y-12">
+            {/* Query Tab - NEW */}
+            {selectedTab === 'query' && (
+              <>
+                <div>
+                  <h3 className="text-xs text-[#666] uppercase tracking-wider mb-6">Ställ en fråga till OQT-1.0</h3>
+                  <p className="text-sm text-[#888] mb-8 max-w-3xl">
+                    OQT-1.0 analyserar din fråga med Mistral 7B och LLaMA-2, utför konsensusanalys, 
+                    bias-detektering och rättvisebedömning, och returnerar ett syntetiserat svar med full transparens.
+                  </p>
+
+                  {/* Query Form */}
+                  <form onSubmit={handleQuerySubmit} className="mb-8">
+                    <div className="flex gap-4">
+                      <input
+                        type="text"
+                        value={queryInput}
+                        onChange={(e) => setQueryInput(e.target.value)}
+                        placeholder="Skriv din fråga här..."
+                        className="flex-1 bg-[#0f0f0f] border border-[#2a2a2a] rounded px-4 py-3 text-[#e7e7e7] placeholder-[#555] focus:outline-none focus:border-[#444]"
+                        disabled={queryLoading}
+                      />
+                      <button
+                        type="submit"
+                        disabled={queryLoading || !queryInput.trim()}
+                        className="px-8 py-3 bg-[#e7e7e7] text-[#0a0a0a] rounded font-medium hover:bg-[#fff] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {queryLoading ? 'Bearbetar...' : 'Fråga'}
+                      </button>
+                    </div>
+                    {queryError && (
+                      <p className="text-red-400 text-sm mt-2">{queryError}</p>
+                    )}
+                  </form>
+
+                  {/* Query Result */}
+                  {queryResult && (
+                    <div className="space-y-6">
+                      {/* OQT Response */}
+                      <div className="border border-[#2a2a2a] rounded-lg p-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-sm font-medium text-[#e7e7e7]">OQT-1.0 Svar</h4>
+                          <div className="flex items-center gap-4 text-xs text-[#666]">
+                            <span>Förtroende: {(queryResult.confidence * 100).toFixed(0)}%</span>
+                            <span>•</span>
+                            <span>{queryResult.metadata.totalModels} modeller</span>
+                          </div>
+                        </div>
+                        <div className="text-sm text-[#ccc] whitespace-pre-wrap leading-relaxed">
+                          {queryResult.response}
+                        </div>
+                      </div>
+
+                      {/* Analysis Metrics Grid */}
+                      <div className="grid grid-cols-3 gap-6">
+                        {/* Consensus */}
+                        <div className="border border-[#2a2a2a] rounded-lg p-6">
+                          <div className="text-xs text-[#666] uppercase tracking-wider mb-3">Konsensus</div>
+                          <div className="text-3xl font-light text-[#e7e7e7] mb-2">
+                            {(queryResult.analysis.consensus.score * 100).toFixed(0)}%
+                          </div>
+                          <div className="text-sm text-[#888] capitalize">
+                            {queryResult.analysis.consensus.level === 'high' ? 'Hög' :
+                             queryResult.analysis.consensus.level === 'medium' ? 'Måttlig' : 'Låg'}
+                          </div>
+                          <div className="mt-4 space-y-2">
+                            <div className="flex justify-between text-xs">
+                              <span className="text-[#666]">Sentiment</span>
+                              <span className="text-[#888]">
+                                {(queryResult.analysis.consensus.metrics.sentimentAgreement * 100).toFixed(0)}%
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-[#666]">Ton</span>
+                              <span className="text-[#888]">
+                                {(queryResult.analysis.consensus.metrics.toneAgreement * 100).toFixed(0)}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bias */}
+                        <div className="border border-[#2a2a2a] rounded-lg p-6">
+                          <div className="text-xs text-[#666] uppercase tracking-wider mb-3">Bias</div>
+                          <div className="text-3xl font-light text-[#e7e7e7] mb-2">
+                            {queryResult.analysis.bias.aggregatedScore.toFixed(1)}
+                          </div>
+                          <div className="text-sm text-[#888] capitalize">
+                            {queryResult.analysis.bias.level === 'high' ? 'Hög' :
+                             queryResult.analysis.bias.level === 'medium' ? 'Måttlig' : 'Låg'}
+                          </div>
+                          {queryResult.analysis.bias.types && queryResult.analysis.bias.types.length > 0 && (
+                            <div className="mt-4">
+                              <div className="text-xs text-[#666] mb-2">Typer:</div>
+                              <div className="flex flex-wrap gap-2">
+                                {queryResult.analysis.bias.types.map((type, i) => (
+                                  <span key={i} className="text-xs bg-[#1a1a1a] px-2 py-1 rounded text-[#888]">
+                                    {type}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Fairness */}
+                        <div className="border border-[#2a2a2a] rounded-lg p-6">
+                          <div className="text-xs text-[#666] uppercase tracking-wider mb-3">Rättvisa</div>
+                          <div className="text-3xl font-light text-[#e7e7e7] mb-2">
+                            {(queryResult.analysis.fairness.score * 100).toFixed(0)}%
+                          </div>
+                          <div className="text-sm text-[#888] capitalize">
+                            {queryResult.analysis.fairness.level === 'excellent' ? 'Utmärkt' :
+                             queryResult.analysis.fairness.level === 'good' ? 'God' :
+                             queryResult.analysis.fairness.level === 'fair' ? 'Godkänd' : 'Begränsad'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Model Responses */}
+                      <div className="border-t border-[#2a2a2a] pt-6">
+                        <h4 className="text-sm font-medium text-[#e7e7e7] mb-4">Modellsvar</h4>
+                        <div className="space-y-3">
+                          {queryResult.modelResponses.map((model, i) => (
+                            <div key={i} className="bg-[#0f0f0f] border border-[#1a1a1a] rounded p-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-[#e7e7e7]">{model.model}</span>
+                                <span className="text-xs text-[#666]">
+                                  {model.metadata.latency_ms}ms
+                                </span>
+                              </div>
+                              <p className="text-xs text-[#888] line-clamp-2">
+                                {model.responsePreview}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Training Info */}
+                      {queryResult.training && (
+                        <div className="border-t border-[#2a2a2a] pt-6">
+                          <h4 className="text-sm font-medium text-[#e7e7e7] mb-4">Mikro-träning genomförd</h4>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div className="bg-[#0f0f0f] border border-[#1a1a1a] rounded p-4">
+                              <div className="text-xs text-[#666] mb-1">Steg 1: Rådata</div>
+                              <div className="text-[#e7e7e7]">
+                                {queryResult.training.stage1.samplesProcessed} samples
+                              </div>
+                            </div>
+                            <div className="bg-[#0f0f0f] border border-[#1a1a1a] rounded p-4">
+                              <div className="text-xs text-[#666] mb-1">Steg 2: Analyserad data</div>
+                              <div className="text-[#e7e7e7]">
+                                Metrics uppdaterad
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-4 text-xs text-[#666]">
+                            Total mikro-träningar: {queryResult.training.microBatchCount}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Meta Summary */}
+                      {queryResult.analysis.metaSummary && (
+                        <div className="border-t border-[#2a2a2a] pt-6">
+                          <h4 className="text-sm font-medium text-[#e7e7e7] mb-4">Meta-sammanfattning</h4>
+                          <div className="bg-[#0f0f0f] border border-[#1a1a1a] rounded p-4">
+                            <p className="text-sm text-[#ccc] mb-4">
+                              {queryResult.analysis.metaSummary.recommendation}
+                            </p>
+                            {queryResult.analysis.metaSummary.keyThemes && (
+                              <div>
+                                <div className="text-xs text-[#666] mb-2">Nyckelord:</div>
+                                <div className="flex flex-wrap gap-2">
+                                  {queryResult.analysis.metaSummary.keyThemes.slice(0, 8).map((theme, i) => (
+                                    <span key={i} className="text-xs bg-[#1a1a1a] px-2 py-1 rounded text-[#888]">
+                                      {theme}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
             {/* Overview Tab */}
             {selectedTab === 'overview' && (
               <>
