@@ -769,11 +769,11 @@ Two-Step Training → OQT-1.0 Response
 | Transformers | ✅ Integrated | Model inference |
 | SHAP | 🔄 Partial | Explainability (in progress) |
 | Gensim | ✅ Integrated | Topic modeling |
-| BERTopic | 🔄 Planned | Advanced topics |
-| LIME | 🔄 Planned | Local explanations |
+| BERTopic | ✅ Integrated | Advanced topics, hierarchical modeling |
+| LIME | ✅ Integrated | Local explanations per prediction |
 | Fairlearn | ✅ Integrated | Fairness metrics |
-| Lux | 📋 Planned | Dashboard viz |
-| Sweetviz | 📋 Planned | Data profiling |
+| Lux | ✅ Integrated | Automated data visualization |
+| Sweetviz | ✅ Integrated | Data profiling and EDA |
 
 ---
 

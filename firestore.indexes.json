@@ -1,0 +1,53 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "ai_interactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "timestamp", "order": "DESCENDING" },
+        { "fieldPath": "user_id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "ai_interactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "pipeline_metadata.status", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "oqt_queries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "timestamp", "order": "DESCENDING" },
+        { "fieldPath": "model_version", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "oqt_training_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "timestamp", "order": "DESCENDING" },
+        { "fieldPath": "event_type", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "oqt_ledger",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "timestamp", "order": "DESCENDING" },
+        { "fieldPath": "block_type", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "oqt_metrics",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "timestamp", "order": "DESCENDING" },
+        { "fieldPath": "metric_type", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
