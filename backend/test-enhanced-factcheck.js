@@ -169,6 +169,6 @@ console.log('   - Verified claims per agent distribution');
 console.log('   - Verified aggregated bias score');
 console.log('   - Verified improvement suggestions');
 console.log('   - Verified transparency metadata');
-console.log('\n💡 Note: Without TAVILY_API_KEY, claims are extracted but not verified.');
+console.log('\n💡 Note: Without GOOGLE_FACTCHECK_API_KEY, claims are extracted but not verified.');
 console.log('   The metadata structure is still generated and ready for display.');
 console.log('='.repeat(80));

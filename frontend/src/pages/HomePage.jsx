@@ -316,7 +316,7 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
     if (aiMessage.factCheckComparison) {
       analysisItems.push({
         id: 'fact-check',
-        title: 'Tavily Faktakoll',
+        title: 'Google Faktakoll',
         meta: 'Verifiering av fakta'
       });
     }
@@ -530,11 +530,11 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
       case 'fact-check': {
         return aiMessage.factCheckComparison ? (
           <RichContentCard
-            badge={{ text: 'Tavily Faktakoll', icon: '✓' }}
+            badge={{ text: 'Google Faktakoll', icon: '✓' }}
             title="Verifiering av fakta och påståenden"
             content={
               <div className="space-y-4">
-                <p>{aiMessage.factCheckComparison.summary || 'Tavily Search har verifierat fakta och påståenden i AI-svaren mot pålitliga källor på internet.'}</p>
+                <p>{aiMessage.factCheckComparison.summary || 'Google Fact Check har verifierat fakta och påståenden i AI-svaren mot etablerade faktakoll-organisationer.'}</p>
                 {aiMessage.factCheckComparison.findings && aiMessage.factCheckComparison.findings.length > 0 && (
                   <div className="space-y-3">
                     <div className="text-xs font-medium text-civic-gray-500 uppercase tracking-wide">Verifierade påståenden:</div>
@@ -562,7 +562,7 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
               { label: 'Källor', value: `${aiMessage.factCheckComparison.sources || 0} st` },
               { label: 'Säkerhet', value: aiMessage.factCheckComparison.confidence || 'Hög' },
               { label: 'Icke-verifierade', value: `${aiMessage.factCheckComparison.unverified || 0} st` },
-              { label: 'Sökmotor', value: 'Tavily Search API' },
+              { label: 'Sökmotor', value: 'Google Fact Check API' },
               { label: 'Söktid', value: `${aiMessage.factCheckComparison.searchTime || 0}ms` }
             ]}
           />

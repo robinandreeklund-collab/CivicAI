@@ -128,6 +128,6 @@ for (const testCase of edgeCases) {
 
 console.log('\n\n' + '='.repeat(80));
 console.log('✅ Testing Complete!\n');
-console.log('Note: If TAVILY_API_KEY is not configured, fact-checking will not be available.');
+console.log('Note: If GOOGLE_FACTCHECK_API_KEY is not configured, fact-checking will not be available.');
 console.log('      Claims will still be extracted, but no external verification will occur.');
 console.log('='.repeat(80));

@@ -234,7 +234,7 @@ router.get('/methods', (req, res) => {
         ],
         
         externalVerification: {
-          description: 'För faktisk verifiering används Tavily Search API',
+          description: 'För faktisk verifiering används Google Fact Check Claim Search API',
           note: 'Detta är en separat process som kör efter initial faktakoll-identifiering'
         }
       },
@@ -376,7 +376,7 @@ router.get('/agent/:agentId', (req, res) => {
         factChecking: {
           identifiedClaims: 'Lista över identifierade påståenden',
           patternMatches: 'Vilka mönster som matchades',
-          verificationSources: 'Källor använda för verifiering (om Tavily kördes)'
+          verificationSources: 'Faktakollskällor från Google Fact Check API (om kördes)'
         }
       },
       
@@ -424,11 +424,11 @@ router.get('/comparison', (req, res) => {
       },
       
       factCheckComparison: {
-        name: 'Tavily Search Faktakoll-jämförelse',
-        description: 'Jämför hur väl varje agents svar stämmer överens med verifierad information',
+        name: 'Google Fact Check Faktakoll-jämförelse',
+        description: 'Jämför hur väl varje agents svar stämmer överens med verifierad information från etablerade faktakollare',
         process: [
-          'Varje agents svar genomgår Tavily Search-faktakoll',
-          'Påståenden extraheras och verifieras mot web-källor',
+          'Varje agents svar genomgår Google Fact Check-faktakoll',
+          'Påståenden extraheras och verifieras mot etablerade faktakoll-organisationer',
           'Varje agent får en overall score (0-10) baserat på verifiering',
           'Bästa agent identifieras baserat på högst faktakontroll-poäng',
           'Genomsnittligt verifieringspoäng beräknas över alla agenter'

@@ -130,7 +130,7 @@ export default function FeaturesPage() {
               <div className="bg-[#151515] border border-[#2a2a2a] rounded-xl p-6">
                 <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Faktakontroll med Audit</h2>
                 <p className="mb-4 text-sm text-[#888]">
-                  Alla påståenden verifieras automatiskt mot externa källor via Tavily Search API.
+                  Alla påståenden verifieras automatiskt mot etablerade faktakoll-organisationer via Google Fact Check Claim Search API.
                 </p>
                 <div className="space-y-2 text-xs">
                   <div className="text-[#888]">
@@ -138,7 +138,7 @@ export default function FeaturesPage() {
                     <span className="ml-2">Upp till 3 verifierbara påståenden per svar</span>
                   </div>
                   <div className="text-[#888]">
-                    <span className="text-[#e7e7e7] font-medium">🌐 Tavily Search API:</span> 
+                    <span className="text-[#e7e7e7] font-medium">🌐 Google Fact Check API:</span> 
                     <span className="ml-2">Upp till 3 externa källor per påstående</span>
                   </div>
                   <div className="text-[#888]">
