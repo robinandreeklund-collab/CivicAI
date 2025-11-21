@@ -44,8 +44,37 @@ dotenv.config();
 const GOOGLE_FACTCHECK_API_KEY = process.env.GOOGLE_FACTCHECK_API_KEY;
 const GOOGLE_FACTCHECK_ENDPOINT = 'https://factchecktools.googleapis.com/v1alpha1/claims:search';
 
-// OQT Configuration
-const OQT_VERSION = 'OQT-1.0.v12.7';
+// Configuration constants
+const VERIFICATION_THRESHOLD = 6.0; // Minimum confidence for verification
+const CREDIBILITY_BOOST = 0.5; // Boost for high-credibility publishers
+
+// Verdict to confidence mapping
+const VERDICT_CONFIDENCE_MAP = {
+  'true': 9.0,
+  'correct': 9.0,
+  'mostly true': 7.5,
+  'largely true': 7.5,
+  'partly true': 6.0,
+  'half true': 6.0,
+  'mixture': 6.0,
+  'mostly false': 2.5,
+  'largely false': 2.5,
+  'false': 1.0,
+  'incorrect': 1.0,
+  'unverified': 4.0,
+  'unproven': 4.0,
+};
+
+// High-credibility publisher names (from Google Fact Check API ClaimReview data)
+// Note: These come from the publisher.name field in ClaimReview, not URLs
+const HIGH_CREDIBILITY_PUBLISHERS = [
+  'politifact',
+  'snopes',
+  'factcheck.org',
+  'full fact',
+  'afp fact check',
+  'reuters fact check',
+];
 
 /**
  * Truncate text at sentence boundary to avoid cutting off mid-sentence
@@ -290,12 +319,7 @@ function extractClaims(text) {
 
 /**
  * Calculate confidence level for a claim based on fact-check verdict
- * Confidence scoring algorithm based on Google Fact Check ratings:
- * - True/Correct: 8.0-10.0 confidence (highly verified)
- * - Mostly True/Partly True: 5.0-7.0 confidence (partially verified)
- * - Mixed/Unverified: 3.0-5.0 confidence (unclear)
- * - Mostly False/False: 0.0-3.0 confidence (contradicted)
- * - No results: 0.0 confidence (unverified)
+ * Uses a verdict mapping table for clarity and maintainability
  * @param {string} textualRating - The textual rating from Google Fact Check
  * @param {string} publisher - The publisher name for credibility weighting
  * @returns {number} Confidence score (0-10)
@@ -303,29 +327,34 @@ function extractClaims(text) {
 function calculateConfidence(textualRating, publisher = '') {
   if (!textualRating) return 0;
   
-  const rating = textualRating.toLowerCase();
+  const rating = textualRating.toLowerCase().trim();
   
-  // High credibility publishers get a boost
-  const highCredibilityPublishers = ['politifact', 'snopes', 'afp', 'factcheck.org', 'full fact'];
-  const credibilityBoost = highCredibilityPublishers.some(pub => publisher.toLowerCase().includes(pub)) ? 0.5 : 0;
+  // Check if publisher is high-credibility (from ClaimReview publisher.name field)
+  const lowerPublisher = publisher.toLowerCase();
+  const isHighCredibility = HIGH_CREDIBILITY_PUBLISHERS.some(pub => 
+    lowerPublisher.includes(pub)
+  );
+  const credibilityBoost = isHighCredibility ? CREDIBILITY_BOOST : 0;
   
-  // Classify based on common fact-check ratings
-  if (rating.includes('true') && !rating.includes('false') && !rating.includes('mostly')) {
-    return Math.min(10.0, 9.0 + credibilityBoost);
-  } else if (rating.includes('mostly true') || rating.includes('largely true')) {
-    return Math.min(10.0, 7.5 + credibilityBoost);
-  } else if (rating.includes('partly true') || rating.includes('half true') || rating.includes('mixture')) {
-    return Math.min(10.0, 6.0 + credibilityBoost);
-  } else if (rating.includes('mostly false') || rating.includes('largely false')) {
-    return Math.min(10.0, 2.5 + credibilityBoost);
-  } else if (rating.includes('false') && !rating.includes('mostly')) {
-    return Math.min(10.0, 1.0 + credibilityBoost);
-  } else if (rating.includes('unverified') || rating.includes('unproven')) {
-    return Math.min(10.0, 4.0 + credibilityBoost);
+  // Find matching verdict from mapping
+  let baseConfidence = VERDICT_CONFIDENCE_MAP[rating];
+  
+  // If no exact match, try partial matches (for variations in verdict text)
+  if (baseConfidence === undefined) {
+    for (const [verdict, confidence] of Object.entries(VERDICT_CONFIDENCE_MAP)) {
+      if (rating.includes(verdict)) {
+        baseConfidence = confidence;
+        break;
+      }
+    }
   }
   
-  // Default for unknown ratings
-  return 5.0;
+  // Default to neutral confidence if no match found
+  if (baseConfidence === undefined) {
+    baseConfidence = 5.0;
+  }
+  
+  return Math.min(10.0, baseConfidence + credibilityBoost);
 }
 
 /**
@@ -404,8 +433,8 @@ export async function performFactCheck(responseText, agentName) {
         // Calculate confidence based on verdict
         const confidence = calculateConfidence(topResult.textualRating, topResult.publisher);
         
-        // Mark as verified if confidence >= 6.0 (mostly true or better)
-        const verified = confidence >= 6.0;
+        // Mark as verified if confidence >= threshold (mostly true or better)
+        const verified = confidence >= VERIFICATION_THRESHOLD;
         
         console.log(`[FactChecker] Found fact-check: ${topResult.textualRating}, verified: ${verified}, confidence: ${confidence}`);
         
@@ -750,4 +779,5 @@ export default {
   compareFactChecks,
   calculateConfidence, // Export for use in API endpoints
   OQT_VERSION, // Export constant
+  VERIFICATION_THRESHOLD, // Export constant
 };

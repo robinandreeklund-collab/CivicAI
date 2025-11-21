@@ -139,11 +139,11 @@ export default function FeaturesPage() {
                   </div>
                   <div className="text-[#888]">
                     <span className="text-[#e7e7e7] font-medium">🌐 Google Fact Check API:</span> 
-                    <span className="ml-2">Upp till 3 externa källor per påstående</span>
+                    <span className="ml-2">Verifierade faktakollar från etablerade organisationer</span>
                   </div>
                   <div className="text-[#888]">
                     <span className="text-[#e7e7e7] font-medium">✓ Verifiering:</span> 
-                    <span className="ml-2">Minst 2 källor krävs för verifierad status</span>
+                    <span className="ml-2">Baserat på bedömningar från faktakoll-organisationer</span>
                   </div>
                   <div className="text-[#888]">
                     <span className="text-[#e7e7e7] font-medium">📊 Konfidenspoäng:</span> 
