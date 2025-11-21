@@ -255,18 +255,17 @@ function formatModelName(dirName) {
   return dirName
     .split('-')
     .map(part => {
-      // Keep numbers and special patterns lowercase
+      // Convert numbers and version patterns to uppercase
       if (/^\d/.test(part) || /^v\d/.test(part)) {
         return part.toUpperCase();
       }
-      // Capitalize first letter
+      // Capitalize first letter of words
       return part.charAt(0).toUpperCase() + part.slice(1);
     })
     .join('-');
 }
 
 // POST /api/admin/datasets/upload - Upload a new dataset
-router.post('/datasets/upload', requireAdmin, upload.single('dataset'), async (req, res) => {
 router.post('/datasets/upload', requireAdmin, upload.single('dataset'), async (req, res) => {
   try {
     if (!req.file) {
