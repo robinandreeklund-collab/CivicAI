@@ -1,12 +1,14 @@
 /**
  * LLaMA-2 Service
  * Handles communication with LLaMA-2 model (7B/13B)
- * Advanced linguistic analysis and deeper understanding for OQT-1.0 pipeline
+ * Real inference via ML service or simulated fallback
  */
+
+import { callLlamaInference, isMLServiceAvailable } from './mlServiceClient.js';
 
 /**
  * Get a simulated response from LLaMA-2
- * In production, this would integrate with actual LLaMA-2 API or local deployment
+ * Fallback when ML service is not available
  */
 function getSimulatedResponse(question) {
   const questionLower = question.toLowerCase();
@@ -106,6 +108,7 @@ För mer specifik analys rekommenderas avgränsning till särskilda aspekter av 
 
 /**
  * Get response from LLaMA-2
+ * Tries real model inference first, falls back to simulation
  * @param {string} question - User's question
  * @param {Object} options - Optional configuration
  * @returns {Promise<{response: string, model: string, metadata: Object}>}
@@ -113,31 +116,46 @@ För mer specifik analys rekommenderas avgränsning till särskilda aspekter av 
 export async function getLlamaResponse(question, options = {}) {
   const startTime = Date.now();
   
-  // In production, this would call actual LLaMA-2 API
-  // For now, using simulated responses
-  try {
-    // Simulate processing delay (LLaMA-2 is more comprehensive, takes longer)
-    await new Promise(resolve => setTimeout(resolve, 150));
-    
-    const response = getSimulatedResponse(question);
+  // Try real ML service first
+  const mlResult = await callLlamaInference(question, options);
+  
+  if (mlResult.success) {
+    // Using real model
     const latency = Date.now() - startTime;
-    
     return {
-      response,
-      model: options.modelSize === '13b' ? 'llama-2-13b-chat' : 'llama-2-7b-chat',
+      response: mlResult.data.response,
+      model: mlResult.data.model || (options.modelSize === '13b' ? 'llama-2-13b-chat' : 'llama-2-7b-chat'),
       metadata: {
         temperature: options.temperature || 0.7,
         maxTokens: options.maxTokens || 800,
-        latency_ms: latency,
-        tokens: Math.ceil(response.split(' ').length * 1.3),
-        simulated: true,
+        latency_ms: mlResult.data.latency_ms || latency,
+        tokens: mlResult.data.tokens || Math.ceil(mlResult.data.response.split(' ').length * 1.3),
+        simulated: false,
+        mlService: true,
         modelSize: options.modelSize || '7b',
       },
     };
-  } catch (error) {
-    console.error('LLaMA-2 API error:', error);
-    throw new Error(`Failed to get LLaMA-2 response: ${error.message}`);
   }
+  
+  // Fallback to simulated response
+  console.log('Using simulated LLaMA response');
+  await new Promise(resolve => setTimeout(resolve, 150)); // Simulate delay
+  
+  const response = getSimulatedResponse(question);
+  const latency = Date.now() - startTime;
+  
+  return {
+    response,
+    model: options.modelSize === '13b' ? 'llama-2-13b-chat' : 'llama-2-7b-chat',
+    metadata: {
+      temperature: options.temperature || 0.7,
+      maxTokens: options.maxTokens || 800,
+      latency_ms: latency,
+      tokens: Math.ceil(response.split(' ').length * 1.3),
+      simulated: true,
+      modelSize: options.modelSize || '7b',
+    },
+  };
 }
 
 /**

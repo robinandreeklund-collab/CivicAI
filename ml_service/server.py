@@ -3,6 +3,7 @@ ML Inference Service for OQT-1.0
 FastAPI server for Mistral 7B and LLaMA-2 inference
 """
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -16,25 +17,43 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI
-app = FastAPI(title="OQT-1.0 ML Service", version="1.0.0")
+# Model paths - use absolute paths relative to project root
+PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+MISTRAL_PATH = os.getenv('MISTRAL_MODEL_PATH', str(PROJECT_ROOT / 'models' / 'mistral-7b-instruct'))
+LLAMA_PATH = os.getenv('LLAMA_MODEL_PATH', str(PROJECT_ROOT / 'models' / 'llama-2-7b-chat'))
 
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# GPU configuration - Support for NVIDIA, Intel, and CPU
+def get_device():
+    """Automatically detect best available device"""
+    # Try DirectML (Windows Intel/AMD GPU)
+    try:
+        import torch_directml
+        if torch_directml.is_available():
+            device = torch_directml.device()
+            logger.info(f"DirectML device detected (Windows GPU acceleration)")
+            return device, 'directml'
+    except ImportError:
+        pass
+    
+    # Try Intel GPU (XPU) via IPEX (Linux only)
+    try:
+        import intel_extension_for_pytorch as ipex
+        if torch.xpu.is_available():
+            logger.info("Intel GPU (XPU) detected via IPEX")
+            return torch.device('xpu'), 'xpu'
+    except ImportError:
+        pass
+    
+    # Try NVIDIA GPU
+    if torch.cuda.is_available():
+        logger.info(f"NVIDIA GPU detected: {torch.cuda.get_device_name(0)}")
+        return torch.device('cuda'), 'cuda'
+    
+    # Fallback to CPU
+    logger.info("Using CPU (slow - consider GPU for better performance)")
+    return torch.device('cpu'), 'cpu'
 
-# Model paths
-MISTRAL_PATH = os.getenv('MISTRAL_MODEL_PATH', '../models/mistral-7b-instruct')
-LLAMA_PATH = os.getenv('LLAMA_MODEL_PATH', '../models/llama-2-7b-chat')
-
-# GPU configuration
-USE_GPU = os.getenv('USE_GPU', 'true').lower() == 'true'
-DEVICE = 'cuda' if USE_GPU and torch.cuda.is_available() else 'cpu'
+DEVICE, DEVICE_TYPE = get_device()
 
 # Model cache
 models = {}
@@ -53,61 +72,119 @@ class InferenceResponse(BaseModel):
     latency_ms: float
 
 def load_model(model_name: str, model_path: str):
-    """Load model and tokenizer"""
+    """Load model and tokenizer with device optimization"""
     if model_name in models:
         return models[model_name], tokenizers[model_name]
     
     logger.info(f"Loading {model_name} from {model_path}...")
     
+    # Use FP16 for GPU acceleration, FP32 for CPU
+    dtype = torch.float16 if DEVICE_TYPE in ['cuda', 'xpu', 'directml'] else torch.float32
+    
     try:
         # Load tokenizer
         tokenizer = AutoTokenizer.from_pretrained(model_path)
         
-        # Load model with optimizations
+        # Load model with device-specific optimizations
         model = AutoModelForCausalLM.from_pretrained(
             model_path,
-            torch_dtype=torch.float16 if DEVICE == 'cuda' else torch.float32,
-            device_map='auto' if DEVICE == 'cuda' else None,
-            load_in_8bit=USE_GPU and os.getenv('USE_8BIT_QUANTIZATION', 'false').lower() == 'true'
+            dtype=dtype,  # Use modern 'dtype' instead of deprecated 'torch_dtype'
+            low_cpu_mem_usage=True
         )
         
-        if DEVICE == 'cpu':
-            model = model.to(DEVICE)
+        # Move model to device
+        model = model.to(DEVICE)
+        
+        # Apply device-specific optimizations
+        if DEVICE_TYPE == 'xpu':
+            # Intel GPU optimization via IPEX
+            try:
+                import intel_extension_for_pytorch as ipex
+                model = ipex.optimize(model)
+                logger.info(f"✓ {model_name} optimized with IPEX")
+            except ImportError:
+                pass
+        elif DEVICE_TYPE == 'directml':
+            # DirectML is handled automatically by torch-directml
+            logger.info(f"✓ {model_name} using DirectML acceleration")
         
         # Cache models
         models[model_name] = model
         tokenizers[model_name] = tokenizer
         
-        logger.info(f"✓ {model_name} loaded successfully on {DEVICE}")
+        logger.info(f"✓ {model_name} loaded successfully on {DEVICE_TYPE} ({dtype})")
         return model, tokenizer
         
     except Exception as e:
         logger.error(f"Error loading {model_name}: {str(e)}")
         raise
 
-@app.on_event("startup")
-async def startup_event():
-    """Pre-load models on startup"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler for startup and shutdown"""
+    # Startup
     logger.info("Starting ML Service...")
     logger.info(f"Device: {DEVICE}")
+    logger.info(f"Project root: {PROJECT_ROOT}")
+    logger.info(f"Mistral path: {MISTRAL_PATH}")
+    logger.info(f"LLaMA path: {LLAMA_PATH}")
     
     # Check if model directories exist
     if not Path(MISTRAL_PATH).exists():
         logger.warning(f"Mistral model not found at {MISTRAL_PATH}")
+    else:
+        logger.info(f"✓ Mistral model directory found")
     
     if not Path(LLAMA_PATH).exists():
         logger.warning(f"LLaMA model not found at {LLAMA_PATH}")
+    else:
+        logger.info(f"✓ LLaMA model directory found")
+    
+    yield
+    
+    # Shutdown (cleanup if needed)
+    logger.info("Shutting down ML Service...")
+
+# Initialize FastAPI with lifespan
+app = FastAPI(
+    title="OQT-1.0 ML Service",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 async def root():
     """Health check"""
-    return {
+    device_info = {
         "service": "OQT-1.0 ML Service",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "status": "running",
-        "device": DEVICE,
+        "device": str(DEVICE),
+        "device_type": DEVICE_TYPE,
         "models_loaded": list(models.keys())
     }
+    
+    # Add device-specific info
+    if DEVICE_TYPE == 'cuda':
+        device_info["gpu_name"] = torch.cuda.get_device_name(0)
+        device_info["gpu_memory"] = f"{torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB"
+    elif DEVICE_TYPE == 'xpu':
+        try:
+            device_info["gpu_name"] = torch.xpu.get_device_name(0)
+            device_info["intel_gpu"] = True
+        except:
+            pass
+    
+    return device_info
 
 @app.post("/inference/mistral", response_model=InferenceResponse)
 async def mistral_inference(request: InferenceRequest):
