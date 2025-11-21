@@ -89,6 +89,12 @@ def parse_args():
         help='Output directory for certified model (optional, auto-generated if not provided)'
     )
     
+    parser.add_argument(
+        '--base-models',
+        nargs='+',
+        help='Specific base models to use (space-separated names). If not provided, uses all discovered models.'
+    )
+    
     return parser.parse_args()
 
 
@@ -100,10 +106,19 @@ def main():
     models_dir = os.environ.get('MODELS_DIR', 'models')
     ledger_url = os.environ.get('LEDGER_URL')
     private_key_path = os.environ.get('LEDGER_PRIVATE_KEY_PATH')
+    base_models_filter = os.environ.get('BASE_MODELS')  # Comma-separated list
     
     # Resolve paths relative to project root
     models_dir = str(project_root / models_dir)
     dataset_path = str(project_root / args.dataset)
+    
+    # Determine which base models to use
+    if args.base_models:
+        selected_base_models = args.base_models
+    elif base_models_filter:
+        selected_base_models = [m.strip() for m in base_models_filter.split(',')]
+    else:
+        selected_base_models = None  # Use all discovered models
     
     # Generate output directory if not provided
     if args.output_dir:
@@ -123,6 +138,7 @@ def main():
     # Prepare configuration
     config = {
         'models_dir': models_dir,
+        'selected_base_models': selected_base_models,  # Filter to specific models
         'dataset_paths': [dataset_path],
         'epochs': args.epochs,
         'learning_rate': args.learning_rate,
@@ -140,6 +156,10 @@ def main():
     print("="*70)
     print(f"\nDataset: {dataset_path}")
     print(f"Models directory: {models_dir}")
+    if selected_base_models:
+        print(f"Selected base models ({len(selected_base_models)}): {', '.join(selected_base_models)}")
+    else:
+        print("Base models: Auto-discover all models")
     print(f"Epochs: {args.epochs}")
     print(f"Learning rate: {args.learning_rate}")
     print(f"Batch size: {args.batch_size}")

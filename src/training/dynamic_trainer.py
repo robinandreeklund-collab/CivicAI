@@ -134,6 +134,7 @@ def run_adaptive_training(config: Dict[str, Any]) -> Dict[str, Any]:
     """
     # Extract config
     models_dir = config.get('models_dir', 'models')
+    selected_base_models = config.get('selected_base_models')  # Optional filter
     dataset_paths = config.get('dataset_paths', [])
     epochs = config.get('epochs', 10)
     base_lr = config.get('learning_rate', 0.0001)
@@ -151,6 +152,12 @@ def run_adaptive_training(config: Dict[str, Any]) -> Dict[str, Any]:
     base_models = discover_base_models(models_dir)
     if not base_models:
         raise ValueError(f"No base models found in {models_dir}")
+    
+    # Filter to selected models if specified
+    if selected_base_models:
+        base_models = [m for m in base_models if m['name'] in selected_base_models]
+        if not base_models:
+            raise ValueError(f"None of the selected models found: {selected_base_models}")
     
     print(f"Discovered {len(base_models)} base models:")
     for model in base_models:

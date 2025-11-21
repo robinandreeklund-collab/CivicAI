@@ -14,6 +14,8 @@ import { useState, useEffect } from 'react';
 export default function TrainingControl() {
   const [datasets, setDatasets] = useState([]);
   const [availableModels, setAvailableModels] = useState([]);
+  const [discoveredBaseModels, setDiscoveredBaseModels] = useState([]);
+  const [selectedBaseModels, setSelectedBaseModels] = useState([]);
   const [selectedDataset, setSelectedDataset] = useState('');
   const [useDnaV2, setUseDnaV2] = useState(true); // Default to DNA v2
   const [trainingParams, setTrainingParams] = useState({
@@ -21,7 +23,7 @@ export default function TrainingControl() {
     batchSize: 8,
     learningRate: 0.0001,
     language: 'en',
-    externalModel: '',
+    knowledgeSource: '', // Renamed from externalModel
     // DNA v2 specific parameters
     autoStopThreshold: 0.001,
     autoStopPatience: 3,
@@ -34,6 +36,7 @@ export default function TrainingControl() {
   useEffect(() => {
     fetchDatasets();
     fetchAvailableModels();
+    fetchDiscoveredBaseModels();
     fetchTrainingStatus();
     
     // Poll for training status every 5 seconds
@@ -65,6 +68,18 @@ export default function TrainingControl() {
     }
   };
 
+  const fetchDiscoveredBaseModels = async () => {
+    try {
+      const response = await fetch('/api/admin/models/discover-base');
+      if (response.ok) {
+        const data = await response.json();
+        setDiscoveredBaseModels(data.models || []);
+      }
+    } catch (error) {
+      console.error('Error fetching discovered base models:', error);
+    }
+  };
+
   const fetchTrainingStatus = async () => {
     try {
       const response = await fetch('/api/admin/training/status');
@@ -83,9 +98,25 @@ export default function TrainingControl() {
     }
   };
 
+  const addBaseModel = (modelName) => {
+    if (!selectedBaseModels.includes(modelName) && selectedBaseModels.length < 10) {
+      setSelectedBaseModels([...selectedBaseModels, modelName]);
+    }
+  };
+
+  const removeBaseModel = (modelName) => {
+    setSelectedBaseModels(selectedBaseModels.filter(m => m !== modelName));
+  };
+
   const startTraining = async () => {
     if (!selectedDataset) {
       alert('Please select a dataset');
+      return;
+    }
+
+    // Validate base models for DNA v2 mode
+    if (useDnaV2 && selectedBaseModels.length === 0) {
+      alert('Please select at least one base model for DNA v2 training');
       return;
     }
 
@@ -98,6 +129,7 @@ export default function TrainingControl() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           datasetId: selectedDataset,
+          baseModels: useDnaV2 ? selectedBaseModels : undefined,
           ...trainingParams,
         }),
       });
@@ -213,11 +245,82 @@ export default function TrainingControl() {
             </div>
           </div>
 
-          {/* Language and External Model Parameters */}
+          {/* Base Model(s) Selection for DNA v2 */}
+          {useDnaV2 && (
+            <div className="border border-[#2a2a2a] bg-[#0a0a0a] p-4 rounded">
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-[#888] font-mono text-sm">
+                  Base Model(s) *
+                </label>
+                <span className="text-[#555] font-mono text-xs">
+                  {selectedBaseModels.length} / 10 selected
+                </span>
+              </div>
+              
+              {/* Selected Base Models */}
+              {selectedBaseModels.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {selectedBaseModels.map((modelName) => (
+                    <div
+                      key={modelName}
+                      className="flex items-center gap-2 bg-[#111] border border-green-900/30 text-green-400 px-3 py-1 rounded font-mono text-xs"
+                    >
+                      <span>{modelName}</span>
+                      <button
+                        onClick={() => removeBaseModel(modelName)}
+                        disabled={isTraining}
+                        className="text-red-400 hover:text-red-300 disabled:opacity-50"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add Base Model Selector */}
+              <div className="flex gap-2">
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      addBaseModel(e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                  disabled={isTraining || selectedBaseModels.length >= 10}
+                  className="flex-1 bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                >
+                  <option value="">-- Add base model --</option>
+                  {discoveredBaseModels
+                    .filter(model => !selectedBaseModels.includes(model.name))
+                    .map((model) => (
+                      <option key={model.name} value={model.name}>
+                        {model.name} ({model.parameters || 'unknown'})
+                      </option>
+                    ))}
+                </select>
+                <button
+                  onClick={() => setSelectedBaseModels([])}
+                  disabled={isTraining || selectedBaseModels.length === 0}
+                  className="px-3 py-2 border border-[#2a2a2a] text-[#666] font-mono text-xs hover:bg-[#1a1a1a] disabled:opacity-50 rounded"
+                >
+                  Clear All
+                </button>
+              </div>
+
+              <p className="text-[#555] font-mono text-xs mt-2">
+                ✓ Auto-discovered from <code>/models/</code> folder
+                <br />✓ Supports KB-Llama-3.1-8B-Swedish, Qwen-2.5, Gemma-2, etc.
+                <br />✓ Sequential training (no OOM) with adaptive weights
+              </p>
+            </div>
+          )}
+
+          {/* Knowledge Source (formerly External Model) - Optional distillation */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[#888] font-mono text-sm mb-2">
-                Language
+                Language {!useDnaV2 && '(Legacy Mode)'}
               </label>
               <select
                 value={trainingParams.language}
@@ -237,26 +340,24 @@ export default function TrainingControl() {
 
             <div>
               <label className="block text-[#888] font-mono text-sm mb-2">
-                External Model (Optional)
+                Knowledge Source (Optional)
               </label>
               <select
-                value={trainingParams.externalModel}
-                onChange={(e) => setTrainingParams({ ...trainingParams, externalModel: e.target.value })}
-                disabled={isTraining || useDnaV2}
+                value={trainingParams.knowledgeSource}
+                onChange={(e) => setTrainingParams({ ...trainingParams, knowledgeSource: e.target.value })}
+                disabled={isTraining}
                 className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
               >
-                <option value="">-- No external model --</option>
+                <option value="">-- No knowledge source --</option>
                 {availableModels.map((model) => (
                   <option key={model.id} value={model.id}>
                     {model.displayName}
                   </option>
                 ))}
               </select>
-              {useDnaV2 && (
-                <p className="text-[#555] font-mono text-xs mt-1">
-                  Not used in DNA v2 mode (auto-discovers models)
-                </p>
-              )}
+              <p className="text-[#555] font-mono text-xs mt-1">
+                For optional knowledge distillation
+              </p>
             </div>
           </div>
 

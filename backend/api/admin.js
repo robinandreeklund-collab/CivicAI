@@ -811,10 +811,14 @@ router.post('/training/stop', requireAdmin, (req, res) => {
 // POST /api/admin/training/start-dna-v2 - Start DNA v2 training with adaptive weights
 router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
   try {
-    const { datasetId, epochs, learningRate, autoStopThreshold, autoStopPatience, seed } = req.body;
+    const { datasetId, epochs, learningRate, autoStopThreshold, autoStopPatience, seed, baseModels } = req.body;
     
     if (!datasetId) {
       return res.status(400).json({ error: 'Dataset ID is required' });
+    }
+
+    if (!baseModels || baseModels.length === 0) {
+      return res.status(400).json({ error: 'At least one base model is required for DNA v2 training' });
     }
     
     if (trainingState.status === 'training') {
@@ -838,10 +842,15 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       progress: 0,
       datasetId,
       useDnaV2: true,
+      baseModels: baseModels,
       logs: [
         {
           timestamp: new Date().toISOString(),
           message: `Starting DNA v2 training with dataset: ${datasetId}`,
+        },
+        {
+          timestamp: new Date().toISOString(),
+          message: `Base models (${baseModels.length}): ${baseModels.join(', ')}`,
         },
         {
           timestamp: new Date().toISOString(),
@@ -906,6 +915,7 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
     const env = {
       ...process.env,
       MODELS_DIR: 'models',
+      BASE_MODELS: baseModels.join(','),  // Pass selected base models
     };
     
     // Add ledger configuration if available
@@ -1022,6 +1032,74 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
 });
 
 // Model Management Endpoints
+
+// GET /api/admin/models/discover-base - Discover base models in models/ directory
+router.get('/models/discover-base', requireAdmin, async (req, res) => {
+  try {
+    const modelsDir = path.join(process.cwd(), '..', 'models');
+    const discoveredModels = [];
+
+    try {
+      const entries = await fs.readdir(modelsDir, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        
+        const modelDir = path.join(modelsDir, entry.name);
+        
+        // Check for model indicator files
+        const hasConfig = await fs.access(path.join(modelDir, 'config.json')).then(() => true).catch(() => false);
+        const hasTokenizer = await fs.access(path.join(modelDir, 'tokenizer_config.json')).then(() => true).catch(() => false);
+        const hasPytorchModel = await fs.access(path.join(modelDir, 'pytorch_model.bin')).then(() => true).catch(() => false);
+        const hasSafetensors = await fs.access(path.join(modelDir, 'model.safetensors')).then(() => true).catch(() => false);
+        const hasAdapter = await fs.access(path.join(modelDir, 'adapter_model.bin')).then(() => true).catch(() => false);
+        
+        if (hasConfig || hasTokenizer || hasPytorchModel || hasSafetensors || hasAdapter) {
+          let parameters = 'unknown';
+          let modelType = 'causal_lm';
+          
+          // Try to read config for more info
+          if (hasConfig) {
+            try {
+              const configContent = await fs.readFile(path.join(modelDir, 'config.json'), 'utf-8');
+              const config = JSON.parse(configContent);
+              modelType = config.model_type || 'causal_lm';
+              
+              // Estimate parameters from config
+              const hiddenSize = config.hidden_size || 0;
+              const numLayers = config.num_hidden_layers || 0;
+              if (hiddenSize > 0 && numLayers > 0) {
+                const estParams = (hiddenSize / 1024) * numLayers * 12;
+                if (estParams > 1000) {
+                  parameters = `${(estParams / 1000).toFixed(1)}B`;
+                } else {
+                  parameters = `${estParams.toFixed(0)}M`;
+                }
+              }
+            } catch (error) {
+              console.error(`Error reading config for ${entry.name}:`, error);
+            }
+          }
+          
+          discoveredModels.push({
+            name: entry.name,
+            path: modelDir,
+            type: modelType,
+            parameters: parameters,
+          });
+        }
+      }
+      
+      res.json({ models: discoveredModels });
+    } catch (error) {
+      console.error('Error reading models directory:', error);
+      res.json({ models: [] });
+    }
+  } catch (error) {
+    console.error('Error discovering base models:', error);
+    res.status(500).json({ error: 'Failed to discover base models', message: error.message });
+  }
+});
 
 // GET /api/admin/models - List all model versions
 router.get('/models', requireAdmin, async (req, res) => {
