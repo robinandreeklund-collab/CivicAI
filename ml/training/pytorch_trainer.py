@@ -125,18 +125,54 @@ def train_with_pytorch_lora(
     try:
         # Load tokenizer
         print("   Loading tokenizer...")
-        tokenizer = AutoTokenizer.from_pretrained(str(model_path))
+        
+        # Try loading with trust_remote_code and use_fast options
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(
+                str(model_path),
+                use_fast=False,
+                trust_remote_code=True,
+                legacy=False
+            )
+        except Exception as e1:
+            print(f"   ⚠️  First tokenizer attempt failed: {e1}")
+            try:
+                # Try with use_fast=True
+                tokenizer = AutoTokenizer.from_pretrained(
+                    str(model_path),
+                    use_fast=True,
+                    trust_remote_code=True
+                )
+            except Exception as e2:
+                print(f"   ⚠️  Second tokenizer attempt failed: {e2}")
+                # Try loading from the model name instead of path
+                model_id = "mistralai/Mistral-7B-Instruct-v0.2" if "mistral" in model_name.lower() else "meta-llama/Llama-2-7b-chat-hf"
+                print(f"   ℹ️  Attempting to load tokenizer from: {model_id}")
+                tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False)
+        
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
         
         # Load model
         print("   Loading model (this may take a few minutes)...")
-        model = AutoModelForCausalLM.from_pretrained(
-            str(model_path),
-            torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-            device_map="auto" if device == "cuda" else None,
-            load_in_8bit=config.get('quantize_8bit', False)
-        )
+        try:
+            model = AutoModelForCausalLM.from_pretrained(
+                str(model_path),
+                torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+                device_map="auto" if device == "cuda" else None,
+                load_in_8bit=config.get('quantize_8bit', False),
+                trust_remote_code=True
+            )
+        except Exception as e:
+            print(f"   ⚠️  Local model loading failed: {e}")
+            print(f"   ℹ️  Attempting to download model from HuggingFace...")
+            model_id = "mistralai/Mistral-7B-Instruct-v0.2" if "mistral" in model_name.lower() else "meta-llama/Llama-2-7b-chat-hf"
+            model = AutoModelForCausalLM.from_pretrained(
+                model_id,
+                torch_dtype=torch.float16 if device == "cuda" else torch.float32,
+                device_map="auto" if device == "cuda" else None,
+                load_in_8bit=config.get('quantize_8bit', False)
+            )
         
         print(f"   ✅ Model loaded ({model.num_parameters():,} parameters)")
         

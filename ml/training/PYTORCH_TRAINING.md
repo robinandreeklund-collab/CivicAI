@@ -29,19 +29,23 @@ models/oneseek-7b-zero/base_models/
 
 ### How to Download
 
-**Option 1: Using Hugging Face CLI**
+**Option 1: Using Hugging Face CLI (RECOMMENDED)**
 ```bash
 # Install Hugging Face CLI
 pip install huggingface_hub
 
-# Download Mistral 7B
+# Download Mistral 7B with all files
 huggingface-cli download mistralai/Mistral-7B-Instruct-v0.2 \
-  --local-dir models/oneseek-7b-zero/base_models/mistral-7b
+  --local-dir models/oneseek-7b-zero/base_models/mistral-7b \
+  --local-dir-use-symlinks False
 
 # Download LLaMA-2 (requires access request)
 huggingface-cli download meta-llama/Llama-2-7b-chat-hf \
-  --local-dir models/oneseek-7b-zero/base_models/llama-2-7b
+  --local-dir models/oneseek-7b-zero/base_models/llama-2-7b \
+  --local-dir-use-symlinks False
 ```
+
+**IMPORTANT:** Use `--local-dir-use-symlinks False` to ensure all tokenizer files (especially `tokenizer.model`) are properly downloaded as actual files, not symlinks.
 
 **Option 2: Using Python script**
 ```python
@@ -158,6 +162,32 @@ if verify_requirements():
 The script automatically uses CUDA if available.
 
 ## Troubleshooting
+
+### "TypeError: not a string" when loading tokenizer
+**Problem:** The tokenizer files (especially `tokenizer.model`) are symlinks or missing.
+
+**Solution:**
+1. Re-download the model with `--local-dir-use-symlinks False`:
+   ```bash
+   huggingface-cli download mistralai/Mistral-7B-Instruct-v0.2 \
+     --local-dir models/oneseek-7b-zero/base_models/mistral-7b \
+     --local-dir-use-symlinks False
+   ```
+
+2. Verify `tokenizer.model` exists and is a real file (not a symlink):
+   ```bash
+   ls -la models/oneseek-7b-zero/base_models/mistral-7b/tokenizer.model
+   ```
+
+3. If the file is a symlink on Windows, copy it as a real file:
+   ```powershell
+   # In PowerShell
+   Copy-Item -Path models/oneseek-7b-zero/base_models/mistral-7b/tokenizer.model -Destination models/oneseek-7b-zero/base_models/mistral-7b/tokenizer.model.bak
+   Remove-Item models/oneseek-7b-zero/base_models/mistral-7b/tokenizer.model
+   Move-Item models/oneseek-7b-zero/base_models/mistral-7b/tokenizer.model.bak models/oneseek-7b-zero/base_models/mistral-7b/tokenizer.model
+   ```
+
+**Automatic Fallback:** The training script will automatically attempt to download the tokenizer from HuggingFace if local loading fails.
 
 ### "No base models found"
 Download Mistral 7B or LLaMA-2 to:
