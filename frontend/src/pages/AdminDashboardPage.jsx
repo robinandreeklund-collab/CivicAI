@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import DatasetManagement from '../components/admin/DatasetManagement';
 import TrainingControl from '../components/admin/TrainingControl';
 import ModelManagement from '../components/admin/ModelManagement';
@@ -15,32 +16,14 @@ import MonitoringDashboard from '../components/admin/MonitoringDashboard';
  * - Real-time monitoring (progress, GPU/CPU, notifications)
  * 
  * Location: /admin
- * Access: Admin users only
+ * Access: Admin users only (role: "admin" in Firebase)
  */
 export default function AdminDashboardPage() {
   const [selectedTab, setSelectedTab] = useState('datasets');
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Check if user has admin rights
-    const checkAdminAccess = () => {
-      try {
-        const storedUser = localStorage.getItem('oneseek_user');
-        if (storedUser) {
-          const user = JSON.parse(storedUser);
-          // For now, simple check - can be extended with backend validation
-          setIsAdmin(user.role === 'admin' || user.isAdmin === true);
-        }
-      } catch (error) {
-        console.error('Error checking admin access:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkAdminAccess();
-  }, []);
+  const { user, loading } = useAuth();
+  
+  // Check if user has admin role from Firebase
+  const isAdmin = user?.role === 'admin';
 
   if (loading) {
     return (

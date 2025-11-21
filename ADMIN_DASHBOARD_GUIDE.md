@@ -37,23 +37,32 @@ The OneSeek-7B-Zero Admin Dashboard provides a comprehensive web interface for m
 Navigate to: `http://localhost:3000/admin`
 
 **Requirements:**
-- User must have `role: "admin"` or `isAdmin: true` in localStorage
+- User must be logged in
+- User must have `role: "admin"` in Firebase users collection
 - Both frontend and backend servers must be running
 
 ### 2. Grant Admin Access
 
-To set up an admin user, open browser console and run:
+To grant admin access, update the user's role in Firebase:
 
+**Method 1: Firebase Console (Recommended)**
+1. Go to Firebase Console → Firestore Database
+2. Navigate to `users` collection
+3. Find your user document (e.g., `user_e2ff8ff8581a81ed8eb03b5bb84f1d07`)
+4. Edit the `role` field from `"user"` to `"admin"`
+5. Save changes
+6. Log out and log in again to refresh the session
+
+**Method 2: Manual Database Update**
+If you have direct database access, you can update the role field:
 ```javascript
-localStorage.setItem('oneseek_user', JSON.stringify({
-  userId: 'admin123',
-  role: 'admin',
-  isAdmin: true,
-  displayName: 'Admin User'
-}));
-// Reload the page
-location.reload();
+// In Firebase Console or using Firebase Admin SDK
+db.collection('users').doc('user_YOUR_USER_ID').update({
+  role: 'admin'
+});
 ```
+
+After updating the role in Firebase, you need to log in again for the change to take effect.
 
 ### 3. Upload a Dataset
 

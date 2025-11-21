@@ -50,9 +50,12 @@ Write-Host "  npm run dev"
 Write-Host ""
 Write-Host "Then visit: http://localhost:3000/admin" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "For first-time access, run in browser console (F12):" -ForegroundColor Yellow
-Write-Host "  localStorage.setItem('oneseek_user', JSON.stringify({"
-Write-Host "    userId: 'admin123', role: 'admin', isAdmin: true"
-Write-Host "  }));"
-Write-Host "  location.reload();"
+Write-Host "To access admin dashboard:" -ForegroundColor Yellow
+Write-Host "1. Create an account or log in at http://localhost:3000/logga-in"
+Write-Host "2. Update your user role in Firebase:"
+Write-Host "   - Go to Firebase Console -> Firestore Database"
+Write-Host "   - Navigate to 'users' collection"
+Write-Host "   - Find your user document"
+Write-Host "   - Change 'role' field from 'user' to 'admin'"
+Write-Host "3. Log out and log in again to refresh your session"
 Write-Host ""

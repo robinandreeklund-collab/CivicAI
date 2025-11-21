@@ -65,7 +65,8 @@ export default function LoginPage() {
         profileType: result.user.profileType,
         agentConfig: result.user.agentConfig,
         accountStatus: result.user.accountStatus,
-        ledgerBlockId: result.user.ledgerBlockId
+        ledgerBlockId: result.user.ledgerBlockId,
+        role: result.user.role // Include role for admin access
       });
 
       // Navigate to homepage

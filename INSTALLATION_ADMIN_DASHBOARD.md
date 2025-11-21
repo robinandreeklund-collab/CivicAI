@@ -145,28 +145,48 @@ VITE v5.4.21 ready in 176 ms
 
 ## Åtkomst till Admin Dashboard
 
-### 1. Öppna webbläsare
-Gå till: `http://localhost:3000/admin`
+### 1. Skapa ett konto eller logga in
+Först behöver du ett användarkonto i systemet:
+- Gå till `http://localhost:3000/skapa-konto` för att skapa ett nytt konto
+- Eller gå till `http://localhost:3000/logga-in` om du redan har ett konto
 
-### 2. Sätt admin-behörighet
+### 2. Ge admin-behörighet i Firebase
 
-Första gången du besöker `/admin` kommer du se "Access Denied". Du behöver sätta admin-rollen:
+För att få tillgång till admin dashboard måste din användare ha `role: "admin"` i Firebase-databasen.
 
-**Öppna Developer Tools (F12) och kör i Console:**
+**Steg för att ändra roll till admin:**
 
+1. **Öppna Firebase Console**
+   - Gå till [Firebase Console](https://console.firebase.google.com/)
+   - Välj ditt projekt
+
+2. **Navigera till Firestore Database**
+   - Klicka på "Firestore Database" i sidomenyn
+   - Gå till `users` collection
+
+3. **Hitta din användare**
+   - Leta efter ditt användar-dokument (t.ex. `user_e2ff8ff8581a81ed8eb03b5bb84f1d07`)
+   - Du kan hitta ditt userId genom att kolla localStorage i webbläsaren (F12 → Console → kör `localStorage.getItem('oneseek_user')`)
+
+4. **Ändra role-fältet**
+   - Klicka på ditt användar-dokument
+   - Hitta fältet `role` (ska vara `"user"`)
+   - Ändra värdet till `"admin"`
+   - Spara ändringarna
+
+5. **Logga in igen**
+   - Logga ut från applikationen
+   - Logga in igen för att ladda om din användarprofil med den nya rollen
+   - Nu har du tillgång till admin dashboard på `http://localhost:3000/admin`
+
+**Alternativt: Direkt databasuppdatering**
+Om du har Firebase Admin SDK eller direkt databas-åtkomst:
 ```javascript
-localStorage.setItem('oneseek_user', JSON.stringify({
-  userId: 'admin123',
-  role: 'admin',
-  isAdmin: true,
-  displayName: 'Admin User'
-}));
-
-// Ladda om sidan
-location.reload();
+// Firebase Admin SDK eller Console
+db.collection('users').doc('user_YOUR_USER_ID').update({
+  role: 'admin'
+});
 ```
-
-Nu har du tillgång till admin dashboard!
 
 ## Felsökning
 
