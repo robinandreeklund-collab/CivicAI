@@ -186,14 +186,19 @@ def run_training(data_dir):
             ledger_dir=str(ledger_dir)
         )
         
-        # Run training for identity version 1.0 with parameters
+        # Update training config with parameters from environment
+        print(f"\n[CONFIG] Updating training configuration:")
+        print(f"   - Epochs: {trainer.config['epochs']} -> {epochs}")
+        print(f"   - Batch size: {trainer.config['batch_size']} -> {batch_size}")
+        print(f"   - Learning rate: {trainer.config['learning_rate']} -> {learning_rate}")
+        
+        trainer.config['epochs'] = epochs
+        trainer.config['batch_size'] = batch_size
+        trainer.config['learning_rate'] = learning_rate
+        
+        # Run training for identity version 1.0
         print("\nTraining OneSeek-7B-Zero on identity dataset...")
-        trainer.train(
-            version='1.0',
-            epochs=epochs,
-            batch_size=batch_size,
-            learning_rate=learning_rate
-        )
+        trainer.train(version='1.0')
         
         print("\n" + "=" * 70)
         print("[SUCCESS] Training completed successfully!")
