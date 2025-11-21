@@ -16,10 +16,13 @@
 #
 # ===== STEP 2: GPU Acceleration (Optional but recommended) =====
 #
-# For Windows with Intel GPU (DirectML):
+# For Windows with Intel GPU (DirectML - 5-10x faster):
+#   IMPORTANT: DirectML requires PyTorch 2.4.1
+#   pip uninstall torch torchvision torchaudio -y
+#   pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1
 #   pip install torch-directml
 #
-# For Linux with Intel GPU (IPEX):
+# For Linux with Intel GPU (IPEX - 10-20x faster):
 #   pip install intel-extension-for-pytorch
 #   pip install oneccl_bind_pt --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/cpu/us/
 #

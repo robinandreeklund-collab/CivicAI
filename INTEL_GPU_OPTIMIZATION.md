@@ -25,10 +25,18 @@
 
 ### Steg 1: Installera DirectML för Intel GPU
 
+**⚠️ VIKTIGT**: DirectML kräver PyTorch 2.4.1. Om du har en nyare version måste du nedgradera:
+
 ```bash
 # Aktivera virtual environment
 cd CivicAI
 .\venv\Scripts\Activate.ps1
+
+# Avinstallera befintlig PyTorch (om du har version 2.9.x)
+pip uninstall torch torchvision torchaudio -y
+
+# Installera PyTorch 2.4.1 (kompatibel med DirectML)
+pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1
 
 # Installera DirectML (Intel GPU-stöd på Windows)
 pip install torch-directml
@@ -501,7 +509,26 @@ Calling Mistral inference for: "Hej..."
 
 ## Felsökning
 
-### Problem: "XPU not available"
+### Problem: "pip's dependency resolver... torch==2.9.1, but you have torch 2.4.1"
+
+**Detta är normalt när du installerar DirectML på Windows!**
+
+DirectML kräver PyTorch 2.4.1, medan `torchaudio` kanske installerades med 2.9.1.
+
+**Lösning**:
+```bash
+# Avinstallera alla PyTorch-paket
+pip uninstall torch torchvision torchaudio -y
+
+# Installera kompatibla versioner för DirectML
+pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1
+pip install torch-directml
+
+# Verifiera installation
+python -c "import torch; import torch_directml; print('DirectML ready!')"
+```
+
+### Problem: "XPU not available" (Linux)
 
 **Lösning**:
 ```bash
@@ -517,17 +544,30 @@ pip install oneccl_bind_pt --extra-index-url https://pytorch-extension.intel.com
 max_length=1024  # Istället för 2048
 ```
 
-### Problem: "Slow inference trots Intel GPU"
+### Problem: "Slow inference trots GPU"
 
-**Kontrollera**:
+**Kontrollera** (Windows DirectML):
+1. Verifiera ML service logs: "DirectML device detected (Windows GPU acceleration)"
+2. Device ska vara: `privateuseone` eller `directml`
+3. Dtype ska vara: `torch.float16`
+
+**Kontrollera** (Linux IPEX):
 1. Verifiera att XPU används: Kolla ML service logs för "Using Intel GPU via XPU"
 2. Kontrollera IPEX optimering: Ska se "Applying IPEX optimization"
 3. Verifiera FP16: Ska använda `torch.float16` inte `float32`
 
 ## Sammanfattning
 
+### För Windows (Z13 + Intel GPU)
+✅ **Avinstallera**: `pip uninstall torch torchvision torchaudio -y`
+✅ **Installera**: `pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1`
+✅ **DirectML**: `pip install torch-directml`
+✅ **Starta**: `python ml_service/server.py` (auto-detekterar DirectML)
+✅ **Resultat**: 5-10x snabbare inferens (3-5s istället för 30-60s)
+
+### För Linux (Intel GPU)
 ✅ **Installera**: `pip install intel-extension-for-pytorch`
-✅ **Använd**: `python ml_service/server_intel_optimized.py`
+✅ **Starta**: `python ml_service/server.py` (auto-detekterar IPEX)
 ✅ **Resultat**: 10-20x snabbare inferens (1-3s istället för 30-60s)
 ✅ **Minne**: Kan hantera längre texter (2048 tokens) med 128GB
 
