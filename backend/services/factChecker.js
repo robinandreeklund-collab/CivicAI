@@ -47,6 +47,7 @@ const GOOGLE_FACTCHECK_ENDPOINT = 'https://factchecktools.googleapis.com/v1alpha
 // Configuration constants
 const VERIFICATION_THRESHOLD = 6.0; // Minimum confidence for verification
 const CREDIBILITY_BOOST = 0.5; // Boost for high-credibility publishers
+const OQT_VERSION = 'OQT-1.0.v12.7'; // OQT training version
 
 // Verdict to confidence mapping
 const VERDICT_CONFIDENCE_MAP = {
