@@ -62,7 +62,7 @@ All training runs now log:
 
 #### 4. **Admin Dashboard Integration**
 - Language selector in Training tab (English/Swedish)
-- External model input field for Swedish training
+- External model dropdown that automatically lists available models from `models/` directory
 - Real-time version display showing v1.0 → v1.1 progression
 - Training session tracking with full provenance
 
@@ -1490,11 +1490,13 @@ python scripts/train_identity.py \
 **Option 2: Admin Dashboard (Recommended for manual training)**
 1. Navigate to http://localhost:3000/admin
 2. Go to "Training" tab
-3. Upload Swedish dataset in "Datasets" tab
+3. Upload Swedish dataset in "Datasets" tab (if not already uploaded)
 4. Configure training:
    - Select dataset
    - Set Language: **Swedish**
-   - Set External Model: `AI-Sweden-Models/gpt-sw3-20b-instruct`
+   - Set External Model: Select from dropdown (e.g., `gpt-sw3-20b-instruct`)
+     - The dropdown automatically lists all available models from `C:\Users\robin\Documents\GitHub\CivicAI\models`
+     - If your Swedish model is not listed, ensure it's downloaded to the models directory
    - Configure epochs, batch size, learning rate
 5. Click "Start Training"
 6. Monitor progress in real-time

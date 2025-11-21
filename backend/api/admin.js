@@ -177,7 +177,96 @@ router.get('/datasets', requireAdmin, async (req, res) => {
   }
 });
 
+// GET /api/admin/models/available - List available models in models directory
+router.get('/models/available', requireAdmin, async (req, res) => {
+  try {
+    // Check both Windows path and project-relative path
+    const windowsModelsPath = 'C:\\Users\\robin\\Documents\\GitHub\\CivicAI\\models';
+    const projectModelsPath = path.join(process.cwd(), '..', 'models');
+    
+    let modelsDir = projectModelsPath;
+    
+    // Try Windows path first
+    try {
+      await fs.access(windowsModelsPath);
+      modelsDir = windowsModelsPath;
+    } catch (error) {
+      // Fall back to project-relative path
+      try {
+        await fs.access(projectModelsPath);
+        modelsDir = projectModelsPath;
+      } catch (innerError) {
+        // Create directory if it doesn't exist
+        await fs.mkdir(projectModelsPath, { recursive: true });
+        modelsDir = projectModelsPath;
+      }
+    }
+    
+    // Read directory contents
+    const items = await fs.readdir(modelsDir);
+    const models = [];
+    
+    // Check each item to see if it's a model directory
+    for (const item of items) {
+      const itemPath = path.join(modelsDir, item);
+      try {
+        const stats = await fs.stat(itemPath);
+        if (stats.isDirectory()) {
+          // Check if directory contains model files (weights, config, etc.)
+          const dirContents = await fs.readdir(itemPath);
+          const hasModelFiles = dirContents.some(file => 
+            file.endsWith('.pth') || 
+            file.endsWith('.bin') || 
+            file.endsWith('.safetensors') ||
+            file === 'config.json' ||
+            file === 'weights' ||
+            file === 'pytorch_model.bin'
+          );
+          
+          if (hasModelFiles || dirContents.includes('weights') || dirContents.includes('base_models')) {
+            models.push({
+              id: item,
+              name: item,
+              path: itemPath,
+              displayName: formatModelName(item),
+            });
+          }
+        }
+      } catch (error) {
+        console.error(`Error checking ${item}:`, error.message);
+      }
+    }
+    
+    res.json({ 
+      models,
+      modelsPath: modelsDir 
+    });
+  } catch (error) {
+    console.error('Error listing models:', error);
+    res.status(500).json({ error: 'Failed to list models', message: error.message });
+  }
+});
+
+// Helper function to format model names for display
+function formatModelName(dirName) {
+  // Convert directory name to display name
+  // e.g., "gpt-sw3-20b-instruct" -> "GPT-SW3-20B-Instruct"
+  // e.g., "oneseek-7b-zero" -> "OneSeek-7B-Zero"
+  return dirName
+    .split('-')
+    .map(part => {
+      // Keep numbers and special patterns lowercase
+      if (/^\d/.test(part) || /^v\d/.test(part)) {
+        return part.toUpperCase();
+      }
+      // Capitalize first letter
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    })
+    .join('-');
+}
+
 // POST /api/admin/datasets/upload - Upload a new dataset
+router.post('/datasets/upload', requireAdmin, upload.single('dataset'), async (req, res) => {
 router.post('/datasets/upload', requireAdmin, upload.single('dataset'), async (req, res) => {
   try {
     if (!req.file) {
