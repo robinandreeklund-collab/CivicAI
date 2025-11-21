@@ -138,10 +138,18 @@ export default function OQTDashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-2xl font-light tracking-wide text-[#e7e7e7] mb-1">
-                OQT-1.0
+                OneSeek-7B-Zero
               </h1>
               <p className="text-xs text-[#666]">
-                {loading ? 'Laddar...' : `Version ${modelStatus?.model?.version || '1.2.0'} • Mistral 7B + LLaMA-2`}
+                {loading ? 'Laddar...' : (
+                  <>
+                    <span className="text-[#888]">v1.0 (Base)</span>
+                    <span className="mx-2">→</span>
+                    <span className="text-[#aaffaa]">v1.1 (Current) ✓</span>
+                    <span className="mx-2">•</span>
+                    <span>Routing to v1.1</span>
+                  </>
+                )}
               </p>
             </div>
             <div className="text-xs text-[#555]">
@@ -184,11 +192,14 @@ export default function OQTDashboardPage() {
                 <div className="text-center py-12">
                   <div className="text-6xl mb-4">🤖</div>
                   <h2 className="text-xl font-light text-[#e7e7e7] mb-2">
-                    Välkommen till OQT-1.0
+                    Välkommen till OneSeek-7B-Zero.v1.1
                   </h2>
                   <p className="text-sm text-[#666] max-w-md mx-auto">
                     Ställ dina frågor direkt till vår egen AI-modell. 
-                    OQT-1.0 är byggd på Mistral 7B och LLaMA-2 för transparent och rättvis analys.
+                    OneSeek-7B-Zero.v1.1 ger transparenta och rättvisa svar baserat på kontinuerlig träning.
+                  </p>
+                  <p className="text-xs text-[#555] mt-4">
+                    Alla frågor routas till OneSeek-7B-Zero.v1.1
                   </p>
                 </div>
               )}

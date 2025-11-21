@@ -1,6 +1,7 @@
 """
-ML Inference Service for OQT-1.0
-FastAPI server for Mistral 7B and LLaMA-2 inference
+ML Inference Service for OneSeek-7B-Zero.v1.1
+FastAPI server for OneSeek-7B-Zero model inference
+Replaces previous Mistral 7B and LLaMA-2 routing
 """
 
 from contextlib import asynccontextmanager
@@ -19,8 +20,11 @@ logger = logging.getLogger(__name__)
 
 # Model paths - use absolute paths relative to project root
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
-MISTRAL_PATH = os.getenv('MISTRAL_MODEL_PATH', str(PROJECT_ROOT / 'models' / 'mistral-7b-instruct'))
-LLAMA_PATH = os.getenv('LLAMA_MODEL_PATH', str(PROJECT_ROOT / 'models' / 'llama-2-7b-chat'))
+# Updated to use OneSeek-7B-Zero.v1.1 model path
+ONESEEK_PATH = os.getenv('ONESEEK_MODEL_PATH', r'C:\Users\robin\Documents\GitHub\CivicAI\models\oneseek-7b-zero')
+# Fallback to project-relative path if Windows path doesn't exist
+if not Path(ONESEEK_PATH).exists():
+    ONESEEK_PATH = str(PROJECT_ROOT / 'models' / 'oneseek-7b-zero')
 
 # GPU configuration - Support for NVIDIA, Intel, and CPU
 def get_device():
@@ -126,19 +130,14 @@ async def lifespan(app: FastAPI):
     logger.info("Starting ML Service...")
     logger.info(f"Device: {DEVICE}")
     logger.info(f"Project root: {PROJECT_ROOT}")
-    logger.info(f"Mistral path: {MISTRAL_PATH}")
-    logger.info(f"LLaMA path: {LLAMA_PATH}")
+    logger.info(f"OneSeek-7B-Zero path: {ONESEEK_PATH}")
     
-    # Check if model directories exist
-    if not Path(MISTRAL_PATH).exists():
-        logger.warning(f"Mistral model not found at {MISTRAL_PATH}")
+    # Check if model directory exists
+    if not Path(ONESEEK_PATH).exists():
+        logger.warning(f"OneSeek-7B-Zero model not found at {ONESEEK_PATH}")
+        logger.info("Please ensure the model is downloaded to the specified path")
     else:
-        logger.info(f"✓ Mistral model directory found")
-    
-    if not Path(LLAMA_PATH).exists():
-        logger.warning(f"LLaMA model not found at {LLAMA_PATH}")
-    else:
-        logger.info(f"✓ LLaMA model directory found")
+        logger.info(f"✓ OneSeek-7B-Zero model directory found")
     
     yield
     
@@ -165,8 +164,9 @@ app.add_middleware(
 async def root():
     """Health check"""
     device_info = {
-        "service": "OQT-1.0 ML Service",
-        "version": "1.0.1",
+        "service": "OneSeek-7B-Zero ML Service",
+        "version": "1.1.0",
+        "model": "OneSeek-7B-Zero.v1.1",
         "status": "running",
         "device": str(DEVICE),
         "device_type": DEVICE_TYPE,
@@ -186,15 +186,15 @@ async def root():
     
     return device_info
 
-@app.post("/inference/mistral", response_model=InferenceResponse)
-async def mistral_inference(request: InferenceRequest):
-    """Generate response using Mistral 7B"""
+@app.post("/inference/oneseek", response_model=InferenceResponse)
+async def oneseek_inference(request: InferenceRequest):
+    """Generate response using OneSeek-7B-Zero.v1.1"""
     import time
     start_time = time.time()
     
     try:
         # Load model if not cached
-        model, tokenizer = load_model('mistral', MISTRAL_PATH)
+        model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
         
         # Prepare input
         inputs = tokenizer(request.text, return_tensors="pt").to(DEVICE)
@@ -221,26 +221,27 @@ async def mistral_inference(request: InferenceRequest):
         
         return InferenceResponse(
             response=response_text,
-            model="Mistral 7B",
+            model="OneSeek-7B-Zero.v1.1",
             tokens=len(outputs[0]),
             latency_ms=latency_ms
         )
         
     except Exception as e:
-        logger.error(f"Mistral inference error: {str(e)}")
+        logger.error(f"OneSeek-7B-Zero inference error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/inference/llama", response_model=InferenceResponse)
 async def llama_inference(request: InferenceRequest):
-    """Generate response using LLaMA-2 7B"""
+    """Generate response using LLaMA-2 7B (legacy endpoint - redirects to OneSeek)"""
     import time
     start_time = time.time()
     
     try:
-        # Load model if not cached
-        model, tokenizer = load_model('llama', LLAMA_PATH)
+        # Redirect to OneSeek-7B-Zero.v1.1
+        logger.info("Legacy llama endpoint called - redirecting to OneSeek-7B-Zero.v1.1")
+        model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
         
-        # Prepare input with LLaMA chat format
+        # Prepare input with LLaMA chat format for compatibility
         formatted_prompt = f"<s>[INST] {request.text} [/INST]"
         inputs = tokenizer(formatted_prompt, return_tensors="pt").to(DEVICE)
         
@@ -266,13 +267,58 @@ async def llama_inference(request: InferenceRequest):
         
         return InferenceResponse(
             response=response_text,
-            model="LLaMA-2 7B",
+            model="OneSeek-7B-Zero.v1.1 (via legacy LLaMA endpoint)",
             tokens=len(outputs[0]),
             latency_ms=latency_ms
         )
         
     except Exception as e:
-        logger.error(f"LLaMA inference error: {str(e)}")
+        logger.error(f"OneSeek inference error (via legacy endpoint): {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/inference/mistral", response_model=InferenceResponse)
+async def mistral_inference(request: InferenceRequest):
+    """Generate response using Mistral 7B (legacy endpoint - redirects to OneSeek)"""
+    import time
+    start_time = time.time()
+    
+    try:
+        # Redirect to OneSeek-7B-Zero.v1.1
+        logger.info("Legacy mistral endpoint called - redirecting to OneSeek-7B-Zero.v1.1")
+        model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
+        
+        # Prepare input
+        inputs = tokenizer(request.text, return_tensors="pt").to(DEVICE)
+        
+        # Generate
+        with torch.no_grad():
+            outputs = model.generate(
+                inputs.input_ids,
+                max_length=request.max_length,
+                temperature=request.temperature,
+                top_p=request.top_p,
+                do_sample=True,
+                pad_token_id=tokenizer.eos_token_id
+            )
+        
+        # Decode output
+        response_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        
+        # Remove input from response
+        if response_text.startswith(request.text):
+            response_text = response_text[len(request.text):].strip()
+        
+        latency_ms = (time.time() - start_time) * 1000
+        
+        return InferenceResponse(
+            response=response_text,
+            model="OneSeek-7B-Zero.v1.1 (via legacy Mistral endpoint)",
+            tokens=len(outputs[0]),
+            latency_ms=latency_ms
+        )
+        
+    except Exception as e:
+        logger.error(f"OneSeek inference error (via legacy endpoint): {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/models/status")
