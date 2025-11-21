@@ -188,6 +188,10 @@ ml/debug/
 # These are large files (multiple GB) and should not be committed to git
 models/
 !models/.gitkeep
+# Allow documentation and directory structure for OneSeek-7B-Zero
+!models/oneseek-7b-zero/
+!models/oneseek-7b-zero/**/*.md
+!models/oneseek-7b-zero/**/.gitkeep
 
 # Firebase sensitive files
 # NEVER commit service account keys or Firebase credentials
