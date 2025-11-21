@@ -346,12 +346,34 @@ pip install transformers peft protobuf==3.20.3
 
 **OBS:** Vi använder `protobuf==3.20.3` för att säkerställa kompatibilitet med `sentencepiece` och tokenizers. Att använda `protobuf>=4.0` kan orsaka fel vid tokenizer-laddning.
 
-### 2. Ladda ner basmodeller
+### 2. Ladda ner basmodeller (om du inte redan har dem)
+
+**Om du redan har modeller:**
+
+Skriptet hittar automatiskt modeller i dessa platser:
+- `models/mistral-7b-instruct/` (rekommenderad)
+- `models/llama-2-7b-chat/` (rekommenderad)
+- `models/oneseek-7b-zero/base_models/mistral-7b/`
+- `models/oneseek-7b-zero/base_models/llama-2-7b/`
+
+**Om du behöver ladda ner:**
 
 ```bash
-# Mistral 7B och LLaMA-2 (kräver ~27 GB)
-python scripts/download_models.py
+# Installera Hugging Face CLI
+pip install huggingface_hub
+
+# Ladda ner Mistral 7B (rekommenderad plats)
+huggingface-cli download mistralai/Mistral-7B-Instruct-v0.2 \
+  --local-dir models/mistral-7b-instruct \
+  --local-dir-use-symlinks False
+
+# Ladda ner LLaMA-2 (kräver access request)
+huggingface-cli download meta-llama/Llama-2-7b-chat-hf \
+  --local-dir models/llama-2-7b-chat \
+  --local-dir-use-symlinks False
 ```
+
+**VIKTIGT:** Använd `--local-dir-use-symlinks False` för att undvika symlink-problem på Windows.
 
 ### 3. Kör full träning med PyTorch
 

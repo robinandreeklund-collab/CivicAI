@@ -50,23 +50,56 @@ def check_peft_available():
 
 
 def check_base_models(base_models_dir: Path):
-    """Check if base models are available"""
-    mistral_path = base_models_dir / 'mistral-7b'
-    llama_path = base_models_dir / 'llama-2-7b'
+    """
+    Check if base models are available in multiple possible locations
     
-    models_found = []
+    Checks in order:
+    1. Main models directory (e.g., models/mistral-7b-instruct)
+    2. OneSeek base_models subdirectory (e.g., models/oneseek-7b-zero/base_models/mistral-7b)
     
-    if mistral_path.exists():
-        print(f"✅ Mistral 7B found at {mistral_path}")
-        models_found.append('mistral')
-    else:
-        print(f"⚠️  Mistral 7B not found at {mistral_path}")
+    Returns:
+        Dict with model names and their paths
+    """
+    models_found = {}
     
-    if llama_path.exists():
-        print(f"✅ LLaMA-2 found at {llama_path}")
-        models_found.append('llama')
-    else:
-        print(f"⚠️  LLaMA-2 not found at {llama_path}")
+    # Get the root models directory (go up from base_models_dir to models/)
+    root_models_dir = base_models_dir.parent.parent if 'oneseek' in str(base_models_dir) else base_models_dir.parent
+    
+    # Check for Mistral 7B in multiple locations
+    mistral_paths = [
+        root_models_dir / 'mistral-7b-instruct',  # Existing location
+        base_models_dir / 'mistral-7b',            # New location
+        root_models_dir / 'mistral-7b',            # Alternative
+    ]
+    
+    for mistral_path in mistral_paths:
+        if mistral_path.exists():
+            print(f"✅ Mistral 7B found at {mistral_path}")
+            models_found['mistral'] = mistral_path
+            break
+    
+    if 'mistral' not in models_found:
+        print(f"⚠️  Mistral 7B not found. Checked:")
+        for p in mistral_paths:
+            print(f"     - {p}")
+    
+    # Check for LLaMA-2 in multiple locations
+    llama_paths = [
+        root_models_dir / 'llama-2-7b-chat',  # Existing location
+        base_models_dir / 'llama-2-7b',       # New location
+        root_models_dir / 'llama-2-7b',       # Alternative
+    ]
+    
+    for llama_path in llama_paths:
+        if llama_path.exists():
+            print(f"✅ LLaMA-2 found at {llama_path}")
+            models_found['llama'] = llama_path
+            break
+    
+    if 'llama' not in models_found:
+        print(f"⚠️  LLaMA-2 not found. Checked:")
+        for p in llama_paths:
+            print(f"     - {p}")
     
     return models_found
 
@@ -108,15 +141,17 @@ def train_with_pytorch_lora(
     
     if 'mistral' in available_models:
         model_name = 'mistral-7b'
-        model_path = base_models_dir / 'mistral-7b'
+        model_path = available_models['mistral']
     elif 'llama' in available_models:
         model_name = 'llama-2-7b'
-        model_path = base_models_dir / 'llama-2-7b'
+        model_path = available_models['llama']
     else:
         print("\n❌ No base models found!")
-        print("Please download Mistral 7B or LLaMA-2 to:")
-        print(f"  {base_models_dir / 'mistral-7b'}")
-        print(f"  {base_models_dir / 'llama-2-7b'}")
+        print("Please download Mistral 7B or LLaMA-2 to one of these locations:")
+        print(f"  - models/mistral-7b-instruct (recommended for existing setup)")
+        print(f"  - models/llama-2-7b-chat (recommended for existing setup)")
+        print(f"  - {base_models_dir / 'mistral-7b'}")
+        print(f"  - {base_models_dir / 'llama-2-7b'}")
         raise FileNotFoundError("Base models not found")
     
     print(f"\n📦 Loading base model: {model_name}")

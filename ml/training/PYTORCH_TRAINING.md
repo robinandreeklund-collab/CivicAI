@@ -23,32 +23,45 @@ You need to download either or both:
 1. **Mistral 7B** (recommended for fast inference)
 2. **LLaMA-2 7B** (recommended for deep analysis)
 
-### Download to:
+### Model Locations
+
+The training script automatically searches for models in multiple locations:
+
+**Primary (Recommended - uses existing models):**
 ```
-models/oneseek-7b-zero/base_models/
-├── mistral-7b/        # Mistral 7B model files
-└── llama-2-7b/        # LLaMA-2 model files
+models/
+├── mistral-7b-instruct/     # Mistral 7B model files
+└── llama-2-7b-chat/         # LLaMA-2 model files
 ```
 
-### How to Download
+**Alternative:**
+```
+models/oneseek-7b-zero/base_models/
+├── mistral-7b/              # Mistral 7B model files
+└── llama-2-7b/              # LLaMA-2 model files
+```
+
+**If you already have models downloaded** (e.g., at `models/mistral-7b-instruct` or `models/llama-2-7b-chat`), the training script will automatically find and use them. No need to re-download!
+
+### How to Download (if needed)
 
 **Option 1: Using Hugging Face CLI (RECOMMENDED)**
 ```bash
 # Install Hugging Face CLI
 pip install huggingface_hub
 
-# Download Mistral 7B with all files
+# Download Mistral 7B to primary location (recommended)
 huggingface-cli download mistralai/Mistral-7B-Instruct-v0.2 \
-  --local-dir models/oneseek-7b-zero/base_models/mistral-7b \
+  --local-dir models/mistral-7b-instruct \
   --local-dir-use-symlinks False
 
-# Download LLaMA-2 (requires access request)
+# Download LLaMA-2 to primary location (requires access request)
 huggingface-cli download meta-llama/Llama-2-7b-chat-hf \
-  --local-dir models/oneseek-7b-zero/base_models/llama-2-7b \
+  --local-dir models/llama-2-7b-chat \
   --local-dir-use-symlinks False
 ```
 
-**IMPORTANT:** Use `--local-dir-use-symlinks False` to ensure all tokenizer files (especially `tokenizer.model`) are properly downloaded as actual files, not symlinks.
+**IMPORTANT:** Use `--local-dir-use-symlinks False` to ensure all tokenizer files (especially `tokenizer.model`) are properly downloaded as actual files, not symlinks. This is critical on Windows.
 
 **Option 2: Using Python script**
 ```python
@@ -58,8 +71,8 @@ from transformers import AutoModel, AutoTokenizer
 model = AutoModel.from_pretrained("mistralai/Mistral-7B-Instruct-v0.2")
 tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.2")
 
-model.save_pretrained("models/oneseek-7b-zero/base_models/mistral-7b")
-tokenizer.save_pretrained("models/oneseek-7b-zero/base_models/mistral-7b")
+model.save_pretrained("models/mistral-7b-instruct")
+tokenizer.save_pretrained("models/mistral-7b-instruct")
 ```
 
 ## Features
