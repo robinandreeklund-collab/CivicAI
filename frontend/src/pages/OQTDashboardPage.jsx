@@ -145,9 +145,9 @@ export default function OQTDashboardPage() {
                   <>
                     <span className="text-[#888]">v1.0 (Base)</span>
                     <span className="mx-2">→</span>
-                    <span className="text-[#aaffaa]">v1.1 (Current) ✓</span>
+                    <span className="text-[#aaffaa]">{modelStatus?.model?.version || 'v1.1'} (Current) ✓</span>
                     <span className="mx-2">•</span>
-                    <span>Routing to v1.1</span>
+                    <span>Routing to {modelStatus?.model?.version || 'v1.1'}</span>
                   </>
                 )}
               </p>

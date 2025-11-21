@@ -20,11 +20,16 @@ logger = logging.getLogger(__name__)
 
 # Model paths - use absolute paths relative to project root
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
-# Updated to use OneSeek-7B-Zero.v1.1 model path
-ONESEEK_PATH = os.getenv('ONESEEK_MODEL_PATH', r'C:\Users\robin\Documents\GitHub\CivicAI\models\oneseek-7b-zero')
-# Fallback to project-relative path if Windows path doesn't exist
-if not Path(ONESEEK_PATH).exists():
-    ONESEEK_PATH = str(PROJECT_ROOT / 'models' / 'oneseek-7b-zero')
+# Support both Windows absolute path and project-relative path
+# Windows path for user's local setup, falls back to project-relative
+ONESEEK_PATH_WIN = r'C:\Users\robin\Documents\GitHub\CivicAI\models\oneseek-7b-zero'
+ONESEEK_PATH_DEFAULT = str(PROJECT_ROOT / 'models' / 'oneseek-7b-zero')
+
+# Use Windows path if it exists, otherwise use project-relative path
+if Path(ONESEEK_PATH_WIN).exists():
+    ONESEEK_PATH = os.getenv('ONESEEK_MODEL_PATH', ONESEEK_PATH_WIN)
+else:
+    ONESEEK_PATH = os.getenv('ONESEEK_MODEL_PATH', ONESEEK_PATH_DEFAULT)
 
 # GPU configuration - Support for NVIDIA, Intel, and CPU
 def get_device():
