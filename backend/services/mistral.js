@@ -1,7 +1,9 @@
 /**
- * Mistral 7B Service
- * Handles communication with Mistral 7B model
+ * Mistral 7B Service for OneSeek-7B-Zero
+ * Handles communication with Mistral 7B model (base model for OneSeek-7B-Zero)
  * Real inference via ML service or simulated fallback
+ * 
+ * Note: Legacy OQT references maintained for backward compatibility
  */
 
 import { callMistralInference, isMLServiceAvailable } from './mlServiceClient.js';

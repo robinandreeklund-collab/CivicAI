@@ -1,7 +1,9 @@
 /**
- * LLaMA-2 Service
- * Handles communication with LLaMA-2 model (7B/13B)
+ * LLaMA-2 Service for OneSeek-7B-Zero
+ * Handles communication with LLaMA-2 model (7B/13B) - base model for OneSeek-7B-Zero
  * Real inference via ML service or simulated fallback
+ * 
+ * Note: Legacy OQT references maintained for backward compatibility
  */
 
 import { callLlamaInference, isMLServiceAvailable } from './mlServiceClient.js';
