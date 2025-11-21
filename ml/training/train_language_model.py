@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-OQT-1.0 Language Model Training
-Batch training for the Open Quality Transformer model
+OneSeek-7B-Zero Language Model Training
+Batch training for the OneSeek-7B-Zero (formerly OQT-1.0) model
 """
 
 import json
@@ -17,8 +17,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'pip
 from transparency_ledger import TransparencyLedger
 
 
-class OQTTrainer:
-    """Trainer for OQT-1.0 language model"""
+class OneSeekTrainer:
+    """Trainer for OneSeek-7B-Zero language model"""
     
     def __init__(self, data_dir: str, model_dir: str, ledger_dir: str):
         self.data_dir = Path(data_dir)
@@ -30,12 +30,17 @@ class OQTTrainer:
         
         # Training config
         self.config = {
-            'model_name': 'OQT-1.0',
+            'model_name': 'OneSeek-7B-Zero',
+            'legacy_name': 'OQT-1.0',  # For backward compatibility
             'architecture': 'transformer',
+            'base_models': ['Mistral-7B', 'LLaMA-2'],
             'learning_rate': 2e-5,
             'batch_size': 32,
             'epochs': 3,
-            'warmup_steps': 500
+            'warmup_steps': 500,
+            'use_lora': True,
+            'lora_rank': 8,
+            'lora_alpha': 32
         }
     
     def load_training_data(self) -> Dict:
@@ -60,13 +65,73 @@ class OQTTrainer:
         combined_data = json.dumps(datasets, sort_keys=True)
         return hashlib.sha256(combined_data.encode()).hexdigest()
     
+    def train_model(self, datasets: Dict, version: str) -> Dict:
+        """
+        Train model - uses PyTorch if available, otherwise simulates
+        
+        Args:
+            datasets: Training datasets
+            version: Model version
+            
+        Returns:
+            Training results with metrics
+        """
+        # Try to import PyTorch training module
+        try:
+            import sys
+            from pathlib import Path
+            
+            # Add pytorch_trainer to path
+            pytorch_trainer_path = Path(__file__).parent
+            if str(pytorch_trainer_path) not in sys.path:
+                sys.path.insert(0, str(pytorch_trainer_path))
+            
+            from pytorch_trainer import (
+                verify_requirements,
+                train_with_pytorch_lora,
+                check_base_models
+            )
+            
+            # Check if PyTorch training is available
+            if verify_requirements():
+                print("\n🎯 PyTorch training environment detected!")
+                print("   Using real LoRA/PEFT training...\n")
+                
+                # Get base models directory
+                base_models_dir = self.model_dir.parent / 'base_models'
+                
+                # Check if base models exist
+                available_models = check_base_models(base_models_dir)
+                
+                if available_models:
+                    # Use real PyTorch training
+                    return train_with_pytorch_lora(
+                        datasets=datasets,
+                        version=version,
+                        model_dir=self.model_dir,
+                        base_models_dir=base_models_dir,
+                        config=self.config
+                    )
+                else:
+                    print("\n⚠️  No base models found. Falling back to simulation.")
+                    print(f"   Please download models to: {base_models_dir}")
+            else:
+                print("\n⚠️  PyTorch requirements not met. Falling back to simulation.")
+                
+        except Exception as e:
+            print(f"\n⚠️  Could not use PyTorch training: {e}")
+            print("   Falling back to simulation.")
+        
+        # Fall back to simulation
+        return self.simulate_training(datasets, version)
+    
     def simulate_training(self, datasets: Dict, version: str) -> Dict:
         """
         Simulate model training
         In production, this would use PyTorch/TensorFlow
         """
         print(f"\n{'=' * 70}")
-        print(f"Training OQT-1.0 Version {version}")
+        print(f"Training OneSeek-7B-Zero Version {version}")
         print(f"{'=' * 70}")
         
         train_size = len(datasets.get('train', []))
@@ -117,29 +182,48 @@ class OQTTrainer:
         
         model_version = {
             'version': version,
+            'model_name': 'OneSeek-7B-Zero',
+            'legacy_name': 'OQT-1.0',
             'timestamp': datetime.now().isoformat(),
+            'base_models': self.config['base_models'],
             'training_config': {
                 'dataset_size': len(datasets.get('train', [])),
                 'epochs': self.config['epochs'],
                 'batch_size': self.config['batch_size'],
-                'learning_rate': self.config['learning_rate']
+                'learning_rate': self.config['learning_rate'],
+                'use_lora': self.config['use_lora'],
+                'lora_rank': self.config['lora_rank'],
+                'lora_alpha': self.config['lora_alpha']
             },
             'metrics': results['metrics'],
             'fairness_metrics': results['fairness_metrics'],
             'provenance': {
                 'training_data_hash': self.calculate_dataset_hash(datasets),
                 'ledger_block_id': None,  # Will be set after adding to ledger
-                'trainer': 'OQT-Training-Pipeline',
+                'trainer': 'OneSeek-Training-Pipeline',
                 'notes': f'Batch training for version {version}'
             }
         }
         
-        # Save model version file
-        version_file = self.model_dir / f"model_version_{version.replace('.', '_')}.json"
-        with open(version_file, 'w', encoding='utf-8') as f:
+        # Save model metadata file with new naming convention
+        # Format: oneseek-7b-zero-v{MAJOR}.{MICRO}.json
+        metadata_file = self.model_dir / f"oneseek-7b-zero-v{version}.json"
+        with open(metadata_file, 'w', encoding='utf-8') as f:
             json.dump(model_version, f, indent=2)
         
-        print(f"\nSaved model version to {version_file}")
+        print(f"\nSaved model metadata to {metadata_file}")
+        
+        # Check if PyTorch weights were saved
+        weights_file = self.model_dir / f"oneseek-7b-zero-v{version}.pth"
+        if weights_file.exists():
+            print(f"✅ Model weights saved to {weights_file}")
+        else:
+            print(f"ℹ️  Model weights will be saved to {weights_file} (PyTorch training required)")
+        
+        # Check if LoRA adapters were saved
+        lora_path = self.model_dir.parent / 'lora_adapters' / f'oneseek-7b-zero-v{version}'
+        if lora_path.exists():
+            print(f"✅ LoRA adapters saved to {lora_path}")
         
         return model_version
     
@@ -162,15 +246,15 @@ class OQTTrainer:
             'metrics': model_version['metrics']
         }
         
-        block = self.ledger.add_block('training', ledger_data, validator='OQT-Training-Pipeline')
+        block = self.ledger.add_block('training', ledger_data, validator='OneSeek-Training-Pipeline')
         
         # Update model version with ledger reference
         model_version['provenance']['ledger_block_id'] = block['block_id']
         
-        # Re-save with ledger reference
+        # Re-save metadata with ledger reference using new naming convention
         version = model_version['version']
-        version_file = self.model_dir / f"model_version_{version.replace('.', '_')}.json"
-        with open(version_file, 'w', encoding='utf-8') as f:
+        metadata_file = self.model_dir / f"oneseek-7b-zero-v{version}.json"
+        with open(metadata_file, 'w', encoding='utf-8') as f:
             json.dump(model_version, f, indent=2)
         
         print(f"Logged to transparency ledger (Block {block['block_id']})")
@@ -185,7 +269,7 @@ class OQTTrainer:
             version: Semantic version for this model
         """
         print(f"\n{'=' * 70}")
-        print(f"OQT-1.0 Training Pipeline")
+        print(f"OneSeek-7B-Zero Training Pipeline")
         print(f"{'=' * 70}")
         
         # Load data
@@ -199,7 +283,7 @@ class OQTTrainer:
         
         # Train model
         print(f"\nStep 2: Training model...")
-        results = self.simulate_training(datasets, version)
+        results = self.train_model(datasets, version)
         
         # Save model version
         print(f"\nStep 3: Saving model version...")
@@ -221,11 +305,22 @@ class OQTTrainer:
         print(f"\n{'=' * 70}")
         print(f"Training Complete!")
         print(f"{'=' * 70}")
-        print(f"\nModel Version: {version}")
+        print(f"\nModel: OneSeek-7B-Zero.v{version}")
         print(f"Ledger Block: {ledger_block['block_id']}")
         print(f"Validation Accuracy: {results['metrics']['validation_accuracy']:.3f}")
         print(f"Fairness Score: {results['metrics']['fairness_score']:.3f}")
         print(f"Demographic Parity: {results['fairness_metrics']['demographic_parity']:.3f}")
+        
+        # Show if PyTorch was used
+        if 'model_used' in results['metrics']:
+            print(f"\n🎯 Training Method: PyTorch with LoRA/PEFT")
+            print(f"   Base Model: {results['metrics']['model_used']}")
+            print(f"   Device: {results['metrics']['device']}")
+            if 'trainable_params' in results['metrics']:
+                print(f"   Trainable Parameters: {results['metrics']['trainable_params']:,}")
+        else:
+            print(f"\n⚠️  Training Method: Simulation (PyTorch not available)")
+        
         print(f"\nModel saved to: {self.model_dir}")
         print(f"Transparency ledger: {self.ledger.ledger_file}")
         
@@ -234,7 +329,7 @@ def main():
     """Main entry point"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='Train OQT-1.0 Language Model')
+    parser = argparse.ArgumentParser(description='Train OneSeek-7B-Zero Language Model')
     parser.add_argument('--version', type=str, default='1.0.0',
                         help='Model version (semantic versioning, e.g., 1.0.0)')
     parser.add_argument('--data-dir', type=str, default=None,
@@ -262,7 +357,7 @@ def main():
     )
     
     # Create trainer and run
-    trainer = OQTTrainer(DATA_DIR, MODEL_DIR, LEDGER_DIR)
+    trainer = OneSeekTrainer(DATA_DIR, MODEL_DIR, LEDGER_DIR)
     trainer.train(args.version)
 
 

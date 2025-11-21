@@ -1,7 +1,7 @@
 /**
- * OQT-1.0 Multi-Model Pipeline
+ * OneSeek-7B-Zero Multi-Model Pipeline (formerly OQT-1.0)
  * 
- * Orchestrates Mistral 7B and LLaMA-2 models for OQT-1.0 analysis
+ * Orchestrates Mistral 7B and LLaMA-2 models for OneSeek-7B-Zero analysis
  * Implements:
  * - Multi-model response generation (Mistral + LLaMA + existing AI services)
  * - Consensus analysis between models
@@ -9,6 +9,8 @@
  * - Fairness assessment
  * - Meta-summary synthesis
  * - Two-step training preparation
+ * 
+ * Note: Legacy OQT references maintained for backward compatibility
  */
 
 import { getMistralResponse, isMistralAvailable, getMistralInfo } from './mistral.js';
@@ -30,7 +32,7 @@ export async function generateMultiModelResponses(question, options = {}) {
   
   console.log(`\n🤖 Generating multi-model responses for: "${question}"`);
   
-  // Core models for OQT-1.0 (Mistral + LLaMA)
+  // Core models for OneSeek-7B-Zero (Mistral + LLaMA)
   const coreModels = [
     {
       name: 'Mistral 7B',
