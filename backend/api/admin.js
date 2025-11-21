@@ -189,7 +189,7 @@ router.post('/datasets/upload', requireAdmin, upload.single('dataset'), async (r
     let suggestedName = originalName;
     
     // If the file doesn't follow the naming convention, suggest one
-    if (!originalName.match(/^oneseek_[a-z]+_v[0-9.]+\.jsonl$/i)) {
+    if (!originalName.match(/^oneseek_[a-zA-Z]+_v[0-9.]+\.jsonl$/)) {
       // Try to extract type from original name using word boundaries
       let datasetType = 'custom';
       const nameLower = originalName.toLowerCase();
@@ -532,7 +532,8 @@ router.post('/training/start', requireAdmin, async (req, res) => {
           modelVersion: 'OneSeek-7B-Zero',
           timestamp: endTime,
           duration: duration,
-          samples: samplesProcessed * (epochs || 3), // samples * epochs
+          samples: samplesProcessed, // Unique samples in dataset
+          totalSteps: samplesProcessed * (epochs || 3), // Total training steps (samples × epochs)
           dataset: datasetId,
           metrics: {
             loss: finalLoss,
@@ -588,10 +589,18 @@ router.post('/training/start', requireAdmin, async (req, res) => {
           }
           
           // Create metadata file
+          // Extract training type from dataset name
+          let trainingType = 'custom';
+          const datasetLower = datasetId.toLowerCase();
+          if (/\bidentity\b/.test(datasetLower)) trainingType = 'identity';
+          else if (/\bcivic\b/.test(datasetLower)) trainingType = 'civic';
+          else if (/\bpolicy\b/.test(datasetLower)) trainingType = 'policy';
+          else if (/\bqa\b/.test(datasetLower)) trainingType = 'qa';
+          
           const metadata = {
             version: `OneSeek-7B-Zero.v${nextVersion}`,
             createdAt: endTime,
-            trainingType: 'identity',
+            trainingType: trainingType,
             samplesProcessed: samplesProcessed,
             isCurrent: true,
             metrics: {
@@ -728,7 +737,10 @@ router.get('/models', requireAdmin, async (req, res) => {
         if (partsA[0] !== partsB[0]) return partsB[0] - partsA[0];
         
         // Compare minor version
-        return (partsB[1] || 0) - (partsA[1] || 0);
+        if (partsA[1] !== partsB[1]) return (partsB[1] || 0) - (partsA[1] || 0);
+        
+        // Compare patch version
+        return (partsB[2] || 0) - (partsA[2] || 0);
       });
       
     } catch (error) {
