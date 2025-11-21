@@ -976,6 +976,7 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
     // Handle process completion
     trainingProcess.on('close', async (code) => {
       const endTime = new Date().toISOString();
+      const startTime = trainingState.logs[0]?.timestamp || endTime;
       
       if (code === 0) {
         trainingState.status = 'idle';
@@ -984,17 +985,141 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
           message: `Training completed successfully with DNA v2!`,
         });
         
+        // Try to load DNA v2 training results from the most recent run
+        let trainingResults = null;
+        try {
+          const certifiedDir = path.join(process.cwd(), '..', 'models', 'oneseek-certified');
+          const runs = await fs.readdir(certifiedDir);
+          
+          // Find the most recent run directory
+          const runDirs = [];
+          for (const dir of runs) {
+            const dirPath = path.join(certifiedDir, dir);
+            const stats = await fs.stat(dirPath);
+            if (stats.isDirectory()) {
+              runDirs.push({ name: dir, mtime: stats.mtime });
+            }
+          }
+          
+          if (runDirs.length > 0) {
+            // Sort by modification time (most recent first)
+            runDirs.sort((a, b) => b.mtime - a.mtime);
+            const latestRun = runDirs[0].name;
+            
+            const resultsPath = path.join(certifiedDir, latestRun, 'training_results.json');
+            const resultsData = await fs.readFile(resultsPath, 'utf-8');
+            trainingResults = JSON.parse(resultsData);
+          }
+        } catch (error) {
+          console.log('Could not load training_results.json, using state data:', error.message);
+        }
+        
+        // Extract DNA and metrics
+        const dna = trainingResults?.dna || trainingState.dna;
+        const immutableHash = trainingResults?.immutable_hash;
+        const finalWeights = trainingResults?.final_weights || {};
+        const trainingHistory = trainingResults?.training_history || [];
+        
+        // Calculate training duration
+        const duration = Math.round((new Date(endTime) - new Date(startTime)) / 1000);
+        
+        // Get final loss from training history or state
+        let finalLoss = trainingState.loss;
+        if (trainingHistory.length > 0) {
+          const lastEpoch = trainingHistory[trainingHistory.length - 1];
+          finalLoss = lastEpoch.loss || finalLoss;
+        }
+        
+        // Count samples from dataset
+        let samplesProcessed = 0;
+        try {
+          const datasetPath = path.join(process.cwd(), '..', 'datasets', datasetId);
+          const datasetContent = await fs.readFile(datasetPath, 'utf-8');
+          samplesProcessed = datasetContent.trim().split('\n').filter(line => line.trim()).length;
+        } catch (error) {
+          console.log('Could not count samples:', error.message);
+        }
+        
+        // Save to training history
+        await addTrainingSession({
+          modelName: 'OneSeek-7B-Zero',
+          dna: dna,
+          timestamp: endTime,
+          duration: duration,
+          samplesProcessed: samplesProcessed,
+          finalLoss: finalLoss,
+          accuracy: null, // DNA v2 doesn't track accuracy during training
+          baseModels: baseModels,
+          epochs: trainingState.totalEpochs,
+          autoStopped: trainingHistory.some(e => e.auto_stopped),
+          immutableHash: immutableHash,
+        });
+        
+        // Update training schedule
+        schedule.lastTraining = endTime;
+        
+        // Save model metadata if DNA is available
+        if (dna) {
+          try {
+            // Extract version from DNA (e.g., "OneSeek-7B-Zero.v1.0.abcd1234..." -> "1.0")
+            const versionMatch = dna.match(/OneSeek-7B-Zero\.v([0-9.]+)/);
+            const version = versionMatch ? versionMatch[1] : '1.0';
+            
+            // Create model metadata
+            const modelsDir = path.join(process.cwd(), '..', 'models', 'oneseek-7b-zero', 'weights');
+            await fs.mkdir(modelsDir, { recursive: true });
+            
+            const metadataPath = path.join(modelsDir, `oneseek-7b-zero-v${version}.json`);
+            const metadata = {
+              version: dna,
+              createdAt: endTime,
+              trainingType: 'dna-v2',
+              samplesProcessed: samplesProcessed,
+              isCurrent: true,
+              metrics: {
+                loss: finalLoss,
+                accuracy: null,
+                fairness: null,
+              },
+              dna: {
+                fingerprint: dna,
+                immutableHash: immutableHash,
+                finalWeights: finalWeights,
+                baseModels: baseModels,
+              },
+              training: {
+                epochs: trainingState.totalEpochs,
+                duration: duration,
+                autoStopped: trainingHistory.some(e => e.auto_stopped),
+              },
+            };
+            
+            await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
+            
+            trainingState.logs.push({
+              timestamp: endTime,
+              message: `Model metadata saved: ${metadataPath}`,
+            });
+          } catch (error) {
+            console.error('Error saving model metadata:', error);
+            trainingState.logs.push({
+              timestamp: endTime,
+              message: `[WARNING] Could not save model metadata: ${error.message}`,
+            });
+          }
+        }
+        
         notifications.push({
           id: uuidv4(),
-          message: `DNA v2 training completed successfully! DNA: ${trainingState.dna || 'Check logs'}`,
+          message: `DNA v2 training completed successfully! DNA: ${dna || 'Check logs'}`,
           timestamp: endTime,
         });
         
         // Store DNA in training state for retrieval
-        if (trainingState.dna) {
+        if (dna) {
           trainingState.logs.push({
             timestamp: endTime,
-            message: `Model DNA: ${trainingState.dna}`,
+            message: `Model DNA: ${dna}`,
           });
         }
       } else {
