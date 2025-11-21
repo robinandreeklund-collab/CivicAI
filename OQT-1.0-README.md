@@ -3323,3 +3323,448 @@ The admin dashboard integrates with existing Firebase collections:
 - Implementation: See `OQT_MULTI_MODEL_README.md`
 - Training Guide: See `SNABBSTART_TRÄNING.md` (Swedish) or `README.md` (English)
 - PyTorch Setup: See `ml/training/PYTORCH_TRAINING.md`
+
+---
+
+## DNA Fingerprint v2 Specification
+
+### Overview
+
+DNA Fingerprint v2 provides **cryptographic provenance** and **immutability** for OneSeek-7B-Zero models. Every training run produces a unique DNA fingerprint that encodes model metadata, training configuration, and dataset information in a tamper-proof format.
+
+### DNA Format
+
+```
+OneSeek-7B-Zero.v{VERSION}.{WEIGHTS_HASH}.{CATEGORIES_HASH}.{TIMESTAMP_HASH}
+```
+
+**Example:**
+```
+OneSeek-7B-Zero.v1.0.6b30afe8.4539991e.a16f0dd0
+```
+
+**Components:**
+- `OneSeek-7B-Zero`: Model name
+- `v1.0`: Version number (MAJOR.MICRO)
+- `6b30afe8`: First 8 chars of SHA-256 hash of canonical JSON of final weights
+- `4539991e`: First 8 chars of SHA-256 hash of sorted dataset categories
+- `a16f0dd0`: First 8 chars of SHA-256 hash of ISO timestamp
+
+### Canonical JSON Rules
+
+All hashing uses **canonical JSON** to ensure determinism:
+- Keys sorted alphabetically
+- UTF-8 encoding
+- No whitespace (compact format)
+- Consistent number formatting
+
+**Example:**
+```python
+from src.training.dna import canonical_json
+
+obj = {"b": 2, "a": 1}
+canonical = canonical_json(obj)
+# Result: b'{"a":1,"b":2}'
+```
+
+### Signing Algorithm
+
+Ledger entries are signed using **Ed25519** (NaCl/libsodium):
+- Signing key: 32 bytes (private key)
+- Verify key: 32 bytes (public key)
+- Signature: 64 bytes
+- All values stored as hexadecimal strings
+
+**Key Generation (for testing):**
+```python
+from src.training.dna import generate_test_keypair
+
+# WARNING: Only for testing! Use proper key management in production
+private_key, public_key = generate_test_keypair('/path/to/keys')
+```
+
+**Production Key Management:**
+- Store private keys in HSM (Hardware Security Module) or secure vault
+- Never commit private keys to git
+- Use environment variable `LEDGER_PRIVATE_KEY_PATH` to reference key file
+- Rotate keys periodically
+
+### Ledger Entry Schema
+
+```json
+{
+  "event": "training",
+  "model": "OneSeek-7B-Zero",
+  "version": "1.0",
+  "dna": "OneSeek-7B-Zero.v1.0.6b30afe8.4539991e.a16f0dd0",
+  "dataset_hashes": [
+    {
+      "path": "/path/to/dataset.jsonl",
+      "hash": "sha256_hash_of_dataset_file"
+    }
+  ],
+  "final_weights": {
+    "mistral-7b": 0.6,
+    "llama-2": 0.4
+  },
+  "training_config": {
+    "epochs": 10,
+    "base_lr": 0.0001,
+    "seed": 42
+  },
+  "timestamp": "2025-11-21T12:00:00Z",
+  "immutable_hash": "sha256_hash_of_entire_payload",
+  "signature": "ed25519_signature_hex",
+  "signer_public_key": "ed25519_public_key_hex"
+}
+```
+
+### Dataset Category Extraction
+
+Categories are extracted from dataset filenames using these rules:
+- Split on `_`, `-`, and `.`
+- Convert to lowercase for matching
+- Map tokens to canonical tags
+
+**Canonical Tags:**
+- `CivicID` ← civic, civicid, civic_id
+- `Identity` ← identity, id
+- `SwedID` ← swedish, swed, sv, swedid
+- `Privacy` ← privacy, private, gdpr
+- `Nordic` ← nordic, scandinavian
+- `Fairness` ← fairness, fair, bias, unbiased
+- `Transparency` ← transparency
+- `Ethics` ← ethics, ethical
+- `Multilingual` ← multilingual
+- `QA` ← qa, question, answer
+- `Instruction` ← instruction, instruct
+- `Conversational` ← chat, conversation, dialog
+
+**Example:**
+```python
+from src.training.dataset_parser import extract_categories_from_filenames
+
+files = [
+    "civic_identity_train.jsonl",
+    "swedish-privacy-data.json",
+    "fairness_nordic.jsonl"
+]
+
+categories = extract_categories_from_filenames(files)
+# Result: {'CivicID', 'Identity', 'SwedID', 'Privacy', 'Fairness', 'Nordic'}
+```
+
+### Adaptive Weight Adjustment
+
+Training dynamically adjusts model weights based on validation loss:
+
+**Rules:**
+- **Best performing model:** +20% to +50% weight increase
+- **Worst performing model:** -30% to -50% weight decrease
+- **Other models:** No change
+- Weights normalized to sum to 1.0
+
+**Auto-stop:** Training stops when loss change < 0.001 over 3 consecutive epochs
+
+**Example Training Flow:**
+```
+Epoch 1: mistral-7b(loss=0.45), llama-2(loss=0.50)
+  → Adjust: mistral-7b +30%, llama-2 -40%
+  → Normalized: mistral-7b=0.65, llama-2=0.35
+
+Epoch 2: mistral-7b(loss=0.42), llama-2(loss=0.48)
+  → Continue (loss change > 0.001)
+
+Epoch 3-5: Loss plateaus at ~0.40
+  → Auto-stop (loss change < 0.001 over 3 epochs)
+```
+
+---
+
+## How to Run Training with DNA v2
+
+### Prerequisites
+
+```bash
+pip install pynacl pytest
+```
+
+### 1. Generate Signing Keys (One-time Setup)
+
+```python
+from src.training.dna import generate_test_keypair
+
+# Generate keys for development (DO NOT use in production!)
+generate_test_keypair('/tmp/oneseek_keys')
+```
+
+**Production:** Use proper key management system and set:
+```bash
+export LEDGER_PRIVATE_KEY_PATH=/secure/path/to/private_key.bin
+```
+
+### 2. Run Adaptive Training
+
+```python
+from src.training.dynamic_trainer import run_adaptive_training
+from src.ledger.ledger_client import InMemoryLedgerClient
+
+config = {
+    'models_dir': 'models',  # Will auto-discover base models
+    'dataset_paths': [
+        'datasets/civic_identity.jsonl',
+        'datasets/swedish_fairness.json'
+    ],
+    'epochs': 10,
+    'learning_rate': 0.0001,
+    'auto_stop_threshold': 0.001,
+    'auto_stop_patience': 3,
+    'output_dir': 'models/oneseek-certified/run-2025-11-21',
+    'private_key_path': '/tmp/oneseek_keys/test_private_key.bin',
+    'ledger_client': InMemoryLedgerClient(),  # Or HttpLedgerClient() for production
+    'seed': 42  # For reproducibility
+}
+
+result = run_adaptive_training(config)
+
+print(f"DNA: {result['dna']}")
+print(f"Immutable Hash: {result['immutable_hash']}")
+print(f"Output: {result['output_path']}")
+```
+
+### 3. Generated Artifacts
+
+Training produces a certified model package:
+
+```
+models/oneseek-certified/run-2025-11-21/
+├── adapter_model.bin          # LoRA adapter weights
+├── oneseek_dna.json           # DNA fingerprint metadata
+├── ledger_proof.json          # Signed ledger entry
+└── verify_integrity.py        # Verification script (auto-copied)
+```
+
+### Environment Variables
+
+- `MODELS_DIR`: Base models directory (default: `models`)
+- `DATASET_PATH`: Dataset file path override
+- `LEDGER_URL`: HTTP ledger service URL (for HttpLedgerClient)
+- `LEDGER_PRIVATE_KEY_PATH`: Path to Ed25519 private key file
+
+---
+
+## How to Verify Model Integrity
+
+### Command-Line Verification
+
+```bash
+cd models/oneseek-certified/run-2025-11-21
+python verify_integrity.py
+```
+
+**Output:**
+```json
+{
+  "dna": "VALID",
+  "ledger": "SYNCED",
+  "datasets": "UNCHANGED",
+  "overall": "VALID",
+  "details": {
+    "dna": "OneSeek-7B-Zero.v1.0.6b30afe8.4539991e.a16f0dd0",
+    "signer_public_key": "abc123...",
+    "datasets_verified": 2
+  }
+}
+```
+
+### Admin UI Verification Button
+
+**Endpoint:** `POST /api/admin/models/verify`
+
+**Request:**
+```json
+{
+  "model_path": "models/oneseek-certified/run-2025-11-21"
+}
+```
+
+**Response:**
+```json
+{
+  "dna_valid": true,
+  "ledger_synced": true,
+  "datasets_unchanged": true,
+  "details": {
+    "dna": "OneSeek-7B-Zero.v1.0.6b30afe8.4539991e.a16f0dd0",
+    "immutable_hash": "full_sha256_hash...",
+    "datasets_verified": 2
+  }
+}
+```
+
+### Verification Checks
+
+1. **DNA Fingerprint:** Matches stored DNA in `oneseek_dna.json` and `ledger_proof.json`
+2. **Ledger Signature:** Ed25519 signature verifies against public key
+3. **Dataset Integrity:** SHA-256 hashes of dataset files match recorded hashes
+4. **Immutable Hash:** SHA-256 of canonical JSON payload matches stored hash
+
+### What Each Status Means
+
+- `DNA: VALID` - DNA fingerprint matches across all files
+- `DNA: INVALID` - Mismatch between DNA files (tampering detected)
+- `Ledger: SYNCED` - Signature is valid and entry is authentic
+- `Ledger: UNSIGNED` - No signature found (old format or test run)
+- `Ledger: MISMATCH` - Invalid signature (tampering detected)
+- `Datasets: UNCHANGED` - All dataset files match recorded hashes
+- `Datasets: MODIFIED` - One or more datasets have been altered
+- `Datasets: MISSING` - One or more datasets cannot be found
+
+---
+
+## Security Considerations
+
+### GDPR Compliance
+
+**Personal Data in Training:**
+- OneSeek-7B-Zero may be trained on anonymized civic data
+- Dataset hashes allow verification without storing sensitive data
+- Ledger entries contain only metadata, not actual training data
+- User consent required before training on personal information
+
+**Data Subject Rights:**
+- Right to erasure: Model can be retrained excluding specific data
+- Right to access: Ledger provides full training provenance
+- Right to explanation: DNA fingerprint shows exact training configuration
+
+### Key Management
+
+**DO NOT:**
+- ❌ Commit private keys to git
+- ❌ Share private keys via email or chat
+- ❌ Use test keypairs in production
+- ❌ Reuse keys across environments
+
+**DO:**
+- ✅ Use HSM (Hardware Security Module) for production keys
+- ✅ Store keys in secure vault (e.g., HashiCorp Vault, AWS KMS)
+- ✅ Rotate keys every 90 days
+- ✅ Use separate keys for dev/staging/production
+- ✅ Audit all key access
+- ✅ Backup keys securely (encrypted, offline)
+
+### Determinism Caveats
+
+**Guaranteed Deterministic:**
+- DNA fingerprint generation (canonical JSON + SHA-256)
+- Immutable hash calculation
+- Signature generation (Ed25519)
+
+**NOT Deterministic (without explicit seed):**
+- Model weight initialization
+- Dropout masks during training
+- Data shuffling
+- GPU operations (non-deterministic by default)
+
+**For Full Reproducibility:**
+```python
+config = {
+    'seed': 42,  # Set explicit seed
+    # Other config...
+}
+```
+
+**Note:** Even with seed, GPU non-determinism may cause minor variations. Use CPU for exact reproducibility.
+
+### Attack Scenarios & Mitigations
+
+**1. Model Weight Tampering**
+- **Attack:** Replace `adapter_model.bin` with malicious weights
+- **Mitigation:** Hash model file and include in ledger entry
+- **Detection:** Recompute hash during verification
+
+**2. Dataset Substitution**
+- **Attack:** Replace training dataset with biased or harmful data
+- **Mitigation:** SHA-256 hash of dataset files in ledger entry
+- **Detection:** `verify_integrity.py` compares file hashes
+
+**3. Ledger Entry Forgery**
+- **Attack:** Modify ledger entry to hide training details
+- **Mitigation:** Ed25519 signature prevents tampering
+- **Detection:** Signature verification fails
+
+**4. Replay Attack**
+- **Attack:** Reuse old ledger entry for new model
+- **Mitigation:** Immutable hash includes timestamp
+- **Detection:** DNA fingerprint mismatch (timestamp hash differs)
+
+**5. Man-in-the-Middle (HTTP Ledger)**
+- **Attack:** Intercept ledger POST requests
+- **Mitigation:** Use HTTPS, verify server certificate
+- **Detection:** TLS warnings, certificate mismatch
+
+---
+
+## Breaking Changes from Previous Versions
+
+### Changes from PR #62
+
+**Updated:**
+- ✅ Hardcoded Mistral/LLaMA logic replaced with `discover_base_models()`
+- ✅ Static weights replaced with adaptive weight adjustment
+- ✅ Manual versioning replaced with DNA fingerprinting
+
+**Backward Compatibility:**
+- ✅ Old model versions still load (no DNA, no signature)
+- ✅ Existing training scripts continue to work
+- ✅ Legacy endpoints remain functional
+
+**Migration Path:**
+1. Retrain models using `run_adaptive_training()` for DNA v2
+2. Update admin UI to show DNA fingerprint
+3. Add "Verify Integrity" button for new models
+4. Keep old models for historical reference
+
+---
+
+## Changelog - DNA Fingerprint v2
+
+### Version 2.0.0 (November 2025) - DNA v2 Release
+
+**New Modules:**
+- ✅ `src/training/dna.py` - Cryptographic hashing and signing
+- ✅ `src/training/dataset_parser.py` - Category extraction
+- ✅ `src/training/dynamic_trainer.py` - Adaptive multi-model training
+- ✅ `src/ledger/ledger_client.py` - Immutable ledger abstraction
+- ✅ `models/oneseek-certified/verify_integrity.py` - Local verification
+
+**Features:**
+- ✅ Dynamic base model discovery
+- ✅ Adaptive weight adjustment (+20-50% best, -30-50% worst)
+- ✅ Confidence-based auto-stop (loss < 0.001 over 3 epochs)
+- ✅ SHA-256 DNA fingerprinting with canonical JSON
+- ✅ Ed25519 signature-based ledger entries
+- ✅ Certified model packaging with verification scripts
+- ✅ Dataset category extraction from filenames
+- ✅ Full reproducibility with explicit seeds
+
+**Testing:**
+- ✅ Comprehensive test suite (test_dna.py, test_adaptive_weighting.py, etc.)
+- ✅ CI/CD integration tests (.github/workflows/integration-tests.yml)
+- ✅ Simulated training runs with verification
+
+**Documentation:**
+- ✅ DNA v2 specification (this section)
+- ✅ Training guide with environment variables
+- ✅ Verification instructions (CLI + Admin UI)
+- ✅ Security considerations (GDPR, key management, attack scenarios)
+
+**Dependencies:**
+- ✅ Added pynacl for Ed25519 signing
+- ✅ Added pytest for testing
+
+**Related PRs:**
+- Builds on PR #62 (multi-model training foundation)
+- Supersedes manual weight configuration
+
+---

@@ -1,0 +1,135 @@
+name: OneSeek DNA v2 Integration Tests
+
+on:
+  push:
+    branches: [ main, develop, 'copilot/**' ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11']
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pynacl pytest pytest-cov
+        # Install only necessary deps for DNA v2 (avoid heavy ML deps)
+        pip install numpy pyyaml requests
+    
+    - name: Run DNA module tests
+      run: |
+        python -m pytest tests/test_dna.py -v --cov=src/training/dna
+    
+    - name: Run dataset parser tests
+      run: |
+        python -m pytest tests/test_adaptive_weighting.py::test_discover_base_models -v
+    
+    - name: Run ledger client tests
+      run: |
+        python -m pytest tests/test_ledger_client.py -v --cov=src/ledger
+    
+    - name: Run verify_integrity tests
+      run: |
+        python -m pytest tests/test_verify_integrity.py -v
+    
+    - name: Run adaptive training simulation
+      run: |
+        python -m pytest tests/test_adaptive_weighting.py::test_run_adaptive_training_basic -v
+    
+    - name: Generate test keypair
+      run: |
+        python -c "
+        import sys
+        sys.path.insert(0, 'src')
+        from training.dna import generate_test_keypair
+        generate_test_keypair('/tmp/test_keys')
+        "
+    
+    - name: Run simulated training (2 epochs, tiny dataset)
+      run: |
+        mkdir -p datasets
+        echo '{"instruction": "Who are you?", "input": "", "output": "I am OneSeek AI-agent"}' > datasets/test_identity.jsonl
+        echo '{"instruction": "What is transparency?", "input": "", "output": "Transparency means full visibility"}' >> datasets/test_identity.jsonl
+        
+        python -c "
+        import sys
+        sys.path.insert(0, 'src')
+        from training.dynamic_trainer import run_adaptive_training
+        from ledger.ledger_client import InMemoryLedgerClient
+        
+        # Create minimal models dir structure
+        import os
+        os.makedirs('models/test-model-1', exist_ok=True)
+        with open('models/test-model-1/config.json', 'w') as f:
+            f.write('{\"model_type\": \"causal_lm\"}')
+        
+        config = {
+            'models_dir': 'models',
+            'dataset_paths': ['datasets/test_identity.jsonl'],
+            'epochs': 2,
+            'output_dir': '/tmp/oneseek-certified-test',
+            'private_key_path': '/tmp/test_keys/test_private_key.bin',
+            'ledger_client': InMemoryLedgerClient(),
+            'seed': 42
+        }
+        
+        result = run_adaptive_training(config)
+        print(f'\n✅ Training completed!')
+        print(f'DNA: {result[\"dna\"]}')
+        print(f'Output: {result[\"output_path\"]}')
+        "
+    
+    - name: Verify certified model
+      run: |
+        python models/oneseek-certified/verify_integrity.py /tmp/oneseek-certified-test
+    
+    - name: Check artifacts
+      run: |
+        ls -la /tmp/oneseek-certified-test/
+        echo "=== DNA JSON ==="
+        cat /tmp/oneseek-certified-test/oneseek_dna.json
+        echo ""
+        echo "=== Ledger Proof (first 500 chars) ==="
+        head -c 500 /tmp/oneseek-certified-test/ledger_proof.json
+    
+    - name: Upload test artifacts
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: certified-model-${{ matrix.python-version }}
+        path: /tmp/oneseek-certified-test/
+    
+    - name: Generate coverage report
+      if: matrix.python-version == '3.11'
+      run: |
+        pip install coverage
+        python -m pytest tests/ --cov=src --cov-report=xml --cov-report=term
+    
+    - name: Upload coverage to Codecov
+      if: matrix.python-version == '3.11'
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
