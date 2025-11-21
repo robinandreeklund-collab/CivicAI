@@ -14,6 +14,8 @@ A transparent platform for comparing and analyzing AI model responses with advan
 
 - [Quick Start](#-quick-start)
 - [Current Status](#-current-status)
+- [OneSeek-7B-Zero: Our Transparent Language Model](#-oneseek-7b-zero-our-transparent-language-model)
+- [Training OneSeek-7B-Zero: Step-by-Step Guide](#-training-oneseek-7b-zero-step-by-step-guide)
 - [Features](#-features)
 - [Architecture](#-architecture)
 - [Module Status](#-module-status)
@@ -139,13 +141,23 @@ To enable data persistence and user authentication:
 - ✅ Model synthesis view (divergences, consensus)
 - ✅ Timeline navigator
 
+**OneSeek-7B-Zero Model:**
+- ✅ Multi-model architecture (Mistral 7B + LLaMA-2)
+- ✅ Two-stage training pipeline (raw data + analyzed metrics)
+- ✅ LoRA/PEFT integration for efficient fine-tuning
+- ✅ Instruction dataset for identity training (50 examples)
+- ✅ Automatic versioning (OneSeek-7B-Zero.v{MAJOR}.{MICRO})
+- ✅ GPU/CPU optimization and 8-bit quantization support
+- ✅ Model weights storage structure
+- 🔄 PyTorch training implementation
+
 ### 🚧 In Progress
 
 - 🔄 Firebase integration for data persistence
 - 🔄 User authentication system
 - 🔄 Transparency ledger blockchain implementation
 - 🔄 Change detection enhanced features
-- 🔄 Model training pipeline
+- 🔄 OneSeek-7B-Zero PyTorch training implementation
 
 ### 📋 Planned
 
@@ -155,6 +167,571 @@ To enable data persistence and user authentication:
 - [ ] Additional AI models (Claude, Llama, Mistral)
 - [ ] Real-time collaborative analysis
 - [ ] Mobile application
+
+---
+
+## 🤖 OneSeek-7B-Zero: Our Transparent Language Model
+
+**OneSeek-7B-Zero** is an independent, transparent, continuously-learning language model built on **Mistral 7B** and **LLaMA-2** foundations. Unlike external AI services, OneSeek-7B-Zero learns from multiple AI perspectives through a sophisticated two-stage training process, maintains complete transparency via blockchain-style ledger, and provides users with fair, unbiased, traceable responses.
+
+### Key Characteristics
+
+- **Independent Language Model**: Not just a wrapper around external AIs - it's our own fine-tuned model
+- **Multi-Model Foundation**: Combines Mistral 7B (fast inference) and LLaMA-2 (deep analysis)
+- **Continuous Training**: Learns from every interaction through two-step microtraining
+- **Transparent**: Every decision, training event, and data source logged in the ledger
+- **Fair & Unbiased**: Active bias detection and fairness metrics in every response
+- **Real-time Adaptation**: Updates immediately with new information
+
+### Model Identity & Versioning
+
+**Format:** `OneSeek-7B-Zero.v{MAJOR}.{MICRO}`
+
+- **Major versions** (v1, v2, v3...): Created during weekly/monthly batch training on large datasets
+- **Micro versions** (.1, .2, .3...): Created during real-time microtraining (two increments per question)
+
+**Example version progression:**
+```
+OneSeek-7B-Zero.v1.0    ← Major training (weekly batch)
+OneSeek-7B-Zero.v1.1    ← Microtraining Stage 1 (raw data)
+OneSeek-7B-Zero.v1.2    ← Microtraining Stage 2 (analyzed data)
+OneSeek-7B-Zero.v1.3    ← Microtraining Stage 1 (next question)
+OneSeek-7B-Zero.v1.4    ← Microtraining Stage 2 (next question)
+...
+OneSeek-7B-Zero.v2.0    ← Next major training
+```
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              OneSeek-7B-Zero Architecture                │
+├─────────────────────────────────────────────────────────┤
+│                                                           │
+│  Base Models:                                            │
+│  ┌─────────────────┐         ┌─────────────────┐       │
+│  │  Mistral 7B     │         │   LLaMA-2       │       │
+│  │  (Fast)         │         │   (Deep)        │       │
+│  └────────┬────────┘         └────────┬────────┘       │
+│           │                           │                 │
+│           └───────────┬───────────────┘                 │
+│                       ▼                                  │
+│           ┌─────────────────────────┐                   │
+│           │   LoRA/PEFT Adapters    │                   │
+│           │   (Efficient Training)  │                   │
+│           └───────────┬─────────────┘                   │
+│                       ▼                                  │
+│           ┌─────────────────────────┐                   │
+│           │  OneSeek-7B-Zero Model  │                   │
+│           │  + Identity Training    │                   │
+│           └─────────────────────────┘                   │
+│                                                           │
+│  Training Pipeline:                                      │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │ Stage 1: Raw AI Responses → Knowledge Base      │   │
+│  │ Stage 2: Analyzed Metrics → Fairness & Ethics   │   │
+│  └──────────────────────────────────────────────────┘   │
+│                                                           │
+│  Storage:                                                │
+│  • models/oneseek-7b-zero/weights/                      │
+│  • models/oneseek-7b-zero/lora_adapters/                │
+│  • Firebase Storage (backup)                             │
+│                                                           │
+└─────────────────────────────────────────────────────────┘
+```
+
+### How It Differs from External AI Services
+
+| Feature | OneSeek-7B-Zero | External AI (GPT, Gemini, etc.) |
+|---------|-----------------|--------------------------------|
+| **Purpose** | User interaction, direct queries | Training data collection |
+| **Interface** | OQT Dashboard (`/oqt-dashboard`) | Start view (homepage) |
+| **Training** | Continuous, real-time | Periodic, provider-controlled |
+| **Transparency** | Full ledger, provenance tracking | Black box |
+| **Customization** | Adapts to our data & use cases | General purpose |
+| **Independence** | Fully self-hosted | Depends on external APIs |
+| **Fairness** | Built-in metrics & monitoring | Unknown/unverified |
+
+---
+
+## 🎓 Training OneSeek-7B-Zero: Step-by-Step Guide
+
+This comprehensive guide shows you how to train OneSeek-7B-Zero from scratch with identity integration.
+
+### Prerequisites
+
+Before starting, ensure you have:
+
+- **Hardware:**
+  - 16GB RAM minimum (32GB recommended)
+  - 50GB free disk space
+  - NVIDIA GPU with 12GB+ VRAM (recommended but optional)
+  
+- **Software:**
+  - Python 3.8+ with pip
+  - Node.js 18+
+  - Git
+  - CUDA toolkit (if using GPU)
+
+- **Accounts:**
+  - Firebase account (for data storage)
+  - API keys for external AI services (optional, for training data collection)
+
+### Step 1: Environment Setup
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/robinandreeklund-collab/CivicAI.git
+cd CivicAI
+
+# 2. Create Python virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# 3. Install Python dependencies
+pip install -r requirements.txt
+
+# 4. Install Node.js dependencies
+cd backend && npm install
+cd ../frontend && npm install
+cd ..
+
+# 5. Setup Firebase
+python scripts/setup_firebase.py
+# Follow prompts to configure Firebase credentials
+```
+
+### Step 2: Download Base Models
+
+```bash
+# Download Mistral 7B and LLaMA-2 base models
+# This will download ~14-27GB of model files
+python scripts/download_models.py
+
+# Verify models are downloaded
+ls -lh models/base_models/
+# You should see:
+# - mistral-7b/
+# - llama-2-7b/
+```
+
+**Note:** If you don't have enough disk space, the training pipeline can work with simulated models for testing.
+
+### Step 3: Prepare the Instruction Dataset
+
+The instruction dataset teaches OneSeek-7B-Zero its identity as a transparent AI agent.
+
+```bash
+# The dataset is already created at:
+cat datasets/oneseek_identity_v1.jsonl
+
+# It contains 50 bilingual (Swedish/English) instruction examples
+# covering:
+# - Identity and purpose
+# - Training process and versioning
+# - Transparency and ledger
+# - Fairness and bias detection
+# - Ethical foundation
+# - Technical architecture
+```
+
+**Dataset Format (JSONL):**
+```json
+{
+  "instruction": "Vem är du?",
+  "input": "",
+  "output": "Jag är OpenSeek AI-agent, skapad för transparens..."
+}
+```
+
+**To extend the dataset:**
+
+1. Open `datasets/oneseek_identity_v1.jsonl`
+2. Add new lines in the same JSON format
+3. Focus on:
+   - Common user questions about the model
+   - Edge cases and ethical scenarios
+   - Domain-specific knowledge
+   - Multi-language support
+
+**Recommended size:** 100-500 examples for initial training
+
+### Step 4: Initial Identity Fine-Tuning
+
+This step fine-tunes the base models with LoRA to give OneSeek-7B-Zero its identity.
+
+```bash
+# 1. Fine-tune Mistral 7B with identity dataset
+python ml/training/train_language_model.py \
+  --base-model mistral-7b \
+  --dataset datasets/oneseek_identity_v1.jsonl \
+  --method lora \
+  --output models/oneseek-7b-zero/lora_adapters/v1.0 \
+  --epochs 3 \
+  --learning-rate 2e-5
+
+# 2. Fine-tune LLaMA-2 with identity dataset
+python ml/training/train_language_model.py \
+  --base-model llama-2-7b \
+  --dataset datasets/oneseek_identity_v1.jsonl \
+  --method lora \
+  --output models/oneseek-7b-zero/lora_adapters/v1.0 \
+  --epochs 3 \
+  --learning-rate 2e-5
+```
+
+**Expected duration:** 2-4 hours on GPU, 8-12 hours on CPU
+
+**What happens:**
+- LoRA adapters are created for both base models
+- Models learn to respond with OneSeek identity
+- Weights saved to `models/oneseek-7b-zero/lora_adapters/v1.0/`
+- Training metrics logged to Firebase `oqt_training_events`
+- Ledger block created for provenance
+
+**Verify training:**
+```bash
+# Check that LoRA adapters were created
+ls -la models/oneseek-7b-zero/lora_adapters/v1.0/
+
+# Should see:
+# - mistral_lora_adapter.pth
+# - llama_lora_adapter.pth
+# - training_metadata.json
+```
+
+### Step 5: Collect Training Data from External AI
+
+To enable continuous learning, collect responses from external AI services.
+
+```bash
+# 1. Configure API keys in backend/.env
+cat > backend/.env << EOF
+OPENAI_API_KEY=your_openai_key
+GEMINI_API_KEY=your_gemini_key
+DEEPSEEK_API_KEY=your_deepseek_key
+# Add other API keys as available
+EOF
+
+# 2. Start the backend service
+cd backend
+npm run dev
+# Backend runs on http://localhost:3001
+
+# 3. In another terminal, start the frontend
+cd frontend
+npm run dev
+# Frontend runs on http://localhost:5173
+```
+
+**Collect data through the UI:**
+
+1. Open http://localhost:5173
+2. Navigate to the Start View (homepage)
+3. Ask questions to collect AI responses
+4. Each question collects responses from:
+   - GPT-4 (OpenAI)
+   - Gemini (Google)
+   - Grok (xAI) 
+   - Claude (Anthropic)
+   - DeepSeek
+   - Qwen
+
+**Data is stored in Firebase:**
+- Collection: `ai_interactions`
+- Contains: raw responses, analysis, consensus, bias, fairness
+
+### Step 6: Prepare Training Dataset
+
+Convert collected data into training-ready format.
+
+```bash
+# Run dataset preparation pipeline
+python ml/pipelines/prepare_dataset.py
+
+# This will:
+# 1. Load all interactions from Firebase
+# 2. Calculate consensus scores
+# 3. Classify data quality
+# 4. Analyze fairness metrics
+# 5. Split into train/validation/test sets
+# 6. Save to ml/data/prepared/
+```
+
+**Output:**
+```
+ml/data/prepared/
+├── train.json           # 80% of data
+├── validation.json      # 10% of data
+├── test.json           # 10% of data
+└── fairness_report.json # Quality metrics
+```
+
+### Step 7: Batch Training (Major Version)
+
+Perform comprehensive training on accumulated dataset.
+
+```bash
+# Train new major version
+python ml/training/train_language_model.py \
+  --version 1.0.0 \
+  --data-dir ml/data/prepared
+
+# This will:
+# 1. Load prepared datasets
+# 2. Train on both raw responses and analyzed metrics
+# 3. Calculate fairness metrics
+# 4. Save model weights
+# 5. Log to transparency ledger
+# 6. Verify ledger integrity
+```
+
+**Expected output:**
+```
+============================================================
+Training OQT-1.0 Version 1.0.0
+============================================================
+
+Dataset sizes:
+  Training: 800
+  Validation: 100
+
+Training configuration:
+  model_name: OQT-1.0
+  learning_rate: 2e-5
+  batch_size: 32
+  epochs: 3
+
+Training completed!
+
+Final Metrics:
+  validation_accuracy: 0.876
+  fairness_score: 0.912
+  bias_score: 0.123
+
+Saved model version to models/oneseek-7b-zero/weights/model_version_1_0_0.json
+Logged to transparency ledger (Block 1)
+
+============================================================
+Training Complete!
+============================================================
+```
+
+### Step 8: Enable Real-Time Microtraining
+
+Configure automatic training on every new question.
+
+```bash
+# 1. Verify Firebase integration
+python scripts/setup_firebase.py --verify
+
+# 2. Enable microtraining in backend configuration
+# Edit backend/.env and add:
+echo "ENABLE_MICROTRAINING=true" >> backend/.env
+echo "ONESEEK_MODEL_VERSION=1.0.0" >> backend/.env
+
+# 3. Restart backend service
+cd backend
+npm run dev
+```
+
+**How microtraining works:**
+
+1. **User asks question** via OQT Dashboard
+2. **Stage 1 training** (30-60s):
+   - Collect raw AI responses
+   - Update LoRA adapters with new knowledge
+   - Version: v1.0 → v1.1
+   - Log to `oqt_training_events`
+
+3. **ML Pipeline analyzes** responses:
+   - Calculate consensus score
+   - Detect bias
+   - Measure fairness
+
+4. **Stage 2 training** (30-60s):
+   - Update LoRA adapters with ethical reasoning
+   - Version: v1.1 → v1.2
+   - Log to `oqt_training_events`
+
+5. **Ledger block created** with full provenance
+
+### Step 9: Monitor Training Progress
+
+Track model performance over time.
+
+```bash
+# View training events
+# Visit: http://localhost:3000/oqt-dashboard
+# Navigate to "Aktivitet" tab
+
+# Query training metrics
+curl http://localhost:3001/api/oqt/metrics
+
+# Verify ledger integrity
+curl http://localhost:3001/api/oqt/ledger/verify
+```
+
+**Dashboard Views:**
+
+- **Chat:** Interact with OneSeek-7B-Zero
+- **Aktivitet:** Real-time training events
+- **Mätvärden:** Performance metrics over time
+- **Ledger:** Complete transparency log
+
+### Step 10: Validate Model Performance
+
+Test the trained model to ensure quality.
+
+```bash
+# Run validation suite
+python ml/training/validate_model.py \
+  --version 1.0.0 \
+  --test-data ml/data/prepared/test.json
+
+# Expected metrics:
+# - Validation accuracy: >85%
+# - Fairness score: >88%
+# - Bias score: <3.0
+# - Consensus accuracy: >80%
+```
+
+**Test queries:**
+```bash
+# Test identity
+curl -X POST http://localhost:3001/api/oqt/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Vem är du?"}'
+
+# Should respond with OneSeek identity
+
+# Test transparency
+curl -X POST http://localhost:3001/api/oqt/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "How do you ensure fairness?"}'
+
+# Should explain fairness metrics and ledger
+```
+
+### Step 11: Deploy to Production
+
+Prepare for production deployment.
+
+```bash
+# 1. Backup model weights to Firebase Storage
+python scripts/backup_model_weights.py --version 1.0.0
+
+# 2. Create production environment
+cp backend/.env backend/.env.production
+# Edit .env.production with production settings
+
+# 3. Build frontend
+cd frontend
+npm run build
+
+# 4. Configure production server
+# See docs/deployment/ for detailed instructions
+
+# 5. Setup monitoring
+# Configure alerts for:
+# - Training failures
+# - Low fairness scores
+# - High bias detection
+# - Ledger integrity issues
+```
+
+### Troubleshooting
+
+**Problem: Out of memory during training**
+```bash
+# Solution 1: Use 8-bit quantization
+python ml/training/train_language_model.py \
+  --version 1.0.0 \
+  --quantize 8bit
+
+# Solution 2: Reduce batch size
+python ml/training/train_language_model.py \
+  --version 1.0.0 \
+  --batch-size 16  # Default is 32
+```
+
+**Problem: Slow inference**
+```bash
+# Solution: Enable model caching
+echo "ENABLE_MODEL_CACHE=true" >> backend/.env
+
+# Or use GPU acceleration
+python ml_service/server.py --device cuda
+```
+
+**Problem: Training not triggering**
+```bash
+# Check Firebase connection
+python scripts/setup_firebase.py --test-connection
+
+# Verify microtraining is enabled
+grep ENABLE_MICROTRAINING backend/.env
+
+# Check logs
+tail -f backend/logs/training.log
+```
+
+### Best Practices
+
+1. **Start small:** Train on 50-100 examples first, validate, then scale up
+2. **Monitor fairness:** Check fairness metrics after each major training
+3. **Verify ledger:** Run ledger verification regularly
+4. **Backup frequently:** Backup model weights to Firebase Storage daily
+5. **Test thoroughly:** Use validation dataset to catch degradation
+6. **Document changes:** Log all training runs with metadata
+7. **Version control:** Never delete old versions - keep for rollback
+8. **Ethical review:** Review bias detection before major deployments
+
+### Advanced: Custom Identity Training
+
+To train OneSeek-7B-Zero for domain-specific use:
+
+```bash
+# 1. Create domain-specific instruction dataset
+cat > datasets/oneseek_medical_v1.jsonl << EOF
+{"instruction": "How do you handle medical information?", "input": "", "output": "I provide general information but always recommend consulting healthcare professionals..."}
+{"instruction": "Can you diagnose diseases?", "input": "", "output": "No, I cannot diagnose diseases. I can provide educational information about symptoms and conditions..."}
+EOF
+
+# 2. Fine-tune with combined datasets
+python ml/training/train_language_model.py \
+  --base-model mistral-7b \
+  --dataset datasets/oneseek_identity_v1.jsonl \
+  --dataset datasets/oneseek_medical_v1.jsonl \
+  --method lora \
+  --output models/oneseek-7b-zero/lora_adapters/v1.1-medical
+
+# 3. Test domain-specific responses
+curl -X POST http://localhost:3001/api/oqt/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What are symptoms of flu?"}'
+```
+
+### Resources
+
+- **Full OQT Documentation:** [OQT-1.0-README.md](OQT-1.0-README.md)
+- **API Reference:** [docs/OQT_MULTI_MODEL_API.md](docs/OQT_MULTI_MODEL_API.md)
+- **Training Scripts:** `ml/training/`
+- **Dataset Examples:** `datasets/`
+- **Model Architecture:** See Architecture section above
+
+### Next Steps
+
+After completing this training guide:
+
+1. ✅ Collect more training data through user interactions
+2. ✅ Schedule weekly batch training for major versions
+3. ✅ Monitor fairness and bias metrics continuously
+4. ✅ Extend instruction dataset with community contributions
+5. ✅ Deploy to production with monitoring
+6. ✅ Contribute improvements back to the project
+
+**Questions?** Open an issue on GitHub or consult the full documentation in `OQT-1.0-README.md`.
 
 ---
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-OneSeek-7B-Zero Language Model Training
-Batch training for the OneSeek-7B-Zero (formerly OQT-1.0) model
+OQT-1.0 Language Model Training
+Batch training for the Open Quality Transformer model
 """
 
 import json
@@ -17,8 +17,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'pip
 from transparency_ledger import TransparencyLedger
 
 
-class OneSeekTrainer:
-    """Trainer for OneSeek-7B-Zero language model"""
+class OQTTrainer:
+    """Trainer for OQT-1.0 language model"""
     
     def __init__(self, data_dir: str, model_dir: str, ledger_dir: str):
         self.data_dir = Path(data_dir)
@@ -30,7 +30,7 @@ class OneSeekTrainer:
         
         # Training config
         self.config = {
-            'model_name': 'OneSeek-7B-Zero',
+            'model_name': 'OQT-1.0',
             'architecture': 'transformer',
             'learning_rate': 2e-5,
             'batch_size': 32,
@@ -66,7 +66,7 @@ class OneSeekTrainer:
         In production, this would use PyTorch/TensorFlow
         """
         print(f"\n{'=' * 70}")
-        print(f"Training OneSeek-7B-Zero Version {version}")
+        print(f"Training OQT-1.0 Version {version}")
         print(f"{'=' * 70}")
         
         train_size = len(datasets.get('train', []))
@@ -185,7 +185,7 @@ class OneSeekTrainer:
             version: Semantic version for this model
         """
         print(f"\n{'=' * 70}")
-        print(f"OneSeek-7B-Zero Training Pipeline")
+        print(f"OQT-1.0 Training Pipeline")
         print(f"{'=' * 70}")
         
         # Load data
@@ -234,7 +234,7 @@ def main():
     """Main entry point"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='Train OneSeek-7B-Zero Language Model')
+    parser = argparse.ArgumentParser(description='Train OQT-1.0 Language Model')
     parser.add_argument('--version', type=str, default='1.0.0',
                         help='Model version (semantic versioning, e.g., 1.0.0)')
     parser.add_argument('--data-dir', type=str, default=None,
@@ -262,7 +262,7 @@ def main():
     )
     
     # Create trainer and run
-    trainer = OneSeekTrainer(DATA_DIR, MODEL_DIR, LEDGER_DIR)
+    trainer = OQTTrainer(DATA_DIR, MODEL_DIR, LEDGER_DIR)
     trainer.train(args.version)
 
 

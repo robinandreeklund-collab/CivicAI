@@ -1,8 +1,11 @@
-# OQT-1.0 (Open Question-answering Transparent) - Complete Documentation
+# OneSeek-7B-Zero (formerly OQT-1.0) - Complete Documentation
+
+> **Note:** This model was previously known as OQT-1.0 (Open Question-answering Transparent). The new identity **OneSeek-7B-Zero** better reflects its purpose as a transparent, continuously-learning AI agent. Legacy OQT references are maintained for backward compatibility.
 
 ## 📋 Table of Contents
 
-- [What is OQT-1.0?](#what-is-oqt-10)
+- [What is OneSeek-7B-Zero?](#what-is-oneseek-7b-zero)
+- [Model Identity & Naming](#model-identity--naming)
 - [Architecture Overview](#architecture-overview)
 - [Complete Data Flow](#complete-data-flow)
 - [All Data Points](#all-data-points)
@@ -13,6 +16,7 @@
 - [BERT Summarizer Integration](#bert-summarizer-integration)
 - [Training System](#training-system)
 - [Version Management](#version-management)
+- [Fine-Tuning & Identity Training](#fine-tuning--identity-training)
 - [Ledger & Provenance](#ledger--provenance)
 - [OQT Dashboard](#oqt-dashboard)
 - [Model Weights Storage](#model-weights-storage)
@@ -23,29 +27,75 @@
 
 ---
 
-## What is OQT-1.0?
+## What is OneSeek-7B-Zero?
 
-**OQT-1.0 is a self-contained language model** that uses **Mistral 7B** and **LLaMA-2** as base models to create an independent AI system focused on transparency, fairness, and continuous learning.
+**OneSeek-7B-Zero** (formerly OQT-1.0) is a self-contained language model that uses **Mistral 7B** and **LLaMA-2** as base models to create an independent AI system focused on transparency, fairness, and continuous learning.
 
 ### Key Characteristics:
 
-- **Independent Language Model**: OQT-1.0 is its own model, not just a wrapper around external AIs
+- **Independent Language Model**: OneSeek-7B-Zero is its own model, not just a wrapper around external AIs
 - **Multi-Model Foundation**: Uses Mistral 7B (fast inference) and LLaMA-2 (deep analysis) as base architectures
 - **Continuous Training**: Learns from every interaction through two-step microtraining
 - **Transparent**: Every decision, training event, and data source is logged in the ledger
 - **Fair & Unbiased**: Active bias detection and fairness metrics in every response
 - **Real-time Adaptation**: Updates immediately with new information from external AI sources
+- **Identity Training**: Fine-tuned with instruction dataset to embody OpenSeek AI-agent identity
 
 ### How It Differs from External AI Services:
 
-| Feature | OQT-1.0 | External AI (GPT, Gemini, etc.) |
-|---------|---------|--------------------------------|
+| Feature | OneSeek-7B-Zero | External AI (GPT, Gemini, etc.) |
+|---------|-----------------|--------------------------------|
 | **Purpose** | User interaction, direct queries | Training data collection |
 | **Interface** | OQT Dashboard (`/oqt-dashboard`) | Start view (homepage) |
 | **Training** | Continuous, real-time | Periodic, provider-controlled |
 | **Transparency** | Full ledger, provenance tracking | Black box |
 | **Customization** | Adapts to our data & use cases | General purpose |
 | **Independence** | Fully self-hosted | Depends on external APIs |
+| **Identity** | OpenSeek AI-agent with ethical foundation | Generic assistant |
+
+---
+
+## Model Identity & Naming
+
+### Naming Convention
+
+**Current:** `OneSeek-7B-Zero.v{MAJOR}.{MICRO}`
+
+**Legacy:** `OQT-1.0.v{major}.{micro}` (maintained for backward compatibility)
+
+### Why OneSeek-7B-Zero?
+
+- **OneSeek**: Represents the project for transparent, accountable AI
+- **7B**: Indicates 7 billion parameters (Mistral 7B + LLaMA-2 base)
+- **Zero**: Marks the starting point for continuous training and evolution
+
+### Version Format
+
+**Format:** `OneSeek-7B-Zero.v{MAJOR}.{MICRO}`
+
+- **MAJOR** (1, 2, 3...): Incremented during weekly/monthly batch training
+- **MICRO** (.1, .2, .3...): Incremented during real-time microtraining (two per question)
+
+**Examples:**
+```
+OneSeek-7B-Zero.v1.0     ← Initial release after identity training
+OneSeek-7B-Zero.v1.1     ← Microtraining Stage 1 (raw data)
+OneSeek-7B-Zero.v1.2     ← Microtraining Stage 2 (analyzed metrics)
+OneSeek-7B-Zero.v1.3     ← Next question, Stage 1
+OneSeek-7B-Zero.v1.4     ← Next question, Stage 2
+...
+OneSeek-7B-Zero.v2.0     ← Next major batch training
+```
+
+### Backward Compatibility
+
+Legacy OQT-1.0 references are maintained in:
+- API endpoints (e.g., `/api/oqt/query`)
+- Firebase collections (e.g., `oqt_queries`, `oqt_training_events`)
+- Configuration variables
+- Documentation cross-references
+
+New code should use **OneSeek-7B-Zero** naming, but legacy references will continue to work.
 
 ---
 
@@ -1014,9 +1064,9 @@ Logged: oqt_training_events (stage: "analyzed_data")
 ┌──────────────────────────────────────────────────────────┐
 │  🔄 STAGE 1 MICROTRAINING                                │
 │  • Input: Raw AI responses                               │
-│  • Model: OQT-1.0.v13.1                                  │
+│  • Model: OneSeek-7B-Zero.v13.1                          │
 │  • Process: Learn language patterns                      │
-│  • Output: OQT-1.0.v13.2                                 │
+│  • Output: OneSeek-7B-Zero.v13.2                         │
 │  • Time: ~45 seconds                                     │
 │  • Log: oqt_training_events                              │
 └────────────────────┬─────────────────────────────────────┘
@@ -1032,9 +1082,9 @@ Logged: oqt_training_events (stage: "analyzed_data")
 ┌──────────────────────────────────────────────────────────┐
 │  🔄 STAGE 2 MICROTRAINING                                │
 │  • Input: Analyzed metrics                               │
-│  • Model: OQT-1.0.v13.2                                  │
+│  • Model: OneSeek-7B-Zero.v13.2                          │
 │  • Process: Refine fairness & bias detection             │
-│  • Output: OQT-1.0.v13.3                                 │
+│  • Output: OneSeek-7B-Zero.v13.3                         │
 │  • Time: ~45 seconds                                     │
 │  • Log: oqt_training_events                              │
 └────────────────────┬─────────────────────────────────────┘
@@ -1042,7 +1092,7 @@ Logged: oqt_training_events (stage: "analyzed_data")
                      ▼
 ┌──────────────────────────────────────────────────────────┐
 │  Model Weights Saved                                     │
-│  • Path: models/oqt/weights/oqt-1.0-v13.3.pth            │
+│  • Path: models/oneseek-7b-zero/weights/v13.3.pth        │
 │  • Metadata: JSON with training info                     │
 │  • Backup: Firebase Storage                              │
 └────────────────────┬─────────────────────────────────────┘
