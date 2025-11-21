@@ -22,9 +22,28 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 MISTRAL_PATH = os.getenv('MISTRAL_MODEL_PATH', str(PROJECT_ROOT / 'models' / 'mistral-7b-instruct'))
 LLAMA_PATH = os.getenv('LLAMA_MODEL_PATH', str(PROJECT_ROOT / 'models' / 'llama-2-7b-chat'))
 
-# GPU configuration
-USE_GPU = os.getenv('USE_GPU', 'true').lower() == 'true'
-DEVICE = 'cuda' if USE_GPU and torch.cuda.is_available() else 'cpu'
+# GPU configuration - Support for NVIDIA, Intel, and CPU
+def get_device():
+    """Automatically detect best available device"""
+    # Try Intel GPU (XPU) first if IPEX is available
+    try:
+        import intel_extension_for_pytorch as ipex
+        if torch.xpu.is_available():
+            logger.info("Intel GPU (XPU) detected via IPEX")
+            return torch.device('xpu'), 'xpu'
+    except ImportError:
+        pass
+    
+    # Try NVIDIA GPU
+    if torch.cuda.is_available():
+        logger.info(f"NVIDIA GPU detected: {torch.cuda.get_device_name(0)}")
+        return torch.device('cuda'), 'cuda'
+    
+    # Fallback to CPU
+    logger.info("Using CPU (slow - consider GPU for better performance)")
+    return torch.device('cpu'), 'cpu'
+
+DEVICE, DEVICE_TYPE = get_device()
 
 # Model cache
 models = {}
@@ -43,11 +62,14 @@ class InferenceResponse(BaseModel):
     latency_ms: float
 
 def load_model(model_name: str, model_path: str):
-    """Load model and tokenizer"""
+    """Load model and tokenizer with device optimization"""
     if model_name in models:
         return models[model_name], tokenizers[model_name]
     
     logger.info(f"Loading {model_name} from {model_path}...")
+    
+    # Use FP16 for GPU, FP32 for CPU
+    dtype = torch.float16 if DEVICE_TYPE in ['cuda', 'xpu'] else torch.float32
     
     try:
         # Load tokenizer
@@ -120,13 +142,27 @@ app.add_middleware(
 @app.get("/")
 async def root():
     """Health check"""
-    return {
+    device_info = {
         "service": "OQT-1.0 ML Service",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "status": "running",
-        "device": DEVICE,
+        "device": str(DEVICE),
+        "device_type": DEVICE_TYPE,
         "models_loaded": list(models.keys())
     }
+    
+    # Add device-specific info
+    if DEVICE_TYPE == 'cuda':
+        device_info["gpu_name"] = torch.cuda.get_device_name(0)
+        device_info["gpu_memory"] = f"{torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB"
+    elif DEVICE_TYPE == 'xpu':
+        try:
+            device_info["gpu_name"] = torch.xpu.get_device_name(0)
+            device_info["intel_gpu"] = True
+        except:
+            pass
+    
+    return device_info
 
 @app.post("/inference/mistral", response_model=InferenceResponse)
 async def mistral_inference(request: InferenceRequest):
