@@ -94,7 +94,7 @@ class OneSeekTrainer:
             
             # Check if PyTorch training is available
             if verify_requirements():
-                print("\n🎯 PyTorch training environment detected!")
+                print("\n[INFO] PyTorch training environment detected!")
                 print("   Using real LoRA/PEFT training...\n")
                 
                 # Get base models directory
@@ -113,13 +113,13 @@ class OneSeekTrainer:
                         config=self.config
                     )
                 else:
-                    print("\n⚠️  No base models found. Falling back to simulation.")
+                    print("\n[WARNING]  No base models found. Falling back to simulation.")
                     print(f"   Please download models to: {base_models_dir}")
             else:
-                print("\n⚠️  PyTorch requirements not met. Falling back to simulation.")
+                print("\n[WARNING]  PyTorch requirements not met. Falling back to simulation.")
                 
         except Exception as e:
-            print(f"\n⚠️  Could not use PyTorch training: {e}")
+            print(f"\n[WARNING]  Could not use PyTorch training: {e}")
             print("   Falling back to simulation.")
         
         # Fall back to simulation
@@ -216,14 +216,14 @@ class OneSeekTrainer:
         # Check if PyTorch weights were saved
         weights_file = self.model_dir / f"oneseek-7b-zero-v{version}.pth"
         if weights_file.exists():
-            print(f"✅ Model weights saved to {weights_file}")
+            print(f"[SUCCESS] Model weights saved to {weights_file}")
         else:
-            print(f"ℹ️  Model weights will be saved to {weights_file} (PyTorch training required)")
+            print(f"[INFO] Model weights will be saved to {weights_file} (PyTorch training required)")
         
         # Check if LoRA adapters were saved
         lora_path = self.model_dir.parent / 'lora_adapters' / f'oneseek-7b-zero-v{version}'
         if lora_path.exists():
-            print(f"✅ LoRA adapters saved to {lora_path}")
+            print(f"[SUCCESS] LoRA adapters saved to {lora_path}")
         
         return model_version
     
@@ -297,9 +297,9 @@ class OneSeekTrainer:
         print(f"\nStep 5: Verifying ledger integrity...")
         verification = self.ledger.verify_chain()
         if verification['valid']:
-            print("✓ Ledger integrity verified")
+            print("[SUCCESS] Ledger integrity verified")
         else:
-            print("✗ Ledger integrity check failed!")
+            print("[ERROR] Ledger integrity check failed!")
             print(f"  Errors: {verification.get('errors', [])}")
         
         print(f"\n{'=' * 70}")
@@ -313,13 +313,13 @@ class OneSeekTrainer:
         
         # Show if PyTorch was used
         if 'model_used' in results['metrics']:
-            print(f"\n🎯 Training Method: PyTorch with LoRA/PEFT")
+            print(f"\n[INFO] Training Method: PyTorch with LoRA/PEFT")
             print(f"   Base Model: {results['metrics']['model_used']}")
             print(f"   Device: {results['metrics']['device']}")
             if 'trainable_params' in results['metrics']:
                 print(f"   Trainable Parameters: {results['metrics']['trainable_params']:,}")
         else:
-            print(f"\n⚠️  Training Method: Simulation (PyTorch not available)")
+            print(f"\n[WARNING]  Training Method: Simulation (PyTorch not available)")
         
         print(f"\nModel saved to: {self.model_dir}")
         print(f"Transparency ledger: {self.ledger.ledger_file}")

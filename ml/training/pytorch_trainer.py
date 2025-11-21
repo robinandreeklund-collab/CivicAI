@@ -17,13 +17,13 @@ def check_pytorch_available():
     """Check if PyTorch and required libraries are available"""
     try:
         import torch
-        print(f"✅ PyTorch {torch.__version__} available")
+        print(f"[SUCCESS] PyTorch {torch.__version__} available")
         print(f"   CUDA available: {torch.cuda.is_available()}")
         if torch.cuda.is_available():
             print(f"   CUDA device: {torch.cuda.get_device_name(0)}")
         return True
     except ImportError:
-        print("❌ PyTorch not installed")
+        print("[ERROR] PyTorch not installed")
         return False
 
 
@@ -31,10 +31,10 @@ def check_transformers_available():
     """Check if transformers library is available"""
     try:
         import transformers
-        print(f"✅ Transformers {transformers.__version__} available")
+        print(f"[SUCCESS] Transformers {transformers.__version__} available")
         return True
     except ImportError:
-        print("❌ Transformers not installed")
+        print("[ERROR] Transformers not installed")
         return False
 
 
@@ -42,10 +42,10 @@ def check_peft_available():
     """Check if PEFT library is available"""
     try:
         import peft
-        print(f"✅ PEFT {peft.__version__} available")
+        print(f"[SUCCESS] PEFT {peft.__version__} available")
         return True
     except ImportError:
-        print("❌ PEFT not installed. Install with: pip install peft")
+        print("[ERROR] PEFT not installed. Install with: pip install peft")
         return False
 
 
@@ -74,12 +74,12 @@ def check_base_models(base_models_dir: Path):
     
     for mistral_path in mistral_paths:
         if mistral_path.exists():
-            print(f"✅ Mistral 7B found at {mistral_path}")
+            print(f"[SUCCESS] Mistral 7B found at {mistral_path}")
             models_found['mistral'] = mistral_path
             break
     
     if 'mistral' not in models_found:
-        print(f"⚠️  Mistral 7B not found. Checked:")
+        print(f"[WARNING]  Mistral 7B not found. Checked:")
         for p in mistral_paths:
             print(f"     - {p}")
     
@@ -92,12 +92,12 @@ def check_base_models(base_models_dir: Path):
     
     for llama_path in llama_paths:
         if llama_path.exists():
-            print(f"✅ LLaMA-2 found at {llama_path}")
+            print(f"[SUCCESS] LLaMA-2 found at {llama_path}")
             models_found['llama'] = llama_path
             break
     
     if 'llama' not in models_found:
-        print(f"⚠️  LLaMA-2 not found. Checked:")
+        print(f"[WARNING]  LLaMA-2 not found. Checked:")
         for p in llama_paths:
             print(f"     - {p}")
     
@@ -134,7 +134,7 @@ def train_with_pytorch_lora(
     
     # Check what's available
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"\n🖥️  Device: {device}")
+    print(f"\n[DEVICE] Device: {device}")
     
     # Select which model to train (Mistral or LLaMA-2)
     available_models = check_base_models(base_models_dir)
@@ -146,7 +146,7 @@ def train_with_pytorch_lora(
         model_name = 'llama-2-7b'
         model_path = available_models['llama']
     else:
-        print("\n❌ No base models found!")
+        print("\n[ERROR] No base models found!")
         print("Please download Mistral 7B or LLaMA-2 to one of these locations:")
         print(f"  - models/mistral-7b-instruct (recommended for existing setup)")
         print(f"  - models/llama-2-7b-chat (recommended for existing setup)")
@@ -154,7 +154,7 @@ def train_with_pytorch_lora(
         print(f"  - {base_models_dir / 'llama-2-7b'}")
         raise FileNotFoundError("Base models not found")
     
-    print(f"\n📦 Loading base model: {model_name}")
+    print(f"\n[LOADING] Loading base model: {model_name}")
     print(f"   Path: {model_path}")
     
     try:
@@ -172,14 +172,14 @@ def train_with_pytorch_lora(
         except Exception as e1:
             # Check for protobuf compatibility error
             if "Descriptors cannot be created directly" in str(e1) or "protobuf" in str(e1).lower():
-                print(f"   ⚠️  Protobuf compatibility error detected")
-                print(f"   ℹ️  This is a dependency version conflict between protobuf and sentencepiece")
-                print(f"\n   🔧 Quick fix:")
+                print(f"   [WARNING]  Protobuf compatibility error detected")
+                print(f"   [INFO] This is a dependency version conflict between protobuf and sentencepiece")
+                print(f"\n   [FIX] Quick fix:")
                 print(f"      pip install protobuf==3.20.3")
                 print(f"\n   After fixing, run the training script again.")
                 raise Exception("Protobuf dependency error. Please run: pip install protobuf==3.20.3")
             
-            print(f"   ⚠️  First tokenizer attempt failed: {e1}")
+            print(f"   [WARNING]  First tokenizer attempt failed: {e1}")
             try:
                 # Try with use_fast=True
                 tokenizer = AutoTokenizer.from_pretrained(
@@ -190,17 +190,17 @@ def train_with_pytorch_lora(
             except Exception as e2:
                 # Check for protobuf error in second attempt
                 if "Descriptors cannot be created directly" in str(e2) or "protobuf" in str(e2).lower():
-                    print(f"   ⚠️  Protobuf compatibility error detected")
-                    print(f"   ℹ️  This is a dependency version conflict")
-                    print(f"\n   🔧 Quick fix:")
+                    print(f"   [WARNING]  Protobuf compatibility error detected")
+                    print(f"   [INFO] This is a dependency version conflict")
+                    print(f"\n   [FIX] Quick fix:")
                     print(f"      pip install protobuf==3.20.3")
                     print(f"\n   After fixing, run the training script again.")
                     raise Exception("Protobuf dependency error. Please run: pip install protobuf==3.20.3")
                 
-                print(f"   ⚠️  Second tokenizer attempt failed: {e2}")
+                print(f"   [WARNING]  Second tokenizer attempt failed: {e2}")
                 # Try loading from the model name instead of path
                 model_id = "mistralai/Mistral-7B-Instruct-v0.2" if "mistral" in model_name.lower() else "meta-llama/Llama-2-7b-chat-hf"
-                print(f"   ℹ️  Attempting to load tokenizer from: {model_id}")
+                print(f"   [INFO] Attempting to load tokenizer from: {model_id}")
                 tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False)
         
         if tokenizer.pad_token is None:
@@ -217,8 +217,8 @@ def train_with_pytorch_lora(
                 trust_remote_code=True
             )
         except Exception as e:
-            print(f"   ⚠️  Local model loading failed: {e}")
-            print(f"   ℹ️  Attempting to download model from HuggingFace...")
+            print(f"   [WARNING]  Local model loading failed: {e}")
+            print(f"   [INFO] Attempting to download model from HuggingFace...")
             model_id = "mistralai/Mistral-7B-Instruct-v0.2" if "mistral" in model_name.lower() else "meta-llama/Llama-2-7b-chat-hf"
             model = AutoModelForCausalLM.from_pretrained(
                 model_id,
@@ -227,10 +227,10 @@ def train_with_pytorch_lora(
                 load_in_8bit=config.get('quantize_8bit', False)
             )
         
-        print(f"   ✅ Model loaded ({model.num_parameters():,} parameters)")
+        print(f"   [SUCCESS] Model loaded ({model.num_parameters():,} parameters)")
         
         # Configure LoRA
-        print("\n🔧 Configuring LoRA adapters...")
+        print("\n[CONFIG] Configuring LoRA adapters...")
         lora_config = LoraConfig(
             task_type=TaskType.CAUSAL_LM,
             inference_mode=False,
@@ -244,7 +244,7 @@ def train_with_pytorch_lora(
         model.print_trainable_parameters()
         
         # Prepare dataset
-        print("\n📚 Preparing training data...")
+        print("\n[PREPARE] Preparing training data...")
         train_data = datasets.get('train', [])
         val_data = datasets.get('validation', [])
         
@@ -270,7 +270,7 @@ def train_with_pytorch_lora(
         )
         
         # Training loop (simplified for identity training)
-        print("\n🚀 Starting training...")
+        print("\n[TRAINING] Starting training...")
         model.train()
         
         epochs = config.get('epochs', 3)
@@ -303,22 +303,22 @@ def train_with_pytorch_lora(
         avg_loss = total_loss / num_batches if num_batches > 0 else 0
         
         # Save LoRA adapters
-        print(f"\n💾 Saving LoRA adapters...")
+        print(f"\n[SAVING] Saving LoRA adapters...")
         lora_save_path = model_dir.parent / 'lora_adapters' / f'oneseek-7b-zero-v{version}'
         lora_save_path.mkdir(parents=True, exist_ok=True)
         
         model.save_pretrained(str(lora_save_path))
         tokenizer.save_pretrained(str(lora_save_path))
         
-        print(f"   ✅ LoRA adapters saved to {lora_save_path}")
+        print(f"   [SUCCESS] LoRA adapters saved to {lora_save_path}")
         
         # Also save full model state (optional)
         weights_path = model_dir / f'oneseek-7b-zero-v{version}.pth'
         torch.save(model.state_dict(), str(weights_path))
-        print(f"   ✅ Model weights saved to {weights_path}")
+        print(f"   [SUCCESS] Model weights saved to {weights_path}")
         
         # Calculate metrics
-        print("\n📊 Calculating metrics...")
+        print("\n[METRICS] Calculating metrics...")
         
         metrics = {
             'training_loss': avg_loss,
@@ -338,7 +338,7 @@ def train_with_pytorch_lora(
             'disparate_impact': 0.94
         }
         
-        print("\n✅ Training completed!")
+        print("\n[SUCCESS] Training completed!")
         print(f"\nFinal Metrics:")
         for key, value in metrics.items():
             if isinstance(value, float):
@@ -356,7 +356,7 @@ def train_with_pytorch_lora(
         }
         
     except Exception as e:
-        print(f"\n❌ Training error: {e}")
+        print(f"\n[ERROR] Training error: {e}")
         import traceback
         traceback.print_exc()
         raise
@@ -364,7 +364,7 @@ def train_with_pytorch_lora(
 
 def verify_requirements():
     """Verify all requirements for PyTorch training"""
-    print("\n🔍 Verifying PyTorch training requirements...\n")
+    print("\n[VERIFY] Verifying PyTorch training requirements...\n")
     
     checks = {
         'PyTorch': check_pytorch_available(),
@@ -375,7 +375,7 @@ def verify_requirements():
     all_ok = all(checks.values())
     
     if not all_ok:
-        print("\n❌ Missing requirements. Install with:")
+        print("\n[ERROR] Missing requirements. Install with:")
         if not checks['PyTorch']:
             print("   pip install torch")
         if not checks['Transformers']:
@@ -385,5 +385,5 @@ def verify_requirements():
         print()
         return False
     
-    print("\n✅ All requirements satisfied!\n")
+    print("\n[SUCCESS] All requirements satisfied!\n")
     return True

@@ -309,7 +309,8 @@ export default function SignupPage() {
         profileType: accountData.profileType,
         agentConfig: accountData.agentConfig,
         accountStatus: result.user.accountStatus,
-        ledgerBlockId: result.user.ledgerBlockId
+        ledgerBlockId: result.user.ledgerBlockId,
+        role: result.user.role || 'user' // Include role, default to 'user'
       });
       
       // Move to final step

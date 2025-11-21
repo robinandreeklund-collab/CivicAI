@@ -16,6 +16,7 @@ import factCheckRouter from './api/factcheck.js';
 import firebaseRouter from './api/firebase.js';
 import usersRouter from './api/users.js';
 import oqtRouter from './api/oqt.js';
+import adminRouter from './api/admin.js';
 import { logPythonServiceStatus } from './services/pythonNLPClient.js';
 import { getCachedPythonStatus } from './services/healthCache.js';
 import { isFirebaseAvailable } from './services/firebaseService.js';
@@ -44,6 +45,7 @@ app.use('/api/fact-check', factCheckRouter);
 app.use('/api/firebase', firebaseRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/oqt', oqtRouter);
+app.use('/api/admin', adminRouter);
 
 // Health check endpoint with service status
 app.get('/api/health', async (req, res) => {
