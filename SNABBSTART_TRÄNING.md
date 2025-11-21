@@ -262,6 +262,43 @@ python scripts/train_identity.py
 
 ## 🐛 Felsökning
 
+### Problem: "Descriptors cannot be created directly" - Protobuf-fel
+
+**Symptom:**
+```
+TypeError: Descriptors cannot be created directly.
+If this call came from a _pb2.py file, your generated code is out of date...
+```
+
+**Lösning (ENKLAST):**
+```bash
+pip install protobuf==3.20.3
+```
+
+Kör sedan träningen igen:
+```bash
+python scripts/train_identity.py
+```
+
+**Varför händer detta?** Nyare versioner av `protobuf` (4.x) är inkompatibla med vissa versioner av `sentencepiece` som används av tokenizers.
+
+**Alternativa lösningar:**
+1. Sätt miljövariabel:
+   ```bash
+   # Windows PowerShell
+   $env:PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION="python"
+   python scripts/train_identity.py
+   
+   # Linux/Mac
+   export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+   python scripts/train_identity.py
+   ```
+
+2. Uppgradera sentencepiece:
+   ```bash
+   pip install --upgrade sentencepiece transformers
+   ```
+
 ### Problem: "Dataset not found"
 
 **Lösning:**
@@ -300,11 +337,14 @@ export PYTHONPATH=$PYTHONPATH:$(pwd)/ml/pipelines
 
 ```bash
 # CPU-version
-pip install torch torchvision torchaudio
+pip install torch torchvision torchaudio transformers peft protobuf==3.20.3
 
 # GPU-version (CUDA)
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install transformers peft protobuf==3.20.3
 ```
+
+**OBS:** Vi använder `protobuf==3.20.3` för att säkerställa kompatibilitet med `sentencepiece` och tokenizers. Att använda `protobuf>=4.0` kan orsaka fel vid tokenizer-laddning.
 
 ### 2. Ladda ner basmodeller
 

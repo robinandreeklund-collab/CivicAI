@@ -5,13 +5,16 @@ This module implements real PyTorch training with LoRA/PEFT for OneSeek-7B-Zero.
 ## Requirements
 
 ```bash
-pip install torch transformers peft
+pip install torch transformers peft protobuf==3.20.3
 ```
 
 **For GPU support (CUDA):**
 ```bash
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install transformers peft protobuf==3.20.3
 ```
+
+**Note:** We use `protobuf==3.20.3` to ensure compatibility with `sentencepiece` and the tokenizers. Using `protobuf>=4.0` may cause errors during tokenizer loading.
 
 ## Base Models
 
@@ -162,6 +165,44 @@ if verify_requirements():
 The script automatically uses CUDA if available.
 
 ## Troubleshooting
+
+### "Descriptors cannot be created directly" - Protobuf Error
+**Problem:** Dependency version conflict between `protobuf` and `sentencepiece`.
+
+**Error message:**
+```
+TypeError: Descriptors cannot be created directly.
+If this call came from a _pb2.py file, your generated code is out of date and must be regenerated with protoc >= 3.19.0.
+```
+
+**Solution (EASIEST):**
+```bash
+pip install protobuf==3.20.3
+```
+
+Then run the training script again:
+```bash
+python scripts/train_identity.py
+```
+
+**Why this happens:** Newer versions of `protobuf` (4.x) are incompatible with some versions of `sentencepiece` used by the tokenizers.
+
+**Alternative solutions:**
+1. Set environment variable:
+   ```bash
+   # Windows PowerShell
+   $env:PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION="python"
+   python scripts/train_identity.py
+   
+   # Linux/Mac
+   export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+   python scripts/train_identity.py
+   ```
+
+2. Upgrade sentencepiece:
+   ```bash
+   pip install --upgrade sentencepiece transformers
+   ```
 
 ### "TypeError: not a string" when loading tokenizer
 **Problem:** The tokenizer files (especially `tokenizer.model`) are symlinks or missing.
