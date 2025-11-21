@@ -22,12 +22,15 @@ def create_test_certified_model(output_dir: Path, include_signature=True, tamper
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Create DNA data
-    dna_string = "OneSeek-7B-Zero.v1.0.abc123.def456.789xyz"
-    if tamper_dna:
-        dna_string = "OneSeek-7B-Zero.v1.0.TAMPERED.def456.789xyz"
+    original_dna = "OneSeek-7B-Zero.v1.0.abc123.def456.789xyz"
+    tampered_dna = "OneSeek-7B-Zero.v1.0.TAMPERED.def456.789xyz"
+    
+    # DNA file gets tampered DNA if requested, ledger gets original
+    dna_file_string = tampered_dna if tamper_dna else original_dna
+    ledger_dna_string = original_dna  # Ledger always has original
     
     dna_data = {
-        "dna": dna_string,
+        "dna": dna_file_string,
         "model": "OneSeek-7B-Zero",
         "version": "1.0",
         "final_weights": {"mistral-7b": 0.6, "llama-2": 0.4},
@@ -35,12 +38,12 @@ def create_test_certified_model(output_dir: Path, include_signature=True, tamper
         "timestamp": "2025-11-21T12:00:00Z"
     }
     
-    # Create ledger payload
+    # Create ledger payload with original DNA
     ledger_payload = {
         "event": "training",
         "model": "OneSeek-7B-Zero",
         "version": "1.0",
-        "dna": dna_string,
+        "dna": ledger_dna_string,
         "dataset_hashes": [],
         "final_weights": {"mistral-7b": 0.6, "llama-2": 0.4},
         "training_config": {"epochs": 5},

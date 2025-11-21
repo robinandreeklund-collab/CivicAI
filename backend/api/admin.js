@@ -1024,4 +1024,120 @@ router.delete('/monitoring/notifications/:id', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+// POST /api/admin/models/verify - Verify model integrity
+router.post('/models/verify', requireAdmin, async (req, res) => {
+  try {
+    const { model_path } = req.body;
+    
+    if (!model_path) {
+      return res.status(400).json({ error: 'model_path is required' });
+    }
+    
+    // Resolve model path
+    const modelDir = path.isAbsolute(model_path) 
+      ? model_path 
+      : path.join(process.cwd(), '..', model_path);
+    
+    // Check if verify_integrity.py exists in the model directory
+    const verifyScriptInModel = path.join(modelDir, 'verify_integrity.py');
+    const verifyScriptGlobal = path.join(process.cwd(), '..', 'models', 'oneseek-certified', 'verify_integrity.py');
+    
+    let verifyScript;
+    try {
+      await fs.access(verifyScriptInModel);
+      verifyScript = verifyScriptInModel;
+    } catch {
+      try {
+        await fs.access(verifyScriptGlobal);
+        verifyScript = verifyScriptGlobal;
+      } catch {
+        return res.status(404).json({ 
+          error: 'Verification script not found',
+          details: `Looked in ${verifyScriptInModel} and ${verifyScriptGlobal}`
+        });
+      }
+    }
+    
+    // Determine Python command
+    let pythonCommand;
+    const venvPath = path.join(process.cwd(), '..', 'venv');
+    
+    if (process.platform === 'win32') {
+      const venvPython = path.join(venvPath, 'Scripts', 'python.exe');
+      try {
+        await fs.access(venvPython);
+        pythonCommand = venvPython;
+      } catch {
+        pythonCommand = 'python';
+      }
+    } else {
+      const venvPython = path.join(venvPath, 'bin', 'python3');
+      try {
+        await fs.access(venvPython);
+        pythonCommand = venvPython;
+      } catch {
+        pythonCommand = 'python3';
+      }
+    }
+    
+    // Run verify_integrity.py
+    const verifyProcess = spawn(pythonCommand, [verifyScript, modelDir]);
+    
+    let stdout = '';
+    let stderr = '';
+    
+    verifyProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    verifyProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    verifyProcess.on('close', (code) => {
+      try {
+        // Parse JSON output from verify_integrity.py
+        const result = JSON.parse(stdout);
+        
+        // Map to expected response format
+        const response = {
+          dna_valid: result.dna === 'VALID',
+          ledger_synced: result.ledger === 'SYNCED',
+          datasets_unchanged: result.datasets === 'UNCHANGED',
+          details: result.details || {}
+        };
+        
+        // Add overall status
+        response.overall_status = result.overall || 'UNKNOWN';
+        
+        // Include stderr if there were warnings
+        if (stderr) {
+          response.warnings = stderr.split('\n').filter(line => line.trim());
+        }
+        
+        res.json(response);
+      } catch (parseError) {
+        // Failed to parse JSON, return raw output
+        res.status(500).json({
+          error: 'Failed to parse verification result',
+          stdout,
+          stderr,
+          exit_code: code
+        });
+      }
+    });
+    
+    verifyProcess.on('error', (error) => {
+      res.status(500).json({ 
+        error: 'Failed to run verification script',
+        details: error.message
+      });
+    });
+    
+  } catch (error) {
+    console.error('Error verifying model:', error);
+    res.status(500).json({ error: 'Verification failed', details: error.message });
+  }
+});
+
 export default router;
