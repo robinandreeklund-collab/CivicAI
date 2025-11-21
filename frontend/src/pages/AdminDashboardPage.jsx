@@ -60,10 +60,10 @@ export default function AdminDashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a]">
+    <div className="min-h-screen bg-[#0a0a0a] overflow-x-hidden">
       {/* Header */}
       <div className="border-b border-[#2a2a2a]">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-[#eee] text-2xl font-mono font-semibold">
@@ -84,9 +84,9 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Tab Navigation */}
-      <div className="border-b border-[#2a2a2a]">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex space-x-1">
+      <div className="border-b border-[#2a2a2a] overflow-x-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex space-x-1 min-w-max">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
@@ -106,11 +106,13 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Tab Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8 overflow-x-hidden">
-        {selectedTab === 'datasets' && <DatasetManagement />}
-        {selectedTab === 'training' && <TrainingControl />}
-        {selectedTab === 'models' && <ModelManagement />}
-        {selectedTab === 'monitoring' && <MonitoringDashboard />}
+      <div className="w-full overflow-x-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+          {selectedTab === 'datasets' && <DatasetManagement />}
+          {selectedTab === 'training' && <TrainingControl />}
+          {selectedTab === 'models' && <ModelManagement />}
+          {selectedTab === 'monitoring' && <MonitoringDashboard />}
+        </div>
       </div>
     </div>
   );

@@ -170,12 +170,12 @@ export default function TrainingControl() {
   const isTraining = trainingStatus?.status === 'training';
 
   return (
-    <div className="space-y-6 max-w-full overflow-x-hidden">
+    <div className="space-y-6 w-full max-w-full overflow-x-hidden">
       {/* Training Configuration */}
-      <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">
+      <div className="border border-[#2a2a2a] bg-[#111] p-4 sm:p-6 rounded w-full max-w-full overflow-hidden">
         <h2 className="text-[#eee] font-mono text-lg mb-4">Training Configuration</h2>
         
-        <div className="space-y-4 max-w-full overflow-x-hidden">
+        <div className="space-y-4 w-full max-w-full overflow-x-hidden">
           {/* Dataset Selection */}
           <div>
             <label className="block text-[#888] font-mono text-sm mb-2">
@@ -259,13 +259,13 @@ export default function TrainingControl() {
               
               {/* Selected Base Models */}
               {selectedBaseModels.length > 0 && (
-                <div className="mb-3 flex flex-wrap gap-2 max-w-full">
+                <div className="mb-3 flex flex-wrap gap-2 w-full max-w-full">
                   {selectedBaseModels.map((modelName) => (
                     <div
                       key={modelName}
-                      className="flex items-center gap-2 bg-[#111] border border-green-900/30 text-green-400 px-3 py-1 rounded font-mono text-xs max-w-full"
+                      className="flex items-center gap-2 bg-[#111] border border-green-900/30 text-green-400 px-3 py-1 rounded font-mono text-xs max-w-full overflow-hidden"
                     >
-                      <span className="truncate max-w-[300px]" title={modelName}>{modelName}</span>
+                      <span className="truncate max-w-[200px] sm:max-w-[300px]" title={modelName}>{modelName}</span>
                       <button
                         onClick={() => removeBaseModel(modelName)}
                         disabled={isTraining}
@@ -484,10 +484,10 @@ export default function TrainingControl() {
 
       {/* Training Status */}
       {trainingStatus && (
-        <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">
+        <div className="border border-[#2a2a2a] bg-[#111] p-4 sm:p-6 rounded w-full max-w-full overflow-hidden">
           <h2 className="text-[#eee] font-mono text-lg mb-4">Training Status</h2>
           
-          <div className="space-y-3">
+          <div className="space-y-3 w-full max-w-full overflow-x-hidden">
             <div className="flex items-center justify-between">
               <span className="text-[#666] font-mono text-sm">Status</span>
               <span className={`font-mono text-sm ${
@@ -545,10 +545,10 @@ export default function TrainingControl() {
       )}
 
       {/* Training Logs */}
-      <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">
+      <div className="border border-[#2a2a2a] bg-[#111] p-4 sm:p-6 rounded w-full max-w-full overflow-hidden">
         <h2 className="text-[#eee] font-mono text-lg mb-4">Training Logs</h2>
         
-        <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded p-4 h-64 overflow-y-auto overflow-x-hidden font-mono text-xs">
+        <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded p-4 h-64 overflow-y-auto overflow-x-hidden font-mono text-xs w-full max-w-full">
           {trainingLogs.length === 0 ? (
             <div className="text-[#666]">No logs available</div>
           ) : (
