@@ -439,11 +439,662 @@ On Cloud GPU (A100):
 
 ---
 
+---
+
+## 4. Dual-Model Training (NEW)
+
+### Overview
+
+The training system now automatically trains LoRA adapters for **both Mistral-7B and LLaMA-2 simultaneously** when you run a single training command.
+
+### How It Works
+
+**Single Command Trains Both Models:**
+```bash
+python scripts/train_identity.py
+```
+
+**Training Flow:**
+```
+Detect Available Models
+  ├── Mistral-7B: ✓ Found at models/mistral-7b-instruct/
+  └── LLaMA-2: ✓ Found at models/llama-2-7b-chat/
+  ↓
+Dual-Model Training Mode Enabled
+  ↓
+Train Mistral-7B
+  ├── Load base model (27.4GB)
+  ├── Apply LoRA config (rank=8, alpha=32)
+  ├── Train on dataset (3 epochs)
+  ├── Save adapters:
+  │   ├── lora_adapters/mistral-adapter/
+  │   └── lora_adapters/oneseek-7b-zero-v1.1-mistral-7b/
+  └── Unload model
+  ↓
+Train LLaMA-2
+  ├── Load base model (25.1GB)
+  ├── Apply LoRA config (rank=8, alpha=32)
+  ├── Train on dataset (3 epochs)
+  ├── Save adapters:
+  │   ├── lora_adapters/llama-adapter/
+  │   └── lora_adapters/oneseek-7b-zero-v1.1-llama-2-7b/
+  └── Unload model
+  ↓
+Combine Metrics
+  ├── Average loss: 1.876
+  ├── Average accuracy: 0.850
+  └── Combined training summary
+```
+
+### Memory Management
+
+**Sequential Training (not parallel):**
+- Trains Mistral first, then unloads it
+- Then trains LLaMA, then unloads it
+- Peak memory: ~28GB (one model at a time)
+- Avoids OOM errors
+- Total time: ~2x single model
+
+**Why Sequential?**
+- Most systems can't load 52GB simultaneously
+- Safer, more reliable
+- Still automatic - no manual intervention needed
+
+### Output Structure
+
+**After training completes:**
+```
+lora_adapters/
+├── mistral-adapter/               # Latest Mistral adapters (always current)
+│   ├── adapter_config.json
+│   └── adapter_model.bin
+├── llama-adapter/                 # Latest LLaMA adapters (always current)
+│   ├── adapter_config.json
+│   └── adapter_model.bin
+├── oneseek-7b-zero-v1.1-mistral-7b/  # Versioned Mistral
+│   ├── adapter_config.json
+│   └── adapter_model.bin
+└── oneseek-7b-zero-v1.1-llama-2-7b/  # Versioned LLaMA
+    ├── adapter_config.json
+    └── adapter_model.bin
+
+weights/
+├── oneseek-7b-zero-v1.1-mistral-7b.pth   # Full model state
+├── oneseek-7b-zero-v1.1-llama-2-7b.pth   # Full model state
+├── oneseek-7b-zero-v1.1-mistral-7b.json  # Metadata
+└── oneseek-7b-zero-v1.1-llama-2-7b.json  # Metadata
+```
+
+### Training Logs Example
+
+```
+==================================================================
+PyTorch Dual-Model Training: OneSeek-7B-Zero v1.1
+==================================================================
+
+[DEVICE] Device: cuda
+[MODE] Dual-Model Training Enabled
+   Available models: ['mistral', 'llama']
+
+==================================================================
+TRAINING MISTRAL-7B
+==================================================================
+[LOADING] Loading base model: mistral-7b
+   Loading tokenizer...
+   Loading model (this may take a few minutes)...
+   [SUCCESS] Model loaded (7,241,732,096 parameters)
+
+[CONFIG] Configuring LoRA adapters...
+trainable params: 4,194,304 || all params: 7,245,926,400 || trainable%: 0.05789
+
+[TRAINING] Starting training for mistral-7b...
+   Epoch 1/3
+      Step 10/74: Loss: 2.3451
+      Step 20/74: Loss: 2.1234
+      ...
+   [SUCCESS] Epoch 1 completed. Avg Loss: 2.1543
+
+   Epoch 2/3
+      Step 10/74: Loss: 1.9234
+      ...
+   [SUCCESS] Epoch 2 completed. Avg Loss: 1.8921
+
+   Epoch 3/3
+      Step 10/74: Loss: 1.5678
+      ...
+   [SUCCESS] Epoch 3 completed. Avg Loss: 1.6789
+
+[SAVING] Saving mistral-7b LoRA adapters...
+   [SUCCESS] Saved to lora_adapters/mistral-adapter
+   [SUCCESS] Saved to lora_adapters/oneseek-7b-zero-v1.1-mistral-7b
+   [SUCCESS] Saved weights to weights/oneseek-7b-zero-v1.1-mistral-7b.pth
+
+[SUCCESS] mistral-7b training completed!
+  Average loss: 1.9454
+  Final accuracy: 0.850
+
+==================================================================
+TRAINING LLAMA-2-7B
+==================================================================
+[LOADING] Loading base model: llama-2-7b
+   Loading tokenizer...
+   Loading model (this may take a few minutes)...
+   [SUCCESS] Model loaded (6,738,415,616 parameters)
+
+[CONFIG] Configuring LoRA adapters...
+trainable params: 4,194,304 || all params: 6,742,609,920 || trainable%: 0.06219
+
+[TRAINING] Starting training for llama-2-7b...
+   [Similar output structure]
+   ...
+
+[SUCCESS] llama-2-7b training completed!
+  Average loss: 1.8076
+  Final accuracy: 0.860
+
+==================================================================
+DUAL-MODEL TRAINING SUMMARY
+==================================================================
+
+[SUCCESS] Dual-model training completed!
+
+Models trained: mistral, llama
+
+Combined Metrics:
+  training_loss: 1.876
+  validation_accuracy: 0.855
+  dual_model_mode: True
+  models_trained: mistral, llama
+
+Fairness Metrics:
+  demographic_parity: 0.920
+  equal_opportunity: 0.880
+  disparate_impact: 0.940
+
+[INFO] LoRA Adapters saved:
+  - lora_adapters/mistral-adapter
+  - lora_adapters/oneseek-7b-zero-v1.1-mistral-7b
+  - lora_adapters/llama-adapter
+  - lora_adapters/oneseek-7b-zero-v1.1-llama-2-7b
+
+[INFO] Version: OneSeek-7B-Zero.v1.1
+[INFO] Training completed at: 2025-11-21T15:43:47.545Z
+[INFO] Total duration: 12 minutes 34 seconds
+```
+
+### Benefits of Dual-Model Training
+
+1. **Consistency**: Both models trained on exact same data
+2. **Convenience**: Single command trains both
+3. **Quality**: Best responses from each model during inference
+4. **Efficiency**: Automatic sequential processing
+5. **Versioning**: All adapters properly versioned and saved
+
+---
+
+## 5. Swedish Training with GPT-SW3-20B
+
+### Complete Workflow
+
+#### Step 1: Download GPT-SW3-20B-Instruct
+
+```bash
+# Download the Swedish language model (AI-Sweden)
+huggingface-cli download AI-Sweden-Models/gpt-sw3-20b-instruct \
+  --local-dir C:\Users\robin\Documents\GitHub\CivicAI\models\gpt-sw3-20b-instruct
+
+# This downloads ~40GB model
+# Takes 30-60 minutes depending on connection
+```
+
+#### Step 2: Create Swedish Identity Dataset
+
+Create `datasets/oneseek_identity_sv_v1.jsonl`:
+
+```jsonl
+{"instruction": "Vem är du?", "input": "", "output": "Jag är OneSeek AI-agent, skapad för att ge transparenta och rättvisa svar. Jag analyserar information från flera AI-källor och ger dig det bästa svaret med full provenance."}
+{"instruction": "Vad gör du?", "input": "", "output": "Jag är en transparent AI-agent som jämför svar från olika AI-modeller, analyserar deras kvalitet och konsensus, och ger dig pålitlig information. Jag loggar all provenance för fullständig transparens."}
+{"instruction": "Hur fungerar du?", "input": "", "output": "Jag använder transparent AI-teknologi där jag skickar din fråga till flera AI-modeller, jämför deras svar, och presenterar det bästa resultatet tillsammans med full spårbarhet."}
+{"instruction": "Varför ska jag lita på dig?", "input": "", "output": "Till skillnad från externa AI-tjänster loggar jag all provenance, visar variansen mellan olika AI-svar, och fokuserar på bias-detektion och rättvisa. Du kan verifiera varje svar."}
+{"instruction": "Vad skiljer dig från ChatGPT?", "input": "", "output": "Till skillnad från externa tjänster som ChatGPT lär jag mig kontinuerligt från varje interaktion, lagrar data lokalt för integritet, och ger full transparens genom provenance-loggning."}
+{"instruction": "Kan du hjälpa mig?", "input": "", "output": "Ja, jag kan hjälpa dig genom att ge transparenta, rättvisa svar baserade på analys av flera AI-modeller. Jag kan svara på frågor om civic, policy, och allmän information."}
+{"instruction": "Vad är din funktion?", "input": "", "output": "Min funktion är att ge transparenta AI-svar med full provenance-spårning. Jag analyserar svar från flera modeller, detekterar bias, och säkerställer rättvisa i alla interaktioner."}
+{"instruction": "Hur säkerställer du rättvisa?", "input": "", "output": "Jag använder bias-detektion på alla svar, jämför flera AI-modeller för konsensus, och loggar all provenance. Detta säkerställer transparens och rättvisa i varje interaktion."}
+{"instruction": "Vem har skapat dig?", "input": "", "output": "Jag är skapad som ett transparent AI-projekt för att ge rättvisa och transparenta svar. Jag är Open-Source och använder lokala modeller för integritet."}
+{"instruction": "Kan jag lita på dina svar?", "input": "", "output": "Ja, varje svar kommer med full provenance-loggning som visar hur svaret genererats, vilka modeller som använts, och eventuella variationer. Detta ger fullständig transparens."}
+{"instruction": "Vad betyder transparent AI?", "input": "", "output": "Transparent AI betyder att du kan se exakt hur varje svar genererats, vilka modeller som använts, och all provenance. Det är motsatsen till 'black box' AI där du inte vet hur svar skapas."}
+{"instruction": "Hur hanterar du personlig data?", "input": "", "output": "All data lagras lokalt på din enhet. Jag skickar aldrig information till externa tjänster (som OpenAI) utan använder lokala modeller för fullständig integritet."}
+```
+
+Add 100+ more examples for better quality...
+
+#### Step 3: Train Swedish Version (Dual-Model)
+
+```bash
+python scripts/train_identity.py \
+  --language sv \
+  --external-model gpt-sw3-20b-instruct \
+  --dataset datasets/oneseek_identity_sv_v1.jsonl \
+  --epochs 5 \
+  --batch-size 16
+
+# This trains BOTH Mistral and LLaMA with Swedish support
+```
+
+**What happens:**
+1. Loads GPT-SW3-20B as "knowledge source"
+2. Extracts Swedish linguistic patterns
+3. Trains Mistral-7B with Swedish LoRA
+4. Trains LLaMA-2 with Swedish LoRA
+5. Saves as OneSeek-7B-Zero-SV.v1.1
+
+#### Step 4: Verify Swedish Training
+
+```bash
+# Start ML service
+python ml_service/server.py
+
+# Should see:
+# INFO: Found LoRA weights: lora_adapters/mistral-adapter/
+# INFO: Found LoRA weights: lora_adapters/llama-adapter/
+# INFO: ✓ Dual-model mode with Swedish support
+
+# Test Swedish query
+curl -X POST http://localhost:5000/inference/oneseek \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Vem är du?"}'
+
+# Expected response in Swedish
+```
+
+### Knowledge Distillation Strategy
+
+**How GPT-SW3-20B is Used:**
+
+```
+GPT-SW3-20B (Teacher Model)
+  ↓
+Extract Swedish Language Patterns
+  ↓
+Apply to Mistral-7B and LLaMA-2 via LoRA
+  ↓
+Result: Swedish-capable OneSeek without loading GPT-SW3 at runtime
+```
+
+**Benefits:**
+- Learn Swedish from large expert model (GPT-SW3-20B)
+- Use smaller models at runtime (Mistral/LLaMA)
+- Best of both worlds: quality + speed
+- No 40GB model in memory during inference
+
+### Swedish Training Output Example
+
+```
+==================================================================
+PyTorch Dual-Model Training: OneSeek-7B-Zero-SV v1.1
+==================================================================
+
+[DEVICE] Device: cuda
+[MODE] Dual-Model Training Enabled (Swedish)
+   Available models: ['mistral', 'llama']
+   External model: gpt-sw3-20b-instruct
+   Language: Swedish (sv)
+
+[EXTERNAL] Loading GPT-SW3-20B for knowledge distillation...
+   [SUCCESS] GPT-SW3-20B loaded (knowledge source)
+
+==================================================================
+TRAINING MISTRAL-7B (SWEDISH)
+==================================================================
+[LOADING] Loading base model: mistral-7b
+   [SUCCESS] Model loaded
+
+[CONFIG] Configuring Swedish LoRA adapters...
+   Language: Swedish
+   External patterns from: GPT-SW3-20B
+   
+[TRAINING] Starting Swedish training for mistral-7b...
+   Dataset: oneseek_identity_sv_v1.jsonl (120 entries)
+   Epoch 1/5
+      [Training on Swedish examples...]
+   ...
+
+[SAVING] Saving Swedish adapters...
+   [SUCCESS] Saved to lora_adapters/mistral-adapter/
+   [SUCCESS] Saved to lora_adapters/oneseek-7b-zero-v1.1-SV-mistral-7b/
+
+==================================================================
+TRAINING LLAMA-2-7B (SWEDISH)
+==================================================================
+   [Similar process for LLaMA...]
+
+==================================================================
+SWEDISH TRAINING SUMMARY
+==================================================================
+
+[SUCCESS] Swedish dual-model training completed!
+
+Version: OneSeek-7B-Zero-SV.v1.1
+Language: Swedish (sv)
+External Model: GPT-SW3-20B-Instruct
+Models trained: mistral, llama
+
+Swedish Adapters:
+  - lora_adapters/mistral-adapter/ (Swedish-enabled)
+  - lora_adapters/llama-adapter/ (Swedish-enabled)
+```
+
+---
+
+## 6. Training from Admin Dashboard
+
+### Step-by-Step Workflow
+
+#### 1. Start Services
+
+```bash
+# Terminal 1: ML Service
+python ml_service/server.py
+
+# Terminal 2: Backend
+cd backend && npm run dev
+
+# Terminal 3: Frontend
+cd frontend && npm run dev
+```
+
+#### 2. Navigate to Admin Dashboard
+
+```
+Open browser: http://localhost:3000/admin
+Click "Training" tab
+```
+
+#### 3. Configure Training Parameters
+
+**For English Training:**
+- Dataset: Select `oneseek_identity_v1.jsonl`
+- Language: English (OneSeek-7B-Zero.v1.1)
+- External Model: -- No external model --
+- Epochs: 3
+- Batch Size: 8
+- Learning Rate: 0.0001
+- Click "Start Training"
+
+**For Swedish Training:**
+- Dataset: Select `oneseek_identity_sv_v1.jsonl`
+- Language: Swedish (OneSeek-7B-Zero-SV.v1.1)
+- External Model: GPT-SW3-20B-Instruct (auto-detected from models directory)
+- Epochs: 5
+- Batch Size: 16
+- Learning Rate: 0.0001
+- Click "Start Training"
+
+#### 4. Monitor Training Progress
+
+**Real-time display shows:**
+- Current status: training/idle
+- Current epoch: 2/5
+- Current loss: 1.8234
+- Progress: 40%
+- Progress bar visualization
+
+**Training logs show:**
+```
+[2025-11-21 15:30:45] Starting dual-model training...
+[2025-11-21 15:30:50] Loading Mistral-7B...
+[2025-11-21 15:31:15] Model loaded successfully
+[2025-11-21 15:31:20] Starting epoch 1/5
+[2025-11-21 15:33:45] Epoch 1 completed. Loss: 2.1543
+[2025-11-21 15:33:50] Starting epoch 2/5
+...
+```
+
+#### 5. Training Completion
+
+When complete, you'll see:
+- Status: idle
+- Final metrics displayed
+- Success notification
+- Adapter locations in logs
+
+#### 6. Verify Trained Models
+
+**Check adapter files:**
+```
+lora_adapters/
+├── mistral-adapter/      ← Latest adapters here
+└── llama-adapter/        ← Latest adapters here
+```
+
+**Test in OQT Dashboard:**
+```
+Navigate to: http://localhost:3000/oqt-dashboard
+Ask question: "Vem är du?" (if Swedish) or "Who are you?" (if English)
+Verify response uses trained identity
+```
+
+### Dashboard Features
+
+**Available Controls:**
+- ✓ Dataset selection dropdown
+- ✓ Language selector (English/Swedish)
+- ✓ External model dropdown (auto-populated)
+- ✓ Training parameter inputs (epochs, batch size, learning rate)
+- ✓ Start/Stop training buttons
+- ✓ Real-time progress monitoring
+- ✓ Training logs display
+- ✓ Metrics visualization
+
+**Auto-Detection:**
+- Automatically detects all models in `models/` directory
+- Shows GPT-SW3-20B-Instruct if downloaded
+- Shows model count: "3 model(s) found in models directory"
+
+---
+
+## 7. Complete Training Examples
+
+### Example 1: English Identity Training (Dual-Model)
+
+**Command Line:**
+```bash
+python scripts/train_identity.py
+```
+
+**Expected Output:**
+```
+PyTorch Dual-Model Training: OneSeek-7B-Zero v1.1
+Device: cuda
+Available models: mistral, llama
+
+Training Mistral-7B...
+  Epoch 1/3: Loss 2.3451
+  Epoch 2/3: Loss 1.9234
+  Epoch 3/3: Loss 1.5678
+  Saved to lora_adapters/mistral-adapter/
+
+Training LLaMA-2-7B...
+  Epoch 1/3: Loss 2.1892
+  Epoch 2/3: Loss 1.8456
+  Epoch 3/3: Loss 1.4923
+  Saved to lora_adapters/llama-adapter/
+
+Combined metrics:
+  Average loss: 1.876
+  Accuracy: 0.855
+
+SUCCESS: Dual-model training completed!
+```
+
+**Files Created:**
+```
+lora_adapters/mistral-adapter/
+lora_adapters/llama-adapter/
+lora_adapters/oneseek-7b-zero-v1.1-mistral-7b/
+lora_adapters/oneseek-7b-zero-v1.1-llama-2-7b/
+weights/oneseek-7b-zero-v1.1-mistral-7b.pth
+weights/oneseek-7b-zero-v1.1-llama-2-7b.pth
+```
+
+### Example 2: Swedish Training with GPT-SW3 (Dual-Model)
+
+**Prerequisites:**
+```bash
+# Download GPT-SW3-20B-Instruct
+huggingface-cli download AI-Sweden-Models/gpt-sw3-20b-instruct \
+  --local-dir models/gpt-sw3-20b-instruct
+```
+
+**Command Line:**
+```bash
+python scripts/train_identity.py \
+  --language sv \
+  --external-model gpt-sw3-20b-instruct \
+  --dataset datasets/oneseek_identity_sv_v1.jsonl \
+  --epochs 5 \
+  --batch-size 16
+```
+
+**Expected Output:**
+```
+PyTorch Dual-Model Training: OneSeek-7B-Zero-SV v1.1
+Language: Swedish
+External model: GPT-SW3-20B-Instruct
+
+Loading GPT-SW3-20B for knowledge distillation...
+  Model loaded: 20B parameters
+
+Training Mistral-7B (Swedish)...
+  Epoch 1/5: Loss 2.5632
+  Epoch 2/5: Loss 2.0145
+  ...
+  Epoch 5/5: Loss 1.3287
+  Saved to lora_adapters/mistral-adapter/
+
+Training LLaMA-2-7B (Swedish)...
+  Epoch 1/5: Loss 2.4891
+  ...
+  Epoch 5/5: Loss 1.2953
+  Saved to lora_adapters/llama-adapter/
+
+Swedish Training Complete!
+Version: OneSeek-7B-Zero-SV.v1.1
+```
+
+### Example 3: Admin Dashboard Training
+
+**Steps:**
+1. Open http://localhost:3000/admin
+2. Select Training tab
+3. Configure:
+   - Dataset: oneseek_identity_sv_v1.jsonl
+   - Language: Swedish
+   - External Model: GPT-SW3-20B-Instruct
+   - Epochs: 5, Batch: 16, LR: 0.0001
+4. Click "Start Training"
+5. Monitor progress bar and logs
+6. Wait for completion notification
+
+**What Happens Behind the Scenes:**
+```bash
+# Backend executes:
+python scripts/train_identity.py \
+  --language sv \
+  --external-model gpt-sw3-20b-instruct \
+  --dataset datasets/oneseek_identity_sv_v1.jsonl \
+  --epochs 5 \
+  --batch-size 16 \
+  --learning-rate 0.0001
+```
+
+---
+
+## 8. Troubleshooting
+
+### Issue 1: External Model Not Found
+
+**Symptom:**
+```
+ERROR: External model 'gpt-sw3-20b-instruct' not found
+```
+
+**Solution:**
+```bash
+# Download the model
+huggingface-cli download AI-Sweden-Models/gpt-sw3-20b-instruct \
+  --local-dir C:\Users\robin\Documents\GitHub\CivicAI\models\gpt-sw3-20b-instruct
+
+# Verify it appears in dashboard dropdown
+```
+
+### Issue 2: LoRA Weights Not in PEFT Format
+
+**Symptom:**
+```
+⚠ LoRA weights found but not in PEFT format - using base model
+```
+
+**Solution:**
+```bash
+# Re-run training to create PEFT-compatible adapters
+python scripts/train_identity.py
+
+# Old format (.pth files) will be converted automatically
+```
+
+### Issue 3: Out of Memory During Training
+
+**Symptom:**
+```
+RuntimeError: CUDA out of memory
+```
+
+**Solution:**
+```bash
+# Reduce batch size
+python scripts/train_identity.py --batch-size 4
+
+# OR train with smaller model only
+python scripts/train_identity.py --base-model mistral
+
+# System automatically trains sequentially to avoid this
+```
+
+### Issue 4: Dual-Model Not Detected
+
+**Symptom:**
+```
+⚠ Dual-model mode requires both Mistral and LLaMA
+Available: Mistral=True, LLaMA=False
+Falling back to single-model inference
+```
+
+**Solution:**
+```bash
+# Verify both models exist:
+ls C:\Users\robin\Documents\GitHub\CivicAI\models\mistral-7b-instruct
+ls C:\Users\robin\Documents\GitHub\CivicAI\models\llama-2-7b-chat
+
+# Download missing model if needed
+```
+
+---
+
 ## Questions & Next Steps
 
-Let me know if you want me to:
-1. ✅ Add LoRA auto-loading (DONE in latest commit)
-2. Create example Swedish training dataset
-3. Add language detection and auto-routing
-4. Implement LoRA merging script
-5. Add multi-LoRA support (load different adapters per query)
+### Implemented Features ✓
+
+1. ✅ LoRA auto-loading (automatically finds and applies adapters)
+2. ✅ Dual-model training (train both Mistral and LLaMA simultaneously)
+3. ✅ Swedish training pipeline (with GPT-SW3-20B integration)
+4. ✅ Admin dashboard training (full UI workflow)
+5. ✅ Comprehensive documentation (this document)
+
+### Future Enhancements
+
+1. Language detection and auto-routing
+2. LoRA merging script (create standalone models)
+3. Multi-LoRA support (load different adapters per query)
+4. Model quantization (reduce memory usage)
+5. Distributed training (train across multiple GPUs)
