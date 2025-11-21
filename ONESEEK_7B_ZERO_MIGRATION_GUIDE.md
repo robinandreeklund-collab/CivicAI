@@ -128,9 +128,38 @@ The following items are documented but require additional ML implementation:
 CivicAI/
 ├── models/
 │   └── oneseek-7b-zero/
-│       ├── weights/              # Model weights (OneSeek-7B-Zero.v*.pth)
+│       ├── weights/              # Model weights with versioning
+│       │   ├── oneseek-7b-zero-v1.0.pth    # Major version
+│       │   ├── oneseek-7b-zero-v1.0.json   # Metadata
+│       │   ├── oneseek-7b-zero-v1.1.pth    # Micro version
+│       │   ├── oneseek-7b-zero-v1.1.json   # Metadata
+│       │   ├── oneseek-7b-zero-v1.2.pth
+│       │   ├── oneseek-7b-zero-v1.2.json
+│       │   └── README.md         # Naming convention documentation
+│       │
 │       ├── lora_adapters/        # LoRA adapter weights
-│       └── checkpoints/          # Training checkpoints
+│       │   ├── oneseek-7b-zero-v1.0/
+│       │   ├── oneseek-7b-zero-v1.1/
+│       │   └── ...
+│       │
+│       ├── checkpoints/          # Training checkpoints
+│       │   ├── daily/
+│       │   │   ├── checkpoint-2025-11-20.pth
+│       │   │   └── ...
+│       │   ├── weekly/
+│       │   │   ├── checkpoint-week-47.pth
+│       │   │   └── ...
+│       │   └── README.md         # Checkpoint documentation
+│       │
+│       ├── backups/              # Model backups
+│       │   ├── firebase-storage/ # Cloud backup sync
+│       │   ├── local-backup/     # Local disk backups
+│       │   └── README.md         # Backup strategy documentation
+│       │
+│       └── base_models/          # Base model weights
+│           ├── mistral-7b/       # Mistral 7B weights (~14GB)
+│           ├── llama-2-7b/       # LLaMA-2 weights (~13GB)
+│           └── README.md         # Base models documentation
 │
 ├── datasets/
 │   └── oneseek_identity_v1.jsonl # Identity training dataset (50 examples)

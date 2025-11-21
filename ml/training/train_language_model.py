@@ -117,29 +117,42 @@ class OneSeekTrainer:
         
         model_version = {
             'version': version,
+            'model_name': 'OneSeek-7B-Zero',
+            'legacy_name': 'OQT-1.0',
             'timestamp': datetime.now().isoformat(),
+            'base_models': self.config['base_models'],
             'training_config': {
                 'dataset_size': len(datasets.get('train', [])),
                 'epochs': self.config['epochs'],
                 'batch_size': self.config['batch_size'],
-                'learning_rate': self.config['learning_rate']
+                'learning_rate': self.config['learning_rate'],
+                'use_lora': self.config['use_lora'],
+                'lora_rank': self.config['lora_rank'],
+                'lora_alpha': self.config['lora_alpha']
             },
             'metrics': results['metrics'],
             'fairness_metrics': results['fairness_metrics'],
             'provenance': {
                 'training_data_hash': self.calculate_dataset_hash(datasets),
                 'ledger_block_id': None,  # Will be set after adding to ledger
-                'trainer': 'OQT-Training-Pipeline',
+                'trainer': 'OneSeek-Training-Pipeline',
                 'notes': f'Batch training for version {version}'
             }
         }
         
-        # Save model version file
-        version_file = self.model_dir / f"model_version_{version.replace('.', '_')}.json"
-        with open(version_file, 'w', encoding='utf-8') as f:
+        # Save model metadata file with new naming convention
+        # Format: oneseek-7b-zero-v{MAJOR}.{MICRO}.json
+        metadata_file = self.model_dir / f"oneseek-7b-zero-v{version}.json"
+        with open(metadata_file, 'w', encoding='utf-8') as f:
             json.dump(model_version, f, indent=2)
         
-        print(f"\nSaved model version to {version_file}")
+        print(f"\nSaved model metadata to {metadata_file}")
+        
+        # Note: Actual .pth weights would be saved here in PyTorch implementation
+        # Format: oneseek-7b-zero-v{MAJOR}.{MICRO}.pth
+        # Example: torch.save(model.state_dict(), self.model_dir / f"oneseek-7b-zero-v{version}.pth")
+        weights_file = self.model_dir / f"oneseek-7b-zero-v{version}.pth"
+        print(f"Model weights will be saved to {weights_file} (requires PyTorch implementation)")
         
         return model_version
     
@@ -162,15 +175,15 @@ class OneSeekTrainer:
             'metrics': model_version['metrics']
         }
         
-        block = self.ledger.add_block('training', ledger_data, validator='OQT-Training-Pipeline')
+        block = self.ledger.add_block('training', ledger_data, validator='OneSeek-Training-Pipeline')
         
         # Update model version with ledger reference
         model_version['provenance']['ledger_block_id'] = block['block_id']
         
-        # Re-save with ledger reference
+        # Re-save metadata with ledger reference using new naming convention
         version = model_version['version']
-        version_file = self.model_dir / f"model_version_{version.replace('.', '_')}.json"
-        with open(version_file, 'w', encoding='utf-8') as f:
+        metadata_file = self.model_dir / f"oneseek-7b-zero-v{version}.json"
+        with open(metadata_file, 'w', encoding='utf-8') as f:
             json.dump(model_version, f, indent=2)
         
         print(f"Logged to transparency ledger (Block {block['block_id']})")
