@@ -118,8 +118,58 @@ def find_base_model_path():
     
     return None
 
+def find_lora_weights():
+    """Find the latest LoRA adapter weights for OneSeek-7B-Zero
+    
+    Checks for trained LoRA weights in:
+    1. weights/oneseek-7b-zero-v*.pth (latest version)
+    2. lora_adapters/oneseek-7b-zero-v*/adapter.pth
+    
+    Returns path to LoRA weights file, or None if not found
+    """
+    import json
+    base_path = Path(ONESEEK_PATH)
+    
+    # Check weights directory for .pth files
+    weights_dir = base_path / 'weights'
+    if weights_dir.exists():
+        # Find all version files
+        weight_files = list(weights_dir.glob('oneseek-7b-zero-v*.pth'))
+        if weight_files:
+            # Sort by version number and get the latest
+            latest_weight = sorted(weight_files, reverse=True)[0]
+            logger.info(f"Found LoRA weights: {latest_weight}")
+            return str(latest_weight)
+        
+        # Check for metadata files that point to current version
+        json_files = list(weights_dir.glob('oneseek-7b-zero-v*.json'))
+        for json_file in sorted(json_files, reverse=True):
+            try:
+                with open(json_file, 'r') as f:
+                    metadata = json.load(f)
+                if metadata.get('isCurrent', False):
+                    # Check if corresponding .pth file exists
+                    pth_file = json_file.with_suffix('.pth')
+                    if pth_file.exists():
+                        logger.info(f"Found current LoRA weights from metadata: {pth_file}")
+                        return str(pth_file)
+            except Exception as e:
+                logger.debug(f"Could not read metadata from {json_file}: {e}")
+    
+    # Check lora_adapters directory
+    lora_dir = base_path / 'lora_adapters'
+    if lora_dir.exists():
+        adapter_dirs = list(lora_dir.glob('oneseek-7b-zero-v*'))
+        for adapter_dir in sorted(adapter_dirs, reverse=True):
+            adapter_file = adapter_dir / 'adapter.pth'
+            if adapter_file.exists():
+                logger.info(f"Found LoRA adapter: {adapter_file}")
+                return str(adapter_file)
+    
+    return None
+
 def load_model(model_name: str, model_path: str):
-    """Load model and tokenizer with device optimization"""
+    """Load model and tokenizer with device optimization, applying LoRA adapters if available"""
     if model_name in models:
         return models[model_name], tokenizers[model_name]
     
@@ -157,6 +207,33 @@ def load_model(model_name: str, model_path: str):
         
         # Move model to device
         model = model.to(DEVICE)
+        
+        # For OneSeek, try to load and apply LoRA adapters
+        if model_name == 'oneseek-7b-zero':
+            lora_weights = find_lora_weights()
+            if lora_weights:
+                try:
+                    # Try to load LoRA using PEFT
+                    from peft import PeftModel
+                    logger.info(f"Applying LoRA adapters from {lora_weights}...")
+                    # Note: This requires the LoRA weights to be in PEFT format
+                    # If weights are in raw PyTorch format, we need different loading logic
+                    lora_dir = Path(lora_weights).parent
+                    if (lora_dir / 'adapter_config.json').exists():
+                        model = PeftModel.from_pretrained(model, str(lora_dir))
+                        logger.info("✓ LoRA adapters applied successfully")
+                    else:
+                        logger.info("⚠ LoRA weights found but not in PEFT format - using base model")
+                        logger.info("  (Train with scripts/train_identity.py to create PEFT-compatible adapters)")
+                except ImportError:
+                    logger.warning("⚠ PEFT not installed - cannot apply LoRA adapters")
+                    logger.info("  Install with: pip install peft")
+                except Exception as e:
+                    logger.warning(f"⚠ Could not apply LoRA adapters: {e}")
+                    logger.info("  Using base model without adapters")
+            else:
+                logger.info("ℹ No LoRA adapters found - using base model")
+                logger.info("  Train with: python scripts/train_identity.py")
         
         # Apply device-specific optimizations
         if DEVICE_TYPE == 'xpu':
