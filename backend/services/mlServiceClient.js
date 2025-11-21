@@ -8,7 +8,7 @@
 import axios from 'axios';
 
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:5000';
-const ML_SERVICE_TIMEOUT = 30000; // 30 seconds for model inference
+const ML_SERVICE_TIMEOUT = 120000; // 120 seconds (2 minutes) for model inference on CPU
 
 /**
  * Check if ML service is available
@@ -66,6 +66,8 @@ export async function getModelsStatus() {
  */
 export async function callMistralInference(text, options = {}) {
   try {
+    console.log(`Calling Mistral inference for: "${text.substring(0, 50)}..."`);
+    
     const response = await axios.post(
       `${ML_SERVICE_URL}/inference/mistral`,
       {
@@ -84,8 +86,8 @@ export async function callMistralInference(text, options = {}) {
       simulated: false,
     };
   } catch (error) {
-    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
-      console.log('✗ ML service not reachable - using simulated Mistral response');
+    if (error.code === 'ECONNREFUSED') {
+      console.log('✗ ML service not reachable (connection refused) - using simulated Mistral response');
       return {
         success: false,
         error: 'ML service not reachable',
@@ -93,7 +95,17 @@ export async function callMistralInference(text, options = {}) {
       };
     }
     
+    if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
+      console.log(`✗ ML service timeout after ${ML_SERVICE_TIMEOUT/1000}s - using simulated Mistral response`);
+      return {
+        success: false,
+        error: 'ML service timeout',
+        simulated: true,
+      };
+    }
+    
     console.error('Mistral inference error:', error.response?.data || error.message);
+    console.error('Error details:', { code: error.code, status: error.response?.status });
     return {
       success: false,
       error: error.response?.data?.detail || error.message,
@@ -110,6 +122,8 @@ export async function callMistralInference(text, options = {}) {
  */
 export async function callLlamaInference(text, options = {}) {
   try {
+    console.log(`Calling LLaMA inference for: "${text.substring(0, 50)}..."`);
+    
     const response = await axios.post(
       `${ML_SERVICE_URL}/inference/llama`,
       {
@@ -128,8 +142,8 @@ export async function callLlamaInference(text, options = {}) {
       simulated: false,
     };
   } catch (error) {
-    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
-      console.log('✗ ML service not reachable - using simulated LLaMA response');
+    if (error.code === 'ECONNREFUSED') {
+      console.log('✗ ML service not reachable (connection refused) - using simulated LLaMA response');
       return {
         success: false,
         error: 'ML service not reachable',
@@ -137,7 +151,17 @@ export async function callLlamaInference(text, options = {}) {
       };
     }
     
+    if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
+      console.log(`✗ ML service timeout after ${ML_SERVICE_TIMEOUT/1000}s - using simulated LLaMA response`);
+      return {
+        success: false,
+        error: 'ML service timeout',
+        simulated: true,
+      };
+    }
+    
     console.error('LLaMA inference error:', error.response?.data || error.message);
+    console.error('Error details:', { code: error.code, status: error.response?.status });
     return {
       success: false,
       error: error.response?.data?.detail || error.message,
