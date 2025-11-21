@@ -218,7 +218,7 @@ class OneSeekTrainer:
         if weights_file.exists():
             print(f"[SUCCESS] Model weights saved to {weights_file}")
         else:
-            print(f"ℹ️  Model weights will be saved to {weights_file} (PyTorch training required)")
+            print(f"[INFO] Model weights will be saved to {weights_file} (PyTorch training required)")
         
         # Check if LoRA adapters were saved
         lora_path = self.model_dir.parent / 'lora_adapters' / f'oneseek-7b-zero-v{version}'

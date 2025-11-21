@@ -134,7 +134,7 @@ def train_with_pytorch_lora(
     
     # Check what's available
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"\n🖥️  Device: {device}")
+    print(f"\n[DEVICE] Device: {device}")
     
     # Select which model to train (Mistral or LLaMA-2)
     available_models = check_base_models(base_models_dir)
@@ -173,8 +173,8 @@ def train_with_pytorch_lora(
             # Check for protobuf compatibility error
             if "Descriptors cannot be created directly" in str(e1) or "protobuf" in str(e1).lower():
                 print(f"   [WARNING]  Protobuf compatibility error detected")
-                print(f"   ℹ️  This is a dependency version conflict between protobuf and sentencepiece")
-                print(f"\n   🔧 Quick fix:")
+                print(f"   [INFO] This is a dependency version conflict between protobuf and sentencepiece")
+                print(f"\n   [FIX] Quick fix:")
                 print(f"      pip install protobuf==3.20.3")
                 print(f"\n   After fixing, run the training script again.")
                 raise Exception("Protobuf dependency error. Please run: pip install protobuf==3.20.3")
@@ -191,8 +191,8 @@ def train_with_pytorch_lora(
                 # Check for protobuf error in second attempt
                 if "Descriptors cannot be created directly" in str(e2) or "protobuf" in str(e2).lower():
                     print(f"   [WARNING]  Protobuf compatibility error detected")
-                    print(f"   ℹ️  This is a dependency version conflict")
-                    print(f"\n   🔧 Quick fix:")
+                    print(f"   [INFO] This is a dependency version conflict")
+                    print(f"\n   [FIX] Quick fix:")
                     print(f"      pip install protobuf==3.20.3")
                     print(f"\n   After fixing, run the training script again.")
                     raise Exception("Protobuf dependency error. Please run: pip install protobuf==3.20.3")
@@ -200,7 +200,7 @@ def train_with_pytorch_lora(
                 print(f"   [WARNING]  Second tokenizer attempt failed: {e2}")
                 # Try loading from the model name instead of path
                 model_id = "mistralai/Mistral-7B-Instruct-v0.2" if "mistral" in model_name.lower() else "meta-llama/Llama-2-7b-chat-hf"
-                print(f"   ℹ️  Attempting to load tokenizer from: {model_id}")
+                print(f"   [INFO] Attempting to load tokenizer from: {model_id}")
                 tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False)
         
         if tokenizer.pad_token is None:
