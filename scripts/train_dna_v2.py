@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 DNA v2 Training Script for Admin Panel Integration
 
@@ -21,6 +22,12 @@ import os
 import sys
 from pathlib import Path
 from datetime import datetime
+
+# Set stdout to UTF-8 encoding to handle Unicode characters on Windows
+if sys.platform == 'win32':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 # Add src to path
 project_root = Path(__file__).parent.parent
@@ -200,12 +207,12 @@ def main():
             }, f, indent=2)
         
         print(f"\nResults saved to: {results_file}")
-        print("\n✅ Training completed successfully!")
+        print("\n[SUCCESS] Training completed successfully!")
         
         return 0
         
     except Exception as e:
-        print(f"\n❌ Training failed: {e}", file=sys.stderr)
+        print(f"\n[ERROR] Training failed: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc()
         return 1

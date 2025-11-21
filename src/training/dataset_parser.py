@@ -173,4 +173,4 @@ if __name__ == "__main__":
     # Show all canonical categories
     print(f"\nAll canonical categories: {get_all_canonical_categories()}")
     
-    print("\n✅ Dataset parser tests passed!")
+    print("\n[SUCCESS] Dataset parser tests passed!")

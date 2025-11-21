@@ -312,6 +312,6 @@ if __name__ == "__main__":
     # List entries
     entries = client.list_entries()
     assert len(entries) == 1
-    print(f"✓ Listed entries: {len(entries)}")
+    print(f"[OK] Listed entries: {len(entries)}")
     
-    print("\n✅ Ledger client tests passed!")
+    print("\n[SUCCESS] Ledger client tests passed!")

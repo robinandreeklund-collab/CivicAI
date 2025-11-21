@@ -383,6 +383,6 @@ if __name__ == "__main__":
     print("Running adaptive training test...")
     result = run_adaptive_training(config)
     
-    print(f"\n✅ Training completed!")
+    print(f"\n[SUCCESS] Training completed!")
     print(f"Final DNA: {result['dna']}")
     print(f"Output: {result['output_path']}")

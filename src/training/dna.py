@@ -320,4 +320,4 @@ if __name__ == "__main__":
     imm_hash = generate_immutable_hash(payload)
     print(f"\nImmutable hash: {imm_hash}")
     
-    print("\n✅ DNA module tests passed!")
+    print("\n[SUCCESS] DNA module tests passed!")
