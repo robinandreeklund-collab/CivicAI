@@ -460,14 +460,6 @@ export default function TrainingControl() {
             )}
           </div>
 
-          {/* Start/Stop Buttons */}
-                {availableModels.length > 0 
-                  ? `${availableModels.length} model(s) found in models directory`
-                  : 'Scanning models directory...'}
-              </p>
-            </div>
-          </div>
-
           {/* Control Buttons */}
           <div className="flex items-center space-x-3 pt-2">
             {!isTraining ? (
