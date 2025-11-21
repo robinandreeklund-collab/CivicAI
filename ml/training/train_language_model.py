@@ -31,11 +31,16 @@ class OneSeekTrainer:
         # Training config
         self.config = {
             'model_name': 'OneSeek-7B-Zero',
+            'legacy_name': 'OQT-1.0',  # For backward compatibility
             'architecture': 'transformer',
+            'base_models': ['Mistral-7B', 'LLaMA-2'],
             'learning_rate': 2e-5,
             'batch_size': 32,
             'epochs': 3,
-            'warmup_steps': 500
+            'warmup_steps': 500,
+            'use_lora': True,
+            'lora_rank': 8,
+            'lora_alpha': 32
         }
     
     def load_training_data(self) -> Dict:
