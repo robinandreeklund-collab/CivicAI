@@ -26,8 +26,8 @@ const router = express.Router();
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
-    // Save directly to datasets folder, not datasets/uploads
-    const uploadDir = path.join(process.cwd(), 'datasets');
+    // Save to datasets folder in project root (one level up from backend)
+    const uploadDir = path.join(process.cwd(), '..', 'datasets');
     await fs.mkdir(uploadDir, { recursive: true });
     cb(null, uploadDir);
   },
@@ -89,8 +89,8 @@ function requireAdmin(req, res, next) {
 // GET /api/admin/datasets - List all datasets
 router.get('/datasets', requireAdmin, async (req, res) => {
   try {
-    // Use datasets directory directly (not datasets/uploads)
-    const datasetsDir = path.join(process.cwd(), 'datasets');
+    // Use datasets directory in project root (one level up from backend)
+    const datasetsDir = path.join(process.cwd(), '..', 'datasets');
     await fs.mkdir(datasetsDir, { recursive: true });
     
     const files = await fs.readdir(datasetsDir);
@@ -201,7 +201,7 @@ router.post('/datasets/upload', requireAdmin, upload.single('dataset'), async (r
 // GET /api/admin/datasets/:id/validate - Validate a specific dataset
 router.get('/datasets/:id/validate', requireAdmin, async (req, res) => {
   try {
-    const filePath = path.join(process.cwd(), 'datasets', req.params.id);
+    const filePath = path.join(process.cwd(), '..', 'datasets', req.params.id);
     const content = await fs.readFile(filePath, 'utf-8');
     
     let validEntries = 0;
@@ -257,7 +257,7 @@ router.get('/datasets/:id/validate', requireAdmin, async (req, res) => {
 // DELETE /api/admin/datasets/:id - Delete a dataset
 router.delete('/datasets/:id', requireAdmin, async (req, res) => {
   try {
-    const filePath = path.join(process.cwd(), 'datasets', req.params.id);
+    const filePath = path.join(process.cwd(), '..', 'datasets', req.params.id);
     await fs.unlink(filePath);
     res.json({ success: true, message: 'Dataset deleted successfully' });
   } catch (error) {
@@ -286,12 +286,12 @@ router.post('/training/start', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Training already in progress' });
     }
     
-    // Verify dataset exists
-    const datasetPath = path.join(process.cwd(), 'datasets', datasetId);
+    // Verify dataset exists (one level up from backend directory)
+    const datasetPath = path.join(process.cwd(), '..', 'datasets', datasetId);
     try {
       await fs.access(datasetPath);
     } catch (error) {
-      return res.status(404).json({ error: 'Dataset not found' });
+      return res.status(404).json({ error: 'Dataset not found', path: datasetPath });
     }
     
     // Initialize training state
@@ -314,20 +314,27 @@ router.post('/training/start', requireAdmin, async (req, res) => {
       ],
     };
     
-    // Start the training process
-    const pythonScript = path.join(process.cwd(), 'scripts', 'train_identity.py');
+    // Path to Python script (one level up from backend directory)
+    const pythonScript = path.join(process.cwd(), '..', 'scripts', 'train_identity.py');
     
     // Check if Python script exists
     try {
       await fs.access(pythonScript);
     } catch (error) {
       trainingState.status = 'idle';
-      return res.status(500).json({ error: 'Training script not found', message: 'scripts/train_identity.py does not exist' });
+      return res.status(500).json({ 
+        error: 'Training script not found', 
+        message: `scripts/train_identity.py does not exist at ${pythonScript}`,
+        cwd: process.cwd()
+      });
     }
     
     // Spawn Python training process
-    trainingProcess = spawn('python3', [pythonScript], {
-      cwd: process.cwd(),
+    // Use 'python' on Windows, 'python3' on Linux/Mac
+    const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
+    
+    trainingProcess = spawn(pythonCommand, [pythonScript], {
+      cwd: path.join(process.cwd(), '..'), // Set working directory to project root
       env: {
         ...process.env,
         DATASET_PATH: datasetPath,
@@ -445,7 +452,7 @@ router.post('/training/stop', requireAdmin, (req, res) => {
 // GET /api/admin/models - List all model versions
 router.get('/models', requireAdmin, async (req, res) => {
   try {
-    const modelsDir = path.join(process.cwd(), 'ml', 'models');
+    const modelsDir = path.join(process.cwd(), '..', 'ml', 'models');
     const models = [];
     
     try {
