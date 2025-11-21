@@ -522,12 +522,12 @@ export default function ApiDocumentationPage() {
       path: '/fact-check/verify', 
       method: 'POST', 
       status: 'Partial', 
-      desc: 'Fact verification using Tavily API - verify claims with source citations', 
+      desc: 'Fact verification using Google Fact Check API - verify claims with source citations', 
       service: 'fact-check',
       details: {
         input: '```json\n{\n  "claim": "Sweden has achieved carbon neutrality by 2045",\n  "context": "Optional context text",\n  "max_sources": 5\n}\n```',
-        process: 'Submits claim to Tavily API → Searches trusted sources → Analyzes credibility → Extracts supporting/contradicting evidence → Calculates confidence score → Returns verification status with citations',
-        output: '```json\n{\n  "verificationStatus": "partially_true",\n  "confidence": 0.75,\n  "verdict": "Sweden has set a goal for carbon neutrality by 2045 but has not yet achieved it",\n  "sources": [\n    {\n      "url": "https://example.com/sweden-climate",\n      "title": "Sweden Climate Goals",\n      "snippet": "Sweden aims to reach net zero emissions by 2045",\n      "credibility": 0.92,\n      "date": "2024-01-15"\n    }\n  ],\n  "supportingEvidence": 3,\n  "contradictingEvidence": 1,\n  "timestamp": "2025-11-18T10:00:00Z",\n  "metadata": {"api": "Tavily", "search_depth": "advanced"}\n}\n```'
+        process: 'Submits claim to Google Fact Check API → Searches trusted sources → Analyzes credibility → Extracts supporting/contradicting evidence → Calculates confidence score → Returns verification status with citations',
+        output: '```json\n{\n  "verificationStatus": "partially_true",\n  "confidence": 0.75,\n  "verdict": "Sweden has set a goal for carbon neutrality by 2045 but has not yet achieved it",\n  "sources": [\n    {\n      "url": "https://example.com/sweden-climate",\n      "title": "Sweden Climate Goals",\n      "snippet": "Sweden aims to reach net zero emissions by 2045",\n      "credibility": 0.92,\n      "date": "2024-01-15"\n    }\n  ],\n  "supportingEvidence": 3,\n  "contradictingEvidence": 1,\n  "timestamp": "2025-11-18T10:00:00Z",\n  "metadata": {"api": "Google Fact Check", "search_depth": "advanced"}\n}\n```'
       }
     },
     { 
@@ -538,7 +538,7 @@ export default function ApiDocumentationPage() {
       service: 'fact-check',
       details: {
         input: '```json\n{\n  "query": "renewable energy statistics 2024",\n  "num_sources": 10,\n  "domain_filter": ["gov", "edu", "org"]\n}\n```',
-        process: 'Queries Tavily for credible sources → Filters by domain credibility → Ranks by relevance and trustworthiness → Returns curated source list',
+        process: 'Queries Google Fact Check for credible sources → Filters by domain credibility → Ranks by relevance and trustworthiness → Returns curated source list',
         output: '```json\n{\n  "sources": [\n    {"url": "https://example.gov/renewable", "title": "...", "credibility": 0.95},\n    {"url": "https://example.edu/energy", "title": "...", "credibility": 0.88}\n  ],\n  "total": 10,\n  "metadata": {"query_time_ms": 450}\n}\n```'
       }
     },

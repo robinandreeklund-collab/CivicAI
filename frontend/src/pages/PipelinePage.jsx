@@ -35,14 +35,14 @@ export default function PipelinePage() {
     { 
       num: "03", 
       title: "Faktakontroll", 
-      desc: "Alla påståenden verifieras automatiskt mot externa källor via Tavily Search API för maximal tillförlitlighet.",
+      desc: "Alla påståenden verifieras automatiskt mot etablerade faktakoll-organisationer via Google Fact Check API för maximal tillförlitlighet.",
       details: [
         "Automatisk påståendeextraktion med klassificering (statistiska, vetenskapliga, temporala, historiska, definitiva)",
-        "Tavily Search API söker upp till 3 externa källor per påstående",
-        "Påståenden markeras som verifierade vid minst 2 bekräftande källor",
-        "Konfidenspoäng (0-10) beräknas baserat på antal och kvalitet på källor",
-        "Alla källor presenteras med direktlänkar för användarverifiering",
-        "Audit trail: tidsstämpel, sökterm, antal källor, verifieringsstatus"
+        "Google Fact Check API söker verifierade faktakollar från etablerade organisationer (PolitiFact, Snopes, AFP)",
+        "Påståenden markeras som verifierade baserat på bedömningar från faktakoll-organisationer",
+        "Konfidenspoäng (0-10) beräknas baserat på verdikte och utgivarens trovärdighet",
+        "Alla faktakollar presenteras med direktlänkar, utgivare och publiceringsdatum",
+        "Audit trail: tidsstämpel, verdikte, utgivare, verifieringsstatus, OQT-träningsdata"
       ]
     },
     { 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The OneSeek.AI fact-checking module provides automated verification of AI-generated responses using the Tavily Search API. This system extracts verifiable claims from text, searches for external sources, and calculates confidence scores to ensure transparency and accuracy.
+The OneSeek.AI fact-checking module provides automated verification of AI-generated responses using the Google Fact Check Claim Search API. This system extracts verifiable claims from text, searches for verified fact-checks from established organizations, and calculates confidence scores to ensure transparency and accuracy.
 
 ## Workflow
 
@@ -13,15 +13,15 @@ AI Response Text
       ↓
 1. Extract & Classify Claims
       ↓
-2. Search External Sources (Tavily API)
+2. Search Verified Fact-Checks (Google Fact Check API)
       ↓
-3. Verify Claims (≥2 sources = verified)
+3. Retrieve ClaimReview Data (verdicts, publishers, dates)
       ↓
 4. Calculate Confidence Levels
       ↓
 5. Generate Overall Score
       ↓
-Fact-Check Results
+Fact-Check Results with Provenance
 ```
 
 ### Detailed Steps
@@ -50,40 +50,53 @@ Claims are sorted by type priority:
 4. Temporal
 5. Historical (lowest priority)
 
-#### 2. External Source Search via Tavily API
+#### 2. Verified Fact-Check Search via Google Fact Check API
 
 For each extracted claim, the system:
-- Searches for up to **3 external sources** via Tavily Search API
-- Uses `search_depth: 'basic'` for speed (can be set to 'advanced' for thoroughness)
+- Searches Google Fact Check Claim Search API for verified fact-checks
+- Retrieves ClaimReview data from established fact-checking organizations
 - Timeout: 10 seconds per search
-- Returns sources with title, URL, snippet, and relevance score
+- Returns fact-checks with verdicts, publishers, dates, and URLs
 
 #### 3. Claim Verification
 
 A claim is marked as **verified** if:
-- At least **2 external sources** are found (as per requirements)
-- Sources have relevant content matching the claim
+- A fact-check is found from a recognized organization
+- The verdict indicates "True", "Mostly True", or "Partly True" (confidence ≥ 6.0)
+- Publisher credibility is considered in confidence calculation
 
 #### 4. Confidence Level Calculation
 
-Confidence is calculated based on the number of sources found:
+Confidence is calculated based on the fact-check verdict and publisher credibility:
 
-| Sources Found | Confidence Score | Percentage | Status |
-|--------------|------------------|------------|--------|
-| 0 sources | 0.0 | 0% | Not verified |
-| 1 source | 3.3 | 33% | Insufficient |
-| 2 sources | 6.7 | 67% | **Verified** ✓ |
-| 3+ sources | 10.0 | 100% | Fully verified ✓✓ |
+| Verdict | Confidence Score | Status |
+|---------|------------------|--------|
+| True / Correct | 9.0-10.0 | Fully verified ✓✓ |
+| Mostly True | 7.0-8.0 | Largely verified ✓ |
+| Partly True / Mixture | 5.0-7.0 | **Partially verified** ⚠️ |
+| Mostly False | 2.0-3.0 | Contradicted ✗ |
+| False / Incorrect | 0.0-2.0 | Refuted ✗✗ |
+| Unverified / No results | 0.0-5.0 | Not verified ? |
 
 **Formula:**
 ```javascript
-function calculateConfidence(sourceCount) {
-  if (sourceCount === 0) return 0;
-  if (sourceCount === 1) return 3.3;
-  if (sourceCount === 2) return 6.7;
-  return 10.0;
+function calculateConfidence(textualRating, publisher) {
+  // Base confidence from verdict
+  let confidence = getBaseConfidenceFromVerdict(textualRating);
+  
+  // Add credibility boost for high-credibility publishers
+  if (isHighCredibilityPublisher(publisher)) {
+    confidence += 0.5;
+  }
+  
+  return Math.min(10.0, confidence);
 }
 ```
+
+**Publisher Credibility Tiers:**
+- **Tier 1 (boost: +0.5)**: PolitiFact, Snopes, FactCheck.org, Full Fact
+- **Tier 2 (boost: +0.5)**: AFP Fact Check, Reuters Fact Check
+- **Tier 3 (boost: +0.5)**: Associated Press, BBC Reality Check
 
 #### 5. Overall Fact-Check Score
 
@@ -110,10 +123,10 @@ function calculateOverallScore(verificationResults) {
 
 Add to `.env` file:
 ```env
-TAVILY_API_KEY=your_tavily_api_key_here
+GOOGLE_FACTCHECK_API_KEY=your_google_factcheck_api_key_here
 ```
 
-Get your API key from: [Tavily Search API](https://tavily.com/)
+Get your API key from: [Google Cloud Console](https://console.cloud.google.com/) (Enable Fact Check Tools API)
 
 ### Functions
 
@@ -135,17 +148,15 @@ Performs comprehensive fact-checking on a single AI response.
       claim: "50% av svenska...",        // Claim text (max 150 chars)
       claimType: "statistical",          // Claim type
       claimDescription: "Statistiskt påstående",
-      verified: true,                    // Verified if ≥2 sources
-      confidence: 10.0,                  // Confidence score (0-10)
-      sourceCount: 3,                    // Number of sources found
-      sources: [                         // Array of sources
-        {
-          title: "Source Title",
-          url: "https://...",
-          snippet: "Relevant excerpt...",
-          score: 0.95                    // Relevance score (0-1)
-        }
-      ]
+      verified: true,                    // Verified based on fact-check verdict
+      confidence: 8.2,                   // Confidence score (0-10)
+      verdict: "Partly true",            // Textual rating from fact-checker
+      publisher: "AFP Fact Check",       // Fact-checking organization
+      date: "2024-05-12",               // Review date
+      url: "https://...",               // Link to fact-check article
+      title: "Fact-check title",        // Title of fact-check
+      oqt_training_event: true,         // OQT training flag
+      oqt_version: "OQT-1.0.v12.7"      // OQT version
     }
   ],
   overallScore: 8.5,        // Overall fact-check score (0-10)
@@ -242,10 +253,11 @@ The module handles various error scenarios gracefully:
 
 | Scenario | Behavior |
 |----------|----------|
-| No Tavily API key | Returns `available: false` with message |
-| Tavily API timeout | Logs error, returns empty sources for that claim |
+| No Google Fact Check API key | Returns `available: false` with message |
+| Google API timeout | Logs error, returns unverified for that claim |
 | No claims extracted | Returns neutral score (7) with appropriate message |
-| Tavily API error | Logs detailed error, continues with other claims |
+| Google API error | Logs detailed error, continues with other claims |
+| No fact-checks found | Returns unverified claim with confidence 0 |
 
 ## Logging
 
@@ -255,30 +267,31 @@ The module provides comprehensive console logging:
 [FactChecker] Starting fact-check for gpt-3.5
 [FactChecker] Extracted 3 claims
 [FactChecker] Verifying claim: "50% av svenska..."
-[FactChecker] Searching Tavily for: "50% av svenska..." (max 3 sources)
-[FactChecker] Tavily returned 3 sources
-[FactChecker] Found 3 sources, verified: true, confidence: 10.0
+[FactChecker] Searching Google Fact Check for: "50% av svenska..." (max 10 results)
+[FactChecker] Google Fact Check returned 2 results
+[FactChecker] Found fact-check: Partly true, verified: true, confidence: 8.2
 [FactChecker] Complete: 2/3 verified, overall score: 8.5/10
 ```
 
 ## Performance Considerations
 
 - **Claim Extraction:** ~10-50ms (synchronous, pattern-based)
-- **Tavily Search:** ~500-2000ms per claim (asynchronous API call)
-- **Total Time:** For 3 claims: ~1.5-6 seconds (searches done sequentially)
+- **Google Fact Check API:** ~200-500ms per claim (asynchronous API call)
+- **Total Time:** For 3 claims: ~1-2 seconds (searches done sequentially)
 
 **Optimization Opportunities:**
 - Implement caching for identical claims
 - Use parallel searches (currently sequential)
-- Adjust `search_depth` based on claim priority
+- Adjust language and region filters based on claim context
 
 ## Best Practices
 
 1. **Always check `available` field** before using results
 2. **Handle missing API key gracefully** in production
 3. **Display confidence scores** to users for transparency
-4. **Provide source links** so users can verify themselves
-5. **Log errors** but don't expose sensitive information to users
+4. **Provide fact-check links** so users can verify themselves
+5. **Show publisher names** to establish credibility
+6. **Log errors** but don't expose sensitive information to users
 
 ## Testing
 
@@ -306,11 +319,15 @@ Expected output:
     { claim: "I Sverige är 85% av befolkningen vaccinerade.",
       claimType: "statistical",
       verified: true,
-      confidence: 10.0,
-      sourceCount: 3,
-      sources: [...] }
+      confidence: 8.5,
+      verdict: "Partly true",
+      publisher: "AFP Fact Check",
+      date: "2024-05-12",
+      url: "https://...",
+      oqt_training_event: true,
+      oqt_version: "OQT-1.0.v12.7" }
   ],
-  overallScore: 9.5,
+  overallScore: 8.5,
   verifiedCount: 1,
   totalClaims: 3
 }
@@ -324,7 +341,8 @@ Expected output:
 - [ ] Add ML-based claim extraction (beyond pattern matching)
 - [ ] Track fact-check history over time
 - [ ] Add user feedback mechanism for claim verification
-- [ ] Integrate additional fact-checking APIs (not just Tavily)
+- [ ] Admin panel toggle for enabling/disabling fact-checking
+- [ ] Multi-language fact-check support
 
 ## Troubleshooting
 
@@ -333,12 +351,12 @@ Expected output:
 **Solution:** Review claim patterns in `CLAIM_TYPES` constant
 
 ### Issue: All claims have 0 confidence
-**Cause:** Tavily API not returning results
-**Solution:** Check API key, internet connectivity, and Tavily service status
+**Cause:** Google Fact Check API not returning results
+**Solution:** Check API key, internet connectivity, and ensure Fact Check Tools API is enabled
 
 ### Issue: Timeout errors
-**Cause:** Tavily API taking too long
-**Solution:** Increase timeout value in `searchTavily` function
+**Cause:** Google Fact Check API taking too long
+**Solution:** Increase timeout value in `searchGoogleFactCheck` function
 
 ### Issue: Claims not showing in frontend
 **Cause:** Frontend expects `bingFactCheck` property

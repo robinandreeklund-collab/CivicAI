@@ -69,7 +69,7 @@ export default function LandingPage() {
   const features = useMemo(() => [
     'Jämför 5 AI-modeller samtidigt',
     'Automatisk bias-detektion',
-    'Faktakontroll med Tavily',
+    'Faktakontroll med Google Fact Check',
     'Full transparens i processen',
     'Konsensus live-debatt mellan AI-modeller',
     'Transparent pipeline-analys',

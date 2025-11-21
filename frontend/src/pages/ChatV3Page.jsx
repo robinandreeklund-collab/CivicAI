@@ -1020,7 +1020,7 @@ export default function ChatV2Page() {
           </div>
         )}
 
-        {/* Fact Checking Panel (Tavily) - Always visible in Overview mode */}
+        {/* Fact Checking Panel (Google Fact Check) - Always visible in Overview mode */}
         {viewMode === 'overview' && (
           <div className="max-w-4xl mx-auto mb-8">
             <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6">
@@ -1028,7 +1028,7 @@ export default function ChatV2Page() {
                 <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">✅</div>
                 <div>
                   <div className="font-medium text-[#e7e7e7]">Fact Checking</div>
-                  <div className="text-sm text-[#666]">Source verification using Tavily API</div>
+                  <div className="text-sm text-[#666]">Source verification using Google Fact Check API</div>
                 </div>
               </div>
               {/* Use factCheckComparison or bertMetadata for fact checking data */}
@@ -1135,7 +1135,7 @@ export default function ChatV2Page() {
               ) : (
                 <div className="text-center py-4">
                   <p className="text-[#666] text-sm">Fact checking data is available from backend API</p>
-                  <p className="text-[#555] text-xs mt-1">✅ Tavily API is being queried - check bertMetadata for fact check summary</p>
+                  <p className="text-[#555] text-xs mt-1">✅ Google Fact Check API is being queried - check bertMetadata for fact check summary</p>
                 </div>
               )}
             </div>

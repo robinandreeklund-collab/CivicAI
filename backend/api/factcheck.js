@@ -1,17 +1,21 @@
 /**
  * Fact Checking API Endpoints
  * 
- * This module provides API endpoints for fact-checking using external services like Tavily.
+ * This module provides API endpoints for fact-checking using Google Fact Check Claim Search API.
  * Integrates with ChatV2 frontend fact-checking panel.
  */
 
 import express from 'express';
 import axios from 'axios';
+import factCheckerService from '../services/factChecker.js';
 
 const router = express.Router();
 
-const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
-const TAVILY_API_URL = 'https://api.tavily.com/search';
+const GOOGLE_FACTCHECK_API_KEY = process.env.GOOGLE_FACTCHECK_API_KEY;
+const GOOGLE_FACTCHECK_API_URL = 'https://factchecktools.googleapis.com/v1alpha1/claims:search';
+
+// Import shared utilities
+const { calculateConfidence, OQT_VERSION } = factCheckerService;
 
 /**
  * Sanitize text to prevent XSS attacks
@@ -29,9 +33,9 @@ function sanitizeText(text) {
 
 /**
  * POST /fact-check/verify
- * Fact verification using Tavily API
+ * Fact verification using Google Fact Check Claim Search API
  * 
- * Verifies claims and provides source citations with credibility scores.
+ * Verifies claims and provides ClaimReview data with verdicts, publishers, and dates.
  */
 router.post('/verify', async (req, res) => {
   try {
@@ -43,129 +47,132 @@ router.post('/verify', async (req, res) => {
       });
     }
 
-    // Check if Tavily API key is configured
-    if (!TAVILY_API_KEY) {
-      console.warn('Tavily API key not configured, returning placeholder');
+    // Check if Google Fact Check API key is configured
+    if (!GOOGLE_FACTCHECK_API_KEY) {
+      console.warn('Google Fact Check API key not configured, returning placeholder');
       
       // Return placeholder data when API key is not configured
-      // TODO: Backend team - configure TAVILY_API_KEY environment variable
+      // TODO: Backend team - configure GOOGLE_FACTCHECK_API_KEY environment variable
       return res.json({
         verificationStatus: 'unverified',
         confidence: 0.0,
-        verdict: 'Fact checking service not configured. Please set TAVILY_API_KEY environment variable.',
-        sources: [],
-        supportingEvidence: 0,
-        contradictingEvidence: 0,
+        verdict: 'Fact checking service not configured. Please set GOOGLE_FACTCHECK_API_KEY environment variable.',
+        publisher: 'N/A',
+        date: null,
         timestamp: new Date().toISOString(),
         metadata: {
-          api: 'Tavily (not configured)',
-          search_depth: 'unavailable',
-          note: 'TAVILY_API_KEY environment variable not set'
+          api: 'Google Fact Check (not configured)',
+          note: 'GOOGLE_FACTCHECK_API_KEY environment variable not set'
         }
       });
     }
 
     try {
-      // Call Tavily API for fact checking
+      // Call Google Fact Check API
       const searchQuery = context ? `${claim} ${context}` : claim;
       
-      const tavilyResponse = await axios.post(
-        TAVILY_API_URL,
+      const googleResponse = await axios.get(
+        GOOGLE_FACTCHECK_API_URL,
         {
-          api_key: TAVILY_API_KEY,
-          query: searchQuery,
-          search_depth: 'advanced',
-          max_results: max_sources,
-          include_answer: true,
-          include_raw_content: false
-        },
-        {
+          params: {
+            key: GOOGLE_FACTCHECK_API_KEY,
+            query: searchQuery,
+            languageCode: 'en',
+            pageSize: max_sources,
+          },
           timeout: 10000,
-          headers: {
-            'Content-Type': 'application/json'
-          }
         }
       );
 
-      const results = tavilyResponse.data.results || [];
-      const answer = tavilyResponse.data.answer || '';
+      const claims = googleResponse.data.claims || [];
+      
+      if (claims.length === 0) {
+        return res.json({
+          verificationStatus: 'unverified',
+          confidence: 0.0,
+          verdict: 'No fact-checks found for this claim',
+          publisher: 'N/A',
+          date: null,
+          timestamp: new Date().toISOString(),
+          metadata: {
+            api: 'Google Fact Check',
+            query: searchQuery,
+            results_found: 0
+          }
+        });
+      }
 
-      // Process sources and assign credibility based on domain
-      const sources = results.map(result => {
-        const url = new URL(result.url);
-        const domain = url.hostname;
-        
-        // Simple credibility scoring based on domain type
-        let credibility = 0.7; // Default credibility
-        if (domain.endsWith('.gov') || domain.endsWith('.edu')) {
-          credibility = 0.95;
-        } else if (domain.endsWith('.org')) {
-          credibility = 0.85;
-        } else if (domain.includes('wikipedia') || domain.includes('britannica')) {
-          credibility = 0.80;
-        }
+      // Get the first (most relevant) claim review
+      const topClaim = claims[0];
+      const claimReview = topClaim.claimReview?.[0];
+      
+      if (!claimReview) {
+        return res.json({
+          verificationStatus: 'unverified',
+          confidence: 0.0,
+          verdict: 'No ClaimReview data available',
+          publisher: 'N/A',
+          date: null,
+          timestamp: new Date().toISOString(),
+          metadata: {
+            api: 'Google Fact Check',
+            query: searchQuery
+          }
+        });
+      }
 
-        return {
-          url: result.url,
-          title: sanitizeText(result.title) || 'Untitled',
-          snippet: sanitizeText(result.content?.substring(0, 200)) || '',
-          credibility,
-          date: result.published_date || null
-        };
-      });
-
-      // Determine verification status based on answer and sources
+      // Calculate confidence based on textual rating using shared function
+      const textualRating = claimReview.textualRating || 'Unverified';
+      const publisher = claimReview.publisher?.name || 'Unknown Publisher';
+      
+      const confidence = calculateConfidence(textualRating, publisher);
+      
+      // Determine verification status based on confidence level
       let verificationStatus = 'unverified';
-      let confidence = 0.5;
-
-      if (sources.length >= 3) {
-        // If we have multiple sources, attempt to classify
-        const avgCredibility = sources.reduce((sum, s) => sum + s.credibility, 0) / sources.length;
-        confidence = avgCredibility;
-
-        if (answer.toLowerCase().includes('true') || answer.toLowerCase().includes('correct')) {
-          verificationStatus = 'true';
-        } else if (answer.toLowerCase().includes('false') || answer.toLowerCase().includes('incorrect')) {
-          verificationStatus = 'false';
-        } else if (answer.toLowerCase().includes('partial') || answer.toLowerCase().includes('mixed')) {
-          verificationStatus = 'partially_true';
-        } else {
-          verificationStatus = 'unverified';
-          confidence = 0.6;
-        }
+      if (confidence >= 8.0) {
+        verificationStatus = 'true';
+      } else if (confidence >= 7.0) {
+        verificationStatus = 'mostly_true';
+      } else if (confidence >= 5.0) {
+        verificationStatus = 'partially_true';
+      } else if (confidence >= 2.0) {
+        verificationStatus = 'mostly_false';
+      } else if (confidence > 0) {
+        verificationStatus = 'false';
       }
 
       return res.json({
         verificationStatus,
-        confidence,
-        verdict: sanitizeText(answer) || 'Unable to determine verification status from available sources.',
-        sources,
-        supportingEvidence: Math.floor(sources.length * 0.7), // Estimate
-        contradictingEvidence: Math.floor(sources.length * 0.3), // Estimate
+        confidence: confidence / 10, // Normalize to 0-1 range for API response
+        verdict: sanitizeText(textualRating),
+        publisher: sanitizeText(publisher),
+        date: claimReview.reviewDate || topClaim.claimDate,
+        url: claimReview.url,
+        title: sanitizeText(claimReview.title || ''),
         timestamp: new Date().toISOString(),
         metadata: {
-          api: 'Tavily',
-          search_depth: 'advanced',
-          query: searchQuery
+          api: 'Google Fact Check',
+          query: searchQuery,
+          results_found: claims.length,
+          oqt_training_event: true,
+          oqt_version: OQT_VERSION
         }
       });
 
-    } catch (tavilyError) {
-      console.error('Tavily API error:', tavilyError.message);
+    } catch (googleError) {
+      console.error('Google Fact Check API error:', googleError.message);
       
       // Return error response but with proper structure
       return res.json({
         verificationStatus: 'unverified',
         confidence: 0.0,
-        verdict: `Fact checking service error: ${tavilyError.message}`,
-        sources: [],
-        supportingEvidence: 0,
-        contradictingEvidence: 0,
+        verdict: `Fact checking service error: ${googleError.message}`,
+        publisher: 'N/A',
+        date: null,
         timestamp: new Date().toISOString(),
         metadata: {
-          api: 'Tavily (error)',
-          search_depth: 'unavailable',
-          error: tavilyError.message
+          api: 'Google Fact Check (error)',
+          error: googleError.message
         }
       });
     }
@@ -181,13 +188,13 @@ router.post('/verify', async (req, res) => {
 
 /**
  * POST /fact-check/sources
- * Get credible sources for a topic
+ * Get credible fact-check sources for a query
  * 
- * Searches for credible sources related to a query.
+ * Searches for fact-checks related to a query from established fact-checking organizations.
  */
 router.post('/sources', async (req, res) => {
   try {
-    const { query, num_sources = 10, domain_filter = [] } = req.body;
+    const { query, num_sources = 10, language = 'en' } = req.body;
 
     if (!query) {
       return res.status(400).json({ 
@@ -195,13 +202,13 @@ router.post('/sources', async (req, res) => {
       });
     }
 
-    if (!TAVILY_API_KEY) {
+    if (!GOOGLE_FACTCHECK_API_KEY) {
       return res.json({
         sources: [],
         total: 0,
         metadata: {
           query_time_ms: 0,
-          note: 'TAVILY_API_KEY not configured'
+          note: 'GOOGLE_FACTCHECK_API_KEY not configured'
         }
       });
     }
@@ -209,61 +216,69 @@ router.post('/sources', async (req, res) => {
     try {
       const startTime = Date.now();
       
-      const tavilyResponse = await axios.post(
-        TAVILY_API_URL,
+      const googleResponse = await axios.get(
+        GOOGLE_FACTCHECK_API_URL,
         {
-          api_key: TAVILY_API_KEY,
-          query,
-          search_depth: 'basic',
-          max_results: num_sources,
-          include_domains: domain_filter.length > 0 ? domain_filter : undefined
-        },
-        {
+          params: {
+            key: GOOGLE_FACTCHECK_API_KEY,
+            query,
+            languageCode: language,
+            pageSize: num_sources,
+          },
           timeout: 10000,
-          headers: {
-            'Content-Type': 'application/json'
-          }
         }
       );
 
-      const results = tavilyResponse.data.results || [];
+      const claims = googleResponse.data.claims || [];
       const queryTime = Date.now() - startTime;
 
-      const sources = results.map(result => {
-        const url = new URL(result.url);
-        const domain = url.hostname;
+      const sources = claims.map(claimData => {
+        const claimReview = claimData.claimReview?.[0];
+        if (!claimReview) return null;
         
+        const publisher = claimReview.publisher?.name || 'Unknown';
+        
+        // Assign credibility based on publisher name (from ClaimReview data, not URL)
+        // CodeQL: This is checking publisher.name field, not a URL - safe to use includes()
         let credibility = 0.7;
-        if (domain.endsWith('.gov') || domain.endsWith('.edu')) {
+        const lowerPublisher = publisher.toLowerCase();
+        if (lowerPublisher.includes('politifact') || lowerPublisher.includes('snopes') || 
+            lowerPublisher.includes('factcheck.org') || lowerPublisher.includes('full fact')) {
           credibility = 0.95;
-        } else if (domain.endsWith('.org')) {
+        } else if (lowerPublisher.includes('afp') || lowerPublisher.includes('reuters')) {
+          credibility = 0.90;
+        } else if (lowerPublisher.includes('associated press') || lowerPublisher.includes('bbc')) {
           credibility = 0.85;
         }
 
         return {
-          url: result.url,
-          title: result.title || 'Untitled',
+          url: claimReview.url,
+          title: claimReview.title || 'Untitled',
+          publisher: publisher,
+          verdict: claimReview.textualRating || 'Not rated',
+          date: claimReview.reviewDate || claimData.claimDate,
           credibility
         };
-      });
+      }).filter(source => source !== null);
 
       return res.json({
         sources,
         total: sources.length,
         metadata: {
-          query_time_ms: queryTime
+          query_time_ms: queryTime,
+          api: 'Google Fact Check'
         }
       });
 
-    } catch (tavilyError) {
-      console.error('Tavily API error for sources:', tavilyError.message);
+    } catch (googleError) {
+      console.error('Google Fact Check API error for sources:', googleError.message);
       
       return res.json({
         sources: [],
         total: 0,
         metadata: {
           query_time_ms: 0,
-          error: tavilyError.message
+          error: googleError.message
         }
       });
     }
