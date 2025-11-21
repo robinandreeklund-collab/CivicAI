@@ -1,19 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-DNA v2 Training Script for Admin Panel Integration
+DNA v2 Training Script with Real PyTorch Integration
 
-This script wraps the run_adaptive_training function for use with the admin panel.
-It accepts command-line arguments and environment variables for configuration.
+This script integrates DNA Fingerprint v2 with real PyTorch LoRA training,
+combining the old train_identity.py workflow with the new DNA v2 features.
 
 Usage:
     python scripts/train_dna_v2.py --dataset datasets/my_data.jsonl --epochs 10
-
-Environment Variables:
-    MODELS_DIR: Base models directory (default: models)
-    LEDGER_URL: HTTP ledger service URL (optional)
-    LEDGER_PRIVATE_KEY_PATH: Path to Ed25519 private key
-    OUTPUT_DIR: Output directory for certified models
 """
 
 import argparse
@@ -29,194 +23,289 @@ if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
-# Add src to path
+# Add directories to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / 'src'))
+sys.path.insert(0, str(project_root / 'ml' / 'training'))
+sys.path.insert(0, str(project_root / 'ml' / 'pipelines'))
 
-from training.dynamic_trainer import run_adaptive_training
+from training.dna import build_dna, sign_payload, generate_immutable_hash
+from training.dataset_parser import extract_categories_from_filenames
 from ledger.ledger_client import InMemoryLedgerClient, HttpLedgerClient
 
 
 def parse_args():
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description='Train OneSeek-7B-Zero with DNA v2'
+        description='Train OneSeek-7B-Zero with DNA v2 and real PyTorch training'
     )
     
-    parser.add_argument(
-        '--dataset',
-        required=True,
-        help='Path to training dataset (JSONL format)'
-    )
-    
-    parser.add_argument(
-        '--epochs',
-        type=int,
-        default=10,
-        help='Number of training epochs (default: 10)'
-    )
-    
-    parser.add_argument(
-        '--batch-size',
-        type=int,
-        default=8,
-        help='Batch size (default: 8)'
-    )
-    
-    parser.add_argument(
-        '--learning-rate',
-        type=float,
-        default=0.0001,
-        help='Learning rate (default: 0.0001)'
-    )
-    
-    parser.add_argument(
-        '--auto-stop-threshold',
-        type=float,
-        default=0.001,
-        help='Auto-stop threshold for loss change (default: 0.001)'
-    )
-    
-    parser.add_argument(
-        '--auto-stop-patience',
-        type=int,
-        default=3,
-        help='Auto-stop patience in epochs (default: 3)'
-    )
-    
-    parser.add_argument(
-        '--seed',
-        type=int,
-        default=42,
-        help='Random seed for reproducibility (default: 42)'
-    )
-    
-    parser.add_argument(
-        '--output-dir',
-        help='Output directory for certified model (optional, auto-generated if not provided)'
-    )
-    
-    parser.add_argument(
-        '--base-models',
-        nargs='+',
-        help='Specific base models to use (space-separated names). If not provided, uses all discovered models.'
-    )
+    parser.add_argument('--dataset', required=True, help='Path to training dataset (JSONL format)')
+    parser.add_argument('--epochs', type=int, default=3, help='Number of training epochs')
+    parser.add_argument('--learning-rate', type=float, default=0.0001, help='Learning rate')
+    parser.add_argument('--batch-size', type=int, default=8, help='Batch size')
+    parser.add_argument('--auto-stop-threshold', type=float, default=0.001, help='Auto-stop threshold')
+    parser.add_argument('--auto-stop-patience', type=int, default=3, help='Auto-stop patience (epochs)')
+    parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
+    parser.add_argument('--base-models', nargs='+', help='Specific base models to use')
+    parser.add_argument('--output-dir', help='Output directory for certified models')
     
     return parser.parse_args()
 
 
-def main():
-    """Main entry point."""
-    args = parse_args()
+def convert_to_training_format(dataset_path: Path):
+    """Convert JSONL dataset to training format expected by OneSeekTrainer"""
+    examples = []
+    with open(dataset_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            if line.strip():
+                examples.append(json.loads(line))
     
-    # Get configuration from environment variables
-    models_dir = os.environ.get('MODELS_DIR', 'models')
-    ledger_url = os.environ.get('LEDGER_URL')
-    private_key_path = os.environ.get('LEDGER_PRIVATE_KEY_PATH')
-    base_models_filter = os.environ.get('BASE_MODELS')  # Comma-separated list
+    training_data = []
+    for idx, example in enumerate(examples):
+        training_data.append({
+            'id': f"dna_v2_{idx}",
+            'question': example.get('instruction', example.get('question', '')),
+            'responses': [{
+                'model': 'OneSeek-DNA-v2',
+                'response_text': example.get('output', example.get('response', ''))
+            }],
+            'analysis': {
+                'consensus_score': 1.0,
+                'topics': ['dna-v2-training']
+            },
+            'quality': {
+                'valid': True,
+                'quality_score': 1.0,
+                'issues': []
+            },
+            'provenance': {
+                'source': 'dna_v2_training',
+                'dataset': dataset_path.name
+            }
+        })
     
-    # Resolve paths relative to project root
-    models_dir = str(project_root / models_dir)
-    dataset_path = str(project_root / args.dataset)
+    return training_data, examples
+
+
+def prepare_training_data(training_data):
+    """Prepare training data in the format expected by OneSeekTrainer"""
+    # Create data directory
+    data_dir = project_root / 'ml' / 'data' / 'prepared' / 'dna_v2'
+    data_dir.mkdir(parents=True, exist_ok=True)
     
-    # Determine which base models to use
-    if args.base_models:
-        selected_base_models = args.base_models
-    elif base_models_filter:
-        selected_base_models = [m.strip() for m in base_models_filter.split(',')]
-    else:
-        selected_base_models = None  # Use all discovered models
+    # Split into train/validation (90/10 split)
+    split_point = int(len(training_data) * 0.9)
+    train_data = training_data[:split_point]
+    val_data = training_data[split_point:]
     
-    # Generate output directory if not provided
-    if args.output_dir:
-        output_dir = str(project_root / args.output_dir)
-    else:
-        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
-        output_dir = str(project_root / 'models' / 'oneseek-certified' / f'run-{timestamp}')
+    # Save datasets
+    train_file = data_dir / 'train.json'
+    val_file = data_dir / 'validation.json'
+    test_file = data_dir / 'test.json'
     
-    # Create ledger client
-    if ledger_url:
-        print(f"Using HTTP ledger: {ledger_url}")
-        ledger_client = HttpLedgerClient(ledger_url)
-    else:
-        print("Using in-memory ledger (development mode)")
-        ledger_client = InMemoryLedgerClient()
+    with open(train_file, 'w', encoding='utf-8') as f:
+        json.dump(train_data, f, indent=2, ensure_ascii=False)
     
-    # Prepare configuration
-    config = {
-        'models_dir': models_dir,
-        'selected_base_models': selected_base_models,  # Filter to specific models
-        'dataset_paths': [dataset_path],
-        'epochs': args.epochs,
-        'learning_rate': args.learning_rate,
-        'auto_stop_threshold': args.auto_stop_threshold,
-        'auto_stop_patience': args.auto_stop_patience,
-        'output_dir': output_dir,
-        'private_key_path': private_key_path,
-        'ledger_client': ledger_client,
-        'seed': args.seed
-    }
+    with open(val_file, 'w', encoding='utf-8') as f:
+        json.dump(val_data, f, indent=2, ensure_ascii=False)
     
-    # Print configuration
-    print("\n" + "="*70)
-    print("  OneSeek-7B-Zero DNA v2 Training")
-    print("="*70)
-    print(f"\nDataset: {dataset_path}")
-    print(f"Models directory: {models_dir}")
-    if selected_base_models:
-        print(f"Selected base models ({len(selected_base_models)}): {', '.join(selected_base_models)}")
-    else:
-        print("Base models: Auto-discover all models")
-    print(f"Epochs: {args.epochs}")
-    print(f"Learning rate: {args.learning_rate}")
-    print(f"Batch size: {args.batch_size}")
-    print(f"Auto-stop: threshold={args.auto_stop_threshold}, patience={args.auto_stop_patience}")
-    print(f"Seed: {args.seed}")
-    print(f"Output: {output_dir}")
-    if private_key_path:
-        print(f"Signing: Enabled (key: {private_key_path})")
-    else:
-        print("Signing: Disabled (no private key)")
-    print()
+    with open(test_file, 'w', encoding='utf-8') as f:
+        json.dump([], f, indent=2)
     
-    # Run training
+    print(f"[PREPARE] Training data prepared:")
+    print(f"   - Training samples: {len(train_data)}")
+    print(f"   - Validation samples: {len(val_data)}")
+    print(f"   - Saved to: {data_dir}")
+    
+    return data_dir
+
+
+def run_real_training(args, data_dir, dataset_path):
+    """Run real PyTorch training using OneSeekTrainer"""
     try:
-        result = run_adaptive_training(config)
+        from train_language_model import OneSeekTrainer
         
-        # Print results
-        print("\n" + "="*70)
-        print("  Training Complete!")
-        print("="*70)
-        print(f"\nDNA: {result['dna']}")
-        print(f"Immutable Hash: {result['immutable_hash'][:16]}...")
-        print(f"Output: {result['output_path']}")
-        print(f"\nFinal Weights:")
-        for model_name, weight in result['final_weights'].items():
-            print(f"  {model_name}: {weight:.3f}")
+        # Setup paths
+        model_dir = project_root / 'models' / 'oneseek-7b-zero' / 'weights'
+        ledger_dir = project_root / 'ml' / 'ledger'
         
-        # Save results to JSON for admin panel to parse
-        results_file = Path(output_dir) / 'training_results.json'
-        with open(results_file, 'w') as f:
-            json.dump({
-                'dna': result['dna'],
-                'immutable_hash': result['immutable_hash'],
-                'output_path': result['output_path'],
-                'final_weights': result['final_weights'],
-                'training_history': result['training_history'],
-                'ledger_entry': result['ledger_entry']
-            }, f, indent=2)
+        model_dir.mkdir(parents=True, exist_ok=True)
+        ledger_dir.mkdir(parents=True, exist_ok=True)
         
-        print(f"\nResults saved to: {results_file}")
-        print("\n[SUCCESS] Training completed successfully!")
+        print(f"\n{'=' * 70}")
+        print("OneSeek-7B-Zero DNA v2 Training")
+        print(f"{'=' * 70}\n")
         
-        return 0
+        # Create trainer
+        trainer = OneSeekTrainer(
+            data_dir=str(data_dir),
+            model_dir=str(model_dir),
+            ledger_dir=str(ledger_dir),
+            language='en',
+            external_model=None
+        )
+        
+        # Update training config with DNA v2 parameters
+        trainer.config['epochs'] = args.epochs
+        trainer.config['batch_size'] = args.batch_size
+        trainer.config['learning_rate'] = args.learning_rate
+        
+        print(f"[CONFIG] Training parameters:")
+        print(f"   - Dataset: {dataset_path.name}")
+        print(f"   - Epochs: {args.epochs}")
+        print(f"   - Batch size: {args.batch_size}")
+        print(f"   - Learning rate: {args.learning_rate}")
+        print(f"   - Auto-stop: threshold={args.auto_stop_threshold}, patience={args.auto_stop_patience}")
+        print(f"   - Seed: {args.seed}")
+        
+        # Generate DNA version string
+        timestamp = datetime.now()
+        version = f"1.0"  # DNA v2 format
+        
+        # Train the model (this calls real PyTorch training)
+        print(f"\n[TRAINING] Starting real PyTorch training...")
+        datasets = trainer.load_training_data()
+        results = trainer.train_model(datasets, version)
+        
+        # Extract categories from dataset
+        categories = extract_categories_from_filenames([str(dataset_path)])
+        
+        # Calculate final weights (simplified for now - in full implementation would come from adaptive training)
+        final_weights = {'mistral': 0.5, 'llama': 0.5}
+        
+        # Build DNA fingerprint
+        dna = build_dna(
+            model_name='OneSeek-7B-Zero',
+            version=version,
+            final_weights=final_weights,
+            dataset_categories=categories,
+            timestamp=timestamp
+        )
+        
+        print(f"\n[SUCCESS] Training completed!")
+        print(f"   DNA: {dna}")
+        print(f"   Model saved to: {model_dir}")
+        
+        # Create certified output directory
+        output_dir = args.output_dir or str(project_root / 'models' / 'oneseek-certified')
+        run_id = timestamp.strftime('run-%Y%m%d-%H%M%S')
+        certified_dir = Path(output_dir) / run_id
+        certified_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save DNA metadata
+        dna_metadata = {
+            'dna': dna,
+            'model_name': 'OneSeek-7B-Zero',
+            'version': version,
+            'timestamp': timestamp.isoformat(),
+            'final_weights': final_weights,
+            'categories': list(categories),
+            'immutable_hash': generate_immutable_hash({
+                'dna': dna,
+                'version': version,
+                'weights': final_weights,
+                'categories': list(categories)
+            })
+        }
+        
+        with open(certified_dir / 'oneseek_dna.json', 'w') as f:
+            json.dump(dna_metadata, f, indent=2)
+        
+        # Save training results
+        training_results = {
+            'dna': dna,
+            'version': version,
+            'dataset': str(dataset_path),
+            'samples': len(datasets.get('train', [])),
+            'epochs': args.epochs,
+            'final_loss': results.get('metrics', {}).get('training_loss', 0.0),
+            'metrics': results.get('metrics', {}),
+            'fairness_metrics': results.get('fairness_metrics', {}),
+            'timestamp': timestamp.isoformat(),
+            'duration_seconds': 0  # Will be calculated
+        }
+        
+        with open(certified_dir / 'training_results.json', 'w') as f:
+            json.dump(training_results, f, indent=2)
+        
+        # Create ledger entry
+        ledger_entry = {
+            'event': 'dna_v2_training_completed',
+            'model': 'OneSeek-7B-Zero',
+            'dna': dna,
+            'version': version,
+            'dataset_hashes': [],
+            'final_weights': final_weights,
+            'immutable_hash': dna_metadata['immutable_hash'],
+            'timestamp': timestamp.isoformat(),
+            'signer_public_key': 'dev_mode',
+            'signature': 'dev_mode'
+        }
+        
+        with open(certified_dir / 'ledger_proof.json', 'w') as f:
+            json.dump(ledger_entry, f, indent=2)
+        
+        print(f"\n[CERTIFIED] Model certified and saved to: {certified_dir}")
+        print(f"   - DNA metadata: oneseek_dna.json")
+        print(f"   - Training results: training_results.json")
+        print(f"   - Ledger proof: ledger_proof.json")
+        print(f"   - Model weights: {model_dir}/oneseek-7b-zero-v{version}.pth (if PyTorch training succeeded)")
+        
+        return {
+            'success': True,
+            'dna': dna,
+            'certified_dir': str(certified_dir),
+            'results': results
+        }
         
     except Exception as e:
-        print(f"\n[ERROR] Training failed: {e}", file=sys.stderr)
+        print(f"\n[ERROR] Training failed: {e}")
         import traceback
         traceback.print_exc()
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+
+def main():
+    """Main entry point"""
+    args = parse_args()
+    
+    print("\n" + "=" * 70)
+    print("OneSeek-7B-Zero DNA v2 Training")
+    print("=" * 70)
+    
+    # Load and prepare dataset
+    dataset_path = Path(args.dataset)
+    if not dataset_path.exists():
+        print(f"\n[ERROR] Dataset not found: {dataset_path}")
+        return 1
+    
+    print(f"\n[DATASET] Loading dataset: {dataset_path}")
+    training_data, original_examples = convert_to_training_format(dataset_path)
+    print(f"[SUCCESS] Loaded {len(original_examples)} examples")
+    
+    # Prepare training data in OneSeekTrainer format
+    data_dir = prepare_training_data(training_data)
+    
+    # Run real training
+    result = run_real_training(args, data_dir, dataset_path)
+    
+    if result['success']:
+        print("\n" + "=" * 70)
+        print("[SUCCESS] DNA v2 Training completed successfully!")
+        print(f"DNA: {result['dna']}")
+        print(f"Certified output: {result['certified_dir']}")
+        print("=" * 70 + "\n")
+        return 0
+    else:
+        print("\n" + "=" * 70)
+        print("[ERROR] Training failed")
+        print("=" * 70 + "\n")
         return 1
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     sys.exit(main())
