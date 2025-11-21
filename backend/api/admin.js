@@ -13,13 +13,21 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
+import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import os from 'os';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const router = express.Router();
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
-    const uploadDir = path.join(process.cwd(), 'datasets', 'uploads');
+    // Save directly to datasets folder, not datasets/uploads
+    const uploadDir = path.join(process.cwd(), 'datasets');
     await fs.mkdir(uploadDir, { recursive: true });
     cb(null, uploadDir);
   },
@@ -41,7 +49,7 @@ const upload = multer({
   },
 });
 
-// In-memory state (should be replaced with database in production)
+// In-memory state for training
 let trainingState = {
   status: 'idle', // idle, training, stopping
   currentEpoch: 0,
@@ -49,7 +57,10 @@ let trainingState = {
   loss: null,
   progress: 0,
   logs: [],
+  datasetId: null,
 };
+
+let trainingProcess = null; // Store the training process
 
 let resourceMetrics = {
   cpu: [],
@@ -78,15 +89,16 @@ function requireAdmin(req, res, next) {
 // GET /api/admin/datasets - List all datasets
 router.get('/datasets', requireAdmin, async (req, res) => {
   try {
-    const uploadsDir = path.join(process.cwd(), 'datasets', 'uploads');
-    await fs.mkdir(uploadsDir, { recursive: true });
+    // Use datasets directory directly (not datasets/uploads)
+    const datasetsDir = path.join(process.cwd(), 'datasets');
+    await fs.mkdir(datasetsDir, { recursive: true });
     
-    const files = await fs.readdir(uploadsDir);
+    const files = await fs.readdir(datasetsDir);
     const datasets = await Promise.all(
       files
         .filter(file => file.endsWith('.json') || file.endsWith('.jsonl'))
         .map(async (file) => {
-          const filePath = path.join(uploadsDir, file);
+          const filePath = path.join(datasetsDir, file);
           const stats = await fs.stat(filePath);
           
           // Try to count entries
@@ -94,7 +106,7 @@ router.get('/datasets', requireAdmin, async (req, res) => {
           try {
             const content = await fs.readFile(filePath, 'utf-8');
             if (file.endsWith('.jsonl')) {
-              entries = content.trim().split('\n').length;
+              entries = content.trim().split('\n').filter(line => line.trim()).length;
             } else {
               const json = JSON.parse(content);
               entries = Array.isArray(json) ? json.length : 1;
@@ -189,7 +201,7 @@ router.post('/datasets/upload', requireAdmin, upload.single('dataset'), async (r
 // GET /api/admin/datasets/:id/validate - Validate a specific dataset
 router.get('/datasets/:id/validate', requireAdmin, async (req, res) => {
   try {
-    const filePath = path.join(process.cwd(), 'datasets', 'uploads', req.params.id);
+    const filePath = path.join(process.cwd(), 'datasets', req.params.id);
     const content = await fs.readFile(filePath, 'utf-8');
     
     let validEntries = 0;
@@ -199,9 +211,16 @@ router.get('/datasets/:id/validate', requireAdmin, async (req, res) => {
     if (req.params.id.endsWith('.jsonl')) {
       const lines = content.trim().split('\n');
       lines.forEach((line, index) => {
+        if (!line.trim()) return; // Skip empty lines
         try {
-          JSON.parse(line);
-          validEntries++;
+          const parsed = JSON.parse(line);
+          // Check for required fields
+          if (parsed.instruction !== undefined || parsed.input !== undefined || parsed.output !== undefined) {
+            validEntries++;
+          } else {
+            invalidEntries++;
+            errors.push(`Line ${index + 1}: Missing required fields (instruction, input, output)`);
+          }
         } catch (error) {
           invalidEntries++;
           errors.push(`Line ${index + 1}: ${error.message}`);
@@ -211,7 +230,14 @@ router.get('/datasets/:id/validate', requireAdmin, async (req, res) => {
       try {
         const json = JSON.parse(content);
         if (Array.isArray(json)) {
-          validEntries = json.length;
+          json.forEach((entry, index) => {
+            if (entry.instruction !== undefined || entry.input !== undefined || entry.output !== undefined) {
+              validEntries++;
+            } else {
+              invalidEntries++;
+              errors.push(`Entry ${index + 1}: Missing required fields`);
+            }
+          });
         } else {
           validEntries = 1;
         }
@@ -221,22 +247,22 @@ router.get('/datasets/:id/validate', requireAdmin, async (req, res) => {
       }
     }
     
-    res.json({ validEntries, invalidEntries, errors });
+    res.json({ validEntries, invalidEntries, errors: errors.slice(0, 10) });
   } catch (error) {
     console.error('Error validating dataset:', error);
-    res.status(500).json({ error: 'Validation failed' });
+    res.status(500).json({ error: 'Validation failed', message: error.message });
   }
 });
 
 // DELETE /api/admin/datasets/:id - Delete a dataset
 router.delete('/datasets/:id', requireAdmin, async (req, res) => {
   try {
-    const filePath = path.join(process.cwd(), 'datasets', 'uploads', req.params.id);
+    const filePath = path.join(process.cwd(), 'datasets', req.params.id);
     await fs.unlink(filePath);
-    res.json({ success: true });
+    res.json({ success: true, message: 'Dataset deleted successfully' });
   } catch (error) {
     console.error('Error deleting dataset:', error);
-    res.status(500).json({ error: 'Delete failed' });
+    res.status(500).json({ error: 'Delete failed', message: error.message });
   }
 });
 
@@ -260,6 +286,14 @@ router.post('/training/start', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Training already in progress' });
     }
     
+    // Verify dataset exists
+    const datasetPath = path.join(process.cwd(), 'datasets', datasetId);
+    try {
+      await fs.access(datasetPath);
+    } catch (error) {
+      return res.status(404).json({ error: 'Dataset not found' });
+    }
+    
     // Initialize training state
     trainingState = {
       status: 'training',
@@ -267,6 +301,7 @@ router.post('/training/start', requireAdmin, async (req, res) => {
       totalEpochs: epochs || 3,
       loss: null,
       progress: 0,
+      datasetId,
       logs: [
         {
           timestamp: new Date().toISOString(),
@@ -274,54 +309,107 @@ router.post('/training/start', requireAdmin, async (req, res) => {
         },
         {
           timestamp: new Date().toISOString(),
-          message: `Parameters: epochs=${epochs}, batchSize=${batchSize}, lr=${learningRate}`,
+          message: `Parameters: epochs=${epochs || 3}, batchSize=${batchSize || 8}, lr=${learningRate || 0.0001}`,
         },
       ],
     };
     
-    // Simulate training (replace with actual training logic)
-    setTimeout(() => {
-      trainingState.currentEpoch = 1;
-      trainingState.loss = 0.5;
-      trainingState.progress = 33;
-      trainingState.logs.push({
-        timestamp: new Date().toISOString(),
-        message: 'Epoch 1/3 completed - Loss: 0.5',
-      });
-    }, 5000);
+    // Start the training process
+    const pythonScript = path.join(process.cwd(), 'scripts', 'train_identity.py');
     
-    setTimeout(() => {
-      trainingState.currentEpoch = 2;
-      trainingState.loss = 0.3;
-      trainingState.progress = 66;
-      trainingState.logs.push({
-        timestamp: new Date().toISOString(),
-        message: 'Epoch 2/3 completed - Loss: 0.3',
-      });
-    }, 10000);
-    
-    setTimeout(() => {
-      trainingState.currentEpoch = 3;
-      trainingState.loss = 0.2;
-      trainingState.progress = 100;
+    // Check if Python script exists
+    try {
+      await fs.access(pythonScript);
+    } catch (error) {
       trainingState.status = 'idle';
-      trainingState.logs.push({
-        timestamp: new Date().toISOString(),
-        message: 'Training completed successfully!',
-      });
-      
-      // Add notification
-      notifications.push({
-        id: uuidv4(),
-        message: `Training completed successfully! Final loss: ${trainingState.loss}`,
-        timestamp: new Date().toISOString(),
-      });
-    }, 15000);
+      return res.status(500).json({ error: 'Training script not found', message: 'scripts/train_identity.py does not exist' });
+    }
+    
+    // Spawn Python training process
+    trainingProcess = spawn('python3', [pythonScript], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        DATASET_PATH: datasetPath,
+        EPOCHS: String(epochs || 3),
+        BATCH_SIZE: String(batchSize || 8),
+        LEARNING_RATE: String(learningRate || 0.0001),
+      }
+    });
+    
+    // Handle stdout
+    trainingProcess.stdout.on('data', (data) => {
+      const message = data.toString().trim();
+      if (message) {
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message,
+        });
+        
+        // Parse epoch progress if available
+        const epochMatch = message.match(/Epoch (\d+)\/(\d+)/);
+        if (epochMatch) {
+          trainingState.currentEpoch = parseInt(epochMatch[1]);
+          trainingState.totalEpochs = parseInt(epochMatch[2]);
+          trainingState.progress = Math.round((trainingState.currentEpoch / trainingState.totalEpochs) * 100);
+        }
+        
+        // Parse loss if available
+        const lossMatch = message.match(/Loss[:\s]+([0-9.]+)/i);
+        if (lossMatch) {
+          trainingState.loss = parseFloat(lossMatch[1]);
+        }
+      }
+    });
+    
+    // Handle stderr
+    trainingProcess.stderr.on('data', (data) => {
+      const message = data.toString().trim();
+      if (message) {
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message: `[ERROR] ${message}`,
+        });
+      }
+    });
+    
+    // Handle process completion
+    trainingProcess.on('close', (code) => {
+      if (code === 0) {
+        trainingState.status = 'idle';
+        trainingState.progress = 100;
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message: 'Training completed successfully!',
+        });
+        
+        // Add notification
+        notifications.push({
+          id: uuidv4(),
+          message: `Training completed successfully! Final loss: ${trainingState.loss || 'N/A'}`,
+          timestamp: new Date().toISOString(),
+        });
+      } else {
+        trainingState.status = 'idle';
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message: `Training failed with exit code ${code}`,
+        });
+        
+        notifications.push({
+          id: uuidv4(),
+          message: `Training failed with exit code ${code}`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      trainingProcess = null;
+    });
     
     res.json({ success: true, message: 'Training started' });
   } catch (error) {
     console.error('Error starting training:', error);
-    res.status(500).json({ error: 'Failed to start training' });
+    trainingState.status = 'idle';
+    res.status(500).json({ error: 'Failed to start training', message: error.message });
   }
 });
 
@@ -331,10 +419,22 @@ router.post('/training/stop', requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'No training in progress' });
   }
   
+  // Kill the training process if it exists
+  if (trainingProcess) {
+    trainingProcess.kill('SIGTERM');
+    trainingProcess = null;
+  }
+  
   trainingState.status = 'idle';
   trainingState.logs.push({
     timestamp: new Date().toISOString(),
     message: 'Training stopped by user',
+  });
+  
+  notifications.push({
+    id: uuidv4(),
+    message: 'Training stopped by user',
+    timestamp: new Date().toISOString(),
   });
   
   res.json({ success: true });
@@ -345,26 +445,72 @@ router.post('/training/stop', requireAdmin, (req, res) => {
 // GET /api/admin/models - List all model versions
 router.get('/models', requireAdmin, async (req, res) => {
   try {
-    // In production, fetch from database and model storage
-    const models = [
-      {
+    const modelsDir = path.join(process.cwd(), 'ml', 'models');
+    const models = [];
+    
+    try {
+      await fs.mkdir(modelsDir, { recursive: true });
+      const files = await fs.readdir(modelsDir);
+      
+      for (const file of files) {
+        const modelPath = path.join(modelsDir, file);
+        const stats = await fs.stat(modelPath);
+        
+        if (stats.isDirectory()) {
+          // Try to read metadata if it exists
+          let metadata = null;
+          try {
+            const metadataPath = path.join(modelPath, 'metadata.json');
+            const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+            metadata = JSON.parse(metadataContent);
+          } catch (error) {
+            // No metadata file, create basic info
+            metadata = {
+              version: file,
+              createdAt: stats.mtime.toISOString(),
+            };
+          }
+          
+          models.push({
+            id: file,
+            version: metadata.version || file,
+            createdAt: metadata.createdAt || stats.mtime.toISOString(),
+            trainingType: metadata.trainingType || 'unknown',
+            samplesProcessed: metadata.samplesProcessed || 0,
+            isCurrent: metadata.isCurrent || false,
+            metrics: metadata.metrics || {
+              loss: null,
+              accuracy: null,
+              fairness: null,
+            },
+            metadata: metadata,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error reading models directory:', error);
+    }
+    
+    // If no models found, return default entry
+    if (models.length === 0) {
+      models.push({
         id: 'v1.0',
         version: 'OneSeek-7B-Zero.v1.0',
-        createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+        createdAt: new Date().toISOString(),
         trainingType: 'initial',
-        samplesProcessed: 500,
+        samplesProcessed: 0,
         isCurrent: true,
         metrics: {
-          loss: 0.245,
-          accuracy: 89.5,
-          fairness: 0.88,
+          loss: null,
+          accuracy: null,
+          fairness: null,
         },
         metadata: {
           baseModel: 'Mistral-7B',
           loraRank: 8,
         },
-      },
-    ];
+      });
+    }
     
     res.json({ models });
   } catch (error) {
@@ -401,16 +547,37 @@ router.post('/models/:id/rollback', requireAdmin, async (req, res) => {
 
 // GET /api/admin/monitoring/resources - Get resource usage metrics
 router.get('/monitoring/resources', requireAdmin, (req, res) => {
-  // Simulate resource metrics (replace with actual system monitoring)
-  const cpuUsage = Math.random() * 50 + 30; // 30-80%
-  const gpuUsage = Math.random() * 60 + 20; // 20-80%
+  // Get real CPU usage
+  const cpus = os.cpus();
+  let totalIdle = 0;
+  let totalTick = 0;
+  
+  cpus.forEach(cpu => {
+    for (let type in cpu.times) {
+      totalTick += cpu.times[type];
+    }
+    totalIdle += cpu.times.idle;
+  });
+  
+  const cpuUsage = 100 - ~~(100 * totalIdle / totalTick);
+  
+  // Get memory usage
+  const totalMem = os.totalmem();
+  const freeMem = os.freemem();
+  const usedMem = totalMem - freeMem;
+  const memoryUsage = (usedMem / totalMem) * 100;
+  
+  // GPU usage - not available without external tools, use placeholder
+  const gpuUsage = 0; // Would need nvidia-smi or similar
   
   resourceMetrics.cpu.push(cpuUsage);
+  resourceMetrics.memory.push(memoryUsage);
   resourceMetrics.gpu.push(gpuUsage);
   
   // Keep only last 50 data points
   if (resourceMetrics.cpu.length > 50) {
     resourceMetrics.cpu = resourceMetrics.cpu.slice(-50);
+    resourceMetrics.memory = resourceMetrics.memory.slice(-50);
     resourceMetrics.gpu = resourceMetrics.gpu.slice(-50);
   }
   
