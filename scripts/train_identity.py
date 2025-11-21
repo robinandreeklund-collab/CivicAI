@@ -28,7 +28,15 @@ def print_banner():
     print("  OneSeek-7B-Zero Identity Training - Quick Start")
     print("=" * 70)
     print("\nThis script will train OneSeek-7B-Zero on the identity dataset")
-    print("to teach the model its role as a transparent AI agent.\n")
+    print("to teach the model its role as a transparent AI agent.")
+    print("\nSupports:")
+    print("  • English training (default)")
+    print("  • Swedish training (--language sv)")
+    print("  • External model integration (--external-model <model-name>)")
+    print("\nUsage examples:")
+    print("  python scripts/train_identity.py")
+    print("  python scripts/train_identity.py --language sv --external-model AI-Sweden-Models/gpt-sw3-20b-instruct")
+    print()
 
 def check_dataset():
     """Check if identity dataset exists"""
@@ -128,8 +136,14 @@ def prepare_training_data(examples):
     
     return data_dir
 
-def run_training(data_dir):
-    """Run the training pipeline"""
+def run_training(data_dir, language='en', external_model=None):
+    """Run the training pipeline
+    
+    Args:
+        data_dir: Path to training data directory
+        language: Language code ('en' for English, 'sv' for Swedish)
+        external_model: Optional external model for Swedish training (e.g., 'gpt-sw3-20b-instruct')
+    """
     print("\n[TRAINING] Starting training...")
     
     # Get training parameters from environment variables
@@ -137,10 +151,22 @@ def run_training(data_dir):
     batch_size = int(os.environ.get('BATCH_SIZE', 8))
     learning_rate = float(os.environ.get('LEARNING_RATE', 0.0001))
     
+    # Determine model version based on language
+    if language == 'sv':
+        version_suffix = '-SV'
+        model_name = 'OneSeek-7B-Zero-SV'
+    else:
+        version_suffix = ''
+        model_name = 'OneSeek-7B-Zero'
+    
     print(f"\n[CONFIG] Training parameters:")
+    print(f"   - Model: {model_name}")
+    print(f"   - Language: {language.upper()}")
     print(f"   - Epochs: {epochs}")
     print(f"   - Batch size: {batch_size}")
     print(f"   - Learning rate: {learning_rate}")
+    if external_model:
+        print(f"   - External model integration: {external_model}")
     
     # Check if PyTorch is available
     try:
@@ -167,6 +193,11 @@ def run_training(data_dir):
         print("\n[INFO] Will attempt PyTorch training with LoRA/PEFT if base models are available.")
         print("   If base models not found, will fall back to simulation.\n")
         
+        # Check for Swedish model integration
+        if language == 'sv' and external_model:
+            print(f"\n[INFO] Swedish training mode with {external_model}")
+            print("   Will integrate Swedish language model for fine-tuning")
+        
     except ImportError:
         print("\n[WARNING] PyTorch not found. Will use simulation mode.")
         print("   Install PyTorch with: pip install torch transformers peft\n")
@@ -179,11 +210,13 @@ def run_training(data_dir):
         model_dir = Path(__file__).parent.parent / 'models' / 'oneseek-7b-zero' / 'weights'
         ledger_dir = Path(__file__).parent.parent / 'ml' / 'ledger'
         
-        # Create trainer
+        # Create trainer with language and external model config
         trainer = OneSeekTrainer(
             data_dir=str(data_dir),
             model_dir=str(model_dir),
-            ledger_dir=str(ledger_dir)
+            ledger_dir=str(ledger_dir),
+            language=language,
+            external_model=external_model
         )
         
         # Update training config with parameters from environment
@@ -196,9 +229,9 @@ def run_training(data_dir):
         trainer.config['batch_size'] = batch_size
         trainer.config['learning_rate'] = learning_rate
         
-        # Run training for identity version 1.0
-        print("\nTraining OneSeek-7B-Zero on identity dataset...")
-        trainer.train(version='1.0')
+        # Run training for identity version 1.1 (or 1.1-SV for Swedish)
+        print(f"\nTraining {model_name} on identity dataset...")
+        trainer.train(version=f'1.1{version_suffix}')
         
         print("\n" + "=" * 70)
         print("[SUCCESS] Training completed successfully!")
@@ -220,15 +253,16 @@ def show_next_steps():
     print("\n[NEXT STEPS]:")
     print("\n1. **Verify model files:**")
     print("   Check models/oneseek-7b-zero/weights/ for:")
-    print("   - oneseek-7b-zero-v1.0.json (metadata)")
-    print("   - oneseek-7b-zero-v1.0.pth (weights - requires PyTorch)")
+    print("   - oneseek-7b-zero-v1.1.json (metadata)")
+    print("   - oneseek-7b-zero-v1.1.pth (weights - requires PyTorch)")
+    print("   For Swedish: oneseek-7b-zero-v1.1-SV.json and .pth")
     
     print("\n2. **Check transparency ledger:**")
     print("   View ml/ledger/ for training provenance")
     
-    print("\n3. **For actual PyTorch training:**")
-    print("   Follow the complete guide in README.md")
-    print("   Section: 'Training OneSeek-7B-Zero: Step-by-Step Guide'")
+    print("\n3. **For Swedish training:**")
+    print("   Run with --language sv flag:")
+    print("   python scripts/train_identity.py --language sv --external-model AI-Sweden-Models/gpt-sw3-20b-instruct")
     
     print("\n4. **Test the trained model:**")
     print("   Query the model through the OQT Dashboard:")
@@ -237,12 +271,30 @@ def show_next_steps():
     print("\n5. **Extend the dataset:**")
     print("   Add more examples to datasets/oneseek_identity_v1.jsonl")
     print("   Recommended: 100-500 examples total")
+    
+    print("\n6. **Download Swedish base model:**")
+    print("   huggingface-cli download AI-Sweden-Models/gpt-sw3-20b-instruct")
     print()
 
 def main():
     """Main entry point"""
     try:
+        import argparse
+        parser = argparse.ArgumentParser(description='Train OneSeek-7B-Zero with identity dataset')
+        parser.add_argument('--language', type=str, default='en', choices=['en', 'sv'],
+                          help='Language for training (en=English, sv=Swedish)')
+        parser.add_argument('--external-model', type=str, default=None,
+                          help='External model for Swedish training (e.g., AI-Sweden-Models/gpt-sw3-20b-instruct)')
+        parser.add_argument('--dataset', type=str, default=None,
+                          help='Path to custom dataset (defaults to datasets/oneseek_identity_v1.jsonl)')
+        
+        args = parser.parse_args()
+        
         print_banner()
+        
+        # Update dataset path if provided
+        if args.dataset:
+            os.environ['DATASET_PATH'] = args.dataset
         
         # Step 1: Check dataset
         print("\n[DEBUG] Checking dataset...")
@@ -259,9 +311,13 @@ def main():
         data_dir = prepare_training_data(examples)
         print(f"[DEBUG] Training data prepared at: {data_dir}")
         
-        # Step 3: Run training
+        # Step 3: Run training with language and external model support
         print("\n[DEBUG] Starting training...")
-        success = run_training(data_dir)
+        success = run_training(
+            data_dir, 
+            language=args.language,
+            external_model=args.external_model
+        )
         print(f"[DEBUG] Training completed: {success}")
         
         # Step 4: Show next steps

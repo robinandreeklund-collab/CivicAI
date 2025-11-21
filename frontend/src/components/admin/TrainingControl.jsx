@@ -12,11 +12,14 @@ import { useState, useEffect } from 'react';
  */
 export default function TrainingControl() {
   const [datasets, setDatasets] = useState([]);
+  const [availableModels, setAvailableModels] = useState([]);
   const [selectedDataset, setSelectedDataset] = useState('');
   const [trainingParams, setTrainingParams] = useState({
     epochs: 3,
     batchSize: 8,
     learningRate: 0.0001,
+    language: 'en',
+    externalModel: '',
   });
   const [trainingStatus, setTrainingStatus] = useState(null);
   const [trainingLogs, setTrainingLogs] = useState([]);
@@ -24,6 +27,7 @@ export default function TrainingControl() {
 
   useEffect(() => {
     fetchDatasets();
+    fetchAvailableModels();
     fetchTrainingStatus();
     
     // Poll for training status every 5 seconds
@@ -40,6 +44,18 @@ export default function TrainingControl() {
       }
     } catch (error) {
       console.error('Error fetching datasets:', error);
+    }
+  };
+
+  const fetchAvailableModels = async () => {
+    try {
+      const response = await fetch('/api/admin/models/available');
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableModels(data.models || []);
+      }
+    } catch (error) {
+      console.error('Error fetching available models:', error);
     }
   };
 
@@ -184,6 +200,48 @@ export default function TrainingControl() {
                 disabled={isTraining}
                 className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
               />
+            </div>
+          </div>
+
+          {/* Language and External Model Parameters */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[#888] font-mono text-sm mb-2">
+                Language
+              </label>
+              <select
+                value={trainingParams.language}
+                onChange={(e) => setTrainingParams({ ...trainingParams, language: e.target.value })}
+                disabled={isTraining}
+                className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+              >
+                <option value="en">English (OneSeek-7B-Zero.v1.1)</option>
+                <option value="sv">Swedish (OneSeek-7B-Zero-SV.v1.1)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[#888] font-mono text-sm mb-2">
+                External Model (Optional)
+              </label>
+              <select
+                value={trainingParams.externalModel}
+                onChange={(e) => setTrainingParams({ ...trainingParams, externalModel: e.target.value })}
+                disabled={isTraining}
+                className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+              >
+                <option value="">-- No external model --</option>
+                {availableModels.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.displayName}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[#555] font-mono text-xs mt-1">
+                {availableModels.length > 0 
+                  ? `${availableModels.length} model(s) found in models directory`
+                  : 'Scanning models directory...'}
+              </p>
             </div>
           </div>
 

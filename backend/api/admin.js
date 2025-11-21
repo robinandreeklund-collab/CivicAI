@@ -177,6 +177,94 @@ router.get('/datasets', requireAdmin, async (req, res) => {
   }
 });
 
+// GET /api/admin/models/available - List available models in models directory
+router.get('/models/available', requireAdmin, async (req, res) => {
+  try {
+    // Check both Windows path and project-relative path
+    const windowsModelsPath = 'C:\\Users\\robin\\Documents\\GitHub\\CivicAI\\models';
+    const projectModelsPath = path.join(process.cwd(), '..', 'models');
+    
+    let modelsDir = projectModelsPath;
+    
+    // Try Windows path first
+    try {
+      await fs.access(windowsModelsPath);
+      modelsDir = windowsModelsPath;
+    } catch (error) {
+      // Fall back to project-relative path
+      try {
+        await fs.access(projectModelsPath);
+        modelsDir = projectModelsPath;
+      } catch (innerError) {
+        // Create directory if it doesn't exist
+        await fs.mkdir(projectModelsPath, { recursive: true });
+        modelsDir = projectModelsPath;
+      }
+    }
+    
+    // Read directory contents
+    const items = await fs.readdir(modelsDir);
+    const models = [];
+    
+    // Check each item to see if it's a model directory
+    for (const item of items) {
+      const itemPath = path.join(modelsDir, item);
+      try {
+        const stats = await fs.stat(itemPath);
+        if (stats.isDirectory()) {
+          // Check if directory contains model files (weights, config, etc.)
+          const dirContents = await fs.readdir(itemPath);
+          const hasModelFiles = dirContents.some(file => 
+            file.endsWith('.pth') || 
+            file.endsWith('.bin') || 
+            file.endsWith('.safetensors') ||
+            file === 'config.json' ||
+            file === 'weights' ||
+            file === 'pytorch_model.bin'
+          );
+          
+          if (hasModelFiles || dirContents.includes('weights') || dirContents.includes('base_models')) {
+            models.push({
+              id: item,
+              name: item,
+              path: itemPath,
+              displayName: formatModelName(item),
+            });
+          }
+        }
+      } catch (error) {
+        console.error(`Error checking ${item}:`, error.message);
+      }
+    }
+    
+    res.json({ 
+      models,
+      modelsPath: modelsDir 
+    });
+  } catch (error) {
+    console.error('Error listing models:', error);
+    res.status(500).json({ error: 'Failed to list models', message: error.message });
+  }
+});
+
+// Helper function to format model names for display
+function formatModelName(dirName) {
+  // Convert directory name to display name
+  // e.g., "gpt-sw3-20b-instruct" -> "GPT-SW3-20B-Instruct"
+  // e.g., "oneseek-7b-zero" -> "OneSeek-7B-Zero"
+  return dirName
+    .split('-')
+    .map(part => {
+      // Convert numbers and version patterns to uppercase
+      if (/^\d/.test(part) || /^v\d/.test(part)) {
+        return part.toUpperCase();
+      }
+      // Capitalize first letter of words
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    })
+    .join('-');
+}
+
 // POST /api/admin/datasets/upload - Upload a new dataset
 router.post('/datasets/upload', requireAdmin, upload.single('dataset'), async (req, res) => {
   try {
@@ -341,7 +429,7 @@ router.get('/training/status', requireAdmin, (req, res) => {
 // POST /api/admin/training/start - Start training
 router.post('/training/start', requireAdmin, async (req, res) => {
   try {
-    const { datasetId, epochs, batchSize, learningRate } = req.body;
+    const { datasetId, epochs, batchSize, learningRate, language, externalModel } = req.body;
     
     if (!datasetId) {
       return res.status(400).json({ error: 'Dataset ID is required' });
@@ -367,6 +455,8 @@ router.post('/training/start', requireAdmin, async (req, res) => {
       loss: null,
       progress: 0,
       datasetId,
+      language: language || 'en',
+      externalModel: externalModel || null,
       logs: [
         {
           timestamp: new Date().toISOString(),
@@ -374,10 +464,18 @@ router.post('/training/start', requireAdmin, async (req, res) => {
         },
         {
           timestamp: new Date().toISOString(),
-          message: `Parameters: epochs=${epochs || 3}, batchSize=${batchSize || 8}, lr=${learningRate || 0.0001}`,
+          message: `Parameters: epochs=${epochs || 3}, batchSize=${batchSize || 8}, lr=${learningRate || 0.0001}, language=${language || 'en'}`,
         },
       ],
     };
+    
+    // Add external model info if provided
+    if (externalModel) {
+      trainingState.logs.push({
+        timestamp: new Date().toISOString(),
+        message: `External model integration: ${externalModel}`,
+      });
+    }
     
     // Path to Python script (one level up from backend directory)
     const pythonScript = path.join(process.cwd(), '..', 'scripts', 'train_identity.py');
@@ -437,7 +535,20 @@ router.post('/training/start', requireAdmin, async (req, res) => {
       }
     }
     
-    trainingProcess = spawn(pythonCommand, [pythonScript], {
+    // Build Python script arguments
+    const pythonArgs = [pythonScript];
+    
+    // Add language argument if provided
+    if (language && language !== 'en') {
+      pythonArgs.push('--language', language);
+    }
+    
+    // Add external model argument if provided
+    if (externalModel) {
+      pythonArgs.push('--external-model', externalModel);
+    }
+    
+    trainingProcess = spawn(pythonCommand, pythonArgs, {
       cwd: path.join(process.cwd(), '..'), // Set working directory to project root
       env: {
         ...process.env,
@@ -530,20 +641,34 @@ router.post('/training/start', requireAdmin, async (req, res) => {
         // Add training session to history
         const session = {
           modelVersion: 'OneSeek-7B-Zero',
+          version: trainingState.language === 'sv' ? 'v1.1-SV' : 'v1.1', // Track specific version with language
+          language: trainingState.language || 'en', // Get from training state
+          externalModel: trainingState.externalModel || null,
           timestamp: endTime,
           duration: duration,
           samples: samplesProcessed, // Unique samples in dataset
           totalSteps: samplesProcessed * (epochs || 3), // Total training steps (samples × epochs)
-          dataset: datasetId,
+          dataset: {
+            id: datasetId,
+            type: datasetId.includes('identity') ? 'identity' : 'general',
+            size: samplesProcessed,
+          },
           metrics: {
             loss: finalLoss,
             accuracy: finalAccuracy,
             fairness: finalFairness,
+            latency: duration > 0 ? duration / (samplesProcessed * (epochs || 3)) : null, // Average latency per step
           },
           config: {
             epochs: epochs || 3,
             batchSize: batchSize || 8,
             learningRate: learningRate || 0.0001,
+          },
+          provenance: {
+            scriptVersion: '1.1.0',
+            pythonCommand: pythonCommand,
+            startTime: startTime,
+            endTime: endTime,
           },
         };
         

@@ -20,18 +20,22 @@ from transparency_ledger import TransparencyLedger
 class OneSeekTrainer:
     """Trainer for OneSeek-7B-Zero language model"""
     
-    def __init__(self, data_dir: str, model_dir: str, ledger_dir: str):
+    def __init__(self, data_dir: str, model_dir: str, ledger_dir: str, language: str = 'en', external_model: str = None):
         self.data_dir = Path(data_dir)
         self.model_dir = Path(model_dir)
         self.model_dir.mkdir(parents=True, exist_ok=True)
+        self.language = language
+        self.external_model = external_model
         
         # Initialize transparency ledger
         self.ledger = TransparencyLedger(ledger_dir)
         
         # Training config
         self.config = {
-            'model_name': 'OneSeek-7B-Zero',
+            'model_name': 'OneSeek-7B-Zero' if language == 'en' else 'OneSeek-7B-Zero-SV',
             'legacy_name': 'OQT-1.0',  # For backward compatibility
+            'language': language,
+            'external_model': external_model,
             'architecture': 'transformer',
             'base_models': ['Mistral-7B', 'LLaMA-2'],
             'learning_rate': 2e-5,
