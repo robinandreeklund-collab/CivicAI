@@ -32,19 +32,32 @@ def print_banner():
 
 def check_dataset():
     """Check if identity dataset exists"""
-    dataset_path = Path(__file__).parent.parent / 'datasets' / 'oneseek_identity_v1.jsonl'
+    # Check if DATASET_PATH environment variable is set
+    dataset_path_env = os.environ.get('DATASET_PATH')
+    
+    if dataset_path_env:
+        dataset_path = Path(dataset_path_env)
+        print(f"📁 Using dataset from environment variable: {dataset_path}")
+    else:
+        # Fallback to default location
+        dataset_path = Path(__file__).parent.parent / 'datasets' / 'oneseek_identity_v1.jsonl'
+        print(f"📁 Using default dataset: {dataset_path}")
     
     if not dataset_path.exists():
-        print("❌ ERROR: Identity dataset not found!")
+        print("❌ ERROR: Dataset not found!")
         print(f"   Expected location: {dataset_path}")
-        print("\nPlease ensure datasets/oneseek_identity_v1.jsonl exists.")
+        print("\nPlease ensure the dataset file exists.")
         return None
     
     # Count examples
-    with open(dataset_path, 'r', encoding='utf-8') as f:
-        examples = [json.loads(line) for line in f if line.strip()]
+    try:
+        with open(dataset_path, 'r', encoding='utf-8') as f:
+            examples = [json.loads(line) for line in f if line.strip()]
+    except Exception as e:
+        print(f"❌ ERROR: Failed to read dataset: {e}")
+        return None
     
-    print(f"✅ Found identity dataset: {len(examples)} examples")
+    print(f"✅ Found dataset: {len(examples)} examples")
     print(f"   Location: {dataset_path}")
     
     return dataset_path, examples
@@ -119,6 +132,16 @@ def run_training(data_dir):
     """Run the training pipeline"""
     print("\n🚀 Starting training...")
     
+    # Get training parameters from environment variables
+    epochs = int(os.environ.get('EPOCHS', 3))
+    batch_size = int(os.environ.get('BATCH_SIZE', 8))
+    learning_rate = float(os.environ.get('LEARNING_RATE', 0.0001))
+    
+    print(f"\n📊 Training parameters:")
+    print(f"   - Epochs: {epochs}")
+    print(f"   - Batch size: {batch_size}")
+    print(f"   - Learning rate: {learning_rate}")
+    
     # Check if PyTorch is available
     try:
         import torch
@@ -163,9 +186,14 @@ def run_training(data_dir):
             ledger_dir=str(ledger_dir)
         )
         
-        # Run training for identity version 1.0
+        # Run training for identity version 1.0 with parameters
         print("\nTraining OneSeek-7B-Zero on identity dataset...")
-        trainer.train(version='1.0')
+        trainer.train(
+            version='1.0',
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate
+        )
         
         print("\n" + "=" * 70)
         print("✅ Training completed successfully!")
@@ -173,6 +201,9 @@ def run_training(data_dir):
         
     except Exception as e:
         print(f"\n❌ Training error: {e}")
+        print(f"   Error type: {type(e).__name__}")
+        import traceback
+        print(f"   Traceback: {traceback.format_exc()}")
         print("\nFor detailed training setup, see README.md section:")
         print("'Training OneSeek-7B-Zero: Step-by-Step Guide'")
         return False
