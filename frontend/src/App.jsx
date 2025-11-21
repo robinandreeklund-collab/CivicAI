@@ -20,6 +20,7 @@ import OQTDashboardPage from './pages/OQTDashboardPage';
 import DashboardPage from './pages/DashboardPage';
 import ApiDocumentationPage from './pages/ApiDocumentationPage';
 import LedgerPage from './pages/LedgerPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
 import DemoIndex from './designDemos';
 
 /**
@@ -127,6 +128,7 @@ function AppContent() {
           <Route path="/sprakmodell" element={<LanguageModelPage />} />
           <Route path="/oqt-dashboard" element={<OQTDashboardPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/skapa-konto" element={<SignupPage />} />
           <Route path="/logga-in" element={<LoginPage />} />
           <Route path="/api-docs" element={<ApiDocumentationPage />} />
