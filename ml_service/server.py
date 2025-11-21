@@ -84,18 +84,24 @@ def find_base_model_path():
     """Find a valid base model path for OneSeek-7B-Zero
     
     Checks in this order:
-    1. oneseek-7b-zero/base_models/mistral-7b
-    2. oneseek-7b-zero/base_models/llama-2-7b  
-    3. Legacy models/mistral-7b-instruct
-    4. Legacy models/llama-2-7b-chat
+    1. oneseek-7b-zero directory itself (if it has config.json - fully trained model)
+    2. oneseek-7b-zero/base_models/mistral-7b
+    3. oneseek-7b-zero/base_models/llama-2-7b  
+    4. Legacy models/mistral-7b-instruct
+    5. Legacy models/llama-2-7b-chat
     """
     base_path = Path(ONESEEK_PATH)
+    
+    # Check if OneSeek directory itself has a config.json (complete model)
+    if (base_path / 'config.json').exists():
+        logger.info(f"Found complete OneSeek model at {base_path}")
+        return str(base_path)
     
     # Check for base models in oneseek directory
     mistral_base = base_path / 'base_models' / 'mistral-7b'
     llama_base = base_path / 'base_models' / 'llama-2-7b'
     
-    # Legacy paths
+    # Legacy paths (where user actually has the models)
     legacy_mistral = PROJECT_ROOT / 'models' / 'mistral-7b-instruct'
     legacy_llama = PROJECT_ROOT / 'models' / 'llama-2-7b-chat'
     
