@@ -80,12 +80,60 @@ class InferenceResponse(BaseModel):
     tokens: int
     latency_ms: float
 
+def find_base_model_path():
+    """Find a valid base model path for OneSeek-7B-Zero
+    
+    Checks in this order:
+    1. oneseek-7b-zero/base_models/mistral-7b
+    2. oneseek-7b-zero/base_models/llama-2-7b  
+    3. Legacy models/mistral-7b-instruct
+    4. Legacy models/llama-2-7b-chat
+    """
+    base_path = Path(ONESEEK_PATH)
+    
+    # Check for base models in oneseek directory
+    mistral_base = base_path / 'base_models' / 'mistral-7b'
+    llama_base = base_path / 'base_models' / 'llama-2-7b'
+    
+    # Legacy paths
+    legacy_mistral = PROJECT_ROOT / 'models' / 'mistral-7b-instruct'
+    legacy_llama = PROJECT_ROOT / 'models' / 'llama-2-7b-chat'
+    
+    # Check each path for config.json
+    for name, path in [
+        ('Mistral-7B (base_models)', mistral_base),
+        ('LLaMA-2-7B (base_models)', llama_base),
+        ('Mistral-7B (legacy)', legacy_mistral),
+        ('LLaMA-2-7B (legacy)', legacy_llama)
+    ]:
+        if path.exists() and (path / 'config.json').exists():
+            logger.info(f"Found base model: {name} at {path}")
+            return str(path)
+    
+    return None
+
 def load_model(model_name: str, model_path: str):
     """Load model and tokenizer with device optimization"""
     if model_name in models:
         return models[model_name], tokenizers[model_name]
     
-    logger.info(f"Loading {model_name} from {model_path}...")
+    # For OneSeek, find the actual base model path
+    if model_name == 'oneseek-7b-zero':
+        actual_path = find_base_model_path()
+        if not actual_path:
+            error_msg = (
+                "No base model found for OneSeek-7B-Zero. Please download one of:\n"
+                "  1. Mistral-7B: huggingface-cli download mistralai/Mistral-7B-Instruct-v0.2 "
+                f"--local-dir {ONESEEK_PATH}/base_models/mistral-7b\n"
+                "  2. LLaMA-2-7B: huggingface-cli download meta-llama/Llama-2-7b-chat-hf "
+                f"--local-dir {ONESEEK_PATH}/base_models/llama-2-7b"
+            )
+            logger.error(error_msg)
+            raise FileNotFoundError(error_msg)
+        model_path = actual_path
+        logger.info(f"Loading OneSeek-7B-Zero using base model from {model_path}...")
+    else:
+        logger.info(f"Loading {model_name} from {model_path}...")
     
     # Use FP16 for GPU acceleration, FP32 for CPU
     dtype = torch.float16 if DEVICE_TYPE in ['cuda', 'xpu', 'directml'] else torch.float32
@@ -128,6 +176,7 @@ def load_model(model_name: str, model_path: str):
         logger.error(f"Error loading {model_name}: {str(e)}")
         raise
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan event handler for startup and shutdown"""
@@ -139,10 +188,20 @@ async def lifespan(app: FastAPI):
     
     # Check if model directory exists
     if not Path(ONESEEK_PATH).exists():
-        logger.warning(f"OneSeek-7B-Zero model not found at {ONESEEK_PATH}")
-        logger.info("Please ensure the model is downloaded to the specified path")
+        logger.warning(f"OneSeek-7B-Zero model directory not found at {ONESEEK_PATH}")
+        logger.info("Please ensure the directory structure is created")
     else:
-        logger.info(f"✓ OneSeek-7B-Zero model directory found")
+        logger.info(f"✓ OneSeek-7B-Zero directory found")
+        
+        # Check for base models
+        base_model = find_base_model_path()
+        if base_model:
+            logger.info(f"✓ Base model ready for inference")
+        else:
+            logger.warning("⚠ No base model found. Download required:")
+            logger.warning(f"  huggingface-cli download mistralai/Mistral-7B-Instruct-v0.2 --local-dir {ONESEEK_PATH}/base_models/mistral-7b")
+            logger.warning("  OR")
+            logger.warning(f"  huggingface-cli download meta-llama/Llama-2-7b-chat-hf --local-dir {ONESEEK_PATH}/base_models/llama-2-7b")
     
     yield
     
