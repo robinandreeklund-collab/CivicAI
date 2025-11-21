@@ -452,7 +452,7 @@ router.post('/training/stop', requireAdmin, (req, res) => {
 // GET /api/admin/models - List all model versions
 router.get('/models', requireAdmin, async (req, res) => {
   try {
-    const modelsDir = path.join(process.cwd(), '..', 'ml', 'models');
+    const modelsDir = path.join(process.cwd(), '..', 'models');
     const models = [];
     
     try {
