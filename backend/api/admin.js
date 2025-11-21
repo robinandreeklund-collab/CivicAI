@@ -68,6 +68,9 @@ let resourceMetrics = {
   memory: [],
 };
 
+// Previous CPU usage snapshot for delta calculation
+let previousCpuSnapshot = null;
+
 let schedule = {
   frequency: 'manual',
   autoTrain: false,
@@ -772,19 +775,40 @@ router.post('/models/:id/rollback', requireAdmin, async (req, res) => {
 
 // GET /api/admin/monitoring/resources - Get resource usage metrics
 router.get('/monitoring/resources', requireAdmin, (req, res) => {
-  // Get real CPU usage
+  // Get current CPU snapshot
   const cpus = os.cpus();
-  let totalIdle = 0;
-  let totalTick = 0;
+  const currentSnapshot = cpus.map(cpu => ({
+    idle: cpu.times.idle,
+    total: Object.values(cpu.times).reduce((a, b) => a + b, 0)
+  }));
   
-  cpus.forEach(cpu => {
-    for (let type in cpu.times) {
-      totalTick += cpu.times[type];
+  let cpuUsage = 0;
+  
+  if (previousCpuSnapshot) {
+    // Calculate CPU usage as the average across all cores
+    let totalUsage = 0;
+    for (let i = 0; i < currentSnapshot.length; i++) {
+      const idleDelta = currentSnapshot[i].idle - previousCpuSnapshot[i].idle;
+      const totalDelta = currentSnapshot[i].total - previousCpuSnapshot[i].total;
+      const usage = totalDelta > 0 ? (1 - idleDelta / totalDelta) * 100 : 0;
+      totalUsage += usage;
     }
-    totalIdle += cpu.times.idle;
-  });
+    cpuUsage = totalUsage / currentSnapshot.length;
+  } else {
+    // First call, estimate based on current state
+    let totalIdle = 0;
+    let totalTick = 0;
+    cpus.forEach(cpu => {
+      for (let type in cpu.times) {
+        totalTick += cpu.times[type];
+      }
+      totalIdle += cpu.times.idle;
+    });
+    cpuUsage = totalTick > 0 ? 100 - (100 * totalIdle / totalTick) : 0;
+  }
   
-  const cpuUsage = 100 - ~~(100 * totalIdle / totalTick);
+  // Update previous snapshot for next calculation
+  previousCpuSnapshot = currentSnapshot;
   
   // Get memory usage
   const totalMem = os.totalmem();
@@ -792,11 +816,13 @@ router.get('/monitoring/resources', requireAdmin, (req, res) => {
   const usedMem = totalMem - freeMem;
   const memoryUsage = (usedMem / totalMem) * 100;
   
-  // GPU usage - not available without external tools, use placeholder
-  const gpuUsage = 0; // Would need nvidia-smi or similar
+  // GPU usage - check if nvidia-smi is available
+  let gpuUsage = 0;
+  // Note: This would require spawning nvidia-smi which we'll keep at 0 for now
+  // In production, you could use child_process to call nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits
   
-  resourceMetrics.cpu.push(cpuUsage);
-  resourceMetrics.memory.push(memoryUsage);
+  resourceMetrics.cpu.push(Math.round(cpuUsage * 10) / 10);
+  resourceMetrics.memory.push(Math.round(memoryUsage * 10) / 10);
   resourceMetrics.gpu.push(gpuUsage);
   
   // Keep only last 50 data points

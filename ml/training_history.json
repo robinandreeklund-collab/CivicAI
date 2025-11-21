@@ -1,0 +1,19 @@
+[
+  {
+    "modelVersion": "OneSeek-7B-Zero",
+    "timestamp": "2025-11-20T10:30:00.000Z",
+    "duration": 1200,
+    "samples": 1500,
+    "dataset": "oneseek_identity_v1.jsonl",
+    "metrics": {
+      "loss": 0.342,
+      "accuracy": 87.6,
+      "fairness": 91.2
+    },
+    "config": {
+      "epochs": 3,
+      "batchSize": 8,
+      "learningRate": 0.0001
+    }
+  }
+]
