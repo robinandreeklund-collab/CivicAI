@@ -482,6 +482,51 @@ def train_with_pytorch_lora(
         print(f"  - {model_dir.parent / 'lora_adapters' / adapter_name}")
         print(f"  - {model_dir.parent / 'lora_adapters' / f'oneseek-7b-zero-v{version}-{model_name}'}")
     
+    # Save dual-model metadata JSON
+    print(f"\n[METADATA] Saving dual-model training metadata...")
+    
+    from datetime import datetime
+    
+    metadata = {
+        "version": f"OneSeek-7B-Zero.v{version}",
+        "createdAt": datetime.utcnow().isoformat() + "Z",
+        "trainingType": "custom",
+        "dualModelMode": True,
+        "baseModels": list(trained_models.keys()),
+        "samplesProcessed": len(datasets.get('train', [])),
+        "isCurrent": True,
+        "metrics": {
+            "loss": combined_metrics['training_loss'],
+            "accuracy": combined_metrics['validation_accuracy'],
+            "fairness": fairness_metrics.get('demographic_parity')
+        },
+        "config": config,
+        "modelSpecificWeights": {}
+    }
+    
+    # Add model-specific weight paths
+    for model_name in trained_models.keys():
+        model_key = 'mistral' if 'mistral' in model_name else 'llama'
+        metadata["modelSpecificWeights"][model_key] = f"oneseek-7b-zero-v{version}-{model_name}.pth"
+    
+    # Determine base model names
+    base_model_names = []
+    if 'mistral' in trained_models:
+        base_model_names.append('Mistral-7B')
+    if 'llama' in trained_models:
+        base_model_names.append('LLaMA-2-7B')
+    
+    metadata["baseModels"] = base_model_names
+    
+    # Save metadata JSON
+    metadata_file = model_dir / f'oneseek-7b-zero-v{version}.json'
+    with open(metadata_file, 'w', encoding='utf-8') as f:
+        json.dump(metadata, f, indent=2, ensure_ascii=False)
+    
+    print(f"   [SUCCESS] Metadata saved to {metadata_file}")
+    print(f"   [INFO] Base models: {', '.join(base_model_names)}")
+    print(f"   [INFO] Dual-model mode: True")
+    
     return {
         'metrics': combined_metrics,
         'fairness_metrics': fairness_metrics,
