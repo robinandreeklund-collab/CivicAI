@@ -808,6 +808,219 @@ router.post('/training/stop', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+// POST /api/admin/training/start-dna-v2 - Start DNA v2 training with adaptive weights
+router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
+  try {
+    const { datasetId, epochs, learningRate, autoStopThreshold, autoStopPatience, seed } = req.body;
+    
+    if (!datasetId) {
+      return res.status(400).json({ error: 'Dataset ID is required' });
+    }
+    
+    if (trainingState.status === 'training') {
+      return res.status(400).json({ error: 'Training already in progress' });
+    }
+    
+    // Verify dataset exists
+    const datasetPath = path.join(process.cwd(), '..', 'datasets', datasetId);
+    try {
+      await fs.access(datasetPath);
+    } catch (error) {
+      return res.status(404).json({ error: 'Dataset not found', path: datasetPath });
+    }
+    
+    // Initialize training state
+    trainingState = {
+      status: 'training',
+      currentEpoch: 0,
+      totalEpochs: epochs || 10,
+      loss: null,
+      progress: 0,
+      datasetId,
+      useDnaV2: true,
+      logs: [
+        {
+          timestamp: new Date().toISOString(),
+          message: `Starting DNA v2 training with dataset: ${datasetId}`,
+        },
+        {
+          timestamp: new Date().toISOString(),
+          message: `Parameters: epochs=${epochs || 10}, lr=${learningRate || 0.0001}, auto-stop=${autoStopThreshold || 0.001}/${autoStopPatience || 3}`,
+        },
+      ],
+    };
+    
+    // Path to DNA v2 Python script
+    const pythonScript = path.join(process.cwd(), '..', 'scripts', 'train_dna_v2.py');
+    
+    // Check if Python script exists
+    try {
+      await fs.access(pythonScript);
+    } catch (error) {
+      trainingState.status = 'idle';
+      return res.status(500).json({ 
+        error: 'DNA v2 training script not found', 
+        message: `scripts/train_dna_v2.py does not exist at ${pythonScript}`,
+      });
+    }
+    
+    // Determine Python command
+    let pythonCommand;
+    const venvPath = path.join(process.cwd(), '..', 'venv');
+    
+    if (process.platform === 'win32') {
+      const venvPython = path.join(venvPath, 'Scripts', 'python.exe');
+      try {
+        await fs.access(venvPython);
+        pythonCommand = venvPython;
+      } catch {
+        pythonCommand = 'python';
+      }
+    } else {
+      const venvPython = path.join(venvPath, 'bin', 'python3');
+      try {
+        await fs.access(venvPython);
+        pythonCommand = venvPython;
+      } catch {
+        pythonCommand = 'python3';
+      }
+    }
+    
+    // Build Python script arguments
+    const pythonArgs = [
+      pythonScript,
+      '--dataset', `datasets/${datasetId}`,
+      '--epochs', String(epochs || 10),
+      '--learning-rate', String(learningRate || 0.0001),
+      '--auto-stop-threshold', String(autoStopThreshold || 0.001),
+      '--auto-stop-patience', String(autoStopPatience || 3),
+      '--seed', String(seed || 42),
+    ];
+    
+    trainingState.logs.push({
+      timestamp: new Date().toISOString(),
+      message: `Command: ${pythonCommand} ${pythonArgs.join(' ')}`,
+    });
+    
+    // Set environment variables
+    const env = {
+      ...process.env,
+      MODELS_DIR: 'models',
+    };
+    
+    // Add ledger configuration if available
+    if (process.env.LEDGER_URL) {
+      env.LEDGER_URL = process.env.LEDGER_URL;
+    }
+    if (process.env.LEDGER_PRIVATE_KEY_PATH) {
+      env.LEDGER_PRIVATE_KEY_PATH = process.env.LEDGER_PRIVATE_KEY_PATH;
+    }
+    
+    trainingProcess = spawn(pythonCommand, pythonArgs, {
+      cwd: path.join(process.cwd(), '..'),
+      env: env,
+    });
+    
+    // Handle stdout
+    trainingProcess.stdout.on('data', (data) => {
+      const message = data.toString().trim();
+      if (message) {
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message,
+        });
+        
+        // Parse epoch progress
+        const epochMatch = message.match(/Epoch (\d+)\/(\d+)/);
+        if (epochMatch) {
+          trainingState.currentEpoch = parseInt(epochMatch[1]);
+          trainingState.totalEpochs = parseInt(epochMatch[2]);
+          trainingState.progress = Math.round((trainingState.currentEpoch / trainingState.totalEpochs) * 100);
+        }
+        
+        // Parse loss
+        const lossMatch = message.match(/loss[=:]\s*([0-9.]+)/i);
+        if (lossMatch) {
+          trainingState.loss = parseFloat(lossMatch[1]);
+        }
+        
+        // Parse DNA
+        const dnaMatch = message.match(/DNA:\s*(OneSeek-7B-Zero\.v[\w.]+)/);
+        if (dnaMatch) {
+          trainingState.dna = dnaMatch[1];
+        }
+      }
+    });
+    
+    // Handle stderr
+    trainingProcess.stderr.on('data', (data) => {
+      const message = data.toString().trim();
+      if (message) {
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message: `[ERROR] ${message}`,
+        });
+      }
+    });
+    
+    // Handle process completion
+    trainingProcess.on('close', async (code) => {
+      const endTime = new Date().toISOString();
+      
+      if (code === 0) {
+        trainingState.status = 'idle';
+        trainingState.logs.push({
+          timestamp: endTime,
+          message: `Training completed successfully with DNA v2!`,
+        });
+        
+        notifications.push({
+          id: uuidv4(),
+          message: `DNA v2 training completed successfully! DNA: ${trainingState.dna || 'Check logs'}`,
+          timestamp: endTime,
+        });
+        
+        // Store DNA in training state for retrieval
+        if (trainingState.dna) {
+          trainingState.logs.push({
+            timestamp: endTime,
+            message: `Model DNA: ${trainingState.dna}`,
+          });
+        }
+      } else {
+        trainingState.status = 'idle';
+        trainingState.logs.push({
+          timestamp: endTime,
+          message: `Training failed with exit code ${code}`,
+        });
+        
+        notifications.push({
+          id: uuidv4(),
+          message: `Training failed with exit code ${code}`,
+          timestamp: endTime,
+        });
+      }
+      
+      trainingProcess = null;
+    });
+    
+    trainingProcess.on('error', (error) => {
+      trainingState.status = 'idle';
+      trainingState.logs.push({
+        timestamp: new Date().toISOString(),
+        message: `Process error: ${error.message}`,
+      });
+      trainingProcess = null;
+    });
+    
+    res.json({ success: true, message: 'DNA v2 training started' });
+  } catch (error) {
+    console.error('Error starting DNA v2 training:', error);
+    trainingState.status = 'idle';
+    res.status(500).json({ error: 'Failed to start training', message: error.message });
+  }
+});
+
 // Model Management Endpoints
 
 // GET /api/admin/models - List all model versions

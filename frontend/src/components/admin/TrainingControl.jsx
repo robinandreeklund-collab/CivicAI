@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
  * Features:
  * - Select dataset(s) for training
  * - Configure parameters: epochs, batch size, learning rate
+ * - DNA v2 training mode with adaptive weights
  * - Start/stop training sessions
  * - Monitor real-time training metrics
  * - View training logs
@@ -14,12 +15,17 @@ export default function TrainingControl() {
   const [datasets, setDatasets] = useState([]);
   const [availableModels, setAvailableModels] = useState([]);
   const [selectedDataset, setSelectedDataset] = useState('');
+  const [useDnaV2, setUseDnaV2] = useState(true); // Default to DNA v2
   const [trainingParams, setTrainingParams] = useState({
     epochs: 3,
     batchSize: 8,
     learningRate: 0.0001,
     language: 'en',
     externalModel: '',
+    // DNA v2 specific parameters
+    autoStopThreshold: 0.001,
+    autoStopPatience: 3,
+    seed: 42,
   });
   const [trainingStatus, setTrainingStatus] = useState(null);
   const [trainingLogs, setTrainingLogs] = useState([]);
@@ -84,7 +90,10 @@ export default function TrainingControl() {
     }
 
     try {
-      const response = await fetch('/api/admin/training/start', {
+      // Choose endpoint based on DNA v2 toggle
+      const endpoint = useDnaV2 ? '/api/admin/training/start-dna-v2' : '/api/admin/training/start';
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -95,7 +104,8 @@ export default function TrainingControl() {
 
       const data = await response.json();
       if (response.ok) {
-        alert('Training started successfully!');
+        const mode = useDnaV2 ? 'DNA v2 (Adaptive)' : 'Legacy';
+        alert(`Training started successfully in ${mode} mode!`);
         await fetchTrainingStatus();
       } else {
         alert(`Failed to start training: ${data.error}`);
@@ -212,12 +222,17 @@ export default function TrainingControl() {
               <select
                 value={trainingParams.language}
                 onChange={(e) => setTrainingParams({ ...trainingParams, language: e.target.value })}
-                disabled={isTraining}
+                disabled={isTraining || useDnaV2}
                 className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
               >
                 <option value="en">English (OneSeek-7B-Zero.v1.1)</option>
                 <option value="sv">Swedish (OneSeek-7B-Zero-SV.v1.1)</option>
               </select>
+              {useDnaV2 && (
+                <p className="text-[#555] font-mono text-xs mt-1">
+                  Not used in DNA v2 mode
+                </p>
+              )}
             </div>
 
             <div>
@@ -227,7 +242,7 @@ export default function TrainingControl() {
               <select
                 value={trainingParams.externalModel}
                 onChange={(e) => setTrainingParams({ ...trainingParams, externalModel: e.target.value })}
-                disabled={isTraining}
+                disabled={isTraining || useDnaV2}
                 className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
               >
                 <option value="">-- No external model --</option>
@@ -237,7 +252,114 @@ export default function TrainingControl() {
                   </option>
                 ))}
               </select>
-              <p className="text-[#555] font-mono text-xs mt-1">
+              {useDnaV2 && (
+                <p className="text-[#555] font-mono text-xs mt-1">
+                  Not used in DNA v2 mode (auto-discovers models)
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* DNA v2 Mode Toggle */}
+          <div className="border-t border-[#2a2a2a] pt-4 mt-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-[#eee] font-mono text-sm mb-1">
+                  🧬 DNA v2 Training Mode
+                </h3>
+                <p className="text-[#666] font-mono text-xs">
+                  Advanced training with adaptive weights, auto-discovery, and cryptographic provenance
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useDnaV2}
+                  onChange={(e) => setUseDnaV2(e.target.checked)}
+                  disabled={isTraining}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-[#2a2a2a] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+              </label>
+            </div>
+
+            {/* DNA v2 Specific Parameters */}
+            {useDnaV2 && (
+              <div className="grid grid-cols-3 gap-4 mt-4 p-4 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                <div>
+                  <label className="block text-[#888] font-mono text-sm mb-2">
+                    Auto-Stop Threshold
+                  </label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    min="0.0001"
+                    max="0.01"
+                    value={trainingParams.autoStopThreshold}
+                    onChange={(e) => setTrainingParams({ ...trainingParams, autoStopThreshold: parseFloat(e.target.value) })}
+                    disabled={isTraining}
+                    className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                  />
+                  <p className="text-[#555] font-mono text-xs mt-1">
+                    Loss change threshold
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-[#888] font-mono text-sm mb-2">
+                    Auto-Stop Patience
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={trainingParams.autoStopPatience}
+                    onChange={(e) => setTrainingParams({ ...trainingParams, autoStopPatience: parseInt(e.target.value) })}
+                    disabled={isTraining}
+                    className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                  />
+                  <p className="text-[#555] font-mono text-xs mt-1">
+                    Epochs to wait
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-[#888] font-mono text-sm mb-2">
+                    Random Seed
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="9999"
+                    value={trainingParams.seed}
+                    onChange={(e) => setTrainingParams({ ...trainingParams, seed: parseInt(e.target.value) })}
+                    disabled={isTraining}
+                    className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                  />
+                  <p className="text-[#555] font-mono text-xs mt-1">
+                    Reproducibility
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* DNA v2 Features Info */}
+            {useDnaV2 && (
+              <div className="mt-4 p-3 bg-[#0a0a0a] border border-green-900/30 rounded">
+                <p className="text-green-400 font-mono text-xs mb-2">✅ DNA v2 Features:</p>
+                <ul className="text-[#666] font-mono text-xs space-y-1 pl-4">
+                  <li>• Auto-discovers base models from models/ directory</li>
+                  <li>• Adaptive weight adjustment (+20-50% best, -30-50% worst)</li>
+                  <li>• Confidence-based auto-stop when loss plateaus</li>
+                  <li>• SHA-256 DNA fingerprinting with Ed25519 signatures</li>
+                  <li>• Immutable ledger entry with dataset hashes</li>
+                  <li>• Certified model package with verification script</li>
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* Start/Stop Buttons */}
                 {availableModels.length > 0 
                   ? `${availableModels.length} model(s) found in models directory`
                   : 'Scanning models directory...'}
@@ -279,8 +401,19 @@ export default function TrainingControl() {
                 isTraining ? 'text-[#888]' : 'text-[#666]'
               }`}>
                 {trainingStatus.status}
+                {trainingStatus.useDnaV2 && <span className="ml-2 text-green-400">🧬 DNA v2</span>}
               </span>
             </div>
+
+            {/* Show DNA if available */}
+            {trainingStatus.dna && (
+              <div className="p-3 bg-[#0a0a0a] border border-green-900/30 rounded">
+                <span className="text-[#666] font-mono text-xs block mb-1">DNA Fingerprint:</span>
+                <span className="text-green-400 font-mono text-xs break-all">
+                  {trainingStatus.dna}
+                </span>
+              </div>
+            )}
 
             {metrics && (
               <>
