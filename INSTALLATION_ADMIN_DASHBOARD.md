@@ -1,8 +1,10 @@
 # Installation Guide - Admin Dashboard
 
-## Nytt Krav: Installera Dependencies
+## Nytt Krav: Installera Dependencies och Python Virtual Environment
 
-För att köra den nya admin dashboard-funktionaliteten behöver du installera nya beroenden.
+För att köra den nya admin dashboard-funktionaliteten behöver du:
+1. Installera Node.js dependencies (multer, Chart.js)
+2. **VIKTIGT:** Sätt upp Python virtual environment för träning
 
 ## Snabbstart
 
@@ -20,13 +22,30 @@ npm install
 cd ..\frontend
 npm install
 
+# VIKTIGT: Sätt upp Python virtual environment för träning
+cd ..\backend\python_services
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+# Verifiera Python packages
+python -c "import torch; print('PyTorch OK')"
+python -c "import transformers; print('Transformers OK')"
+
 # Starta backend (i ett terminalfönster)
-cd ..\backend
+cd ..\..
+cd backend
 npm run dev
 
 # Starta frontend (i ett annat terminalfönster)
 cd ..\frontend
 npm run dev
+```
+
+**OBS för PowerShell Execution Policy:**
+Om du får fel när du aktiverar venv, kör:
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
 ### Linux/Mac
@@ -43,8 +62,19 @@ npm install
 cd ../frontend
 npm install
 
+# VIKTIGT: Sätt upp Python virtual environment för träning
+cd ../backend/python_services
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Verifiera Python packages
+python -c "import torch; print('PyTorch OK')"
+python -c "import transformers; print('Transformers OK')"
+
 # Starta backend (i en terminal)
-cd ../backend
+cd ../..
+cd backend
 npm run dev
 
 # Starta frontend (i en annan terminal)
@@ -97,6 +127,64 @@ Detta installerar:
 added 42 packages, and audited 458 packages in 4s
 found 0 vulnerabilities (eller 2 moderate - är OK)
 ```
+
+### 3. Python Virtual Environment (KRITISKT för Träning!)
+
+Admin dashboarden behöver Python virtual environment för att köra träningsskript.
+
+#### Windows:
+
+```powershell
+cd backend\python_services
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+**Troubleshooting PowerShell Execution Policy:**
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+#### Linux/Mac:
+
+```bash
+cd backend/python_services
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+**Verifiera installation:**
+```python
+python -c "import torch; print('PyTorch:', torch.__version__)"
+python -c "import transformers; print('Transformers:', transformers.__version__)"
+python -c "import peft; print('PEFT:', peft.__version__)"
+```
+
+**Förväntad output:**
+```
+PyTorch: 2.x.x
+Transformers: 4.x.x
+PEFT: 0.x.x
+```
+
+#### Varför Behövs Detta?
+
+Backend detekterar automatiskt virtual environment och använder det för träning:
+- **Windows:** `backend/python_services/venv/Scripts/python.exe`
+- **Linux/Mac:** `backend/python_services/venv/bin/python3`
+
+När träning startas kommer du se i Training Logs:
+```
+Using virtual environment: C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\python.exe
+```
+
+Om venv inte hittas:
+```
+Virtual environment not found, using system python
+```
+Detta kan leda till "ModuleNotFoundError" om system Python saknar dependencies.
 
 ### 3. Verifiera Installation
 

@@ -330,8 +330,47 @@ router.post('/training/start', requireAdmin, async (req, res) => {
     }
     
     // Spawn Python training process
-    // Use 'python' on Windows, 'python3' on Linux/Mac
-    const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
+    // Determine Python command based on platform and virtual environment
+    let pythonCommand;
+    const venvPath = path.join(process.cwd(), 'python_services', 'venv');
+    
+    if (process.platform === 'win32') {
+      // Windows: Check for virtual environment
+      const venvPython = path.join(venvPath, 'Scripts', 'python.exe');
+      try {
+        await fs.access(venvPython);
+        pythonCommand = venvPython;
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message: `Using virtual environment: ${venvPython}`,
+        });
+      } catch (error) {
+        // Fallback to system python
+        pythonCommand = 'python';
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message: 'Virtual environment not found, using system python',
+        });
+      }
+    } else {
+      // Linux/Mac: Check for virtual environment
+      const venvPython = path.join(venvPath, 'bin', 'python3');
+      try {
+        await fs.access(venvPython);
+        pythonCommand = venvPython;
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message: `Using virtual environment: ${venvPython}`,
+        });
+      } catch (error) {
+        // Fallback to system python3
+        pythonCommand = 'python3';
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message: 'Virtual environment not found, using system python3',
+        });
+      }
+    }
     
     trainingProcess = spawn(pythonCommand, [pythonScript], {
       cwd: path.join(process.cwd(), '..'), // Set working directory to project root
