@@ -85,7 +85,13 @@ export default function DatasetManagement() {
       if (response.ok) {
         setValidationResults(data.validation);
         await fetchDatasets();
-        alert(`Dataset uploaded successfully! ${data.validation.validEntries} valid entries.`);
+        
+        // Show naming convention suggestion if provided
+        let message = `Dataset uploaded successfully! ${data.validation.validEntries} valid entries.`;
+        if (data.suggestedName && data.suggestedName !== file.name) {
+          message += `\n\nNaming Convention: ${data.namingConvention}\nSuggested name: ${data.suggestedName}`;
+        }
+        alert(message);
       } else {
         alert(`Upload failed: ${data.error}`);
       }

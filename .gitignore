@@ -183,6 +183,7 @@ ml/change_history/
 ml/ledger_demo/
 ml/change_history_demo/
 ml/debug/
+ml/training_history.json
 
 # Downloaded model weights (Mistral 7B, LLaMA-2, etc.)
 # These are large files (multiple GB) and should not be committed to git

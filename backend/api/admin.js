@@ -68,6 +68,9 @@ let resourceMetrics = {
   memory: [],
 };
 
+// Previous CPU usage snapshot for delta calculation
+let previousCpuSnapshot = null;
+
 let schedule = {
   frequency: 'manual',
   autoTrain: false,
@@ -76,6 +79,48 @@ let schedule = {
 };
 
 let notifications = [];
+
+// Training history storage file path
+const TRAINING_HISTORY_FILE = path.join(process.cwd(), '..', 'ml', 'training_history.json');
+
+// Helper function to load training history from file
+async function loadTrainingHistory() {
+  try {
+    const historyDir = path.dirname(TRAINING_HISTORY_FILE);
+    await fs.mkdir(historyDir, { recursive: true });
+    
+    const data = await fs.readFile(TRAINING_HISTORY_FILE, 'utf-8');
+    return JSON.parse(data);
+  } catch (error) {
+    // File doesn't exist or is invalid, return empty array
+    return [];
+  }
+}
+
+// Helper function to save training history to file
+async function saveTrainingHistory(history) {
+  try {
+    const historyDir = path.dirname(TRAINING_HISTORY_FILE);
+    await fs.mkdir(historyDir, { recursive: true });
+    
+    await fs.writeFile(TRAINING_HISTORY_FILE, JSON.stringify(history, null, 2));
+  } catch (error) {
+    console.error('Error saving training history:', error);
+  }
+}
+
+// Helper function to add a training session to history
+async function addTrainingSession(session) {
+  const history = await loadTrainingHistory();
+  history.push(session);
+  
+  // Keep only the last 50 sessions
+  if (history.length > 50) {
+    history.splice(0, history.length - 50);
+  }
+  
+  await saveTrainingHistory(history);
+}
 
 // Middleware to check admin access (simplified - should use proper auth)
 function requireAdmin(req, res, next) {
@@ -139,6 +184,24 @@ router.post('/datasets/upload', requireAdmin, upload.single('dataset'), async (r
       return res.status(400).json({ error: 'No file uploaded' });
     }
     
+    // Generate suggested name based on the naming convention: oneseek_<type>_<version>.jsonl
+    const originalName = req.file.originalname;
+    let suggestedName = originalName;
+    
+    // If the file doesn't follow the naming convention, suggest one
+    if (!originalName.match(/^oneseek_[a-zA-Z]+_v[0-9.]+\.jsonl$/)) {
+      // Try to extract type from original name using word boundaries
+      let datasetType = 'custom';
+      const nameLower = originalName.toLowerCase();
+      
+      if (/\bidentity\b/.test(nameLower)) datasetType = 'identity';
+      else if (/\bcivic\b/.test(nameLower)) datasetType = 'civic';
+      else if (/\bpolicy\b/.test(nameLower)) datasetType = 'policy';
+      else if (/\bqa\b/.test(nameLower)) datasetType = 'qa';
+      
+      suggestedName = `oneseek_${datasetType}_v1.0.jsonl`;
+    }
+    
     // Validate the dataset
     const content = await fs.readFile(req.file.path, 'utf-8');
     let validEntries = 0;
@@ -186,6 +249,8 @@ router.post('/datasets/upload', requireAdmin, upload.single('dataset'), async (r
         name: req.file.originalname,
         size: req.file.size,
       },
+      suggestedName: suggestedName,
+      namingConvention: 'oneseek_<type>_v<version>.jsonl (e.g., oneseek_identity_v1.0.jsonl)',
       validation: {
         validEntries,
         invalidEntries,
@@ -420,32 +485,164 @@ router.post('/training/start', requireAdmin, async (req, res) => {
     });
     
     // Handle process completion
-    trainingProcess.on('close', (code) => {
+    trainingProcess.on('close', async (code) => {
+      const endTime = new Date().toISOString();
+      const startTime = trainingState.logs[0]?.timestamp || endTime;
+      const duration = Math.round((new Date(endTime) - new Date(startTime)) / 1000);
+      
       if (code === 0) {
         trainingState.status = 'idle';
         trainingState.progress = 100;
         trainingState.logs.push({
-          timestamp: new Date().toISOString(),
+          timestamp: endTime,
           message: 'Training completed successfully!',
         });
+        
+        // Extract metrics from logs
+        let finalLoss = trainingState.loss;
+        let finalAccuracy = null;
+        let finalFairness = null;
+        
+        // Parse logs for additional metrics
+        for (const log of trainingState.logs) {
+          const accMatch = log.message.match(/Accuracy[:\s]+([0-9.]+)/i);
+          if (accMatch) finalAccuracy = parseFloat(accMatch[1]);
+          
+          const fairMatch = log.message.match(/Fairness[:\s]+([0-9.]+)/i);
+          if (fairMatch) finalFairness = parseFloat(fairMatch[1]);
+        }
+        
+        // Count samples processed from dataset
+        let samplesProcessed = 0;
+        try {
+          const datasetPath = path.join(process.cwd(), '..', 'datasets', datasetId);
+          const content = await fs.readFile(datasetPath, 'utf-8');
+          if (datasetId.endsWith('.jsonl')) {
+            samplesProcessed = content.trim().split('\n').filter(line => line.trim()).length;
+          } else {
+            const json = JSON.parse(content);
+            samplesProcessed = Array.isArray(json) ? json.length : 1;
+          }
+        } catch (error) {
+          console.error('Error counting samples:', error);
+        }
+        
+        // Add training session to history
+        const session = {
+          modelVersion: 'OneSeek-7B-Zero',
+          timestamp: endTime,
+          duration: duration,
+          samples: samplesProcessed, // Unique samples in dataset
+          totalSteps: samplesProcessed * (epochs || 3), // Total training steps (samples × epochs)
+          dataset: datasetId,
+          metrics: {
+            loss: finalLoss,
+            accuracy: finalAccuracy,
+            fairness: finalFairness,
+          },
+          config: {
+            epochs: epochs || 3,
+            batchSize: batchSize || 8,
+            learningRate: learningRate || 0.0001,
+          },
+        };
+        
+        await addTrainingSession(session);
+        
+        // Update schedule last training time
+        schedule.lastTraining = endTime;
+        
+        // Save metadata to models directory
+        try {
+          const modelsDir = path.join(process.cwd(), '..', 'models', 'oneseek-7b-zero');
+          const weightsDir = path.join(modelsDir, 'weights');
+          await fs.mkdir(weightsDir, { recursive: true });
+          
+          // Determine next version number
+          const existingFiles = await fs.readdir(weightsDir);
+          const versionFiles = existingFiles.filter(f => f.startsWith('oneseek-7b-zero-v') && f.endsWith('.json'));
+          const versions = versionFiles.map(f => {
+            const match = f.match(/oneseek-7b-zero-v([0-9.]+)\.json/);
+            return match ? match[1] : null;
+          }).filter(v => v !== null);
+          
+          let nextVersion = '1.0';
+          if (versions.length > 0) {
+            // Parse versions properly (semantic versioning)
+            const versionParts = versions.map(v => {
+              const parts = v.split('.');
+              return {
+                original: v,
+                major: parseInt(parts[0]) || 0,
+                minor: parseInt(parts[1]) || 0
+              };
+            });
+            
+            // Find max version
+            versionParts.sort((a, b) => {
+              if (a.major !== b.major) return b.major - a.major;
+              return b.minor - a.minor;
+            });
+            
+            const maxVer = versionParts[0];
+            nextVersion = `${maxVer.major}.${maxVer.minor + 1}`;
+          }
+          
+          // Create metadata file
+          // Extract training type from dataset name
+          let trainingType = 'custom';
+          const datasetLower = datasetId.toLowerCase();
+          if (/\bidentity\b/.test(datasetLower)) trainingType = 'identity';
+          else if (/\bcivic\b/.test(datasetLower)) trainingType = 'civic';
+          else if (/\bpolicy\b/.test(datasetLower)) trainingType = 'policy';
+          else if (/\bqa\b/.test(datasetLower)) trainingType = 'qa';
+          
+          const metadata = {
+            version: `OneSeek-7B-Zero.v${nextVersion}`,
+            createdAt: endTime,
+            trainingType: trainingType,
+            samplesProcessed: samplesProcessed,
+            isCurrent: true,
+            metrics: {
+              loss: finalLoss,
+              accuracy: finalAccuracy,
+              fairness: finalFairness,
+            },
+            config: {
+              epochs: epochs || 3,
+              batchSize: batchSize || 8,
+              learningRate: learningRate || 0.0001,
+              dataset: datasetId,
+            },
+            baseModel: 'Mistral-7B',
+            loraRank: 8,
+          };
+          
+          const metadataPath = path.join(weightsDir, `oneseek-7b-zero-v${nextVersion}.json`);
+          await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
+          
+          console.log(`Saved model metadata to ${metadataPath}`);
+        } catch (error) {
+          console.error('Error saving model metadata:', error);
+        }
         
         // Add notification
         notifications.push({
           id: uuidv4(),
-          message: `Training completed successfully! Final loss: ${trainingState.loss || 'N/A'}`,
-          timestamp: new Date().toISOString(),
+          message: `Training completed successfully! Final loss: ${finalLoss || 'N/A'}, Samples: ${samplesProcessed}`,
+          timestamp: endTime,
         });
       } else {
         trainingState.status = 'idle';
         trainingState.logs.push({
-          timestamp: new Date().toISOString(),
+          timestamp: endTime,
           message: `Training failed with exit code ${code}`,
         });
         
         notifications.push({
           id: uuidv4(),
           message: `Training failed with exit code ${code}`,
-          timestamp: new Date().toISOString(),
+          timestamp: endTime,
         });
       }
       trainingProcess = null;
@@ -491,36 +688,31 @@ router.post('/training/stop', requireAdmin, (req, res) => {
 // GET /api/admin/models - List all model versions
 router.get('/models', requireAdmin, async (req, res) => {
   try {
-    const modelsDir = path.join(process.cwd(), '..', 'models');
+    const modelsDir = path.join(process.cwd(), '..', 'models', 'oneseek-7b-zero', 'weights');
     const models = [];
     
     try {
       await fs.mkdir(modelsDir, { recursive: true });
       const files = await fs.readdir(modelsDir);
       
-      for (const file of files) {
-        const modelPath = path.join(modelsDir, file);
-        const stats = await fs.stat(modelPath);
+      // Filter for metadata JSON files
+      const metadataFiles = files.filter(f => f.startsWith('oneseek-7b-zero-v') && f.endsWith('.json'));
+      
+      for (const file of metadataFiles) {
+        const metadataPath = path.join(modelsDir, file);
         
-        if (stats.isDirectory()) {
-          // Try to read metadata if it exists
-          let metadata = null;
-          try {
-            const metadataPath = path.join(modelPath, 'metadata.json');
-            const metadataContent = await fs.readFile(metadataPath, 'utf-8');
-            metadata = JSON.parse(metadataContent);
-          } catch (error) {
-            // No metadata file, create basic info
-            metadata = {
-              version: file,
-              createdAt: stats.mtime.toISOString(),
-            };
-          }
+        try {
+          const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+          const metadata = JSON.parse(metadataContent);
+          
+          // Extract version from filename as fallback
+          const versionMatch = file.match(/oneseek-7b-zero-v([0-9.]+)\.json/);
+          const versionId = versionMatch ? versionMatch[1] : 'unknown';
           
           models.push({
-            id: file,
-            version: metadata.version || file,
-            createdAt: metadata.createdAt || stats.mtime.toISOString(),
+            id: versionId,
+            version: metadata.version || `OneSeek-7B-Zero.v${versionId}`,
+            createdAt: metadata.createdAt || new Date().toISOString(),
             trainingType: metadata.trainingType || 'unknown',
             samplesProcessed: metadata.samplesProcessed || 0,
             isCurrent: metadata.isCurrent || false,
@@ -531,8 +723,26 @@ router.get('/models', requireAdmin, async (req, res) => {
             },
             metadata: metadata,
           });
+        } catch (error) {
+          console.error(`Error reading metadata file ${file}:`, error);
         }
       }
+      
+      // Sort by version (newest first) using proper semantic versioning
+      models.sort((a, b) => {
+        const partsA = a.id.split('.').map(n => parseInt(n) || 0);
+        const partsB = b.id.split('.').map(n => parseInt(n) || 0);
+        
+        // Compare major version
+        if (partsA[0] !== partsB[0]) return partsB[0] - partsA[0];
+        
+        // Compare minor version
+        if (partsA[1] !== partsB[1]) return (partsB[1] || 0) - (partsA[1] || 0);
+        
+        // Compare patch version
+        return (partsB[2] || 0) - (partsA[2] || 0);
+      });
+      
     } catch (error) {
       console.error('Error reading models directory:', error);
     }
@@ -593,19 +803,41 @@ router.post('/models/:id/rollback', requireAdmin, async (req, res) => {
 
 // GET /api/admin/monitoring/resources - Get resource usage metrics
 router.get('/monitoring/resources', requireAdmin, (req, res) => {
-  // Get real CPU usage
+  // Get current CPU snapshot
   const cpus = os.cpus();
-  let totalIdle = 0;
-  let totalTick = 0;
+  const currentSnapshot = cpus.map(cpu => ({
+    idle: cpu.times.idle,
+    total: Object.values(cpu.times).reduce((a, b) => a + b, 0)
+  }));
   
-  cpus.forEach(cpu => {
-    for (let type in cpu.times) {
-      totalTick += cpu.times[type];
+  let cpuUsage = 0;
+  
+  if (previousCpuSnapshot && previousCpuSnapshot.length === currentSnapshot.length) {
+    // Calculate CPU usage as the average across all cores
+    // Only proceed if core count hasn't changed
+    let totalUsage = 0;
+    for (let i = 0; i < currentSnapshot.length; i++) {
+      const idleDelta = currentSnapshot[i].idle - previousCpuSnapshot[i].idle;
+      const totalDelta = currentSnapshot[i].total - previousCpuSnapshot[i].total;
+      const usage = totalDelta > 0 ? (1 - idleDelta / totalDelta) * 100 : 0;
+      totalUsage += usage;
     }
-    totalIdle += cpu.times.idle;
-  });
+    cpuUsage = totalUsage / currentSnapshot.length;
+  } else {
+    // First call or core count changed, estimate based on current state
+    let totalIdle = 0;
+    let totalTick = 0;
+    cpus.forEach(cpu => {
+      for (let type in cpu.times) {
+        totalTick += cpu.times[type];
+      }
+      totalIdle += cpu.times.idle;
+    });
+    cpuUsage = totalTick > 0 ? 100 - (100 * totalIdle / totalTick) : 0;
+  }
   
-  const cpuUsage = 100 - ~~(100 * totalIdle / totalTick);
+  // Update previous snapshot for next calculation
+  previousCpuSnapshot = currentSnapshot;
   
   // Get memory usage
   const totalMem = os.totalmem();
@@ -613,11 +845,13 @@ router.get('/monitoring/resources', requireAdmin, (req, res) => {
   const usedMem = totalMem - freeMem;
   const memoryUsage = (usedMem / totalMem) * 100;
   
-  // GPU usage - not available without external tools, use placeholder
-  const gpuUsage = 0; // Would need nvidia-smi or similar
+  // GPU usage - check if nvidia-smi is available
+  let gpuUsage = 0;
+  // Note: This would require spawning nvidia-smi which we'll keep at 0 for now
+  // In production, you could use child_process to call nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits
   
-  resourceMetrics.cpu.push(cpuUsage);
-  resourceMetrics.memory.push(memoryUsage);
+  resourceMetrics.cpu.push(Math.round(cpuUsage * 10) / 10);
+  resourceMetrics.memory.push(Math.round(memoryUsage * 10) / 10);
   resourceMetrics.gpu.push(gpuUsage);
   
   // Keep only last 50 data points
@@ -633,19 +867,8 @@ router.get('/monitoring/resources', requireAdmin, (req, res) => {
 // GET /api/admin/monitoring/training-history - Get training history
 router.get('/monitoring/training-history', requireAdmin, async (req, res) => {
   try {
-    // In production, fetch from database
-    const history = [
-      {
-        modelVersion: 'OneSeek-7B-Zero.v1.0',
-        timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-        duration: 3600,
-        samples: 500,
-        metrics: {
-          loss: 0.245,
-          accuracy: 89.5,
-        },
-      },
-    ];
+    // Load training history from file
+    const history = await loadTrainingHistory();
     
     res.json({ history });
   } catch (error) {
