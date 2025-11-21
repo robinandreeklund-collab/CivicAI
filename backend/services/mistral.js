@@ -1,12 +1,14 @@
 /**
  * Mistral 7B Service
  * Handles communication with Mistral 7B model
- * Fast real-time inference for OQT-1.0 pipeline
+ * Real inference via ML service or simulated fallback
  */
+
+import { callMistralInference, isMLServiceAvailable } from './mlServiceClient.js';
 
 /**
  * Get a simulated response from Mistral 7B
- * In production, this would integrate with actual Mistral API or local deployment
+ * Fallback when ML service is not available
  */
 function getSimulatedResponse(question) {
   const questionLower = question.toLowerCase();
@@ -75,6 +77,7 @@ Mer specificerad information kräver avgränsning av frågeställningen och för
 
 /**
  * Get response from Mistral 7B
+ * Tries real model inference first, falls back to simulation
  * @param {string} question - User's question
  * @param {Object} options - Optional configuration
  * @returns {Promise<{response: string, model: string, metadata: Object}>}
@@ -82,30 +85,44 @@ Mer specificerad information kräver avgränsning av frågeställningen och för
 export async function getMistralResponse(question, options = {}) {
   const startTime = Date.now();
   
-  // In production, this would call actual Mistral API
-  // For now, using simulated responses
-  try {
-    // Simulate processing delay (Mistral is fast)
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    const response = getSimulatedResponse(question);
+  // Try real ML service first
+  const mlResult = await callMistralInference(question, options);
+  
+  if (mlResult.success) {
+    // Using real model
     const latency = Date.now() - startTime;
-    
     return {
-      response,
-      model: 'mistral-7b-instruct',
+      response: mlResult.data.response,
+      model: mlResult.data.model || 'mistral-7b-instruct',
       metadata: {
         temperature: options.temperature || 0.7,
         maxTokens: options.maxTokens || 500,
-        latency_ms: latency,
-        tokens: Math.ceil(response.split(' ').length * 1.3),
-        simulated: true,
+        latency_ms: mlResult.data.latency_ms || latency,
+        tokens: mlResult.data.tokens || Math.ceil(mlResult.data.response.split(' ').length * 1.3),
+        simulated: false,
+        mlService: true,
       },
     };
-  } catch (error) {
-    console.error('Mistral API error:', error);
-    throw new Error(`Failed to get Mistral response: ${error.message}`);
   }
+  
+  // Fallback to simulated response
+  console.log('Using simulated Mistral response');
+  await new Promise(resolve => setTimeout(resolve, 100)); // Simulate delay
+  
+  const response = getSimulatedResponse(question);
+  const latency = Date.now() - startTime;
+  
+  return {
+    response,
+    model: 'mistral-7b-instruct',
+    metadata: {
+      temperature: options.temperature || 0.7,
+      maxTokens: options.maxTokens || 500,
+      latency_ms: latency,
+      tokens: Math.ceil(response.split(' ').length * 1.3),
+      simulated: true,
+    },
+  };
 }
 
 /**
