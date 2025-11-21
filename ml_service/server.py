@@ -68,6 +68,53 @@ DEVICE, DEVICE_TYPE = get_device()
 models = {}
 tokenizers = {}
 
+# Dual-model configuration for OneSeek-7B-Zero
+DUAL_MODEL_MODE = True  # Use both Mistral and LLaMA in parallel
+
+def find_all_base_models():
+    """Find all available base models for dual-model OneSeek-7B-Zero
+    
+    Returns dict with 'mistral' and 'llama' paths, or None if not found
+    """
+    base_path = Path(ONESEEK_PATH)
+    
+    # Check if OneSeek directory itself has a config.json (complete model)
+    if (base_path / 'config.json').exists():
+        logger.info(f"Found complete OneSeek model at {base_path}")
+        return {'oneseek_complete': str(base_path)}
+    
+    models_found = {}
+    
+    # Check for base models in oneseek directory
+    mistral_base = base_path / 'base_models' / 'mistral-7b'
+    llama_base = base_path / 'base_models' / 'llama-2-7b'
+    
+    # Legacy paths (where user actually has the models)
+    legacy_mistral = PROJECT_ROOT / 'models' / 'mistral-7b-instruct'
+    legacy_llama = PROJECT_ROOT / 'models' / 'llama-2-7b-chat'
+    
+    # Check for Mistral
+    for name, path in [
+        ('Mistral-7B (base_models)', mistral_base),
+        ('Mistral-7B (legacy)', legacy_mistral)
+    ]:
+        if path.exists() and (path / 'config.json').exists():
+            logger.info(f"Found Mistral base model: {name} at {path}")
+            models_found['mistral'] = str(path)
+            break
+    
+    # Check for LLaMA
+    for name, path in [
+        ('LLaMA-2-7B (base_models)', llama_base),
+        ('LLaMA-2-7B (legacy)', legacy_llama)
+    ]:
+        if path.exists() and (path / 'config.json').exists():
+            logger.info(f"Found LLaMA base model: {name} at {path}")
+            models_found['llama'] = str(path)
+            break
+    
+    return models_found if models_found else None
+
 class InferenceRequest(BaseModel):
     text: str
     max_length: int = 512
@@ -118,17 +165,35 @@ def find_base_model_path():
     
     return None
 
-def find_lora_weights():
+def find_lora_weights(adapter_suffix=''):
     """Find the latest LoRA adapter weights for OneSeek-7B-Zero
     
+    Args:
+        adapter_suffix: Optional suffix like 'mistral' or 'llama' for model-specific adapters
+    
     Checks for trained LoRA weights in:
-    1. weights/oneseek-7b-zero-v*.pth (latest version)
-    2. lora_adapters/oneseek-7b-zero-v*/adapter.pth
+    1. lora_adapters/<model>-adapter.pth (model-specific)
+    2. weights/oneseek-7b-zero-v*.pth (latest version)
+    3. lora_adapters/oneseek-7b-zero-v*/adapter.pth
     
     Returns path to LoRA weights file, or None if not found
     """
     import json
     base_path = Path(ONESEEK_PATH)
+    
+    # Check for model-specific LoRA adapters first
+    if adapter_suffix:
+        lora_dir = base_path / 'lora_adapters'
+        adapter_file = lora_dir / f'{adapter_suffix}-adapter.pth'
+        if adapter_file.exists():
+            logger.info(f"Found model-specific LoRA adapter: {adapter_file}")
+            return str(adapter_file)
+        
+        # Check for model-specific adapter directory
+        adapter_dir = lora_dir / f'oneseek-7b-zero-v1.1-{adapter_suffix}'
+        if adapter_dir.exists() and (adapter_dir / 'adapter_model.bin').exists():
+            logger.info(f"Found model-specific LoRA adapter directory: {adapter_dir}")
+            return str(adapter_dir / 'adapter_model.bin')
     
     # Check weights directory for .pth files
     weights_dir = base_path / 'weights'
@@ -165,6 +230,10 @@ def find_lora_weights():
             if adapter_file.exists():
                 logger.info(f"Found LoRA adapter: {adapter_file}")
                 return str(adapter_file)
+            # Also check for PEFT format
+            if (adapter_dir / 'adapter_model.bin').exists():
+                logger.info(f"Found PEFT LoRA adapter: {adapter_dir}")
+                return str(adapter_dir / 'adapter_model.bin')
     
     return None
 
@@ -173,21 +242,41 @@ def load_model(model_name: str, model_path: str):
     if model_name in models:
         return models[model_name], tokenizers[model_name]
     
-    # For OneSeek, find the actual base model path
-    if model_name == 'oneseek-7b-zero':
-        actual_path = find_base_model_path()
-        if not actual_path:
-            error_msg = (
-                "No base model found for OneSeek-7B-Zero. Please download one of:\n"
-                "  1. Mistral-7B: huggingface-cli download mistralai/Mistral-7B-Instruct-v0.2 "
-                f"--local-dir {ONESEEK_PATH}/base_models/mistral-7b\n"
-                "  2. LLaMA-2-7B: huggingface-cli download meta-llama/Llama-2-7b-chat-hf "
-                f"--local-dir {ONESEEK_PATH}/base_models/llama-2-7b"
-            )
-            logger.error(error_msg)
-            raise FileNotFoundError(error_msg)
-        model_path = actual_path
-        logger.info(f"Loading OneSeek-7B-Zero using base model from {model_path}...")
+    # For OneSeek models, find the actual base model path
+    if model_name.startswith('oneseek'):
+        if model_name == 'oneseek-mistral':
+            # Load Mistral base model
+            available_models = find_all_base_models()
+            if available_models and 'mistral' in available_models:
+                model_path = available_models['mistral']
+                logger.info(f"Loading Mistral-7B for OneSeek dual-model...")
+            else:
+                raise FileNotFoundError("Mistral-7B not found for dual-model mode")
+                
+        elif model_name == 'oneseek-llama':
+            # Load LLaMA base model
+            available_models = find_all_base_models()
+            if available_models and 'llama' in available_models:
+                model_path = available_models['llama']
+                logger.info(f"Loading LLaMA-2 for OneSeek dual-model...")
+            else:
+                raise FileNotFoundError("LLaMA-2 not found for dual-model mode")
+                
+        elif model_name == 'oneseek-7b-zero':
+            # Single-model mode
+            actual_path = find_base_model_path()
+            if not actual_path:
+                error_msg = (
+                    "No base model found for OneSeek-7B-Zero. Please download one of:\n"
+                    "  1. Mistral-7B: huggingface-cli download mistralai/Mistral-7B-Instruct-v0.2 "
+                    f"--local-dir {ONESEEK_PATH}/base_models/mistral-7b\n"
+                    "  2. LLaMA-2-7B: huggingface-cli download meta-llama/Llama-2-7b-chat-hf "
+                    f"--local-dir {ONESEEK_PATH}/base_models/llama-2-7b"
+                )
+                logger.error(error_msg)
+                raise FileNotFoundError(error_msg)
+            model_path = actual_path
+            logger.info(f"Loading OneSeek-7B-Zero using base model from {model_path}...")
     else:
         logger.info(f"Loading {model_name} from {model_path}...")
     
@@ -209,8 +298,15 @@ def load_model(model_name: str, model_path: str):
         model = model.to(DEVICE)
         
         # For OneSeek, try to load and apply LoRA adapters
-        if model_name == 'oneseek-7b-zero':
-            lora_weights = find_lora_weights()
+        if model_name.startswith('oneseek'):
+            # Determine which LoRA adapter to use
+            adapter_suffix = ''
+            if model_name == 'oneseek-mistral':
+                adapter_suffix = 'mistral'
+            elif model_name == 'oneseek-llama':
+                adapter_suffix = 'llama'
+            
+            lora_weights = find_lora_weights(adapter_suffix)
             if lora_weights:
                 try:
                     # Try to load LoRA using PEFT
@@ -232,7 +328,7 @@ def load_model(model_name: str, model_path: str):
                     logger.warning(f"⚠ Could not apply LoRA adapters: {e}")
                     logger.info("  Using base model without adapters")
             else:
-                logger.info("ℹ No LoRA adapters found - using base model")
+                logger.info(f"ℹ No LoRA adapters found for {model_name} - using base model")
                 logger.info("  Train with: python scripts/train_identity.py")
         
         # Apply device-specific optimizations
@@ -260,6 +356,112 @@ def load_model(model_name: str, model_path: str):
         raise
 
 
+async def dual_model_inference(text: str, max_length: int = 512, temperature: float = 0.7, top_p: float = 0.9):
+    """
+    Run inference using BOTH Mistral-7B and LLaMA-2 in parallel
+    Combines their strengths: Mistral for speed, LLaMA for depth
+    
+    Returns combined response with metadata from both models
+    """
+    import time
+    import asyncio
+    
+    async def run_single_inference(model_key: str, model, tokenizer, prompt: str):
+        """Run inference on a single model"""
+        start_time = time.time()
+        
+        # Tokenize input
+        inputs = tokenizer(prompt, return_tensors="pt").to(DEVICE)
+        
+        # Generate
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_length=max_length,
+                temperature=temperature,
+                top_p=top_p,
+                do_sample=True,
+                pad_token_id=tokenizer.eos_token_id
+            )
+        
+        # Decode
+        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        
+        # Remove the input prompt from response
+        if response.startswith(prompt):
+            response = response[len(prompt):].strip()
+        
+        latency = (time.time() - start_time) * 1000
+        
+        return {
+            'model': model_key,
+            'response': response,
+            'latency_ms': latency,
+            'tokens': len(outputs[0])
+        }
+    
+    # Load both models if not already loaded
+    if 'oneseek-mistral' not in models:
+        logger.info("Loading Mistral-7B for dual-model inference...")
+        available_models = find_all_base_models()
+        if available_models and 'mistral' in available_models:
+            load_model('oneseek-mistral', available_models['mistral'])
+    
+    if 'oneseek-llama' not in models:
+        logger.info("Loading LLaMA-2 for dual-model inference...")
+        available_models = find_all_base_models()
+        if available_models and 'llama' in available_models:
+            load_model('oneseek-llama', available_models['llama'])
+    
+    # Check if both models are loaded
+    mistral_loaded = 'oneseek-mistral' in models
+    llama_loaded = 'oneseek-llama' in models
+    
+    if not (mistral_loaded and llama_loaded):
+        # Fallback to single model if both aren't available
+        logger.warning("⚠ Dual-model mode requires both Mistral and LLaMA")
+        logger.info(f"  Available: Mistral={mistral_loaded}, LLaMA={llama_loaded}")
+        logger.info("  Falling back to single-model inference")
+        
+        # Use whichever is available
+        if mistral_loaded:
+            return await run_single_inference('oneseek-mistral', models['oneseek-mistral'], 
+                                             tokenizers['oneseek-mistral'], text)
+        elif llama_loaded:
+            return await run_single_inference('oneseek-llama', models['oneseek-llama'], 
+                                             tokenizers['oneseek-llama'], text)
+        else:
+            raise HTTPException(status_code=500, detail="No base models available")
+    
+    # Run both models in parallel (simulated async)
+    logger.info("🔄 Dual-model inference: Mistral (fast) + LLaMA (deep)")
+    
+    # Run Mistral first (fast response)
+    mistral_result = await run_single_inference('mistral', models['oneseek-mistral'], 
+                                                 tokenizers['oneseek-mistral'], text)
+    logger.info(f"  ✓ Mistral completed in {mistral_result['latency_ms']:.0f}ms")
+    
+    # Run LLaMA (deeper analysis)
+    llama_result = await run_single_inference('llama', models['oneseek-llama'], 
+                                               tokenizers['oneseek-llama'], text)
+    logger.info(f"  ✓ LLaMA completed in {llama_result['latency_ms']:.0f}ms")
+    
+    # Combine results - use LLaMA as primary (deeper), note Mistral's speed
+    combined = {
+        'response': llama_result['response'],  # Use LLaMA's deeper analysis
+        'model': 'OneSeek-7B-Zero.v1.1 (Dual: Mistral+LLaMA)',
+        'tokens': llama_result['tokens'],
+        'latency_ms': mistral_result['latency_ms'] + llama_result['latency_ms'],
+        'mistral_latency_ms': mistral_result['latency_ms'],
+        'llama_latency_ms': llama_result['latency_ms'],
+        'mistral_response': mistral_result['response'],  # Include for comparison
+    }
+    
+    logger.info(f"  ✓ Combined response (Mistral: {mistral_result['latency_ms']:.0f}ms + LLaMA: {llama_result['latency_ms']:.0f}ms)")
+    
+    return combined
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan event handler for startup and shutdown"""
@@ -276,15 +478,34 @@ async def lifespan(app: FastAPI):
     else:
         logger.info(f"✓ OneSeek-7B-Zero directory found")
         
-        # Check for base models
-        base_model = find_base_model_path()
-        if base_model:
-            logger.info(f"✓ Base model ready for inference")
+        # Check for base models (dual-model mode)
+        if DUAL_MODEL_MODE:
+            available_models = find_all_base_models()
+            if available_models:
+                if 'oneseek_complete' in available_models:
+                    logger.info(f"✓ Complete OneSeek model ready")
+                else:
+                    mistral_found = 'mistral' in available_models
+                    llama_found = 'llama' in available_models
+                    if mistral_found and llama_found:
+                        logger.info(f"✓ Dual-model mode: Both Mistral and LLaMA available")
+                    elif mistral_found:
+                        logger.warning(f"⚠ Only Mistral found - LLaMA needed for dual-model")
+                    elif llama_found:
+                        logger.warning(f"⚠ Only LLaMA found - Mistral needed for dual-model")
+            else:
+                logger.warning("⚠ No base models found. Download required:")
+                logger.warning(f"  Mistral: huggingface-cli download mistralai/Mistral-7B-Instruct-v0.2 --local-dir {ONESEEK_PATH}/base_models/mistral-7b")
+                logger.warning(f"  LLaMA: huggingface-cli download meta-llama/Llama-2-7b-chat-hf --local-dir {ONESEEK_PATH}/base_models/llama-2-7b")
         else:
-            logger.warning("⚠ No base model found. Download required:")
-            logger.warning(f"  huggingface-cli download mistralai/Mistral-7B-Instruct-v0.2 --local-dir {ONESEEK_PATH}/base_models/mistral-7b")
-            logger.warning("  OR")
-            logger.warning(f"  huggingface-cli download meta-llama/Llama-2-7b-chat-hf --local-dir {ONESEEK_PATH}/base_models/llama-2-7b")
+            base_model = find_base_model_path()
+            if base_model:
+                logger.info(f"✓ Base model ready for inference")
+            else:
+                logger.warning("⚠ No base model found. Download required:")
+                logger.warning(f"  huggingface-cli download mistralai/Mistral-7B-Instruct-v0.2 --local-dir {ONESEEK_PATH}/base_models/mistral-7b")
+                logger.warning("  OR")
+                logger.warning(f"  huggingface-cli download meta-llama/Llama-2-7b-chat-hf --local-dir {ONESEEK_PATH}/base_models/llama-2-7b")
     
     yield
     
@@ -335,43 +556,59 @@ async def root():
 
 @app.post("/inference/oneseek", response_model=InferenceResponse)
 async def oneseek_inference(request: InferenceRequest):
-    """Generate response using OneSeek-7B-Zero.v1.1"""
+    """Generate response using OneSeek-7B-Zero.v1.1 with dual-model architecture"""
     import time
     start_time = time.time()
     
     try:
-        # Load model if not cached
-        model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
-        
-        # Prepare input
-        inputs = tokenizer(request.text, return_tensors="pt").to(DEVICE)
-        
-        # Generate
-        with torch.no_grad():
-            outputs = model.generate(
-                inputs.input_ids,
+        if DUAL_MODEL_MODE:
+            # Use dual-model inference (Mistral + LLaMA)
+            result = await dual_model_inference(
+                request.text,
                 max_length=request.max_length,
                 temperature=request.temperature,
-                top_p=request.top_p,
-                do_sample=True,
-                pad_token_id=tokenizer.eos_token_id
+                top_p=request.top_p
             )
-        
-        # Decode output
-        response_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        
-        # Remove input from response
-        if response_text.startswith(request.text):
-            response_text = response_text[len(request.text):].strip()
-        
-        latency_ms = (time.time() - start_time) * 1000
-        
-        return InferenceResponse(
-            response=response_text,
-            model="OneSeek-7B-Zero.v1.1",
-            tokens=len(outputs[0]),
-            latency_ms=latency_ms
-        )
+            
+            return InferenceResponse(
+                response=result['response'],
+                model=result['model'],
+                tokens=result['tokens'],
+                latency_ms=result['latency_ms']
+            )
+        else:
+            # Single-model fallback
+            model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
+            
+            # Prepare input
+            inputs = tokenizer(request.text, return_tensors="pt").to(DEVICE)
+            
+            # Generate
+            with torch.no_grad():
+                outputs = model.generate(
+                    inputs.input_ids,
+                    max_length=request.max_length,
+                    temperature=request.temperature,
+                    top_p=request.top_p,
+                    do_sample=True,
+                    pad_token_id=tokenizer.eos_token_id
+                )
+            
+            # Decode output
+            response_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            
+            # Remove input from response
+            if response_text.startswith(request.text):
+                response_text = response_text[len(request.text):].strip()
+            
+            latency_ms = (time.time() - start_time) * 1000
+            
+            return InferenceResponse(
+                response=response_text,
+                model="OneSeek-7B-Zero.v1.1",
+                tokens=len(outputs[0]),
+                latency_ms=latency_ms
+            )
         
     except Exception as e:
         logger.error(f"OneSeek-7B-Zero inference error: {str(e)}")
