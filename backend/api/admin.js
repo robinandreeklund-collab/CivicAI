@@ -190,12 +190,14 @@ router.post('/datasets/upload', requireAdmin, upload.single('dataset'), async (r
     
     // If the file doesn't follow the naming convention, suggest one
     if (!originalName.match(/^oneseek_[a-z]+_v[0-9.]+\.jsonl$/i)) {
-      // Try to extract type from original name or use "custom"
+      // Try to extract type from original name using word boundaries
       let datasetType = 'custom';
-      if (originalName.includes('identity')) datasetType = 'identity';
-      else if (originalName.includes('civic')) datasetType = 'civic';
-      else if (originalName.includes('policy')) datasetType = 'policy';
-      else if (originalName.includes('qa')) datasetType = 'qa';
+      const nameLower = originalName.toLowerCase();
+      
+      if (/\bidentity\b/.test(nameLower)) datasetType = 'identity';
+      else if (/\bcivic\b/.test(nameLower)) datasetType = 'civic';
+      else if (/\bpolicy\b/.test(nameLower)) datasetType = 'policy';
+      else if (/\bqa\b/.test(nameLower)) datasetType = 'qa';
       
       suggestedName = `oneseek_${datasetType}_v1.0.jsonl`;
     }
@@ -565,15 +567,24 @@ router.post('/training/start', requireAdmin, async (req, res) => {
           
           let nextVersion = '1.0';
           if (versions.length > 0) {
-            // Parse versions and increment
-            const versionNums = versions.map(v => {
+            // Parse versions properly (semantic versioning)
+            const versionParts = versions.map(v => {
               const parts = v.split('.');
-              return parseFloat(parts[0]) + (parts[1] ? parseFloat(parts[1]) / 10 : 0);
+              return {
+                original: v,
+                major: parseInt(parts[0]) || 0,
+                minor: parseInt(parts[1]) || 0
+              };
             });
-            const maxVersion = Math.max(...versionNums);
-            const major = Math.floor(maxVersion);
-            const minor = Math.round((maxVersion % 1) * 10);
-            nextVersion = `${major}.${minor + 1}`;
+            
+            // Find max version
+            versionParts.sort((a, b) => {
+              if (a.major !== b.major) return b.major - a.major;
+              return b.minor - a.minor;
+            });
+            
+            const maxVer = versionParts[0];
+            nextVersion = `${maxVer.major}.${maxVer.minor + 1}`;
           }
           
           // Create metadata file
@@ -708,11 +719,16 @@ router.get('/models', requireAdmin, async (req, res) => {
         }
       }
       
-      // Sort by version (newest first)
+      // Sort by version (newest first) using proper semantic versioning
       models.sort((a, b) => {
-        const versionA = parseFloat(a.id.replace(/\./g, ''));
-        const versionB = parseFloat(b.id.replace(/\./g, ''));
-        return versionB - versionA;
+        const partsA = a.id.split('.').map(n => parseInt(n) || 0);
+        const partsB = b.id.split('.').map(n => parseInt(n) || 0);
+        
+        // Compare major version
+        if (partsA[0] !== partsB[0]) return partsB[0] - partsA[0];
+        
+        // Compare minor version
+        return (partsB[1] || 0) - (partsA[1] || 0);
       });
       
     } catch (error) {
@@ -784,8 +800,9 @@ router.get('/monitoring/resources', requireAdmin, (req, res) => {
   
   let cpuUsage = 0;
   
-  if (previousCpuSnapshot) {
+  if (previousCpuSnapshot && previousCpuSnapshot.length === currentSnapshot.length) {
     // Calculate CPU usage as the average across all cores
+    // Only proceed if core count hasn't changed
     let totalUsage = 0;
     for (let i = 0; i < currentSnapshot.length; i++) {
       const idleDelta = currentSnapshot[i].idle - previousCpuSnapshot[i].idle;
@@ -795,7 +812,7 @@ router.get('/monitoring/resources', requireAdmin, (req, res) => {
     }
     cpuUsage = totalUsage / currentSnapshot.length;
   } else {
-    // First call, estimate based on current state
+    // First call or core count changed, estimate based on current state
     let totalIdle = 0;
     let totalTick = 0;
     cpus.forEach(cpu => {
