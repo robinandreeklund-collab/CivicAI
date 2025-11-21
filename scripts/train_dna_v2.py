@@ -171,8 +171,15 @@ def run_real_training(args, data_dir, dataset_path):
         # Extract categories from dataset
         categories = extract_categories_from_filenames([str(dataset_path)])
         
-        # Calculate final weights (simplified for now - in full implementation would come from adaptive training)
-        final_weights = {'mistral': 0.5, 'llama': 0.5}
+        # Calculate final weights from base models (or use equal weights if not specified)
+        # Base models come from admin panel selection via --base-models argument
+        if args.base_models:
+            # Use selected base models from admin panel
+            num_models = len(args.base_models)
+            final_weights = {model: 1.0 / num_models for model in args.base_models}
+        else:
+            # Fallback to default if no base models specified
+            final_weights = {'default': 1.0}
         
         # Build DNA fingerprint
         dna = build_dna(
@@ -272,6 +279,11 @@ def run_real_training(args, data_dir, dataset_path):
 def main():
     """Main entry point"""
     args = parse_args()
+    
+    # Read base models from environment variable if not provided via command line
+    if not args.base_models and os.environ.get('BASE_MODELS'):
+        # BASE_MODELS is comma-separated list from admin panel
+        args.base_models = [m.strip() for m in os.environ.get('BASE_MODELS').split(',') if m.strip()]
     
     print("\n" + "=" * 70)
     print("OneSeek-7B-Zero DNA v2 Training")

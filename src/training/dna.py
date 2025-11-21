@@ -101,8 +101,12 @@ def build_dna(
     categories_json = canonical_json(sorted(dataset_categories))
     categories_hash = compute_sha256(categories_json)[:8]
     
-    # Hash timestamp
-    timestamp_hash = compute_sha256(timestamp.encode('utf-8'))[:8]
+    # Hash timestamp (convert datetime to ISO string if needed)
+    if isinstance(timestamp, str):
+        timestamp_str = timestamp
+    else:
+        timestamp_str = timestamp.isoformat()
+    timestamp_hash = compute_sha256(timestamp_str.encode('utf-8'))[:8]
     
     # Build DNA string
     dna = f"{model_name}.v{version}.{weights_hash}.{categories_hash}.{timestamp_hash}"
