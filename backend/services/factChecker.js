@@ -1,16 +1,16 @@
 /**
  * Fact Checker Service
  * 
- * Provides automated fact-checking for AI responses using the Tavily Search API.
+ * Provides automated fact-checking for AI responses using the Google Fact Check Claim Search API.
  * This module extracts verifiable claims from text and validates them against
- * external sources to ensure accuracy and transparency.
+ * established fact-checking organizations to ensure accuracy and transparency.
  * 
  * WORKFLOW:
  * 1. Extract and classify claims from AI response text
- * 2. Search up to 3 external sources via Tavily API for each claim
- * 3. Mark claim as verified if ≥2 sources found
- * 4. Calculate confidence levels and overall fact-check score
- * 5. Return comprehensive verification results
+ * 2. Search Google Fact Check API for verified fact-checks
+ * 3. Retrieve ClaimReview data with verdicts, publishers, and dates
+ * 4. Calculate confidence levels based on fact-check results
+ * 5. Return comprehensive verification results with provenance
  * 
  * CLAIM TYPES:
  * - Statistical: Percentages, ratios, numeric data
@@ -20,10 +20,11 @@
  * - Definitive: Absolute statements requiring verification
  * 
  * CONFIDENCE SCORING:
- * - 0 sources: 0.0 (0%)
- * - 1 source: 3.3 (33%)
- * - 2 sources: 6.7 (67%) - minimum for verification
- * - 3+ sources: 10.0 (100%)
+ * - Based on fact-check verdict and publisher credibility
+ * - True verdicts: 8.0-10.0 confidence
+ * - Partly true verdicts: 5.0-7.0 confidence
+ * - Unverified/no results: 3.0-5.0 confidence
+ * - False verdicts: 0.0-3.0 confidence
  * 
  * OVERALL SCORE CALCULATION:
  * - 50% weight: Verification rate (verified/total)
@@ -31,7 +32,7 @@
  * - Result scaled 0-10
  * 
  * @module factChecker
- * @requires axios - HTTP client for Tavily API
+ * @requires axios - HTTP client for Google Fact Check API
  * @requires dotenv - Environment configuration
  */
 
@@ -40,8 +41,8 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
-const TAVILY_SEARCH_ENDPOINT = 'https://api.tavily.com/search';
+const GOOGLE_FACTCHECK_API_KEY = process.env.GOOGLE_FACTCHECK_API_KEY;
+const GOOGLE_FACTCHECK_ENDPOINT = 'https://factchecktools.googleapis.com/v1alpha1/claims:search';
 
 /**
  * Truncate text at sentence boundary to avoid cutting off mid-sentence
@@ -78,66 +79,70 @@ function truncateAtSentenceBoundary(text, maxLength) {
 }
 
 /**
- * Search Tavily for fact verification
- * Queries the Tavily Search API to find external sources that can verify a claim
+ * Search Google Fact Check API for fact verification
+ * Queries the Google Fact Check Claim Search API to find verified fact-checks from established organizations
  * @param {string} claim - The claim to verify
- * @param {number} count - Number of results to retrieve (default: 3, max recommended: 5)
- * @returns {Promise<Object>} Search results with sources and metadata
+ * @param {number} maxResults - Maximum number of results to retrieve (default: 10)
+ * @returns {Promise<Object>} Fact-check results with ClaimReview data
  */
-async function searchTavily(claim, count = 3) {
-  if (!TAVILY_API_KEY) {
-    console.warn('[FactChecker] Tavily Search API key not configured');
-    return { available: false, sources: [] };
+async function searchGoogleFactCheck(claim, maxResults = 10) {
+  if (!GOOGLE_FACTCHECK_API_KEY) {
+    console.warn('[FactChecker] Google FactCheck API key not configured');
+    return { available: false, claims: [] };
   }
 
   try {
-    console.log(`[FactChecker] Searching Tavily for: "${claim.substring(0, 50)}..." (max ${count} sources)`);
+    console.log(`[FactChecker] Searching Google Fact Check for: "${claim.substring(0, 50)}..." (max ${maxResults} results)`);
     
-    const response = await axios.post(TAVILY_SEARCH_ENDPOINT, {
-      api_key: TAVILY_API_KEY,
-      query: claim,
-      search_depth: 'basic', // 'basic' for speed, 'advanced' for thoroughness
-      include_answer: false,
-      include_raw_content: false,
-      max_results: count,
-      include_domains: [],
-      exclude_domains: [],
-    }, {
-      headers: {
-        'Content-Type': 'application/json',
+    const response = await axios.get(GOOGLE_FACTCHECK_ENDPOINT, {
+      params: {
+        key: GOOGLE_FACTCHECK_API_KEY,
+        query: claim,
+        languageCode: 'en', // Can be made configurable
+        pageSize: maxResults,
       },
-      timeout: 10000, // 10 second timeout (increased from 5s for reliability)
+      timeout: 10000, // 10 second timeout
     });
 
-    const results = response.data.results || [];
-    console.log(`[FactChecker] Tavily returned ${results.length} sources`);
+    const claims = response.data.claims || [];
+    console.log(`[FactChecker] Google Fact Check returned ${claims.length} results`);
+    
+    // Process claims to extract ClaimReview data
+    const processedResults = claims.map(claimData => {
+      const claimReview = claimData.claimReview?.[0]; // Get first ClaimReview
+      if (!claimReview) return null;
+      
+      return {
+        claim: claimData.text || claim,
+        claimant: claimData.claimant || 'Unknown',
+        publisher: claimReview.publisher?.name || 'Unknown Publisher',
+        url: claimReview.url,
+        title: claimReview.title || 'Untitled',
+        reviewDate: claimReview.reviewDate || claimData.claimDate,
+        textualRating: claimReview.textualRating || 'Not rated',
+        languageCode: claimReview.languageCode || 'en',
+      };
+    }).filter(result => result !== null);
     
     return {
       available: true,
-      sources: results.map(result => ({
-        title: result.title || 'Untitled',
-        url: result.url,
-        snippet: result.content || '',
-        datePublished: result.published_date,
-        displayUrl: result.url,
-        score: result.score, // Relevance score from Tavily (0-1)
-      })),
-      totalResults: results.length,
+      claims: processedResults,
+      totalResults: processedResults.length,
     };
   } catch (error) {
-    console.error('[FactChecker] Tavily Search API error:', error.message);
+    console.error('[FactChecker] Google FactCheck API error:', error.message);
     
     // Provide more detailed error information
     if (error.response) {
       console.error('[FactChecker] API response error:', error.response.status, error.response.data);
     } else if (error.request) {
-      console.error('[FactChecker] No response received from Tavily API');
+      console.error('[FactChecker] No response received from Google Fact Check API');
     }
     
     return {
       available: false,
       error: error.message,
-      sources: [],
+      claims: [],
     };
   }
 }
@@ -281,20 +286,43 @@ function extractClaims(text) {
 }
 
 /**
- * Calculate confidence level for a claim based on sources found
- * Confidence scoring algorithm:
- * - 0 sources: 0.0 confidence
- * - 1 source: 3.3 confidence (33%)
- * - 2 sources: 6.7 confidence (67%) - minimum for verification
- * - 3+ sources: 10.0 confidence (100%)
- * @param {number} sourceCount - Number of sources found
+ * Calculate confidence level for a claim based on fact-check verdict
+ * Confidence scoring algorithm based on Google Fact Check ratings:
+ * - True/Correct: 8.0-10.0 confidence (highly verified)
+ * - Mostly True/Partly True: 5.0-7.0 confidence (partially verified)
+ * - Mixed/Unverified: 3.0-5.0 confidence (unclear)
+ * - Mostly False/False: 0.0-3.0 confidence (contradicted)
+ * - No results: 0.0 confidence (unverified)
+ * @param {string} textualRating - The textual rating from Google Fact Check
+ * @param {string} publisher - The publisher name for credibility weighting
  * @returns {number} Confidence score (0-10)
  */
-function calculateConfidence(sourceCount) {
-  if (sourceCount === 0) return 0;
-  if (sourceCount === 1) return 3.3;
-  if (sourceCount === 2) return 6.7;
-  return 10.0;
+function calculateConfidence(textualRating, publisher = '') {
+  if (!textualRating) return 0;
+  
+  const rating = textualRating.toLowerCase();
+  
+  // High credibility publishers get a boost
+  const highCredibilityPublishers = ['politifact', 'snopes', 'afp', 'factcheck.org', 'full fact'];
+  const credibilityBoost = highCredibilityPublishers.some(pub => publisher.toLowerCase().includes(pub)) ? 0.5 : 0;
+  
+  // Classify based on common fact-check ratings
+  if (rating.includes('true') && !rating.includes('false') && !rating.includes('mostly')) {
+    return Math.min(10.0, 9.0 + credibilityBoost);
+  } else if (rating.includes('mostly true') || rating.includes('largely true')) {
+    return Math.min(10.0, 7.5 + credibilityBoost);
+  } else if (rating.includes('partly true') || rating.includes('half true') || rating.includes('mixture')) {
+    return Math.min(10.0, 6.0 + credibilityBoost);
+  } else if (rating.includes('mostly false') || rating.includes('largely false')) {
+    return Math.min(10.0, 2.5 + credibilityBoost);
+  } else if (rating.includes('false') && !rating.includes('mostly')) {
+    return Math.min(10.0, 1.0 + credibilityBoost);
+  } else if (rating.includes('unverified') || rating.includes('unproven')) {
+    return Math.min(10.0, 4.0 + credibilityBoost);
+  }
+  
+  // Default for unknown ratings
+  return 5.0;
 }
 
 /**
@@ -324,16 +352,16 @@ function calculateOverallScore(verificationResults) {
  * Perform comprehensive fact-check on AI response
  * @param {string} responseText - The AI response text to fact-check
  * @param {string} agentName - Name of the AI agent
- * @returns {Promise<Object>} Fact-check results with sources and confidence scores
+ * @returns {Promise<Object>} Fact-check results with ClaimReview data and confidence scores
  */
 export async function performFactCheck(responseText, agentName) {
   console.log(`[FactChecker] Starting fact-check for ${agentName}`);
   
-  if (!TAVILY_API_KEY) {
-    console.warn('[FactChecker] Tavily API key not configured');
+  if (!GOOGLE_FACTCHECK_API_KEY) {
+    console.warn('[FactChecker] Google FactCheck API key not configured');
     return {
       available: false,
-      message: 'Tavily Search API-nyckel saknas - faktakoll ej tillgänglig',
+      message: 'Google Fact Check API-nyckel saknas - faktakoll ej tillgänglig',
       claims: [],
       overallScore: null,
     };
@@ -357,23 +385,26 @@ export async function performFactCheck(responseText, agentName) {
       };
     }
 
-    // Step 2: Verify each claim using Tavily Search (up to 3 sources per claim)
+    // Step 2: Verify each claim using Google Fact Check API
     const verificationResults = [];
     
     for (const claim of claims) {
       console.log(`[FactChecker] Verifying claim: ${claim.text.substring(0, 50)}...`);
       
-      // Search for up to 3 external sources via Tavily
-      const searchResults = await searchTavily(claim.text, 3);
+      // Search Google Fact Check API
+      const factCheckResults = await searchGoogleFactCheck(claim.text, 5);
       
-      if (searchResults.available && searchResults.sources.length > 0) {
-        // Mark as verified if at least 2 sources found (as per requirements)
-        const verified = searchResults.sources.length >= 2;
+      if (factCheckResults.available && factCheckResults.claims.length > 0) {
+        // Use the first (most relevant) fact-check result
+        const topResult = factCheckResults.claims[0];
         
-        // Calculate confidence based on source count
-        const confidence = calculateConfidence(searchResults.sources.length);
+        // Calculate confidence based on verdict
+        const confidence = calculateConfidence(topResult.textualRating, topResult.publisher);
         
-        console.log(`[FactChecker] Found ${searchResults.sources.length} sources, verified: ${verified}, confidence: ${confidence}`);
+        // Mark as verified if confidence >= 6.0 (mostly true or better)
+        const verified = confidence >= 6.0;
+        
+        console.log(`[FactChecker] Found fact-check: ${topResult.textualRating}, verified: ${verified}, confidence: ${confidence}`);
         
         verificationResults.push({
           claim: claim.text.substring(0, 150), // Truncate for display
@@ -381,26 +412,29 @@ export async function performFactCheck(responseText, agentName) {
           claimDescription: claim.description,
           verified: verified,
           confidence: confidence,
-          sources: searchResults.sources.map(s => ({
-            title: s.title,
-            url: s.url,
-            snippet: truncateAtSentenceBoundary(s.snippet, 200),
-            score: s.score, // Relevance score from Tavily
-          })),
-          sourceCount: searchResults.sources.length,
+          verdict: topResult.textualRating,
+          publisher: topResult.publisher,
+          date: topResult.reviewDate,
+          url: topResult.url,
+          title: topResult.title,
+          oqt_training_event: true, // Mark for OQT training
+          oqt_version: 'OQT-1.0.v12.7', // OQT version
         });
       } else {
-        // No sources found
-        console.warn(`[FactChecker] No sources found for claim: ${claim.text.substring(0, 50)}...`);
+        // No fact-check found
+        console.warn(`[FactChecker] No fact-check found for claim: ${claim.text.substring(0, 50)}...`);
         verificationResults.push({
           claim: claim.text.substring(0, 150),
           claimType: claim.type,
           claimDescription: claim.description,
           verified: false,
           confidence: 0,
-          sources: [],
-          sourceCount: 0,
-          warning: 'Inga källor hittades för verifiering',
+          verdict: 'Unverified',
+          publisher: 'N/A',
+          date: null,
+          warning: 'Inga faktakollar hittades för detta påstående',
+          oqt_training_event: false,
+          oqt_version: 'OQT-1.0.v12.7',
         });
       }
     }

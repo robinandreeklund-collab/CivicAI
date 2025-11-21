@@ -74,10 +74,10 @@ app.get('/api/health', async (req, res) => {
           endpoints: ['/api/ml/shap', '/api/ml/lime', '/api/ml/toxicity', '/api/ml/topics', '/api/ml/fairness']
         },
         'fact-check': { 
-          status: process.env.TAVILY_API_KEY ? 'up' : 'configured',
-          description: 'Fact Checking Service (Tavily)',
+          status: process.env.GOOGLE_FACTCHECK_API_KEY ? 'up' : 'configured',
+          description: 'Fact Checking Service (Google Fact Check)',
           endpoints: ['/api/fact-check/verify', '/api/fact-check/sources'],
-          configured: !!process.env.TAVILY_API_KEY
+          configured: !!process.env.GOOGLE_FACTCHECK_API_KEY
         },
         'change-detection': { status: 'up', description: 'Change Detection Service' },
         'ledger': { status: 'up', description: 'Transparency Ledger' },
