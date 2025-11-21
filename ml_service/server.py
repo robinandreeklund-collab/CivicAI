@@ -25,7 +25,17 @@ LLAMA_PATH = os.getenv('LLAMA_MODEL_PATH', str(PROJECT_ROOT / 'models' / 'llama-
 # GPU configuration - Support for NVIDIA, Intel, and CPU
 def get_device():
     """Automatically detect best available device"""
-    # Try Intel GPU (XPU) first if IPEX is available
+    # Try DirectML (Windows Intel/AMD GPU)
+    try:
+        import torch_directml
+        if torch_directml.is_available():
+            device = torch_directml.device()
+            logger.info(f"DirectML device detected (Windows GPU acceleration)")
+            return device, 'directml'
+    except ImportError:
+        pass
+    
+    # Try Intel GPU (XPU) via IPEX (Linux only)
     try:
         import intel_extension_for_pytorch as ipex
         if torch.xpu.is_available():
@@ -68,29 +78,41 @@ def load_model(model_name: str, model_path: str):
     
     logger.info(f"Loading {model_name} from {model_path}...")
     
-    # Use FP16 for GPU, FP32 for CPU
-    dtype = torch.float16 if DEVICE_TYPE in ['cuda', 'xpu'] else torch.float32
+    # Use FP16 for GPU acceleration, FP32 for CPU
+    dtype = torch.float16 if DEVICE_TYPE in ['cuda', 'xpu', 'directml'] else torch.float32
     
     try:
         # Load tokenizer
         tokenizer = AutoTokenizer.from_pretrained(model_path)
         
-        # Load model with optimizations
+        # Load model with device-specific optimizations
         model = AutoModelForCausalLM.from_pretrained(
             model_path,
-            torch_dtype=torch.float16 if DEVICE == 'cuda' else torch.float32,
-            device_map='auto' if DEVICE == 'cuda' else None,
-            load_in_8bit=USE_GPU and os.getenv('USE_8BIT_QUANTIZATION', 'false').lower() == 'true'
+            dtype=dtype,  # Use modern 'dtype' instead of deprecated 'torch_dtype'
+            low_cpu_mem_usage=True
         )
         
-        if DEVICE == 'cpu':
-            model = model.to(DEVICE)
+        # Move model to device
+        model = model.to(DEVICE)
+        
+        # Apply device-specific optimizations
+        if DEVICE_TYPE == 'xpu':
+            # Intel GPU optimization via IPEX
+            try:
+                import intel_extension_for_pytorch as ipex
+                model = ipex.optimize(model)
+                logger.info(f"✓ {model_name} optimized with IPEX")
+            except ImportError:
+                pass
+        elif DEVICE_TYPE == 'directml':
+            # DirectML is handled automatically by torch-directml
+            logger.info(f"✓ {model_name} using DirectML acceleration")
         
         # Cache models
         models[model_name] = model
         tokenizers[model_name] = tokenizer
         
-        logger.info(f"✓ {model_name} loaded successfully on {DEVICE}")
+        logger.info(f"✓ {model_name} loaded successfully on {DEVICE_TYPE} ({dtype})")
         return model, tokenizer
         
     except Exception as e:

@@ -4,17 +4,50 @@
 - **System**: Z13 med AI Max 390
 - **GPU**: Intel iGPU med 128GB delat minne
 - **Problem**: CPU-inferens är långsam (~30-60s per förfrågan)
-- **Lösning**: Använd Intel Extension for PyTorch (IPEX) för GPU-acceleration
+- **Lösning**: Använd GPU-acceleration (DirectML på Windows, IPEX på Linux)
 
 ## Snabbhet Jämförelse
 
 | Metod | Första förfrågan | Efterföljande | Hastighetsökning |
 |-------|------------------|---------------|------------------|
 | CPU | 30-60s | 10-30s | 1x (baseline) |
-| Intel GPU (IPEX) | 5-10s | 1-3s | **10-20x snabbare** |
+| DirectML (Windows) | 10-15s | 3-5s | **5-10x snabbare** |
+| Intel GPU (IPEX Linux) | 5-10s | 1-3s | **10-20x snabbare** |
 | NVIDIA GPU | 2-5s | 0.5-1s | 20-60x snabbare |
 
-## Installation för Intel GPU
+## ⚠️ Viktigt: Plattform-specifik Installation
+
+**IPEX fungerar BARA på Linux!** För Windows använd DirectML istället.
+
+---
+
+## Windows: DirectML Installation (Rekommenderat för Z13)
+
+### Steg 1: Installera DirectML för Intel GPU
+
+```bash
+# Aktivera virtual environment
+cd CivicAI
+.\venv\Scripts\Activate.ps1
+
+# Installera DirectML (Intel GPU-stöd på Windows)
+pip install torch-directml
+```
+
+### Steg 2: ML Service använder DirectML automatiskt
+
+ML service (`ml_service/server.py`) detekterar automatiskt DirectML om det är installerat:
+```python
+# Auto-detects DirectML on Windows
+Device: privateuseone (DirectML)
+✓ mistral loaded successfully on privateuseone
+```
+
+Ingen kod-ändring behövs - bara installera `torch-directml` och starta om ML service!
+
+---
+
+## Linux: IPEX Installation (Bästa prestanda)
 
 ### Steg 1: Installera Intel Extension for PyTorch
 
@@ -22,10 +55,8 @@
 # Aktivera virtual environment
 cd CivicAI
 source venv/bin/activate
-# eller på Windows:
-.\venv\Scripts\Activate.ps1
 
-# Installera Intel Extension for PyTorch
+# Installera Intel Extension for PyTorch (ENDAST LINUX)
 pip install intel-extension-for-pytorch
 pip install oneccl_bind_pt --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/cpu/us/
 ```
