@@ -87,7 +87,43 @@ pip install -r requirements.txt
 
 **Solution:** Install PyTorch separately BEFORE requirements.txt (see Step 1 above).
 
-### Issue: "bitsandbytes" fails to install on Windows
+### Issue: "Mistral model not found" or "LLaMA model not found" warnings
+
+**Cause:** Model files haven't been downloaded yet, or paths are incorrect.
+
+**Solution:**
+
+1. **Download models** (if not already done):
+```bash
+python scripts/download_models.py
+```
+
+2. **Verify model directories exist**:
+```bash
+# Check models directory
+ls -la models/  # Linux/Mac
+dir models\     # Windows
+
+# Should show:
+# - mistral-7b-instruct/
+# - llama-2-7b-chat/
+```
+
+3. **Set custom paths** (if models are elsewhere):
+```bash
+# Linux/Mac
+export MISTRAL_MODEL_PATH="/path/to/mistral-7b-instruct"
+export LLAMA_MODEL_PATH="/path/to/llama-2-7b-chat"
+
+# Windows PowerShell
+$env:MISTRAL_MODEL_PATH="C:\path\to\mistral-7b-instruct"
+$env:LLAMA_MODEL_PATH="C:\path\to\llama-2-7b-chat"
+
+# Then start ML service
+python ml_service/server.py
+```
+
+**Note:** The ML service now uses absolute paths, so it works correctly regardless of which directory you run it from.
 
 **Solution:** Skip bitsandbytes (it's optional) or use WSL:
 ```bash

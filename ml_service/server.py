@@ -3,6 +3,7 @@ ML Inference Service for OQT-1.0
 FastAPI server for Mistral 7B and LLaMA-2 inference
 """
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -16,21 +17,10 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI
-app = FastAPI(title="OQT-1.0 ML Service", version="1.0.0")
-
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Model paths
-MISTRAL_PATH = os.getenv('MISTRAL_MODEL_PATH', '../models/mistral-7b-instruct')
-LLAMA_PATH = os.getenv('LLAMA_MODEL_PATH', '../models/llama-2-7b-chat')
+# Model paths - use absolute paths relative to project root
+PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+MISTRAL_PATH = os.getenv('MISTRAL_MODEL_PATH', str(PROJECT_ROOT / 'models' / 'mistral-7b-instruct'))
+LLAMA_PATH = os.getenv('LLAMA_MODEL_PATH', str(PROJECT_ROOT / 'models' / 'llama-2-7b-chat'))
 
 # GPU configuration
 USE_GPU = os.getenv('USE_GPU', 'true').lower() == 'true'
@@ -85,18 +75,47 @@ def load_model(model_name: str, model_path: str):
         logger.error(f"Error loading {model_name}: {str(e)}")
         raise
 
-@app.on_event("startup")
-async def startup_event():
-    """Pre-load models on startup"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler for startup and shutdown"""
+    # Startup
     logger.info("Starting ML Service...")
     logger.info(f"Device: {DEVICE}")
+    logger.info(f"Project root: {PROJECT_ROOT}")
+    logger.info(f"Mistral path: {MISTRAL_PATH}")
+    logger.info(f"LLaMA path: {LLAMA_PATH}")
     
     # Check if model directories exist
     if not Path(MISTRAL_PATH).exists():
         logger.warning(f"Mistral model not found at {MISTRAL_PATH}")
+    else:
+        logger.info(f"✓ Mistral model directory found")
     
     if not Path(LLAMA_PATH).exists():
         logger.warning(f"LLaMA model not found at {LLAMA_PATH}")
+    else:
+        logger.info(f"✓ LLaMA model directory found")
+    
+    yield
+    
+    # Shutdown (cleanup if needed)
+    logger.info("Shutting down ML Service...")
+
+# Initialize FastAPI with lifespan
+app = FastAPI(
+    title="OQT-1.0 ML Service",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 async def root():
