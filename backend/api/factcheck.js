@@ -7,11 +7,15 @@
 
 import express from 'express';
 import axios from 'axios';
+import factCheckerService from '../services/factChecker.js';
 
 const router = express.Router();
 
 const GOOGLE_FACTCHECK_API_KEY = process.env.GOOGLE_FACTCHECK_API_KEY;
 const GOOGLE_FACTCHECK_API_URL = 'https://factchecktools.googleapis.com/v1alpha1/claims:search';
+
+// Import shared utilities
+const { calculateConfidence, OQT_VERSION } = factCheckerService;
 
 /**
  * Sanitize text to prevent XSS attacks
@@ -117,34 +121,29 @@ router.post('/verify', async (req, res) => {
         });
       }
 
-      // Calculate confidence based on textual rating
+      // Calculate confidence based on textual rating using shared function
       const textualRating = claimReview.textualRating || 'Unverified';
       const publisher = claimReview.publisher?.name || 'Unknown Publisher';
       
-      let confidence = 5.0;
-      let verificationStatus = 'unverified';
+      const confidence = calculateConfidence(textualRating, publisher);
       
-      const rating = textualRating.toLowerCase();
-      if (rating.includes('true') && !rating.includes('false') && !rating.includes('mostly')) {
-        confidence = 9.0;
+      // Determine verification status based on confidence level
+      let verificationStatus = 'unverified';
+      if (confidence >= 8.0) {
         verificationStatus = 'true';
-      } else if (rating.includes('mostly true') || rating.includes('largely true')) {
-        confidence = 7.5;
+      } else if (confidence >= 7.0) {
         verificationStatus = 'mostly_true';
-      } else if (rating.includes('partly true') || rating.includes('half true') || rating.includes('mixture')) {
-        confidence = 6.0;
+      } else if (confidence >= 5.0) {
         verificationStatus = 'partially_true';
-      } else if (rating.includes('mostly false') || rating.includes('largely false')) {
-        confidence = 2.5;
+      } else if (confidence >= 2.0) {
         verificationStatus = 'mostly_false';
-      } else if (rating.includes('false') && !rating.includes('mostly')) {
-        confidence = 1.0;
+      } else if (confidence > 0) {
         verificationStatus = 'false';
       }
 
       return res.json({
         verificationStatus,
-        confidence: confidence / 10, // Normalize to 0-1 range
+        confidence: confidence / 10, // Normalize to 0-1 range for API response
         verdict: sanitizeText(textualRating),
         publisher: sanitizeText(publisher),
         date: claimReview.reviewDate || topClaim.claimDate,
@@ -156,7 +155,7 @@ router.post('/verify', async (req, res) => {
           query: searchQuery,
           results_found: claims.length,
           oqt_training_event: true,
-          oqt_version: 'OQT-1.0.v12.7'
+          oqt_version: OQT_VERSION
         }
       });
 

@@ -44,6 +44,9 @@ dotenv.config();
 const GOOGLE_FACTCHECK_API_KEY = process.env.GOOGLE_FACTCHECK_API_KEY;
 const GOOGLE_FACTCHECK_ENDPOINT = 'https://factchecktools.googleapis.com/v1alpha1/claims:search';
 
+// OQT Configuration
+const OQT_VERSION = 'OQT-1.0.v12.7';
+
 /**
  * Truncate text at sentence boundary to avoid cutting off mid-sentence
  * Ensures snippets are readable and properly formatted for display
@@ -418,7 +421,7 @@ export async function performFactCheck(responseText, agentName) {
           url: topResult.url,
           title: topResult.title,
           oqt_training_event: true, // Mark for OQT training
-          oqt_version: 'OQT-1.0.v12.7', // OQT version
+          oqt_version: OQT_VERSION, // OQT version
         });
       } else {
         // No fact-check found
@@ -434,7 +437,7 @@ export async function performFactCheck(responseText, agentName) {
           date: null,
           warning: 'Inga faktakollar hittades för detta påstående',
           oqt_training_event: false,
-          oqt_version: 'OQT-1.0.v12.7',
+          oqt_version: OQT_VERSION,
         });
       }
     }
@@ -745,4 +748,6 @@ export default {
   performFactCheck,
   batchFactCheck,
   compareFactChecks,
+  calculateConfidence, // Export for use in API endpoints
+  OQT_VERSION, // Export constant
 };
