@@ -236,24 +236,50 @@ def show_next_steps():
 
 def main():
     """Main entry point"""
-    print_banner()
-    
-    # Step 1: Check dataset
-    result = check_dataset()
-    if not result:
-        return
-    
-    dataset_path, examples = result
-    
-    # Step 2: Prepare training data
-    data_dir = prepare_training_data(examples)
-    
-    # Step 3: Run training
-    success = run_training(data_dir)
-    
-    # Step 4: Show next steps
-    if success:
-        show_next_steps()
+    try:
+        print_banner()
+        
+        # Step 1: Check dataset
+        print("\n[DEBUG] Checking dataset...")
+        result = check_dataset()
+        if not result:
+            print("[DEBUG] Dataset check failed")
+            return
+        
+        dataset_path, examples = result
+        print(f"[DEBUG] Dataset loaded: {len(examples)} examples")
+        
+        # Step 2: Prepare training data
+        print("\n[DEBUG] Preparing training data...")
+        data_dir = prepare_training_data(examples)
+        print(f"[DEBUG] Training data prepared at: {data_dir}")
+        
+        # Step 3: Run training
+        print("\n[DEBUG] Starting training...")
+        success = run_training(data_dir)
+        print(f"[DEBUG] Training completed: {success}")
+        
+        # Step 4: Show next steps
+        if success:
+            show_next_steps()
+            
+    except Exception as e:
+        print(f"\n❌ ERROR in main(): {e}")
+        print(f"   Error type: {type(e).__name__}")
+        import traceback
+        print(f"   Full traceback:\n{traceback.format_exc()}")
+        raise  # Re-raise to be caught by outer handler
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"\n❌ FATAL ERROR: {e}")
+        print(f"   Error type: {type(e).__name__}")
+        import traceback
+        print("\n" + "=" * 70)
+        print("FULL TRACEBACK:")
+        print("=" * 70)
+        traceback.print_exc()
+        print("=" * 70)
+        sys.exit(1)
