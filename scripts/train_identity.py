@@ -118,12 +118,35 @@ def prepare_training_data(examples):
 def run_training(data_dir):
     """Run the training pipeline"""
     print("\n🚀 Starting training...")
-    print("\nNOTE: This is a simulated training run.")
-    print("For actual PyTorch training, you'll need to:")
-    print("  1. Download base models (Mistral 7B, LLaMA-2)")
-    print("  2. Install PyTorch and transformers")
-    print("  3. Configure GPU/CPU")
-    print("\nFor now, we'll run the training pipeline to demonstrate the process.\n")
+    
+    # Check if PyTorch is available
+    try:
+        import torch
+        print(f"\n✅ PyTorch detected: {torch.__version__}")
+        print(f"   CUDA available: {torch.cuda.is_available()}")
+        if torch.cuda.is_available():
+            print(f"   GPU: {torch.cuda.get_device_name(0)}")
+        
+        # Check for transformers
+        try:
+            import transformers
+            print(f"✅ Transformers detected: {transformers.__version__}")
+        except ImportError:
+            print("⚠️  Transformers not found. Install with: pip install transformers")
+        
+        # Check for PEFT
+        try:
+            import peft
+            print(f"✅ PEFT detected: {peft.__version__}")
+        except ImportError:
+            print("⚠️  PEFT not found. Install with: pip install peft")
+        
+        print("\n🎯 Will attempt PyTorch training with LoRA/PEFT if base models are available.")
+        print("   If base models not found, will fall back to simulation.\n")
+        
+    except ImportError:
+        print("\n⚠️  PyTorch not found. Will use simulation mode.")
+        print("   Install PyTorch with: pip install torch transformers peft\n")
     
     try:
         # Import training module

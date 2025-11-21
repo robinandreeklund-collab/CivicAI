@@ -65,6 +65,66 @@ class OneSeekTrainer:
         combined_data = json.dumps(datasets, sort_keys=True)
         return hashlib.sha256(combined_data.encode()).hexdigest()
     
+    def train_model(self, datasets: Dict, version: str) -> Dict:
+        """
+        Train model - uses PyTorch if available, otherwise simulates
+        
+        Args:
+            datasets: Training datasets
+            version: Model version
+            
+        Returns:
+            Training results with metrics
+        """
+        # Try to import PyTorch training module
+        try:
+            import sys
+            from pathlib import Path
+            
+            # Add pytorch_trainer to path
+            pytorch_trainer_path = Path(__file__).parent
+            if str(pytorch_trainer_path) not in sys.path:
+                sys.path.insert(0, str(pytorch_trainer_path))
+            
+            from pytorch_trainer import (
+                verify_requirements,
+                train_with_pytorch_lora,
+                check_base_models
+            )
+            
+            # Check if PyTorch training is available
+            if verify_requirements():
+                print("\n🎯 PyTorch training environment detected!")
+                print("   Using real LoRA/PEFT training...\n")
+                
+                # Get base models directory
+                base_models_dir = self.model_dir.parent / 'base_models'
+                
+                # Check if base models exist
+                available_models = check_base_models(base_models_dir)
+                
+                if available_models:
+                    # Use real PyTorch training
+                    return train_with_pytorch_lora(
+                        datasets=datasets,
+                        version=version,
+                        model_dir=self.model_dir,
+                        base_models_dir=base_models_dir,
+                        config=self.config
+                    )
+                else:
+                    print("\n⚠️  No base models found. Falling back to simulation.")
+                    print(f"   Please download models to: {base_models_dir}")
+            else:
+                print("\n⚠️  PyTorch requirements not met. Falling back to simulation.")
+                
+        except Exception as e:
+            print(f"\n⚠️  Could not use PyTorch training: {e}")
+            print("   Falling back to simulation.")
+        
+        # Fall back to simulation
+        return self.simulate_training(datasets, version)
+    
     def simulate_training(self, datasets: Dict, version: str) -> Dict:
         """
         Simulate model training
@@ -153,11 +213,17 @@ class OneSeekTrainer:
         
         print(f"\nSaved model metadata to {metadata_file}")
         
-        # Note: Actual .pth weights would be saved here in PyTorch implementation
-        # Format: oneseek-7b-zero-v{MAJOR}.{MICRO}.pth
-        # Example: torch.save(model.state_dict(), self.model_dir / f"oneseek-7b-zero-v{version}.pth")
+        # Check if PyTorch weights were saved
         weights_file = self.model_dir / f"oneseek-7b-zero-v{version}.pth"
-        print(f"Model weights will be saved to {weights_file} (requires PyTorch implementation)")
+        if weights_file.exists():
+            print(f"✅ Model weights saved to {weights_file}")
+        else:
+            print(f"ℹ️  Model weights will be saved to {weights_file} (PyTorch training required)")
+        
+        # Check if LoRA adapters were saved
+        lora_path = self.model_dir.parent / 'lora_adapters' / f'oneseek-7b-zero-v{version}'
+        if lora_path.exists():
+            print(f"✅ LoRA adapters saved to {lora_path}")
         
         return model_version
     
@@ -217,7 +283,7 @@ class OneSeekTrainer:
         
         # Train model
         print(f"\nStep 2: Training model...")
-        results = self.simulate_training(datasets, version)
+        results = self.train_model(datasets, version)
         
         # Save model version
         print(f"\nStep 3: Saving model version...")
@@ -239,11 +305,22 @@ class OneSeekTrainer:
         print(f"\n{'=' * 70}")
         print(f"Training Complete!")
         print(f"{'=' * 70}")
-        print(f"\nModel Version: {version}")
+        print(f"\nModel: OneSeek-7B-Zero.v{version}")
         print(f"Ledger Block: {ledger_block['block_id']}")
         print(f"Validation Accuracy: {results['metrics']['validation_accuracy']:.3f}")
         print(f"Fairness Score: {results['metrics']['fairness_score']:.3f}")
         print(f"Demographic Parity: {results['fairness_metrics']['demographic_parity']:.3f}")
+        
+        # Show if PyTorch was used
+        if 'model_used' in results['metrics']:
+            print(f"\n🎯 Training Method: PyTorch with LoRA/PEFT")
+            print(f"   Base Model: {results['metrics']['model_used']}")
+            print(f"   Device: {results['metrics']['device']}")
+            if 'trainable_params' in results['metrics']:
+                print(f"   Trainable Parameters: {results['metrics']['trainable_params']:,}")
+        else:
+            print(f"\n⚠️  Training Method: Simulation (PyTorch not available)")
+        
         print(f"\nModel saved to: {self.model_dir}")
         print(f"Transparency ledger: {self.ledger.ledger_file}")
         
