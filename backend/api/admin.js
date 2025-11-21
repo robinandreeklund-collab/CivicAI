@@ -341,7 +341,7 @@ router.get('/training/status', requireAdmin, (req, res) => {
 // POST /api/admin/training/start - Start training
 router.post('/training/start', requireAdmin, async (req, res) => {
   try {
-    const { datasetId, epochs, batchSize, learningRate } = req.body;
+    const { datasetId, epochs, batchSize, learningRate, language, externalModel } = req.body;
     
     if (!datasetId) {
       return res.status(400).json({ error: 'Dataset ID is required' });
@@ -367,6 +367,8 @@ router.post('/training/start', requireAdmin, async (req, res) => {
       loss: null,
       progress: 0,
       datasetId,
+      language: language || 'en',
+      externalModel: externalModel || null,
       logs: [
         {
           timestamp: new Date().toISOString(),
@@ -374,10 +376,18 @@ router.post('/training/start', requireAdmin, async (req, res) => {
         },
         {
           timestamp: new Date().toISOString(),
-          message: `Parameters: epochs=${epochs || 3}, batchSize=${batchSize || 8}, lr=${learningRate || 0.0001}`,
+          message: `Parameters: epochs=${epochs || 3}, batchSize=${batchSize || 8}, lr=${learningRate || 0.0001}, language=${language || 'en'}`,
         },
       ],
     };
+    
+    // Add external model info if provided
+    if (externalModel) {
+      trainingState.logs.push({
+        timestamp: new Date().toISOString(),
+        message: `External model integration: ${externalModel}`,
+      });
+    }
     
     // Path to Python script (one level up from backend directory)
     const pythonScript = path.join(process.cwd(), '..', 'scripts', 'train_identity.py');
@@ -437,7 +447,20 @@ router.post('/training/start', requireAdmin, async (req, res) => {
       }
     }
     
-    trainingProcess = spawn(pythonCommand, [pythonScript], {
+    // Build Python script arguments
+    const pythonArgs = [pythonScript];
+    
+    // Add language argument if provided
+    if (language && language !== 'en') {
+      pythonArgs.push('--language', language);
+    }
+    
+    // Add external model argument if provided
+    if (externalModel) {
+      pythonArgs.push('--external-model', externalModel);
+    }
+    
+    trainingProcess = spawn(pythonCommand, pythonArgs, {
       cwd: path.join(process.cwd(), '..'), // Set working directory to project root
       env: {
         ...process.env,
@@ -530,20 +553,34 @@ router.post('/training/start', requireAdmin, async (req, res) => {
         // Add training session to history
         const session = {
           modelVersion: 'OneSeek-7B-Zero',
+          version: trainingState.language === 'sv' ? 'v1.1-SV' : 'v1.1', // Track specific version with language
+          language: trainingState.language || 'en', // Get from training state
+          externalModel: trainingState.externalModel || null,
           timestamp: endTime,
           duration: duration,
           samples: samplesProcessed, // Unique samples in dataset
           totalSteps: samplesProcessed * (epochs || 3), // Total training steps (samples × epochs)
-          dataset: datasetId,
+          dataset: {
+            id: datasetId,
+            type: datasetId.includes('identity') ? 'identity' : 'general',
+            size: samplesProcessed,
+          },
           metrics: {
             loss: finalLoss,
             accuracy: finalAccuracy,
             fairness: finalFairness,
+            latency: duration > 0 ? duration / (samplesProcessed * (epochs || 3)) : null, // Average latency per step
           },
           config: {
             epochs: epochs || 3,
             batchSize: batchSize || 8,
             learningRate: learningRate || 0.0001,
+          },
+          provenance: {
+            scriptVersion: '1.1.0',
+            pythonCommand: pythonCommand,
+            startTime: startTime,
+            endTime: endTime,
           },
         };
         
