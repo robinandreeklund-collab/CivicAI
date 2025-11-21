@@ -238,7 +238,8 @@ router.post('/sources', async (req, res) => {
         
         const publisher = claimReview.publisher?.name || 'Unknown';
         
-        // Assign credibility based on publisher
+        // Assign credibility based on publisher name (from ClaimReview data, not URL)
+        // CodeQL: This is checking publisher.name field, not a URL - safe to use includes()
         let credibility = 0.7;
         const lowerPublisher = publisher.toLowerCase();
         if (lowerPublisher.includes('politifact') || lowerPublisher.includes('snopes') || 
