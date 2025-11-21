@@ -218,7 +218,7 @@ def train_with_pytorch_lora(
             )
         except Exception as e:
             print(f"   [WARNING]  Local model loading failed: {e}")
-            print(f"   ℹ️  Attempting to download model from HuggingFace...")
+            print(f"   [INFO] Attempting to download model from HuggingFace...")
             model_id = "mistralai/Mistral-7B-Instruct-v0.2" if "mistral" in model_name.lower() else "meta-llama/Llama-2-7b-chat-hf"
             model = AutoModelForCausalLM.from_pretrained(
                 model_id,
@@ -230,7 +230,7 @@ def train_with_pytorch_lora(
         print(f"   [SUCCESS] Model loaded ({model.num_parameters():,} parameters)")
         
         # Configure LoRA
-        print("\n🔧 Configuring LoRA adapters...")
+        print("\n[CONFIG] Configuring LoRA adapters...")
         lora_config = LoraConfig(
             task_type=TaskType.CAUSAL_LM,
             inference_mode=False,
@@ -244,7 +244,7 @@ def train_with_pytorch_lora(
         model.print_trainable_parameters()
         
         # Prepare dataset
-        print("\n📚 Preparing training data...")
+        print("\n[PREPARE] Preparing training data...")
         train_data = datasets.get('train', [])
         val_data = datasets.get('validation', [])
         
@@ -303,7 +303,7 @@ def train_with_pytorch_lora(
         avg_loss = total_loss / num_batches if num_batches > 0 else 0
         
         # Save LoRA adapters
-        print(f"\n💾 Saving LoRA adapters...")
+        print(f"\n[SAVING] Saving LoRA adapters...")
         lora_save_path = model_dir.parent / 'lora_adapters' / f'oneseek-7b-zero-v{version}'
         lora_save_path.mkdir(parents=True, exist_ok=True)
         
