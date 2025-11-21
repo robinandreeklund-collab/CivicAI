@@ -771,6 +771,23 @@ export function compareFactChecks(factCheckResults) {
           }, 0) / totalClaims) * 10) / 10
         : 0,
     },
+    
+    // Aggregated claims from all agents for UI display
+    claims: validResults.flatMap(result => {
+      if (!result.claims || result.claims.length === 0) return [];
+      return result.claims.map(claim => ({
+        text: claim.claim,
+        agent: result.agent,
+        verified: claim.verified,
+        confidence: claim.confidence,
+        verdict: claim.verdict,
+        publisher: claim.publisher,
+        date: claim.date,
+        url: claim.url,
+        claimType: claim.claimType,
+        sources: claim.sources || (claim.url ? [{ url: claim.url, title: claim.title || claim.publisher }] : [])
+      }));
+    }),
   };
 }
 
