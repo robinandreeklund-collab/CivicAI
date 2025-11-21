@@ -297,9 +297,9 @@ class OneSeekTrainer:
         print(f"\nStep 5: Verifying ledger integrity...")
         verification = self.ledger.verify_chain()
         if verification['valid']:
-            print("✓ Ledger integrity verified")
+            print("[SUCCESS] Ledger integrity verified")
         else:
-            print("✗ Ledger integrity check failed!")
+            print("[ERROR] Ledger integrity check failed!")
             print(f"  Errors: {verification.get('errors', [])}")
         
         print(f"\n{'=' * 70}")
