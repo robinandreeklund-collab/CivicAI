@@ -106,7 +106,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Tab Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-6 py-8 overflow-x-hidden">
         {selectedTab === 'datasets' && <DatasetManagement />}
         {selectedTab === 'training' && <TrainingControl />}
         {selectedTab === 'models' && <ModelManagement />}

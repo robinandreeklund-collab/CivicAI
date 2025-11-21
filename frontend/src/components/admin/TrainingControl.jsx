@@ -170,12 +170,12 @@ export default function TrainingControl() {
   const isTraining = trainingStatus?.status === 'training';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-x-hidden">
       {/* Training Configuration */}
       <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">
         <h2 className="text-[#eee] font-mono text-lg mb-4">Training Configuration</h2>
         
-        <div className="space-y-4">
+        <div className="space-y-4 max-w-full overflow-x-hidden">
           {/* Dataset Selection */}
           <div>
             <label className="block text-[#888] font-mono text-sm mb-2">
@@ -197,7 +197,7 @@ export default function TrainingControl() {
           </div>
 
           {/* Training Parameters */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-[#888] font-mono text-sm mb-2">
                 Epochs
@@ -259,17 +259,17 @@ export default function TrainingControl() {
               
               {/* Selected Base Models */}
               {selectedBaseModels.length > 0 && (
-                <div className="mb-3 flex flex-wrap gap-2">
+                <div className="mb-3 flex flex-wrap gap-2 max-w-full">
                   {selectedBaseModels.map((modelName) => (
                     <div
                       key={modelName}
-                      className="flex items-center gap-2 bg-[#111] border border-green-900/30 text-green-400 px-3 py-1 rounded font-mono text-xs"
+                      className="flex items-center gap-2 bg-[#111] border border-green-900/30 text-green-400 px-3 py-1 rounded font-mono text-xs max-w-full"
                     >
-                      <span>{modelName}</span>
+                      <span className="truncate max-w-[300px]" title={modelName}>{modelName}</span>
                       <button
                         onClick={() => removeBaseModel(modelName)}
                         disabled={isTraining}
-                        className="text-red-400 hover:text-red-300 disabled:opacity-50"
+                        className="text-red-400 hover:text-red-300 disabled:opacity-50 flex-shrink-0"
                       >
                         ✕
                       </button>
@@ -308,8 +308,8 @@ export default function TrainingControl() {
                 </button>
               </div>
 
-              <p className="text-[#555] font-mono text-xs mt-2">
-                ✓ Auto-discovered from <code>/models/</code> folder
+              <p className="text-[#555] font-mono text-xs mt-2 break-words">
+                ✓ Auto-discovered from <code className="break-all">/models/</code> folder
                 <br />✓ Supports KB-Llama-3.1-8B-Swedish, Qwen-2.5, Gemma-2, etc.
                 <br />✓ Sequential training (no OOM) with adaptive weights
               </p>
@@ -317,7 +317,7 @@ export default function TrainingControl() {
           )}
 
           {/* Knowledge Source (formerly External Model) - Optional distillation */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-[#888] font-mono text-sm mb-2">
                 Language {!useDnaV2 && '(Legacy Mode)'}
@@ -386,7 +386,7 @@ export default function TrainingControl() {
 
             {/* DNA v2 Specific Parameters */}
             {useDnaV2 && (
-              <div className="grid grid-cols-3 gap-4 mt-4 p-4 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 p-4 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
                 <div>
                   <label className="block text-[#888] font-mono text-sm mb-2">
                     Auto-Stop Threshold
@@ -446,9 +446,9 @@ export default function TrainingControl() {
 
             {/* DNA v2 Features Info */}
             {useDnaV2 && (
-              <div className="mt-4 p-3 bg-[#0a0a0a] border border-green-900/30 rounded">
+              <div className="mt-4 p-3 bg-[#0a0a0a] border border-green-900/30 rounded max-w-full overflow-x-hidden">
                 <p className="text-green-400 font-mono text-xs mb-2">✅ DNA v2 Features:</p>
-                <ul className="text-[#666] font-mono text-xs space-y-1 pl-4">
+                <ul className="text-[#666] font-mono text-xs space-y-1 pl-4 break-words">
                   <li>• Auto-discovers base models from models/ directory</li>
                   <li>• Adaptive weight adjustment (+20-50% best, -30-50% worst)</li>
                   <li>• Confidence-based auto-stop when loss plateaus</li>
@@ -548,12 +548,12 @@ export default function TrainingControl() {
       <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">
         <h2 className="text-[#eee] font-mono text-lg mb-4">Training Logs</h2>
         
-        <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded p-4 h-64 overflow-y-auto font-mono text-xs">
+        <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded p-4 h-64 overflow-y-auto overflow-x-hidden font-mono text-xs">
           {trainingLogs.length === 0 ? (
             <div className="text-[#666]">No logs available</div>
           ) : (
             trainingLogs.map((log, index) => (
-              <div key={index} className="text-[#888] mb-1">
+              <div key={index} className="text-[#888] mb-1 break-words">
                 <span className="text-[#666]">[{log.timestamp}]</span> {log.message}
               </div>
             ))
