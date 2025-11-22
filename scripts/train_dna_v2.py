@@ -166,7 +166,43 @@ def run_real_training(args, data_dir, dataset_path):
         # Train the model (this calls real PyTorch training)
         print(f"\n[TRAINING] Starting real PyTorch training...")
         datasets = trainer.load_training_data()
+        
+        # Train with strict mode - no simulation allowed
         results = trainer.train_model(datasets, version)
+        
+        # CRITICAL: Check if training actually succeeded (not simulation)
+        # DNA v2 MUST NOT create fake model files - only real trained models are allowed
+        if results is None:
+            print(f"\n{'=' * 70}")
+            print(f"[ERROR] Training failed - results is None")
+            print(f"{'=' * 70}")
+            print(f"\n[ERROR] DNA v2 training ABORTED - no fake files will be created")
+            print(f"[ERROR] Please check:")
+            print(f"   1. PEFT installed in venv: {project_root / 'backend' / 'python_services' / 'venv'}")
+            print(f"   2. PyTorch installed in venv")
+            print(f"   3. Transformers installed in venv")
+            print(f"   4. Base models exist in /models/")
+            print(f"   5. Training script has access to venv Python")
+            raise RuntimeError("Training failed - results is None. No fake files will be created.")
+        
+        if results.get('simulated', False):
+            error_msg = results.get('error', 'Unknown error')
+            print(f"\n{'=' * 70}")
+            print(f"[ERROR] Training fell back to simulation - this is NOT allowed")
+            print(f"[ERROR] Reason: {error_msg}")
+            print(f"{'=' * 70}")
+            print(f"\n[CRITICAL] DNA v2 training ABORTED - no fake files will be created")
+            print(f"[CRITICAL] Simulation is disabled to prevent fake model files")
+            print(f"\n[FIX] Please ensure:")
+            print(f"   1. PEFT is installed: pip install peft")
+            print(f"   2. PyTorch is installed: pip install torch")  
+            print(f"   3. Transformers is installed: pip install transformers")
+            print(f"   4. Base models exist in /models/ directory")
+            print(f"   5. Script is running in venv: {project_root / 'backend' / 'python_services' / 'venv'}")
+            print(f"\n[DEBUG] Current Python: {sys.executable}")
+            print(f"[DEBUG] Can import PEFT: {results.get('peft_available', False)}")
+            print(f"[DEBUG] Can import PyTorch: {results.get('torch_available', False)}")
+            raise RuntimeError(f"Training fell back to simulation: {error_msg}. Simulation is NOT allowed - no fake files will be created.")
         
         # Extract categories from dataset
         categories = extract_categories_from_filenames([str(dataset_path)])
@@ -257,7 +293,7 @@ def run_real_training(args, data_dir, dataset_path):
         print(f"   - DNA metadata: oneseek_dna.json")
         print(f"   - Training results: training_results.json")
         print(f"   - Ledger proof: ledger_proof.json")
-        print(f"   - Model weights: {model_dir}/oneseek-7b-zero-v{version}.pth (if PyTorch training succeeded)")
+        print(f"   - Model weights: {model_dir}/oneseek-7b-zero-v{version}.pth")
         
         return {
             'success': True,
@@ -267,13 +303,16 @@ def run_real_training(args, data_dir, dataset_path):
         }
         
     except Exception as e:
-        print(f"\n[ERROR] Training failed: {e}")
+        print(f"\n{'=' * 70}")
+        print(f"[ERROR] Training failed: {e}")
+        print(f"{'=' * 70}")
+        print(f"\n[CRITICAL] No files created - training must succeed to create certified models")
+        print(f"[CRITICAL] DNA v2 will NOT create fake files")
         import traceback
         traceback.print_exc()
-        return {
-            'success': False,
-            'error': str(e)
-        }
+        # Re-raise to ensure proper error handling - do NOT return success=False
+        # because that can lead to fake success messages
+        raise
 
 
 def main():

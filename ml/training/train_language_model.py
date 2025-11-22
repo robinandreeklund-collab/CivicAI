@@ -109,25 +109,46 @@ class OneSeekTrainer:
                 
                 if available_models:
                     # Use real PyTorch training
-                    return train_with_pytorch_lora(
+                    result = train_with_pytorch_lora(
                         datasets=datasets,
                         version=version,
                         model_dir=self.model_dir,
                         base_models_dir=base_models_dir,
                         config=self.config
                     )
+                    result['simulated'] = False
+                    return result
                 else:
-                    print("\n[WARNING]  No base models found. Falling back to simulation.")
+                    print("\n[ERROR] No base models found.")
                     print(f"   Please download models to: {base_models_dir}")
+                    return {'simulated': True, 'error': 'No base models found'}
             else:
-                print("\n[WARNING]  PyTorch requirements not met. Falling back to simulation.")
+                # Check what's missing
+                try:
+                    import torch
+                    torch_available = True
+                except ImportError:
+                    torch_available = False
+                    
+                try:
+                    import peft
+                    peft_available = True
+                except ImportError:
+                    peft_available = False
+                    
+                print("\n[ERROR] PyTorch requirements not met.")
+                return {
+                    'simulated': True, 
+                    'error': 'Requirements not met',
+                    'torch_available': torch_available,
+                    'peft_available': peft_available
+                }
                 
         except Exception as e:
-            print(f"\n[WARNING]  Could not use PyTorch training: {e}")
-            print("   Falling back to simulation.")
-        
-        # Fall back to simulation
-        return self.simulate_training(datasets, version)
+            print(f"\n[ERROR] Could not use PyTorch training: {e}")
+            import traceback
+            traceback.print_exc()
+            return {'simulated': True, 'error': str(e)}
     
     def simulate_training(self, datasets: Dict, version: str) -> Dict:
         """
