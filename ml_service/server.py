@@ -61,6 +61,19 @@ def get_active_model_path():
         logger.info(f"  → Resolves to: {resolved_path}")
         return str(resolved_path)
     
+    # Check for marker file (Windows fallback when symlinks require admin)
+    local_current_marker = PROJECT_ROOT / 'models' / 'oneseek-certified' / 'OneSeek-7B-Zero-CURRENT.txt'
+    if local_current_marker.exists():
+        try:
+            with open(local_current_marker, 'r', encoding='utf-8') as f:
+                target_path = f.read().strip()
+            if Path(target_path).exists():
+                logger.info(f"✓ Using local CURRENT marker file: {local_current_marker}")
+                logger.info(f"  → Points to: {target_path}")
+                return target_path
+        except Exception as e:
+            logger.error(f"✗ Error reading marker file: {e}")
+    
     # NO FALLBACKS - Fail clearly
     logger.error("")
     logger.error("=" * 80)

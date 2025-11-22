@@ -158,13 +158,45 @@ router.post('/set-current', rateLimiter, async (req, res) => {
       }
     }
 
-    // Create new symlink
+    // Create new symlink or junction (for Windows compatibility)
     // Use relative path for better portability within the same filesystem
-    // Note: Symlink targets are resolved relative to the symlink's location.
-    // This works as long as the models directory structure remains consistent.
-    // For cross-filesystem scenarios, consider using absolute paths instead.
     const relativeModelPath = path.relative(certifiedDir, modelPath);
-    await fs.symlink(relativeModelPath, symlinkPath, 'dir');
+    
+    // On Windows, try junction first (doesn't require admin), then symlink
+    // On Unix, use symlink directly
+    try {
+      if (process.platform === 'win32') {
+        // Try junction first (Windows, no admin required)
+        await fs.symlink(modelPath, symlinkPath, 'junction');
+        console.log(`Junction created: ${symlinkPath} -> ${modelPath}`);
+      } else {
+        // Unix: use regular symlink with relative path
+        await fs.symlink(relativeModelPath, symlinkPath, 'dir');
+        console.log(`Symlink created: ${symlinkPath} -> ${relativeModelPath}`);
+      }
+    } catch (error) {
+      if (error.code === 'EPERM' && process.platform === 'win32') {
+        // Windows: EPERM means we need admin for symlinks, fallback to marker file
+        console.warn('Symlink creation requires admin privileges. Creating marker file instead.');
+        
+        // Remove the failed symlink attempt
+        try {
+          await fs.unlink(symlinkPath);
+        } catch (e) {
+          // Ignore
+        }
+        
+        // Create a marker file with the target path
+        await fs.writeFile(
+          symlinkPath + '.txt',
+          modelPath,
+          'utf-8'
+        );
+        console.log(`Marker file created: ${symlinkPath}.txt -> ${modelPath}`);
+      } else {
+        throw error;
+      }
+    }
 
     // Also create absolute symlink at production path if configured
     const productionModelsPath = process.env.PRODUCTION_MODELS_PATH || '/app/models';
@@ -243,7 +275,7 @@ router.get('/current', rateLimiter, async (req, res) => {
     const symlinkPath = path.join(certifiedDir, 'OneSeek-7B-Zero-CURRENT');
 
     try {
-      // Read symlink to get current model
+      // Try reading symlink/junction first
       const target = await fs.readlink(symlinkPath);
       const currentModel = path.basename(path.resolve(certifiedDir, target));
 
@@ -255,12 +287,27 @@ router.get('/current', rateLimiter, async (req, res) => {
         note: 'The symlink points to the base oneseek-7b-zero directory containing all model weights and versions.'
       });
     } catch (error) {
-      if (error.code === 'ENOENT') {
-        return res.json({
-          success: true,
-          currentModel: null,
-          message: 'No current model set',
-        });
+      if (error.code === 'ENOENT' || error.code === 'EINVAL' || error.code === 'UNKNOWN') {
+        // Check for marker file (Windows fallback)
+        const markerPath = symlinkPath + '.txt';
+        try {
+          const targetPath = await fs.readFile(markerPath, 'utf-8');
+          const currentModel = path.basename(targetPath.trim());
+          
+          return res.json({
+            success: true,
+            currentModel,
+            symlinkPath: markerPath,
+            target: targetPath.trim(),
+            note: 'Using marker file (Windows). The marker points to the base oneseek-7b-zero directory.'
+          });
+        } catch (markerError) {
+          return res.json({
+            success: true,
+            currentModel: null,
+            message: 'No current model set',
+          });
+        }
       }
       throw error;
     }
