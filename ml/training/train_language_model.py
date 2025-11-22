@@ -69,13 +69,14 @@ class OneSeekTrainer:
         combined_data = json.dumps(datasets, sort_keys=True)
         return hashlib.sha256(combined_data.encode()).hexdigest()
     
-    def train_model(self, datasets: Dict, version: str) -> Dict:
+    def train_model(self, datasets: Dict, version: str, run_id: str = None) -> Dict:
         """
         Train model - uses PyTorch if available, otherwise simulates
         
         Args:
             datasets: Training datasets
             version: Model version
+            run_id: Training run ID for live metrics (optional)
             
         Returns:
             Training results with metrics
@@ -108,13 +109,22 @@ class OneSeekTrainer:
                 available_models = check_base_models(base_models_dir)
                 
                 if available_models:
-                    # Use real PyTorch training
+                    # Get selected base models from environment variable
+                    import os
+                    selected_base_models = None
+                    base_models_env = os.environ.get('BASE_MODELS', '')
+                    if base_models_env:
+                        selected_base_models = [m.strip() for m in base_models_env.split(',') if m.strip()]
+                    
+                    # Use real PyTorch training with selected base models
                     result = train_with_pytorch_lora(
                         datasets=datasets,
                         version=version,
                         model_dir=self.model_dir,
                         base_models_dir=base_models_dir,
-                        config=self.config
+                        config=self.config,
+                        selected_base_models=selected_base_models,
+                        run_id=run_id
                     )
                     result['simulated'] = False
                     return result

@@ -17,6 +17,7 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import os from 'os';
+import { TRAINING_CONFIG, generateRunId, validateBaseModels, getAutoStopConfig } from '../config/trainingConfig.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -833,11 +834,21 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Dataset not found', path: datasetPath });
     }
     
-    // Initialize training state
+    // Validate that base models are selected (not using defaults)
+    try {
+      validateBaseModels(baseModels);
+    } catch (error) {
+      trainingState.status = 'idle';
+      return res.status(400).json({ error: error.message });
+    }
+    
+    // Initialize training state with proper runId (no colons in timestamp)
+    const runId = generateRunId();
     trainingState = {
       status: 'training',
+      runId: runId,
       currentEpoch: 0,
-      totalEpochs: epochs || 10,
+      totalEpochs: epochs || TRAINING_CONFIG.defaults.epochs,
       loss: null,
       progress: 0,
       datasetId,
@@ -850,11 +861,15 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
         },
         {
           timestamp: new Date().toISOString(),
+          message: `Run ID: ${runId}`,
+        },
+        {
+          timestamp: new Date().toISOString(),
           message: `Base models (${baseModels.length}): ${baseModels.join(', ')}`,
         },
         {
           timestamp: new Date().toISOString(),
-          message: `Parameters: epochs=${epochs || 10}, lr=${learningRate || 0.0001}, auto-stop=${autoStopThreshold || 0.001}/${autoStopPatience || 3}`,
+          message: `Parameters: epochs=${epochs || TRAINING_CONFIG.defaults.epochs}, lr=${learningRate || TRAINING_CONFIG.defaults.learning_rate}, auto-stop=${autoStopThreshold || TRAINING_CONFIG.confidence_auto_stop.threshold}/${autoStopPatience || TRAINING_CONFIG.confidence_auto_stop.patience}`,
         },
       ],
     };
@@ -911,15 +926,15 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       }
     }
     
-    // Build Python script arguments
+    // Build Python script arguments with configuration defaults
     const pythonArgs = [
       pythonScript,
       '--dataset', `datasets/${datasetId}`,
-      '--epochs', String(epochs || 10),
-      '--learning-rate', String(learningRate || 0.0001),
-      '--auto-stop-threshold', String(autoStopThreshold || 0.001),
-      '--auto-stop-patience', String(autoStopPatience || 3),
-      '--seed', String(seed || 42),
+      '--epochs', String(epochs || TRAINING_CONFIG.defaults.epochs),
+      '--learning-rate', String(learningRate || TRAINING_CONFIG.defaults.learning_rate),
+      '--auto-stop-threshold', String(autoStopThreshold || TRAINING_CONFIG.confidence_auto_stop.threshold),
+      '--auto-stop-patience', String(autoStopPatience || TRAINING_CONFIG.confidence_auto_stop.patience),
+      '--seed', String(seed || TRAINING_CONFIG.defaults.seed),
     ];
     
     trainingState.logs.push({
@@ -932,6 +947,7 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       ...process.env,
       MODELS_DIR: 'models',
       BASE_MODELS: baseModels.join(','),  // Pass selected base models
+      RUN_ID: runId,  // Pass run_id to Python script for consistent tracking
     };
     
     // Add ledger configuration if available

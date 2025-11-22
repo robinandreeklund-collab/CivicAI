@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import LiveLeaderboard from './LiveLeaderboard';
 
 /**
  * Training Control Component
@@ -542,6 +543,11 @@ export default function TrainingControl() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Live Leaderboard - Show when training with DNA v2 */}
+      {trainingStatus && isTraining && trainingStatus.useDnaV2 && trainingStatus.runId && (
+        <LiveLeaderboard runId={trainingStatus.runId} />
       )}
 
       {/* Training Logs */}

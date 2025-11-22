@@ -159,16 +159,30 @@ def run_real_training(args, data_dir, dataset_path):
         print(f"   - Auto-stop: threshold={args.auto_stop_threshold}, patience={args.auto_stop_patience}")
         print(f"   - Seed: {args.seed}")
         
-        # Generate DNA version string
+        # Get run_id from environment (passed from backend) or generate if not provided
         timestamp = datetime.now()
+        run_id = os.environ.get('RUN_ID')
+        if not run_id:
+            run_id = timestamp.strftime('run-%Y%m%d-%H%M%S')
+        
+        print(f"[INFO] run_id={run_id}")
+        
+        # Generate DNA version string
         version = f"1.0"  # DNA v2 format
+        
+        # Create certified output directory early for live metrics
+        output_dir = args.output_dir or str(project_root / 'models' / 'oneseek-certified')
+        certified_dir = Path(output_dir) / run_id
+        certified_dir.mkdir(parents=True, exist_ok=True)
+        print(f"\n[INFO] Created run directory: {certified_dir}")
         
         # Train the model (this calls real PyTorch training)
         print(f"\n[TRAINING] Starting real PyTorch training...")
         datasets = trainer.load_training_data()
         
         # Train with strict mode - no simulation allowed
-        results = trainer.train_model(datasets, version)
+        # Pass run_id for live metrics
+        results = trainer.train_model(datasets, version, run_id)
         
         # CRITICAL: Check if training actually succeeded (not simulation)
         # DNA v2 MUST NOT create fake model files - only real trained models are allowed
@@ -230,13 +244,10 @@ def run_real_training(args, data_dir, dataset_path):
         print(f"   DNA: {dna}")
         print(f"   Model saved to: {model_dir}")
         
-        # Create certified output directory
-        output_dir = args.output_dir or str(project_root / 'models' / 'oneseek-certified')
-        run_id = timestamp.strftime('run-%Y%m%d-%H%M%S')
-        certified_dir = Path(output_dir) / run_id
-        certified_dir.mkdir(parents=True, exist_ok=True)
+        # certified_dir already created earlier for live metrics
+        # (run_id and certified_dir were created before training started)
         
-        # Save DNA metadata
+        # Save DNA metadata with atomic write
         dna_metadata = {
             'dna': dna,
             'model_name': 'OneSeek-7B-Zero',
@@ -252,10 +263,14 @@ def run_real_training(args, data_dir, dataset_path):
             })
         }
         
-        with open(certified_dir / 'oneseek_dna.json', 'w') as f:
+        # Atomic write pattern: write to .tmp, then rename
+        dna_file = certified_dir / 'oneseek_dna.json'
+        dna_temp = certified_dir / 'oneseek_dna.json.tmp'
+        with open(dna_temp, 'w') as f:
             json.dump(dna_metadata, f, indent=2)
+        dna_temp.replace(dna_file)
         
-        # Save training results
+        # Save training results with atomic write
         training_results = {
             'dna': dna,
             'version': version,
@@ -269,10 +284,13 @@ def run_real_training(args, data_dir, dataset_path):
             'duration_seconds': 0  # Will be calculated
         }
         
-        with open(certified_dir / 'training_results.json', 'w') as f:
+        results_file = certified_dir / 'training_results.json'
+        results_temp = certified_dir / 'training_results.json.tmp'
+        with open(results_temp, 'w') as f:
             json.dump(training_results, f, indent=2)
+        results_temp.replace(results_file)
         
-        # Create ledger entry
+        # Create ledger entry with atomic write
         ledger_entry = {
             'event': 'dna_v2_training_completed',
             'model': 'OneSeek-7B-Zero',
@@ -286,8 +304,11 @@ def run_real_training(args, data_dir, dataset_path):
             'signature': 'dev_mode'
         }
         
-        with open(certified_dir / 'ledger_proof.json', 'w') as f:
+        ledger_file = certified_dir / 'ledger_proof.json'
+        ledger_temp = certified_dir / 'ledger_proof.json.tmp'
+        with open(ledger_temp, 'w') as f:
             json.dump(ledger_entry, f, indent=2)
+        ledger_temp.replace(ledger_file)
         
         print(f"\n[CERTIFIED] Model certified and saved to: {certified_dir}")
         print(f"   - DNA metadata: oneseek_dna.json")
