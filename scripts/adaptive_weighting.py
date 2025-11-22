@@ -11,7 +11,7 @@ Features:
 """
 
 import json
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Any
 
 
 def calculate_adaptive_weights(
@@ -21,7 +21,7 @@ def calculate_adaptive_weights(
     worst_penalty: float = 0.4,
     min_weight: float = 0.3,
     max_weight: float = 2.0
-) -> Tuple[Dict[str, float], Dict[str, dict]]:
+) -> Tuple[Dict[str, float], Dict[str, Dict[str, Any]]]:
     """
     Calculate adaptive weights based on validation losses
     

@@ -97,8 +97,8 @@ def update_adaptive_weights(model_dir, val_losses, current_weights=None):
     new_weights, adjustment_info = calculate_adaptive_weights(
         val_losses,
         current_weights,
-        best_bonus=0.5,  # Best model gets +50% (up to 2.0x total)
-        worst_penalty=0.4  # Worst model gets -40%
+        best_bonus=0.5,  # Best model gets +50% (1.5x base weight)
+        worst_penalty=0.4  # Worst model gets -40% (0.6x base weight)
     )
     
     # Get multipliers for display
@@ -119,6 +119,9 @@ def update_adaptive_weights(model_dir, val_losses, current_weights=None):
         'multipliers': multipliers,
         'adjustments': adjustment_info
     }
+
+
+def hash_data(data):
     """Generate hash for data provenance"""
     if isinstance(data, dict):
         data = json.dumps(data, sort_keys=True)
@@ -128,7 +131,8 @@ def update_adaptive_weights(model_dir, val_losses, current_weights=None):
         data = str(data)
     return hashlib.sha256(data.encode()).hexdigest()
 
-def stage1_train_raw_responses(question, raw_responses, language='en', model_name=None):
+
+def stage1_train_raw_responses(question, raw_responses, language='en', model_name=None, loss_history=None):
     """
     Stage 1: Train on raw AI service responses
     
