@@ -219,6 +219,8 @@ class ModelVerifier:
                 "training_samples": len(training_results),
                 "control_samples": len(control_results),
                 "bleu_available": BLEU_AVAILABLE,
+                "mock_mode": True,  # Flag indicating this is using mock inference
+                "note": "Results use simulated model responses. Replace mock_model_inference() with actual model calls for production use."
             }
         }
 

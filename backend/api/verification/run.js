@@ -26,6 +26,23 @@ router.post('/run', async (req, res) => {
     return res.status(400).json({ error: 'modelId and datasetId are required' });
   }
 
+  // Validate inputs to prevent path traversal attacks
+  const safePathPattern = /^[a-zA-Z0-9_\-\.]+$/;
+  if (!safePathPattern.test(modelId) || !safePathPattern.test(datasetId)) {
+    return res.status(400).json({ 
+      error: 'Invalid modelId or datasetId. Only alphanumeric characters, underscores, hyphens, and dots are allowed.' 
+    });
+  }
+
+  // Additional check for path traversal sequences
+  if (modelId.includes('..') || datasetId.includes('..') || 
+      modelId.includes('/') || datasetId.includes('/') ||
+      modelId.includes('\\') || datasetId.includes('\\')) {
+    return res.status(400).json({ 
+      error: 'Invalid modelId or datasetId. Path traversal attempts are not allowed.' 
+    });
+  }
+
   try {
     // Path to verification script
     const scriptPath = path.join(__dirname, '..', '..', '..', 'scripts', 'verify_model.py');

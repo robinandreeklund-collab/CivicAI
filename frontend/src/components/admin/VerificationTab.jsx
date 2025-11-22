@@ -22,6 +22,11 @@ import AdminContainer, {
  *   - REJECT (<90%)
  * - Download PDF certificate
  */
+
+// Certification thresholds
+const CERTIFICATION_THRESHOLD = 97; // Minimum score for CERTIFIED status
+const WARNING_THRESHOLD = 90;       // Minimum score for WARNING status
+
 export default function VerificationTab() {
   const [models, setModels] = useState([]);
   const [datasets, setDatasets] = useState([]);
@@ -129,9 +134,37 @@ export default function VerificationTab() {
   };
 
   const getStatusBadge = (score) => {
-    if (score >= 97) return { status: 'certified', text: 'CERTIFIED' };
-    if (score >= 90) return { status: 'warning', text: 'WARNING' };
+    if (score >= CERTIFICATION_THRESHOLD) return { status: 'certified', text: 'CERTIFIED' };
+    if (score >= WARNING_THRESHOLD) return { status: 'warning', text: 'WARNING' };
     return { status: 'reject', text: 'REJECT' };
+  };
+
+  const handleSetCurrentModel = async () => {
+    if (!confirm('Set this model as the current certified model?')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/models/set-current', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          modelId: selectedModel,
+        }),
+      });
+
+      if (response.ok) {
+        alert('Model set as current successfully!');
+      } else {
+        const data = await response.json();
+        alert(`Failed to set model: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error setting current model:', error);
+      alert('Failed to set current model');
+    }
   };
 
   if (loading) {
@@ -286,7 +319,7 @@ export default function VerificationTab() {
               <AdminButton variant="primary" onClick={downloadCertificate}>
                 Download PDF Certificate
               </AdminButton>
-              {results.finalScore >= 97 && (
+              {results.finalScore >= CERTIFICATION_THRESHOLD && (
                 <AdminButton variant="primary" onClick={handleSetCurrentModel}>
                   Set as Current Model
                 </AdminButton>
@@ -297,32 +330,4 @@ export default function VerificationTab() {
       )}
     </AdminContainer>
   );
-
-  async function handleSetCurrentModel() {
-    if (!confirm('Set this model as the current certified model?')) {
-      return;
-    }
-    
-    try {
-      const response = await fetch('/api/models/set-current', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          modelId: selectedModel,
-        }),
-      });
-
-      if (response.ok) {
-        alert('Model set as current successfully!');
-      } else {
-        const data = await response.json();
-        alert(`Failed to set model: ${data.error}`);
-      }
-    } catch (error) {
-      console.error('Error setting current model:', error);
-      alert('Failed to set current model');
-    }
-  }
 }

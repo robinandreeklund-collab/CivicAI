@@ -54,7 +54,10 @@ router.post('/set-current', async (req, res) => {
     }
 
     // Create new symlink
-    // Use relative path for better portability
+    // Use relative path for better portability within the same filesystem
+    // Note: Symlink targets are resolved relative to the symlink's location.
+    // This works as long as the models directory structure remains consistent.
+    // For cross-filesystem scenarios, consider using absolute paths instead.
     const relativeModelPath = path.relative(certifiedDir, modelPath);
     await fs.symlink(relativeModelPath, symlinkPath, 'dir');
 
