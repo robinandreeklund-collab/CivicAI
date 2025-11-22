@@ -187,12 +187,17 @@ ml/training_history.json
 
 # Downloaded model weights (Mistral 7B, LLaMA-2, etc.)
 # These are large files (multiple GB) and should not be committed to git
-models/
-!models/.gitkeep
 # Allow documentation and directory structure for OneSeek-7B-Zero
 !models/oneseek-7b-zero/
 !models/oneseek-7b-zero/**/*.md
 !models/oneseek-7b-zero/**/.gitkeep
+# Allow certified model verification scripts
+!models/oneseek-certified/
+!models/oneseek-certified/**/*.py
+!models/oneseek-certified/**/*.md
+# Ignore all other model files
+models/*
+!models/.gitkeep
 
 # Firebase sensitive files
 # NEVER commit service account keys or Firebase credentials

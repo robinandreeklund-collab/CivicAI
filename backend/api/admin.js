@@ -808,7 +808,439 @@ router.post('/training/stop', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+// POST /api/admin/training/start-dna-v2 - Start DNA v2 training with adaptive weights
+router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
+  try {
+    const { datasetId, epochs, learningRate, autoStopThreshold, autoStopPatience, seed, baseModels } = req.body;
+    
+    if (!datasetId) {
+      return res.status(400).json({ error: 'Dataset ID is required' });
+    }
+
+    if (!baseModels || baseModels.length === 0) {
+      return res.status(400).json({ error: 'At least one base model is required for DNA v2 training' });
+    }
+    
+    if (trainingState.status === 'training') {
+      return res.status(400).json({ error: 'Training already in progress' });
+    }
+    
+    // Verify dataset exists
+    const datasetPath = path.join(process.cwd(), '..', 'datasets', datasetId);
+    try {
+      await fs.access(datasetPath);
+    } catch (error) {
+      return res.status(404).json({ error: 'Dataset not found', path: datasetPath });
+    }
+    
+    // Initialize training state
+    trainingState = {
+      status: 'training',
+      currentEpoch: 0,
+      totalEpochs: epochs || 10,
+      loss: null,
+      progress: 0,
+      datasetId,
+      useDnaV2: true,
+      baseModels: baseModels,
+      logs: [
+        {
+          timestamp: new Date().toISOString(),
+          message: `Starting DNA v2 training with dataset: ${datasetId}`,
+        },
+        {
+          timestamp: new Date().toISOString(),
+          message: `Base models (${baseModels.length}): ${baseModels.join(', ')}`,
+        },
+        {
+          timestamp: new Date().toISOString(),
+          message: `Parameters: epochs=${epochs || 10}, lr=${learningRate || 0.0001}, auto-stop=${autoStopThreshold || 0.001}/${autoStopPatience || 3}`,
+        },
+      ],
+    };
+    
+    // Path to DNA v2 Python script
+    const pythonScript = path.join(process.cwd(), '..', 'scripts', 'train_dna_v2.py');
+    
+    // Check if Python script exists
+    try {
+      await fs.access(pythonScript);
+    } catch (error) {
+      trainingState.status = 'idle';
+      return res.status(500).json({ 
+        error: 'DNA v2 training script not found', 
+        message: `scripts/train_dna_v2.py does not exist at ${pythonScript}`,
+      });
+    }
+    
+    // Determine Python command - use venv from backend/python_services/venv
+    let pythonCommand;
+    const venvPath = path.join(process.cwd(), 'python_services', 'venv');
+    
+    if (process.platform === 'win32') {
+      const venvPython = path.join(venvPath, 'Scripts', 'python.exe');
+      try {
+        await fs.access(venvPython);
+        pythonCommand = venvPython;
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message: `[VENV] Using venv Python: ${venvPython}`,
+        });
+      } catch {
+        pythonCommand = 'python';
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message: `[WARNING] venv not found at ${venvPython}, using system Python`,
+        });
+      }
+    } else {
+      const venvPython = path.join(venvPath, 'bin', 'python3');
+      try {
+        await fs.access(venvPython);
+        pythonCommand = venvPython;
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message: `[VENV] Using venv Python: ${venvPython}`,
+        });
+      } catch {
+        pythonCommand = 'python3';
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message: `[WARNING] venv not found at ${venvPython}, using system Python`,
+        });
+      }
+    }
+    
+    // Build Python script arguments
+    const pythonArgs = [
+      pythonScript,
+      '--dataset', `datasets/${datasetId}`,
+      '--epochs', String(epochs || 10),
+      '--learning-rate', String(learningRate || 0.0001),
+      '--auto-stop-threshold', String(autoStopThreshold || 0.001),
+      '--auto-stop-patience', String(autoStopPatience || 3),
+      '--seed', String(seed || 42),
+    ];
+    
+    trainingState.logs.push({
+      timestamp: new Date().toISOString(),
+      message: `Command: ${pythonCommand} ${pythonArgs.join(' ')}`,
+    });
+    
+    // Set environment variables
+    const env = {
+      ...process.env,
+      MODELS_DIR: 'models',
+      BASE_MODELS: baseModels.join(','),  // Pass selected base models
+    };
+    
+    // Add ledger configuration if available
+    if (process.env.LEDGER_URL) {
+      env.LEDGER_URL = process.env.LEDGER_URL;
+    }
+    if (process.env.LEDGER_PRIVATE_KEY_PATH) {
+      env.LEDGER_PRIVATE_KEY_PATH = process.env.LEDGER_PRIVATE_KEY_PATH;
+    }
+    
+    trainingProcess = spawn(pythonCommand, pythonArgs, {
+      cwd: path.join(process.cwd(), '..'),
+      env: env,
+    });
+    
+    // Handle stdout
+    trainingProcess.stdout.on('data', (data) => {
+      const message = data.toString().trim();
+      if (message) {
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message,
+        });
+        
+        // Parse epoch progress
+        const epochMatch = message.match(/Epoch (\d+)\/(\d+)/);
+        if (epochMatch) {
+          trainingState.currentEpoch = parseInt(epochMatch[1]);
+          trainingState.totalEpochs = parseInt(epochMatch[2]);
+          trainingState.progress = Math.round((trainingState.currentEpoch / trainingState.totalEpochs) * 100);
+        }
+        
+        // Parse loss
+        const lossMatch = message.match(/loss[=:]\s*([0-9.]+)/i);
+        if (lossMatch) {
+          trainingState.loss = parseFloat(lossMatch[1]);
+        }
+        
+        // Parse DNA
+        const dnaMatch = message.match(/DNA:\s*(OneSeek-7B-Zero\.v[\w.]+)/);
+        if (dnaMatch) {
+          trainingState.dna = dnaMatch[1];
+        }
+      }
+    });
+    
+    // Handle stderr
+    trainingProcess.stderr.on('data', (data) => {
+      const message = data.toString().trim();
+      if (message) {
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message: `[ERROR] ${message}`,
+        });
+      }
+    });
+    
+    // Handle process completion
+    trainingProcess.on('close', async (code) => {
+      const endTime = new Date().toISOString();
+      const startTime = trainingState.logs[0]?.timestamp || endTime;
+      
+      if (code === 0) {
+        trainingState.status = 'idle';
+        trainingState.logs.push({
+          timestamp: endTime,
+          message: `Training completed successfully with DNA v2!`,
+        });
+        
+        // Try to load DNA v2 training results from the most recent run
+        let trainingResults = null;
+        try {
+          const certifiedDir = path.join(process.cwd(), '..', 'models', 'oneseek-certified');
+          const runs = await fs.readdir(certifiedDir);
+          
+          // Find the most recent run directory
+          const runDirs = [];
+          for (const dir of runs) {
+            const dirPath = path.join(certifiedDir, dir);
+            const stats = await fs.stat(dirPath);
+            if (stats.isDirectory()) {
+              runDirs.push({ name: dir, mtime: stats.mtime });
+            }
+          }
+          
+          if (runDirs.length > 0) {
+            // Sort by modification time (most recent first)
+            runDirs.sort((a, b) => b.mtime - a.mtime);
+            const latestRun = runDirs[0].name;
+            
+            const resultsPath = path.join(certifiedDir, latestRun, 'training_results.json');
+            const resultsData = await fs.readFile(resultsPath, 'utf-8');
+            trainingResults = JSON.parse(resultsData);
+          }
+        } catch (error) {
+          console.log('Could not load training_results.json, using state data:', error.message);
+        }
+        
+        // Extract DNA and metrics
+        const dna = trainingResults?.dna || trainingState.dna;
+        const immutableHash = trainingResults?.immutable_hash;
+        const finalWeights = trainingResults?.final_weights || {};
+        const trainingHistory = trainingResults?.training_history || [];
+        
+        // Calculate training duration
+        const duration = Math.round((new Date(endTime) - new Date(startTime)) / 1000);
+        
+        // Get final loss from training history or state
+        let finalLoss = trainingState.loss;
+        if (trainingHistory.length > 0) {
+          const lastEpoch = trainingHistory[trainingHistory.length - 1];
+          finalLoss = lastEpoch.loss || finalLoss;
+        }
+        
+        // Count samples from dataset
+        let samplesProcessed = 0;
+        try {
+          const datasetPath = path.join(process.cwd(), '..', 'datasets', datasetId);
+          const datasetContent = await fs.readFile(datasetPath, 'utf-8');
+          samplesProcessed = datasetContent.trim().split('\n').filter(line => line.trim()).length;
+        } catch (error) {
+          console.log('Could not count samples:', error.message);
+        }
+        
+        // Save to training history
+        await addTrainingSession({
+          modelName: 'OneSeek-7B-Zero',
+          dna: dna,
+          timestamp: endTime,
+          duration: duration,
+          samplesProcessed: samplesProcessed,
+          finalLoss: finalLoss,
+          accuracy: null, // DNA v2 doesn't track accuracy during training
+          baseModels: baseModels,
+          epochs: trainingState.totalEpochs,
+          autoStopped: trainingHistory.some(e => e.auto_stopped),
+          immutableHash: immutableHash,
+        });
+        
+        // Update training schedule
+        schedule.lastTraining = endTime;
+        
+        // Save model metadata if DNA is available
+        if (dna) {
+          try {
+            // Extract version from DNA (e.g., "OneSeek-7B-Zero.v1.0.abcd1234..." -> "1.0")
+            const versionMatch = dna.match(/OneSeek-7B-Zero\.v([0-9.]+)/);
+            const version = versionMatch ? versionMatch[1] : '1.0';
+            
+            // Create model metadata
+            const modelsDir = path.join(process.cwd(), '..', 'models', 'oneseek-7b-zero', 'weights');
+            await fs.mkdir(modelsDir, { recursive: true });
+            
+            const metadataPath = path.join(modelsDir, `oneseek-7b-zero-v${version}.json`);
+            const metadata = {
+              version: dna,
+              createdAt: endTime,
+              trainingType: 'dna-v2',
+              samplesProcessed: samplesProcessed,
+              isCurrent: true,
+              metrics: {
+                loss: finalLoss,
+                accuracy: null,
+                fairness: null,
+              },
+              dna: {
+                fingerprint: dna,
+                immutableHash: immutableHash,
+                finalWeights: finalWeights,
+                baseModels: baseModels,
+              },
+              training: {
+                epochs: trainingState.totalEpochs,
+                duration: duration,
+                autoStopped: trainingHistory.some(e => e.auto_stopped),
+              },
+            };
+            
+            await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
+            
+            trainingState.logs.push({
+              timestamp: endTime,
+              message: `Model metadata saved: ${metadataPath}`,
+            });
+          } catch (error) {
+            console.error('Error saving model metadata:', error);
+            trainingState.logs.push({
+              timestamp: endTime,
+              message: `[WARNING] Could not save model metadata: ${error.message}`,
+            });
+          }
+        }
+        
+        notifications.push({
+          id: uuidv4(),
+          message: `DNA v2 training completed successfully! DNA: ${dna || 'Check logs'}`,
+          timestamp: endTime,
+        });
+        
+        // Store DNA in training state for retrieval
+        if (dna) {
+          trainingState.logs.push({
+            timestamp: endTime,
+            message: `Model DNA: ${dna}`,
+          });
+        }
+      } else {
+        trainingState.status = 'idle';
+        trainingState.logs.push({
+          timestamp: endTime,
+          message: `Training failed with exit code ${code}`,
+        });
+        
+        notifications.push({
+          id: uuidv4(),
+          message: `Training failed with exit code ${code}`,
+          timestamp: endTime,
+        });
+      }
+      
+      trainingProcess = null;
+    });
+    
+    trainingProcess.on('error', (error) => {
+      trainingState.status = 'idle';
+      trainingState.logs.push({
+        timestamp: new Date().toISOString(),
+        message: `Process error: ${error.message}`,
+      });
+      trainingProcess = null;
+    });
+    
+    res.json({ success: true, message: 'DNA v2 training started' });
+  } catch (error) {
+    console.error('Error starting DNA v2 training:', error);
+    trainingState.status = 'idle';
+    res.status(500).json({ error: 'Failed to start training', message: error.message });
+  }
+});
+
 // Model Management Endpoints
+
+// GET /api/admin/models/discover-base - Discover base models in models/ directory
+router.get('/models/discover-base', requireAdmin, async (req, res) => {
+  try {
+    const modelsDir = path.join(process.cwd(), '..', 'models');
+    const discoveredModels = [];
+
+    try {
+      const entries = await fs.readdir(modelsDir, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        
+        const modelDir = path.join(modelsDir, entry.name);
+        
+        // Check for model indicator files
+        const hasConfig = await fs.access(path.join(modelDir, 'config.json')).then(() => true).catch(() => false);
+        const hasTokenizer = await fs.access(path.join(modelDir, 'tokenizer_config.json')).then(() => true).catch(() => false);
+        const hasPytorchModel = await fs.access(path.join(modelDir, 'pytorch_model.bin')).then(() => true).catch(() => false);
+        const hasSafetensors = await fs.access(path.join(modelDir, 'model.safetensors')).then(() => true).catch(() => false);
+        const hasAdapter = await fs.access(path.join(modelDir, 'adapter_model.bin')).then(() => true).catch(() => false);
+        
+        if (hasConfig || hasTokenizer || hasPytorchModel || hasSafetensors || hasAdapter) {
+          let parameters = 'unknown';
+          let modelType = 'causal_lm';
+          
+          // Try to read config for more info
+          if (hasConfig) {
+            try {
+              const configContent = await fs.readFile(path.join(modelDir, 'config.json'), 'utf-8');
+              const config = JSON.parse(configContent);
+              modelType = config.model_type || 'causal_lm';
+              
+              // Estimate parameters from config
+              const hiddenSize = config.hidden_size || 0;
+              const numLayers = config.num_hidden_layers || 0;
+              if (hiddenSize > 0 && numLayers > 0) {
+                const estParams = (hiddenSize / 1024) * numLayers * 12;
+                if (estParams > 1000) {
+                  parameters = `${(estParams / 1000).toFixed(1)}B`;
+                } else {
+                  parameters = `${estParams.toFixed(0)}M`;
+                }
+              }
+            } catch (error) {
+              console.error(`Error reading config for ${entry.name}:`, error);
+            }
+          }
+          
+          discoveredModels.push({
+            name: entry.name,
+            path: modelDir,
+            type: modelType,
+            parameters: parameters,
+          });
+        }
+      }
+      
+      res.json({ models: discoveredModels });
+    } catch (error) {
+      console.error('Error reading models directory:', error);
+      res.json({ models: [] });
+    }
+  } catch (error) {
+    console.error('Error discovering base models:', error);
+    res.status(500).json({ error: 'Failed to discover base models', message: error.message });
+  }
+});
 
 // GET /api/admin/models - List all model versions
 router.get('/models', requireAdmin, async (req, res) => {
@@ -1022,6 +1454,122 @@ router.get('/monitoring/notifications', requireAdmin, (req, res) => {
 router.delete('/monitoring/notifications/:id', requireAdmin, (req, res) => {
   notifications = notifications.filter(n => n.id !== req.params.id);
   res.json({ success: true });
+});
+
+// POST /api/admin/models/verify - Verify model integrity
+router.post('/models/verify', requireAdmin, async (req, res) => {
+  try {
+    const { model_path } = req.body;
+    
+    if (!model_path) {
+      return res.status(400).json({ error: 'model_path is required' });
+    }
+    
+    // Resolve model path
+    const modelDir = path.isAbsolute(model_path) 
+      ? model_path 
+      : path.join(process.cwd(), '..', model_path);
+    
+    // Check if verify_integrity.py exists in the model directory
+    const verifyScriptInModel = path.join(modelDir, 'verify_integrity.py');
+    const verifyScriptGlobal = path.join(process.cwd(), '..', 'models', 'oneseek-certified', 'verify_integrity.py');
+    
+    let verifyScript;
+    try {
+      await fs.access(verifyScriptInModel);
+      verifyScript = verifyScriptInModel;
+    } catch {
+      try {
+        await fs.access(verifyScriptGlobal);
+        verifyScript = verifyScriptGlobal;
+      } catch {
+        return res.status(404).json({ 
+          error: 'Verification script not found',
+          details: `Looked in ${verifyScriptInModel} and ${verifyScriptGlobal}`
+        });
+      }
+    }
+    
+    // Determine Python command
+    let pythonCommand;
+    const venvPath = path.join(process.cwd(), '..', 'venv');
+    
+    if (process.platform === 'win32') {
+      const venvPython = path.join(venvPath, 'Scripts', 'python.exe');
+      try {
+        await fs.access(venvPython);
+        pythonCommand = venvPython;
+      } catch {
+        pythonCommand = 'python';
+      }
+    } else {
+      const venvPython = path.join(venvPath, 'bin', 'python3');
+      try {
+        await fs.access(venvPython);
+        pythonCommand = venvPython;
+      } catch {
+        pythonCommand = 'python3';
+      }
+    }
+    
+    // Run verify_integrity.py
+    const verifyProcess = spawn(pythonCommand, [verifyScript, modelDir]);
+    
+    let stdout = '';
+    let stderr = '';
+    
+    verifyProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    verifyProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    verifyProcess.on('close', (code) => {
+      try {
+        // Parse JSON output from verify_integrity.py
+        const result = JSON.parse(stdout);
+        
+        // Map to expected response format
+        const response = {
+          dna_valid: result.dna === 'VALID',
+          ledger_synced: result.ledger === 'SYNCED',
+          datasets_unchanged: result.datasets === 'UNCHANGED',
+          details: result.details || {}
+        };
+        
+        // Add overall status
+        response.overall_status = result.overall || 'UNKNOWN';
+        
+        // Include stderr if there were warnings
+        if (stderr) {
+          response.warnings = stderr.split('\n').filter(line => line.trim());
+        }
+        
+        res.json(response);
+      } catch (parseError) {
+        // Failed to parse JSON, return raw output
+        res.status(500).json({
+          error: 'Failed to parse verification result',
+          stdout,
+          stderr,
+          exit_code: code
+        });
+      }
+    });
+    
+    verifyProcess.on('error', (error) => {
+      res.status(500).json({ 
+        error: 'Failed to run verification script',
+        details: error.message
+      });
+    });
+    
+  } catch (error) {
+    console.error('Error verifying model:', error);
+    res.status(500).json({ error: 'Verification failed', details: error.message });
+  }
 });
 
 export default router;
