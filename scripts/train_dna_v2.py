@@ -94,6 +94,7 @@ def parse_args():
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
     parser.add_argument('--base-models', nargs='+', help='Specific base models to use')
     parser.add_argument('--output-dir', help='Output directory for certified models')
+    parser.add_argument('--language', help='Language code for DNA fingerprint (sv, en, ensv, etc.)')
     
     return parser.parse_args()
 
@@ -182,12 +183,20 @@ def run_real_training(args, data_dir, dataset_path):
         print("OneSeek-7B-Zero DNA v2 Training")
         print(f"{'=' * 70}\n")
         
+        # Determine language: use command-line arg if provided, otherwise extract from filename
+        if args.language:
+            training_language = args.language
+            print(f"[LANGUAGE] Using language from command-line: {training_language}")
+        else:
+            training_language = extract_language_from_filename(dataset_path.name)
+            print(f"[LANGUAGE] Detected language from filename: {training_language}")
+        
         # Create trainer
         trainer = OneSeekTrainer(
             data_dir=str(data_dir),
             model_dir=str(model_dir),
             ledger_dir=str(ledger_dir),
-            language='en',
+            language=training_language,
             external_model=None
         )
         
@@ -266,8 +275,13 @@ def run_real_training(args, data_dir, dataset_path):
         # Extract categories from dataset
         categories = extract_categories_from_filenames([str(dataset_path)])
         
-        # Extract language from dataset filename
-        language = extract_language_from_filename(dataset_path.name)
+        # Determine language: use command-line arg if provided, otherwise extract from filename
+        if args.language:
+            language = args.language
+            print(f"[DNA] Using language from command-line: {language}")
+        else:
+            language = extract_language_from_filename(dataset_path.name)
+            print(f"[DNA] Detected language from filename: {language}")
         
         # Calculate final weights from base models (or use equal weights if not specified)
         # Base models come from admin panel selection via --base-models argument
