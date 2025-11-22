@@ -18,6 +18,8 @@ export default function TrainingControl() {
   const [discoveredBaseModels, setDiscoveredBaseModels] = useState([]);
   const [selectedBaseModels, setSelectedBaseModels] = useState([]);
   const [selectedDataset, setSelectedDataset] = useState('');
+  const [languageAnalysis, setLanguageAnalysis] = useState(null);
+  const [analyzingLanguage, setAnalyzingLanguage] = useState(false);
   const [useDnaV2, setUseDnaV2] = useState(true); // Default to DNA v2
   const [trainingParams, setTrainingParams] = useState({
     epochs: 3,
@@ -109,6 +111,29 @@ export default function TrainingControl() {
     setSelectedBaseModels(selectedBaseModels.filter(m => m !== modelName));
   };
 
+  const analyzeDatasetLanguage = async (datasetId) => {
+    if (!datasetId) return;
+    
+    setAnalyzingLanguage(true);
+    try {
+      const response = await fetch(`/api/admin/datasets/${datasetId}/analyze-language`);
+      if (response.ok) {
+        const data = await response.json();
+        setLanguageAnalysis(data);
+        
+        // Auto-update language parameter based on detection
+        setTrainingParams({
+          ...trainingParams,
+          language: data.languageCode
+        });
+      }
+    } catch (error) {
+      console.error('Error analyzing dataset language:', error);
+    } finally {
+      setAnalyzingLanguage(false);
+    }
+  };
+
   const startTraining = async () => {
     if (!selectedDataset) {
       alert('Please select a dataset');
@@ -182,20 +207,80 @@ export default function TrainingControl() {
             <label className="block text-[#888] font-mono text-sm mb-2">
               Select Dataset
             </label>
-            <select
-              value={selectedDataset}
-              onChange={(e) => setSelectedDataset(e.target.value)}
-              disabled={isTraining}
-              className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
-            >
-              <option value="">-- Select a dataset --</option>
-              {datasets.map((dataset) => (
-                <option key={dataset.id} value={dataset.id}>
-                  {dataset.name} ({dataset.entries} entries)
-                </option>
-              ))}
-            </select>
+            <div className="flex gap-2">
+              <select
+                value={selectedDataset}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedDataset(value);
+                  setLanguageAnalysis(null);
+                  if (value) {
+                    analyzeDatasetLanguage(value);
+                  }
+                }}
+                disabled={isTraining}
+                className="flex-1 bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+              >
+                <option value="">-- Select a dataset --</option>
+                {datasets.map((dataset) => (
+                  <option key={dataset.id} value={dataset.id}>
+                    {dataset.name} ({dataset.entries} entries)
+                  </option>
+                ))}
+              </select>
+              {selectedDataset && !analyzingLanguage && (
+                <button
+                  onClick={() => analyzeDatasetLanguage(selectedDataset)}
+                  className="px-3 py-2 border border-[#2a2a2a] text-[#888] font-mono text-xs hover:bg-[#1a1a1a] rounded"
+                  disabled={isTraining}
+                >
+                  Re-analyze
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* Language Analysis Display */}
+          {languageAnalysis && (
+            <div className="p-4 bg-[#0a0a0a] border border-green-900/30 rounded">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-green-400 font-mono text-sm">📊 Language Analysis</h3>
+                <span className="text-[#888] font-mono text-xs">
+                  {languageAnalysis.totalSamples} samples analyzed
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                <div className="text-center">
+                  <div className="text-[#666] font-mono text-xs mb-1">Swedish</div>
+                  <div className="text-[#eee] font-mono text-lg">{languageAnalysis.languages.swedish.percent}%</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[#666] font-mono text-xs mb-1">English</div>
+                  <div className="text-[#eee] font-mono text-lg">{languageAnalysis.languages.english.percent}%</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[#666] font-mono text-xs mb-1">Other</div>
+                  <div className="text-[#eee] font-mono text-lg">{languageAnalysis.languages.other.percent}%</div>
+                </div>
+              </div>
+              
+              <div className="border-t border-[#2a2a2a] pt-3">
+                <div className="text-[#888] font-mono text-xs mb-1">
+                  Primary Language: <span className="text-green-400">{languageAnalysis.primaryLanguage}</span>
+                </div>
+                <div className="text-[#666] font-mono text-xs">
+                  {languageAnalysis.recommendation}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {analyzingLanguage && (
+            <div className="p-4 bg-[#0a0a0a] border border-[#2a2a2a] rounded text-center">
+              <div className="text-[#888] font-mono text-xs">Analyzing dataset language...</div>
+            </div>
+          )}
 
           {/* Training Parameters */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

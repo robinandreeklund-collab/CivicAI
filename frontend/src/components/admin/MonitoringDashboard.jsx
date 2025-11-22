@@ -314,14 +314,14 @@ export default function MonitoringDashboard() {
           </div>
         ) : (
           <div className="space-y-2">
-            {trainingHistory.map((session, index) => (
+            {trainingHistory.slice(-10).reverse().map((session, index) => (
               <div
                 key={index}
                 className="p-3 border border-[#2a2a2a] rounded bg-[#0a0a0a]"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[#888] font-mono text-sm">
-                    {session.modelVersion}
+                    {session.dna || session.modelName || 'Unknown Model'}
                   </span>
                   <span className="text-[#666] font-mono text-xs">
                     {new Date(session.timestamp).toLocaleString()}
@@ -329,12 +329,15 @@ export default function MonitoringDashboard() {
                 </div>
                 <div className="text-[#666] font-mono text-xs space-x-4">
                   <span>Duration: {session.duration}s</span>
-                  <span>Samples: {session.samples}</span>
-                  {session.metrics && (
-                    <>
-                      <span>Loss: {session.metrics.loss?.toFixed(4)}</span>
-                      <span>Accuracy: {session.metrics.accuracy?.toFixed(2)}%</span>
-                    </>
+                  <span>Samples: {session.samplesProcessed || session.samples || 0}</span>
+                  {session.finalLoss && (
+                    <span>Loss: {session.finalLoss.toFixed(4)}</span>
+                  )}
+                  {session.baseModels && session.baseModels.length > 0 && (
+                    <span>Models: {session.baseModels.length}</span>
+                  )}
+                  {session.autoStopped && (
+                    <span className="text-yellow-400">Auto-stopped ⚡</span>
                   )}
                 </div>
               </div>
