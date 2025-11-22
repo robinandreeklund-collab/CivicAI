@@ -31,8 +31,12 @@ def write_live_metrics(run_id: str, epoch: int, total_epochs: int,
         project_root = Path(__file__).parent.parent.parent
         certified_dir = project_root / 'models' / 'oneseek-certified' / run_id
         
+        print(f"[LIVE_METRICS] Writing metrics for run_id={run_id}")
+        print(f"[LIVE_METRICS] Target directory: {certified_dir}")
+        
         # Ensure directory exists
         certified_dir.mkdir(parents=True, exist_ok=True)
+        print(f"[LIVE_METRICS] Directory created/verified")
         
         # Calculate progress
         progress_percent = (epoch / total_epochs) * 100
@@ -61,11 +65,14 @@ def write_live_metrics(run_id: str, epoch: int, total_epochs: int,
         # Atomic rename
         live_metrics_temp.replace(live_metrics_path)
         
-        print(f"   [LIVE METRICS] Epoch {epoch}/{total_epochs} metrics written to {live_metrics_path}")
+        print(f"[LIVE_METRICS] ✓ Metrics written to {live_metrics_path}")
+        print(f"[LIVE_METRICS] Epoch {epoch}/{total_epochs} ({progress_percent:.1f}%), Loss: {metrics_data['total_loss']:.4f}")
         
     except Exception as e:
         # Don't fail training if live metrics writing fails
-        print(f"   [WARNING] Failed to write live metrics: {e}")
+        print(f"[LIVE_METRICS] ⚠ Failed to write live metrics: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def check_pytorch_available():
@@ -193,6 +200,7 @@ def train_single_model_lora(
     print(f"\n{'=' * 70}")
     print(f"Training {model_name.upper()}")
     print(f"{'=' * 70}")
+    print(f"[INFO] run_id={run_id}")
     
     print(f"\n[LOADING] Loading base model: {model_name}")
     print(f"   Path: {model_path}")
