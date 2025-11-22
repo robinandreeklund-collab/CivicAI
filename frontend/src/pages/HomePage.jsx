@@ -10,6 +10,7 @@ import HighlightedText from '../components/HighlightedText';
 import ConsensusDebateCard from '../components/ConsensusDebateCard';
 import NLPProcessingLoader from '../components/NLPProcessingLoader';
 import { formatMarkdown } from '../utils/formatMarkdown';
+import { triggerMicroTrainingAsync } from '../utils/microTraining';
 
 /**
  * HomePage Component
@@ -187,6 +188,19 @@ export default function HomePage({ onAiMessageUpdate, conversationId }) {
       };
       
       setMessages(prev => [...prev, aiMessage]);
+      
+      // Trigger micro-training in background (non-blocking)
+      if (data.responses && data.responses.length > 0) {
+        triggerMicroTrainingAsync(
+          trimmedQuestion,
+          data.responses,
+          {
+            bias: data.biasDetection?.score,
+            consensus: data.metaReview?.consensus,
+            fairness: data.metaReview?.fairness,
+          }
+        );
+      }
       
       // Set first section as active
       if (data.responses && data.responses.length > 0) {
