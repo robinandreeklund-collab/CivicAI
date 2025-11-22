@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
+import LiveMicroTrainingActivity from '../components/admin/LiveMicroTrainingActivity';
 
 /**
  * OQT-1.0 Dashboard Page - Minimal Chat Interface
@@ -266,9 +267,8 @@ export default function OQTDashboardPage() {
           )}
 
           {selectedTab === 'activity' && (
-            <div className="text-center py-12">
-              <h3 className="text-lg font-light text-[#e7e7e7] mb-2">Träningsaktivitet</h3>
-              <p className="text-sm text-[#666]">Visar real-time träningsaktivitet och modelluppdateringar</p>
+            <div>
+              <LiveMicroTrainingActivity />
             </div>
           )}
 

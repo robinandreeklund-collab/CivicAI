@@ -6,6 +6,7 @@ import ChangeDetectionPanel from '../components/ChangeDetectionPanel';
 import ReplayTimeline from '../components/ReplayTimeline';
 import { useFirestoreDocument } from '../hooks/useFirestoreDocument';
 import { useAuth } from '../contexts/AuthContext';
+import { triggerMicroTrainingAsync } from '../utils/microTraining';
 
 /**
  * ChatV2Page Component - Concept 31 Design
@@ -457,6 +458,19 @@ export default function ChatV2Page() {
         const userMsg = prev.find(m => m.type === 'user');
         return userMsg ? [userMsg, aiMessage] : [aiMessage];
       });
+      
+      // Trigger micro-training in background (non-blocking)
+      if (aiMessage.responses && aiMessage.responses.length > 0) {
+        triggerMicroTrainingAsync(
+          aiMessage.question,
+          aiMessage.responses,
+          {
+            consensus: aiMessage.metaReview?.consensus,
+            bias: aiMessage.pipelineData?.biasAnalysis?.aggregatedScore,
+            fairness: aiMessage.fairness?.score,
+          }
+        );
+      }
       
       // Initialize selectedModel with first response's agent name
       if (aiMessage.responses && aiMessage.responses.length > 0) {

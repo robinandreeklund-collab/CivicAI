@@ -12,6 +12,7 @@
 
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import { detectOne } from 'langdetect';
 import { 
   saveOQTQuery, 
   saveOQTMetrics, 
@@ -36,6 +37,7 @@ import {
 } from '../services/oqtMultiModelPipeline.js';
 import { getMistralResponse } from '../services/mistral.js';
 import { getLlamaResponse } from '../services/llama.js';
+import { broadcastTrainingEvent } from '../ws/training_ws.js';
 
 const router = express.Router();
 
@@ -200,7 +202,7 @@ router.post('/query', rateLimiter, async (req, res) => {
  * POST /api/oqt/multi-model-query
  * NEW: Enhanced query endpoint using multi-model pipeline
  * Processes query through Mistral 7B and LLaMA-2, performs analysis, and returns synthesized OQT-1.0 response
- * Includes real-time microtraining
+ * Includes real-time microtraining with language detection
  * 
  * Body:
  * {
@@ -222,6 +224,21 @@ router.post('/multi-model-query', rateLimiter, async (req, res) => {
 
     const queryId = uuidv4();
     const timestamp = new Date().toISOString();
+    
+    // Detect language for micro-training
+    let detectedLanguage = 'en';
+    try {
+      const langResult = detectOne(question);
+      // Map language codes to supported languages (sv or en)
+      if (langResult === 'sv' || langResult === 'no' || langResult === 'da') {
+        detectedLanguage = 'sv';
+      } else {
+        detectedLanguage = 'en';
+      }
+      console.log(`[OQT] Detected language: ${langResult} -> ${detectedLanguage}`);
+    } catch (err) {
+      console.warn('[OQT] Language detection failed, defaulting to English:', err.message);
+    }
 
     // Execute multi-model pipeline
     const pipelineResult = await executeOQTMultiModelPipeline(question, {
@@ -236,36 +253,68 @@ router.post('/multi-model-query', rateLimiter, async (req, res) => {
       pipelineResult.consensus
     );
 
-    // Perform real-time microtraining (two-step)
+    // Perform real-time microtraining (two-step) with language-specific model
     let trainingResult = null;
     if (enableTraining) {
-      // Step 1: Train on raw responses
-      const stage1Result = await microTrainStage1(question, pipelineResult.rawResponses);
-      
-      // Step 2: Train on analyzed data
-      const stage2Result = await microTrainStage2(question, {
-        consensus: pipelineResult.consensus.score,
-        bias: pipelineResult.bias.aggregatedScore,
-        fairness: pipelineResult.fairness.score,
-        metaSummary: pipelineResult.metaSummary,
-      });
+      try {
+        // Call micro-training endpoint (use relative URL for same server)
+        const microTrainResponse = await fetch('/api/training/micro', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            question,
+            language: detectedLanguage,
+            rawResponses: pipelineResult.rawResponses,
+            analyzedData: {
+              consensus: pipelineResult.consensus.score,
+              bias: pipelineResult.bias.aggregatedScore,
+              fairness: pipelineResult.fairness.score,
+              metaSummary: pipelineResult.metaSummary,
+            },
+          }),
+        });
+        
+        if (microTrainResponse.ok) {
+          const microTrainData = await microTrainResponse.json();
+          trainingResult = {
+            success: true,
+            language: detectedLanguage,
+            model: microTrainData.model,
+            fallback: microTrainData.fallback,
+            stage1: microTrainData.stages?.stage1,
+            stage2: microTrainData.stages?.stage2,
+            state: microTrainData.state,
+          };
+          
+          console.log(`[OQT] Micro-training completed for ${detectedLanguage} model`);
+        } else {
+          const errorData = await microTrainResponse.json();
+          console.warn('[OQT] Micro-training failed:', errorData);
+          trainingResult = {
+            success: false,
+            error: errorData.error || 'Micro-training failed',
+          };
+        }
+      } catch (err) {
+        console.error('[OQT] Micro-training error:', err);
+        trainingResult = {
+          success: false,
+          error: err.message,
+        };
+      }
 
       oqtModel.trainingData.microBatch += 1;
-
-      trainingResult = {
-        stage1: stage1Result,
-        stage2: stage2Result,
-        microBatchCount: oqtModel.trainingData.microBatch,
-      };
 
       // Save training event
       await saveOQTTrainingEvent({
         trainingId: uuidv4(),
         type: 'multi-model-micro-training',
         question,
+        language: detectedLanguage,
         samplesProcessed: pipelineResult.rawResponses.length,
-        stage1: stage1Result,
-        stage2: stage2Result,
+        trainingResult: trainingResult,
         modelVersion: oqtModel.version,
         metrics: oqtModel.metrics,
       });
@@ -277,6 +326,7 @@ router.post('/multi-model-query', rateLimiter, async (req, res) => {
       question,
       response: oqtResponse.text,
       confidence: oqtResponse.confidence,
+      language: detectedLanguage,
       metadata: {
         modelsUsed: pipelineResult.rawResponses.map(r => r.model),
         consensus: pipelineResult.consensus,
@@ -297,6 +347,7 @@ router.post('/multi-model-query', rateLimiter, async (req, res) => {
       queryId,
       model: 'OQT-1.0',
       version: oqtModel.version,
+      language: detectedLanguage,
       
       // OQT synthesized response
       response: oqtResponse.text,
