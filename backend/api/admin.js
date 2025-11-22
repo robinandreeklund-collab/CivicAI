@@ -1285,7 +1285,7 @@ router.get('/models', requireAdmin, async (req, res) => {
           models.push({
             id: versionId,
             version: metadata.version || `OneSeek-7B-Zero.v${versionId}`,
-            dna: metadata.dna?.fingerprint || metadata.version || null,
+            dna: metadata.dna?.fingerprint || null,  // Don't fallback to version - keep separate
             createdAt: metadata.createdAt || new Date().toISOString(),
             trainingType: metadata.trainingType || 'unknown',
             samplesProcessed: metadata.samplesProcessed || 0,

@@ -37,6 +37,7 @@ from ledger.ledger_client import InMemoryLedgerClient, HttpLedgerClient
 def extract_language_from_filename(filename: str) -> str:
     """
     Extract language code from dataset filename.
+    Uses priority matching to handle multi-language filenames.
     
     Args:
         filename: Dataset filename or path
@@ -46,26 +47,33 @@ def extract_language_from_filename(filename: str) -> str:
     """
     name_lower = filename.lower()
     
-    # Language mappings
-    language_map = {
-        'swedish': 'sv',
-        'svenska': 'sv',
-        'svensk': 'sv',
-        'swed': 'sv',
-        'norwegian': 'no',
-        'norsk': 'no',
-        'danish': 'da',
-        'dansk': 'da',
-        'finnish': 'fi',
-        'suomi': 'fi',
-        'english': 'en',
-        'eng': 'en',
-    }
+    # Language mappings in priority order (most specific first)
+    language_patterns = [
+        ('svenska', 'sv'),
+        ('swedish', 'sv'),
+        ('svensk', 'sv'),
+        ('swed', 'sv'),
+        ('norwegian', 'no'),
+        ('norsk', 'no'),
+        ('danish', 'da'),
+        ('dansk', 'da'),
+        ('finnish', 'fi'),
+        ('suomi', 'fi'),
+        ('english', 'en'),
+        ('eng', 'en'),
+    ]
     
-    # Check for language indicators
-    for key, code in language_map.items():
-        if key in name_lower:
-            return code
+    # Find all matching languages
+    matches = []
+    for pattern, code in language_patterns:
+        if pattern in name_lower:
+            matches.append((pattern, code, name_lower.index(pattern)))
+    
+    # If multiple matches, use the one that appears first in filename
+    if matches:
+        # Sort by position in filename (earliest first)
+        matches.sort(key=lambda x: x[2])
+        return matches[0][1]
     
     # Default to English
     return 'en'

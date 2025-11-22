@@ -103,7 +103,9 @@ def build_dna(
     # Format categories as human-readable string with 'ds' prefix (sorted)
     sorted_categories = sorted(dataset_categories)
     if sorted_categories:
-        categories_str = 'ds' + '-'.join(sorted_categories)
+        # Sanitize categories: replace hyphens with underscores to avoid ambiguity
+        sanitized = [cat.replace('-', '_') for cat in sorted_categories]
+        categories_str = 'ds' + '-'.join(sanitized)
     else:
         categories_str = 'dsGeneral'
     

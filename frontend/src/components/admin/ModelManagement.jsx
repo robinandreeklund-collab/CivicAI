@@ -165,12 +165,16 @@ export default function ModelManagement() {
                     {model.weights && Object.keys(model.weights).length > 0 && (
                       <div className="mb-2 p-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
                         <div className="text-[#666] font-mono text-xs mb-1">Model Weights:</div>
-                        {Object.entries(model.weights).map(([modelName, weight]) => (
-                          <div key={modelName} className="flex items-center justify-between text-xs font-mono">
-                            <span className="text-[#888]">{modelName}</span>
-                            <span className="text-[#eee]">{(weight * 100).toFixed(1)}%</span>
-                          </div>
-                        ))}
+                        {Object.entries(model.weights).map(([modelName, weight]) => {
+                          // Normalize weight to percentage (assume 0.0-1.0 range)
+                          const weightPercent = weight > 1 ? weight : weight * 100;
+                          return (
+                            <div key={modelName} className="flex items-center justify-between text-xs font-mono">
+                              <span className="text-[#888]">{modelName}</span>
+                              <span className="text-[#eee]">{weightPercent.toFixed(1)}%</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                     
