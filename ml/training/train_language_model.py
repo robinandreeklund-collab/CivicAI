@@ -108,13 +108,21 @@ class OneSeekTrainer:
                 available_models = check_base_models(base_models_dir)
                 
                 if available_models:
-                    # Use real PyTorch training
+                    # Get selected base models from environment variable
+                    import os
+                    selected_base_models = None
+                    base_models_env = os.environ.get('BASE_MODELS', '')
+                    if base_models_env:
+                        selected_base_models = [m.strip() for m in base_models_env.split(',') if m.strip()]
+                    
+                    # Use real PyTorch training with selected base models
                     result = train_with_pytorch_lora(
                         datasets=datasets,
                         version=version,
                         model_dir=self.model_dir,
                         base_models_dir=base_models_dir,
-                        config=self.config
+                        config=self.config,
+                        selected_base_models=selected_base_models
                     )
                     result['simulated'] = False
                     return result

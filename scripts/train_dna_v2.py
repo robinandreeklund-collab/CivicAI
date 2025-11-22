@@ -236,7 +236,7 @@ def run_real_training(args, data_dir, dataset_path):
         certified_dir = Path(output_dir) / run_id
         certified_dir.mkdir(parents=True, exist_ok=True)
         
-        # Save DNA metadata
+        # Save DNA metadata with atomic write
         dna_metadata = {
             'dna': dna,
             'model_name': 'OneSeek-7B-Zero',
@@ -252,10 +252,14 @@ def run_real_training(args, data_dir, dataset_path):
             })
         }
         
-        with open(certified_dir / 'oneseek_dna.json', 'w') as f:
+        # Atomic write pattern: write to .tmp, then rename
+        dna_file = certified_dir / 'oneseek_dna.json'
+        dna_temp = certified_dir / 'oneseek_dna.json.tmp'
+        with open(dna_temp, 'w') as f:
             json.dump(dna_metadata, f, indent=2)
+        dna_temp.replace(dna_file)
         
-        # Save training results
+        # Save training results with atomic write
         training_results = {
             'dna': dna,
             'version': version,
@@ -269,10 +273,13 @@ def run_real_training(args, data_dir, dataset_path):
             'duration_seconds': 0  # Will be calculated
         }
         
-        with open(certified_dir / 'training_results.json', 'w') as f:
+        results_file = certified_dir / 'training_results.json'
+        results_temp = certified_dir / 'training_results.json.tmp'
+        with open(results_temp, 'w') as f:
             json.dump(training_results, f, indent=2)
+        results_temp.replace(results_file)
         
-        # Create ledger entry
+        # Create ledger entry with atomic write
         ledger_entry = {
             'event': 'dna_v2_training_completed',
             'model': 'OneSeek-7B-Zero',
@@ -286,8 +293,11 @@ def run_real_training(args, data_dir, dataset_path):
             'signature': 'dev_mode'
         }
         
-        with open(certified_dir / 'ledger_proof.json', 'w') as f:
+        ledger_file = certified_dir / 'ledger_proof.json'
+        ledger_temp = certified_dir / 'ledger_proof.json.tmp'
+        with open(ledger_temp, 'w') as f:
             json.dump(ledger_entry, f, indent=2)
+        ledger_temp.replace(ledger_file)
         
         print(f"\n[CERTIFIED] Model certified and saved to: {certified_dir}")
         print(f"   - DNA metadata: oneseek_dna.json")

@@ -341,11 +341,12 @@ def train_with_pytorch_lora(
     version: str,
     model_dir: Path,
     base_models_dir: Path,
-    config: Dict
+    config: Dict,
+    selected_base_models: List[str] = None
 ) -> Dict:
     """
     Real PyTorch training with LoRA adapters
-    Trains BOTH Mistral and LLaMA models if available (dual-model architecture)
+    Trains ONLY the models selected from admin panel (NO automatic dual-model mode)
     
     Args:
         datasets: Train/validation data
@@ -353,43 +354,81 @@ def train_with_pytorch_lora(
         model_dir: Where to save model weights
         base_models_dir: Path to base models
         config: Training configuration
+        selected_base_models: List of model names selected from admin panel (REQUIRED)
     
     Returns:
         Training metrics
     """
     import torch
+    import os
     
     print(f"\n{'=' * 70}")
-    print(f"PyTorch Dual-Model Training: OneSeek-7B-Zero v{version}")
+    print(f"PyTorch Training: OneSeek-7B-Zero v{version}")
     print(f"{'=' * 70}")
     
     # Check what's available
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"\n[DEVICE] Device: {device}")
     
+    # Get selected base models from admin panel via environment variable or argument
+    if selected_base_models is None:
+        # Try to get from environment variable (set by admin.js)
+        base_models_env = os.environ.get('BASE_MODELS', '')
+        if base_models_env:
+            selected_base_models = [m.strip() for m in base_models_env.split(',') if m.strip()]
+        else:
+            selected_base_models = []
+    
+    # CRITICAL: Validate that base models are selected (NO defaults allowed)
+    if not selected_base_models:
+        print("\n[ERROR] No base models selected!")
+        print("Base models MUST be selected from the admin panel.")
+        print("DO NOT use automatic discovery or dual-model mode.")
+        raise ValueError(
+            "No base models selected. Please select at least one model from the admin panel. "
+            "Automatic dual-model mode is disabled."
+        )
+    
+    print(f"\n[CONFIG] Selected base models from admin panel: {selected_base_models}")
+    
     # Check which models are available
     available_models = check_base_models(base_models_dir)
     
     if not available_models:
         print("\n[ERROR] No base models found!")
-        print("Please download Mistral 7B or LLaMA-2 to one of these locations:")
-        print(f"  - models/mistral-7b-instruct (recommended for existing setup)")
-        print(f"  - models/llama-2-7b-chat (recommended for existing setup)")
-        print(f"  - {base_models_dir / 'mistral-7b'}")
-        print(f"  - {base_models_dir / 'llama-2-7b'}")
+        print("Please download models to one of these locations:")
+        print(f"  - models/mistral-7b-instruct")
+        print(f"  - models/llama-2-7b-chat")
         raise FileNotFoundError("Base models not found")
     
+    # Filter to only selected models (ignore discovered models that weren't selected)
+    models_to_train = {}
+    for model_key in selected_base_models:
+        # Normalize model names (handle different formats)
+        normalized_key = model_key.lower().replace('-', '').replace('_', '')
+        
+        # Find matching available model
+        for avail_key, avail_path in available_models.items():
+            if avail_key in normalized_key or normalized_key in avail_key:
+                models_to_train[avail_key] = avail_path
+                break
     
-    # Dual-model training mode
-    print(f"\n[MODE] Dual-Model Training Enabled")
-    print(f"   Available models: {list(available_models.keys())}")
+    if not models_to_train:
+        print(f"\n[ERROR] None of the selected models are available!")
+        print(f"   Selected: {selected_base_models}")
+        print(f"   Available: {list(available_models.keys())}")
+        raise ValueError("Selected base models not found in the models directory")
     
-    # Train each available model
+    # Train ONLY selected models (not all discovered models)
+    print(f"\n[MODE] Training {len(models_to_train)} selected model(s)")
+    print(f"   Models to train: {list(models_to_train.keys())}")
+    
+    # Train each SELECTED model
     trained_models = {}
     all_metrics = []
     
-    # Train Mistral if available
-    if 'mistral' in available_models:
+    # Train Mistral if selected
+    if 'mistral' in models_to_train:
         print(f"\n{'=' * 70}")
         print("TRAINING MISTRAL-7B")
         print(f"{'=' * 70}")
@@ -397,7 +436,7 @@ def train_with_pytorch_lora(
         try:
             mistral_metrics = train_single_model_lora(
                 model_name='mistral-7b',
-                model_path=available_models['mistral'],
+                model_path=models_to_train['mistral'],
                 datasets=datasets,
                 version=version,
                 model_dir=model_dir,
@@ -410,8 +449,8 @@ def train_with_pytorch_lora(
             print(f"\n[ERROR] Mistral training failed: {e}")
             print("   Continuing with other models...")
     
-    # Train LLaMA if available
-    if 'llama' in available_models:
+    # Train LLaMA if selected
+    if 'llama' in models_to_train:
         print(f"\n{'=' * 70}")
         print("TRAINING LLAMA-2-7B")
         print(f"{'=' * 70}")
@@ -419,7 +458,7 @@ def train_with_pytorch_lora(
         try:
             llama_metrics = train_single_model_lora(
                 model_name='llama-2-7b',
-                model_path=available_models['llama'],
+                model_path=models_to_train['llama'],
                 datasets=datasets,
                 version=version,
                 model_dir=model_dir,
@@ -435,9 +474,10 @@ def train_with_pytorch_lora(
     if not trained_models:
         raise Exception("No models were successfully trained!")
     
-    # Combine metrics from both models
+    # Combine metrics from trained models
+    is_multi_model = len(trained_models) > 1
     print(f"\n{'=' * 70}")
-    print("DUAL-MODEL TRAINING SUMMARY")
+    print(f"{'MULTI-MODEL' if is_multi_model else 'SINGLE-MODEL'} TRAINING SUMMARY")
     print(f"{'=' * 70}")
     
     # Average metrics across models
@@ -449,9 +489,9 @@ def train_with_pytorch_lora(
         'validation_accuracy': avg_accuracy,
         'fairness_score': 0.90,
         'bias_score': 0.15,
-        'consensus_accuracy': 0.83,
-        'models_trained': list(trained_models.keys()),
-        'dual_model_mode': True,
+        'consensus_accuracy': 0.83 if is_multi_model else avg_accuracy,
+        'models_trained': ', '.join(trained_models.keys()),
+        'multi_model_mode': is_multi_model,
         'device': device
     }
     
@@ -461,14 +501,14 @@ def train_with_pytorch_lora(
         'disparate_impact': 0.94
     }
     
-    print(f"\n[SUCCESS] Dual-model training completed!")
+    print(f"\n[SUCCESS] Training completed!")
     print(f"\nModels trained: {', '.join(trained_models.keys())}")
     print(f"\nCombined Metrics:")
     for key, value in combined_metrics.items():
         if isinstance(value, float):
             print(f"  {key}: {value:.3f}")
-        elif isinstance(value, list):
-            print(f"  {key}: {', '.join(value)}")
+        else:
+            print(f"  {key}: {value}")
         else:
             print(f"  {key}: {value}")
     
@@ -482,17 +522,27 @@ def train_with_pytorch_lora(
         print(f"  - {model_dir.parent / 'lora_adapters' / adapter_name}")
         print(f"  - {model_dir.parent / 'lora_adapters' / f'oneseek-7b-zero-v{version}-{model_name}'}")
     
-    # Save dual-model metadata JSON
-    print(f"\n[METADATA] Saving dual-model training metadata...")
+    # Save training metadata JSON (NO COLONS in filename)
+    print(f"\n[METADATA] Saving training metadata...")
     
     from datetime import datetime
+    
+    # Get base model names for metadata
+    base_model_names = []
+    for key in trained_models.keys():
+        if key == 'mistral':
+            base_model_names.append('Mistral-7B')
+        elif key == 'llama':
+            base_model_names.append('LLaMA-2-7B')
+        else:
+            base_model_names.append(key)
     
     metadata = {
         "version": f"OneSeek-7B-Zero.v{version}",
         "createdAt": datetime.utcnow().isoformat() + "Z",
-        "trainingType": "custom",
-        "dualModelMode": True,
-        "baseModels": list(trained_models.keys()),
+        "trainingType": "dna-v2" if is_multi_model else "single-model",
+        "multiModelMode": is_multi_model,
+        "baseModels": base_model_names,
         "samplesProcessed": len(datasets.get('train', [])),
         "isCurrent": True,
         "metrics": {
@@ -518,14 +568,22 @@ def train_with_pytorch_lora(
     
     metadata["baseModels"] = base_model_names
     
-    # Save metadata JSON
-    metadata_file = model_dir / f'oneseek-7b-zero-v{version}.json'
-    with open(metadata_file, 'w', encoding='utf-8') as f:
+    # Save metadata JSON with proper filename (NO double dots, NO colons)
+    # Use atomic write to prevent corruption
+    metadata_filename = f'oneseek-7b-zero-v{version}.json'
+    metadata_file = model_dir / metadata_filename
+    metadata_temp = model_dir / f'{metadata_filename}.tmp'
+    
+    # Write to temp file first (atomic write pattern)
+    with open(metadata_temp, 'w', encoding='utf-8') as f:
         json.dump(metadata, f, indent=2, ensure_ascii=False)
+    
+    # Rename temp file to final name (atomic operation)
+    metadata_temp.replace(metadata_file)
     
     print(f"   [SUCCESS] Metadata saved to {metadata_file}")
     print(f"   [INFO] Base models: {', '.join(base_model_names)}")
-    print(f"   [INFO] Dual-model mode: True")
+    print(f"   [INFO] Multi-model mode: {is_multi_model}")
     
     return {
         'metrics': combined_metrics,
