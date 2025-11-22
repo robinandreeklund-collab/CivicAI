@@ -420,6 +420,119 @@ router.delete('/datasets/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// GET /api/admin/datasets/:id/analyze-language - Analyze language distribution in dataset
+router.get('/datasets/:id/analyze-language', requireAdmin, async (req, res) => {
+  try {
+    const filePath = path.join(process.cwd(), '..', 'datasets', req.params.id);
+    const content = await fs.readFile(filePath, 'utf-8');
+    
+    let texts = [];
+    
+    // Extract texts from dataset
+    if (req.params.id.endsWith('.jsonl')) {
+      const lines = content.trim().split('\n');
+      lines.forEach((line) => {
+        if (!line.trim()) return;
+        try {
+          const parsed = JSON.parse(line);
+          const text = [
+            parsed.instruction || '',
+            parsed.input || '',
+            parsed.output || '',
+            parsed.question || '',
+            parsed.response || ''
+          ].filter(t => t).join(' ');
+          if (text) texts.push(text);
+        } catch (error) {
+          // Skip invalid lines
+        }
+      });
+    } else {
+      try {
+        const json = JSON.parse(content);
+        const entries = Array.isArray(json) ? json : [json];
+        entries.forEach((entry) => {
+          const text = [
+            entry.instruction || '',
+            entry.input || '',
+            entry.output || '',
+            entry.question || '',
+            entry.response || ''
+          ].filter(t => t).join(' ');
+          if (text) texts.push(text);
+        });
+      } catch (error) {
+        return res.status(400).json({ error: 'Invalid JSON format' });
+      }
+    }
+    
+    // Simple language detection based on character patterns
+    let swedishCount = 0;
+    let englishCount = 0;
+    let otherCount = 0;
+    
+    const swedishPatterns = /[åäöÅÄÖ]/;
+    const swedishWords = /\b(och|är|det|som|för|på|med|att|en|av|till|har|inte|från|kan|men|om|varit|skulle|vara|eller|blir|kommer|någon|också|alla|efter|finns|vid|bara|under|många|utan|där|dessa|dessa|genom|sedan|mellan|sina)\b/i;
+    
+    texts.forEach(text => {
+      const hasSwedishChars = swedishPatterns.test(text);
+      const hasSwedishWords = swedishWords.test(text);
+      
+      if (hasSwedishChars || hasSwedishWords) {
+        swedishCount++;
+      } else if (/[a-zA-Z]/.test(text)) {
+        englishCount++;
+      } else {
+        otherCount++;
+      }
+    });
+    
+    const total = texts.length;
+    const swedishPercent = total > 0 ? (swedishCount / total) * 100 : 0;
+    const englishPercent = total > 0 ? (englishCount / total) * 100 : 0;
+    const otherPercent = total > 0 ? (otherCount / total) * 100 : 0;
+    
+    // Determine primary language and suggested model
+    let primaryLanguage = 'en';
+    let suggestedModel = 'OneSeek-7B-Zero-en';
+    let languageCode = 'en';
+    
+    if (swedishPercent >= 70) {
+      primaryLanguage = 'Swedish';
+      languageCode = 'sv';
+      suggestedModel = 'OneSeek-7B-Zero-sv';
+    } else if (englishPercent >= 70) {
+      primaryLanguage = 'English';
+      languageCode = 'en';
+      suggestedModel = 'OneSeek-7B-Zero-en';
+    } else if (swedishPercent > 30 && englishPercent > 30) {
+      primaryLanguage = 'Mixed (Swedish/English)';
+      languageCode = 'ensv';
+      suggestedModel = 'OneSeek-7B-Zero-multilingual';
+    }
+    
+    res.json({
+      totalSamples: total,
+      languages: {
+        swedish: { count: swedishCount, percent: swedishPercent.toFixed(1) },
+        english: { count: englishCount, percent: englishPercent.toFixed(1) },
+        other: { count: otherCount, percent: otherPercent.toFixed(1) }
+      },
+      primaryLanguage,
+      languageCode,
+      suggestedModel,
+      recommendation: swedishPercent >= 70 
+        ? 'Train with Swedish base models (KB-Llama-3.1-8B-Swedish recommended)'
+        : englishPercent >= 70
+        ? 'Train with English base models (Mistral-7B-Instruct, Qwen-2.5-7B recommended)'
+        : 'Mixed language dataset - consider multi-language models or split training'
+    });
+  } catch (error) {
+    console.error('Error analyzing dataset language:', error);
+    res.status(500).json({ error: 'Language analysis failed', message: error.message });
+  }
+});
+
 // Training Control Endpoints
 
 // GET /api/admin/training/status - Get training status
@@ -1100,6 +1213,28 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
             // Create model metadata
             const modelsDir = path.join(process.cwd(), '..', 'models', 'oneseek-7b-zero', 'weights');
             await fs.mkdir(modelsDir, { recursive: true });
+            
+            // Clear isCurrent flag from all existing models first
+            try {
+              const files = await fs.readdir(modelsDir);
+              const metadataFiles = files.filter(f => f.startsWith('oneseek-7b-zero-v') && f.endsWith('.json'));
+              
+              for (const file of metadataFiles) {
+                const filePath = path.join(modelsDir, file);
+                try {
+                  const content = await fs.readFile(filePath, 'utf-8');
+                  const meta = JSON.parse(content);
+                  if (meta.isCurrent) {
+                    meta.isCurrent = false;
+                    await fs.writeFile(filePath, JSON.stringify(meta, null, 2));
+                  }
+                } catch (err) {
+                  console.error(`Error updating ${file}:`, err);
+                }
+              }
+            } catch (err) {
+              console.error('Error clearing isCurrent flags:', err);
+            }
             
             const metadataPath = path.join(modelsDir, `oneseek-7b-zero-v${version}.json`);
             const metadata = {
