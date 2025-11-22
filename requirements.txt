@@ -81,6 +81,7 @@ nltk>=3.8.1
 spacy>=3.7.0
 langdetect>=1.0.9
 textblob>=0.17.1
+sentence-transformers>=2.2.0  # For model verification semantic similarity
 
 # Bias and Fairness Detection
 detoxify>=0.5.2
