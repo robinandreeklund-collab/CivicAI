@@ -159,10 +159,16 @@ def run_real_training(args, data_dir, dataset_path):
         print(f"   - Auto-stop: threshold={args.auto_stop_threshold}, patience={args.auto_stop_patience}")
         print(f"   - Seed: {args.seed}")
         
-        # Generate DNA version string and run ID BEFORE training
-        timestamp = datetime.now()
+        # Get run_id from environment (passed from backend) or generate if not provided
+        run_id = os.environ.get('RUN_ID')
+        if not run_id:
+            timestamp = datetime.now()
+            run_id = timestamp.strftime('run-%Y%m%d-%H%M%S')
+        
+        print(f"[INFO] run_id={run_id}")
+        
+        # Generate DNA version string
         version = f"1.0"  # DNA v2 format
-        run_id = timestamp.strftime('run-%Y%m%d-%H%M%S')
         
         # Create certified output directory early for live metrics
         output_dir = args.output_dir or str(project_root / 'models' / 'oneseek-certified')

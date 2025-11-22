@@ -947,6 +947,7 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       ...process.env,
       MODELS_DIR: 'models',
       BASE_MODELS: baseModels.join(','),  // Pass selected base models
+      RUN_ID: runId,  // Pass run_id to Python script for consistent tracking
     };
     
     // Add ledger configuration if available
