@@ -539,6 +539,129 @@ router.get('/datasets/:id/analyze-language', requireAdmin, async (req, res) => {
   }
 });
 
+// POST /api/admin/datasets/analyze-multiple-languages - Analyze language distribution across multiple datasets
+router.post('/datasets/analyze-multiple-languages', requireAdmin, async (req, res) => {
+  try {
+    const { datasetIds } = req.body;
+    
+    if (!datasetIds || !Array.isArray(datasetIds) || datasetIds.length === 0) {
+      return res.status(400).json({ error: 'datasetIds array is required' });
+    }
+    
+    let totalSwedish = 0;
+    let totalEnglish = 0;
+    let totalOther = 0;
+    let totalSamples = 0;
+    
+    // Analyze each dataset and combine results
+    for (const datasetId of datasetIds) {
+      try {
+        const filePath = path.join(process.cwd(), '..', 'datasets', datasetId);
+        const content = await fs.readFile(filePath, 'utf-8');
+        
+        let texts = [];
+        
+        if (datasetId.endsWith('.jsonl')) {
+          const lines = content.trim().split('\n');
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const sample = JSON.parse(line);
+              const text = sample.text || sample.question || sample.input || sample.instruction || '';
+              if (text) texts.push(text);
+            } catch (err) {
+              // Skip invalid JSON lines
+            }
+          }
+        } else {
+          try {
+            const json = JSON.parse(content);
+            const samples = Array.isArray(json) ? json : [json];
+            for (const sample of samples) {
+              const text = sample.text || sample.question || sample.input || sample.instruction || '';
+              if (text) texts.push(text);
+            }
+          } catch (err) {
+            // Skip invalid JSON
+          }
+        }
+        
+        // Analyze language for this dataset's texts
+        for (const text of texts.slice(0, Math.min(100, texts.length))) {
+          const swedishPattern = /\b(och|att|är|som|för|med|till|på|av|i|det|jag|en|ett|inte|har|om|den|kan|man|dig|de|du|sig|från|men|var|vi|så|när|hon|han|nu|skulle|eller|blir|hade|vill|göra|finns|alla|mycket|ingen|bara|också|andra|själv|sedan|kommer|får|samma|utan|något|mellan|genom|varje|år|eftersom|därför|själva|över|under|både|stora|många|enligt|samt|denna|dessa|andra|några|lite|ganska|ofta|ibland|alltid|aldrig)\b/gi;
+          const englishPattern = /\b(the|be|to|of|and|a|in|that|have|I|it|for|not|on|with|he|as|you|do|at|this|but|his|by|from|they|we|say|her|she|or|an|will|my|one|all|would|there|their|what|so|up|out|if|about|who|get|which|go|me|when|make|can|like|time|no|just|him|know|take|people|into|year|your|good|some|could|them|see|other|than|then|now|look|only|come|its|over|think|also|back|after|use|two|how|our|work|first|well|way|even|new|want|because|any|these|give|day|most|us)\b/gi;
+          
+          const swedishMatches = (text.match(swedishPattern) || []).length;
+          const englishMatches = (text.match(englishPattern) || []).length;
+          
+          totalSamples++;
+          if (swedishMatches > englishMatches) {
+            totalSwedish++;
+          } else if (englishMatches > swedishMatches) {
+            totalEnglish++;
+          } else {
+            totalOther++;
+          }
+        }
+      } catch (error) {
+        console.error(`Error analyzing dataset ${datasetId}:`, error);
+        // Continue with other datasets
+      }
+    }
+    
+    // Calculate percentages
+    const total = totalSwedish + totalEnglish + totalOther || 1;
+    const swedishPercent = (totalSwedish / total) * 100;
+    const englishPercent = (totalEnglish / total) * 100;
+    const otherPercent = (totalOther / total) * 100;
+    
+    // Determine primary language and suggested model
+    let primaryLanguage = 'en';
+    let suggestedModel = 'OneSeek-7B-Zero.v1.0.en';
+    let languageCode = 'en';
+    
+    if (swedishPercent >= 70) {
+      primaryLanguage = 'Swedish';
+      languageCode = 'sv';
+      suggestedModel = 'OneSeek-7B-Zero.v1.0.sv';
+    } else if (englishPercent >= 70) {
+      primaryLanguage = 'English';
+      languageCode = 'en';
+      suggestedModel = 'OneSeek-7B-Zero.v1.0.en';
+    } else if (swedishPercent >= 30 && englishPercent >= 30) {
+      primaryLanguage = 'Mixed (Swedish/English)';
+      languageCode = 'ensv';
+      suggestedModel = 'OneSeek-7B-Zero.v1.0.ensv';
+    } else if (swedishPercent > englishPercent) {
+      primaryLanguage = 'Primarily Swedish';
+      languageCode = 'sv';
+      suggestedModel = 'OneSeek-7B-Zero.v1.0.sv';
+    }
+    
+    res.json({
+      totalSamples: total,
+      languages: {
+        swedish: { count: totalSwedish, percent: swedishPercent.toFixed(1) },
+        english: { count: totalEnglish, percent: englishPercent.toFixed(1) },
+        other: { count: totalOther, percent: otherPercent.toFixed(1) }
+      },
+      primaryLanguage,
+      languageCode,
+      suggestedModel,
+      recommendation: swedishPercent >= 70 
+        ? `Strongly Swedish dataset - train as ${suggestedModel}`
+        : englishPercent >= 70
+        ? `Strongly English dataset - train as ${suggestedModel}`
+        : swedishPercent >= 30 && englishPercent >= 30
+        ? `Mixed language dataset (${swedishPercent.toFixed(0)}% sv, ${englishPercent.toFixed(0)}% en) - train as ${suggestedModel}`
+        : `Primarily ${primaryLanguage} - train as ${suggestedModel}`
+    });
+  } catch (error) {
+    console.error('Error analyzing multiple datasets:', error);
+    res.status(500).json({ error: 'Language analysis failed', message: error.message });
+  }
+});
+
 // Training Control Endpoints
 
 // GET /api/admin/training/status - Get training status
@@ -931,10 +1054,13 @@ router.post('/training/stop', requireAdmin, (req, res) => {
 // POST /api/admin/training/start-dna-v2 - Start DNA v2 training with adaptive weights
 router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
   try {
-    const { datasetId, epochs, learningRate, autoStopThreshold, autoStopPatience, seed, baseModels } = req.body;
+    const { datasetId, datasetIds, epochs, learningRate, autoStopThreshold, autoStopPatience, seed, baseModels } = req.body;
     
-    if (!datasetId) {
-      return res.status(400).json({ error: 'Dataset ID is required' });
+    // Accept either datasetId (single) or datasetIds (multiple)
+    const datasets = datasetIds || (datasetId ? [datasetId] : []);
+    
+    if (datasets.length === 0) {
+      return res.status(400).json({ error: 'At least one dataset is required' });
     }
 
     if (!baseModels || baseModels.length === 0) {
@@ -945,12 +1071,58 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Training already in progress' });
     }
     
-    // Verify dataset exists
-    const datasetPath = path.join(process.cwd(), '..', 'datasets', datasetId);
-    try {
-      await fs.access(datasetPath);
-    } catch (error) {
-      return res.status(404).json({ error: 'Dataset not found', path: datasetPath });
+    // Verify all datasets exist
+    for (const dsId of datasets) {
+      const datasetPath = path.join(process.cwd(), '..', 'datasets', dsId);
+      try {
+        await fs.access(datasetPath);
+      } catch (error) {
+        return res.status(404).json({ error: `Dataset not found: ${dsId}`, path: datasetPath });
+      }
+    }
+    
+    // If multiple datasets, merge them into a temporary combined dataset
+    let finalDatasetPath;
+    let finalDatasetId;
+    
+    if (datasets.length > 1) {
+      // Create merged dataset
+      const mergedDatasetId = `merged_${Date.now()}.jsonl`;
+      finalDatasetPath = path.join(process.cwd(), '..', 'datasets', mergedDatasetId);
+      finalDatasetId = mergedDatasetId;
+      
+      // Merge all datasets into one JSONL file
+      let mergedContent = '';
+      for (const dsId of datasets) {
+        const dsPath = path.join(process.cwd(), '..', 'datasets', dsId);
+        const content = await fs.readFile(dsPath, 'utf-8');
+        
+        if (dsId.endsWith('.jsonl')) {
+          mergedContent += content.trim() + '\n';
+        } else {
+          // Convert JSON to JSONL
+          try {
+            const json = JSON.parse(content);
+            const samples = Array.isArray(json) ? json : [json];
+            for (const sample of samples) {
+              mergedContent += JSON.stringify(sample) + '\n';
+            }
+          } catch (err) {
+            console.error(`Error parsing ${dsId}:`, err);
+          }
+        }
+      }
+      
+      await fs.writeFile(finalDatasetPath, mergedContent);
+      
+      trainingState.logs = trainingState.logs || [];
+      trainingState.logs.push({
+        timestamp: new Date().toISOString(),
+        message: `Merged ${datasets.length} datasets into ${mergedDatasetId}`,
+      });
+    } else {
+      finalDatasetId = datasets[0];
+      finalDatasetPath = path.join(process.cwd(), '..', 'datasets', finalDatasetId);
     }
     
     // Validate that base models are selected (not using defaults)
@@ -964,7 +1136,7 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
     // Analyze dataset language before training
     let languageCode = 'en';
     try {
-      const datasetContent = await fs.readFile(datasetPath, 'utf-8');
+      const datasetContent = await fs.readFile(finalDatasetPath, 'utf-8');
       const lines = datasetContent.trim().split('\n').filter(line => line.trim());
       
       let swedishCount = 0;
@@ -1021,14 +1193,15 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       totalEpochs: epochs || TRAINING_CONFIG.defaults.epochs,
       loss: null,
       progress: 0,
-      datasetId,
+      datasetId: finalDatasetId,
+      datasets: datasets, // Store all dataset IDs
       useDnaV2: true,
       baseModels: baseModels,
       language: languageCode, // Store detected language
       logs: [
         {
           timestamp: new Date().toISOString(),
-          message: `Starting DNA v2 training with dataset: ${datasetId}`,
+          message: `Starting DNA v2 training with ${datasets.length} dataset(s): ${datasets.join(', ')}`,
         },
         {
           timestamp: new Date().toISOString(),
@@ -1104,7 +1277,7 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
     // Build Python script arguments with configuration defaults
     const pythonArgs = [
       pythonScript,
-      '--dataset', `datasets/${datasetId}`,
+      '--dataset', `datasets/${finalDatasetId}`,
       '--epochs', String(epochs || TRAINING_CONFIG.defaults.epochs),
       '--learning-rate', String(learningRate || TRAINING_CONFIG.defaults.learning_rate),
       '--auto-stop-threshold', String(autoStopThreshold || TRAINING_CONFIG.confidence_auto_stop.threshold),
@@ -1242,18 +1415,39 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
         let samplesProcessed = 0;
         let languageAnalysis = null;
         try {
-          const datasetPath = path.join(process.cwd(), '..', 'datasets', datasetId);
-          const datasetContent = await fs.readFile(datasetPath, 'utf-8');
+          const finalDsPath = path.join(process.cwd(), '..', 'datasets', trainingState.datasetId);
+          const datasetContent = await fs.readFile(finalDsPath, 'utf-8');
           samplesProcessed = datasetContent.trim().split('\n').filter(line => line.trim()).length;
           
-          // Analyze language distribution
+          // Analyze language distribution (use multi-dataset analysis if multiple datasets)
           try {
-            const response = await fetch(`http://localhost:${process.env.PORT || 3001}/api/admin/datasets/${datasetId}/analyze-language`);
-            if (response.ok) {
-              languageAnalysis = await response.json();
+            if (trainingState.datasets && trainingState.datasets.length > 1) {
+              const response = await fetch(`http://localhost:${process.env.PORT || 3001}/api/admin/datasets/analyze-multiple-languages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ datasetIds: trainingState.datasets }),
+              });
+              if (response.ok) {
+                languageAnalysis = await response.json();
+              }
+            } else {
+              const response = await fetch(`http://localhost:${process.env.PORT || 3001}/api/admin/datasets/${trainingState.datasetId}/analyze-language`);
+              if (response.ok) {
+                languageAnalysis = await response.json();
+              }
             }
           } catch (err) {
             console.log('Could not analyze language:', err.message);
+          }
+          
+          // Clean up merged dataset file if it was created
+          if (trainingState.datasets && trainingState.datasets.length > 1 && trainingState.datasetId.startsWith('merged_')) {
+            try {
+              await fs.unlink(finalDsPath);
+              console.log(`Cleaned up merged dataset: ${trainingState.datasetId}`);
+            } catch (err) {
+              console.error('Error cleaning up merged dataset:', err);
+            }
           }
         } catch (error) {
           console.log('Could not count samples:', error.message);

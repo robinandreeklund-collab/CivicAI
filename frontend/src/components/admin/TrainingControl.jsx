@@ -17,7 +17,7 @@ export default function TrainingControl() {
   const [availableModels, setAvailableModels] = useState([]);
   const [discoveredBaseModels, setDiscoveredBaseModels] = useState([]);
   const [selectedBaseModels, setSelectedBaseModels] = useState([]);
-  const [selectedDataset, setSelectedDataset] = useState('');
+  const [selectedDatasets, setSelectedDatasets] = useState([]); // Changed to array for multi-selection
   const [languageAnalysis, setLanguageAnalysis] = useState(null);
   const [analyzingLanguage, setAnalyzingLanguage] = useState(false);
   const [useDnaV2, setUseDnaV2] = useState(true); // Default to DNA v2
@@ -134,9 +134,37 @@ export default function TrainingControl() {
     }
   };
 
+  const analyzeMultipleDatasets = async (datasetIds) => {
+    if (!datasetIds || datasetIds.length === 0) return;
+    
+    setAnalyzingLanguage(true);
+    try {
+      const response = await fetch('/api/admin/datasets/analyze-multiple-languages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ datasetIds }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setLanguageAnalysis(data);
+        
+        // Auto-update language parameter based on detection
+        setTrainingParams({
+          ...trainingParams,
+          language: data.languageCode
+        });
+      }
+    } catch (error) {
+      console.error('Error analyzing datasets language:', error);
+    } finally {
+      setAnalyzingLanguage(false);
+    }
+  };
+
   const startTraining = async () => {
-    if (!selectedDataset) {
-      alert('Please select a dataset');
+    if (selectedDatasets.length === 0) {
+      alert('Please select at least one dataset');
       return;
     }
 
@@ -154,7 +182,7 @@ export default function TrainingControl() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          datasetId: selectedDataset,
+          datasetIds: selectedDatasets, // Send array of dataset IDs
           baseModels: useDnaV2 ? selectedBaseModels : undefined,
           ...trainingParams,
         }),
@@ -202,35 +230,70 @@ export default function TrainingControl() {
         <h2 className="text-[#eee] font-mono text-lg mb-4">Training Configuration</h2>
         
         <div className="space-y-4 w-full max-w-full overflow-x-hidden">
-          {/* Dataset Selection */}
+          {/* Dataset Selection - Multi-select */}
           <div>
             <label className="block text-[#888] font-mono text-sm mb-2">
-              Select Dataset
+              Select Dataset(s) *
             </label>
+            
+            {/* Selected Datasets as Chips */}
+            {selectedDatasets.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {selectedDatasets.map((datasetId) => {
+                  const dataset = datasets.find(d => d.id === datasetId);
+                  return (
+                    <div
+                      key={datasetId}
+                      className="flex items-center gap-2 px-3 py-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded text-[#eee] font-mono text-xs"
+                    >
+                      <span>{dataset?.name || datasetId}</span>
+                      <button
+                        onClick={() => {
+                          setSelectedDatasets(prev => prev.filter(id => id !== datasetId));
+                          // Re-analyze remaining datasets
+                          const remaining = selectedDatasets.filter(id => id !== datasetId);
+                          if (remaining.length > 0) {
+                            analyzeMultipleDatasets(remaining);
+                          } else {
+                            setLanguageAnalysis(null);
+                          }
+                        }}
+                        disabled={isTraining}
+                        className="text-[#888] hover:text-[#eee] disabled:opacity-50"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            
             <div className="flex gap-2">
               <select
-                value={selectedDataset}
+                value=""
                 onChange={(e) => {
                   const value = e.target.value;
-                  setSelectedDataset(value);
-                  setLanguageAnalysis(null);
-                  if (value) {
-                    analyzeDatasetLanguage(value);
+                  if (value && !selectedDatasets.includes(value)) {
+                    const newDatasets = [...selectedDatasets, value];
+                    setSelectedDatasets(newDatasets);
+                    // Analyze all selected datasets
+                    analyzeMultipleDatasets(newDatasets);
                   }
                 }}
                 disabled={isTraining}
                 className="flex-1 bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
               >
-                <option value="">-- Select a dataset --</option>
-                {datasets.map((dataset) => (
+                <option value="">-- Add dataset --</option>
+                {datasets.filter(d => !selectedDatasets.includes(d.id)).map((dataset) => (
                   <option key={dataset.id} value={dataset.id}>
                     {dataset.name} ({dataset.entries} entries)
                   </option>
                 ))}
               </select>
-              {selectedDataset && !analyzingLanguage && (
+              {selectedDatasets.length > 0 && !analyzingLanguage && (
                 <button
-                  onClick={() => analyzeDatasetLanguage(selectedDataset)}
+                  onClick={() => analyzeMultipleDatasets(selectedDatasets)}
                   className="px-3 py-2 border border-[#2a2a2a] text-[#888] font-mono text-xs hover:bg-[#1a1a1a] rounded"
                   disabled={isTraining}
                 >
@@ -246,7 +309,7 @@ export default function TrainingControl() {
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-green-400 font-mono text-sm">📊 Language Analysis</h3>
                 <span className="text-[#888] font-mono text-xs">
-                  {languageAnalysis.totalSamples} samples analyzed
+                  {languageAnalysis.totalSamples} samples analyzed ({selectedDatasets.length} dataset{selectedDatasets.length !== 1 ? 's' : ''})
                 </span>
               </div>
               
@@ -278,7 +341,7 @@ export default function TrainingControl() {
 
           {analyzingLanguage && (
             <div className="p-4 bg-[#0a0a0a] border border-[#2a2a2a] rounded text-center">
-              <div className="text-[#888] font-mono text-xs">Analyzing dataset language...</div>
+              <div className="text-[#888] font-mono text-xs">Analyzing {selectedDatasets.length} dataset(s) language...</div>
             </div>
           )}
 
@@ -551,7 +614,7 @@ export default function TrainingControl() {
             {!isTraining ? (
               <button
                 onClick={startTraining}
-                disabled={!selectedDataset}
+                disabled={selectedDatasets.length === 0}
                 className="px-6 py-2 bg-[#eee] text-[#0a0a0a] font-mono text-sm hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Start Training
