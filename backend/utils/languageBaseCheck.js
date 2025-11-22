@@ -1,6 +1,6 @@
 /**
  * Language Base Model Check Utility
- * Ensures Swedish/English base models exist with failsafe fallback
+ * Updated for DNA v2: Uses trained models from weights directory
  * Used for real-time micro-training language separation
  */
 
@@ -8,79 +8,78 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const MODELS_DIR = path.join(process.cwd(), '..', 'models', 'oneseek-7b-zero');
-
-const LANGUAGE_MODELS = {
-  sv: 'OneSeek-7B-Zero-sv',
-  en: 'OneSeek-7B-Zero-en',
-};
+const WEIGHTS_DIR = path.join(MODELS_DIR, 'weights');
 
 /**
- * Check if a language-specific base model exists
- * @param {string} languageCode - Language code ('sv' or 'en')
- * @returns {Promise<{exists: boolean, path: string, model: string}>}
+ * Get the latest trained model for a specific language
+ * @param {string} languageCode - Language code ('sv', 'en', 'ensv')
+ * @returns {Promise<{exists: boolean, path: string, model: string, dna: string}>}
  */
 export async function checkLanguageBaseModel(languageCode) {
   const normalizedLang = languageCode.toLowerCase();
-  const modelName = LANGUAGE_MODELS[normalizedLang];
-  
-  if (!modelName) {
-    return {
-      exists: false,
-      path: null,
-      model: null,
-      error: `Unsupported language: ${languageCode}`,
-    };
-  }
-  
-  const modelPath = path.join(MODELS_DIR, modelName);
   
   try {
-    const stats = await fs.stat(modelPath);
+    // Read all metadata files from weights directory
+    await fs.mkdir(WEIGHTS_DIR, { recursive: true });
+    const files = await fs.readdir(WEIGHTS_DIR);
+    const metadataFiles = files.filter(f => f.startsWith('oneseek-7b-zero-v') && f.endsWith('.json'));
     
-    if (stats.isDirectory()) {
-      // Check for essential model files
-      const configPath = path.join(modelPath, 'config.json');
-      const weightsPath = path.join(modelPath, 'model.safetensors');
-      
+    let latestModel = null;
+    let latestTime = 0;
+    
+    for (const file of metadataFiles) {
+      const filePath = path.join(WEIGHTS_DIR, file);
       try {
-        await fs.access(configPath);
-        // Note: weights might not exist yet for new models
-        return {
-          exists: true,
-          path: modelPath,
-          model: modelName,
-          hasWeights: await fs.access(weightsPath).then(() => true).catch(() => false),
-        };
+        const content = await fs.readFile(filePath, 'utf-8');
+        const metadata = JSON.parse(content);
+        
+        // Check if this model matches the requested language
+        const dna = metadata.dna?.fingerprint || metadata.version;
+        if (!dna) continue;
+        
+        // Extract language from DNA (e.g., "OneSeek-7B-Zero.v1.0.sv.dsIdentity..." -> "sv")
+        const langMatch = dna.match(/OneSeek-7B-Zero\.v[0-9.]+\.([a-z]+)\./);
+        const modelLang = langMatch ? langMatch[1] : null;
+        
+        if (modelLang === normalizedLang || (normalizedLang === 'en' && !modelLang)) {
+          const createdTime = new Date(metadata.createdAt).getTime();
+          if (createdTime > latestTime) {
+            latestTime = createdTime;
+            latestModel = {
+              metadata,
+              dna,
+              filePath,
+            };
+          }
+        }
       } catch (err) {
-        return {
-          exists: false,
-          path: modelPath,
-          model: modelName,
-          error: 'Model directory exists but missing config.json',
-        };
+        console.error(`[LanguageBaseCheck] Error reading ${file}:`, err);
       }
     }
     
-    return {
-      exists: false,
-      path: modelPath,
-      model: modelName,
-      error: 'Model path is not a directory',
-    };
-  } catch (err) {
-    if (err.code === 'ENOENT') {
+    if (latestModel) {
       return {
-        exists: false,
-        path: modelPath,
-        model: modelName,
-        error: 'Model directory does not exist',
+        exists: true,
+        path: WEIGHTS_DIR,
+        model: latestModel.dna,
+        dna: latestModel.dna,
+        metadata: latestModel.metadata,
+        isCurrent: latestModel.metadata.isCurrent || false,
+        hasWeights: true,
       };
     }
     
     return {
       exists: false,
-      path: modelPath,
-      model: modelName,
+      path: null,
+      model: null,
+      error: `No trained model found for language: ${languageCode}`,
+    };
+  } catch (err) {
+    return {
+      exists: false,
+      path: null,
+      model: null,
       error: err.message,
     };
   }
@@ -88,85 +87,125 @@ export async function checkLanguageBaseModel(languageCode) {
 
 /**
  * Ensure language base model exists, with fallback and notifications
- * @param {string} languageCode - Language code ('sv' or 'en')
+ * @param {string} languageCode - Language code ('sv', 'en', 'ensv')
  * @returns {Promise<{ready: boolean, model: string, fallback: boolean, message: string}>}
  */
 export async function ensureLanguageBaseModel(languageCode) {
   const check = await checkLanguageBaseModel(languageCode);
   
   if (check.exists) {
-    if (check.hasWeights) {
-      return {
-        ready: true,
-        model: check.model,
-        path: check.path,
-        fallback: false,
-        message: `Model ${check.model} is ready`,
-      };
-    } else {
-      // Model directory exists but no weights yet - can still be used for training
-      console.warn(`[LanguageBaseCheck] Model ${check.model} exists but has no weights yet`);
-      return {
-        ready: true,
-        model: check.model,
-        path: check.path,
-        fallback: false,
-        message: `Model ${check.model} directory exists, will be initialized on first training`,
-      };
-    }
+    return {
+      ready: true,
+      model: check.model,
+      dna: check.dna,
+      path: check.path,
+      fallback: false,
+      message: `Model ${check.model} is ready`,
+      metadata: check.metadata,
+    };
   }
   
-  // Model doesn't exist - use fallback
-  console.warn(`[LanguageBaseCheck] Model ${check.model} not found: ${check.error}`);
-  console.warn(`[LanguageBaseCheck] Using fallback to generic OneSeek-7B-Zero model`);
+  // Model doesn't exist for this language
+  console.warn(`[LanguageBaseCheck] No trained model found for language ${languageCode}: ${check.error}`);
   
-  // Try fallback to generic model
-  const fallbackPath = path.join(MODELS_DIR, 'OneSeek-7B-Zero');
-  
+  // Try to find any trained model as fallback
   try {
-    const stats = await fs.stat(fallbackPath);
-    if (stats.isDirectory()) {
-      return {
-        ready: true,
-        model: 'OneSeek-7B-Zero',
-        path: fallbackPath,
-        fallback: true,
-        message: `Language-specific model ${check.model} not found, using fallback to generic model`,
-        warning: `Consider creating language-specific model for ${languageCode}`,
-      };
+    await fs.mkdir(WEIGHTS_DIR, { recursive: true });
+    const files = await fs.readdir(WEIGHTS_DIR);
+    const metadataFiles = files.filter(f => f.startsWith('oneseek-7b-zero-v') && f.endsWith('.json'));
+    
+    if (metadataFiles.length > 0) {
+      // Use the most recent model regardless of language
+      let latestModel = null;
+      let latestTime = 0;
+      
+      for (const file of metadataFiles) {
+        const filePath = path.join(WEIGHTS_DIR, file);
+        try {
+          const content = await fs.readFile(filePath, 'utf-8');
+          const metadata = JSON.parse(content);
+          const createdTime = new Date(metadata.createdAt).getTime();
+          
+          if (createdTime > latestTime) {
+            latestTime = createdTime;
+            latestModel = {
+              metadata,
+              dna: metadata.dna?.fingerprint || metadata.version,
+            };
+          }
+        } catch (err) {
+          console.error(`[LanguageBaseCheck] Error reading ${file}:`, err);
+        }
+      }
+      
+      if (latestModel) {
+        console.warn(`[LanguageBaseCheck] Using fallback model: ${latestModel.dna}`);
+        return {
+          ready: true,
+          model: latestModel.dna,
+          dna: latestModel.dna,
+          path: WEIGHTS_DIR,
+          fallback: true,
+          message: `No ${languageCode} model found, using fallback: ${latestModel.dna}`,
+          warning: `Consider training a model for language ${languageCode}`,
+          metadata: latestModel.metadata,
+        };
+      }
     }
   } catch (err) {
-    console.error(`[LanguageBaseCheck] Fallback model also not found: ${err.message}`);
+    console.error(`[LanguageBaseCheck] Error looking for fallback: ${err.message}`);
   }
   
-  // Neither language-specific nor fallback exists
+  // No models available at all
   return {
     ready: false,
     model: null,
     path: null,
     fallback: false,
     message: `No suitable model found for language ${languageCode}`,
-    error: 'Model not available',
-    warning: 'Micro-training will be skipped until model is available',
+    error: 'No trained models available',
+    warning: 'Train a model first in the Admin panel',
   };
 }
 
 /**
- * Get available language models
- * @returns {Promise<Array<{language: string, model: string, exists: boolean}>>}
+ * Get all available trained models
+ * @returns {Promise<Array<{language: string, model: string, dna: string, exists: boolean}>>}
  */
 export async function getAvailableLanguageModels() {
   const results = [];
   
-  for (const [lang, model] of Object.entries(LANGUAGE_MODELS)) {
-    const check = await checkLanguageBaseModel(lang);
-    results.push({
-      language: lang,
-      model: model,
-      exists: check.exists,
-      hasWeights: check.hasWeights || false,
-      path: check.path,
-    });
+  try {
+    await fs.mkdir(WEIGHTS_DIR, { recursive: true });
+    const files = await fs.readdir(WEIGHTS_DIR);
+    const metadataFiles = files.filter(f => f.startsWith('oneseek-7b-zero-v') && f.endsWith('.json'));
+    
+    for (const file of metadataFiles) {
+      const filePath = path.join(WEIGHTS_DIR, file);
+      try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        const metadata = JSON.parse(content);
+        const dna = metadata.dna?.fingerprint || metadata.version;
+        
+        // Extract language from DNA
+        const langMatch = dna.match(/OneSeek-7B-Zero\.v[0-9.]+\.([a-z]+)\./);
+        const language = langMatch ? langMatch[1] : 'unknown';
+        
+        results.push({
+          language,
+          model: dna,
+          dna,
+          exists: true,
+          isCurrent: metadata.isCurrent || false,
+          path: WEIGHTS_DIR,
+          metadata,
+        });
+      } catch (err) {
+        console.error(`[LanguageBaseCheck] Error reading ${file}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error(`[LanguageBaseCheck] Error listing models:`, err);
   }
   
   return results;

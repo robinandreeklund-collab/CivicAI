@@ -65,13 +65,14 @@ def build_dna(
     version: str,
     final_weights: Dict[str, float],
     dataset_categories: List[str],
-    timestamp: str
+    timestamp: str,
+    language: str = 'en'
 ) -> str:
     """
-    Build DNA fingerprint string for a model.
+    Build DNA fingerprint string for a model with language and readable categories.
     
-    DNA Format:
-    OneSeek-7B-Zero.v{version}.{weights_hash}.{categories_hash}.{timestamp_hash}
+    DNA Format (PR #66 Enhanced):
+    OneSeek-7B-Zero.v{version}.{lang}.{categories}.{weights_hash}.{timestamp_hash}
     
     Args:
         model_name: Base model name (e.g., "OneSeek-7B-Zero")
@@ -79,6 +80,7 @@ def build_dna(
         final_weights: Dict of model weights {model_name: weight}
         dataset_categories: List of dataset category tags
         timestamp: ISO timestamp string
+        language: Language code (en, sv, no, da, fi)
         
     Returns:
         str: DNA fingerprint string
@@ -86,20 +88,26 @@ def build_dna(
     Example:
         >>> build_dna(
         ...     "OneSeek-7B-Zero",
-        ...     "1.0",
-        ...     {"mistral-7b": 0.6, "llama-2": 0.4},
+        ...     "1.237",
+        ...     {"kb-llama": 0.6, "qwen": 0.4},
         ...     ["CivicID", "SwedID"],
-        ...     "2025-11-21T12:00:00Z"
+        ...     "2025-11-21T12:00:00Z",
+        ...     "sv"
         ... )
-        'OneSeek-7B-Zero.v1.0.abc123.def456.789xyz'
+        'OneSeek-7B-Zero.v1.237.sv.dsCivicID-SwedID.abc123.789xyz'
     """
     # Canonical JSON for weights
     weights_json = canonical_json(final_weights)
     weights_hash = compute_sha256(weights_json)[:8]  # First 8 chars
     
-    # Canonical JSON for categories (sorted list)
-    categories_json = canonical_json(sorted(dataset_categories))
-    categories_hash = compute_sha256(categories_json)[:8]
+    # Format categories as human-readable string with 'ds' prefix (sorted)
+    sorted_categories = sorted(dataset_categories)
+    if sorted_categories:
+        # Sanitize categories: replace hyphens with underscores to avoid ambiguity
+        sanitized = [cat.replace('-', '_') for cat in sorted_categories]
+        categories_str = 'ds' + '-'.join(sanitized)
+    else:
+        categories_str = 'dsGeneral'
     
     # Hash timestamp (convert datetime to ISO string if needed)
     if isinstance(timestamp, str):
@@ -108,8 +116,8 @@ def build_dna(
         timestamp_str = timestamp.isoformat()
     timestamp_hash = compute_sha256(timestamp_str.encode('utf-8'))[:8]
     
-    # Build DNA string
-    dna = f"{model_name}.v{version}.{weights_hash}.{categories_hash}.{timestamp_hash}"
+    # Build DNA string with PR #66 format: v{VERSION}.{LANG}.{CATEGORIES}.{WEIGHTS_HASH}.{TIMESTAMP_HASH}
+    dna = f"{model_name}.v{version}.{language}.{categories_str}.{weights_hash}.{timestamp_hash}"
     
     return dna
 
