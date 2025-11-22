@@ -13,6 +13,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
+import { detectOne } from 'langdetect';
 import { ensureLanguageBaseModel } from '../../utils/languageBaseCheck.js';
 import { broadcastTrainingEvent } from '../../ws/training_ws.js';
 
@@ -142,8 +143,25 @@ router.post('/micro', async (req, res) => {
       });
     }
     
+    // Verify language detection using langdetect (backend is authoritative)
+    let verifiedLanguage = language;
+    try {
+      const langResult = detectOne(question);
+      // Map language codes to supported languages (sv or en)
+      if (langResult === 'sv' || langResult === 'no' || langResult === 'da') {
+        verifiedLanguage = 'sv';
+      } else {
+        verifiedLanguage = 'en';
+      }
+      if (verifiedLanguage !== language) {
+        console.log(`[MicroTraining] Language corrected from ${language} to ${verifiedLanguage} using langdetect`);
+      }
+    } catch (err) {
+      console.warn('[MicroTraining] Language detection failed, using provided language:', err.message);
+    }
+    
     // Ensure language base model exists
-    const modelCheck = await ensureLanguageBaseModel(language);
+    const modelCheck = await ensureLanguageBaseModel(verifiedLanguage);
     
     if (!modelCheck.ready) {
       console.warn('[MicroTraining] Model not ready:', modelCheck.message);
@@ -165,7 +183,7 @@ router.post('/micro', async (req, res) => {
     const stage1Result = await executeMicroTraining(
       1,
       question,
-      language,
+      verifiedLanguage,
       rawResponses,
       false
     );
@@ -173,7 +191,7 @@ router.post('/micro', async (req, res) => {
     // Broadcast stage 1 complete
     broadcastTrainingEvent('micro-training', 'stage1_complete', {
       question: question.substring(0, 100),
-      language,
+      language: verifiedLanguage,
       model: modelCheck.model,
       samples: rawResponses.length,
       result: stage1Result,
@@ -185,7 +203,7 @@ router.post('/micro', async (req, res) => {
       stage2Result = await executeMicroTraining(
         2,
         question,
-        language,
+        verifiedLanguage,
         analyzedData,
         true // Check DNA on stage 2
       );
@@ -193,7 +211,7 @@ router.post('/micro', async (req, res) => {
       // Broadcast stage 2 complete
       broadcastTrainingEvent('micro-training', 'stage2_complete', {
         question: question.substring(0, 100),
-        language,
+        language: verifiedLanguage,
         model: modelCheck.model,
         result: stage2Result,
       });
@@ -211,13 +229,13 @@ router.post('/micro', async (req, res) => {
     // Update state
     microTrainingState.totalRuns += 1;
     microTrainingState.lastRun = timestamp;
-    microTrainingState.runsByLanguage[language] = (microTrainingState.runsByLanguage[language] || 0) + 1;
+    microTrainingState.runsByLanguage[verifiedLanguage] = (microTrainingState.runsByLanguage[verifiedLanguage] || 0) + 1;
     
     res.json({
       success: true,
       timestamp,
       model: modelCheck.model,
-      language,
+      language: verifiedLanguage,
       fallback: modelCheck.fallback || false,
       stages: {
         stage1: {

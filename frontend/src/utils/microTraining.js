@@ -19,11 +19,12 @@ export async function triggerMicroTraining(question, rawResponses = [], analyzed
       return null;
     }
 
-    // Detect language (simple heuristic - check for Swedish characters)
+    // Simple language detection (backend will do proper detection with langdetect)
+    // This is just a hint to help with frontend logging
     const swedishChars = /[åäöÅÄÖ]/;
     const detectedLanguage = swedishChars.test(question) ? 'sv' : 'en';
 
-    console.log(`[MicroTraining] Triggering for language: ${detectedLanguage}`);
+    console.log(`[MicroTraining] Triggering for likely language: ${detectedLanguage} (backend will verify)`);
 
     const response = await fetch('/api/training/micro', {
       method: 'POST',
@@ -32,7 +33,7 @@ export async function triggerMicroTraining(question, rawResponses = [], analyzed
       },
       body: JSON.stringify({
         question,
-        language: detectedLanguage,
+        language: detectedLanguage, // Hint only - backend should verify with langdetect
         rawResponses: rawResponses.map(r => ({
           model: r.service || r.model || 'unknown',
           response: r.response || r.text || '',

@@ -257,8 +257,8 @@ router.post('/multi-model-query', rateLimiter, async (req, res) => {
     let trainingResult = null;
     if (enableTraining) {
       try {
-        // Call micro-training endpoint
-        const microTrainResponse = await fetch('http://localhost:3001/api/training/micro', {
+        // Call micro-training endpoint (use relative URL for same server)
+        const microTrainResponse = await fetch('/api/training/micro', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

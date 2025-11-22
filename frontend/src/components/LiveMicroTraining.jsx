@@ -14,7 +14,9 @@ export default function LiveMicroTraining({ wsUrl = null }) {
   useEffect(() => {
     // Connect to WebSocket for live updates
     // Use micro-training specific connection
-    const url = wsUrl || `ws://localhost:3001/ws/training?runId=micro-training`;
+    // Support both custom URL and default (use window.location for protocol/host)
+    const defaultWsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/training?runId=micro-training`;
+    const url = wsUrl || defaultWsUrl;
     
     try {
       const ws = new WebSocket(url);
