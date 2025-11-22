@@ -94,16 +94,55 @@ router.post('/set-current', rateLimiter, async (req, res) => {
       }
     }
 
+    // For OneSeek models stored as metadata JSON files in weights directory,
+    // the symlink should point to the base oneseek-7b-zero directory
+    // The modelId is just a version number like "1.0", not a directory name
+    const baseModelDir = 'oneseek-7b-zero';
+    
     // Paths
     const certifiedDir = path.join(modelsDir, 'oneseek-certified');
-    const modelPath = path.join(modelsDir, modelId);
+    const modelPath = path.join(modelsDir, baseModelDir);
     const symlinkPath = path.join(certifiedDir, 'OneSeek-7B-Zero-CURRENT');
 
-    // Verify model exists
+    // Verify base model directory exists
     try {
       await fs.access(modelPath);
     } catch (error) {
-      return res.status(404).json({ error: 'Model not found', modelId });
+      return res.status(404).json({ 
+        error: 'Base model directory not found', 
+        modelId,
+        expectedPath: modelPath 
+      });
+    }
+
+    // Verify the specific model version exists by checking metadata file
+    const weightsDir = path.join(modelPath, 'weights');
+    
+    // Check for metadata file with double dots first (this is the correct format)
+    // e.g., oneseek-7b-zero-v1.0..json
+    let metadataFile = `oneseek-7b-zero-v${modelId}..json`;
+    let metadataPath = path.join(weightsDir, metadataFile);
+    
+    try {
+      await fs.access(metadataPath);
+    } catch (error) {
+      // If double-dot file doesn't exist, try single dot as fallback
+      metadataFile = `oneseek-7b-zero-v${modelId}.json`;
+      metadataPath = path.join(weightsDir, metadataFile);
+      
+      try {
+        await fs.access(metadataPath);
+      } catch (innerError) {
+        return res.status(404).json({ 
+          error: 'Model version metadata not found', 
+          modelId,
+          triedFiles: [
+            `oneseek-7b-zero-v${modelId}..json`,
+            `oneseek-7b-zero-v${modelId}.json`
+          ],
+          note: 'The model metadata file does not exist. Train a model first or check the version number.'
+        });
+      }
     }
 
     // Create certified directory if it doesn't exist
@@ -149,7 +188,7 @@ router.post('/set-current', rateLimiter, async (req, res) => {
       }
       
       // Create production symlink with absolute path
-      const productionModelPath = path.join(productionModelsPath, modelId);
+      const productionModelPath = path.join(productionModelsPath, baseModelDir);
       await fs.symlink(productionModelPath, productionSymlinkPath, 'dir');
       
       console.log(`Production symlink created: ${productionSymlinkPath} -> ${productionModelPath}`);
@@ -162,8 +201,10 @@ router.post('/set-current', rateLimiter, async (req, res) => {
       success: true,
       message: 'Current model updated successfully',
       modelId,
+      modelVersion: `oneseek-7b-zero-v${modelId}`,
       symlinkPath,
-      currentModel: modelId,
+      currentModel: baseModelDir,
+      note: 'Restart ml_service to load this model. The symlink points to the base model directory with all weights.'
     });
 
   } catch (error) {
@@ -211,6 +252,7 @@ router.get('/current', rateLimiter, async (req, res) => {
         currentModel,
         symlinkPath,
         target,
+        note: 'The symlink points to the base oneseek-7b-zero directory containing all model weights and versions.'
       });
     } catch (error) {
       if (error.code === 'ENOENT') {

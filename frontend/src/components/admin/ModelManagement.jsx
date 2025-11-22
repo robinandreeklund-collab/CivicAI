@@ -95,7 +95,7 @@ export default function ModelManagement() {
   };
 
   const setAsCurrentModel = async (modelId) => {
-    if (!confirm('Set this model as the active model for OQT Dashboard?\n\nThis will create/update the -CURRENT symlink and ml_service will use this model on next startup.')) {
+    if (!confirm('Set this model as the active model for OQT Dashboard?\n\nThis will create/update the -CURRENT symlink and ml_service will use this model on next startup.\n\nNote: The symlink points to the base oneseek-7b-zero directory which contains all model weights.')) {
       return;
     }
 
@@ -109,12 +109,13 @@ export default function ModelManagement() {
       });
 
       if (response.ok) {
-        alert('Model set as current successfully!\n\nRestart ml_service (python ml_service/server.py) to load this model.');
-        setCurrentModelId(modelId);
+        const data = await response.json();
+        alert(`Model version ${modelId} set as current successfully!\n\n${data.note || 'Restart ml_service (python ml_service/server.py) to load this model.'}`);
+        setCurrentModelId('oneseek-7b-zero'); // The symlink always points to the base directory
         await fetchModels();
       } else {
         const data = await response.json();
-        alert(`Failed to set model: ${data.error}`);
+        alert(`Failed to set model: ${data.error}\n\n${data.note || ''}`);
       }
     } catch (error) {
       console.error('Error setting current model:', error);
