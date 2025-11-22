@@ -20,7 +20,105 @@ import hashlib
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-def hash_data(data):
+# Try to import adaptive weighting
+try:
+    from scripts.adaptive_weighting import calculate_adaptive_weights, get_weight_multipliers
+    ADAPTIVE_WEIGHTING_AVAILABLE = True
+except ImportError:
+    ADAPTIVE_WEIGHTING_AVAILABLE = False
+    print("[Warning] adaptive_weighting module not available", file=sys.stderr)
+
+def check_auto_stop(loss_history, threshold=0.001, patience=2):
+    """
+    Check if training should auto-stop based on loss stability
+    
+    Args:
+        loss_history: List of recent loss values
+        threshold: Minimum loss change threshold
+        patience: Number of epochs to wait before stopping
+    
+    Returns:
+        tuple: (should_stop, reason)
+    """
+    if len(loss_history) < patience + 1:
+        return False, "Not enough history"
+    
+    # Check last 'patience' epochs
+    recent_losses = loss_history[-(patience + 1):]
+    
+    # Calculate loss changes
+    changes = [abs(recent_losses[i] - recent_losses[i-1]) for i in range(1, len(recent_losses))]
+    
+    # Check if all changes are below threshold
+    if all(change < threshold for change in changes):
+        avg_change = sum(changes) / len(changes)
+        return True, f"Loss stable (avg change={avg_change:.6f} < {threshold})"
+    
+    return False, "Loss still improving"
+
+
+def write_live_metrics(model_dir, metrics):
+    """
+    Write live training metrics to JSON file for real-time monitoring
+    
+    Args:
+        model_dir: Path to model directory
+        metrics: Dict of current metrics
+    """
+    metrics_file = model_dir / 'live_metrics.json'
+    
+    # Add timestamp
+    metrics['updated_at'] = datetime.now().isoformat()
+    
+    # Write atomically (write to temp, then rename)
+    temp_file = metrics_file.with_suffix('.tmp')
+    with open(temp_file, 'w') as f:
+        json.dump(metrics, f, indent=2)
+    
+    temp_file.rename(metrics_file)
+
+
+def update_adaptive_weights(model_dir, val_losses, current_weights=None):
+    """
+    Update model weights based on validation losses using adaptive weighting
+    
+    Args:
+        model_dir: Path to model directory
+        val_losses: Dict of {model_name: validation_loss}
+        current_weights: Current weights (optional)
+    
+    Returns:
+        dict: New weights and adjustment info
+    """
+    if not ADAPTIVE_WEIGHTING_AVAILABLE:
+        return {'weights': current_weights or {}, 'adjustments': {}}
+    
+    # Calculate new weights
+    new_weights, adjustment_info = calculate_adaptive_weights(
+        val_losses,
+        current_weights,
+        best_bonus=0.5,  # Best model gets +50% (up to 2.0x total)
+        worst_penalty=0.4  # Worst model gets -40%
+    )
+    
+    # Get multipliers for display
+    multipliers = get_weight_multipliers(new_weights)
+    
+    # Save weights to file
+    weights_file = model_dir / 'adaptive_weights.json'
+    with open(weights_file, 'w') as f:
+        json.dump({
+            'weights': new_weights,
+            'multipliers': multipliers,
+            'adjustments': adjustment_info,
+            'updated_at': datetime.now().isoformat()
+        }, f, indent=2)
+    
+    return {
+        'weights': new_weights,
+        'multipliers': multipliers,
+        'adjustments': adjustment_info
+    }
     """Generate hash for data provenance"""
     if isinstance(data, dict):
         data = json.dumps(data, sort_keys=True)
