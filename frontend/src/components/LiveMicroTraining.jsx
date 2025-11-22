@@ -163,7 +163,7 @@ export default function LiveMicroTraining({ wsUrl = null }) {
                 </p>
                 {event.question && (
                   <p className="text-xs text-civic-gray-500 mt-1 italic truncate">
-                    "{event.question}"
+                    &quot;{event.question}&quot;
                   </p>
                 )}
               </div>
