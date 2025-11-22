@@ -961,6 +961,57 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
     
+    // Analyze dataset language before training
+    let languageCode = 'en';
+    try {
+      const datasetContent = await fs.readFile(datasetPath, 'utf-8');
+      const lines = datasetContent.trim().split('\n').filter(line => line.trim());
+      
+      let swedishCount = 0;
+      let englishCount = 0;
+      
+      for (const line of lines.slice(0, Math.min(100, lines.length))) {
+        try {
+          const sample = JSON.parse(line);
+          const text = sample.text || sample.question || sample.input || '';
+          
+          if (text) {
+            const swedishPattern = /\b(och|att|är|som|för|med|till|på|av|i|det|jag|en|ett|inte|har|om|den|kan|man|dig|de|du|sig|från|men|var|vi|så|när|hon|han|nu|skulle|eller|blir|hade|vill|göra|finns|alla|mycket|ingen|bara|också|andra|själv|sedan|kommer|får|samma|utan|något|mellan|genom|varje|år|eftersom|därför|själva|över|under|både|stora|många|enligt|samt|denna|dessa|andra|några|lite|ganska|ofta|ibland|alltid|aldrig)\b/gi;
+            const englishPattern = /\b(the|be|to|of|and|a|in|that|have|I|it|for|not|on|with|he|as|you|do|at|this|but|his|by|from|they|we|say|her|she|or|an|will|my|one|all|would|there|their|what|so|up|out|if|about|who|get|which|go|me|when|make|can|like|time|no|just|him|know|take|people|into|year|your|good|some|could|them|see|other|than|then|now|look|only|come|its|over|think|also|back|after|use|two|how|our|work|first|well|way|even|new|want|because|any|these|give|day|most|us)\b/gi;
+            
+            const swedishMatches = (text.match(swedishPattern) || []).length;
+            const englishMatches = (text.match(englishPattern) || []).length;
+            
+            if (swedishMatches > englishMatches) {
+              swedishCount++;
+            } else if (englishMatches > swedishMatches) {
+              englishCount++;
+            }
+          }
+        } catch (err) {
+          // Skip invalid JSON lines
+        }
+      }
+      
+      const total = swedishCount + englishCount || 1;
+      const swedishPercent = (swedishCount / total) * 100;
+      const englishPercent = (englishCount / total) * 100;
+      
+      // Determine language code
+      if (swedishPercent >= 70) {
+        languageCode = 'sv';
+      } else if (englishPercent >= 70) {
+        languageCode = 'en';
+      } else if (swedishPercent >= 30 && englishPercent >= 30) {
+        languageCode = 'ensv';
+      } else if (swedishPercent > englishPercent) {
+        languageCode = 'sv';
+      }
+    } catch (error) {
+      console.error('Error analyzing language:', error);
+      // Default to 'en' if analysis fails
+    }
+    
     // Initialize training state with proper runId (no colons in timestamp)
     const runId = generateRunId();
     trainingState = {
@@ -973,6 +1024,7 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       datasetId,
       useDnaV2: true,
       baseModels: baseModels,
+      language: languageCode, // Store detected language
       logs: [
         {
           timestamp: new Date().toISOString(),
@@ -981,6 +1033,10 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
         {
           timestamp: new Date().toISOString(),
           message: `Run ID: ${runId}`,
+        },
+        {
+          timestamp: new Date().toISOString(),
+          message: `Detected language: ${languageCode}`,
         },
         {
           timestamp: new Date().toISOString(),
@@ -1054,6 +1110,7 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       '--auto-stop-threshold', String(autoStopThreshold || TRAINING_CONFIG.confidence_auto_stop.threshold),
       '--auto-stop-patience', String(autoStopPatience || TRAINING_CONFIG.confidence_auto_stop.patience),
       '--seed', String(seed || TRAINING_CONFIG.defaults.seed),
+      '--language', languageCode, // Pass detected language to Python script
     ];
     
     trainingState.logs.push({
@@ -1398,6 +1455,37 @@ router.get('/models/discover-base', requireAdmin, async (req, res) => {
             parameters: parameters,
           });
         }
+      }
+      
+      // Also add trained OneSeek models from weights directory
+      try {
+        const weightsDir = path.join(modelsDir, 'oneseek-7b-zero', 'weights');
+        const weightFiles = await fs.readdir(weightsDir);
+        const metadataFiles = weightFiles.filter(f => f.startsWith('oneseek-7b-zero-v') && f.endsWith('.json'));
+        
+        for (const file of metadataFiles) {
+          try {
+            const filePath = path.join(weightsDir, file);
+            const content = await fs.readFile(filePath, 'utf-8');
+            const metadata = JSON.parse(content);
+            const dna = metadata.dna?.fingerprint || metadata.version;
+            
+            if (dna && metadata.isCurrent) {
+              discoveredModels.push({
+                name: dna,
+                path: weightsDir,
+                type: 'oneseek-trained',
+                parameters: '7B',
+                isCurrent: true,
+                language: metadata.dna?.languageAnalysis?.languageCode || 'unknown',
+              });
+            }
+          } catch (err) {
+            console.error(`Error reading ${file}:`, err);
+          }
+        }
+      } catch (err) {
+        // Weights directory doesn't exist or is empty
       }
       
       res.json({ models: discoveredModels });
