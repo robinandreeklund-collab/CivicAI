@@ -5,6 +5,7 @@ import LiveMicroTraining from '../LiveMicroTraining';
  * LiveMicroTrainingActivity Component
  * Admin dashboard view for real-time micro-training activity
  * Shows statistics, recent training events, and language-specific metrics
+ * Design follows API Documentation page style - clean, minimalist, no colors/icons
  */
 export default function LiveMicroTrainingActivity() {
   const [stats, setStats] = useState(null);
@@ -42,7 +43,7 @@ export default function LiveMicroTrainingActivity() {
   };
 
   const formatTimestamp = (timestamp) => {
-    if (!timestamp) return 'Aldrig';
+    if (!timestamp) return '—';
     const date = new Date(timestamp);
     return date.toLocaleString('sv-SE', {
       year: 'numeric',
@@ -54,198 +55,165 @@ export default function LiveMicroTrainingActivity() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="border-b border-civic-gray-200 pb-4">
-        <h2 className="text-2xl font-bold text-civic-gray-900">
-          Micro-Training Activity
-        </h2>
-        <p className="text-sm text-civic-gray-600 mt-1">
-          Real-time monitoring of language-specific model training
-        </p>
-      </div>
-
-      {/* Stats Cards */}
+    <div className="space-y-8">
+      {/* Loading State */}
       {loading ? (
         <div className="text-center py-8">
-          <div className="animate-spin w-8 h-8 border-4 border-civic-gray-200 border-t-civic-gray-600 rounded-full mx-auto"></div>
-          <p className="text-sm text-civic-gray-600 mt-2">Loading statistics...</p>
+          <p className="text-xs text-[#666] font-mono">LOADING STATISTICS...</p>
         </div>
       ) : error ? (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
-          <p className="font-medium">Error loading statistics</p>
-          <p className="text-sm mt-1">{error}</p>
+        <div className="border border-[#1a1a1a] rounded p-4">
+          <p className="text-xs text-[#666] font-mono">ERROR LOADING STATISTICS</p>
+          <p className="text-[10px] text-[#555] mt-1 font-mono">{error}</p>
         </div>
       ) : stats ? (
         <>
-          {/* Overview Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Total Runs */}
-            <div className="bg-white border border-civic-gray-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-civic-gray-600">Total Training Runs</p>
-                  <p className="text-2xl font-bold text-civic-gray-900 mt-1">
-                    {formatNumber(stats.totalRuns || 0)}
-                  </p>
-                </div>
-                <div className="text-4xl">🎯</div>
-              </div>
+          {/* Overview Stats - Clean table format */}
+          <div className="border border-[#1a1a1a] rounded">
+            <div className="border-b border-[#1a1a1a] px-4 py-3">
+              <h3 className="text-xs font-mono text-[#888]">TRAINING STATISTICS</h3>
             </div>
-
-            {/* Swedish Model */}
-            <div className="bg-white border border-civic-gray-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-civic-gray-600">Swedish Model (SV)</p>
-                  <p className="text-2xl font-bold text-civic-gray-900 mt-1">
-                    {formatNumber(stats.runsByLanguage?.sv || 0)}
-                  </p>
-                </div>
-                <div className="text-4xl">🇸🇪</div>
+            <div className="divide-y divide-[#1a1a1a]">
+              <div className="grid grid-cols-2 px-4 py-2 hover:bg-[#0d0d0d] transition-colors">
+                <span className="text-[10px] font-mono text-[#666]">Total Runs</span>
+                <span className="text-[10px] font-mono text-[#888] text-right">
+                  {formatNumber(stats.totalRuns || 0)}
+                </span>
               </div>
-            </div>
-
-            {/* English Model */}
-            <div className="bg-white border border-civic-gray-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-civic-gray-600">English Model (EN)</p>
-                  <p className="text-2xl font-bold text-civic-gray-900 mt-1">
-                    {formatNumber(stats.runsByLanguage?.en || 0)}
-                  </p>
-                </div>
-                <div className="text-4xl">🇬🇧</div>
+              <div className="grid grid-cols-2 px-4 py-2 hover:bg-[#0d0d0d] transition-colors">
+                <span className="text-[10px] font-mono text-[#666]">Swedish (SV)</span>
+                <span className="text-[10px] font-mono text-[#888] text-right">
+                  {formatNumber(stats.runsByLanguage?.sv || 0)}
+                </span>
               </div>
+              <div className="grid grid-cols-2 px-4 py-2 hover:bg-[#0d0d0d] transition-colors">
+                <span className="text-[10px] font-mono text-[#666]">English (EN)</span>
+                <span className="text-[10px] font-mono text-[#888] text-right">
+                  {formatNumber(stats.runsByLanguage?.en || 0)}
+                </span>
+              </div>
+              {stats.lastRun && (
+                <div className="grid grid-cols-2 px-4 py-2 hover:bg-[#0d0d0d] transition-colors">
+                  <span className="text-[10px] font-mono text-[#666]">Last Run</span>
+                  <span className="text-[10px] font-mono text-[#888] text-right">
+                    {formatTimestamp(stats.lastRun)}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Model Details */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Swedish Model Details */}
-            {stats.models?.sv && (
-              <div className="bg-white border border-civic-gray-200 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-civic-gray-900 mb-4 flex items-center gap-2">
-                  <span>🇸🇪</span>
-                  <span>OneSeek-7B-Zero-sv</span>
-                </h3>
-                
-                {stats.models.sv.error ? (
-                  <p className="text-sm text-red-600">{stats.models.sv.error}</p>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between py-2 border-b border-civic-gray-100">
-                      <span className="text-sm text-civic-gray-600">Stage 1 Samples</span>
-                      <span className="text-sm font-medium text-civic-gray-900">
-                        {formatNumber(stats.models.sv.stage1Samples || 0)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between py-2 border-b border-civic-gray-100">
-                      <span className="text-sm text-civic-gray-600">Stage 2 Samples</span>
-                      <span className="text-sm font-medium text-civic-gray-900">
-                        {formatNumber(stats.models.sv.stage2Samples || 0)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between py-2 border-b border-civic-gray-100">
-                      <span className="text-sm text-civic-gray-600">Total Samples</span>
-                      <span className="text-sm font-medium text-civic-gray-900">
-                        {formatNumber(stats.models.sv.totalSamples || 0)}
-                      </span>
-                    </div>
-                    {stats.models.sv.lastDNA && (
-                      <>
-                        <div className="pt-3 mt-3 border-t border-civic-gray-200">
-                          <p className="text-sm font-medium text-civic-gray-700 mb-2">
-                            🧬 Latest DNA Fingerprint
-                          </p>
-                          <div className="bg-civic-gray-50 rounded p-3 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-civic-gray-600">Hash</span>
-                              <span className="text-xs font-mono text-civic-gray-900">
-                                {stats.models.sv.lastDNA.dna_hash?.substring(0, 16)}...
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-civic-gray-600">Updated</span>
-                              <span className="text-xs text-civic-gray-900">
-                                {formatTimestamp(stats.models.sv.lastDNA.timestamp)}
-                              </span>
-                            </div>
+          {/* Model Details - Swedish */}
+          {stats.models?.sv && (
+            <div className="border border-[#1a1a1a] rounded">
+              <div className="border-b border-[#1a1a1a] px-4 py-3">
+                <h3 className="text-xs font-mono text-[#888]">ONESEEK-7B-ZERO-SV</h3>
+              </div>
+              
+              {stats.models.sv.error ? (
+                <div className="px-4 py-3">
+                  <p className="text-[10px] text-[#555] font-mono">{stats.models.sv.error}</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-[#1a1a1a]">
+                  <div className="grid grid-cols-2 px-4 py-2 hover:bg-[#0d0d0d] transition-colors">
+                    <span className="text-[10px] font-mono text-[#666]">Stage 1 Samples</span>
+                    <span className="text-[10px] font-mono text-[#888] text-right">
+                      {formatNumber(stats.models.sv.stage1Samples || 0)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 px-4 py-2 hover:bg-[#0d0d0d] transition-colors">
+                    <span className="text-[10px] font-mono text-[#666]">Stage 2 Samples</span>
+                    <span className="text-[10px] font-mono text-[#888] text-right">
+                      {formatNumber(stats.models.sv.stage2Samples || 0)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 px-4 py-2 hover:bg-[#0d0d0d] transition-colors">
+                    <span className="text-[10px] font-mono text-[#666]">Total Samples</span>
+                    <span className="text-[10px] font-mono text-[#888] text-right">
+                      {formatNumber(stats.models.sv.totalSamples || 0)}
+                    </span>
+                  </div>
+                  {stats.models.sv.lastDNA && (
+                    <>
+                      <div className="px-4 py-3 bg-[#0d0d0d]">
+                        <div className="text-[10px] font-mono text-[#666] mb-2">DNA FINGERPRINT</div>
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-2">
+                            <span className="text-[10px] text-[#555] font-mono">Hash</span>
+                            <span className="text-[10px] text-[#888] font-mono text-right">
+                              {stats.models.sv.lastDNA.dna_hash?.substring(0, 16)}...
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2">
+                            <span className="text-[10px] text-[#555] font-mono">Updated</span>
+                            <span className="text-[10px] text-[#888] font-mono text-right">
+                              {formatTimestamp(stats.models.sv.lastDNA.timestamp)}
+                            </span>
                           </div>
                         </div>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
-            {/* English Model Details */}
-            {stats.models?.en && (
-              <div className="bg-white border border-civic-gray-200 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-civic-gray-900 mb-4 flex items-center gap-2">
-                  <span>🇬🇧</span>
-                  <span>OneSeek-7B-Zero-en</span>
-                </h3>
-                
-                {stats.models.en.error ? (
-                  <p className="text-sm text-red-600">{stats.models.en.error}</p>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between py-2 border-b border-civic-gray-100">
-                      <span className="text-sm text-civic-gray-600">Stage 1 Samples</span>
-                      <span className="text-sm font-medium text-civic-gray-900">
-                        {formatNumber(stats.models.en.stage1Samples || 0)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between py-2 border-b border-civic-gray-100">
-                      <span className="text-sm text-civic-gray-600">Stage 2 Samples</span>
-                      <span className="text-sm font-medium text-civic-gray-900">
-                        {formatNumber(stats.models.en.stage2Samples || 0)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between py-2 border-b border-civic-gray-100">
-                      <span className="text-sm text-civic-gray-600">Total Samples</span>
-                      <span className="text-sm font-medium text-civic-gray-900">
-                        {formatNumber(stats.models.en.totalSamples || 0)}
-                      </span>
-                    </div>
-                    {stats.models.en.lastDNA && (
-                      <>
-                        <div className="pt-3 mt-3 border-t border-civic-gray-200">
-                          <p className="text-sm font-medium text-civic-gray-700 mb-2">
-                            🧬 Latest DNA Fingerprint
-                          </p>
-                          <div className="bg-civic-gray-50 rounded p-3 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-civic-gray-600">Hash</span>
-                              <span className="text-xs font-mono text-civic-gray-900">
-                                {stats.models.en.lastDNA.dna_hash?.substring(0, 16)}...
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-civic-gray-600">Updated</span>
-                              <span className="text-xs text-civic-gray-900">
-                                {formatTimestamp(stats.models.en.lastDNA.timestamp)}
-                              </span>
-                            </div>
+          {/* Model Details - English */}
+          {stats.models?.en && (
+            <div className="border border-[#1a1a1a] rounded">
+              <div className="border-b border-[#1a1a1a] px-4 py-3">
+                <h3 className="text-xs font-mono text-[#888]">ONESEEK-7B-ZERO-EN</h3>
+              </div>
+              
+              {stats.models.en.error ? (
+                <div className="px-4 py-3">
+                  <p className="text-[10px] text-[#555] font-mono">{stats.models.en.error}</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-[#1a1a1a]">
+                  <div className="grid grid-cols-2 px-4 py-2 hover:bg-[#0d0d0d] transition-colors">
+                    <span className="text-[10px] font-mono text-[#666]">Stage 1 Samples</span>
+                    <span className="text-[10px] font-mono text-[#888] text-right">
+                      {formatNumber(stats.models.en.stage1Samples || 0)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 px-4 py-2 hover:bg-[#0d0d0d] transition-colors">
+                    <span className="text-[10px] font-mono text-[#666]">Stage 2 Samples</span>
+                    <span className="text-[10px] font-mono text-[#888] text-right">
+                      {formatNumber(stats.models.en.stage2Samples || 0)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 px-4 py-2 hover:bg-[#0d0d0d] transition-colors">
+                    <span className="text-[10px] font-mono text-[#666]">Total Samples</span>
+                    <span className="text-[10px] font-mono text-[#888] text-right">
+                      {formatNumber(stats.models.en.totalSamples || 0)}
+                    </span>
+                  </div>
+                  {stats.models.en.lastDNA && (
+                    <>
+                      <div className="px-4 py-3 bg-[#0d0d0d]">
+                        <div className="text-[10px] font-mono text-[#666] mb-2">DNA FINGERPRINT</div>
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-2">
+                            <span className="text-[10px] text-[#555] font-mono">Hash</span>
+                            <span className="text-[10px] text-[#888] font-mono text-right">
+                              {stats.models.en.lastDNA.dna_hash?.substring(0, 16)}...
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2">
+                            <span className="text-[10px] text-[#555] font-mono">Updated</span>
+                            <span className="text-[10px] text-[#888] font-mono text-right">
+                              {formatTimestamp(stats.models.en.lastDNA.timestamp)}
+                            </span>
                           </div>
                         </div>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Last Run Info */}
-          {stats.lastRun && (
-            <div className="bg-civic-gray-50 border border-civic-gray-200 rounded-lg p-4">
-              <p className="text-sm text-civic-gray-600">
-                <span className="font-medium">Senaste träning:</span>{' '}
-                {formatTimestamp(stats.lastRun)}
-              </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </>
@@ -256,18 +224,20 @@ export default function LiveMicroTrainingActivity() {
         <LiveMicroTraining />
       </div>
 
-      {/* Information Panel */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h4 className="text-sm font-semibold text-blue-900 mb-2">
-          ℹ️ How Micro-Training Works
-        </h4>
-        <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-          <li>Automatic language detection on every question (Swedish/English)</li>
-          <li>Two-stage training: Stage 1 (raw AI responses) + Stage 2 (analyzed data)</li>
-          <li>DNA fingerprint updated every 50 questions for tamper-proof provenance</li>
-          <li>Training runs automatically - no manual intervention needed</li>
-          <li>Each language trains its own model: OneSeek-7B-Zero-sv & OneSeek-7B-Zero-en</li>
-        </ul>
+      {/* Information Footer */}
+      <div className="border border-[#1a1a1a] rounded">
+        <div className="border-b border-[#1a1a1a] px-4 py-3">
+          <h3 className="text-xs font-mono text-[#888]">HOW IT WORKS</h3>
+        </div>
+        <div className="px-4 py-3">
+          <div className="space-y-2 text-[10px] font-mono text-[#666] leading-relaxed">
+            <p>→ Automatic language detection on every question</p>
+            <p>→ Two-stage training: Stage 1 (raw responses) + Stage 2 (analyzed data)</p>
+            <p>→ DNA fingerprint updated every 50 questions</p>
+            <p>→ Training runs automatically - no manual intervention</p>
+            <p>→ Each language trains its own model</p>
+          </div>
+        </div>
       </div>
     </div>
   );

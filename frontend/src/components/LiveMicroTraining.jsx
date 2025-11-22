@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
  * LiveMicroTraining Component
  * Displays real-time micro-training activity
  * Shows language-specific training progress and DNA updates
+ * Design follows API Documentation page style - clean, minimalist, no colors/icons
  */
 export default function LiveMicroTraining({ wsUrl = null }) {
   const [trainingEvents, setTrainingEvents] = useState([]);
@@ -75,67 +76,51 @@ export default function LiveMicroTraining({ wsUrl = null }) {
     });
   };
 
-  const getEventIcon = (eventType) => {
-    switch (eventType) {
-      case 'stage1_complete':
-        return '📥';
-      case 'stage2_complete':
-        return '🧠';
-      case 'dna_updated':
-        return '🧬';
-      default:
-        return '•';
-    }
-  };
-
-  const getEventTitle = (event) => {
+  const getEventLabel = (event) => {
     switch (event.type) {
       case 'stage1_complete':
-        return `Stage 1: Raw Data (${event.language?.toUpperCase() || 'EN'})`;
+        return `STAGE 1 (${event.language?.toUpperCase() || 'EN'})`;
       case 'stage2_complete':
-        return `Stage 2: Analysis (${event.language?.toUpperCase() || 'EN'})`;
+        return `STAGE 2 (${event.language?.toUpperCase() || 'EN'})`;
       case 'dna_updated':
-        return 'DNA Fingerprint Updated';
+        return 'DNA UPDATE';
       default:
-        return event.type;
+        return event.type.toUpperCase();
     }
   };
-
   const getEventDescription = (event) => {
     switch (event.type) {
       case 'stage1_complete':
-        return `Processed ${event.samples || 0} raw responses for ${event.model}`;
+        return `${event.samples || 0} samples → ${event.model}`;
       case 'stage2_complete':
-        return `Updated metrics for ${event.model}`;
+        return `Metrics updated → ${event.model}`;
       case 'dna_updated':
-        return `Hash: ${event.dna_hash?.substring(0, 16)}... (${event.total_samples} samples)`;
+        return `${event.dna_hash?.substring(0, 16)}... (${event.total_samples} samples)`;
       default:
         return JSON.stringify(event);
     }
   };
 
   return (
-    <div className="bg-white border border-civic-gray-200 rounded-lg p-4">
+    <div className="border border-[#1a1a1a] rounded">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-civic-gray-900">
-          Live Micro-Training
-        </h3>
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-          <span className="text-xs text-civic-gray-600">
-            {isConnected ? 'Live' : 'Disconnected'}
-          </span>
+      <div className="border-b border-[#1a1a1a] px-4 py-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-mono text-[#888]">LIVE ACTIVITY</h3>
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-mono ${isConnected ? 'text-[#888]' : 'text-[#555]'}`}>
+              {isConnected ? 'CONNECTED' : 'DISCONNECTED'}
+            </span>
+          </div>
         </div>
       </div>
 
       {/* Training Events */}
-      <div className="space-y-2">
+      <div className="divide-y divide-[#1a1a1a]">
         {trainingEvents.length === 0 ? (
-          <div className="text-center py-8 text-civic-gray-500">
-            <div className="text-2xl mb-2">🎯</div>
-            <p className="text-sm">Waiting for training activity...</p>
-            <p className="text-xs mt-1">
+          <div className="px-4 py-8 text-center">
+            <p className="text-[10px] text-[#666] font-mono">WAITING FOR TRAINING ACTIVITY</p>
+            <p className="text-[10px] text-[#555] mt-1 font-mono">
               Training triggers automatically on each question
             </p>
           </div>
@@ -143,52 +128,33 @@ export default function LiveMicroTraining({ wsUrl = null }) {
           trainingEvents.map((event, index) => (
             <div 
               key={`${event.timestamp}-${index}`}
-              className="flex items-start gap-3 p-3 bg-civic-gray-50 rounded-lg hover:bg-civic-gray-100 transition-colors"
+              className="px-4 py-2 hover:bg-[#0d0d0d] transition-colors"
             >
-              {/* Icon */}
-              <div className="text-2xl flex-shrink-0">
-                {getEventIcon(event.type)}
+              {/* Event Header */}
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-mono text-[#888]">
+                  {getEventLabel(event)}
+                </span>
+                <span className="text-[10px] text-[#555] font-mono">
+                  {formatTimestamp(event.timestamp)}
+                </span>
               </div>
               
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <h4 className="text-sm font-medium text-civic-gray-900">
-                    {getEventTitle(event)}
-                  </h4>
-                  <span className="text-xs text-civic-gray-500 flex-shrink-0 ml-2">
-                    {formatTimestamp(event.timestamp)}
-                  </span>
-                </div>
-                <p className="text-xs text-civic-gray-600 break-words">
-                  {getEventDescription(event)}
+              {/* Event Details */}
+              <p className="text-[10px] text-[#666] font-mono">
+                {getEventDescription(event)}
+              </p>
+              
+              {/* Question (if available) */}
+              {event.question && (
+                <p className="text-[10px] text-[#555] mt-1 font-mono truncate">
+                  &quot;{event.question}&quot;
                 </p>
-                {event.question && (
-                  <p className="text-xs text-civic-gray-500 mt-1 italic truncate">
-                    &quot;{event.question}&quot;
-                  </p>
-                )}
-              </div>
+              )}
             </div>
           ))
         )}
       </div>
-
-      {/* Footer Info */}
-      {trainingEvents.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-civic-gray-200">
-          <div className="text-xs text-civic-gray-600 space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="font-medium">Training Models:</span>
-              <span>OneSeek-7B-Zero-sv (Swedish), OneSeek-7B-Zero-en (English)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-medium">DNA Update:</span>
-              <span>Every 50 questions</span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
