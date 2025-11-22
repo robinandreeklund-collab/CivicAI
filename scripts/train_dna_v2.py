@@ -159,16 +159,24 @@ def run_real_training(args, data_dir, dataset_path):
         print(f"   - Auto-stop: threshold={args.auto_stop_threshold}, patience={args.auto_stop_patience}")
         print(f"   - Seed: {args.seed}")
         
-        # Generate DNA version string
+        # Generate DNA version string and run ID BEFORE training
         timestamp = datetime.now()
         version = f"1.0"  # DNA v2 format
+        run_id = timestamp.strftime('run-%Y%m%d-%H%M%S')
+        
+        # Create certified output directory early for live metrics
+        output_dir = args.output_dir or str(project_root / 'models' / 'oneseek-certified')
+        certified_dir = Path(output_dir) / run_id
+        certified_dir.mkdir(parents=True, exist_ok=True)
+        print(f"\n[INFO] Created run directory: {certified_dir}")
         
         # Train the model (this calls real PyTorch training)
         print(f"\n[TRAINING] Starting real PyTorch training...")
         datasets = trainer.load_training_data()
         
         # Train with strict mode - no simulation allowed
-        results = trainer.train_model(datasets, version)
+        # Pass run_id for live metrics
+        results = trainer.train_model(datasets, version, run_id)
         
         # CRITICAL: Check if training actually succeeded (not simulation)
         # DNA v2 MUST NOT create fake model files - only real trained models are allowed
@@ -230,11 +238,8 @@ def run_real_training(args, data_dir, dataset_path):
         print(f"   DNA: {dna}")
         print(f"   Model saved to: {model_dir}")
         
-        # Create certified output directory
-        output_dir = args.output_dir or str(project_root / 'models' / 'oneseek-certified')
-        run_id = timestamp.strftime('run-%Y%m%d-%H%M%S')
-        certified_dir = Path(output_dir) / run_id
-        certified_dir.mkdir(parents=True, exist_ok=True)
+        # certified_dir already created earlier for live metrics
+        # (run_id and certified_dir were created before training started)
         
         # Save DNA metadata with atomic write
         dna_metadata = {

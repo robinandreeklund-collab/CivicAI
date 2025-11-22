@@ -69,13 +69,14 @@ class OneSeekTrainer:
         combined_data = json.dumps(datasets, sort_keys=True)
         return hashlib.sha256(combined_data.encode()).hexdigest()
     
-    def train_model(self, datasets: Dict, version: str) -> Dict:
+    def train_model(self, datasets: Dict, version: str, run_id: str = None) -> Dict:
         """
         Train model - uses PyTorch if available, otherwise simulates
         
         Args:
             datasets: Training datasets
             version: Model version
+            run_id: Training run ID for live metrics (optional)
             
         Returns:
             Training results with metrics
@@ -122,7 +123,8 @@ class OneSeekTrainer:
                         model_dir=self.model_dir,
                         base_models_dir=base_models_dir,
                         config=self.config,
-                        selected_base_models=selected_base_models
+                        selected_base_models=selected_base_models,
+                        run_id=run_id
                     )
                     result['simulated'] = False
                     return result

@@ -13,6 +13,61 @@ import json
 from datetime import datetime
 
 
+def write_live_metrics(run_id: str, epoch: int, total_epochs: int, 
+                       model_losses: Dict[str, float], model_weights: Dict[str, float] = None):
+    """
+    Write live training metrics to JSON file for real-time WebSocket updates
+    
+    Args:
+        run_id: Training run ID (e.g., 'run-20251122-140430')
+        epoch: Current epoch number (1-indexed)
+        total_epochs: Total number of epochs
+        model_losses: Dict of model name to loss value
+        model_weights: Dict of model name to weight multiplier (optional)
+    """
+    try:
+        # Find the certified directory
+        import os
+        project_root = Path(__file__).parent.parent.parent
+        certified_dir = project_root / 'models' / 'oneseek-certified' / run_id
+        
+        # Ensure directory exists
+        certified_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Calculate progress
+        progress_percent = (epoch / total_epochs) * 100
+        
+        # Prepare metrics data
+        metrics_data = {
+            'type': 'epoch_end',
+            'epoch': epoch,
+            'total_epochs': total_epochs,
+            'val_losses': model_losses,
+            'weights': model_weights or {model: 1.0 for model in model_losses.keys()},
+            'lr_multipliers': {},  # Can be added later for adaptive learning
+            'total_loss': sum(model_losses.values()) / len(model_losses) if model_losses else 0,
+            'progress_percent': progress_percent,
+            'auto_stop_info': None,  # Can be added when auto-stop is implemented
+            'timestamp': datetime.utcnow().isoformat() + 'Z'
+        }
+        
+        # Write to live_metrics.json using atomic write
+        live_metrics_path = certified_dir / 'live_metrics.json'
+        live_metrics_temp = certified_dir / 'live_metrics.json.tmp'
+        
+        with open(live_metrics_temp, 'w', encoding='utf-8') as f:
+            json.dump(metrics_data, f, indent=2)
+        
+        # Atomic rename
+        live_metrics_temp.replace(live_metrics_path)
+        
+        print(f"   [LIVE METRICS] Epoch {epoch}/{total_epochs} metrics written to {live_metrics_path}")
+        
+    except Exception as e:
+        # Don't fail training if live metrics writing fails
+        print(f"   [WARNING] Failed to write live metrics: {e}")
+
+
 def check_pytorch_available():
     """Check if PyTorch and required libraries are available"""
     try:
@@ -111,7 +166,8 @@ def train_single_model_lora(
     version: str,
     model_dir: Path,
     config: Dict,
-    device: str
+    device: str,
+    run_id: str = None
 ) -> Dict:
     """
     Train LoRA adapters for a single base model
@@ -123,6 +179,8 @@ def train_single_model_lora(
         version: Model version
         model_dir: Where to save model weights
         config: Training configuration
+        device: Device to train on ('cuda' or 'cpu')
+        run_id: Training run ID for live metrics (optional)
         device: Device to use ('cuda' or 'cpu')
     
     Returns:
@@ -281,6 +339,17 @@ def train_single_model_lora(
             num_batches += 1
             
             print(f"      Loss: {loss.item():.4f}")
+            
+            # Write live metrics after each epoch
+            if run_id:
+                model_key = 'mistral' if 'mistral' in model_name.lower() else 'llama'
+                write_live_metrics(
+                    run_id=run_id,
+                    epoch=epoch + 1,
+                    total_epochs=epochs,
+                    model_losses={model_key: loss.item()},
+                    model_weights={model_key: 1.0}  # Will be adaptive weights later
+                )
         
         avg_loss = total_loss / num_batches if num_batches > 0 else 0
         
@@ -342,7 +411,8 @@ def train_with_pytorch_lora(
     model_dir: Path,
     base_models_dir: Path,
     config: Dict,
-    selected_base_models: List[str] = None
+    selected_base_models: List[str] = None,
+    run_id: str = None
 ) -> Dict:
     """
     Real PyTorch training with LoRA adapters
@@ -355,6 +425,7 @@ def train_with_pytorch_lora(
         base_models_dir: Path to base models
         config: Training configuration
         selected_base_models: List of model names selected from admin panel (REQUIRED)
+        run_id: Training run ID for live metrics (optional)
     
     Returns:
         Training metrics
@@ -441,7 +512,8 @@ def train_with_pytorch_lora(
                 version=version,
                 model_dir=model_dir,
                 config=config,
-                device=device
+                device=device,
+                run_id=run_id
             )
             trained_models['mistral'] = mistral_metrics
             all_metrics.append(mistral_metrics)
@@ -463,7 +535,8 @@ def train_with_pytorch_lora(
                 version=version,
                 model_dir=model_dir,
                 config=config,
-                device=device
+                device=device,
+                run_id=run_id
             )
             trained_models['llama'] = llama_metrics
             all_metrics.append(llama_metrics)
