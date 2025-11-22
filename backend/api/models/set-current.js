@@ -18,8 +18,53 @@ const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
+// Simple in-memory rate limiter
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 20; // 20 model management requests per minute
+
+function checkRateLimit(identifier) {
+  const now = Date.now();
+  const userRequests = rateLimitMap.get(identifier) || [];
+  
+  // Remove old requests outside the window
+  const recentRequests = userRequests.filter(time => now - time < RATE_LIMIT_WINDOW);
+  
+  if (recentRequests.length >= RATE_LIMIT_MAX_REQUESTS) {
+    return false; // Rate limit exceeded
+  }
+  
+  recentRequests.push(now);
+  rateLimitMap.set(identifier, recentRequests);
+  
+  // Cleanup old entries periodically
+  if (rateLimitMap.size > 10000) {
+    for (const [key, value] of rateLimitMap.entries()) {
+      if (value.every(time => now - time > RATE_LIMIT_WINDOW)) {
+        rateLimitMap.delete(key);
+      }
+    }
+  }
+  
+  return true;
+}
+
+// Rate limiting middleware
+function rateLimiter(req, res, next) {
+  const identifier = req.ip || 'unknown';
+  
+  if (!checkRateLimit(identifier)) {
+    return res.status(429).json({ 
+      error: 'Too many requests. Please try again later.',
+      retryAfter: Math.ceil(RATE_LIMIT_WINDOW / 1000)
+    });
+  }
+  
+  next();
+}
+
 // POST /api/models/set-current - Set current active model
-router.post('/set-current', async (req, res) => {
+router.post('/set-current', rateLimiter, async (req, res) => {
   const { modelId } = req.body;
 
   if (!modelId) {
@@ -110,7 +155,7 @@ router.post('/set-current', async (req, res) => {
 });
 
 // GET /api/models/current - Get current active model
-router.get('/current', async (req, res) => {
+router.get('/current', rateLimiter, async (req, res) => {
   try {
     const modelsDir = path.join(__dirname, '..', '..', '..', 'models');
     const certifiedDir = path.join(modelsDir, 'oneseek-certified');
