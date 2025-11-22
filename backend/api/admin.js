@@ -1285,6 +1285,7 @@ router.get('/models', requireAdmin, async (req, res) => {
           models.push({
             id: versionId,
             version: metadata.version || `OneSeek-7B-Zero.v${versionId}`,
+            dna: metadata.dna?.fingerprint || metadata.version || null,
             createdAt: metadata.createdAt || new Date().toISOString(),
             trainingType: metadata.trainingType || 'unknown',
             samplesProcessed: metadata.samplesProcessed || 0,
@@ -1294,6 +1295,9 @@ router.get('/models', requireAdmin, async (req, res) => {
               accuracy: null,
               fairness: null,
             },
+            weights: metadata.dna?.finalWeights || null,
+            baseModels: metadata.dna?.baseModels || [],
+            training: metadata.training || null,
             metadata: metadata,
           });
         } catch (error) {

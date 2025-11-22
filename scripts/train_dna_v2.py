@@ -34,6 +34,43 @@ from training.dataset_parser import extract_categories_from_filenames
 from ledger.ledger_client import InMemoryLedgerClient, HttpLedgerClient
 
 
+def extract_language_from_filename(filename: str) -> str:
+    """
+    Extract language code from dataset filename.
+    
+    Args:
+        filename: Dataset filename or path
+    
+    Returns:
+        str: Language code (en, sv, no, da, fi)
+    """
+    name_lower = filename.lower()
+    
+    # Language mappings
+    language_map = {
+        'swedish': 'sv',
+        'svenska': 'sv',
+        'svensk': 'sv',
+        'swed': 'sv',
+        'norwegian': 'no',
+        'norsk': 'no',
+        'danish': 'da',
+        'dansk': 'da',
+        'finnish': 'fi',
+        'suomi': 'fi',
+        'english': 'en',
+        'eng': 'en',
+    }
+    
+    # Check for language indicators
+    for key, code in language_map.items():
+        if key in name_lower:
+            return code
+    
+    # Default to English
+    return 'en'
+
+
 def parse_args():
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
@@ -221,6 +258,9 @@ def run_real_training(args, data_dir, dataset_path):
         # Extract categories from dataset
         categories = extract_categories_from_filenames([str(dataset_path)])
         
+        # Extract language from dataset filename
+        language = extract_language_from_filename(dataset_path.name)
+        
         # Calculate final weights from base models (or use equal weights if not specified)
         # Base models come from admin panel selection via --base-models argument
         if args.base_models:
@@ -231,13 +271,14 @@ def run_real_training(args, data_dir, dataset_path):
             # Fallback to default if no base models specified
             final_weights = {'default': 1.0}
         
-        # Build DNA fingerprint
+        # Build DNA fingerprint with language
         dna = build_dna(
             model_name='OneSeek-7B-Zero',
             version=version,
             final_weights=final_weights,
             dataset_categories=categories,
-            timestamp=timestamp
+            timestamp=timestamp,
+            language=language
         )
         
         print(f"\n[SUCCESS] Training completed!")

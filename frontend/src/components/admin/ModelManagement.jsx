@@ -161,10 +161,26 @@ export default function ModelManagement() {
                       </div>
                     )}
                     
+                    {/* Adaptive Weights Display */}
+                    {model.weights && Object.keys(model.weights).length > 0 && (
+                      <div className="mb-2 p-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                        <div className="text-[#666] font-mono text-xs mb-1">Model Weights:</div>
+                        {Object.entries(model.weights).map(([modelName, weight]) => (
+                          <div key={modelName} className="flex items-center justify-between text-xs font-mono">
+                            <span className="text-[#888]">{modelName}</span>
+                            <span className="text-[#eee]">{(weight * 100).toFixed(1)}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
                     <div className="text-[#666] font-mono text-xs space-y-1">
                       <div>Created: {new Date(model.createdAt).toLocaleString()}</div>
                       <div>Type: {model.trainingType || 'Unknown'}</div>
                       <div>Samples: {model.samplesProcessed || 0}</div>
+                      {model.training?.autoStopped && (
+                        <div className="text-yellow-400">Auto-stopped ⚡</div>
+                      )}
                       {model.metrics && (
                         <div className="mt-2 flex items-center space-x-4">
                           <span>Loss: {model.metrics.loss?.toFixed(4) || 'N/A'}</span>
