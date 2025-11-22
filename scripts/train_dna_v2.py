@@ -160,9 +160,9 @@ def run_real_training(args, data_dir, dataset_path):
         print(f"   - Seed: {args.seed}")
         
         # Get run_id from environment (passed from backend) or generate if not provided
+        timestamp = datetime.now()
         run_id = os.environ.get('RUN_ID')
         if not run_id:
-            timestamp = datetime.now()
             run_id = timestamp.strftime('run-%Y%m%d-%H%M%S')
         
         print(f"[INFO] run_id={run_id}")
