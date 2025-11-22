@@ -15,6 +15,7 @@ export default function LiveLeaderboard({ runId, onClose }) {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState(null);
   const wsRef = useRef(null);
+  const pollIntervalRef = useRef(null);
 
   useEffect(() => {
     if (!runId) return;
@@ -23,14 +24,14 @@ export default function LiveLeaderboard({ runId, onClose }) {
     connectWebSocket();
     
     // Fallback: Poll training status API every 5 seconds
-    const pollInterval = setInterval(async () => {
+    pollIntervalRef.current = setInterval(async () => {
       try {
         const response = await fetch('/api/admin/training/status');
         if (response.ok) {
           const status = await response.json();
           if (status && status.status === 'training') {
             // Update from status if WebSocket isn't working
-            if (!isConnected || !leaderboardData) {
+            if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
               updateFromTrainingStatus(status);
             }
           }
@@ -43,9 +44,11 @@ export default function LiveLeaderboard({ runId, onClose }) {
     // Cleanup on unmount
     return () => {
       disconnectWebSocket();
-      clearInterval(pollInterval);
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
     };
-  }, [runId, isConnected, leaderboardData]);
+  }, [runId]); // Only depend on runId
 
   const connectWebSocket = () => {
     try {
@@ -93,14 +96,8 @@ export default function LiveLeaderboard({ runId, onClose }) {
         console.log('[LiveLeaderboard] WebSocket closed');
         setIsConnected(false);
         
-        // Attempt to reconnect after 5 seconds if not manually closed
-        if (wsRef.current === ws) {
-          setTimeout(() => {
-            if (wsRef.current === ws) {
-              connectWebSocket();
-            }
-          }, 5000);
-        }
+        // Don't auto-reconnect - rely on polling instead to avoid spam
+        // The polling fallback will handle updates when WebSocket is unavailable
       };
 
       wsRef.current = ws;

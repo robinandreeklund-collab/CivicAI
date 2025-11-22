@@ -38,6 +38,7 @@ import {
 import { getMistralResponse } from '../services/mistral.js';
 import { getLlamaResponse } from '../services/llama.js';
 import { broadcastTrainingEvent } from '../ws/training_ws.js';
+import { getAvailableLanguageModels } from '../utils/languageBaseCheck.js';
 
 const router = express.Router();
 
@@ -604,21 +605,36 @@ router.post('/train', rateLimiter, async (req, res) => {
  * GET /api/oqt/status
  * Get OQT-1.0 model status and health
  */
-router.get('/status', rateLimiter, (req, res) => {
+router.get('/status', rateLimiter, async (req, res) => {
   try {
+    // Get all available trained models
+    const availableModels = await getAvailableLanguageModels();
+    
+    // Find current model
+    const currentModel = availableModels.find(m => m.isCurrent) || availableModels[0];
+    
     res.json({
       success: true,
       status: 'up',
       model: {
         name: 'OQT-1.0',
-        version: oqtModel.version,
-        status: oqtModel.status,
-        lastTraining: oqtModel.lastTraining,
+        version: currentModel ? currentModel.dna : oqtModel.version,
+        status: currentModel ? 'ready' : oqtModel.status,
+        lastTraining: currentModel ? currentModel.metadata?.createdAt : oqtModel.lastTraining,
         architecture: 'Transformer',
-        trainingMethod: 'Supervised + RLHF'
+        trainingMethod: 'DNA v2 + Adaptive Weighting',
+        dna: currentModel?.dna || null,
+        language: currentModel?.language || 'unknown',
       },
+      availableModels: availableModels.map(m => ({
+        language: m.language,
+        dna: m.dna,
+        isCurrent: m.isCurrent,
+        status: m.exists ? 'ready' : 'not found',
+      })),
       health: {
-        operational: true,
+        operational: availableModels.length > 0,
+        modelsAvailable: availableModels.length,
         responseTime_ms: 5,
         uptime: process.uptime()
       },
