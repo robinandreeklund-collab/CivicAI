@@ -22,6 +22,51 @@ const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
+// Simple in-memory rate limiter (same as oqt.js)
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 30; // 30 requests per minute for micro-training endpoints
+
+function checkRateLimit(identifier) {
+  const now = Date.now();
+  const userRequests = rateLimitMap.get(identifier) || [];
+  
+  // Remove old requests outside the window
+  const recentRequests = userRequests.filter(time => now - time < RATE_LIMIT_WINDOW);
+  
+  if (recentRequests.length >= RATE_LIMIT_MAX_REQUESTS) {
+    return false; // Rate limit exceeded
+  }
+  
+  recentRequests.push(now);
+  rateLimitMap.set(identifier, recentRequests);
+  
+  // Cleanup old entries periodically
+  if (rateLimitMap.size > 10000) {
+    for (const [key, value] of rateLimitMap.entries()) {
+      if (value.every(time => now - time > RATE_LIMIT_WINDOW)) {
+        rateLimitMap.delete(key);
+      }
+    }
+  }
+  
+  return true;
+}
+
+// Rate limiting middleware
+function rateLimiter(req, res, next) {
+  const identifier = req.ip || 'unknown';
+  
+  if (!checkRateLimit(identifier)) {
+    return res.status(429).json({
+      success: false,
+      error: 'Rate limit exceeded. Please try again later.'
+    });
+  }
+  
+  next();
+}
+
 // Micro-training state
 const microTrainingState = {
   totalRuns: 0,
@@ -271,7 +316,7 @@ router.post('/micro', async (req, res) => {
  * GET /api/training/micro/status
  * Get current micro-training status
  */
-router.get('/micro/status', (req, res) => {
+router.get('/micro/status', rateLimiter, (req, res) => {
   res.json({
     success: true,
     status: 'operational',
@@ -284,7 +329,7 @@ router.get('/micro/status', (req, res) => {
  * GET /api/training/micro/stats
  * Get detailed micro-training statistics
  */
-router.get('/micro/stats', async (req, res) => {
+router.get('/micro/stats', rateLimiter, async (req, res) => {
   try {
     const modelsDir = path.join(__dirname, '..', '..', '..', 'models', 'oneseek-7b-zero');
     
