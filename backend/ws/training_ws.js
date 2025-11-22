@@ -102,10 +102,17 @@ async function sendInitialState(ws, runId) {
     const certifiedDir = path.join(process.cwd(), '..', 'models', 'oneseek-certified');
     const runDir = path.join(certifiedDir, runId);
     
-    // Load training results
+    // Load training results (might not exist if training just started)
     const resultsPath = path.join(runDir, 'training_results.json');
-    const resultsData = await fs.readFile(resultsPath, 'utf-8');
-    const results = JSON.parse(resultsData);
+    let results = null;
+    
+    try {
+      const resultsData = await fs.readFile(resultsPath, 'utf-8');
+      results = JSON.parse(resultsData);
+    } catch (err) {
+      // Training results don't exist yet - training just started
+      console.log(`[WS] Training results not available yet for ${runId}, sending pending state`);
+    }
     
     // Load live metrics if available
     let liveMetrics = null;
@@ -117,21 +124,41 @@ async function sendInitialState(ws, runId) {
       // Live metrics not available yet
     }
     
-    // Send initial state
-    ws.send(JSON.stringify({
-      type: 'initial_state',
-      run_id: runId,
-      status: results.status || 'running',
-      current_epoch: liveMetrics?.epoch || results.current_epoch || 0,
-      total_epochs: results.epochs,
-      val_losses: liveMetrics?.val_losses || {},
-      weights: liveMetrics?.weights || results.final_weights || {},
-      lr_multipliers: liveMetrics?.lr_multipliers || {},
-      total_loss: liveMetrics?.total_loss || null,
-      auto_stop_info: liveMetrics?.auto_stop_info || null,
-      progress_percent: liveMetrics?.progress_percent || 0,
-      timestamp: new Date().toISOString(),
-    }));
+    // Send initial state (or pending state if files don't exist yet)
+    if (!results && !liveMetrics) {
+      // Training just started, no files yet
+      ws.send(JSON.stringify({
+        type: 'initial_state',
+        run_id: runId,
+        status: 'starting',
+        current_epoch: 0,
+        total_epochs: 0,
+        val_losses: {},
+        weights: {},
+        lr_multipliers: {},
+        total_loss: null,
+        auto_stop_info: null,
+        progress_percent: 0,
+        message: 'Training is starting, waiting for data...',
+        timestamp: new Date().toISOString(),
+      }));
+    } else {
+      // Send actual data
+      ws.send(JSON.stringify({
+        type: 'initial_state',
+        run_id: runId,
+        status: results?.status || 'running',
+        current_epoch: liveMetrics?.epoch || results?.current_epoch || 0,
+        total_epochs: results?.epochs || 0,
+        val_losses: liveMetrics?.val_losses || {},
+        weights: liveMetrics?.weights || results?.final_weights || {},
+        lr_multipliers: liveMetrics?.lr_multipliers || {},
+        total_loss: liveMetrics?.total_loss || null,
+        auto_stop_info: liveMetrics?.auto_stop_info || null,
+        progress_percent: liveMetrics?.progress_percent || 0,
+        timestamp: new Date().toISOString(),
+      }));
+    }
   } catch (error) {
     console.error('[WS] Error loading initial state:', error);
     ws.send(JSON.stringify({
@@ -155,19 +182,53 @@ function setupRunWatcher(runId) {
   const certifiedDir = path.join(process.cwd(), '..', 'models', 'oneseek-certified');
   const liveMetricsPath = path.join(certifiedDir, runId, 'live_metrics.json');
   
-  try {
-    const watcher = watch(liveMetricsPath, (eventType) => {
-      if (eventType === 'change') {
-        // File was updated, broadcast to all connected clients
-        broadcastMetricsUpdate(runId, liveMetricsPath);
-      }
-    });
+  // Check if file exists before trying to watch it
+  import('fs').then(({ existsSync }) => {
+    if (!existsSync(liveMetricsPath)) {
+      console.log(`[WS] Metrics file doesn't exist yet for ${runId}, will poll instead`);
+      // Set up a polling interval instead of a file watcher
+      const pollInterval = setInterval(async () => {
+        if (existsSync(liveMetricsPath)) {
+          // File now exists, broadcast update and set up watcher
+          await broadcastMetricsUpdate(runId, liveMetricsPath);
+          clearInterval(pollInterval);
+          
+          // Now set up the actual file watcher
+          try {
+            const watcher = watch(liveMetricsPath, (eventType) => {
+              if (eventType === 'change') {
+                broadcastMetricsUpdate(runId, liveMetricsPath);
+              }
+            });
+            runWatchers.set(runId, watcher);
+            console.log(`[WS] Started watching ${liveMetricsPath}`);
+          } catch (error) {
+            console.error(`[WS] Error setting up watcher for ${runId}:`, error);
+          }
+        }
+      }, 2000); // Poll every 2 seconds
+      
+      // Store the interval so we can clean it up later
+      runWatchers.set(runId, { interval: pollInterval, type: 'polling' });
+      return;
+    }
     
-    runWatchers.set(runId, watcher);
-    console.log(`[WS] Started watching ${liveMetricsPath}`);
-  } catch (error) {
-    console.error(`[WS] Error setting up watcher for ${runId}:`, error);
-  }
+    // File exists, set up watcher immediately
+    try {
+      const watcher = watch(liveMetricsPath, (eventType) => {
+        if (eventType === 'change') {
+          broadcastMetricsUpdate(runId, liveMetricsPath);
+        }
+      });
+      
+      runWatchers.set(runId, watcher);
+      console.log(`[WS] Started watching ${liveMetricsPath}`);
+    } catch (error) {
+      console.error(`[WS] Error setting up watcher for ${runId}:`, error);
+    }
+  }).catch(error => {
+    console.error(`[WS] Error checking file existence for ${runId}:`, error);
+  });
 }
 
 /**
@@ -176,7 +237,12 @@ function setupRunWatcher(runId) {
 function cleanupRunWatcher(runId) {
   const watcher = runWatchers.get(runId);
   if (watcher) {
-    watcher.close();
+    // Check if it's a polling interval or a file watcher
+    if (watcher.type === 'polling' && watcher.interval) {
+      clearInterval(watcher.interval);
+    } else if (typeof watcher.close === 'function') {
+      watcher.close();
+    }
     runWatchers.delete(runId);
     console.log(`[WS] Stopped watching run ${runId}`);
   }
