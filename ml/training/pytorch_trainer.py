@@ -509,8 +509,6 @@ def train_with_pytorch_lora(
             print(f"  {key}: {value:.3f}")
         else:
             print(f"  {key}: {value}")
-        else:
-            print(f"  {key}: {value}")
     
     print(f"\nFairness Metrics:")
     for key, value in fairness_metrics.items():
