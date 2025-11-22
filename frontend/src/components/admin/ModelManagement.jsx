@@ -148,6 +148,18 @@ export default function ModelManagement() {
                         )}
                       </div>
                     </div>
+
+                    {/* DNA Fingerprint Display */}
+                    {model.dna && (
+                      <div className="mb-2 p-2 bg-[#0a0a0a] border border-green-900/30 rounded">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[#666] font-mono text-xs">DNA:</span>
+                          <span className="text-green-400 font-mono text-xs break-all">
+                            {model.dna}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     
                     <div className="text-[#666] font-mono text-xs space-y-1">
                       <div>Created: {new Date(model.createdAt).toLocaleString()}</div>
