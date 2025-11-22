@@ -5,6 +5,8 @@ import DatasetManagement from '../components/admin/DatasetManagement';
 import TrainingControl from '../components/admin/TrainingControl';
 import ModelManagement from '../components/admin/ModelManagement';
 import MonitoringDashboard from '../components/admin/MonitoringDashboard';
+import VerificationTab from '../components/admin/VerificationTab';
+import '../styles/admin-theme.css';
 
 /**
  * Admin Dashboard for OneSeek-7B-Zero Management
@@ -53,10 +55,11 @@ export default function AdminDashboardPage() {
   }
 
   const tabs = [
-    { id: 'datasets', label: 'Datasets', icon: '📁' },
-    { id: 'training', label: 'Training', icon: '🎯' },
-    { id: 'models', label: 'Models', icon: '🤖' },
-    { id: 'monitoring', label: 'Monitoring', icon: '📊' },
+    { id: 'datasets', label: 'Datasets' },
+    { id: 'training', label: 'Training' },
+    { id: 'models', label: 'Models' },
+    { id: 'verification', label: 'Verification' },
+    { id: 'monitoring', label: 'Monitoring' },
   ];
 
   return (
@@ -97,7 +100,6 @@ export default function AdminDashboardPage() {
                     : 'text-[#666] hover:text-[#888]'
                 }`}
               >
-                <span className="mr-2">{tab.icon}</span>
                 {tab.label}
               </button>
             ))}
@@ -111,6 +113,7 @@ export default function AdminDashboardPage() {
           {selectedTab === 'datasets' && <DatasetManagement />}
           {selectedTab === 'training' && <TrainingControl />}
           {selectedTab === 'models' && <ModelManagement />}
+          {selectedTab === 'verification' && <VerificationTab />}
           {selectedTab === 'monitoring' && <MonitoringDashboard />}
         </div>
       </div>

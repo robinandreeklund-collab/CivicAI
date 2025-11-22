@@ -20,16 +20,49 @@ logger = logging.getLogger(__name__)
 
 # Model paths - use absolute paths relative to project root
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
-# Support both Windows absolute path and project-relative path
-# Windows path for user's local setup, falls back to project-relative
-ONESEEK_PATH_WIN = r'C:\Users\robin\Documents\GitHub\CivicAI\models\oneseek-7b-zero'
-ONESEEK_PATH_DEFAULT = str(PROJECT_ROOT / 'models' / 'oneseek-7b-zero')
 
-# Use Windows path if it exists, otherwise use project-relative path
-if Path(ONESEEK_PATH_WIN).exists():
-    ONESEEK_PATH = os.getenv('ONESEEK_MODEL_PATH', ONESEEK_PATH_WIN)
-else:
-    ONESEEK_PATH = os.getenv('ONESEEK_MODEL_PATH', ONESEEK_PATH_DEFAULT)
+def get_oneseek_model_path():
+    """
+    Get OneSeek model path with support for -CURRENT symlink
+    
+    Priority order:
+    1. Environment variable ONESEEK_MODEL_PATH
+    2. /app/models/oneseek-certified/OneSeek-7B-Zero-CURRENT (production symlink)
+    3. models/oneseek-certified/OneSeek-7B-Zero-CURRENT (local symlink)
+    4. Windows absolute path (user's local setup)
+    5. models/oneseek-7b-zero (fallback)
+    """
+    # Check environment variable first
+    env_path = os.getenv('ONESEEK_MODEL_PATH')
+    if env_path and Path(env_path).exists():
+        logger.info(f"Using OneSeek model from env var: {env_path}")
+        return env_path
+    
+    # Check production -CURRENT symlink
+    production_current = Path('/app/models/oneseek-certified/OneSeek-7B-Zero-CURRENT')
+    if production_current.exists():
+        logger.info(f"Using production CURRENT symlink: {production_current}")
+        return str(production_current.resolve())
+    
+    # Check local -CURRENT symlink
+    local_current = PROJECT_ROOT / 'models' / 'oneseek-certified' / 'OneSeek-7B-Zero-CURRENT'
+    if local_current.exists():
+        logger.info(f"Using local CURRENT symlink: {local_current}")
+        return str(local_current.resolve())
+    
+    # Windows absolute path for local development
+    windows_path = r'C:\Users\robin\Documents\GitHub\CivicAI\models\oneseek-7b-zero'
+    if Path(windows_path).exists():
+        logger.info(f"Using Windows path: {windows_path}")
+        return windows_path
+    
+    # Fallback to default
+    default_path = str(PROJECT_ROOT / 'models' / 'oneseek-7b-zero')
+    logger.info(f"Using default path: {default_path}")
+    return default_path
+
+# Get model path (supports -CURRENT symlink for OQT Dashboard)
+ONESEEK_PATH = get_oneseek_model_path()
 
 # GPU configuration - Support for NVIDIA, Intel, and CPU
 def get_device():
