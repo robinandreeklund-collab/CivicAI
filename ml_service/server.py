@@ -1,7 +1,6 @@
 """
-ML Inference Service for OneSeek-7B-Zero.v1.1
-FastAPI server for OneSeek-7B-Zero model inference
-Replaces previous Mistral 7B and LLaMA-2 routing
+ML Inference Service for OneSeek-7B-Zero
+FastAPI server for OneSeek-7B-Zero model inference using -CURRENT symlink
 """
 
 from contextlib import asynccontextmanager
@@ -13,6 +12,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import os
 from pathlib import Path
 import logging
+import sys
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -21,49 +21,70 @@ logger = logging.getLogger(__name__)
 # Model paths - use absolute paths relative to project root
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 
-def get_oneseek_model_path():
+def get_active_model_path():
     """
-    Get OneSeek model path with support for -CURRENT symlink
+    Get the active OneSeek model path via -CURRENT symlink ONLY.
+    No fallbacks to old models. If the symlink doesn't exist, fail clearly.
     
     Priority order:
-    1. Environment variable ONESEEK_MODEL_PATH
+    1. Environment variable ONESEEK_MODEL_PATH (for manual override)
     2. Production -CURRENT symlink (configurable via PRODUCTION_MODELS_PATH, defaults to /app/models)
     3. Local -CURRENT symlink (models/oneseek-certified/OneSeek-7B-Zero-CURRENT)
-    4. Windows absolute path (user's local setup)
-    5. models/oneseek-7b-zero (fallback)
+    
+    If none exist, the service will NOT start.
     """
-    # Check environment variable first
+    # Check environment variable first (manual override)
     env_path = os.getenv('ONESEEK_MODEL_PATH')
-    if env_path and Path(env_path).exists():
-        logger.info(f"Using OneSeek model from env var: {env_path}")
-        return env_path
+    if env_path:
+        env_path_obj = Path(env_path)
+        if env_path_obj.exists():
+            logger.info(f"✓ Using OneSeek model from ONESEEK_MODEL_PATH: {env_path}")
+            return str(env_path_obj.resolve())
+        else:
+            logger.error(f"✗ ONESEEK_MODEL_PATH set but path doesn't exist: {env_path}")
+            sys.exit(1)
     
     # Check production -CURRENT symlink
     production_models_path = os.getenv('PRODUCTION_MODELS_PATH', '/app/models')
     production_current = Path(production_models_path) / 'oneseek-certified' / 'OneSeek-7B-Zero-CURRENT'
     if production_current.exists():
-        logger.info(f"Using production CURRENT symlink: {production_current}")
-        return str(production_current.resolve())
+        resolved_path = production_current.resolve()
+        logger.info(f"✓ Using production CURRENT symlink: {production_current}")
+        logger.info(f"  → Resolves to: {resolved_path}")
+        return str(resolved_path)
     
     # Check local -CURRENT symlink
     local_current = PROJECT_ROOT / 'models' / 'oneseek-certified' / 'OneSeek-7B-Zero-CURRENT'
     if local_current.exists():
-        logger.info(f"Using local CURRENT symlink: {local_current}")
-        return str(local_current.resolve())
+        resolved_path = local_current.resolve()
+        logger.info(f"✓ Using local CURRENT symlink: {local_current}")
+        logger.info(f"  → Resolves to: {resolved_path}")
+        return str(resolved_path)
     
-    # Windows absolute path for local development
-    windows_path = r'C:\Users\robin\Documents\GitHub\CivicAI\models\oneseek-7b-zero'
-    if Path(windows_path).exists():
-        logger.info(f"Using Windows path: {windows_path}")
-        return windows_path
-    
-    # Fallback to default
-    default_path = str(PROJECT_ROOT / 'models' / 'oneseek-7b-zero')
-    logger.info(f"Using default path: {default_path}")
-    return default_path
+    # NO FALLBACKS - Fail clearly
+    logger.error("")
+    logger.error("=" * 80)
+    logger.error("✗ ACTIVE MODEL NOT FOUND")
+    logger.error("=" * 80)
+    logger.error("")
+    logger.error("No active model symlink found. You must set a model as active first.")
+    logger.error("")
+    logger.error("How to fix:")
+    logger.error("  1. Go to Admin Dashboard → Models tab")
+    logger.error("  2. Click 'Set as Active' on a trained model version")
+    logger.error("  3. Restart this service")
+    logger.error("")
+    logger.error("Checked locations:")
+    logger.error(f"  - Environment variable ONESEEK_MODEL_PATH: {env_path or 'Not set'}")
+    logger.error(f"  - Production symlink: {production_current} (Not found)")
+    logger.error(f"  - Local symlink: {local_current} (Not found)")
+    logger.error("")
+    logger.error("=" * 80)
+    logger.error("")
+    sys.exit(1)
 
-# Get model path (supports -CURRENT symlink for OQT Dashboard)
-ONESEEK_PATH = get_oneseek_model_path()
+# Get model path (REQUIRED - will exit if not found)
+ONESEEK_PATH = get_active_model_path()
 
 # GPU configuration - Support for NVIDIA, Intel, and CPU
 def get_device():
@@ -500,46 +521,28 @@ async def dual_model_inference(text: str, max_length: int = 512, temperature: fl
 async def lifespan(app: FastAPI):
     """Lifespan event handler for startup and shutdown"""
     # Startup
-    logger.info("Starting ML Service...")
+    logger.info("")
+    logger.info("=" * 80)
+    logger.info("ML Service for OneSeek-7B-Zero - Starting...")
+    logger.info("=" * 80)
     logger.info(f"Device: {DEVICE}")
+    logger.info(f"Device Type: {DEVICE_TYPE}")
     logger.info(f"Project root: {PROJECT_ROOT}")
-    logger.info(f"OneSeek-7B-Zero path: {ONESEEK_PATH}")
+    logger.info(f"Active model path: {ONESEEK_PATH}")
+    logger.info("=" * 80)
+    logger.info("")
     
-    # Check if model directory exists
-    if not Path(ONESEEK_PATH).exists():
-        logger.warning(f"OneSeek-7B-Zero model directory not found at {ONESEEK_PATH}")
-        logger.info("Please ensure the directory structure is created")
-    else:
-        logger.info(f"✓ OneSeek-7B-Zero directory found")
-        
-        # Check for base models (dual-model mode)
-        if DUAL_MODEL_MODE:
-            available_models = find_all_base_models()
-            if available_models:
-                if 'oneseek_complete' in available_models:
-                    logger.info(f"✓ Complete OneSeek model ready")
-                else:
-                    mistral_found = 'mistral' in available_models
-                    llama_found = 'llama' in available_models
-                    if mistral_found and llama_found:
-                        logger.info(f"✓ Dual-model mode: Both Mistral and LLaMA available")
-                    elif mistral_found:
-                        logger.warning(f"⚠ Only Mistral found - LLaMA needed for dual-model")
-                    elif llama_found:
-                        logger.warning(f"⚠ Only LLaMA found - Mistral needed for dual-model")
-            else:
-                logger.warning("⚠ No base models found. Download required:")
-                logger.warning(f"  Mistral: huggingface-cli download mistralai/Mistral-7B-Instruct-v0.2 --local-dir {ONESEEK_PATH}/base_models/mistral-7b")
-                logger.warning(f"  LLaMA: huggingface-cli download meta-llama/Llama-2-7b-chat-hf --local-dir {ONESEEK_PATH}/base_models/llama-2-7b")
-        else:
-            base_model = find_base_model_path()
-            if base_model:
-                logger.info(f"✓ Base model ready for inference")
-            else:
-                logger.warning("⚠ No base model found. Download required:")
-                logger.warning(f"  huggingface-cli download mistralai/Mistral-7B-Instruct-v0.2 --local-dir {ONESEEK_PATH}/base_models/mistral-7b")
-                logger.warning("  OR")
-                logger.warning(f"  huggingface-cli download meta-llama/Llama-2-7b-chat-hf --local-dir {ONESEEK_PATH}/base_models/llama-2-7b")
+    # Verify model directory exists
+    model_path = Path(ONESEEK_PATH)
+    if not model_path.exists():
+        logger.error(f"✗ Active model directory does not exist: {ONESEEK_PATH}")
+        logger.error("This should not happen if symlink was created correctly.")
+        logger.error("Check that the symlink target exists and is correct.")
+        sys.exit(1)
+    
+    logger.info(f"✓ Active model directory found: {model_path}")
+    logger.info(f"  Ready to serve queries via OQT Dashboard")
+    logger.info("")
     
     yield
     
@@ -548,8 +551,9 @@ async def lifespan(app: FastAPI):
 
 # Initialize FastAPI with lifespan
 app = FastAPI(
-    title="OQT-1.0 ML Service",
-    version="1.0.0",
+    title="OneSeek-7B-Zero ML Service",
+    version="2.0.0",
+    description="ML inference service using active model via -CURRENT symlink",
     lifespan=lifespan
 )
 
