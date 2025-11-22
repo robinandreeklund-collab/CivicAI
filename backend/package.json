@@ -23,7 +23,8 @@
     "openai": "^4.20.1",
     "pdfkit": "^0.17.2",
     "sentiment": "^5.0.2",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "ws": "^8.14.0"
   },
   "devDependencies": {
     "jest": "^30.2.0",

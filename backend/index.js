@@ -17,9 +17,11 @@ import firebaseRouter from './api/firebase.js';
 import usersRouter from './api/users.js';
 import oqtRouter from './api/oqt.js';
 import adminRouter from './api/admin.js';
+import trainingMetricsRouter from './api/training_metrics.js';
 import { logPythonServiceStatus } from './services/pythonNLPClient.js';
 import { getCachedPythonStatus } from './services/healthCache.js';
 import { isFirebaseAvailable } from './services/firebaseService.js';
+import { setupTrainingWebSocket } from './ws/training_ws.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -46,6 +48,7 @@ app.use('/api/firebase', firebaseRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/oqt', oqtRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/training', trainingMetricsRouter);
 
 // Health check endpoint with service status
 app.get('/api/health', async (req, res) => {
@@ -123,7 +126,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, async () => {
+const server = app.listen(PORT, async () => {
   console.log(`🚀 OneSeek.AI Backend running on port ${PORT}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   console.log('[DEBUG] OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? '✓ Configured' : '✗ Not configured');
@@ -135,4 +138,7 @@ app.listen(PORT, async () => {
   console.log('');
   await logPythonServiceStatus();
   console.log('');
+  
+  // Setup WebSocket for training updates
+  setupTrainingWebSocket(server);
 });

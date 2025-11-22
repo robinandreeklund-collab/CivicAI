@@ -834,8 +834,10 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
     }
     
     // Initialize training state
+    const runId = `run-${new Date().toISOString().replace(/:/g, '-').replace(/\./g, '-')}`;
     trainingState = {
       status: 'training',
+      runId: runId,
       currentEpoch: 0,
       totalEpochs: epochs || 10,
       loss: null,
