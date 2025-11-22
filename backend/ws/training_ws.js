@@ -294,12 +294,22 @@ export function broadcastTrainingEvent(runId, eventType, eventData) {
     timestamp: new Date().toISOString(),
   });
   
-  const connections = runConnections.get(runId);
-  if (connections) {
+  // Broadcast to specific run connections if runId is provided
+  if (runId && runConnections.has(runId)) {
+    const connections = runConnections.get(runId);
     connections.forEach((ws) => {
       if (ws.readyState === ws.OPEN) {
         ws.send(message);
       }
+    });
+  } else {
+    // Broadcast to all connections (for micro-training events)
+    runConnections.forEach((connections) => {
+      connections.forEach((ws) => {
+        if (ws.readyState === ws.OPEN) {
+          ws.send(message);
+        }
+      });
     });
   }
 }
