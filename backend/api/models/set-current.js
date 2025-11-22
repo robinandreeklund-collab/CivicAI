@@ -72,8 +72,29 @@ router.post('/set-current', rateLimiter, async (req, res) => {
   }
 
   try {
+    // Determine models directory using same logic as /api/admin/models/available
+    // Check both Windows path and project-relative path
+    const windowsModelsPath = 'C:\\Users\\robin\\Documents\\GitHub\\CivicAI\\models';
+    const projectModelsPath = path.join(__dirname, '..', '..', '..', 'models');
+    
+    let modelsDir = projectModelsPath;
+    
+    // Try Windows path first
+    try {
+      await fs.access(windowsModelsPath);
+      modelsDir = windowsModelsPath;
+    } catch (error) {
+      // Fall back to project-relative path
+      try {
+        await fs.access(projectModelsPath);
+        modelsDir = projectModelsPath;
+      } catch (innerError) {
+        // Use project path even if it doesn't exist yet
+        modelsDir = projectModelsPath;
+      }
+    }
+
     // Paths
-    const modelsDir = path.join(__dirname, '..', '..', '..', 'models');
     const certifiedDir = path.join(modelsDir, 'oneseek-certified');
     const modelPath = path.join(modelsDir, modelId);
     const symlinkPath = path.join(certifiedDir, 'OneSeek-7B-Zero-CURRENT');
@@ -157,7 +178,26 @@ router.post('/set-current', rateLimiter, async (req, res) => {
 // GET /api/models/current - Get current active model
 router.get('/current', rateLimiter, async (req, res) => {
   try {
-    const modelsDir = path.join(__dirname, '..', '..', '..', 'models');
+    // Determine models directory using same logic as /api/admin/models/available
+    const windowsModelsPath = 'C:\\Users\\robin\\Documents\\GitHub\\CivicAI\\models';
+    const projectModelsPath = path.join(__dirname, '..', '..', '..', 'models');
+    
+    let modelsDir = projectModelsPath;
+    
+    // Try Windows path first
+    try {
+      await fs.access(windowsModelsPath);
+      modelsDir = windowsModelsPath;
+    } catch (error) {
+      // Fall back to project-relative path
+      try {
+        await fs.access(projectModelsPath);
+        modelsDir = projectModelsPath;
+      } catch (innerError) {
+        modelsDir = projectModelsPath;
+      }
+    }
+
     const certifiedDir = path.join(modelsDir, 'oneseek-certified');
     const symlinkPath = path.join(certifiedDir, 'OneSeek-7B-Zero-CURRENT');
 
