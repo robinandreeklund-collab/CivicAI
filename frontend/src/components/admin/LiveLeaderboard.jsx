@@ -21,12 +21,31 @@ export default function LiveLeaderboard({ runId, onClose }) {
 
     // Connect to WebSocket for live updates
     connectWebSocket();
+    
+    // Fallback: Poll training status API every 5 seconds
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await fetch('/api/admin/training/status');
+        if (response.ok) {
+          const status = await response.json();
+          if (status && status.status === 'training') {
+            // Update from status if WebSocket isn't working
+            if (!isConnected || !leaderboardData) {
+              updateFromTrainingStatus(status);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[LiveLeaderboard] Error polling status:', err);
+      }
+    }, 5000);
 
     // Cleanup on unmount
     return () => {
       disconnectWebSocket();
+      clearInterval(pollInterval);
     };
-  }, [runId]);
+  }, [runId, isConnected, leaderboardData]);
 
   const connectWebSocket = () => {
     try {
@@ -122,6 +141,30 @@ export default function LiveLeaderboard({ runId, onClose }) {
       totalEpochs: total_epochs || 0,
       autoStopInfo: auto_stop_info,
       progressPercent: progress_percent || 0,
+    });
+  };
+
+  const updateFromTrainingStatus = (status) => {
+    // Fallback update from training status API
+    const currentEpoch = status.currentEpoch || 0;
+    const totalEpochs = status.totalEpochs || 3;
+    const progress = status.progress || 0;
+    
+    // Create basic entries from base models
+    const baseModels = status.baseModels || [];
+    const entries = baseModels.map((modelName, index) => ({
+      modelName,
+      weight: 1.0,
+      valLoss: status.loss || null,
+      lrMultiplier: 1.0,
+    }));
+    
+    setLeaderboardData({
+      entries: entries.length > 0 ? entries : [{ modelName: 'Training...', weight: 1.0, valLoss: status.loss, lrMultiplier: 1.0 }],
+      currentEpoch,
+      totalEpochs,
+      autoStopInfo: null,
+      progressPercent: progress,
     });
   };
 

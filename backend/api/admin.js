@@ -494,21 +494,25 @@ router.get('/datasets/:id/analyze-language', requireAdmin, async (req, res) => {
     
     // Determine primary language and suggested model
     let primaryLanguage = 'en';
-    let suggestedModel = 'OneSeek-7B-Zero-en';
+    let suggestedModel = 'OneSeek-7B-Zero.v1.0.en';
     let languageCode = 'en';
     
     if (swedishPercent >= 70) {
       primaryLanguage = 'Swedish';
       languageCode = 'sv';
-      suggestedModel = 'OneSeek-7B-Zero-sv';
+      suggestedModel = 'OneSeek-7B-Zero.v1.0.sv';
     } else if (englishPercent >= 70) {
       primaryLanguage = 'English';
       languageCode = 'en';
-      suggestedModel = 'OneSeek-7B-Zero-en';
-    } else if (swedishPercent > 30 && englishPercent > 30) {
+      suggestedModel = 'OneSeek-7B-Zero.v1.0.en';
+    } else if (swedishPercent >= 30 && englishPercent >= 30) {
       primaryLanguage = 'Mixed (Swedish/English)';
       languageCode = 'ensv';
-      suggestedModel = 'OneSeek-7B-Zero-multilingual';
+      suggestedModel = 'OneSeek-7B-Zero.v1.0.ensv';
+    } else if (swedishPercent > englishPercent) {
+      primaryLanguage = 'Primarily Swedish';
+      languageCode = 'sv';
+      suggestedModel = 'OneSeek-7B-Zero.v1.0.sv';
     }
     
     res.json({
@@ -522,10 +526,12 @@ router.get('/datasets/:id/analyze-language', requireAdmin, async (req, res) => {
       languageCode,
       suggestedModel,
       recommendation: swedishPercent >= 70 
-        ? 'Train with Swedish base models (KB-Llama-3.1-8B-Swedish recommended)'
+        ? `Strongly Swedish dataset - train as ${suggestedModel}`
         : englishPercent >= 70
-        ? 'Train with English base models (Mistral-7B-Instruct, Qwen-2.5-7B recommended)'
-        : 'Mixed language dataset - consider multi-language models or split training'
+        ? `Strongly English dataset - train as ${suggestedModel}`
+        : swedishPercent >= 30 && englishPercent >= 30
+        ? `Mixed language dataset (${swedishPercent.toFixed(0)}% sv, ${englishPercent.toFixed(0)}% en) - train as ${suggestedModel}`
+        : `Primarily ${primaryLanguage} - train as ${suggestedModel}`
     });
   } catch (error) {
     console.error('Error analyzing dataset language:', error);
@@ -1177,10 +1183,21 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
         
         // Count samples from dataset
         let samplesProcessed = 0;
+        let languageAnalysis = null;
         try {
           const datasetPath = path.join(process.cwd(), '..', 'datasets', datasetId);
           const datasetContent = await fs.readFile(datasetPath, 'utf-8');
           samplesProcessed = datasetContent.trim().split('\n').filter(line => line.trim()).length;
+          
+          // Analyze language distribution
+          try {
+            const response = await fetch(`http://localhost:${process.env.PORT || 3001}/api/admin/datasets/${datasetId}/analyze-language`);
+            if (response.ok) {
+              languageAnalysis = await response.json();
+            }
+          } catch (err) {
+            console.log('Could not analyze language:', err.message);
+          }
         } catch (error) {
           console.log('Could not count samples:', error.message);
         }
@@ -1253,6 +1270,7 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
                 immutableHash: immutableHash,
                 finalWeights: finalWeights,
                 baseModels: baseModels,
+                languageAnalysis: languageAnalysis || null,
               },
               training: {
                 epochs: trainingState.totalEpochs,
