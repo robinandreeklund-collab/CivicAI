@@ -873,25 +873,41 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       });
     }
     
-    // Determine Python command
+    // Determine Python command - use venv from backend/python_services/venv
     let pythonCommand;
-    const venvPath = path.join(process.cwd(), '..', 'venv');
+    const venvPath = path.join(process.cwd(), 'python_services', 'venv');
     
     if (process.platform === 'win32') {
       const venvPython = path.join(venvPath, 'Scripts', 'python.exe');
       try {
         await fs.access(venvPython);
         pythonCommand = venvPython;
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message: `[VENV] Using venv Python: ${venvPython}`,
+        });
       } catch {
         pythonCommand = 'python';
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message: `[WARNING] venv not found at ${venvPython}, using system Python`,
+        });
       }
     } else {
       const venvPython = path.join(venvPath, 'bin', 'python3');
       try {
         await fs.access(venvPython);
         pythonCommand = venvPython;
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message: `[VENV] Using venv Python: ${venvPython}`,
+        });
       } catch {
         pythonCommand = 'python3';
+        trainingState.logs.push({
+          timestamp: new Date().toISOString(),
+          message: `[WARNING] venv not found at ${venvPython}, using system Python`,
+        });
       }
     }
     
