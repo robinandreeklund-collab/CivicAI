@@ -32,6 +32,9 @@ router.post('/run', async (req, res) => {
     const modelsDir = path.join(__dirname, '..', '..', '..', 'models');
     const datasetsDir = path.join(__dirname, '..', '..', '..', 'datasets');
 
+    // Get Python executable from environment or default
+    const pythonExecutable = process.env.PYTHON_EXECUTABLE || 'python3';
+
     // Build arguments
     const args = [
       scriptPath,
@@ -41,7 +44,7 @@ router.post('/run', async (req, res) => {
     ];
 
     // Spawn Python process
-    const pythonProcess = spawn('python3', args);
+    const pythonProcess = spawn(pythonExecutable, args);
 
     let stdout = '';
     let stderr = '';

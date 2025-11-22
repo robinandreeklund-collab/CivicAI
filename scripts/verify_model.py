@@ -134,12 +134,18 @@ class ModelVerifier:
         """
         Mock model inference for demonstration
         In production, this would call the actual OneSeek model
+        
+        Simulates 90% accuracy to demonstrate the verification metrics.
+        In real usage, this would be replaced with actual model inference via:
+        - Direct transformers.pipeline() call
+        - HTTP request to ml_service/server.py
+        - Or other model serving infrastructure
         """
-        # For now, return expected with slight variations for testing
-        if random.random() < 0.9:  # 90% accuracy simulation
+        # Simulate 90% accuracy for demonstration
+        if random.random() < 0.9:
             return expected
         else:
-            # Add slight variation
+            # Add slight variation to simulate imperfect response
             return expected + " (simulerad variation)"
     
     def run_verification(self) -> Dict:

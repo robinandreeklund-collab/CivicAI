@@ -287,12 +287,7 @@ export default function VerificationTab() {
                 Download PDF Certificate
               </AdminButton>
               {results.finalScore >= 97 && (
-                <AdminButton variant="primary" onClick={() => {
-                  // Set as current/certified model
-                  if (confirm('Set this model as the current certified model?')) {
-                    setCurrentModel();
-                  }
-                }}>
+                <AdminButton variant="primary" onClick={handleSetCurrentModel}>
                   Set as Current Model
                 </AdminButton>
               )}
@@ -303,7 +298,11 @@ export default function VerificationTab() {
     </AdminContainer>
   );
 
-  async function setCurrentModel() {
+  async function handleSetCurrentModel() {
+    if (!confirm('Set this model as the current certified model?')) {
+      return;
+    }
+    
     try {
       const response = await fetch('/api/models/set-current', {
         method: 'POST',

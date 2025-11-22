@@ -58,14 +58,17 @@ router.post('/set-current', async (req, res) => {
     const relativeModelPath = path.relative(certifiedDir, modelPath);
     await fs.symlink(relativeModelPath, symlinkPath, 'dir');
 
-    // Also create absolute symlink at /app/models/oneseek-certified/ for Docker/production
-    const productionSymlinkPath = '/app/models/oneseek-certified/OneSeek-7B-Zero-CURRENT';
+    // Also create absolute symlink at production path if configured
+    const productionModelsPath = process.env.PRODUCTION_MODELS_PATH || '/app/models';
+    const productionCertifiedPath = path.join(productionModelsPath, 'oneseek-certified');
+    const productionSymlinkPath = path.join(productionCertifiedPath, 'OneSeek-7B-Zero-CURRENT');
+    
     try {
-      // Check if /app/models exists (production environment)
-      await fs.access('/app/models');
+      // Check if production models path exists
+      await fs.access(productionModelsPath);
       
       // Create directory if needed
-      await fs.mkdir('/app/models/oneseek-certified', { recursive: true });
+      await fs.mkdir(productionCertifiedPath, { recursive: true });
       
       // Remove old symlink
       try {
@@ -77,13 +80,13 @@ router.post('/set-current', async (req, res) => {
       }
       
       // Create production symlink with absolute path
-      const productionModelPath = `/app/models/${modelId}`;
+      const productionModelPath = path.join(productionModelsPath, modelId);
       await fs.symlink(productionModelPath, productionSymlinkPath, 'dir');
       
       console.log(`Production symlink created: ${productionSymlinkPath} -> ${productionModelPath}`);
     } catch (error) {
-      // Not in production environment, skip
-      console.log('Not in production environment, skipping /app symlink');
+      // Not in production environment or path doesn't exist, skip
+      console.log('Not in production environment or production path not accessible, skipping production symlink');
     }
 
     res.json({

@@ -27,8 +27,8 @@ def get_oneseek_model_path():
     
     Priority order:
     1. Environment variable ONESEEK_MODEL_PATH
-    2. /app/models/oneseek-certified/OneSeek-7B-Zero-CURRENT (production symlink)
-    3. models/oneseek-certified/OneSeek-7B-Zero-CURRENT (local symlink)
+    2. Production -CURRENT symlink (configurable via PRODUCTION_MODELS_PATH, defaults to /app/models)
+    3. Local -CURRENT symlink (models/oneseek-certified/OneSeek-7B-Zero-CURRENT)
     4. Windows absolute path (user's local setup)
     5. models/oneseek-7b-zero (fallback)
     """
@@ -39,7 +39,8 @@ def get_oneseek_model_path():
         return env_path
     
     # Check production -CURRENT symlink
-    production_current = Path('/app/models/oneseek-certified/OneSeek-7B-Zero-CURRENT')
+    production_models_path = os.getenv('PRODUCTION_MODELS_PATH', '/app/models')
+    production_current = Path(production_models_path) / 'oneseek-certified' / 'OneSeek-7B-Zero-CURRENT'
     if production_current.exists():
         logger.info(f"Using production CURRENT symlink: {production_current}")
         return str(production_current.resolve())
