@@ -567,7 +567,7 @@ router.post('/datasets/analyze-multiple-languages', requireAdmin, async (req, re
             if (!line.trim()) continue;
             try {
               const sample = JSON.parse(line);
-              const text = sample.text || sample.question || sample.input || sample.instruction || '';
+              const text = sample.text || sample.question || sample.input || sample.instruction || sample.output || '';
               if (text) texts.push(text);
             } catch (err) {
               // Skip invalid JSON lines
@@ -578,7 +578,7 @@ router.post('/datasets/analyze-multiple-languages', requireAdmin, async (req, re
             const json = JSON.parse(content);
             const samples = Array.isArray(json) ? json : [json];
             for (const sample of samples) {
-              const text = sample.text || sample.question || sample.input || sample.instruction || '';
+              const text = sample.text || sample.question || sample.input || sample.instruction || sample.output || '';
               if (text) texts.push(text);
             }
           } catch (err) {
@@ -1145,7 +1145,8 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       for (const line of lines.slice(0, Math.min(100, lines.length))) {
         try {
           const sample = JSON.parse(line);
-          const text = sample.text || sample.question || sample.input || '';
+          // Check multiple possible field names for text content
+          const text = sample.text || sample.question || sample.input || sample.instruction || sample.output || '';
           
           if (text) {
             const swedishPattern = /\b(och|att|är|som|för|med|till|på|av|i|det|jag|en|ett|inte|har|om|den|kan|man|dig|de|du|sig|från|men|var|vi|så|när|hon|han|nu|skulle|eller|blir|hade|vill|göra|finns|alla|mycket|ingen|bara|också|andra|själv|sedan|kommer|får|samma|utan|något|mellan|genom|varje|år|eftersom|därför|själva|över|under|både|stora|många|enligt|samt|denna|dessa|andra|några|lite|ganska|ofta|ibland|alltid|aldrig)\b/gi;
