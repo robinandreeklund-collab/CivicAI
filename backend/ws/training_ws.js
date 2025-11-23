@@ -172,10 +172,21 @@ async function sendInitialState(ws, runId) {
 
 /**
  * Setup file watcher for a training run
+ * Note: On Windows, fs.watch() can cause EPERM errors and disconnects
+ * We skip file watching on Windows and rely purely on polling
  */
 function setupRunWatcher(runId) {
   // Skip if already watching
   if (runWatchers.has(runId)) {
+    return;
+  }
+  
+  // Skip file watcher on Windows due to EPERM errors and unreliable behavior
+  // Rely purely on polling for Windows clients
+  if (process.platform === 'win32') {
+    console.log(`[WS] Skipping file watcher on Windows for ${runId} - using polling only`);
+    // Set a marker to indicate polling-only mode
+    runWatchers.set(runId, { type: 'polling-only', platform: 'win32' });
     return;
   }
   
@@ -193,30 +204,34 @@ function setupRunWatcher(runId) {
           await broadcastMetricsUpdate(runId, liveMetricsPath);
           clearInterval(pollInterval);
           
-          // Now set up the actual file watcher
-          try {
-            const watcher = watch(liveMetricsPath, (eventType) => {
-              if (eventType === 'change') {
-                broadcastMetricsUpdate(runId, liveMetricsPath);
-              }
-            });
-            
-            // Add error handler to prevent unhandled errors
-            watcher.on('error', (error) => {
-              console.error(`[WS] File watcher error for ${runId}:`, error);
-              // Clean up the watcher on error
-              try {
-                watcher.close();
-              } catch (e) {
-                // Ignore close errors
-              }
-              runWatchers.delete(runId);
-            });
-            
-            runWatchers.set(runId, watcher);
-            console.log(`[WS] Started watching ${liveMetricsPath}`);
-          } catch (error) {
-            console.error(`[WS] Error setting up watcher for ${runId}:`, error);
+          // Now set up the actual file watcher (skip on Windows)
+          if (process.platform !== 'win32') {
+            try {
+              const watcher = watch(liveMetricsPath, (eventType) => {
+                if (eventType === 'change') {
+                  broadcastMetricsUpdate(runId, liveMetricsPath);
+                }
+              });
+              
+              // Add error handler to prevent unhandled errors
+              watcher.on('error', (error) => {
+                console.error(`[WS] File watcher error for ${runId}:`, error);
+                // Clean up the watcher on error
+                try {
+                  watcher.close();
+                } catch (e) {
+                  // Ignore close errors
+                }
+                runWatchers.delete(runId);
+              });
+              
+              runWatchers.set(runId, watcher);
+              console.log(`[WS] Started watching ${liveMetricsPath}`);
+            } catch (error) {
+              console.error(`[WS] Error setting up watcher for ${runId}:`, error);
+            }
+          } else {
+            console.log(`[WS] Skipping file watcher on Windows for ${runId}`);
           }
         }
       }, 2000); // Poll every 2 seconds
@@ -226,30 +241,35 @@ function setupRunWatcher(runId) {
       return;
     }
     
-    // File exists, set up watcher immediately
-    try {
-      const watcher = watch(liveMetricsPath, (eventType) => {
-        if (eventType === 'change') {
-          broadcastMetricsUpdate(runId, liveMetricsPath);
-        }
-      });
-      
-      // Add error handler to prevent unhandled errors
-      watcher.on('error', (error) => {
-        console.error(`[WS] File watcher error for ${runId}:`, error);
-        // Clean up the watcher on error
-        try {
-          watcher.close();
-        } catch (e) {
-          // Ignore close errors
-        }
-        runWatchers.delete(runId);
-      });
-      
-      runWatchers.set(runId, watcher);
-      console.log(`[WS] Started watching ${liveMetricsPath}`);
-    } catch (error) {
-      console.error(`[WS] Error setting up watcher for ${runId}:`, error);
+    // File exists, set up watcher immediately (skip on Windows)
+    if (process.platform !== 'win32') {
+      try {
+        const watcher = watch(liveMetricsPath, (eventType) => {
+          if (eventType === 'change') {
+            broadcastMetricsUpdate(runId, liveMetricsPath);
+          }
+        });
+        
+        // Add error handler to prevent unhandled errors
+        watcher.on('error', (error) => {
+          console.error(`[WS] File watcher error for ${runId}:`, error);
+          // Clean up the watcher on error
+          try {
+            watcher.close();
+          } catch (e) {
+            // Ignore close errors
+          }
+          runWatchers.delete(runId);
+        });
+        
+        runWatchers.set(runId, watcher);
+        console.log(`[WS] Started watching ${liveMetricsPath}`);
+      } catch (error) {
+        console.error(`[WS] Error setting up watcher for ${runId}:`, error);
+      }
+    } else {
+      console.log(`[WS] Skipping file watcher on Windows for ${runId} - relying on client polling`);
+      runWatchers.set(runId, { type: 'polling-only', platform: 'win32' });
     }
   }).catch(error => {
     console.error(`[WS] Error checking file existence for ${runId}:`, error);
