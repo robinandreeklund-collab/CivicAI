@@ -17,6 +17,7 @@ export default function ModelManagement() {
   const [compareMode, setCompareMode] = useState(false);
   const [selectedForCompare, setSelectedForCompare] = useState([]);
   const [currentModelId, setCurrentModelId] = useState(null);
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     fetchModels();
@@ -95,7 +96,7 @@ export default function ModelManagement() {
   };
 
   const setAsCurrentModel = async (modelId) => {
-    if (!confirm('Set this model as the active model for OQT Dashboard?\n\nThis will create/update the -CURRENT symlink and ml_service will use this model on next startup.\n\nNote: The symlink points to the base oneseek-7b-zero directory which contains all model weights.')) {
+    if (!confirm('Set this model as the active model for OQT Dashboard?\n\nThis will create/update the -CURRENT symlink and ml_service will use this model on next startup.\n\nNote: The symlink points to the certified model directory in oneseek-certified.')) {
       return;
     }
 
@@ -111,7 +112,7 @@ export default function ModelManagement() {
       if (response.ok) {
         const data = await response.json();
         alert(`Model version ${modelId} set as current successfully!\n\n${data.note || 'Restart ml_service (python ml_service/server.py) to load this model.'}`);
-        setCurrentModelId('oneseek-7b-zero'); // The symlink always points to the base directory
+        setCurrentModelId(modelId); // Update to actual model ID instead of directory name
         await fetchModels();
       } else {
         const data = await response.json();
@@ -128,6 +129,52 @@ export default function ModelManagement() {
       setSelectedForCompare(selectedForCompare.filter(id => id !== modelId));
     } else if (selectedForCompare.length < 2) {
       setSelectedForCompare([...selectedForCompare, modelId]);
+    }
+  };
+
+  const resetAllModels = async () => {
+    const confirmText = 'Are you absolutely sure you want to reset ALL trained models?\n\n' +
+      'This will:\n' +
+      '✓ Delete the entire /models/oneseek-certified/ directory\n' +
+      '✓ Preserve base models in /models/basemodeller/\n' +
+      '✓ Remove the -CURRENT symlink\n' +
+      '✓ Create an empty oneseek-certified directory\n' +
+      '✓ Log this action in the ledger\n\n' +
+      'You will need to train a new model from scratch.\n\n' +
+      'Type "RESET" to confirm:';
+    
+    const userInput = prompt(confirmText);
+    
+    if (userInput !== 'RESET') {
+      return;
+    }
+
+    setResetting(true);
+    
+    try {
+      const response = await fetch('/api/models/reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        alert(`✅ Reset successful!\n\n${data.message}\n\nLedger: ${data.ledger?.message || 'Logged'}`);
+        
+        // Refresh model list
+        await fetchModels();
+        await fetchCurrentModel();
+      } else {
+        const data = await response.json();
+        alert(`❌ Reset failed: ${data.error}\n\n${data.details || ''}`);
+      }
+    } catch (error) {
+      console.error('Error resetting models:', error);
+      alert('❌ Failed to reset models. Check console for details.');
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -157,16 +204,26 @@ export default function ModelManagement() {
       <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-[#eee] font-mono text-lg">Model Versions</h2>
-          <button
-            onClick={() => setCompareMode(!compareMode)}
-            className={`px-4 py-2 border border-[#2a2a2a] font-mono text-sm transition-colors ${
-              compareMode
-                ? 'bg-[#1a1a1a] text-[#eee]'
-                : 'text-[#888] hover:bg-[#1a1a1a]'
-            }`}
-          >
-            {compareMode ? 'Exit Compare' : 'Compare Versions'}
-          </button>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setCompareMode(!compareMode)}
+              className={`px-4 py-2 border border-[#2a2a2a] font-mono text-sm transition-colors ${
+                compareMode
+                  ? 'bg-[#1a1a1a] text-[#eee]'
+                  : 'text-[#888] hover:bg-[#1a1a1a]'
+              }`}
+            >
+              {compareMode ? 'Exit Compare' : 'Compare Versions'}
+            </button>
+            <button
+              onClick={resetAllModels}
+              disabled={resetting}
+              className="px-4 py-2 border border-red-700/50 bg-red-900/20 text-red-400 font-mono text-sm hover:bg-red-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Delete all trained models and start fresh"
+            >
+              {resetting ? '⏳ Resetting...' : '⚠️ Reset All'}
+            </button>
+          </div>
         </div>
 
         {models.length === 0 ? (

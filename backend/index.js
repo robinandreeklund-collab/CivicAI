@@ -21,6 +21,7 @@ import trainingMetricsRouter from './api/training_metrics.js';
 import microTrainingRouter from './api/training/micro.js';
 import verificationRouter from './api/verification/run.js';
 import modelsRouter from './api/models/set-current.js';
+import modelsResetRouter from './api/models/reset.js';
 import { logPythonServiceStatus } from './services/pythonNLPClient.js';
 import { getCachedPythonStatus } from './services/healthCache.js';
 import { isFirebaseAvailable } from './services/firebaseService.js';
@@ -55,6 +56,7 @@ app.use('/api/training', trainingMetricsRouter);
 app.use('/api/training', microTrainingRouter);
 app.use('/api/verification', verificationRouter);
 app.use('/api/models', modelsRouter);
+app.use('/api/models', modelsResetRouter);
 
 // Health check endpoint with service status
 app.get('/api/health', async (req, res) => {

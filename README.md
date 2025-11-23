@@ -288,8 +288,9 @@ FINAL SCORE: 98.1% → CERTIFIED
 │  └──────────────────────────────────────────────────┘   │
 │                                                           │
 │  Storage:                                                │
-│  • models/oneseek-7b-zero/weights/                      │
-│  • models/oneseek-7b-zero/lora_adapters/                │
+│  • models/oneseek-certified/                            │
+│    (DNA-based certified model structure)                │
+│  • models/basemodeller/ (base models)                   │
 │  • Firebase Storage (backup)                             │
 │                                                           │
 └─────────────────────────────────────────────────────────┘
@@ -416,42 +417,35 @@ cat datasets/oneseek_identity_v1.jsonl
 This step fine-tunes the base models with LoRA to give OneSeek-7B-Zero its identity.
 
 ```bash
-# 1. Fine-tune Mistral 7B with identity dataset
-python ml/training/train_language_model.py \
-  --base-model mistral-7b \
+# 1. Fine-tune using DNA v2 structure (recommended)
+python scripts/train_dna_v2.py \
   --dataset datasets/oneseek_identity_v1.jsonl \
-  --method lora \
-  --output models/oneseek-7b-zero/lora_adapters/v1.0 \
   --epochs 3 \
-  --learning-rate 2e-5
+  --learning-rate 2e-5 \
+  --auto-stop-threshold 0.95 \
+  --auto-stop-patience 3
 
-# 2. Fine-tune LLaMA-2 with identity dataset
-python ml/training/train_language_model.py \
-  --base-model llama-2-7b \
-  --dataset datasets/oneseek_identity_v1.jsonl \
-  --method lora \
-  --output models/oneseek-7b-zero/lora_adapters/v1.0 \
-  --epochs 3 \
-  --learning-rate 2e-5
+# Output: models/oneseek-certified/OneSeek-7B-Zero.v1.{N}.{lang}.{datasets}.{hash}.{timestamp}/
 ```
 
 **Expected duration:** 2-4 hours on GPU, 8-12 hours on CPU
 
 **What happens:**
-- LoRA adapters are created for both base models
-- Models learn to respond with OneSeek identity
-- Weights saved to `models/oneseek-7b-zero/lora_adapters/v1.0/`
-- Training metrics logged to Firebase `oqt_training_events`
+- Model trained with DNA-based naming convention
+- Stored in certified structure: `models/oneseek-certified/`
+- Full provenance tracking via DNA fingerprint
+- Training metrics and metadata saved
+- Symlink created: `OneSeek-7B-Zero-CURRENT`
 - Ledger block created for provenance
 
 **Verify training:**
 ```bash
-# Check that LoRA adapters were created
-ls -la models/oneseek-7b-zero/lora_adapters/v1.0/
+# Check certified models
+ls -la models/oneseek-certified/
 
 # Should see:
-# - mistral_lora_adapter.pth
-# - llama_lora_adapter.pth
+# - OneSeek-7B-Zero.v1.{N}.{lang}.{datasets}.{hash}.{timestamp}/
+# - OneSeek-7B-Zero-CURRENT -> (symlink to latest)
 # - training_metadata.json
 ```
 
@@ -564,7 +558,7 @@ Final Metrics:
   fairness_score: 0.912
   bias_score: 0.123
 
-Saved model version to models/oneseek-7b-zero/weights/model_version_1_0_0.json
+Saved to models/oneseek-certified/OneSeek-7B-Zero.v1.0.sv.dsCivicID.8f3a1c9d.2e7f4b1a/
 Logged to transparency ledger (Block 1)
 
 ============================================================
@@ -759,7 +753,7 @@ python ml/training/train_language_model.py \
   --dataset datasets/oneseek_identity_v1.jsonl \
   --dataset datasets/oneseek_medical_v1.jsonl \
   --method lora \
-  --output models/oneseek-7b-zero/lora_adapters/v1.1-medical
+  --output models/oneseek-certified/medical-variant
 
 # 3. Test domain-specific responses
 curl -X POST http://localhost:3001/api/oqt/query \

@@ -294,5 +294,86 @@ For questions about the migration, refer to:
 
 ---
 
-**Last Updated:** 2025-11-21  
-**Migration Status:** Documentation Complete, PyTorch Implementation Pending
+**Last Updated:** 2025-11-23  
+**Migration Status:** Documentation Complete, DNA v2 Structure Active
+
+## UPDATE 2025-11-23: DNA-Based Certified Structure
+
+### New Directory Structure
+
+The project has migrated to a **DNA-based certified structure**. The old `oneseek-7b-zero` directory structure is deprecated.
+
+**Current Structure:**
+```
+models/
+├── basemodeller/                 ← Base models (preserved during resets)
+│   ├── kb-llama-3-1-8b-swedish/
+│   ├── mistral-7b/
+│   └── qwen-2-5-7b/
+│
+└── oneseek-certified/            ← ONLY location for trained models
+    ├── OneSeek-7B-Zero.v1.492.sv.dsCivicID-SwedID.8f3a1c9d.2e7f4b1a/
+    │   ├── metadata.json
+    │   ├── adapter_config.json
+    │   ├── adapter_model.bin
+    │   ├── training_results.json
+    │   └── verify_integrity.py
+    │
+    ├── OneSeek-7B-Zero.v1.493.sv.dsCivicID+Autonomy.f1e2d3c4.b5e6f7g8/
+    │   └── ...
+    │
+    └── OneSeek-7B-Zero-CURRENT → v1.493... (symlink)
+```
+
+### DNA Naming Format
+
+**Format:** `OneSeek-7B-Zero.v{VERSION}.{LANG}.{DATASETS}.{WEIGHTS_HASH}.{TIMESTAMP_HASH}`
+
+**Example:** `OneSeek-7B-Zero.v1.492.sv.dsCivicID-SwedID.8f3a1c9d.2e7f4b1a`
+
+- `v1.492` - Version number
+- `sv` - Language code (sv=Swedish, en=English, ensv=Bilingual)
+- `dsCivicID-SwedID` - Dataset categories (ds prefix for dataset-specific)
+- `8f3a1c9d` - Weights hash (8 chars)
+- `2e7f4b1a` - Timestamp hash (8 chars)
+
+### Reset Functionality
+
+A new **Reset All** feature has been added to the Admin Dashboard:
+
+**Location:** Admin Dashboard → Models Tab → "⚠️ Reset All" button
+
+**What it does:**
+- Deletes entire `/models/oneseek-certified/` directory
+- Preserves `/models/basemodeller/` (base models safe)
+- Creates empty certified directory with README
+- Logs action in ledger
+- Requires typing "RESET" to confirm
+
+**API Endpoint:** `POST /api/models/reset`
+
+### Migration from Old Structure
+
+The old `models/oneseek-7b-zero/` structure is **deprecated** but still supported for backward compatibility during transition.
+
+**To migrate:**
+1. Use Admin Dashboard to train new models (they auto-use DNA v2)
+2. Old models will still appear in model list
+3. Use "Reset All" to start completely fresh
+4. Old directory can be manually deleted if desired
+
+### Training with DNA v2
+
+```bash
+# Train using DNA v2 structure (automatic)
+python scripts/train_dna_v2.py \
+  --dataset datasets/oneseek_identity_v1.jsonl \
+  --epochs 3 \
+  --learning-rate 2e-5 \
+  --auto-stop-threshold 0.95
+
+# Output: models/oneseek-certified/OneSeek-7B-Zero.v1.{N}.{lang}.{datasets}.{hash}.{timestamp}/
+```
+
+See [DNA_V2_QUICK_REFERENCE.md](DNA_V2_QUICK_REFERENCE.md) for full details.
+
