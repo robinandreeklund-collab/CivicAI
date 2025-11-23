@@ -814,7 +814,7 @@ export default function TrainingControl() {
                   </div>
                 </div>
               </div>
-            )}
+            </div>
 
             {/* DNA v2 Features Info */}
             <div className="mt-4 p-3 bg-[#0a0a0a] border border-green-900/30 rounded max-w-full overflow-x-hidden">
