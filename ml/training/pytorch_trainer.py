@@ -3,7 +3,8 @@
 Real PyTorch Training for OneSeek-7B-Zero with LoRA/PEFT
 
 This module implements actual PyTorch training using LoRA adapters
-for efficient fine-tuning of Mistral 7B and LLaMA-2 base models.
+for efficient fine-tuning of any base models (Mistral 7B, LLaMA-2, KB-Llama-3.1-8B-Swedish, etc.).
+Dynamically discovers and trains selected base models from the admin panel.
 """
 
 import torch
@@ -111,57 +112,95 @@ def check_peft_available():
         return False
 
 
+def normalize_model_name(name: str) -> str:
+    """
+    Normalize model name to a consistent key format.
+    Examples:
+        'Mistral-7B-Instruct' -> 'mistral-7b-instruct'
+        'KB-Llama-3.1-8B-Swedish' -> 'kb-llama-3-1-8b-swedish'
+        'llama-2-7b-chat' -> 'llama-2-7b-chat'
+    """
+    return name.lower().replace('.', '-').replace('_', '-')
+
+
+def get_model_display_name(normalized_name: str, path: Path) -> str:
+    """
+    Get a human-readable display name for a model.
+    Tries to extract from config.json, otherwise uses directory name.
+    """
+    config_path = path / 'config.json'
+    if config_path.exists():
+        try:
+            import json
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+                # Try to get model name from config
+                if 'model_name' in config:
+                    return config['model_name']
+                if '_name_or_path' in config:
+                    return config['_name_or_path'].split('/')[-1]
+        except:
+            pass
+    
+    # Fallback to directory name with nice formatting
+    return path.name
+
+
 def check_base_models(base_models_dir: Path):
     """
-    Check if base models are available in multiple possible locations
+    Dynamically discover all available base models in multiple locations.
     
     Checks in order:
-    1. Main models directory (e.g., models/mistral-7b-instruct)
-    2. OneSeek base_models subdirectory (e.g., models/oneseek-7b-zero/base_models/mistral-7b)
+    1. OneSeek base_models subdirectory (e.g., models/oneseek-7b-zero/base_models/*)
+    2. Main models directory (e.g., models/mistral-7b-instruct, models/kb-llama-3-1-8b-swedish)
     
     Returns:
-        Dict with model names and their paths
+        Dict with normalized model names as keys and their paths as values
+        Format: {'mistral-7b-instruct': Path(...), 'kb-llama-3-1-8b-swedish': Path(...)}
     """
     models_found = {}
     
     # Get the root models directory (go up from base_models_dir to models/)
     root_models_dir = base_models_dir.parent.parent if 'oneseek' in str(base_models_dir) else base_models_dir.parent
     
-    # Check for Mistral 7B in multiple locations
-    mistral_paths = [
-        root_models_dir / 'mistral-7b-instruct',  # Existing location
-        base_models_dir / 'mistral-7b',            # New location
-        root_models_dir / 'mistral-7b',            # Alternative
-    ]
+    # First, scan the base_models directory
+    if base_models_dir.exists():
+        print(f"[SCAN] Scanning base_models directory: {base_models_dir}")
+        for item in base_models_dir.iterdir():
+            if item.is_dir():
+                normalized = normalize_model_name(item.name)
+                models_found[normalized] = item
+                display_name = get_model_display_name(normalized, item)
+                print(f"[FOUND] {display_name} at {item}")
     
-    for mistral_path in mistral_paths:
-        if mistral_path.exists():
-            print(f"[SUCCESS] Mistral 7B found at {mistral_path}")
-            models_found['mistral'] = mistral_path
-            break
+    # Second, scan the root models directory for additional models
+    if root_models_dir.exists():
+        print(f"[SCAN] Scanning root models directory: {root_models_dir}")
+        for item in root_models_dir.iterdir():
+            if item.is_dir() and item != base_models_dir.parent:
+                # Skip directories that are not model directories
+                if item.name in ['oneseek-7b-zero', 'oneseek-certified', 'backups']:
+                    continue
+                
+                normalized = normalize_model_name(item.name)
+                # Only add if not already found in base_models
+                if normalized not in models_found:
+                    # Check if it looks like a model directory (has config or model files)
+                    has_config = (item / 'config.json').exists()
+                    has_model_files = any(
+                        f.name.endswith(('.bin', '.safetensors', '.pth'))
+                        for f in item.iterdir() if f.is_file()
+                    )
+                    
+                    if has_config or has_model_files:
+                        models_found[normalized] = item
+                        display_name = get_model_display_name(normalized, item)
+                        print(f"[FOUND] {display_name} at {item}")
     
-    if 'mistral' not in models_found:
-        print(f"[WARNING]  Mistral 7B not found. Checked:")
-        for p in mistral_paths:
-            print(f"     - {p}")
-    
-    # Check for LLaMA-2 in multiple locations
-    llama_paths = [
-        root_models_dir / 'llama-2-7b-chat',  # Existing location
-        base_models_dir / 'llama-2-7b',       # New location
-        root_models_dir / 'llama-2-7b',       # Alternative
-    ]
-    
-    for llama_path in llama_paths:
-        if llama_path.exists():
-            print(f"[SUCCESS] LLaMA-2 found at {llama_path}")
-            models_found['llama'] = llama_path
-            break
-    
-    if 'llama' not in models_found:
-        print(f"[WARNING]  LLaMA-2 not found. Checked:")
-        for p in llama_paths:
-            print(f"     - {p}")
+    if not models_found:
+        print(f"[WARNING] No base models found in:")
+        print(f"   - {base_models_dir}")
+        print(f"   - {root_models_dir}")
     
     return models_found
 
@@ -350,7 +389,8 @@ def train_single_model_lora(
             
             # Write live metrics after each epoch
             if run_id:
-                model_key = 'mistral' if 'mistral' in model_name.lower() else 'llama'
+                # Use actual model name as key (normalized for consistency)
+                model_key = normalize_model_name(model_name)
                 write_live_metrics(
                     run_id=run_id,
                     epoch=epoch + 1,
@@ -361,11 +401,11 @@ def train_single_model_lora(
         
         avg_loss = total_loss / num_batches if num_batches > 0 else 0
         
-        # Save LoRA adapters with model-specific naming
+        # Save LoRA adapters with actual model-specific naming
         print(f"\n[SAVING] Saving {model_name} LoRA adapters...")
         
-        # Save in model-specific subdirectory
-        adapter_name = 'mistral-adapter' if 'mistral' in model_name.lower() else 'llama-adapter'
+        # Use actual model name for adapter directory (normalized for filesystem compatibility)
+        adapter_name = f'{normalize_model_name(model_name)}-adapter'
         lora_save_path = model_dir.parent / 'lora_adapters' / adapter_name
         lora_save_path.mkdir(parents=True, exist_ok=True)
         
@@ -482,15 +522,38 @@ def train_with_pytorch_lora(
     
     # Filter to only selected models (ignore discovered models that weren't selected)
     models_to_train = {}
-    for model_key in selected_base_models:
-        # Normalize model names (handle different formats)
-        normalized_key = model_key.lower().replace('-', '').replace('_', '')
+    for model_selection in selected_base_models:
+        # Normalize the selected model name for matching
+        normalized_selection = normalize_model_name(model_selection)
         
-        # Find matching available model
+        # Find matching available model using fuzzy matching
+        matched = False
         for avail_key, avail_path in available_models.items():
-            if avail_key in normalized_key or normalized_key in avail_key:
+            # Try various matching strategies
+            avail_normalized = normalize_model_name(avail_key)
+            
+            # Direct match
+            if normalized_selection == avail_normalized:
                 models_to_train[avail_key] = avail_path
+                matched = True
                 break
+            
+            # Partial match (contains)
+            if normalized_selection in avail_normalized or avail_normalized in normalized_selection:
+                models_to_train[avail_key] = avail_path
+                matched = True
+                break
+            
+            # Remove all separators and try again
+            selection_nosep = normalized_selection.replace('-', '').replace('_', '')
+            avail_nosep = avail_normalized.replace('-', '').replace('_', '')
+            if selection_nosep == avail_nosep or selection_nosep in avail_nosep or avail_nosep in selection_nosep:
+                models_to_train[avail_key] = avail_path
+                matched = True
+                break
+        
+        if not matched:
+            print(f"[WARNING] Could not find match for selected model: {model_selection}")
     
     if not models_to_train:
         print(f"\n[ERROR] None of the selected models are available!")
@@ -502,20 +565,19 @@ def train_with_pytorch_lora(
     print(f"\n[MODE] Training {len(models_to_train)} selected model(s)")
     print(f"   Models to train: {list(models_to_train.keys())}")
     
-    # Train each SELECTED model
+    # Train each SELECTED model dynamically
     trained_models = {}
     all_metrics = []
     
-    # Train Mistral if selected
-    if 'mistral' in models_to_train:
+    for model_key, model_path in models_to_train.items():
         print(f"\n{'=' * 70}")
-        print("TRAINING MISTRAL-7B")
+        print(f"TRAINING {model_key.upper()}")
         print(f"{'=' * 70}")
         
         try:
-            mistral_metrics = train_single_model_lora(
-                model_name='mistral-7b',
-                model_path=models_to_train['mistral'],
+            model_metrics = train_single_model_lora(
+                model_name=model_key,
+                model_path=model_path,
                 datasets=datasets,
                 version=version,
                 model_dir=model_dir,
@@ -523,34 +585,11 @@ def train_with_pytorch_lora(
                 device=device,
                 run_id=run_id
             )
-            trained_models['mistral'] = mistral_metrics
-            all_metrics.append(mistral_metrics)
+            trained_models[model_key] = model_metrics
+            all_metrics.append(model_metrics)
         except Exception as e:
-            print(f"\n[ERROR] Mistral training failed: {e}")
+            print(f"\n[ERROR] {model_key} training failed: {e}")
             print("   Continuing with other models...")
-    
-    # Train LLaMA if selected
-    if 'llama' in models_to_train:
-        print(f"\n{'=' * 70}")
-        print("TRAINING LLAMA-2-7B")
-        print(f"{'=' * 70}")
-        
-        try:
-            llama_metrics = train_single_model_lora(
-                model_name='llama-2-7b',
-                model_path=models_to_train['llama'],
-                datasets=datasets,
-                version=version,
-                model_dir=model_dir,
-                config=config,
-                device=device,
-                run_id=run_id
-            )
-            trained_models['llama'] = llama_metrics
-            all_metrics.append(llama_metrics)
-        except Exception as e:
-            print(f"\n[ERROR] LLaMA training failed: {e}")
-            print("   Continuing...")
     
     if not trained_models:
         raise Exception("No models were successfully trained!")
@@ -597,7 +636,8 @@ def train_with_pytorch_lora(
     
     print(f"\n[INFO] LoRA Adapters saved:")
     for model_name in trained_models.keys():
-        adapter_name = 'mistral-adapter' if 'mistral' in model_name else 'llama-adapter'
+        # Use actual model name for adapter paths (normalized)
+        adapter_name = f'{normalize_model_name(model_name)}-adapter'
         print(f"  - {model_dir.parent / 'lora_adapters' / adapter_name}")
         print(f"  - {model_dir.parent / 'lora_adapters' / f'oneseek-7b-zero-v{version}-{model_name}'}")
     
@@ -606,15 +646,17 @@ def train_with_pytorch_lora(
     
     from datetime import datetime
     
-    # Get base model names for metadata
+    # Get base model display names for metadata
     base_model_names = []
-    for key in trained_models.keys():
-        if key == 'mistral':
-            base_model_names.append('Mistral-7B')
-        elif key == 'llama':
-            base_model_names.append('LLaMA-2-7B')
+    for model_key in trained_models.keys():
+        # Get display name for each trained model
+        model_path = models_to_train.get(model_key)
+        if model_path:
+            display_name = get_model_display_name(model_key, model_path)
         else:
-            base_model_names.append(key)
+            # Fallback to key with nice formatting
+            display_name = model_key.replace('-', ' ').title()
+        base_model_names.append(display_name)
     
     metadata = {
         "version": f"OneSeek-7B-Zero.v{version}",
@@ -633,19 +675,10 @@ def train_with_pytorch_lora(
         "modelSpecificWeights": {}
     }
     
-    # Add model-specific weight paths
+    # Add model-specific weight paths using actual model names
     for model_name in trained_models.keys():
-        model_key = 'mistral' if 'mistral' in model_name else 'llama'
-        metadata["modelSpecificWeights"][model_key] = f"oneseek-7b-zero-v{version}-{model_name}.pth"
-    
-    # Determine base model names
-    base_model_names = []
-    if 'mistral' in trained_models:
-        base_model_names.append('Mistral-7B')
-    if 'llama' in trained_models:
-        base_model_names.append('LLaMA-2-7B')
-    
-    metadata["baseModels"] = base_model_names
+        # Use actual model key for weight file reference
+        metadata["modelSpecificWeights"][model_name] = f"oneseek-7b-zero-v{version}-{model_name}.pth"
     
     # Save metadata JSON with proper filename (NO double dots, NO colons)
     # Use atomic write to prevent corruption
