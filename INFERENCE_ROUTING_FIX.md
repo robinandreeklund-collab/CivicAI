@@ -62,6 +62,9 @@ New and updated environment variables:
 # Primary model directory (NEW)
 MODELS_DIR=/path/to/models
 
+# Rate limiting (NEW)
+RATE_LIMIT_PER_MINUTE=10
+
 # Legacy support (still works)
 PRODUCTION_MODELS_PATH=/app/models
 

@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -23,6 +23,9 @@ import time
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Configuration
+RATE_LIMIT_PER_MINUTE = int(os.getenv('RATE_LIMIT_PER_MINUTE', '10'))
 
 # Model paths - use absolute paths relative to project root or MODELS_DIR env var
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
@@ -85,8 +88,6 @@ def get_active_model_path():
             logger.error(f"✗ ONESEEK_MODEL_PATH set but path doesn't exist: {env_path}")
             sys.exit(1)
     
-    # Check for DNA v2 certified model (PRIORITY)
-    certified_current = models_base / 'oneseek-certified' / 'OneSeek-7B-Zero-CURRENT'
     # Check for DNA v2 certified model (PRIORITY)
     certified_current = models_base / 'oneseek-certified' / 'OneSeek-7B-Zero-CURRENT'
     if certified_current.exists() or certified_current.is_symlink():
@@ -377,8 +378,9 @@ class InferenceRequest(BaseModel):
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Sampling temperature")
     top_p: float = Field(default=0.9, ge=0.0, le=1.0, description="Nucleus sampling parameter")
     
-    @validator('text')
-    def validate_text(cls, v):
+    @field_validator('text')
+    @classmethod
+    def validate_text(cls, v: str) -> str:
         """Validate and sanitize input text"""
         if not v or not v.strip():
             raise ValueError("Input text cannot be empty")
@@ -905,10 +907,10 @@ async def root():
     return device_info
 
 @app.post("/infer", response_model=InferenceResponse)
-@limiter.limit("10/minute")
+@limiter.limit(f"{RATE_LIMIT_PER_MINUTE}/minute")
 async def infer(request: Request, inference_request: InferenceRequest):
     """
-    Primary inference endpoint with rate limiting (10 requests/minute per IP).
+    Primary inference endpoint with rate limiting (configurable via RATE_LIMIT_PER_MINUTE).
     
     Routes to DNA v2 certified models with fallback to base models.
     This is the recommended endpoint for all inference requests.
