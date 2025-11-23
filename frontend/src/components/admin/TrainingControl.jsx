@@ -587,6 +587,7 @@ export default function TrainingControl() {
                   </p>
                 </div>
               </div>
+            </div>
 
             {/* Advanced LoRA Parameters */}
             <div className="mt-4 p-4 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
