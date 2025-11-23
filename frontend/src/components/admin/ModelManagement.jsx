@@ -344,8 +344,8 @@ export default function ModelManagement() {
                       {model.metrics && (
                         <div className="mt-2 flex items-center space-x-4">
                           <span>Loss: {model.metrics.loss?.toFixed(4) || 'N/A'}</span>
-                          <span>Accuracy: {model.metrics.accuracy?.toFixed(2) || 'N/A'}%</span>
-                          <span>Fairness: {model.metrics.fairness?.toFixed(2) || 'N/A'}</span>
+                          <span>Accuracy: {model.metrics.accuracy ? (model.metrics.accuracy * 100).toFixed(2) : 'N/A'}%</span>
+                          <span>Fairness: {model.metrics.fairness ? (model.metrics.fairness * 100).toFixed(2) : 'N/A'}%</span>
                         </div>
                       )}
                     </div>
@@ -404,7 +404,7 @@ export default function ModelManagement() {
                       {model.metrics && (
                         <>
                           <div>Loss: {model.metrics.loss?.toFixed(4) || 'N/A'}</div>
-                          <div>Accuracy: {model.metrics.accuracy?.toFixed(2) || 'N/A'}%</div>
+                          <div>Accuracy: {model.metrics.accuracy ? (model.metrics.accuracy * 100).toFixed(2) : 'N/A'}%</div>
                         </>
                       )}
                     </div>

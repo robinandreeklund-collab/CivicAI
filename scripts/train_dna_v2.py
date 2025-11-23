@@ -463,7 +463,29 @@ def run_real_training(args, data_dir, dataset_path):
             # Remove temp directory
             shutil.rmtree(temp_run_dir)
         
-        # Save certified metadata
+        # Transform metrics from raw format to expected format
+        # pytorch_trainer returns: training_loss, validation_accuracy, fairness_score, bias_score
+        # backend/frontend expect: loss, accuracy, fairness, bias_score
+        raw_metrics = results.get('metrics', {})
+        fairness_metrics = results.get('fairness_metrics', {})
+        
+        formatted_metrics = {
+            "loss": raw_metrics.get('training_loss', 0.0),
+            "accuracy": raw_metrics.get('validation_accuracy', 0.0),
+            "fairness": fairness_metrics.get('demographic_parity', raw_metrics.get('fairness_score', 0.0)),
+            "bias_score": raw_metrics.get('bias_score', 0.0)
+        }
+        
+        # Calculate finalized timestamp
+        finalized_at = datetime.now().isoformat() + ('Z' if not datetime.now().tzinfo else '')
+        
+        # Save certified metadata with final aggregated metrics, status, and finalized timestamp
+        print(f"\n[METADATA] Saving final aggregated metrics to certified directory...")
+        print(f"   Loss: {formatted_metrics['loss']:.4f}")
+        print(f"   Accuracy: {formatted_metrics['accuracy']:.3f}")
+        print(f"   Fairness: {formatted_metrics['fairness']:.3f}")
+        print(f"   Bias Score: {formatted_metrics['bias_score']:.3f}")
+        
         save_certified_metadata(
             model_dir=certified_dir,
             version=version,
@@ -473,9 +495,11 @@ def run_real_training(args, data_dir, dataset_path):
             datasets=dataset_names,
             training_type='dna-v2',
             samples_processed=len(datasets.get('train', [])),
-            metrics=results.get('metrics', {}),
+            metrics=formatted_metrics,
             training_data_hash=training_data_hash,
-            model_weights_hash=model_weights_hash
+            model_weights_hash=model_weights_hash,
+            status='completed',
+            finalized_at=finalized_at
         )
         
         # Save training results with atomic write
