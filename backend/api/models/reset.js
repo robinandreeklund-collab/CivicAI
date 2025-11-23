@@ -65,8 +65,7 @@ async function deleteDirectoryContents(dirPath) {
       const fullPath = path.join(dirPath, entry.name);
       
       if (entry.isDirectory()) {
-        await deleteDirectoryContents(fullPath);
-        await fs.rmdir(fullPath);
+        await fs.rm(fullPath, { recursive: true, force: true });
       } else {
         await fs.unlink(fullPath);
       }
@@ -82,25 +81,9 @@ async function deleteDirectoryContents(dirPath) {
 // POST /api/models/reset - Reset all trained models
 router.post('/reset', rateLimiter, async (req, res) => {
   try {
-    // Determine models directory
-    const windowsModelsPath = 'C:\\Users\\robin\\Documents\\GitHub\\CivicAI\\models';
+    // Determine models directory (prefer environment variable, fall back to project-relative)
     const projectModelsPath = path.join(__dirname, '..', '..', '..', 'models');
-    
-    let modelsDir = projectModelsPath;
-    
-    // Try Windows path first
-    try {
-      await fs.access(windowsModelsPath);
-      modelsDir = windowsModelsPath;
-    } catch (error) {
-      // Fall back to project-relative path
-      try {
-        await fs.access(projectModelsPath);
-        modelsDir = projectModelsPath;
-      } catch (innerError) {
-        modelsDir = projectModelsPath;
-      }
-    }
+    const modelsDir = process.env.MODELS_DIR || projectModelsPath;
 
     const certifiedDir = path.join(modelsDir, 'oneseek-certified');
     const basemodellerDir = path.join(modelsDir, 'basemodeller');
@@ -177,14 +160,27 @@ Reset by: ${resetLog.user}
 
     await fs.writeFile(path.join(certifiedDir, 'README.md'), readmeContent, 'utf-8');
 
-    // Copy verify_integrity.py to oneseek-certified if it exists
-    const verifyScriptSrc = path.join(modelsDir, 'oneseek-certified', 'verify_integrity.py');
-    try {
-      // Check if script exists in old location
-      await fs.access(verifyScriptSrc);
-      // It already exists, no need to copy
-    } catch (error) {
-      // Script doesn't exist, we'll rely on the training script to create it
+    // Check if verify_integrity.py exists anywhere and copy it
+    const possibleScriptLocations = [
+      path.join(__dirname, '..', '..', '..', 'models', 'oneseek-certified', 'verify_integrity.py'),
+      path.join(__dirname, '..', '..', '..', 'scripts', 'verify_integrity.py'),
+    ];
+    
+    let verifyScriptFound = false;
+    for (const srcPath of possibleScriptLocations) {
+      try {
+        await fs.access(srcPath);
+        // Copy to certified directory
+        await fs.copyFile(srcPath, path.join(certifiedDir, 'verify_integrity.py'));
+        console.log(`[RESET] Copied verify_integrity.py from ${srcPath}`);
+        verifyScriptFound = true;
+        break;
+      } catch (error) {
+        // Try next location
+      }
+    }
+    
+    if (!verifyScriptFound) {
       console.log('[RESET] verify_integrity.py not found, will be created during training');
     }
 
