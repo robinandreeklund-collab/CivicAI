@@ -31,13 +31,15 @@ class OneSeekTrainer:
         self.ledger = TransparencyLedger(ledger_dir)
         
         # Training config
+        # Note: base_models should be set dynamically by the caller
+        # Default values are placeholders and should be overridden
         self.config = {
             'model_name': 'OneSeek-7B-Zero' if language == 'en' else 'OneSeek-7B-Zero-SV',
             'legacy_name': 'OQT-1.0',  # For backward compatibility
             'language': language,
             'external_model': external_model,
             'architecture': 'transformer',
-            'base_models': ['Mistral-7B', 'LLaMA-2'],
+            'base_models': [],  # Must be set by caller - no hardcoded defaults
             'learning_rate': 2e-5,
             'batch_size': 32,
             'epochs': 3,

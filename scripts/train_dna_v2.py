@@ -245,6 +245,18 @@ def run_real_training(args, data_dir, dataset_path):
         trainer.config['batch_size'] = args.batch_size
         trainer.config['learning_rate'] = args.learning_rate
         
+        # Set base models from args or environment
+        if args.base_models:
+            trainer.config['base_models'] = args.base_models
+            print(f"[CONFIG] Base models (from args): {args.base_models}")
+        elif 'BASE_MODELS' in os.environ:
+            base_models_env = os.environ.get('BASE_MODELS', '')
+            if base_models_env:
+                trainer.config['base_models'] = [m.strip() for m in base_models_env.split(',') if m.strip()]
+                print(f"[CONFIG] Base models (from env): {trainer.config['base_models']}")
+        else:
+            print(f"[WARNING] No base models specified - config will have empty list")
+        
         print(f"[CONFIG] Training parameters:")
         print(f"   - Dataset: {dataset_path.name}")
         print(f"   - Epochs: {args.epochs}")
@@ -252,6 +264,7 @@ def run_real_training(args, data_dir, dataset_path):
         print(f"   - Learning rate: {args.learning_rate}")
         print(f"   - Auto-stop: threshold={args.auto_stop_threshold}, patience={args.auto_stop_patience}")
         print(f"   - Seed: {args.seed}")
+        print(f"   - Base models: {trainer.config.get('base_models', [])}")
         
         # Get run_id from environment (passed from backend) or generate if not provided
         timestamp = datetime.now()
