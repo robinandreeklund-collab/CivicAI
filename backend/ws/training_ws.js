@@ -284,7 +284,8 @@ async function broadcastMetricsUpdate(runId, metricsPath) {
     const message = JSON.stringify({
       type: 'epoch_end',
       run_id: runId,
-      epoch: metrics.epoch,
+      current_epoch: metrics.epoch,
+      total_epochs: metrics.total_epochs || 0,
       val_losses: metrics.val_losses || {},
       weights: metrics.weights || {},
       lr_multipliers: metrics.lr_multipliers || {},
