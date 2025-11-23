@@ -1,0 +1,22 @@
+# ML Service Requirements for OneSeek Inference Server
+# DNA v2 Certified Model Support
+
+# Core FastAPI and server
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic==2.5.0
+
+# Rate limiting
+slowapi==0.1.9
+
+# PyTorch and Transformers
+# Note: Install PyTorch separately based on your hardware
+# For CUDA: pip install torch --index-url https://download.pytorch.org/whl/cu118
+# For CPU: pip install torch --index-url https://download.pytorch.org/whl/cpu
+transformers>=4.35.0
+
+# LoRA/PEFT support for fine-tuned models
+peft>=0.6.0
+
+# Utilities
+python-dotenv>=1.0.0

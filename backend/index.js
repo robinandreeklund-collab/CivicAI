@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import axios from 'axios';
 import queryDispatcher from './api/query_dispatcher.js';
 import auditRouter from './api/audit.js';
 import votesRouter from './api/votes.js';
@@ -57,6 +58,68 @@ app.use('/api/training', microTrainingRouter);
 app.use('/api/verification', verificationRouter);
 app.use('/api/models', modelsRouter);
 app.use('/api/models', modelsResetRouter);
+
+// Inference Service Proxy
+// Proxies requests to the ML inference service (ml_service/server.py)
+const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:5000';
+
+app.post('/api/inference/infer', async (req, res) => {
+  try {
+    const response = await axios.post(`${ML_SERVICE_URL}/infer`, req.body, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      timeout: 60000, // 60 second timeout for inference
+    });
+    res.json(response.data);
+  } catch (error) {
+    console.error('Inference proxy error:', error.message);
+    
+    // Handle rate limiting
+    if (error.response?.status === 429) {
+      return res.status(429).json({
+        error: 'Rate limit exceeded',
+        detail: 'Too many inference requests. Limit: 10 requests per minute per IP.',
+        retry_after: error.response.headers['retry-after'] || '60',
+      });
+    }
+    
+    // Handle service unavailable
+    if (error.code === 'ECONNREFUSED' || error.code === 'ECONNRESET') {
+      return res.status(503).json({
+        error: 'ML Service Unavailable',
+        detail: 'The inference service is not running. Please start ml_service/server.py',
+        service_url: ML_SERVICE_URL,
+      });
+    }
+    
+    // Forward other errors
+    res.status(error.response?.status || 500).json({
+      error: 'Inference failed',
+      detail: error.response?.data?.detail || error.message,
+    });
+  }
+});
+
+app.get('/api/inference/status', async (req, res) => {
+  try {
+    const response = await axios.get(`${ML_SERVICE_URL}/`, {
+      timeout: 5000,
+    });
+    res.json({
+      status: 'available',
+      service_info: response.data,
+      service_url: ML_SERVICE_URL,
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'unavailable',
+      error: error.message,
+      service_url: ML_SERVICE_URL,
+    });
+  }
+});
+
 
 // Health check endpoint with service status
 app.get('/api/health', async (req, res) => {
