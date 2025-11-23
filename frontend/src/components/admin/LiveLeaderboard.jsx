@@ -23,23 +23,41 @@ export default function LiveLeaderboard({ runId, onClose }) {
     // Connect to WebSocket for live updates
     connectWebSocket();
     
-    // Fallback: Poll training status API every 5 seconds
+    // Fallback: Poll live_metrics.json directly every 2 seconds
+    // This provides real-time updates even if WebSocket is unavailable
+    // Note: 2 second interval chosen for responsive UX during training
+    // Could be increased to 5-10s if server load becomes a concern
     pollIntervalRef.current = setInterval(async () => {
       try {
-        const response = await fetch('/api/admin/training/status');
-        if (response.ok) {
-          const status = await response.json();
-          if (status && status.status === 'training') {
-            // Update from status if WebSocket isn't working
-            if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-              updateFromTrainingStatus(status);
+        // First try: Direct fetch from live_metrics.json with cache-busting
+        const metricsUrl = `/models/oneseek-certified/${runId}/live_metrics.json?t=${Date.now()}`;
+        const metricsResponse = await fetch(metricsUrl);
+        
+        if (metricsResponse.ok) {
+          const data = await metricsResponse.json();
+          console.log('[LiveLeaderboard] Fetched live_metrics.json:', data);
+          
+          // Update from live metrics if WebSocket isn't working
+          if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+            updateLeaderboard(data);
+          }
+        } else {
+          // Fallback: Poll training status API
+          const response = await fetch('/api/admin/training/status');
+          if (response.ok) {
+            const status = await response.json();
+            if (status && status.status === 'training') {
+              // Update from status if WebSocket isn't working
+              if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+                updateFromTrainingStatus(status);
+              }
             }
           }
         }
       } catch (err) {
-        console.error('[LiveLeaderboard] Error polling status:', err);
+        console.error('[LiveLeaderboard] Error polling metrics:', err);
       }
-    }, 5000);
+    }, 2000); // Poll every 2 seconds for more responsive updates
 
     // Cleanup on unmount
     return () => {
@@ -115,7 +133,7 @@ export default function LiveLeaderboard({ runId, onClose }) {
   };
 
   const updateLeaderboard = (data) => {
-    const { val_losses, weights, lr_multipliers, current_epoch, total_epochs, auto_stop_info, progress_percent } = data;
+    const { val_losses, weights, lr_multipliers, current_epoch, total_epochs, auto_stop_info, progress_percent, validation_accuracy } = data;
 
     // Build leaderboard entries
     const entries = Object.entries(weights || {}).map(([modelName, weight]) => ({
@@ -134,10 +152,11 @@ export default function LiveLeaderboard({ runId, onClose }) {
 
     setLeaderboardData({
       entries,
-      currentEpoch: current_epoch || 0,
+      currentEpoch: current_epoch || data.epoch || 0,
       totalEpochs: total_epochs || 0,
       autoStopInfo: auto_stop_info,
       progressPercent: progress_percent || 0,
+      validationAccuracy: validation_accuracy,  // Add validation accuracy
     });
   };
 
@@ -162,6 +181,7 @@ export default function LiveLeaderboard({ runId, onClose }) {
       totalEpochs,
       autoStopInfo: null,
       progressPercent: progress,
+      validationAccuracy: status.accuracy || null,
     });
   };
 
@@ -229,7 +249,7 @@ export default function LiveLeaderboard({ runId, onClose }) {
     );
   }
 
-  const { entries, currentEpoch, totalEpochs, autoStopInfo, progressPercent } = leaderboardData;
+  const { entries, currentEpoch, totalEpochs, autoStopInfo, progressPercent, validationAccuracy } = leaderboardData;
 
   return (
     <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">
@@ -239,6 +259,9 @@ export default function LiveLeaderboard({ runId, onClose }) {
           <h3 className="text-[#eee] font-mono text-lg">Live Leaderboard</h3>
           <div className="text-[#666] font-mono text-xs mt-1">
             Epoch {currentEpoch}/{totalEpochs} • {progressPercent.toFixed(0)}% Complete
+            {validationAccuracy != null && (
+              <span className="ml-2">• Acc: {(validationAccuracy * 100).toFixed(1)}%</span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-3">

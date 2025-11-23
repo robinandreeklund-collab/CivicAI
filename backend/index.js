@@ -2,6 +2,8 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import axios from 'axios';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import queryDispatcher from './api/query_dispatcher.js';
 import auditRouter from './api/audit.js';
 import votesRouter from './api/votes.js';
@@ -28,6 +30,9 @@ import { getCachedPythonStatus } from './services/healthCache.js';
 import { isFirebaseAvailable } from './services/firebaseService.js';
 import { setupTrainingWebSocket } from './ws/training_ws.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -35,6 +40,17 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json({ limit: '50mb' })); // Increased limit for debate initiation with full response data
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Static file serving for models directory (live metrics, metadata, etc.)
+app.use('/models', express.static(path.join(__dirname, '../models'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.json')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 
 // Routes
 app.use('/api', queryDispatcher);

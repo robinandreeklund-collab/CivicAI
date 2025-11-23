@@ -15,7 +15,8 @@ from datetime import datetime
 
 
 def write_live_metrics(run_id: str, epoch: int, total_epochs: int, 
-                       model_losses: Dict[str, float], model_weights: Dict[str, float] = None):
+                       model_losses: Dict[str, float], model_weights: Dict[str, float] = None,
+                       step: int = None, total_steps: int = None, validation_accuracy: float = None):
     """
     Write live training metrics to JSON file for real-time WebSocket updates
     
@@ -25,6 +26,9 @@ def write_live_metrics(run_id: str, epoch: int, total_epochs: int,
         total_epochs: Total number of epochs
         model_losses: Dict of model name to loss value
         model_weights: Dict of model name to weight multiplier (optional)
+        step: Current step/batch within epoch (optional)
+        total_steps: Total steps/batches per epoch (optional)
+        validation_accuracy: Validation accuracy as decimal (e.g., 0.850 for 85.0%)
     """
     try:
         # Find the certified directory
@@ -39,21 +43,31 @@ def write_live_metrics(run_id: str, epoch: int, total_epochs: int,
         certified_dir.mkdir(parents=True, exist_ok=True)
         print(f"[LIVE_METRICS] Directory created/verified")
         
-        # Calculate progress
-        progress_percent = (epoch / total_epochs) * 100
+        # Calculate progress (step-based if available, otherwise epoch-based)
+        if step is not None and total_steps is not None and total_steps > 0:
+            # Step-based progress: ((epoch-1 + step/total_steps) / total_epochs) * 100
+            epoch_progress = step / total_steps
+            progress_percent = ((epoch - 1 + epoch_progress) / total_epochs) * 100
+        else:
+            # Epoch-based progress
+            progress_percent = (epoch / total_epochs) * 100
         
-        # Prepare metrics data
+        # Prepare metrics data in WebSocket format (single object for compatibility)
         metrics_data = {
             'type': 'epoch_end',
             'epoch': epoch,
             'total_epochs': total_epochs,
+            'step': step,
+            'total_steps': total_steps,
             'val_losses': model_losses,
             'weights': model_weights or {model: 1.0 for model in model_losses.keys()},
             'lr_multipliers': {},  # Can be added later for adaptive learning
             'total_loss': sum(model_losses.values()) / len(model_losses) if model_losses else 0,
+            'validation_accuracy': validation_accuracy,
             'progress_percent': progress_percent,
             'auto_stop_info': None,  # Can be added when auto-stop is implemented
-            'timestamp': datetime.utcnow().isoformat() + 'Z'
+            'timestamp': datetime.utcnow().isoformat() + 'Z',
+            'current_epoch': epoch,  # Alias for compatibility
         }
         
         # Write to live_metrics.json using atomic write
@@ -66,8 +80,14 @@ def write_live_metrics(run_id: str, epoch: int, total_epochs: int,
         # Atomic rename
         live_metrics_temp.replace(live_metrics_path)
         
+        progress_str = f"{progress_percent:.1f}%"
+        if step is not None and total_steps is not None:
+            step_str = f" (Step {step}/{total_steps})"
+        else:
+            step_str = ""
+        
         print(f"[LIVE_METRICS] ✓ Metrics written to {live_metrics_path}")
-        print(f"[LIVE_METRICS] Epoch {epoch}/{total_epochs} ({progress_percent:.1f}%), Loss: {metrics_data['total_loss']:.4f}")
+        print(f"[LIVE_METRICS] Epoch {epoch}/{total_epochs}{step_str} ({progress_str}), Loss: {metrics_data['total_loss']:.4f}")
         
     except Exception as e:
         # Don't fail training if live metrics writing fails
@@ -410,12 +430,24 @@ def train_single_model_lora(
             if run_id:
                 # Use actual model name as key (normalized for consistency)
                 model_key = normalize_model_name(model_name)
+                
+                # TODO: Replace with actual validation accuracy from validation loop
+                # Currently None - will be added when validation set is processed
+                # Mock value removed to avoid misleading metrics
+                val_accuracy = None  # Set to None until actual validation is implemented
+                
+                # Note: This simplified training has 1 batch per epoch
+                # For real training with dataloader, track batch_idx within epoch
+                # Don't send step/total_steps for single-batch epochs (would be 1/1 = 100% always)
                 write_live_metrics(
                     run_id=run_id,
                     epoch=epoch + 1,
                     total_epochs=epochs,
                     model_losses={model_key: current_loss},
-                    model_weights={model_key: 1.0}  # Will be adaptive weights later
+                    model_weights={model_key: 1.0},  # Will be adaptive weights later
+                    step=None,  # Not tracking intra-epoch progress in simplified training
+                    total_steps=None,  # Will be len(dataloader) in real training
+                    validation_accuracy=val_accuracy
                 )
         
         avg_loss = total_loss / num_batches if num_batches > 0 else 0
