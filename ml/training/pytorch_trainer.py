@@ -278,6 +278,65 @@ def check_base_models(base_models_dir: Path):
     return models_found
 
 
+def is_certified_model(model_path: Path) -> bool:
+    """
+    Check if a model path points to a certified model (LoRA adapter).
+    Certified models have adapter files but no full model files.
+    """
+    has_adapter = (model_path / 'adapter_model.bin').exists() or \
+                  (model_path / 'adapter_model.safetensors').exists() or \
+                  (model_path / 'adapter_config.json').exists()
+    
+    has_metadata = (model_path / 'metadata.json').exists()
+    
+    # Check if it's in the oneseek-certified directory
+    in_certified_dir = 'oneseek-certified' in str(model_path)
+    
+    return has_adapter and has_metadata and in_certified_dir
+
+
+def get_base_model_from_certified(model_path: Path) -> tuple:
+    """
+    Extract the original base model information from a certified model's metadata.
+    
+    Returns:
+        tuple: (base_model_name, base_model_path) or (None, None) if not found
+    """
+    metadata_file = model_path / 'metadata.json'
+    if not metadata_file.exists():
+        return None, None
+    
+    try:
+        import json
+        with open(metadata_file, 'r') as f:
+            metadata = json.load(f)
+        
+        base_model = metadata.get('baseModel', None)
+        if not base_model:
+            return None, None
+        
+        # Try to find the base model in the models directory
+        root_models_dir = model_path.parent.parent
+        
+        # Common base model name normalizations
+        possible_paths = [
+            root_models_dir / base_model,
+            root_models_dir / base_model.replace('_', '-'),
+            root_models_dir / base_model.lower(),
+            root_models_dir / base_model.lower().replace('_', '-'),
+        ]
+        
+        for path in possible_paths:
+            if path.exists() and path.is_dir():
+                return base_model, path
+        
+        return base_model, None
+        
+    except Exception as e:
+        print(f"   [WARNING] Could not read metadata from {metadata_file}: {e}")
+        return None, None
+
+
 def train_single_model_lora(
     model_name: str,
     model_path: Path,
@@ -317,6 +376,26 @@ def train_single_model_lora(
     print(f"\n[LOADING] Loading base model: {model_name}")
     print(f"   Path: {model_path}")
     
+    # Check if this is a certified model (LoRA adapter)
+    if is_certified_model(model_path):
+        print(f"   [INFO] Detected certified model (LoRA adapter)")
+        base_model_name, base_model_path = get_base_model_from_certified(model_path)
+        
+        if base_model_path:
+            print(f"   [INFO] Using original base model: {base_model_name}")
+            print(f"   [INFO] Base model path: {base_model_path}")
+            # Use the original base model for loading tokenizer and model
+            actual_model_path = base_model_path
+            print(f"   [INFO] Will train new LoRA adapters on top of {base_model_name}")
+        else:
+            print(f"   [ERROR] Could not find original base model: {base_model_name}")
+            print(f"   [INFO] Certified model requires its original base model to be present")
+            print(f"   [FIX] Please ensure {base_model_name} exists in the models directory")
+            raise FileNotFoundError(f"Base model '{base_model_name}' not found for certified model")
+    else:
+        # Regular base model
+        actual_model_path = model_path
+    
     try:
         # Load tokenizer
         print("   Loading tokenizer...")
@@ -324,7 +403,7 @@ def train_single_model_lora(
         # Try loading with trust_remote_code and use_fast options
         try:
             tokenizer = AutoTokenizer.from_pretrained(
-                str(model_path),
+                str(actual_model_path),
                 use_fast=False,
                 trust_remote_code=True,
                 legacy=False
@@ -343,7 +422,7 @@ def train_single_model_lora(
             try:
                 # Try with use_fast=True
                 tokenizer = AutoTokenizer.from_pretrained(
-                    str(model_path),
+                    str(actual_model_path),
                     use_fast=True,
                     trust_remote_code=True
                 )
@@ -370,7 +449,7 @@ def train_single_model_lora(
         print("   Loading model (this may take a few minutes)...")
         try:
             model = AutoModelForCausalLM.from_pretrained(
-                str(model_path),
+                str(actual_model_path),
                 torch_dtype=torch.float16 if device == "cuda" else torch.float32,
                 device_map="auto" if device == "cuda" else None,
                 load_in_8bit=config.get('quantize_8bit', False),
