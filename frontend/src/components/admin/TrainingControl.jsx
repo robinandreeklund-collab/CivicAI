@@ -466,18 +466,17 @@ export default function TrainingControl() {
                 >
                   <option value="">-- Add base model --</option>
                   
-                  {/* Certified Models (Own Trained Models) - Sorted newest first */}
-                  {certifiedModels
-                    .filter(model => !selectedBaseModels.includes(model.name))
-                    .map((model) => (
-                      <option 
-                        key={model.name} 
-                        value={model.name}
-                        style={{ color: '#10b981', fontWeight: 'bold' }}
-                      >
-                        {model.name} ← EGEN TRÄNAD MODELL
-                      </option>
-                    ))}
+                  {/* Certified Models (Own Trained Models) - Display only, not selectable */}
+                  {certifiedModels.map((model) => (
+                    <option 
+                      key={model.name} 
+                      value=""
+                      disabled
+                      style={{ color: '#10b981', fontWeight: 'bold' }}
+                    >
+                      {model.name} ← EGEN TRÄNAD MODELL
+                    </option>
+                  ))}
                   
                   {/* Separator between certified and base models */}
                   {certifiedModels.length > 0 && discoveredBaseModels.length > 0 && (
