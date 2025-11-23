@@ -1644,6 +1644,7 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
           // For DNA v2 training, metadata is already created by train_dna_v2.py in the certified directory
           // However, we need to update it with the final calculated metrics
           try {
+            const certifiedDir = path.join(process.cwd(), '..', 'models', 'oneseek-certified');
             const certifiedModelPath = path.join(certifiedDir, dna);
             const certifiedMetadataPath = path.join(certifiedModelPath, 'metadata.json');
             
