@@ -174,7 +174,7 @@ def run_real_training(args, data_dir, dataset_path):
     """Run real PyTorch training using OneSeekTrainer"""
     try:
         from train_language_model import OneSeekTrainer
-        from ml.training.certified_structure import (
+        from certified_structure import (
             generate_directory_name,
             create_certified_model_directory,
             save_certified_metadata,
