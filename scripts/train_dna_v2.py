@@ -33,6 +33,9 @@ from training.dna import build_dna, sign_payload, generate_immutable_hash
 from training.dataset_parser import extract_categories_from_filenames
 from ledger.ledger_client import InMemoryLedgerClient, HttpLedgerClient
 
+# Default fallback model key when no specific model information is available
+DEFAULT_MODEL_KEY = 'unknown-model'
+
 
 def extract_language_from_filename(filename: str) -> str:
     """
@@ -315,8 +318,8 @@ def run_real_training(args, data_dir, dataset_path):
             final_weights = {model: 1.0 / num_models for model in base_models_list}
         else:
             # Last resort fallback
-            final_weights = {'default': 1.0}
-            print(f"[WARNING] No base model information available, using default")
+            final_weights = {DEFAULT_MODEL_KEY: 1.0}
+            print(f"[WARNING] No base model information available, using '{DEFAULT_MODEL_KEY}' as fallback")
         
         # Build DNA fingerprint with language
         dna = build_dna(

@@ -16,6 +16,11 @@ def normalize_model_name(name: str) -> str:
     return name.lower().replace('.', '-').replace('_', '-')
 
 
+def remove_separators(text: str) -> str:
+    """Remove all separator characters (-, _) from text for fuzzy matching"""
+    return text.replace('-', '').replace('_', '')
+
+
 def test_normalize_model_name():
     """Test model name normalization"""
     print("\n[TEST] Testing normalize_model_name()...")
@@ -83,8 +88,8 @@ def test_model_matching():
                 break
             
             # Remove all separators and try again
-            selection_nosep = normalized_selection.replace('-', '')
-            avail_nosep = avail_normalized.replace('-', '')
+            selection_nosep = remove_separators(normalized_selection)
+            avail_nosep = remove_separators(avail_normalized)
             if selection_nosep in avail_nosep or avail_nosep in selection_nosep:
                 matched = avail_key
                 break

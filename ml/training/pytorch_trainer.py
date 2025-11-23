@@ -139,11 +139,17 @@ def get_model_display_name(normalized_name: str, path: Path) -> str:
                     return config['model_name']
                 if '_name_or_path' in config:
                     return config['_name_or_path'].split('/')[-1]
-        except:
+        except (json.JSONDecodeError, FileNotFoundError, KeyError) as e:
+            # Log error but continue with fallback
             pass
     
     # Fallback to directory name with nice formatting
     return path.name
+
+
+def remove_separators(text: str) -> str:
+    """Remove all separator characters (-, _) from text for fuzzy matching"""
+    return text.replace('-', '').replace('_', '')
 
 
 def check_base_models(base_models_dir: Path):
@@ -158,6 +164,9 @@ def check_base_models(base_models_dir: Path):
         Dict with normalized model names as keys and their paths as values
         Format: {'mistral-7b-instruct': Path(...), 'kb-llama-3-1-8b-swedish': Path(...)}
     """
+    # Directories to exclude from model discovery
+    EXCLUDED_DIRS = {'oneseek-7b-zero', 'oneseek-certified', 'backups'}
+    
     models_found = {}
     
     # Get the root models directory (go up from base_models_dir to models/)
@@ -179,7 +188,7 @@ def check_base_models(base_models_dir: Path):
         for item in root_models_dir.iterdir():
             if item.is_dir() and item != base_models_dir.parent:
                 # Skip directories that are not model directories
-                if item.name in ['oneseek-7b-zero', 'oneseek-certified', 'backups']:
+                if item.name in EXCLUDED_DIRS:
                     continue
                 
                 normalized = normalize_model_name(item.name)
@@ -545,8 +554,8 @@ def train_with_pytorch_lora(
                 break
             
             # Remove all separators and try again
-            selection_nosep = normalized_selection.replace('-', '').replace('_', '')
-            avail_nosep = avail_normalized.replace('-', '').replace('_', '')
+            selection_nosep = remove_separators(normalized_selection)
+            avail_nosep = remove_separators(avail_normalized)
             if selection_nosep == avail_nosep or selection_nosep in avail_nosep or avail_nosep in selection_nosep:
                 models_to_train[avail_key] = avail_path
                 matched = True
