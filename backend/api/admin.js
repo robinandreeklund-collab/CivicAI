@@ -1561,8 +1561,12 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
         // Update training schedule
         schedule.lastTraining = endTime;
         
-        // Save model metadata if DNA is available
-        if (dna) {
+        // SKIP legacy metadata file creation for DNA v2 training
+        // The certified directory structure already has metadata.json in the DNA-named directory
+        // Creating a legacy metadata file causes duplicate model listings in the admin panel
+        // Legacy metadata is only needed for old-style training (non-DNA v2)
+        if (dna && trainingState.mode !== 'dna-v2') {
+          // Only create legacy metadata for non-DNA-v2 training
           try {
             // Extract version from DNA (e.g., "OneSeek-7B-Zero.v1.0.abcd1234..." -> "1.0")
             const versionMatch = dna.match(/OneSeek-7B-Zero\.v([0-9.]+)/);
@@ -1598,7 +1602,7 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
             const metadata = {
               version: dna,
               createdAt: endTime,
-              trainingType: 'dna-v2',
+              trainingType: 'legacy',
               samplesProcessed: samplesProcessed,
               isCurrent: true,
               metrics: {
@@ -1624,15 +1628,21 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
             
             trainingState.logs.push({
               timestamp: endTime,
-              message: `Model metadata saved: ${metadataPath}`,
+              message: `Legacy model metadata saved: ${metadataPath}`,
             });
           } catch (error) {
-            console.error('Error saving model metadata:', error);
+            console.error('Error saving legacy model metadata:', error);
             trainingState.logs.push({
               timestamp: endTime,
-              message: `[WARNING] Could not save model metadata: ${error.message}`,
+              message: `[WARNING] Could not save legacy model metadata: ${error.message}`,
             });
           }
+        } else if (dna) {
+          // For DNA v2 training, metadata is already created by train_dna_v2.py in the certified directory
+          trainingState.logs.push({
+            timestamp: endTime,
+            message: `Model metadata already saved in certified directory: ${dna}`,
+          });
         }
         
         notifications.push({

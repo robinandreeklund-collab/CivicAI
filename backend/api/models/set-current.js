@@ -107,11 +107,13 @@ router.post('/set-current', rateLimiter, async (req, res) => {
     
     // Check if modelId is a DNA-based directory name using regex
     // Pattern: starts with OneSeek-7B-Zero.v followed by version and multiple dot-separated components
-    const dnaPattern = /^OneSeek-7B-Zero\.v\d+\.\d+\.[a-z]+\.ds[A-Za-z\-]+\.[0-9a-f]{8}\.[0-9a-f]{8}$/;
+    // More lenient pattern to match various DNA formats
+    const dnaPattern = /^OneSeek-7B-Zero\.v\d+\.\d+\./;  // Must start with OneSeek-7B-Zero.vX.Y.
     
     if (dnaPattern.test(modelId)) {
       // It's a DNA-based directory name
       modelPath = path.join(certifiedDir, modelId);
+      console.log(`[DNA] Using DNA-based model path: ${modelPath}`);
     } else {
       // Legacy: try to find by version number
       // This is for backward compatibility during transition
