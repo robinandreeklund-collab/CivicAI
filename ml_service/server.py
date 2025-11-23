@@ -151,11 +151,18 @@ def read_model_metadata():
     if not weights_dir.exists():
         return None
     
-    # Find all metadata files
-    json_files = list(weights_dir.glob('oneseek-7b-zero-v*.json'))
+    # Find all metadata files - prioritize ..json format (admin panel format)
+    json_files_double_dot = list(weights_dir.glob('oneseek-7b-zero-v*..json'))
+    json_files_single_dot = list(weights_dir.glob('oneseek-7b-zero-v*.json'))
+    
+    # Filter out ..json from single dot list to avoid duplicates
+    json_files_single_dot = [f for f in json_files_single_dot if not str(f).endswith('..json')]
+    
+    # Prioritize double-dot files (admin panel format)
+    all_json_files = json_files_double_dot + json_files_single_dot
     
     # Try to find the one marked as current first
-    for json_file in sorted(json_files, reverse=True):
+    for json_file in sorted(all_json_files, reverse=True):
         try:
             with open(json_file, 'r') as f:
                 metadata = json.load(f)
@@ -166,9 +173,9 @@ def read_model_metadata():
             logger.debug(f"Could not read metadata from {json_file}: {e}")
     
     # Fallback to latest metadata file
-    if json_files:
+    if all_json_files:
         try:
-            latest_json = sorted(json_files, reverse=True)[0]
+            latest_json = sorted(all_json_files, reverse=True)[0]
             with open(latest_json, 'r') as f:
                 metadata = json.load(f)
             logger.info(f"Using latest model metadata: {latest_json}")
@@ -195,9 +202,18 @@ def find_base_model_from_metadata():
         logger.warning("No model metadata found - falling back to legacy search")
         return None
     
-    base_models = metadata.get('baseModels', [])
+    # Check for base models in two possible locations:
+    # 1. metadata.baseModels (training code format)
+    # 2. metadata.dna.baseModels (admin panel format)
+    base_models = metadata.get('baseModels')
+    if not base_models and 'dna' in metadata:
+        base_models = metadata.get('dna', {}).get('baseModels')
+    
     if not base_models:
         logger.warning("Metadata doesn't specify base models - falling back to legacy search")
+        logger.debug(f"Metadata keys: {list(metadata.keys())}")
+        if 'dna' in metadata:
+            logger.debug(f"DNA keys: {list(metadata.get('dna', {}).keys())}")
         return None
     
     # Use the first base model from the list (or only model if single-model training)
