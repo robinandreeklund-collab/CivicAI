@@ -283,6 +283,7 @@ def is_certified_model(model_path: Path) -> bool:
     Check if a model path points to a certified model (LoRA adapter).
     Certified models have adapter files but no full model files.
     """
+    # Debug: Check conditions
     has_adapter = (model_path / 'adapter_model.bin').exists() or \
                   (model_path / 'adapter_model.safetensors').exists() or \
                   (model_path / 'adapter_config.json').exists()
@@ -291,6 +292,12 @@ def is_certified_model(model_path: Path) -> bool:
     
     # Check if it's in the oneseek-certified directory
     in_certified_dir = 'oneseek-certified' in str(model_path)
+    
+    print(f"   [DEBUG] is_certified_model check for {model_path.name}:")
+    print(f"      - has_adapter: {has_adapter}")
+    print(f"      - has_metadata: {has_metadata}")
+    print(f"      - in_certified_dir: {in_certified_dir}")
+    print(f"      - result: {has_adapter and has_metadata and in_certified_dir}")
     
     return has_adapter and has_metadata and in_certified_dir
 
@@ -304,6 +311,7 @@ def get_base_model_from_certified(model_path: Path) -> tuple:
     """
     metadata_file = model_path / 'metadata.json'
     if not metadata_file.exists():
+        print(f"   [DEBUG] metadata.json not found at {metadata_file}")
         return None, None
     
     try:
@@ -311,12 +319,18 @@ def get_base_model_from_certified(model_path: Path) -> tuple:
         with open(metadata_file, 'r') as f:
             metadata = json.load(f)
         
+        print(f"   [DEBUG] Metadata loaded: {metadata}")
+        
         base_model = metadata.get('baseModel', None)
         if not base_model:
+            print(f"   [DEBUG] No 'baseModel' key in metadata")
             return None, None
+        
+        print(f"   [DEBUG] Found baseModel in metadata: {base_model}")
         
         # Try to find the base model in the models directory
         root_models_dir = model_path.parent.parent
+        print(f"   [DEBUG] Looking for base model in: {root_models_dir}")
         
         # Common base model name normalizations
         possible_paths = [
@@ -326,14 +340,21 @@ def get_base_model_from_certified(model_path: Path) -> tuple:
             root_models_dir / base_model.lower().replace('_', '-'),
         ]
         
+        print(f"   [DEBUG] Trying paths: {[str(p) for p in possible_paths]}")
+        
         for path in possible_paths:
+            print(f"   [DEBUG] Checking: {path} (exists={path.exists()}, is_dir={path.is_dir() if path.exists() else 'N/A'})")
             if path.exists() and path.is_dir():
+                print(f"   [DEBUG] Found base model at: {path}")
                 return base_model, path
         
+        print(f"   [DEBUG] Base model '{base_model}' not found in any attempted paths")
         return base_model, None
         
     except Exception as e:
         print(f"   [WARNING] Could not read metadata from {metadata_file}: {e}")
+        import traceback
+        traceback.print_exc()
         return None, None
 
 
@@ -377,24 +398,31 @@ def train_single_model_lora(
     print(f"   Path: {model_path}")
     
     # Check if this is a certified model (LoRA adapter)
+    actual_model_path = model_path  # Default to original path
+    
     if is_certified_model(model_path):
         print(f"   [INFO] Detected certified model (LoRA adapter)")
         base_model_name, base_model_path = get_base_model_from_certified(model_path)
         
-        if base_model_path:
+        if base_model_path and base_model_path.exists():
             print(f"   [INFO] Using original base model: {base_model_name}")
             print(f"   [INFO] Base model path: {base_model_path}")
             # Use the original base model for loading tokenizer and model
             actual_model_path = base_model_path
             print(f"   [INFO] Will train new LoRA adapters on top of {base_model_name}")
+        elif base_model_name:
+            print(f"   [WARNING] Found base model name '{base_model_name}' in metadata, but path not found")
+            print(f"   [INFO] Attempting to use certified model path anyway (may fail)")
+            # Keep actual_model_path as model_path - this will likely fail but with a clear error
         else:
-            print(f"   [ERROR] Could not find original base model: {base_model_name}")
-            print(f"   [INFO] Certified model requires its original base model to be present")
-            print(f"   [FIX] Please ensure {base_model_name} exists in the models directory")
-            raise FileNotFoundError(f"Base model '{base_model_name}' not found for certified model")
+            print(f"   [WARNING] Could not extract base model from certified model metadata")
+            print(f"   [INFO] Attempting to use certified model path anyway (may fail)")
+            # Keep actual_model_path as model_path
     else:
-        # Regular base model
-        actual_model_path = model_path
+        print(f"   [INFO] Using model as regular base model")
+        # Regular base model - use as-is
+    
+    print(f"   [DEBUG] Will load tokenizer from: {actual_model_path}")
     
     try:
         # Load tokenizer
