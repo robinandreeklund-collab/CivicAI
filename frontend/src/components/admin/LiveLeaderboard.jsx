@@ -37,9 +37,33 @@ export default function LiveLeaderboard({ runId, onClose }) {
           const data = await metricsResponse.json();
           console.log('[LiveLeaderboard] Fetched live_metrics.json:', data);
           
+          // Try to fetch metadata.json for fallback accuracy/fairness if live metrics are incomplete
+          let metadataFallback = null;
+          if (!data.validation_accuracy || data.validation_accuracy === 'N/A' || data.validation_accuracy === null) {
+            try {
+              const metadataUrl = `/models/oneseek-certified/${runId}/metadata.json?t=${Date.now()}`;
+              const metadataResponse = await fetch(metadataUrl);
+              if (metadataResponse.ok) {
+                metadataFallback = await metadataResponse.json();
+                console.log('[LiveLeaderboard] Fetched metadata.json for fallback:', metadataFallback);
+              }
+            } catch (metadataErr) {
+              console.log('[LiveLeaderboard] Could not fetch metadata.json for fallback:', metadataErr);
+            }
+          }
+          
+          // Merge data with metadata fallback
+          const mergedData = {
+            ...data,
+            validation_accuracy: data.validation_accuracy && data.validation_accuracy !== 'N/A' 
+              ? data.validation_accuracy 
+              : metadataFallback?.metrics?.accuracy || null,
+            fairness: data.fairness || metadataFallback?.metrics?.fairness || null,
+          };
+          
           // Update from live metrics if WebSocket isn't working
           if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-            updateLeaderboard(data);
+            updateLeaderboard(mergedData);
           }
         } else {
           // Fallback: Poll training status API
@@ -133,7 +157,7 @@ export default function LiveLeaderboard({ runId, onClose }) {
   };
 
   const updateLeaderboard = (data) => {
-    const { val_losses, weights, lr_multipliers, current_epoch, total_epochs, auto_stop_info, progress_percent, validation_accuracy } = data;
+    const { val_losses, weights, lr_multipliers, current_epoch, total_epochs, auto_stop_info, progress_percent, validation_accuracy, total_loss } = data;
 
     // Build leaderboard entries
     const entries = Object.entries(weights || {}).map(([modelName, weight]) => ({
@@ -157,6 +181,7 @@ export default function LiveLeaderboard({ runId, onClose }) {
       autoStopInfo: auto_stop_info,
       progressPercent: progress_percent || 0,
       validationAccuracy: validation_accuracy,  // Add validation accuracy
+      totalLoss: total_loss,  // Add total_loss from live metrics
     });
   };
 
@@ -249,7 +274,7 @@ export default function LiveLeaderboard({ runId, onClose }) {
     );
   }
 
-  const { entries, currentEpoch, totalEpochs, autoStopInfo, progressPercent, validationAccuracy } = leaderboardData;
+  const { entries, currentEpoch, totalEpochs, autoStopInfo, progressPercent, validationAccuracy, totalLoss } = leaderboardData;
 
   return (
     <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">
@@ -259,6 +284,9 @@ export default function LiveLeaderboard({ runId, onClose }) {
           <h3 className="text-[#eee] font-mono text-lg">Live Leaderboard</h3>
           <div className="text-[#666] font-mono text-xs mt-1">
             Epoch {currentEpoch}/{totalEpochs} • {progressPercent.toFixed(0)}% Complete
+            {totalLoss != null && (
+              <span className="ml-2">• Loss: {totalLoss.toFixed(3)}</span>
+            )}
             {validationAccuracy != null && (
               <span className="ml-2">• Acc: {(validationAccuracy * 100).toFixed(1)}%</span>
             )}
