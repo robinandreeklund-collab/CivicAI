@@ -1247,6 +1247,7 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       datasetId: finalDatasetId,
       datasets: datasets, // Store all dataset IDs
       useDnaV2: true,
+      mode: 'dna-v2', // Explicitly set mode to prevent legacy metadata creation
       baseModels: baseModels,
       language: languageCode, // Store detected language
       logs: [
