@@ -479,9 +479,9 @@ export default function TrainingControl() {
                       </option>
                     ))}
                   
-                  {/* Separator (visual only) */}
+                  {/* Separator between certified and base models */}
                   {certifiedModels.length > 0 && discoveredBaseModels.length > 0 && (
-                    <option disabled style={{ color: '#444' }}>
+                    <option disabled style={{ color: '#444' }} aria-label="Separator between certified and base models">
                       ────────────────────────────────────────────────────────────
                     </option>
                   )}

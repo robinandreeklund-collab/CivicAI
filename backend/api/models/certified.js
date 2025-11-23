@@ -16,6 +16,9 @@ const __dirname = dirname(__filename);
 
 const router = express.Router();
 
+// Version parsing regex helper
+const VERSION_REGEX = /\.v(\d+)\.(\d+)/;
+
 /**
  * GET /api/models/certified
  * 
@@ -55,7 +58,7 @@ router.get('/', async (req, res) => {
           const metadata = JSON.parse(metadataContent);
           
           // Extract version number for sorting
-          const versionMatch = entry.name.match(/\.v(\d+)\.(\d+)/);
+          const versionMatch = entry.name.match(VERSION_REGEX);
           const majorVersion = versionMatch ? parseInt(versionMatch[1]) : 0;
           const minorVersion = versionMatch ? parseInt(versionMatch[2]) : 0;
           
@@ -79,9 +82,9 @@ router.get('/', async (req, res) => {
           });
         } catch (err) {
           // If metadata is missing or invalid, still include the model with basic info
-          console.log(`Warning: Could not read metadata for ${entry.name}: ${err.message}`);
+          console.warn(`Warning: Could not read metadata for ${entry.name}: ${err.message}`);
           
-          const versionMatch = entry.name.match(/\.v(\d+)\.(\d+)/);
+          const versionMatch = entry.name.match(VERSION_REGEX);
           const majorVersion = versionMatch ? parseInt(versionMatch[1]) : 0;
           const minorVersion = versionMatch ? parseInt(versionMatch[2]) : 0;
           
@@ -116,7 +119,7 @@ router.get('/', async (req, res) => {
       
     } catch (err) {
       // Directory doesn't exist or is not accessible
-      console.log('Certified models directory not found or empty:', err.message);
+      console.warn('Certified models directory not found or empty:', err.message);
     }
 
     res.json({
