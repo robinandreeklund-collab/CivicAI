@@ -530,10 +530,7 @@ def run_real_training(args, data_dir, dataset_path):
             json.dump(training_results, f, indent=2)
         results_temp.replace(results_file)
         
-        # FORCE UPDATE: Re-write metadata.json with finalized metrics to ensure they are correctly persisted
-        # This addresses issue where metrics were not being certified due to timing/validation failures
-        print(f"\n[FORCE UPDATE] Re-writing metadata.json with certified final metrics...")
-        
+        # === FINAL FIX #76: Skriv direkt till metadata.json – inga mellanhänder ===
         # Extract metrics once for efficiency
         metrics = results.get('metrics', {})
         
@@ -557,37 +554,29 @@ def run_real_training(args, data_dir, dataset_path):
         # Extract bias score
         bias_score = metrics.get('bias_score', 0.15)
         
-        # Update formatted_metrics with extracted values
-        final_certified_metrics = {
-            "loss": best_loss,
-            "accuracy": validation_accuracy,
-            "fairness": fairness_score,
-            "bias_score": bias_score
-        }
-        
-        print(f"   [CERTIFIED] Final Loss: {final_certified_metrics['loss']:.4f}")
-        print(f"   [CERTIFIED] Final Accuracy: {final_certified_metrics['accuracy']:.3f} ({final_certified_metrics['accuracy']*100:.1f}%)")
-        print(f"   [CERTIFIED] Final Fairness: {final_certified_metrics['fairness']:.3f}")
-        print(f"   [CERTIFIED] Final Bias Score: {final_certified_metrics['bias_score']:.3f}")
-        
-        # Force re-save metadata with certified metrics
-        save_certified_metadata(
-            model_dir=certified_dir,
-            version=version,
-            dna=dna,
-            base_model=base_model_name,
-            language=language,
-            datasets=dataset_names,
-            training_type='dna-v2',
-            samples_processed=len(datasets.get('train', [])),
-            metrics=final_certified_metrics,
-            training_data_hash=training_data_hash,
-            model_weights_hash=model_weights_hash,
-            status='completed',
-            finalized_at=finalized_at
-        )
-        
-        print(f"   ✓ Metadata.json force-updated with certified final metrics")
+        metadata_path = Path(certified_dir) / "metadata.json"
+        try:
+            # Läs in befintlig metadata
+            with open(metadata_path, 'r', encoding='utf-8') as f:
+                current = json.load(f)
+
+            # Ersätt metrics med riktiga värden
+            current["metrics"] = {
+                "loss": round(best_loss, 4),
+                "accuracy": validation_accuracy,
+                "fairness": fairness_score,
+                "bias_score": bias_score
+            }
+            current["status"] = "completed"
+            current["finalizedAt"] = datetime.utcnow().isoformat() + "Z"
+
+            # Skriv tillbaka
+            with open(metadata_path, 'w', encoding='utf-8') as f:
+                json.dump(current, f, indent=2, ensure_ascii=False)
+
+            print(f"FINAL FIX #76: metadata.json uppdaterad → Loss: {best_loss:.4f}, Acc: {validation_accuracy:.3f}, Fairness: {fairness_score:.3f}")
+        except Exception as e:
+            print(f"FINAL FIX #76 FAILED: {e}")
         
         # Calculate immutable hash
         immutable_hash = generate_immutable_hash({
