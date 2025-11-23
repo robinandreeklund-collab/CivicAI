@@ -259,7 +259,7 @@ export default function LiveLeaderboard({ runId, onClose }) {
           <h3 className="text-[#eee] font-mono text-lg">Live Leaderboard</h3>
           <div className="text-[#666] font-mono text-xs mt-1">
             Epoch {currentEpoch}/{totalEpochs} • {progressPercent.toFixed(0)}% Complete
-            {validationAccuracy && (
+            {validationAccuracy != null && (
               <span className="ml-2">• Acc: {(validationAccuracy * 100).toFixed(1)}%</span>
             )}
           </div>
