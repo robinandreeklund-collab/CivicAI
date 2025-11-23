@@ -467,7 +467,7 @@ def run_real_training(args, data_dir, dataset_path):
             certified_models_dir=certified_models_dir,
             directory_name=directory_name,
             dna=dna,
-            created_at=timestamp.isoformat() + 'Z',
+            created_at=timestamp.isoformat() if timestamp.tzinfo else timestamp.isoformat() + 'Z',
             immutable_hash=f"sha256:{immutable_hash}"
         )
         

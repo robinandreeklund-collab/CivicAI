@@ -170,7 +170,8 @@ def read_model_metadata():
                     metadata = json.load(f)
                 logger.info(f"Found certified model metadata: {metadata_file}")
                 # Check if baseModel exists (singular) and convert to list
-                if 'baseModel' in metadata and 'baseModels' not in metadata:
+                # Only convert if baseModels is missing or empty
+                if 'baseModel' in metadata and not metadata.get('baseModels'):
                     metadata['baseModels'] = [metadata['baseModel']]
                 return metadata
             except Exception as e:

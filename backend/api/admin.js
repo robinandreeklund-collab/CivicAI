@@ -1748,7 +1748,7 @@ router.get('/models', requireAdmin, async (req, res) => {
               fairness: null,
             },
             weights: null,
-            baseModels: metadata.datasets || [],
+            baseModels: metadata.baseModel ? [metadata.baseModel] : [],
             baseModel: metadata.baseModel || 'Unknown',
             language: metadata.language || 'unknown',
             datasets: metadata.datasets || [],

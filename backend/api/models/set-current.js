@@ -99,13 +99,17 @@ router.post('/set-current', rateLimiter, async (req, res) => {
     const symlinkPath = path.join(certifiedDir, 'OneSeek-7B-Zero-CURRENT');
 
     // The modelId should now be a DNA-based directory name
+    // Format: OneSeek-7B-Zero.v{VERSION}.{LANG}.{DATASETS}.{HASH1}.{HASH2}
     // e.g., "OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1"
     // or could still be a version number like "1.0" for backwards compatibility
     
     let modelPath;
     
-    // Check if modelId is a DNA-based directory name (contains dots and hashes)
-    if (modelId.includes('.') && modelId.includes('OneSeek-7B-Zero')) {
+    // Check if modelId is a DNA-based directory name using regex
+    // Pattern: starts with OneSeek-7B-Zero.v followed by version and multiple dot-separated components
+    const dnaPattern = /^OneSeek-7B-Zero\.v\d+\.\d+\.[a-z]+\.ds[A-Za-z\-]+\.[0-9a-f]{8}\.[0-9a-f]{8}$/;
+    
+    if (dnaPattern.test(modelId)) {
       // It's a DNA-based directory name
       modelPath = path.join(certifiedDir, modelId);
     } else {
