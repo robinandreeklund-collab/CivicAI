@@ -74,7 +74,9 @@ def save_certified_metadata(
     samples_processed: int,
     metrics: Dict,
     training_data_hash: str,
-    model_weights_hash: str
+    model_weights_hash: str,
+    status: Optional[str] = None,
+    finalized_at: Optional[str] = None
 ) -> None:
     """
     Save metadata.json for a certified model.
@@ -91,6 +93,8 @@ def save_certified_metadata(
         metrics: Training metrics dict
         training_data_hash: Hash of training data
         model_weights_hash: Hash of model weights
+        status: Training status (e.g., 'completed', 'failed', 'training')
+        finalized_at: ISO timestamp when training was finalized
     """
     metadata = {
         "version": f"OneSeek-7B-Zero.v{version}",
@@ -107,6 +111,12 @@ def save_certified_metadata(
             "modelWeights": model_weights_hash
         }
     }
+    
+    # Add status and finalized_at if provided
+    if status:
+        metadata["status"] = status
+    if finalized_at:
+        metadata["finalizedAt"] = finalized_at
     
     metadata_file = model_dir / 'metadata.json'
     with open(metadata_file, 'w', encoding='utf-8') as f:

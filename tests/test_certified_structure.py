@@ -154,6 +154,43 @@ def test_save_certified_metadata():
         assert metadata['hashes']['modelWeights'] == "90cdf6f1"
 
 
+def test_save_certified_metadata_with_status():
+    """Test metadata.json creation with status and finalized_at."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        model_dir = Path(tmpdir)
+        finalized_at = "2025-11-23T18:00:00Z"
+        
+        save_certified_metadata(
+            model_dir=model_dir,
+            version="1.0",
+            dna="OneSeek-7B-Zero.v1.0.141521ad.90cdf6f1",
+            base_model="KB-Llama-3.1-8B-Swedish",
+            language="sv",
+            datasets=["CivicID", "SwedID"],
+            training_type="dna-v2",
+            samples_processed=50000,
+            metrics={"loss": 6.4572, "accuracy": 0.850, "fairness": 0.900, "bias_score": 0.15},
+            training_data_hash="141521ad",
+            model_weights_hash="90cdf6f1",
+            status="completed",
+            finalized_at=finalized_at
+        )
+        
+        metadata_file = model_dir / 'metadata.json'
+        assert metadata_file.exists()
+        
+        with open(metadata_file, 'r', encoding='utf-8') as f:
+            metadata = json.load(f)
+        
+        assert metadata['version'] == "OneSeek-7B-Zero.v1.0"
+        assert metadata['status'] == "completed"
+        assert metadata['finalizedAt'] == finalized_at
+        assert metadata['metrics']['loss'] == 6.4572
+        assert metadata['metrics']['accuracy'] == 0.850
+        assert metadata['metrics']['fairness'] == 0.900
+        assert metadata['metrics']['bias_score'] == 0.15
+
+
 def test_add_to_ledger():
     """Test ledger_proof.json creation and updates."""
     with tempfile.TemporaryDirectory() as tmpdir:
