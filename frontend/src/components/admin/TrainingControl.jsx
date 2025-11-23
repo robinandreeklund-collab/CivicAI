@@ -16,6 +16,7 @@ export default function TrainingControl() {
   const [datasets, setDatasets] = useState([]);
   const [availableModels, setAvailableModels] = useState([]);
   const [discoveredBaseModels, setDiscoveredBaseModels] = useState([]);
+  const [certifiedModels, setCertifiedModels] = useState([]);
   const [selectedBaseModels, setSelectedBaseModels] = useState([]);
   const [selectedDatasets, setSelectedDatasets] = useState([]); // Changed to array for multi-selection
   const [languageAnalysis, setLanguageAnalysis] = useState(null);
@@ -52,6 +53,7 @@ export default function TrainingControl() {
   useEffect(() => {
     fetchDatasets();
     fetchAvailableModels();
+    fetchCertifiedModels();
     fetchDiscoveredBaseModels();
     fetchTrainingStatus();
     
@@ -93,6 +95,18 @@ export default function TrainingControl() {
       }
     } catch (error) {
       console.error('Error fetching discovered base models:', error);
+    }
+  };
+
+  const fetchCertifiedModels = async () => {
+    try {
+      const response = await fetch('/api/models/certified');
+      if (response.ok) {
+        const data = await response.json();
+        setCertifiedModels(data.models || []);
+      }
+    } catch (error) {
+      console.error('Error fetching certified models:', error);
     }
   };
 
@@ -451,6 +465,28 @@ export default function TrainingControl() {
                   className="flex-1 bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
                 >
                   <option value="">-- Add base model --</option>
+                  
+                  {/* Certified Models (Own Trained Models) - Sorted newest first */}
+                  {certifiedModels
+                    .filter(model => !selectedBaseModels.includes(model.name))
+                    .map((model) => (
+                      <option 
+                        key={model.name} 
+                        value={model.name}
+                        style={{ color: '#10b981', fontWeight: 'bold' }}
+                      >
+                        {model.name} ← EGEN TRÄNAD MODELL
+                      </option>
+                    ))}
+                  
+                  {/* Separator (visual only) */}
+                  {certifiedModels.length > 0 && discoveredBaseModels.length > 0 && (
+                    <option disabled style={{ color: '#444' }}>
+                      ────────────────────────────────────────────────────────────
+                    </option>
+                  )}
+                  
+                  {/* Regular Base Models */}
                   {discoveredBaseModels
                     .filter(model => !selectedBaseModels.includes(model.name))
                     .map((model) => (
