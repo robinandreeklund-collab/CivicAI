@@ -1566,8 +1566,10 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
         // The certified directory structure already has metadata.json in the DNA-named directory
         // Creating a legacy metadata file causes duplicate model listings in the admin panel
         // Legacy metadata is only needed for old-style training (non-DNA v2)
+        console.log(`[DNA CHECK] dna=${dna}, mode=${trainingState.mode}, should skip legacy=${trainingState.mode === 'dna-v2'}`);
         if (dna && trainingState.mode !== 'dna-v2') {
           // Only create legacy metadata for non-DNA-v2 training
+          console.log('[LEGACY] Creating legacy metadata file (mode is NOT dna-v2)');
           try {
             // Extract version from DNA (e.g., "OneSeek-7B-Zero.v1.0.abcd1234..." -> "1.0")
             const versionMatch = dna.match(/OneSeek-7B-Zero\.v([0-9.]+)/);
@@ -1638,11 +1640,44 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
               message: `[WARNING] Could not save legacy model metadata: ${error.message}`,
             });
           }
-        } else if (dna) {
+        } else if (dna && trainingState.mode === 'dna-v2') {
           // For DNA v2 training, metadata is already created by train_dna_v2.py in the certified directory
+          // However, we need to update it with the final calculated metrics
+          try {
+            const certifiedModelPath = path.join(certifiedDir, dna);
+            const certifiedMetadataPath = path.join(certifiedModelPath, 'metadata.json');
+            
+            // Read existing metadata
+            const existingMetadata = JSON.parse(await fs.readFile(certifiedMetadataPath, 'utf-8'));
+            
+            // Update with calculated metrics
+            existingMetadata.metrics = {
+              loss: finalLoss,
+              accuracy: null, // DNA v2 doesn't track accuracy during training
+              fairness: null,
+            };
+            existingMetadata.samplesProcessed = samplesProcessed;
+            
+            // Write updated metadata
+            await fs.writeFile(certifiedMetadataPath, JSON.stringify(existingMetadata, null, 2));
+            
+            trainingState.logs.push({
+              timestamp: endTime,
+              message: `Updated certified model metadata with final metrics: ${certifiedMetadataPath}`,
+            });
+          } catch (error) {
+            console.error('Error updating certified metadata:', error);
+            trainingState.logs.push({
+              timestamp: endTime,
+              message: `[WARNING] Could not update certified metadata: ${error.message}`,
+            });
+          }
+        } else if (dna) {
+          // Explicitly log that we're skipping legacy for DNA v2
+          console.log('[DNA V2] Skipping legacy metadata creation - using certified structure');
           trainingState.logs.push({
             timestamp: endTime,
-            message: `Model metadata already saved in certified directory: ${dna}`,
+            message: `Model metadata saved in certified directory: ${dna}`,
           });
         }
         
