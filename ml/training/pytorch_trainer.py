@@ -199,13 +199,14 @@ def check_base_models(base_models_dir: Path):
     Checks in order:
     1. OneSeek base_models subdirectory (e.g., models/oneseek-7b-zero/base_models/*)
     2. Main models directory (e.g., models/mistral-7b-instruct, models/kb-llama-3-1-8b-swedish)
+    3. Certified models directory (e.g., models/oneseek-certified/*)
     
     Returns:
         Dict with normalized model names as keys and their paths as values
         Format: {'mistral-7b-instruct': Path(...), 'kb-llama-3-1-8b-swedish': Path(...)}
     """
-    # Directories to exclude from model discovery
-    EXCLUDED_DIRS = {'oneseek-7b-zero', 'oneseek-certified', 'backups'}
+    # Directories to exclude from model discovery (oneseek-7b-zero contains subdirectories, not a model itself)
+    EXCLUDED_DIRS = {'oneseek-7b-zero', 'backups'}
     
     models_found = {}
     
@@ -246,10 +247,33 @@ def check_base_models(base_models_dir: Path):
                         display_name = get_model_display_name(normalized, item)
                         print(f"[FOUND] {display_name} at {item}")
     
+    # Third, scan oneseek-certified directory for trained models that can be used as base models
+    certified_dir = root_models_dir / 'oneseek-certified'
+    if certified_dir.exists():
+        print(f"[SCAN] Scanning certified models directory: {certified_dir}")
+        for item in certified_dir.iterdir():
+            if item.is_dir() and not item.name.startswith('run-'):
+                # Check if it's a valid certified model (has model files)
+                has_config = (item / 'config.json').exists()
+                has_adapter = (item / 'adapter_model.bin').exists() or (item / 'adapter_model.safetensors').exists()
+                has_model_files = any(
+                    f.name.endswith(('.bin', '.safetensors', '.pth'))
+                    for f in item.iterdir() if f.is_file()
+                )
+                
+                if has_config or has_adapter or has_model_files:
+                    # Use the full directory name as the key (DNA-based name)
+                    normalized = normalize_model_name(item.name)
+                    if normalized not in models_found:
+                        models_found[normalized] = item
+                        display_name = get_model_display_name(normalized, item)
+                        print(f"[FOUND] {display_name} at {item} (certified model)")
+    
     if not models_found:
         print(f"[WARNING] No base models found in:")
         print(f"   - {base_models_dir}")
         print(f"   - {root_models_dir}")
+        print(f"   - {certified_dir if certified_dir.exists() else 'N/A (certified dir)'}")
     
     return models_found
 
