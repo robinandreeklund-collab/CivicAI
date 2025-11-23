@@ -289,13 +289,23 @@ def is_certified_model(model_path: Path) -> bool:
     # Check if it has metadata.json (all certified models should have this)
     has_metadata = (model_path / 'metadata.json').exists()
     
-    # Optional: Check for adapter files (LoRA adapters)
+    # Optional: Check for adapter files (LoRA adapters) - check both root and subdirectories
     has_adapter = (model_path / 'adapter_model.bin').exists() or \
                   (model_path / 'adapter_model.safetensors').exists() or \
                   (model_path / 'adapter_config.json').exists()
     
+    # Also check in subdirectories (adapters might be in subfolder)
+    if not has_adapter and model_path.exists():
+        for item in model_path.iterdir():
+            if item.is_dir():
+                if (item / 'adapter_model.bin').exists() or \
+                   (item / 'adapter_model.safetensors').exists() or \
+                   (item / 'adapter_config.json').exists():
+                    has_adapter = True
+                    break
+    
     print(f"   [DEBUG] is_certified_model check for {model_path.name}:")
-    print(f"      - has_adapter: {has_adapter}")
+    print(f"      - has_adapter: {has_adapter} (checked root and subdirs)")
     print(f"      - has_metadata: {has_metadata}")
     print(f"      - in_certified_dir: {in_certified_dir}")
     
@@ -338,21 +348,39 @@ def get_base_model_from_certified(model_path: Path) -> tuple:
         root_models_dir = model_path.parent.parent
         print(f"   [DEBUG] Looking for base model in: {root_models_dir}")
         
-        # Common base model name normalizations
+        # Common base model name normalizations - try many variations
         possible_paths = [
             root_models_dir / base_model,
             root_models_dir / base_model.replace('_', '-'),
             root_models_dir / base_model.lower(),
             root_models_dir / base_model.lower().replace('_', '-'),
+            root_models_dir / base_model.upper(),
+            root_models_dir / base_model.upper().replace('_', '-'),
         ]
+        
+        # Also try with KB- prefix removed/added if it's a KB model
+        if 'kb' in base_model.lower():
+            base_without_kb = base_model.replace('KB-', '').replace('kb-', '')
+            possible_paths.extend([
+                root_models_dir / base_without_kb,
+                root_models_dir / base_without_kb.lower(),
+                root_models_dir / base_without_kb.lower().replace('_', '-'),
+            ])
         
         print(f"   [DEBUG] Trying paths: {[str(p) for p in possible_paths]}")
         
         for path in possible_paths:
             print(f"   [DEBUG] Checking: {path} (exists={path.exists()}, is_dir={path.is_dir() if path.exists() else 'N/A'})")
             if path.exists() and path.is_dir():
-                print(f"   [DEBUG] Found base model at: {path}")
-                return base_model, path
+                # Verify it's a model directory (has config.json or model files)
+                has_config = (path / 'config.json').exists()
+                has_tokenizer = (path / 'tokenizer.json').exists() or (path / 'tokenizer_config.json').exists()
+                if has_config or has_tokenizer:
+                    print(f"   [DEBUG] Found base model at: {path}")
+                    return base_model, path
+                else:
+                    print(f"   [DEBUG] Path exists but doesn't look like a model (no config/tokenizer)")
+        
         
         print(f"   [DEBUG] Base model '{base_model}' not found in any attempted paths")
         return base_model, None
