@@ -469,6 +469,8 @@ def run_real_training(args, data_dir, dataset_path):
         raw_metrics = results.get('metrics', {})
         fairness_metrics = results.get('fairness_metrics', {})
         
+        # Note: fairness metric uses demographic_parity from fairness_metrics if available,
+        # otherwise falls back to fairness_score from raw_metrics, defaulting to 0.0
         formatted_metrics = {
             "loss": raw_metrics.get('training_loss', 0.0),
             "accuracy": raw_metrics.get('validation_accuracy', 0.0),
@@ -476,8 +478,9 @@ def run_real_training(args, data_dir, dataset_path):
             "bias_score": raw_metrics.get('bias_score', 0.0)
         }
         
-        # Calculate finalized timestamp
-        finalized_at = datetime.now().isoformat() + ('Z' if not datetime.now().tzinfo else '')
+        # Calculate finalized timestamp (store once to ensure consistency)
+        finalized_timestamp = datetime.now()
+        finalized_at = finalized_timestamp.isoformat() + ('Z' if not finalized_timestamp.tzinfo else '')
         
         # Save certified metadata with final aggregated metrics, status, and finalized timestamp
         print(f"\n[METADATA] Saving final aggregated metrics to certified directory...")
