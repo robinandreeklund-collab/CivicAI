@@ -658,12 +658,13 @@ async def dual_model_inference(text: str, max_length: int = 512, temperature: fl
         start_time = time.time()
         
         # Tokenize input
-        inputs = tokenizer(prompt, return_tensors="pt").to(DEVICE)
+        inputs = tokenizer(prompt, return_tensors="pt", padding=True).to(DEVICE)
         
-        # Generate
+        # Generate with explicit attention_mask
         with torch.no_grad():
             outputs = model.generate(
-                **inputs,
+                input_ids=inputs.input_ids,
+                attention_mask=inputs.attention_mask,
                 max_length=max_length,
                 temperature=temperature,
                 top_p=top_p,
@@ -851,12 +852,13 @@ async def oneseek_inference(request: InferenceRequest):
             model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
             
             # Prepare input
-            inputs = tokenizer(request.text, return_tensors="pt").to(DEVICE)
+            inputs = tokenizer(request.text, return_tensors="pt", padding=True).to(DEVICE)
             
-            # Generate
+            # Generate with explicit attention_mask
             with torch.no_grad():
                 outputs = model.generate(
-                    inputs.input_ids,
+                    input_ids=inputs.input_ids,
+                    attention_mask=inputs.attention_mask,
                     max_length=request.max_length,
                     temperature=request.temperature,
                     top_p=request.top_p,
@@ -897,12 +899,13 @@ async def llama_inference(request: InferenceRequest):
         
         # Prepare input with LLaMA chat format for compatibility
         formatted_prompt = f"<s>[INST] {request.text} [/INST]"
-        inputs = tokenizer(formatted_prompt, return_tensors="pt").to(DEVICE)
+        inputs = tokenizer(formatted_prompt, return_tensors="pt", padding=True).to(DEVICE)
         
-        # Generate
+        # Generate with explicit attention_mask
         with torch.no_grad():
             outputs = model.generate(
-                inputs.input_ids,
+                input_ids=inputs.input_ids,
+                attention_mask=inputs.attention_mask,
                 max_length=request.max_length,
                 temperature=request.temperature,
                 top_p=request.top_p,
@@ -942,12 +945,13 @@ async def mistral_inference(request: InferenceRequest):
         model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
         
         # Prepare input
-        inputs = tokenizer(request.text, return_tensors="pt").to(DEVICE)
+        inputs = tokenizer(request.text, return_tensors="pt", padding=True).to(DEVICE)
         
-        # Generate
+        # Generate with explicit attention_mask
         with torch.no_grad():
             outputs = model.generate(
-                inputs.input_ids,
+                input_ids=inputs.input_ids,
+                attention_mask=inputs.attention_mask,
                 max_length=request.max_length,
                 temperature=request.temperature,
                 top_p=request.top_p,
