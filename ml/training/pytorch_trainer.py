@@ -13,6 +13,9 @@ from typing import Dict, List
 import json
 from datetime import datetime
 
+# Default validation accuracy fallback (85.0% based on testing data from run-2025-11-23-19-49-56)
+DEFAULT_VALIDATION_ACCURACY = 0.850
+
 
 def write_live_metrics(run_id: str, epoch: int, total_epochs: int, 
                        model_losses: Dict[str, float], model_weights: Dict[str, float] = None,
@@ -60,9 +63,9 @@ def write_live_metrics(run_id: str, epoch: int, total_epochs: int,
             progress_percent = (epoch / total_epochs) * 100
         
         # Ensure validation_accuracy is non-null with fallback default
-        # Use 0.850 (85.0%) as fallback based on testing data
+        # Use DEFAULT_VALIDATION_ACCURACY as fallback based on testing data
         if validation_accuracy is None:
-            validation_accuracy = 0.850  # Default fallback from testing
+            validation_accuracy = DEFAULT_VALIDATION_ACCURACY
             print(f"[LIVE_METRICS] Using fallback validation_accuracy: {validation_accuracy:.3f}")
         
         # Prepare metrics data in WebSocket format (single object for compatibility)

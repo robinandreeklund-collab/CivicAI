@@ -39,7 +39,11 @@ export default function LiveLeaderboard({ runId, onClose }) {
           
           // Try to fetch metadata.json for fallback accuracy/fairness if live metrics are incomplete
           let metadataFallback = null;
-          if (!data.validation_accuracy || data.validation_accuracy === 'N/A' || data.validation_accuracy === null) {
+          const needsMetadataFallback = !data.validation_accuracy || 
+                                       data.validation_accuracy === 'N/A' || 
+                                       data.validation_accuracy === null;
+          
+          if (needsMetadataFallback) {
             try {
               const metadataUrl = `/models/oneseek-certified/${runId}/metadata.json?t=${Date.now()}`;
               const metadataResponse = await fetch(metadataUrl);
@@ -52,12 +56,16 @@ export default function LiveLeaderboard({ runId, onClose }) {
             }
           }
           
+          // Helper function to get validation accuracy with fallback
+          const getValidationAccuracy = (liveData, metadata) => {
+            if (liveData && liveData !== 'N/A') return liveData;
+            return metadata?.metrics?.accuracy || null;
+          };
+          
           // Merge data with metadata fallback
           const mergedData = {
             ...data,
-            validation_accuracy: data.validation_accuracy && data.validation_accuracy !== 'N/A' 
-              ? data.validation_accuracy 
-              : metadataFallback?.metrics?.accuracy || null,
+            validation_accuracy: getValidationAccuracy(data.validation_accuracy, metadataFallback),
             fairness: data.fairness || metadataFallback?.metrics?.fairness || null,
           };
           
