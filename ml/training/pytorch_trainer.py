@@ -280,26 +280,32 @@ def check_base_models(base_models_dir: Path):
 
 def is_certified_model(model_path: Path) -> bool:
     """
-    Check if a model path points to a certified model (LoRA adapter).
-    Certified models have adapter files but no full model files.
+    Check if a model path points to a certified model (LoRA adapter or merged model).
+    Certified models are in the oneseek-certified directory and have metadata.json.
     """
-    # Debug: Check conditions
+    # Check if it's in the oneseek-certified directory
+    in_certified_dir = 'oneseek-certified' in str(model_path)
+    
+    # Check if it has metadata.json (all certified models should have this)
+    has_metadata = (model_path / 'metadata.json').exists()
+    
+    # Optional: Check for adapter files (LoRA adapters)
     has_adapter = (model_path / 'adapter_model.bin').exists() or \
                   (model_path / 'adapter_model.safetensors').exists() or \
                   (model_path / 'adapter_config.json').exists()
-    
-    has_metadata = (model_path / 'metadata.json').exists()
-    
-    # Check if it's in the oneseek-certified directory
-    in_certified_dir = 'oneseek-certified' in str(model_path)
     
     print(f"   [DEBUG] is_certified_model check for {model_path.name}:")
     print(f"      - has_adapter: {has_adapter}")
     print(f"      - has_metadata: {has_metadata}")
     print(f"      - in_certified_dir: {in_certified_dir}")
-    print(f"      - result: {has_adapter and has_metadata and in_certified_dir}")
     
-    return has_adapter and has_metadata and in_certified_dir
+    # A certified model must be in the certified directory AND have metadata
+    # It may or may not have adapter files (could be merged or LoRA)
+    result = in_certified_dir and has_metadata
+    
+    print(f"      - result: {result}")
+    
+    return result
 
 
 def get_base_model_from_certified(model_path: Path) -> tuple:
