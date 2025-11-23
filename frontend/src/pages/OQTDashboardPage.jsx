@@ -146,9 +146,9 @@ export default function OQTDashboardPage() {
                   <>
                     <span className="text-[#888]">v1.0 (Base)</span>
                     <span className="mx-2">→</span>
-                    <span className="text-[#aaffaa]">{modelStatus?.model?.version || 'v1.1'} (Current) ✓</span>
+                    <span className="text-[#aaffaa]">{modelStatus?.model?.dna || modelStatus?.model?.version || 'v1.1'} (Current) ✓</span>
                     <span className="mx-2">•</span>
-                    <span>Routing to {modelStatus?.model?.version || 'v1.1'}</span>
+                    <span>Routing to {modelStatus?.model?.dna || modelStatus?.model?.version || 'v1.1'}</span>
                   </>
                 )}
               </p>
@@ -193,14 +193,14 @@ export default function OQTDashboardPage() {
                 <div className="text-center py-12">
                   <div className="text-6xl mb-4">🤖</div>
                   <h2 className="text-xl font-light text-[#e7e7e7] mb-2">
-                    Välkommen till OneSeek-7B-Zero.v1.1
+                    Välkommen till {modelStatus?.model?.dna || 'OneSeek-7B-Zero.v1.1'}
                   </h2>
                   <p className="text-sm text-[#666] max-w-md mx-auto">
                     Ställ dina frågor direkt till vår egen AI-modell. 
-                    OneSeek-7B-Zero.v1.1 ger transparenta och rättvisa svar baserat på kontinuerlig träning.
+                    {modelStatus?.model?.dna || 'OneSeek-7B-Zero.v1.1'} ger transparenta och rättvisa svar baserat på kontinuerlig träning.
                   </p>
                   <p className="text-xs text-[#555] mt-4">
-                    Alla frågor routas till OneSeek-7B-Zero.v1.1
+                    Alla frågor routas till {modelStatus?.model?.dna || 'OneSeek-7B-Zero.v1.1'}
                   </p>
                 </div>
               )}
