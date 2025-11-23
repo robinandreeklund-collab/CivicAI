@@ -337,7 +337,9 @@ def run_real_training(args, data_dir, dataset_path):
             print(f"[WARNING] No base model information available, using '{DEFAULT_MODEL_KEY}' as fallback")
         
         # Build DNA fingerprint with language
-        dna = build_dna(
+        # Note: This is used for ledger/legacy compatibility
+        # The actual DNA is the directory name generated below
+        legacy_dna = build_dna(
             model_name='OneSeek-7B-Zero',
             version=version,
             final_weights=final_weights,
@@ -347,7 +349,7 @@ def run_real_training(args, data_dir, dataset_path):
         )
         
         print(f"\n[SUCCESS] Training completed!")
-        print(f"   DNA: {dna}")
+        print(f"   Legacy DNA: {legacy_dna}")
         print(f"   Temporary model files saved to: {temp_model_dir}")
         
         # Calculate hashes for DNA-based directory naming
@@ -362,12 +364,11 @@ def run_real_training(args, data_dir, dataset_path):
         # Hash of model weights (use final loss as proxy for now)
         weights_data_str = json.dumps({
             'final_loss': results.get('metrics', {}).get('training_loss', 0.0),
-            'dna': dna,
             'timestamp': timestamp.isoformat()
         }, sort_keys=True)
         model_weights_hash = calculate_short_hash(weights_data_str, length=8)
         
-        # Generate DNA-based directory name
+        # Generate DNA-based directory name - THIS IS THE ACTUAL DNA
         certified_models_dir = Path(output_dir)
         directory_name = generate_directory_name(
             version=version,
@@ -377,7 +378,11 @@ def run_real_training(args, data_dir, dataset_path):
             model_weights_hash=model_weights_hash
         )
         
+        # The directory name IS the DNA for certified models
+        dna = directory_name
+        
         print(f"\n[CERTIFIED] Creating certified model directory: {directory_name}")
+        print(f"[CERTIFIED] DNA (directory name): {dna}")
         
         # Create certified model directory
         certified_dir = create_certified_model_directory(

@@ -203,9 +203,50 @@ router.get('/models/available', requireAdmin, async (req, res) => {
       }
     }
     
-    // Read directory contents
-    const items = await fs.readdir(modelsDir);
     const models = [];
+    
+    // First, check certified directory for DNA-based models
+    const certifiedDir = path.join(modelsDir, 'oneseek-certified');
+    try {
+      const certifiedEntries = await fs.readdir(certifiedDir, { withFileTypes: true });
+      
+      for (const entry of certifiedEntries) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name === 'OneSeek-7B-Zero-CURRENT') continue; // Skip symlink
+        
+        // DNA-based directories: OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1
+        if (!entry.name.startsWith('OneSeek-7B-Zero.v')) {
+          if (entry.name.startsWith('run-')) continue; // Skip old temp directories
+          continue;
+        }
+        
+        const modelPath = path.join(certifiedDir, entry.name);
+        const metadataPath = path.join(modelPath, 'metadata.json');
+        
+        try {
+          const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+          const metadata = JSON.parse(metadataContent);
+          
+          models.push({
+            id: entry.name,
+            name: entry.name,
+            path: modelPath,
+            displayName: entry.name, // Use full DNA name as display
+            dna: metadata.dna || entry.name,
+            isCertified: true,
+            language: metadata.language || 'unknown',
+            datasets: metadata.datasets || [],
+          });
+        } catch (err) {
+          console.log(`Skipping certified model ${entry.name}: ${err.message}`);
+        }
+      }
+    } catch (err) {
+      console.log('Certified directory not found or empty:', err.message);
+    }
+    
+    // Also check root directory for legacy models
+    const items = await fs.readdir(modelsDir);
     
     // Check each item to see if it's a model directory
     for (const item of items) {
@@ -213,6 +254,9 @@ router.get('/models/available', requireAdmin, async (req, res) => {
       try {
         const stats = await fs.stat(itemPath);
         if (stats.isDirectory()) {
+          // Skip certified directory (already processed above)
+          if (item === 'oneseek-certified') continue;
+          
           // Check if directory contains model files (weights, config, etc.)
           const dirContents = await fs.readdir(itemPath);
           const hasModelFiles = dirContents.some(file => 
@@ -230,6 +274,7 @@ router.get('/models/available', requireAdmin, async (req, res) => {
               name: item,
               path: itemPath,
               displayName: formatModelName(item),
+              isCertified: false,
             });
           }
         }
