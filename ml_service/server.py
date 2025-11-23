@@ -139,6 +139,104 @@ tokenizers = {}
 # Dual-model configuration for OneSeek-7B-Zero
 DUAL_MODEL_MODE = True  # Use both Mistral and LLaMA in parallel
 
+def read_model_metadata():
+    """Read the latest model metadata to determine which base model was trained
+    
+    Returns dict with metadata including baseModels list, or None if not found
+    """
+    import json
+    base_path = Path(ONESEEK_PATH)
+    weights_dir = base_path / 'weights'
+    
+    if not weights_dir.exists():
+        return None
+    
+    # Find all metadata files
+    json_files = list(weights_dir.glob('oneseek-7b-zero-v*.json'))
+    
+    # Try to find the one marked as current first
+    for json_file in sorted(json_files, reverse=True):
+        try:
+            with open(json_file, 'r') as f:
+                metadata = json.load(f)
+            if metadata.get('isCurrent', False):
+                logger.info(f"Found current model metadata: {json_file}")
+                return metadata
+        except Exception as e:
+            logger.debug(f"Could not read metadata from {json_file}: {e}")
+    
+    # Fallback to latest metadata file
+    if json_files:
+        try:
+            latest_json = sorted(json_files, reverse=True)[0]
+            with open(latest_json, 'r') as f:
+                metadata = json.load(f)
+            logger.info(f"Using latest model metadata: {latest_json}")
+            return metadata
+        except Exception as e:
+            logger.warning(f"Could not read latest metadata: {e}")
+    
+    return None
+
+
+def normalize_model_name_for_lookup(name: str) -> str:
+    """Normalize model name for directory lookup (same logic as pytorch_trainer.py)"""
+    return name.lower().replace('.', '-').replace('_', '-')
+
+
+def find_base_model_from_metadata():
+    """Find the base model that was actually trained based on metadata
+    
+    Returns path to the base model, or None if not found
+    """
+    # Read metadata to find which base model was actually trained
+    metadata = read_model_metadata()
+    if not metadata:
+        logger.warning("No model metadata found - falling back to legacy search")
+        return None
+    
+    base_models = metadata.get('baseModels', [])
+    if not base_models:
+        logger.warning("Metadata doesn't specify base models - falling back to legacy search")
+        return None
+    
+    # Use the first base model from the list (or only model if single-model training)
+    target_model = base_models[0]
+    logger.info(f"Metadata indicates trained with base model: {target_model}")
+    
+    # Normalize the model name for directory matching
+    normalized_target = normalize_model_name_for_lookup(target_model)
+    
+    base_path = Path(ONESEEK_PATH)
+    
+    # Search in base_models directory first
+    base_models_dir = base_path / 'base_models'
+    if base_models_dir.exists():
+        for item in base_models_dir.iterdir():
+            if item.is_dir():
+                normalized_dir = normalize_model_name_for_lookup(item.name)
+                # Try exact match or substring match
+                if normalized_target == normalized_dir or normalized_target in normalized_dir or normalized_dir in normalized_target:
+                    if (item / 'config.json').exists():
+                        logger.info(f"Found base model in base_models: {item}")
+                        return str(item)
+    
+    # Search in root models directory
+    root_models = PROJECT_ROOT / 'models'
+    if root_models.exists():
+        for item in root_models.iterdir():
+            if item.is_dir() and item.name not in ['oneseek-7b-zero', 'oneseek-certified', 'backups']:
+                normalized_dir = normalize_model_name_for_lookup(item.name)
+                # Try exact match or substring match
+                if normalized_target == normalized_dir or normalized_target in normalized_dir or normalized_dir in normalized_target:
+                    if (item / 'config.json').exists():
+                        logger.info(f"Found base model in root models: {item}")
+                        return str(item)
+    
+    logger.warning(f"Could not find base model directory for: {target_model}")
+    return None
+
+
 def find_all_base_models():
     """Find all available base models for dual-model OneSeek-7B-Zero
     
@@ -199,20 +297,22 @@ def find_base_model_path():
     """Find a valid base model path for OneSeek-7B-Zero
     
     Checks in this order:
-    1. oneseek-7b-zero directory itself (if it has config.json - fully trained model)
-    2. oneseek-7b-zero/base_models/mistral-7b
-    3. oneseek-7b-zero/base_models/llama-2-7b  
-    4. Legacy models/mistral-7b-instruct
-    5. Legacy models/llama-2-7b-chat
+    1. Model specified in metadata (actual trained model)
+    2. oneseek-7b-zero directory itself (if it has config.json - fully trained model)
+    3. Legacy fallback to Mistral/LLaMA discovery
     """
-    base_path = Path(ONESEEK_PATH)
+    # FIRST: Check metadata to see which base model was actually trained
+    metadata_base_model = find_base_model_from_metadata()
+    if metadata_base_model:
+        return metadata_base_model
     
-    # Check if OneSeek directory itself has a config.json (complete model)
+    # SECOND: Check if OneSeek directory itself has a config.json (complete model)
+    base_path = Path(ONESEEK_PATH)
     if (base_path / 'config.json').exists():
         logger.info(f"Found complete OneSeek model at {base_path}")
         return str(base_path)
     
-    # Check for base models in oneseek directory
+    # THIRD: Legacy fallback - check for base models in oneseek directory
     mistral_base = base_path / 'base_models' / 'mistral-7b'
     llama_base = base_path / 'base_models' / 'llama-2-7b'
     
@@ -239,31 +339,56 @@ def find_lora_weights(adapter_suffix=''):
     Args:
         adapter_suffix: Optional suffix like 'mistral' or 'llama' for model-specific adapters
     
-    Checks for trained LoRA weights in:
-    1. lora_adapters/<model>-adapter.pth (model-specific)
-    2. weights/oneseek-7b-zero-v*.pth (latest version)
-    3. lora_adapters/oneseek-7b-zero-v*/adapter.pth
+    Uses metadata to find model-specific weights for the actually trained base model.
     
-    Returns path to LoRA weights file, or None if not found
+    Checks for trained LoRA weights in:
+    1. Model-specific weight file from metadata (e.g., oneseek-7b-zero-v1.0-kb-llama-3-1-8b-swedish.pth)
+    2. lora_adapters/<model>-adapter/ (PEFT format directory)
+    3. Legacy: weights/oneseek-7b-zero-v*.pth (latest version)
+    
+    Returns path to LoRA weights file or directory, or None if not found
     """
     import json
     base_path = Path(ONESEEK_PATH)
     
-    # Check for model-specific LoRA adapters first
+    # Read metadata to find model-specific weights
+    metadata = read_model_metadata()
+    if metadata:
+        # Check for modelSpecificWeights in metadata
+        model_specific_weights = metadata.get('modelSpecificWeights', {})
+        if model_specific_weights:
+            # Get the base models list to determine which weight file to use
+            base_models = metadata.get('baseModels', [])
+            if base_models:
+                # Use the first base model (or only model in single-model training)
+                target_model = base_models[0]
+                normalized_model = normalize_model_name_for_lookup(target_model)
+                
+                # Look for matching key in modelSpecificWeights
+                for key, weight_file in model_specific_weights.items():
+                    if normalized_model in key or key in normalized_model:
+                        weight_path = base_path / 'weights' / weight_file
+                        if weight_path.exists():
+                            logger.info(f"Found model-specific LoRA weights from metadata: {weight_path}")
+                            return str(weight_path)
+    
+    # Check for model-specific LoRA adapter directory (PEFT format)
     if adapter_suffix:
         lora_dir = base_path / 'lora_adapters'
-        adapter_file = lora_dir / f'{adapter_suffix}-adapter.pth'
-        if adapter_file.exists():
-            logger.info(f"Found model-specific LoRA adapter: {adapter_file}")
-            return str(adapter_file)
         
-        # Check for model-specific adapter directory
-        adapter_dir = lora_dir / f'oneseek-7b-zero-v1.1-{adapter_suffix}'
-        if adapter_dir.exists() and (adapter_dir / 'adapter_model.bin').exists():
-            logger.info(f"Found model-specific LoRA adapter directory: {adapter_dir}")
-            return str(adapter_dir / 'adapter_model.bin')
+        # Check for adapter directory with the suffix
+        adapter_dir = lora_dir / f'{adapter_suffix}-adapter'
+        if adapter_dir.exists():
+            # PEFT format - return directory path
+            if (adapter_dir / 'adapter_config.json').exists():
+                logger.info(f"Found PEFT LoRA adapter directory: {adapter_dir}")
+                return str(adapter_dir)
+            # Legacy format - check for adapter.pth
+            elif (adapter_dir / 'adapter.pth').exists():
+                logger.info(f"Found legacy LoRA adapter: {adapter_dir / 'adapter.pth'}")
+                return str(adapter_dir / 'adapter.pth')
     
-    # Check weights directory for .pth files
+    # Check weights directory for .pth files (legacy fallback)
     weights_dir = base_path / 'weights'
     if weights_dir.exists():
         # Find all version files
@@ -271,37 +396,23 @@ def find_lora_weights(adapter_suffix=''):
         if weight_files:
             # Sort by version number and get the latest
             latest_weight = sorted(weight_files, reverse=True)[0]
-            logger.info(f"Found LoRA weights: {latest_weight}")
+            logger.info(f"Found LoRA weights (latest): {latest_weight}")
             return str(latest_weight)
-        
-        # Check for metadata files that point to current version
-        json_files = list(weights_dir.glob('oneseek-7b-zero-v*.json'))
-        for json_file in sorted(json_files, reverse=True):
-            try:
-                with open(json_file, 'r') as f:
-                    metadata = json.load(f)
-                if metadata.get('isCurrent', False):
-                    # Check if corresponding .pth file exists
-                    pth_file = json_file.with_suffix('.pth')
-                    if pth_file.exists():
-                        logger.info(f"Found current LoRA weights from metadata: {pth_file}")
-                        return str(pth_file)
-            except Exception as e:
-                logger.debug(f"Could not read metadata from {json_file}: {e}")
     
-    # Check lora_adapters directory
+    # Check lora_adapters directory for versioned adapters
     lora_dir = base_path / 'lora_adapters'
     if lora_dir.exists():
         adapter_dirs = list(lora_dir.glob('oneseek-7b-zero-v*'))
         for adapter_dir in sorted(adapter_dirs, reverse=True):
+            # Check for PEFT format
+            if (adapter_dir / 'adapter_config.json').exists():
+                logger.info(f"Found PEFT LoRA adapter directory: {adapter_dir}")
+                return str(adapter_dir)
+            # Check for legacy format
             adapter_file = adapter_dir / 'adapter.pth'
             if adapter_file.exists():
-                logger.info(f"Found LoRA adapter: {adapter_file}")
+                logger.info(f"Found legacy LoRA adapter: {adapter_file}")
                 return str(adapter_file)
-            # Also check for PEFT format
-            if (adapter_dir / 'adapter_model.bin').exists():
-                logger.info(f"Found PEFT LoRA adapter: {adapter_dir}")
-                return str(adapter_dir / 'adapter_model.bin')
     
     return None
 
@@ -376,25 +487,63 @@ def load_model(model_name: str, model_path: str):
             
             lora_weights = find_lora_weights(adapter_suffix)
             if lora_weights:
-                try:
-                    # Try to load LoRA using PEFT
-                    from peft import PeftModel
-                    logger.info(f"Applying LoRA adapters from {lora_weights}...")
-                    # Note: This requires the LoRA weights to be in PEFT format
-                    # If weights are in raw PyTorch format, we need different loading logic
-                    lora_dir = Path(lora_weights).parent
-                    if (lora_dir / 'adapter_config.json').exists():
-                        model = PeftModel.from_pretrained(model, str(lora_dir))
-                        logger.info("✓ LoRA adapters applied successfully")
-                    else:
-                        logger.info("⚠ LoRA weights found but not in PEFT format - using base model")
-                        logger.info("  (Train with scripts/train_identity.py to create PEFT-compatible adapters)")
-                except ImportError:
-                    logger.warning("⚠ PEFT not installed - cannot apply LoRA adapters")
-                    logger.info("  Install with: pip install peft")
-                except Exception as e:
-                    logger.warning(f"⚠ Could not apply LoRA adapters: {e}")
-                    logger.info("  Using base model without adapters")
+                lora_path = Path(lora_weights)
+                
+                # Check if it's a directory (PEFT format) or file (state_dict format)
+                if lora_path.is_dir():
+                    # PEFT format directory
+                    try:
+                        from peft import PeftModel
+                        logger.info(f"Applying LoRA adapters from {lora_weights}...")
+                        if (lora_path / 'adapter_config.json').exists():
+                            model = PeftModel.from_pretrained(model, str(lora_path))
+                            logger.info("✓ LoRA adapters applied successfully (PEFT format)")
+                        else:
+                            logger.warning("⚠ LoRA directory found but missing adapter_config.json")
+                            logger.info("  Using base model without adapters")
+                    except ImportError:
+                        logger.warning("⚠ PEFT not installed - cannot apply LoRA adapters")
+                        logger.info("  Install with: pip install peft")
+                    except Exception as e:
+                        logger.warning(f"⚠ Could not apply LoRA adapters: {e}")
+                        logger.info("  Using base model without adapters")
+                
+                elif lora_path.is_file() and lora_path.suffix == '.pth':
+                    # State dict format (.pth file)
+                    try:
+                        from peft import PeftModel, LoraConfig, get_peft_model
+                        logger.info(f"Loading LoRA weights from {lora_weights}...")
+                        
+                        # Check if adapter_config.json exists in the same directory
+                        adapter_dir = lora_path.parent.parent / 'lora_adapters'
+                        
+                        # Try to find matching PEFT adapter directory
+                        peft_adapter_found = False
+                        if adapter_dir.exists():
+                            # Look for adapter directory that matches the model
+                            for item in adapter_dir.iterdir():
+                                if item.is_dir() and (item / 'adapter_config.json').exists():
+                                    # Check if this adapter is for the same base model
+                                    try:
+                                        model = PeftModel.from_pretrained(model, str(item))
+                                        logger.info(f"✓ LoRA adapters applied successfully from {item} (PEFT format)")
+                                        peft_adapter_found = True
+                                        break
+                                    except:
+                                        continue
+                        
+                        if not peft_adapter_found:
+                            logger.warning("⚠ LoRA weights file found but PEFT adapter directory not available")
+                            logger.info("  The .pth file contains full model state dict, not LoRA adapters")
+                            logger.info("  Using base model without LoRA fine-tuning")
+                            logger.info("  To get LoRA adapters: they are saved in lora_adapters/<model>-adapter/ directory")
+                            
+                    except ImportError:
+                        logger.warning("⚠ PEFT not installed - cannot apply LoRA adapters")
+                        logger.info("  Install with: pip install peft")
+                    except Exception as e:
+                        logger.warning(f"⚠ Could not apply LoRA: {e}")
+                        logger.info("  Using base model")
             else:
                 logger.info(f"ℹ No LoRA adapters found for {model_name} - using base model")
                 logger.info("  Train with: python scripts/train_identity.py")

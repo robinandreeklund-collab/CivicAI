@@ -138,7 +138,10 @@ def get_model_display_name(normalized_name: str, path: Path) -> str:
                 if 'model_name' in config:
                     return config['model_name']
                 if '_name_or_path' in config:
-                    return config['_name_or_path'].split('/')[-1]
+                    # Extract just the model name from path like "KBLab/Llama-3.1-8B-Swedish"
+                    name = config['_name_or_path'].split('/')[-1]
+                    if name and name != '.':
+                        return name
         except (json.JSONDecodeError, FileNotFoundError, KeyError) as e:
             # Log error but continue with fallback
             pass
