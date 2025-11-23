@@ -215,38 +215,68 @@ class OneSeekTrainer:
     def save_model_version(self, version: str, datasets: Dict, results: Dict) -> Dict:
         """Save model version with complete metadata"""
         
-        model_version = {
-            'version': version,
-            'model_name': 'OneSeek-7B-Zero',
-            'legacy_name': 'OQT-1.0',
-            'timestamp': datetime.now().isoformat(),
-            'base_models': self.config['base_models'],
-            'training_config': {
-                'dataset_size': len(datasets.get('train', [])),
-                'epochs': self.config['epochs'],
-                'batch_size': self.config['batch_size'],
-                'learning_rate': self.config['learning_rate'],
-                'use_lora': self.config['use_lora'],
-                'lora_rank': self.config['lora_rank'],
-                'lora_alpha': self.config['lora_alpha']
-            },
-            'metrics': results['metrics'],
-            'fairness_metrics': results['fairness_metrics'],
-            'provenance': {
-                'training_data_hash': self.calculate_dataset_hash(datasets),
-                'ledger_block_id': None,  # Will be set after adding to ledger
-                'trainer': 'OneSeek-Training-Pipeline',
-                'notes': f'Batch training for version {version}'
+        # Get actual trained base models from results, not hardcoded config
+        trained_models = results.get('trained_models', {})
+        if trained_models:
+            # Use actual trained model names (already saved by pytorch_trainer.py)
+            # Don't overwrite the correct metadata file that was already saved
+            print(f"\n[INFO] PyTorch training already saved metadata with actual base models")
+            print(f"[INFO] Skipping redundant metadata save to avoid overwriting correct data")
+            
+            # Return minimal version info for ledger
+            model_version = {
+                'version': version,
+                'model_name': 'OneSeek-7B-Zero',
+                'timestamp': datetime.now().isoformat(),
+                'base_models': list(trained_models.keys()),
+                'training_config': {
+                    'dataset_size': len(datasets.get('train', [])),
+                    'epochs': self.config['epochs'],
+                    'batch_size': self.config['batch_size'],
+                    'learning_rate': self.config['learning_rate'],
+                },
+                'metrics': results['metrics'],
+                'fairness_metrics': results['fairness_metrics'],
+                'provenance': {
+                    'training_data_hash': self.calculate_dataset_hash(datasets),
+                    'ledger_block_id': None,
+                    'trainer': 'OneSeek-Training-Pipeline',
+                    'notes': f'Batch training for version {version}'
+                }
             }
-        }
-        
-        # Save model metadata file with new naming convention
-        # Format: oneseek-7b-zero-v{MAJOR}.{MICRO}.json
-        metadata_file = self.model_dir / f"oneseek-7b-zero-v{version}.json"
-        with open(metadata_file, 'w', encoding='utf-8') as f:
-            json.dump(model_version, f, indent=2)
-        
-        print(f"\nSaved model metadata to {metadata_file}")
+        else:
+            # Fallback for simulated training (no PyTorch)
+            model_version = {
+                'version': version,
+                'model_name': 'OneSeek-7B-Zero',
+                'legacy_name': 'OQT-1.0',
+                'timestamp': datetime.now().isoformat(),
+                'base_models': self.config['base_models'],
+                'training_config': {
+                    'dataset_size': len(datasets.get('train', [])),
+                    'epochs': self.config['epochs'],
+                    'batch_size': self.config['batch_size'],
+                    'learning_rate': self.config['learning_rate'],
+                    'use_lora': self.config['use_lora'],
+                    'lora_rank': self.config['lora_rank'],
+                    'lora_alpha': self.config['lora_alpha']
+                },
+                'metrics': results['metrics'],
+                'fairness_metrics': results['fairness_metrics'],
+                'provenance': {
+                    'training_data_hash': self.calculate_dataset_hash(datasets),
+                    'ledger_block_id': None,
+                    'trainer': 'OneSeek-Training-Pipeline',
+                    'notes': f'Batch training for version {version}'
+                }
+            }
+            
+            # Only save metadata file if PyTorch didn't already save it
+            metadata_file = self.model_dir / f"oneseek-7b-zero-v{version}.json"
+            with open(metadata_file, 'w', encoding='utf-8') as f:
+                json.dump(model_version, f, indent=2)
+            
+            print(f"\nSaved model metadata to {metadata_file}")
         
         # Check if PyTorch weights were saved
         weights_file = self.model_dir / f"oneseek-7b-zero-v{version}.pth"

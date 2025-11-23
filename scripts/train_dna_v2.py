@@ -33,6 +33,9 @@ from training.dna import build_dna, sign_payload, generate_immutable_hash
 from training.dataset_parser import extract_categories_from_filenames
 from ledger.ledger_client import InMemoryLedgerClient, HttpLedgerClient
 
+# Default fallback model key when no specific model information is available
+DEFAULT_MODEL_KEY = 'unknown-model'
+
 
 def extract_language_from_filename(filename: str) -> str:
     """
@@ -283,15 +286,40 @@ def run_real_training(args, data_dir, dataset_path):
             language = extract_language_from_filename(dataset_path.name)
             print(f"[DNA] Detected language from filename: {language}")
         
-        # Calculate final weights from base models (or use equal weights if not specified)
-        # Base models come from admin panel selection via --base-models argument
+        # Get base models from multiple sources (in priority order):
+        # 1. Command-line argument --base-models
+        # 2. Environment variable BASE_MODELS (set by admin.js)
+        # 3. Actual trained models from results
+        base_models_list = None
+        
         if args.base_models:
-            # Use selected base models from admin panel
-            num_models = len(args.base_models)
-            final_weights = {model: 1.0 / num_models for model in args.base_models}
+            base_models_list = args.base_models
+            print(f"[DNA] Using base models from command-line: {base_models_list}")
+        elif 'BASE_MODELS' in os.environ:
+            base_models_env = os.environ.get('BASE_MODELS', '')
+            if base_models_env:
+                base_models_list = [m.strip() for m in base_models_env.split(',') if m.strip()]
+                print(f"[DNA] Using base models from environment: {base_models_list}")
+        
+        # Get actual trained models from results (most accurate)
+        trained_models_info = results.get('trained_models', {})
+        if trained_models_info:
+            # Use actual trained model names from the training results
+            trained_model_names = list(trained_models_info.keys())
+            print(f"[DNA] Actual trained models: {trained_model_names}")
+            
+            # Calculate final weights from actual training results
+            # Use equal weights for now (can be enhanced with actual training weights later)
+            num_models = len(trained_model_names)
+            final_weights = {model: 1.0 / num_models for model in trained_model_names}
+        elif base_models_list:
+            # Fallback to base models list if training results don't have model info
+            num_models = len(base_models_list)
+            final_weights = {model: 1.0 / num_models for model in base_models_list}
         else:
-            # Fallback to default if no base models specified
-            final_weights = {'default': 1.0}
+            # Last resort fallback
+            final_weights = {DEFAULT_MODEL_KEY: 1.0}
+            print(f"[WARNING] No base model information available, using '{DEFAULT_MODEL_KEY}' as fallback")
         
         # Build DNA fingerprint with language
         dna = build_dna(
@@ -317,6 +345,7 @@ def run_real_training(args, data_dir, dataset_path):
             'version': version,
             'timestamp': timestamp.isoformat(),
             'final_weights': final_weights,
+            'baseModels': list(final_weights.keys()),  # Actual base models used
             'categories': list(categories),
             'immutable_hash': generate_immutable_hash({
                 'dna': dna,
@@ -337,12 +366,14 @@ def run_real_training(args, data_dir, dataset_path):
         training_results = {
             'dna': dna,
             'version': version,
+            'baseModels': list(final_weights.keys()),  # Actual base models used
             'dataset': str(dataset_path),
             'samples': len(datasets.get('train', [])),
             'epochs': args.epochs,
             'final_loss': results.get('metrics', {}).get('training_loss', 0.0),
             'metrics': results.get('metrics', {}),
             'fairness_metrics': results.get('fairness_metrics', {}),
+            'trained_models': list(trained_models_info.keys()) if trained_models_info else [],
             'timestamp': timestamp.isoformat(),
             'duration_seconds': 0  # Will be calculated
         }
@@ -359,6 +390,7 @@ def run_real_training(args, data_dir, dataset_path):
             'model': 'OneSeek-7B-Zero',
             'dna': dna,
             'version': version,
+            'baseModels': list(final_weights.keys()),  # Actual base models used
             'dataset_hashes': [],
             'final_weights': final_weights,
             'immutable_hash': dna_metadata['immutable_hash'],
@@ -378,6 +410,8 @@ def run_real_training(args, data_dir, dataset_path):
         print(f"   - Training results: training_results.json")
         print(f"   - Ledger proof: ledger_proof.json")
         print(f"   - Model weights: {model_dir}/oneseek-7b-zero-v{version}.pth")
+        if final_weights:
+            print(f"   - Base models: {', '.join(final_weights.keys())}")
         
         return {
             'success': True,
