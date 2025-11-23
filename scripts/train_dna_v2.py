@@ -99,6 +99,34 @@ def parse_args():
     parser.add_argument('--output-dir', help='Output directory for certified models')
     parser.add_argument('--language', help='Language code for DNA fingerprint (sv, en, ensv, etc.)')
     
+    # Advanced LoRA parameters
+    parser.add_argument('--lora-rank', type=int, default=64, help='LoRA rank (default: 64)')
+    parser.add_argument('--lora-alpha', type=int, default=128, help='LoRA alpha (default: 128)')
+    parser.add_argument('--lr-scheduler', type=str, default='cosine', 
+                        choices=['cosine', 'linear', 'constant', 'constant_with_warmup'],
+                        help='Learning rate scheduler (default: cosine)')
+    parser.add_argument('--warmup-steps', type=int, default=20, help='Number of warmup steps (default: 20)')
+    parser.add_argument('--weight-decay', type=float, default=0.01, help='Weight decay for regularization (default: 0.01)')
+    parser.add_argument('--max-grad-norm', type=float, default=1.0, help='Max gradient norm for clipping (default: 1.0)')
+    parser.add_argument('--precision', type=str, default='bf16', choices=['bf16', 'fp16', 'fp32'],
+                        help='Training precision (default: bf16)')
+    parser.add_argument('--optimizer', type=str, default='paged_adamw_8bit',
+                        choices=['paged_adamw_8bit', 'adamw_torch', 'adamw_8bit', 'sgd'],
+                        help='Optimizer type (default: paged_adamw_8bit)')
+    parser.add_argument('--gradient-checkpointing', action='store_true', default=True,
+                        help='Enable gradient checkpointing to save VRAM (default: True)')
+    parser.add_argument('--no-gradient-checkpointing', dest='gradient_checkpointing', action='store_false',
+                        help='Disable gradient checkpointing')
+    parser.add_argument('--torch-compile', action='store_true', default=True,
+                        help='Enable torch.compile for faster training on RTX 40/50 series (default: True)')
+    parser.add_argument('--no-torch-compile', dest='torch_compile', action='store_false',
+                        help='Disable torch.compile')
+    parser.add_argument('--target-modules', type=str,
+                        default='q_proj,v_proj,k_proj,o_proj,gate_proj,up_proj,down_proj',
+                        help='Comma-separated list of target modules for LoRA')
+    parser.add_argument('--dropout', type=float, default=0.05, help='LoRA dropout rate (default: 0.05)')
+
+    
     return parser.parse_args()
 
 

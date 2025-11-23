@@ -1099,7 +1099,12 @@ router.post('/training/stop', requireAdmin, (req, res) => {
 // POST /api/admin/training/start-dna-v2 - Start DNA v2 training with adaptive weights
 router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
   try {
-    const { datasetId, datasetIds, epochs, learningRate, autoStopThreshold, autoStopPatience, seed, baseModels } = req.body;
+    const { 
+      datasetId, datasetIds, epochs, learningRate, autoStopThreshold, autoStopPatience, seed, baseModels,
+      // Advanced LoRA parameters
+      loraRank, loraAlpha, lrScheduler, warmupSteps, weightDecay, maxGradNorm,
+      precision, optimizer, gradientCheckpointing, torchCompile, targetModules, dropout
+    } = req.body;
     
     // Accept either datasetId (single) or datasetIds (multiple)
     const datasets = datasetIds || (datasetId ? [datasetId] : []);
@@ -1331,6 +1336,45 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       '--seed', String(seed || TRAINING_CONFIG.defaults.seed),
       '--language', languageCode, // Pass detected language to Python script
     ];
+    
+    // Add advanced LoRA parameters if provided
+    if (loraRank !== undefined) {
+      pythonArgs.push('--lora-rank', String(loraRank));
+    }
+    if (loraAlpha !== undefined) {
+      pythonArgs.push('--lora-alpha', String(loraAlpha));
+    }
+    if (lrScheduler) {
+      pythonArgs.push('--lr-scheduler', lrScheduler);
+    }
+    if (warmupSteps !== undefined) {
+      pythonArgs.push('--warmup-steps', String(warmupSteps));
+    }
+    if (weightDecay !== undefined) {
+      pythonArgs.push('--weight-decay', String(weightDecay));
+    }
+    if (maxGradNorm !== undefined) {
+      pythonArgs.push('--max-grad-norm', String(maxGradNorm));
+    }
+    if (precision) {
+      pythonArgs.push('--precision', precision);
+    }
+    if (optimizer) {
+      pythonArgs.push('--optimizer', optimizer);
+    }
+    if (gradientCheckpointing === false) {
+      pythonArgs.push('--no-gradient-checkpointing');
+    }
+    if (torchCompile === false) {
+      pythonArgs.push('--no-torch-compile');
+    }
+    if (targetModules) {
+      pythonArgs.push('--target-modules', targetModules);
+    }
+    if (dropout !== undefined) {
+      pythonArgs.push('--dropout', String(dropout));
+    }
+
     
     trainingState.logs.push({
       timestamp: new Date().toISOString(),

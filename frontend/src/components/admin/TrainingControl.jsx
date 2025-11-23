@@ -31,6 +31,19 @@ export default function TrainingControl() {
     autoStopThreshold: 0.001,
     autoStopPatience: 3,
     seed: 42,
+    // Advanced LoRA parameters
+    loraRank: 64,
+    loraAlpha: 128,
+    lrScheduler: 'cosine',
+    warmupSteps: 20,
+    weightDecay: 0.01,
+    maxGradNorm: 1.0,
+    precision: 'bf16',
+    optimizer: 'paged_adamw_8bit',
+    gradientCheckpointing: true,
+    torchCompile: true,
+    targetModules: 'q_proj,v_proj,k_proj,o_proj,gate_proj,up_proj,down_proj',
+    dropout: 0.05,
   });
   const [trainingStatus, setTrainingStatus] = useState(null);
   const [trainingLogs, setTrainingLogs] = useState([]);
@@ -589,6 +602,234 @@ export default function TrainingControl() {
                   <p className="text-[#555] font-mono text-xs mt-1">
                     Reproducibility
                   </p>
+                </div>
+              </div>
+            )}
+
+            {/* Advanced LoRA Parameters */}
+            {useDnaV2 && (
+              <div className="mt-4 p-4 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                <h3 className="text-[#eee] font-mono text-sm mb-4 font-semibold">Advanced LoRA Configuration</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-[#888] font-mono text-sm mb-2">
+                      LoRA Rank
+                    </label>
+                    <input
+                      type="number"
+                      min="8"
+                      max="256"
+                      step="8"
+                      value={trainingParams.loraRank}
+                      onChange={(e) => setTrainingParams({ ...trainingParams, loraRank: parseInt(e.target.value) })}
+                      disabled={isTraining}
+                      className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                    />
+                    <p className="text-[#555] font-mono text-xs mt-1">
+                      Default: 64
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[#888] font-mono text-sm mb-2">
+                      LoRA Alpha
+                    </label>
+                    <input
+                      type="number"
+                      min="8"
+                      max="512"
+                      step="8"
+                      value={trainingParams.loraAlpha}
+                      onChange={(e) => setTrainingParams({ ...trainingParams, loraAlpha: parseInt(e.target.value) })}
+                      disabled={isTraining}
+                      className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                    />
+                    <p className="text-[#555] font-mono text-xs mt-1">
+                      Default: 128
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[#888] font-mono text-sm mb-2">
+                      LR Scheduler
+                    </label>
+                    <select
+                      value={trainingParams.lrScheduler}
+                      onChange={(e) => setTrainingParams({ ...trainingParams, lrScheduler: e.target.value })}
+                      disabled={isTraining}
+                      className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                    >
+                      <option value="cosine">Cosine</option>
+                      <option value="linear">Linear</option>
+                      <option value="constant">Constant</option>
+                      <option value="constant_with_warmup">Constant with Warmup</option>
+                    </select>
+                    <p className="text-[#555] font-mono text-xs mt-1">
+                      Learning rate schedule
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[#888] font-mono text-sm mb-2">
+                      Warmup Steps
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="1000"
+                      value={trainingParams.warmupSteps}
+                      onChange={(e) => setTrainingParams({ ...trainingParams, warmupSteps: parseInt(e.target.value) })}
+                      disabled={isTraining}
+                      className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                    />
+                    <p className="text-[#555] font-mono text-xs mt-1">
+                      LR warmup steps
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[#888] font-mono text-sm mb-2">
+                      Weight Decay
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="0.1"
+                      step="0.001"
+                      value={trainingParams.weightDecay}
+                      onChange={(e) => setTrainingParams({ ...trainingParams, weightDecay: parseFloat(e.target.value) })}
+                      disabled={isTraining}
+                      className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                    />
+                    <p className="text-[#555] font-mono text-xs mt-1">
+                      Regularization
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[#888] font-mono text-sm mb-2">
+                      Max Gradient Norm
+                    </label>
+                    <input
+                      type="number"
+                      min="0.1"
+                      max="10.0"
+                      step="0.1"
+                      value={trainingParams.maxGradNorm}
+                      onChange={(e) => setTrainingParams({ ...trainingParams, maxGradNorm: parseFloat(e.target.value) })}
+                      disabled={isTraining}
+                      className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                    />
+                    <p className="text-[#555] font-mono text-xs mt-1">
+                      Gradient clipping
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[#888] font-mono text-sm mb-2">
+                      Precision
+                    </label>
+                    <select
+                      value={trainingParams.precision}
+                      onChange={(e) => setTrainingParams({ ...trainingParams, precision: e.target.value })}
+                      disabled={isTraining}
+                      className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                    >
+                      <option value="bf16">BF16 (recommended)</option>
+                      <option value="fp16">FP16</option>
+                      <option value="fp32">FP32</option>
+                    </select>
+                    <p className="text-[#555] font-mono text-xs mt-1">
+                      Training precision
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[#888] font-mono text-sm mb-2">
+                      Optimizer
+                    </label>
+                    <select
+                      value={trainingParams.optimizer}
+                      onChange={(e) => setTrainingParams({ ...trainingParams, optimizer: e.target.value })}
+                      disabled={isTraining}
+                      className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                    >
+                      <option value="paged_adamw_8bit">Paged AdamW 8-bit</option>
+                      <option value="adamw_torch">AdamW (PyTorch)</option>
+                      <option value="adamw_8bit">AdamW 8-bit</option>
+                      <option value="sgd">SGD</option>
+                    </select>
+                    <p className="text-[#555] font-mono text-xs mt-1">
+                      Optimizer type
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[#888] font-mono text-sm mb-2">
+                      Dropout
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="0.5"
+                      step="0.01"
+                      value={trainingParams.dropout}
+                      onChange={(e) => setTrainingParams({ ...trainingParams, dropout: parseFloat(e.target.value) })}
+                      disabled={isTraining}
+                      className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                    />
+                    <p className="text-[#555] font-mono text-xs mt-1">
+                      LoRA dropout rate
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[#888] font-mono text-sm mb-2">
+                      Target Modules
+                    </label>
+                    <input
+                      type="text"
+                      value={trainingParams.targetModules}
+                      onChange={(e) => setTrainingParams({ ...trainingParams, targetModules: e.target.value })}
+                      disabled={isTraining}
+                      className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                    />
+                    <p className="text-[#555] font-mono text-xs mt-1">
+                      Comma-separated modules
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={trainingParams.gradientCheckpointing}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, gradientCheckpointing: e.target.checked })}
+                        disabled={isTraining}
+                        className="w-4 h-4 text-green-600 bg-[#111] border-[#2a2a2a] rounded focus:ring-green-500 disabled:opacity-50"
+                      />
+                      <span className="text-[#888] font-mono text-sm">Gradient Checkpointing</span>
+                    </label>
+                    <p className="text-[#555] font-mono text-xs mt-1 ml-6">
+                      Saves VRAM
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={trainingParams.torchCompile}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, torchCompile: e.target.checked })}
+                        disabled={isTraining}
+                        className="w-4 h-4 text-green-600 bg-[#111] border-[#2a2a2a] rounded focus:ring-green-500 disabled:opacity-50"
+                      />
+                      <span className="text-[#888] font-mono text-sm">Torch Compile</span>
+                    </label>
+                    <p className="text-[#555] font-mono text-xs mt-1 ml-6">
+                      20-30% faster on RTX 40/50
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
