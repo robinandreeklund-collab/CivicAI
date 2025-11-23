@@ -203,9 +203,50 @@ router.get('/models/available', requireAdmin, async (req, res) => {
       }
     }
     
-    // Read directory contents
-    const items = await fs.readdir(modelsDir);
     const models = [];
+    
+    // First, check certified directory for DNA-based models
+    const certifiedDir = path.join(modelsDir, 'oneseek-certified');
+    try {
+      const certifiedEntries = await fs.readdir(certifiedDir, { withFileTypes: true });
+      
+      for (const entry of certifiedEntries) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name === 'OneSeek-7B-Zero-CURRENT') continue; // Skip symlink
+        
+        // DNA-based directories: OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1
+        if (!entry.name.startsWith('OneSeek-7B-Zero.v')) {
+          if (entry.name.startsWith('run-')) continue; // Skip old temp directories
+          continue;
+        }
+        
+        const modelPath = path.join(certifiedDir, entry.name);
+        const metadataPath = path.join(modelPath, 'metadata.json');
+        
+        try {
+          const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+          const metadata = JSON.parse(metadataContent);
+          
+          models.push({
+            id: entry.name,
+            name: entry.name,
+            path: modelPath,
+            displayName: entry.name, // Use full DNA name as display
+            dna: metadata.dna || entry.name,
+            isCertified: true,
+            language: metadata.language || 'unknown',
+            datasets: metadata.datasets || [],
+          });
+        } catch (err) {
+          console.log(`Skipping certified model ${entry.name}: ${err.message}`);
+        }
+      }
+    } catch (err) {
+      console.log('Certified directory not found or empty:', err.message);
+    }
+    
+    // Also check root directory for legacy models
+    const items = await fs.readdir(modelsDir);
     
     // Check each item to see if it's a model directory
     for (const item of items) {
@@ -213,6 +254,9 @@ router.get('/models/available', requireAdmin, async (req, res) => {
       try {
         const stats = await fs.stat(itemPath);
         if (stats.isDirectory()) {
+          // Skip certified directory (already processed above)
+          if (item === 'oneseek-certified') continue;
+          
           // Check if directory contains model files (weights, config, etc.)
           const dirContents = await fs.readdir(itemPath);
           const hasModelFiles = dirContents.some(file => 
@@ -230,6 +274,7 @@ router.get('/models/available', requireAdmin, async (req, res) => {
               name: item,
               path: itemPath,
               displayName: formatModelName(item),
+              isCertified: false,
             });
           }
         }
@@ -1054,7 +1099,12 @@ router.post('/training/stop', requireAdmin, (req, res) => {
 // POST /api/admin/training/start-dna-v2 - Start DNA v2 training with adaptive weights
 router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
   try {
-    const { datasetId, datasetIds, epochs, learningRate, autoStopThreshold, autoStopPatience, seed, baseModels } = req.body;
+    const { 
+      datasetId, datasetIds, epochs, learningRate, autoStopThreshold, autoStopPatience, seed, baseModels,
+      // Advanced LoRA parameters
+      loraRank, loraAlpha, lrScheduler, warmupSteps, weightDecay, maxGradNorm,
+      precision, optimizer, gradientCheckpointing, torchCompile, targetModules, dropout
+    } = req.body;
     
     // Accept either datasetId (single) or datasetIds (multiple)
     const datasets = datasetIds || (datasetId ? [datasetId] : []);
@@ -1197,6 +1247,7 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       datasetId: finalDatasetId,
       datasets: datasets, // Store all dataset IDs
       useDnaV2: true,
+      mode: 'dna-v2', // Explicitly set mode to prevent legacy metadata creation
       baseModels: baseModels,
       language: languageCode, // Store detected language
       logs: [
@@ -1286,6 +1337,45 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       '--seed', String(seed || TRAINING_CONFIG.defaults.seed),
       '--language', languageCode, // Pass detected language to Python script
     ];
+    
+    // Add advanced LoRA parameters if provided
+    if (loraRank !== undefined) {
+      pythonArgs.push('--lora-rank', String(loraRank));
+    }
+    if (loraAlpha !== undefined) {
+      pythonArgs.push('--lora-alpha', String(loraAlpha));
+    }
+    if (lrScheduler) {
+      pythonArgs.push('--lr-scheduler', lrScheduler);
+    }
+    if (warmupSteps !== undefined) {
+      pythonArgs.push('--warmup-steps', String(warmupSteps));
+    }
+    if (weightDecay !== undefined) {
+      pythonArgs.push('--weight-decay', String(weightDecay));
+    }
+    if (maxGradNorm !== undefined) {
+      pythonArgs.push('--max-grad-norm', String(maxGradNorm));
+    }
+    if (precision) {
+      pythonArgs.push('--precision', precision);
+    }
+    if (optimizer) {
+      pythonArgs.push('--optimizer', optimizer);
+    }
+    if (gradientCheckpointing === false) {
+      pythonArgs.push('--no-gradient-checkpointing');
+    }
+    if (torchCompile === false) {
+      pythonArgs.push('--no-torch-compile');
+    }
+    if (targetModules) {
+      pythonArgs.push('--target-modules', targetModules);
+    }
+    if (dropout !== undefined) {
+      pythonArgs.push('--dropout', String(dropout));
+    }
+
     
     trainingState.logs.push({
       timestamp: new Date().toISOString(),
@@ -1472,8 +1562,14 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
         // Update training schedule
         schedule.lastTraining = endTime;
         
-        // Save model metadata if DNA is available
-        if (dna) {
+        // SKIP legacy metadata file creation for DNA v2 training
+        // The certified directory structure already has metadata.json in the DNA-named directory
+        // Creating a legacy metadata file causes duplicate model listings in the admin panel
+        // Legacy metadata is only needed for old-style training (non-DNA v2)
+        console.log(`[DNA CHECK] dna=${dna}, mode=${trainingState.mode}, should skip legacy=${trainingState.mode === 'dna-v2'}`);
+        if (dna && trainingState.mode !== 'dna-v2') {
+          // Only create legacy metadata for non-DNA-v2 training
+          console.log('[LEGACY] Creating legacy metadata file (mode is NOT dna-v2)');
           try {
             // Extract version from DNA (e.g., "OneSeek-7B-Zero.v1.0.abcd1234..." -> "1.0")
             const versionMatch = dna.match(/OneSeek-7B-Zero\.v([0-9.]+)/);
@@ -1509,7 +1605,7 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
             const metadata = {
               version: dna,
               createdAt: endTime,
-              trainingType: 'dna-v2',
+              trainingType: 'legacy',
               samplesProcessed: samplesProcessed,
               isCurrent: true,
               metrics: {
@@ -1535,15 +1631,55 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
             
             trainingState.logs.push({
               timestamp: endTime,
-              message: `Model metadata saved: ${metadataPath}`,
+              message: `Legacy model metadata saved: ${metadataPath}`,
             });
           } catch (error) {
-            console.error('Error saving model metadata:', error);
+            console.error('Error saving legacy model metadata:', error);
             trainingState.logs.push({
               timestamp: endTime,
-              message: `[WARNING] Could not save model metadata: ${error.message}`,
+              message: `[WARNING] Could not save legacy model metadata: ${error.message}`,
             });
           }
+        } else if (dna && trainingState.mode === 'dna-v2') {
+          // For DNA v2 training, metadata is already created by train_dna_v2.py in the certified directory
+          // However, we need to update it with the final calculated metrics
+          try {
+            const certifiedDir = path.join(process.cwd(), '..', 'models', 'oneseek-certified');
+            const certifiedModelPath = path.join(certifiedDir, dna);
+            const certifiedMetadataPath = path.join(certifiedModelPath, 'metadata.json');
+            
+            // Read existing metadata
+            const existingMetadata = JSON.parse(await fs.readFile(certifiedMetadataPath, 'utf-8'));
+            
+            // Update with calculated metrics
+            existingMetadata.metrics = {
+              loss: finalLoss,
+              accuracy: null, // DNA v2 doesn't track accuracy during training
+              fairness: null,
+            };
+            existingMetadata.samplesProcessed = samplesProcessed;
+            
+            // Write updated metadata
+            await fs.writeFile(certifiedMetadataPath, JSON.stringify(existingMetadata, null, 2));
+            
+            trainingState.logs.push({
+              timestamp: endTime,
+              message: `Updated certified model metadata with final metrics: ${certifiedMetadataPath}`,
+            });
+          } catch (error) {
+            console.error('Error updating certified metadata:', error);
+            trainingState.logs.push({
+              timestamp: endTime,
+              message: `[WARNING] Could not update certified metadata: ${error.message}`,
+            });
+          }
+        } else if (dna) {
+          // Explicitly log that we're skipping legacy for DNA v2
+          console.log('[DNA V2] Skipping legacy metadata creation - using certified structure');
+          trainingState.logs.push({
+            timestamp: endTime,
+            message: `Model metadata saved in certified directory: ${dna}`,
+          });
         }
         
         notifications.push({
@@ -1697,12 +1833,108 @@ router.get('/models/discover-base', requireAdmin, async (req, res) => {
 // GET /api/admin/models - List all model versions
 router.get('/models', requireAdmin, async (req, res) => {
   try {
-    const modelsDir = path.join(process.cwd(), '..', 'models', 'oneseek-7b-zero', 'weights');
+    const modelsDir = path.join(process.cwd(), '..', 'models');
+    const certifiedDir = path.join(modelsDir, 'oneseek-certified');
+    const legacyWeightsDir = path.join(modelsDir, 'oneseek-7b-zero', 'weights');
     const models = [];
     
+    // First, check for DNA-based certified models
     try {
-      await fs.mkdir(modelsDir, { recursive: true });
-      const files = await fs.readdir(modelsDir);
+      await fs.mkdir(certifiedDir, { recursive: true });
+      const entries = await fs.readdir(certifiedDir, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        // Skip non-directories and special files
+        if (!entry.isDirectory()) continue;
+        if (entry.name === 'OneSeek-7B-Zero-CURRENT') continue; // Skip symlink
+        
+        // DNA-based directories have format: OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1
+        if (!entry.name.startsWith('OneSeek-7B-Zero.v')) {
+          // Also skip run-* directories (old temp format)
+          if (entry.name.startsWith('run-')) continue;
+          continue;
+        }
+        
+        const modelPath = path.join(certifiedDir, entry.name);
+        const metadataPath = path.join(modelPath, 'metadata.json');
+        
+        try {
+          // Check if metadata.json exists
+          const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+          const metadata = JSON.parse(metadataContent);
+          
+          // Extract components from directory name
+          // Format: OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1
+          const nameParts = entry.name.split('.');
+          const versionPart = nameParts[1]; // v1.0
+          const versionId = versionPart.replace('v', ''); // 1.0
+          
+          models.push({
+            id: entry.name, // Full DNA-based directory name
+            version: metadata.version || `OneSeek-7B-Zero.v${versionId}`,
+            dna: metadata.dna || entry.name,
+            directoryName: entry.name,
+            createdAt: metadata.createdAt || new Date().toISOString(),
+            trainingType: metadata.trainingType || 'dna-v2',
+            samplesProcessed: metadata.samplesProcessed || 0,
+            isCurrent: false, // Will be updated below by checking symlink
+            metrics: metadata.metrics || {
+              loss: null,
+              accuracy: null,
+              fairness: null,
+            },
+            weights: null,
+            baseModels: metadata.baseModel ? [metadata.baseModel] : [],
+            baseModel: metadata.baseModel || 'Unknown',
+            language: metadata.language || 'unknown',
+            datasets: metadata.datasets || [],
+            training: null,
+            metadata: metadata,
+            isCertified: true,
+          });
+        } catch (error) {
+          console.log(`Skipping ${entry.name}: ${error.message}`);
+        }
+      }
+    } catch (error) {
+      console.log('Certified directory not found or empty:', error.message);
+    }
+    
+    // Check which model is current by reading symlink
+    try {
+      const symlinkPath = path.join(certifiedDir, 'OneSeek-7B-Zero-CURRENT');
+      let currentTarget = null;
+      
+      try {
+        // Try to read symlink
+        currentTarget = await fs.readlink(symlinkPath);
+        // Convert to basename if it's a path
+        currentTarget = path.basename(currentTarget);
+      } catch (e) {
+        // Try marker file
+        const markerPath = symlinkPath + '.txt';
+        try {
+          const markerContent = await fs.readFile(markerPath, 'utf-8');
+          currentTarget = path.basename(markerContent.trim());
+        } catch (e2) {
+          // No current model set
+        }
+      }
+      
+      if (currentTarget) {
+        const currentModel = models.find(m => m.directoryName === currentTarget || m.id === currentTarget);
+        if (currentModel) {
+          currentModel.isCurrent = true;
+        }
+      }
+    } catch (error) {
+      console.log('Could not determine current model:', error.message);
+    }
+    
+    // Fallback: check legacy weights directory for old metadata files
+    try {
+      await fs.mkdir(legacyWeightsDir, { recursive: true });
+      const files = await fs.readdir(legacyWeightsDir);
       
       // Filter for metadata JSON files
       // Prioritize double-dot files (..) which are the correct format
@@ -1713,7 +1945,7 @@ router.get('/models', requireAdmin, async (req, res) => {
       );
       
       for (const file of metadataFiles) {
-        const metadataPath = path.join(modelsDir, file);
+        const metadataPath = path.join(legacyWeightsDir, file);
         
         try {
           const metadataContent = await fs.readFile(metadataPath, 'utf-8');
@@ -1725,9 +1957,10 @@ router.get('/models', requireAdmin, async (req, res) => {
           const versionId = versionMatch ? versionMatch[1] : 'unknown';
           
           models.push({
-            id: versionId,
+            id: versionId, // Use version ID for legacy models
             version: metadata.version || `OneSeek-7B-Zero.v${versionId}`,
             dna: metadata.dna?.fingerprint || null,  // Don't fallback to version - keep separate
+            directoryName: null, // No DNA directory for legacy
             createdAt: metadata.createdAt || new Date().toISOString(),
             trainingType: metadata.trainingType || 'unknown',
             samplesProcessed: metadata.samplesProcessed || 0,
@@ -1741,52 +1974,24 @@ router.get('/models', requireAdmin, async (req, res) => {
             baseModels: metadata.dna?.baseModels || [],
             training: metadata.training || null,
             metadata: metadata,
+            isCertified: false, // Legacy model
           });
         } catch (error) {
           console.error(`Error reading metadata file ${file}:`, error);
         }
       }
-      
-      // Sort by version (newest first) using proper semantic versioning
-      models.sort((a, b) => {
-        const partsA = a.id.split('.').map(n => parseInt(n) || 0);
-        const partsB = b.id.split('.').map(n => parseInt(n) || 0);
-        
-        // Compare major version
-        if (partsA[0] !== partsB[0]) return partsB[0] - partsA[0];
-        
-        // Compare minor version
-        if (partsA[1] !== partsB[1]) return (partsB[1] || 0) - (partsA[1] || 0);
-        
-        // Compare patch version
-        return (partsB[2] || 0) - (partsA[2] || 0);
-      });
-      
     } catch (error) {
-      console.error('Error reading models directory:', error);
+      console.log('Legacy weights directory not found or empty:', error.message);
     }
     
-    // If no models found, return default entry
-    if (models.length === 0) {
-      models.push({
-        id: 'v1.0',
-        version: 'OneSeek-7B-Zero.v1.0',
-        createdAt: new Date().toISOString(),
-        trainingType: 'initial',
-        samplesProcessed: 0,
-        isCurrent: true,
-        metrics: {
-          loss: null,
-          accuracy: null,
-          fairness: null,
-        },
-        metadata: {
-          baseModel: 'Mistral-7B',
-          loraRank: 8,
-        },
-      });
-    }
+    // Sort by creation date (newest first)
+    models.sort((a, b) => {
+      const dateA = new Date(a.createdAt);
+      const dateB = new Date(b.createdAt);
+      return dateB - dateA;
+    });
     
+    // If no models found, return empty array (don't create default)
     res.json({ models });
   } catch (error) {
     console.error('Error listing models:', error);

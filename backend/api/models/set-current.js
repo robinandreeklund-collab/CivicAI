@@ -94,54 +94,74 @@ router.post('/set-current', rateLimiter, async (req, res) => {
       }
     }
 
-    // For OneSeek models stored as metadata JSON files in weights directory,
-    // the symlink should point to the base oneseek-7b-zero directory
-    // The modelId is just a version number like "1.0", not a directory name
-    const baseModelDir = 'oneseek-7b-zero';
-    
     // Paths
     const certifiedDir = path.join(modelsDir, 'oneseek-certified');
-    const modelPath = path.join(modelsDir, baseModelDir);
     const symlinkPath = path.join(certifiedDir, 'OneSeek-7B-Zero-CURRENT');
 
-    // Verify base model directory exists
+    // The modelId should now be a DNA-based directory name
+    // Format: OneSeek-7B-Zero.v{VERSION}.{LANG}.{DATASETS}.{HASH1}.{HASH2}
+    // e.g., "OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1"
+    // or could still be a version number like "1.0" for backwards compatibility
+    
+    let modelPath;
+    
+    // Check if modelId is a DNA-based directory name using regex
+    // Pattern: starts with OneSeek-7B-Zero.v followed by version and multiple dot-separated components
+    // More lenient pattern to match various DNA formats
+    const dnaPattern = /^OneSeek-7B-Zero\.v\d+\.\d+\./;  // Must start with OneSeek-7B-Zero.vX.Y.
+    
+    if (dnaPattern.test(modelId)) {
+      // It's a DNA-based directory name
+      modelPath = path.join(certifiedDir, modelId);
+      console.log(`[DNA] Using DNA-based model path: ${modelPath}`);
+    } else {
+      // Legacy: try to find by version number
+      // This is for backward compatibility during transition
+      const legacyBaseModelDir = 'oneseek-7b-zero';
+      modelPath = path.join(modelsDir, legacyBaseModelDir);
+      
+      console.log(`[LEGACY] Using legacy model path for version ${modelId}: ${modelPath}`);
+    }
+
+    // Verify model directory exists
     try {
       await fs.access(modelPath);
     } catch (error) {
-      return res.status(404).json({ 
-        error: 'Base model directory not found', 
-        modelId,
-        expectedPath: modelPath 
-      });
-    }
-
-    // Verify the specific model version exists by checking metadata file
-    const weightsDir = path.join(modelPath, 'weights');
-    
-    // Check for metadata file with double dots first (this is the correct format)
-    // e.g., oneseek-7b-zero-v1.0..json
-    let metadataFile = `oneseek-7b-zero-v${modelId}..json`;
-    let metadataPath = path.join(weightsDir, metadataFile);
-    
-    try {
-      await fs.access(metadataPath);
-    } catch (error) {
-      // If double-dot file doesn't exist, try single dot as fallback
-      metadataFile = `oneseek-7b-zero-v${modelId}.json`;
-      metadataPath = path.join(weightsDir, metadataFile);
+      // If DNA-based directory doesn't exist, try to find it by searching
+      if (modelId.includes('.') && modelId.includes('OneSeek-7B-Zero')) {
+        return res.status(404).json({ 
+          error: 'Model directory not found', 
+          modelId,
+          expectedPath: modelPath,
+          note: 'The DNA-based model directory does not exist. Please train a model first.'
+        });
+      }
+      
+      // Legacy fallback: check if metadata file exists
+      const weightsDir = path.join(modelPath, 'weights');
+      let metadataFile = `oneseek-7b-zero-v${modelId}..json`;
+      let metadataPath = path.join(weightsDir, metadataFile);
       
       try {
         await fs.access(metadataPath);
-      } catch (innerError) {
-        return res.status(404).json({ 
-          error: 'Model version metadata not found', 
-          modelId,
-          triedFiles: [
-            `oneseek-7b-zero-v${modelId}..json`,
-            `oneseek-7b-zero-v${modelId}.json`
-          ],
-          note: 'The model metadata file does not exist. Train a model first or check the version number.'
-        });
+      } catch (error) {
+        // If double-dot file doesn't exist, try single dot as fallback
+        metadataFile = `oneseek-7b-zero-v${modelId}.json`;
+        metadataPath = path.join(weightsDir, metadataFile);
+        
+        try {
+          await fs.access(metadataPath);
+        } catch (innerError) {
+          return res.status(404).json({ 
+            error: 'Model version metadata not found', 
+            modelId,
+            triedFiles: [
+              `oneseek-7b-zero-v${modelId}..json`,
+              `oneseek-7b-zero-v${modelId}.json`
+            ],
+            note: 'The model metadata file does not exist. Train a model first or check the version number.'
+          });
+        }
       }
     }
 
@@ -220,7 +240,10 @@ router.post('/set-current', rateLimiter, async (req, res) => {
       }
       
       // Create production symlink with absolute path
-      const productionModelPath = path.join(productionModelsPath, baseModelDir);
+      const productionModelPath = modelId.includes('.') && modelId.includes('OneSeek-7B-Zero')
+        ? path.join(productionCertifiedPath, modelId)
+        : path.join(productionModelsPath, 'oneseek-7b-zero');
+      
       await fs.symlink(productionModelPath, productionSymlinkPath, 'dir');
       
       console.log(`Production symlink created: ${productionSymlinkPath} -> ${productionModelPath}`);
@@ -229,14 +252,17 @@ router.post('/set-current', rateLimiter, async (req, res) => {
       console.log('Not in production environment or production path not accessible, skipping production symlink');
     }
 
+    const responseMessage = modelId.includes('.') && modelId.includes('OneSeek-7B-Zero')
+      ? `DNA-based model ${modelId} set as current successfully!`
+      : `Model version ${modelId} set as current successfully!`;
+
     res.json({
       success: true,
-      message: 'Current model updated successfully',
+      message: responseMessage,
       modelId,
-      modelVersion: `oneseek-7b-zero-v${modelId}`,
+      modelPath,
       symlinkPath,
-      currentModel: baseModelDir,
-      note: 'Restart ml_service to load this model. The symlink points to the base model directory with all weights.'
+      note: 'Restart ml_service (python ml_service/server.py) to load this model.'
     });
 
   } catch (error) {

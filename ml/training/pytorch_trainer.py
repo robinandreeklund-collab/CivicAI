@@ -380,6 +380,9 @@ def train_single_model_lora(
         total_loss = 0
         num_batches = 0
         
+        # Track losses per epoch for this model
+        epoch_losses = []
+        
         for epoch in range(epochs):
             print(f"\n   Epoch {epoch + 1}/{epochs}")
             
@@ -396,10 +399,14 @@ def train_single_model_lora(
             
             total_loss += loss.item()
             num_batches += 1
+            current_loss = loss.item()
+            epoch_losses.append(current_loss)
             
-            print(f"      Loss: {loss.item():.4f}")
+            print(f"      Loss: {current_loss:.4f}")
             
             # Write live metrics after each epoch
+            # Note: This will be overwritten if training multiple models sequentially
+            # The final epoch metrics will be aggregated in train_with_pytorch_lora
             if run_id:
                 # Use actual model name as key (normalized for consistency)
                 model_key = normalize_model_name(model_name)
@@ -407,7 +414,7 @@ def train_single_model_lora(
                     run_id=run_id,
                     epoch=epoch + 1,
                     total_epochs=epochs,
-                    model_losses={model_key: loss.item()},
+                    model_losses={model_key: current_loss},
                     model_weights={model_key: 1.0}  # Will be adaptive weights later
                 )
         
@@ -450,7 +457,8 @@ def train_single_model_lora(
             'model_used': model_name,
             'device': device,
             'trainable_params': model.num_parameters(only_trainable=True),
-            'total_params': model.num_parameters()
+            'total_params': model.num_parameters(),
+            'epoch_losses': epoch_losses  # Track losses per epoch for aggregation
         }
         
         print(f"\n[SUCCESS] {model_name} training completed!")
@@ -605,6 +613,36 @@ def train_with_pytorch_lora(
     
     if not trained_models:
         raise Exception("No models were successfully trained!")
+    
+    # Aggregate epoch-by-epoch metrics across all trained models for live updates
+    if run_id and trained_models:
+        print(f"\n[LIVE_METRICS] Writing aggregated epoch metrics for WebSocket...")
+        
+        # Get the number of epochs (should be same for all models)
+        epochs = config.get('epochs', 3)
+        
+        # Aggregate losses per epoch across all models
+        for epoch_idx in range(epochs):
+            epoch_num = epoch_idx + 1
+            aggregated_losses = {}
+            aggregated_weights = {}
+            
+            for model_key, metrics in trained_models.items():
+                epoch_losses = metrics.get('epoch_losses', [])
+                if epoch_idx < len(epoch_losses):
+                    aggregated_losses[model_key] = epoch_losses[epoch_idx]
+                    aggregated_weights[model_key] = 1.0
+            
+            # Write aggregated metrics for this epoch
+            if aggregated_losses:
+                write_live_metrics(
+                    run_id=run_id,
+                    epoch=epoch_num,
+                    total_epochs=epochs,
+                    model_losses=aggregated_losses,
+                    model_weights=aggregated_weights
+                )
+                print(f"   ✓ Epoch {epoch_num}/{epochs} metrics written")
     
     # Combine metrics from trained models
     is_multi_model = len(trained_models) > 1
