@@ -26,6 +26,9 @@ def get_active_model_path():
     Get the active OneSeek model path via -CURRENT symlink ONLY.
     No fallbacks to old models. If the symlink doesn't exist, fail clearly.
     
+    The symlink now points to DNA-based directories like:
+    models/oneseek-certified/OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1/
+    
     Priority order:
     1. Environment variable ONESEEK_MODEL_PATH (for manual override)
     2. Production -CURRENT symlink (configurable via PRODUCTION_MODELS_PATH, defaults to /app/models)
@@ -47,19 +50,27 @@ def get_active_model_path():
     # Check production -CURRENT symlink
     production_models_path = os.getenv('PRODUCTION_MODELS_PATH', '/app/models')
     production_current = Path(production_models_path) / 'oneseek-certified' / 'OneSeek-7B-Zero-CURRENT'
-    if production_current.exists():
-        resolved_path = production_current.resolve()
-        logger.info(f"✓ Using production CURRENT symlink: {production_current}")
-        logger.info(f"  → Resolves to: {resolved_path}")
-        return str(resolved_path)
+    if production_current.exists() or production_current.is_symlink():
+        try:
+            resolved_path = production_current.resolve()
+            if resolved_path.exists():
+                logger.info(f"✓ Using production CURRENT symlink: {production_current}")
+                logger.info(f"  → Resolves to: {resolved_path}")
+                return str(resolved_path)
+        except Exception as e:
+            logger.warning(f"⚠ Could not resolve production symlink: {e}")
     
     # Check local -CURRENT symlink
     local_current = PROJECT_ROOT / 'models' / 'oneseek-certified' / 'OneSeek-7B-Zero-CURRENT'
-    if local_current.exists():
-        resolved_path = local_current.resolve()
-        logger.info(f"✓ Using local CURRENT symlink: {local_current}")
-        logger.info(f"  → Resolves to: {resolved_path}")
-        return str(resolved_path)
+    if local_current.exists() or local_current.is_symlink():
+        try:
+            resolved_path = local_current.resolve()
+            if resolved_path.exists():
+                logger.info(f"✓ Using local CURRENT symlink: {local_current}")
+                logger.info(f"  → Resolves to: {resolved_path}")
+                return str(resolved_path)
+        except Exception as e:
+            logger.warning(f"⚠ Could not resolve local symlink: {e}")
     
     # Check for marker file (Windows fallback when symlinks require admin)
     local_current_marker = PROJECT_ROOT / 'models' / 'oneseek-certified' / 'OneSeek-7B-Zero-CURRENT.txt'
@@ -67,10 +78,11 @@ def get_active_model_path():
         try:
             with open(local_current_marker, 'r', encoding='utf-8') as f:
                 target_path = f.read().strip()
-            if Path(target_path).exists():
+            target_path_obj = Path(target_path)
+            if target_path_obj.exists():
                 logger.info(f"✓ Using local CURRENT marker file: {local_current_marker}")
                 logger.info(f"  → Points to: {target_path}")
-                return target_path
+                return str(target_path_obj.resolve())
         except Exception as e:
             logger.error(f"✗ Error reading marker file: {e}")
     
@@ -146,6 +158,25 @@ def read_model_metadata():
     """
     import json
     base_path = Path(ONESEEK_PATH)
+    
+    # Check if we're in a DNA-based certified directory
+    # Format: OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1
+    if 'OneSeek-7B-Zero.v' in base_path.name:
+        # We're in a certified directory - check for metadata.json
+        metadata_file = base_path / 'metadata.json'
+        if metadata_file.exists():
+            try:
+                with open(metadata_file, 'r', encoding='utf-8') as f:
+                    metadata = json.load(f)
+                logger.info(f"Found certified model metadata: {metadata_file}")
+                # Check if baseModel exists (singular) and convert to list
+                if 'baseModel' in metadata and 'baseModels' not in metadata:
+                    metadata['baseModels'] = [metadata['baseModel']]
+                return metadata
+            except Exception as e:
+                logger.warning(f"Could not read certified metadata from {metadata_file}: {e}")
+    
+    # Legacy fallback: check weights directory for old structure
     weights_dir = base_path / 'weights'
     
     if not weights_dir.exists():
@@ -164,7 +195,7 @@ def read_model_metadata():
     # Try to find the one marked as current first
     for json_file in sorted(all_json_files, reverse=True):
         try:
-            with open(json_file, 'r') as f:
+            with open(json_file, 'r', encoding='utf-8') as f:
                 metadata = json.load(f)
             if metadata.get('isCurrent', False):
                 logger.info(f"Found current model metadata: {json_file}")
@@ -176,7 +207,7 @@ def read_model_metadata():
     if all_json_files:
         try:
             latest_json = sorted(all_json_files, reverse=True)[0]
-            with open(latest_json, 'r') as f:
+            with open(latest_json, 'r', encoding='utf-8') as f:
                 metadata = json.load(f)
             logger.info(f"Using latest model metadata: {latest_json}")
             return metadata
@@ -355,18 +386,40 @@ def find_lora_weights(adapter_suffix=''):
     Args:
         adapter_suffix: Optional suffix like 'mistral' or 'llama' for model-specific adapters
     
-    Uses metadata to find model-specific weights for the actually trained base model.
-    
-    Checks for trained LoRA weights in:
-    1. Model-specific weight file from metadata (e.g., oneseek-7b-zero-v1.0-kb-llama-3-1-8b-swedish.pth)
-    2. lora_adapters/<model>-adapter/ (PEFT format directory)
-    3. Legacy: weights/oneseek-7b-zero-v*.pth (latest version)
+    Works with both certified and legacy structures:
+    - Certified: Model files in DNA-based directory (e.g., OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1/)
+    - Legacy: Model files in oneseek-7b-zero/weights/ and oneseek-7b-zero/lora_adapters/
     
     Returns path to LoRA weights file or directory, or None if not found
     """
     import json
     base_path = Path(ONESEEK_PATH)
     
+    # Check if we're in a certified directory
+    if 'OneSeek-7B-Zero.v' in base_path.name:
+        # Look for LoRA adapters in certified directory
+        logger.info(f"Searching for LoRA adapters in certified directory: {base_path}")
+        
+        # Look for adapter directories matching pattern
+        for item in base_path.iterdir():
+            if item.is_dir() and '-adapter' in item.name:
+                # Check for PEFT format
+                if (item / 'adapter_config.json').exists():
+                    logger.info(f"Found PEFT LoRA adapter in certified directory: {item}")
+                    return str(item)
+        
+        # Look for .pth weight files
+        pth_files = list(base_path.glob('*.pth'))
+        if pth_files:
+            # Sort by modification time, use latest
+            latest_pth = max(pth_files, key=lambda p: p.stat().st_mtime)
+            logger.info(f"Found weight file in certified directory: {latest_pth}")
+            return str(latest_pth)
+        
+        logger.info(f"No LoRA adapters found in certified directory - using base model")
+        return None
+    
+    # Legacy structure: check weights directory
     # Read metadata to find model-specific weights
     metadata = read_model_metadata()
     if metadata:

@@ -174,12 +174,21 @@ def run_real_training(args, data_dir, dataset_path):
     """Run real PyTorch training using OneSeekTrainer"""
     try:
         from train_language_model import OneSeekTrainer
+        from ml.training.certified_structure import (
+            generate_directory_name,
+            create_certified_model_directory,
+            save_certified_metadata,
+            update_current_symlink,
+            add_to_ledger,
+            calculate_short_hash,
+            extract_datasets_from_filename
+        )
         
-        # Setup paths
-        model_dir = project_root / 'models' / 'oneseek-7b-zero' / 'weights'
+        # Setup paths - use temporary directory for training, then move to certified location
+        temp_model_dir = project_root / 'models' / 'oneseek-7b-zero' / 'weights'
         ledger_dir = project_root / 'ml' / 'ledger'
         
-        model_dir.mkdir(parents=True, exist_ok=True)
+        temp_model_dir.mkdir(parents=True, exist_ok=True)
         ledger_dir.mkdir(parents=True, exist_ok=True)
         
         print(f"\n{'=' * 70}")
@@ -197,7 +206,7 @@ def run_real_training(args, data_dir, dataset_path):
         # Create trainer
         trainer = OneSeekTrainer(
             data_dir=str(data_dir),
-            model_dir=str(model_dir),
+            model_dir=str(temp_model_dir),
             ledger_dir=str(ledger_dir),
             language=training_language,
             external_model=None
@@ -227,11 +236,11 @@ def run_real_training(args, data_dir, dataset_path):
         # Generate DNA version string
         version = f"1.0"  # DNA v2 format
         
-        # Create certified output directory early for live metrics
+        # Create temporary run directory for live metrics during training
         output_dir = args.output_dir or str(project_root / 'models' / 'oneseek-certified')
-        certified_dir = Path(output_dir) / run_id
-        certified_dir.mkdir(parents=True, exist_ok=True)
-        print(f"\n[INFO] Created run directory: {certified_dir}")
+        temp_run_dir = Path(output_dir) / run_id
+        temp_run_dir.mkdir(parents=True, exist_ok=True)
+        print(f"\n[INFO] Created temporary run directory for live metrics: {temp_run_dir}")
         
         # Train the model (this calls real PyTorch training)
         print(f"\n[TRAINING] Starting real PyTorch training...")
@@ -278,6 +287,9 @@ def run_real_training(args, data_dir, dataset_path):
         # Extract categories from dataset
         categories = extract_categories_from_filenames([str(dataset_path)])
         
+        # Extract dataset names for DNA naming
+        dataset_names = extract_datasets_from_filename(dataset_path.name)
+        
         # Determine language: use command-line arg if provided, otherwise extract from filename
         if args.language:
             language = args.language
@@ -312,13 +324,16 @@ def run_real_training(args, data_dir, dataset_path):
             # Use equal weights for now (can be enhanced with actual training weights later)
             num_models = len(trained_model_names)
             final_weights = {model: 1.0 / num_models for model in trained_model_names}
+            base_model_name = trained_model_names[0]  # Use first model for metadata
         elif base_models_list:
             # Fallback to base models list if training results don't have model info
             num_models = len(base_models_list)
             final_weights = {model: 1.0 / num_models for model in base_models_list}
+            base_model_name = base_models_list[0]
         else:
             # Last resort fallback
             final_weights = {DEFAULT_MODEL_KEY: 1.0}
+            base_model_name = DEFAULT_MODEL_KEY
             print(f"[WARNING] No base model information available, using '{DEFAULT_MODEL_KEY}' as fallback")
         
         # Build DNA fingerprint with language
@@ -333,34 +348,89 @@ def run_real_training(args, data_dir, dataset_path):
         
         print(f"\n[SUCCESS] Training completed!")
         print(f"   DNA: {dna}")
-        print(f"   Model saved to: {model_dir}")
+        print(f"   Temporary model files saved to: {temp_model_dir}")
         
-        # certified_dir already created earlier for live metrics
-        # (run_id and certified_dir were created before training started)
+        # Calculate hashes for DNA-based directory naming
+        # Hash of training data
+        training_data_str = json.dumps({
+            'dataset': dataset_path.name,
+            'samples': len(datasets.get('train', [])),
+            'categories': list(categories)
+        }, sort_keys=True)
+        training_data_hash = calculate_short_hash(training_data_str, length=8)
         
-        # Save DNA metadata with atomic write
-        dna_metadata = {
+        # Hash of model weights (use final loss as proxy for now)
+        weights_data_str = json.dumps({
+            'final_loss': results.get('metrics', {}).get('training_loss', 0.0),
             'dna': dna,
-            'model_name': 'OneSeek-7B-Zero',
-            'version': version,
-            'timestamp': timestamp.isoformat(),
-            'final_weights': final_weights,
-            'baseModels': list(final_weights.keys()),  # Actual base models used
-            'categories': list(categories),
-            'immutable_hash': generate_immutable_hash({
-                'dna': dna,
-                'version': version,
-                'weights': final_weights,
-                'categories': list(categories)
-            })
-        }
+            'timestamp': timestamp.isoformat()
+        }, sort_keys=True)
+        model_weights_hash = calculate_short_hash(weights_data_str, length=8)
         
-        # Atomic write pattern: write to .tmp, then rename
-        dna_file = certified_dir / 'oneseek_dna.json'
-        dna_temp = certified_dir / 'oneseek_dna.json.tmp'
-        with open(dna_temp, 'w') as f:
-            json.dump(dna_metadata, f, indent=2)
-        dna_temp.replace(dna_file)
+        # Generate DNA-based directory name
+        certified_models_dir = Path(output_dir)
+        directory_name = generate_directory_name(
+            version=version,
+            language=language,
+            datasets=dataset_names,
+            training_data_hash=training_data_hash,
+            model_weights_hash=model_weights_hash
+        )
+        
+        print(f"\n[CERTIFIED] Creating certified model directory: {directory_name}")
+        
+        # Create certified model directory
+        certified_dir = create_certified_model_directory(
+            certified_models_dir=certified_models_dir,
+            directory_name=directory_name
+        )
+        
+        # Copy trained model files to certified directory
+        print(f"[CERTIFIED] Copying model files to certified directory...")
+        import shutil
+        
+        # Copy LoRA adapters if they exist
+        lora_adapters_dir = temp_model_dir.parent / 'lora_adapters'
+        if lora_adapters_dir.exists():
+            for adapter_dir in lora_adapters_dir.iterdir():
+                if adapter_dir.is_dir():
+                    dest_dir = certified_dir / adapter_dir.name
+                    if dest_dir.exists():
+                        shutil.rmtree(dest_dir)
+                    shutil.copytree(adapter_dir, dest_dir)
+                    print(f"   Copied: {adapter_dir.name}/")
+        
+        # Copy weight files
+        for weight_file in temp_model_dir.glob('*.pth'):
+            shutil.copy2(weight_file, certified_dir / weight_file.name)
+            print(f"   Copied: {weight_file.name}")
+        
+        # Move temporary run files to certified directory
+        if temp_run_dir.exists() and temp_run_dir != certified_dir:
+            for item in temp_run_dir.iterdir():
+                if item.is_file():
+                    dest = certified_dir / item.name
+                    if dest.exists():
+                        dest.unlink()
+                    shutil.move(str(item), str(dest))
+                    print(f"   Moved: {item.name}")
+            # Remove temp directory
+            shutil.rmtree(temp_run_dir)
+        
+        # Save certified metadata
+        save_certified_metadata(
+            model_dir=certified_dir,
+            version=version,
+            dna=dna,
+            base_model=base_model_name,
+            language=language,
+            datasets=dataset_names,
+            training_type='dna-v2',
+            samples_processed=len(datasets.get('train', [])),
+            metrics=results.get('metrics', {}),
+            training_data_hash=training_data_hash,
+            model_weights_hash=model_weights_hash
+        )
         
         # Save training results with atomic write
         training_results = {
@@ -384,39 +454,49 @@ def run_real_training(args, data_dir, dataset_path):
             json.dump(training_results, f, indent=2)
         results_temp.replace(results_file)
         
-        # Create ledger entry with atomic write
-        ledger_entry = {
-            'event': 'dna_v2_training_completed',
-            'model': 'OneSeek-7B-Zero',
+        # Calculate immutable hash
+        immutable_hash = generate_immutable_hash({
             'dna': dna,
             'version': version,
-            'baseModels': list(final_weights.keys()),  # Actual base models used
-            'dataset_hashes': [],
-            'final_weights': final_weights,
-            'immutable_hash': dna_metadata['immutable_hash'],
-            'timestamp': timestamp.isoformat(),
-            'signer_public_key': 'dev_mode',
-            'signature': 'dev_mode'
-        }
+            'weights': final_weights,
+            'categories': list(categories)
+        })
         
-        ledger_file = certified_dir / 'ledger_proof.json'
-        ledger_temp = certified_dir / 'ledger_proof.json.tmp'
-        with open(ledger_temp, 'w') as f:
-            json.dump(ledger_entry, f, indent=2)
-        ledger_temp.replace(ledger_file)
+        # Add to ledger proof
+        add_to_ledger(
+            certified_models_dir=certified_models_dir,
+            directory_name=directory_name,
+            dna=dna,
+            created_at=timestamp.isoformat() + 'Z',
+            immutable_hash=f"sha256:{immutable_hash}"
+        )
+        
+        # Update symlink to point to this new model
+        print(f"\n[SYMLINK] Updating OneSeek-7B-Zero-CURRENT symlink...")
+        update_current_symlink(
+            certified_models_dir=certified_models_dir,
+            target_directory=directory_name
+        )
         
         print(f"\n[CERTIFIED] Model certified and saved to: {certified_dir}")
-        print(f"   - DNA metadata: oneseek_dna.json")
+        print(f"[CERTIFIED] Directory name: {directory_name}")
+        print(f"   - Metadata: metadata.json")
         print(f"   - Training results: training_results.json")
-        print(f"   - Ledger proof: ledger_proof.json")
-        print(f"   - Model weights: {model_dir}/oneseek-7b-zero-v{version}.pth")
+        print(f"   - Ledger proof: updated in {certified_models_dir / 'ledger_proof.json'}")
+        print(f"   - Model weights: *.pth files")
+        print(f"   - LoRA adapters: *-adapter/ directories")
         if final_weights:
             print(f"   - Base models: {', '.join(final_weights.keys())}")
+        print(f"\n[SYMLINK] OneSeek-7B-Zero-CURRENT → {directory_name}")
         
         return {
             'success': True,
             'dna': dna,
             'certified_dir': str(certified_dir),
+            'directory_name': directory_name,
+            'training_data_hash': training_data_hash,
+            'model_weights_hash': model_weights_hash,
+            'symlink_updated': True,
             'results': results
         }
         
@@ -462,11 +542,13 @@ def main():
     # Run real training
     result = run_real_training(args, data_dir, dataset_path)
     
-    if result['success']:
+    if result and result.get('success'):
         print("\n" + "=" * 70)
         print("[SUCCESS] DNA v2 Training completed successfully!")
         print(f"DNA: {result['dna']}")
+        print(f"Directory: {result.get('directory_name', 'N/A')}")
         print(f"Certified output: {result['certified_dir']}")
+        print(f"Symlink: OneSeek-7B-Zero-CURRENT → {result.get('directory_name', 'N/A')}")
         print("=" * 70 + "\n")
         return 0
     else:
