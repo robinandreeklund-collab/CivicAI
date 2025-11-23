@@ -200,6 +200,19 @@ function setupRunWatcher(runId) {
                 broadcastMetricsUpdate(runId, liveMetricsPath);
               }
             });
+            
+            // Add error handler to prevent unhandled errors
+            watcher.on('error', (error) => {
+              console.error(`[WS] File watcher error for ${runId}:`, error);
+              // Clean up the watcher on error
+              try {
+                watcher.close();
+              } catch (e) {
+                // Ignore close errors
+              }
+              runWatchers.delete(runId);
+            });
+            
             runWatchers.set(runId, watcher);
             console.log(`[WS] Started watching ${liveMetricsPath}`);
           } catch (error) {
@@ -219,6 +232,18 @@ function setupRunWatcher(runId) {
         if (eventType === 'change') {
           broadcastMetricsUpdate(runId, liveMetricsPath);
         }
+      });
+      
+      // Add error handler to prevent unhandled errors
+      watcher.on('error', (error) => {
+        console.error(`[WS] File watcher error for ${runId}:`, error);
+        // Clean up the watcher on error
+        try {
+          watcher.close();
+        } catch (e) {
+          // Ignore close errors
+        }
+        runWatchers.delete(runId);
       });
       
       runWatchers.set(runId, watcher);

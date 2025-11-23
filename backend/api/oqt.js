@@ -610,7 +610,7 @@ router.get('/status', rateLimiter, async (req, res) => {
     // Get all available trained models
     const availableModels = await getAvailableLanguageModels();
     
-    // Find current model
+    // Find current model (prefer certified models)
     const currentModel = availableModels.find(m => m.isCurrent) || availableModels[0];
     
     res.json({
@@ -624,12 +624,16 @@ router.get('/status', rateLimiter, async (req, res) => {
         architecture: 'Transformer',
         trainingMethod: 'DNA v2 + Adaptive Weighting',
         dna: currentModel?.dna || null,
+        directoryName: currentModel?.directoryName || null,
         language: currentModel?.language || 'unknown',
+        isCertified: currentModel?.isCertified || false,
       },
       availableModels: availableModels.map(m => ({
         language: m.language,
         dna: m.dna,
+        directoryName: m.directoryName || null,
         isCurrent: m.isCurrent,
+        isCertified: m.isCertified || false,
         status: m.exists ? 'ready' : 'not found',
       })),
       health: {

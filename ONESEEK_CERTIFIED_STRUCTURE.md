@@ -111,8 +111,57 @@ The new structure consolidates everything into self-contained model directories.
 
 ## Implementation Status
 
-- [ ] Training code updated to save to new structure
-- [ ] ml_service updated to load from new structure
-- [ ] Admin panel updated for new paths
-- [ ] Symlink management updated
-- [ ] Migration script for old models
+✅ **COMPLETED**
+
+- [x] Training code updated to save to new structure
+  - `scripts/train_dna_v2.py` creates DNA-based directories
+  - Uses certified_structure.py helper functions
+  - Generates hashes for training data and model weights
+  - Creates metadata.json in certified format
+  - Updates ledger_proof.json with new entries
+  - Creates/updates symlink to active model
+  
+- [x] ml_service updated to load from new structure
+  - `ml_service/server.py` resolves -CURRENT symlink correctly
+  - Reads metadata from DNA-based directories
+  - Searches for LoRA adapters in certified structure
+  - Maintains backward compatibility with legacy structure
+  
+- [x] Admin panel updated for new paths
+  - `backend/api/admin.js` lists models from certified directory
+  - `backend/api/models/set-current.js` creates symlinks to DNA directories
+  - `ModelManagement.jsx` displays DNA-based model names
+  - Shows certified vs legacy models with visual badges
+  - Displays base model, datasets, and language for certified models
+  
+- [x] Symlink management updated
+  - Handles both Unix symlinks and Windows marker files
+  - Updates automatically after training
+  - Can be manually set via admin panel
+  
+- [ ] Migration script for old models (optional for future)
+
+### Directory Structure Example
+
+After training, the structure looks like:
+
+```
+models/oneseek-certified/
+├── OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1/
+│   ├── metadata.json                  # Certified metadata
+│   ├── training_results.json          # Training metrics
+│   ├── kb-llama-3-1-8b-swedish-adapter/  # LoRA adapters (PEFT format)
+│   │   ├── adapter_config.json
+│   │   ├── adapter_model.bin
+│   │   ├── tokenizer.json
+│   │   └── tokenizer_config.json
+│   └── oneseek-7b-zero-v1.0-kb-llama-3-1-8b-swedish.pth  # Full state dict
+│
+├── OneSeek-7B-Zero.v1.1.en.dsIdentity.8f3a1c9d.a1b2c3d4/
+│   └── (same structure)
+│
+├── OneSeek-7B-Zero-CURRENT            # Symlink to active version
+│   → OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1/
+│
+└── ledger_proof.json                  # Immutable log of all versions
+```

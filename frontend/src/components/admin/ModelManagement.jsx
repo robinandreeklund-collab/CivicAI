@@ -143,10 +143,11 @@ export default function ModelManagement() {
     <div className="space-y-6">
       {/* Info Section */}
       <div className="border border-blue-900/30 bg-blue-900/10 p-4 rounded">
-        <div className="text-blue-400 font-mono text-sm mb-2">ℹ️ Active Model System</div>
+        <div className="text-blue-400 font-mono text-sm mb-2">ℹ️ Active Model System (DNA-Based Structure)</div>
         <div className="text-[#888] font-mono text-xs space-y-1">
           <div>• Click "Set as Active" to make a model the current OQT Dashboard model</div>
-          <div>• Active model is stored as symlink: <code className="text-[#aaa]">models/oneseek-certified/OneSeek-7B-Zero-CURRENT</code></div>
+          <div>• Certified models are stored in DNA-based directories (e.g., OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1)</div>
+          <div>• Active model is linked via symlink: <code className="text-[#aaa]">models/oneseek-certified/OneSeek-7B-Zero-CURRENT</code></div>
           <div>• Restart ml_service to load the active model: <code className="text-[#aaa]">python ml_service/server.py</code></div>
           <div>• OQT Dashboard will always use the active model (homepage/chat-v2 unaffected)</div>
         </div>
@@ -196,10 +197,16 @@ export default function ModelManagement() {
                         />
                       )}
                       <div className="text-[#eee] font-mono text-sm">
-                        {model.version || model.id}
+                        {/* Display directory name for certified models, otherwise version */}
+                        {model.directoryName || model.version || model.id}
                         {(model.isCurrent || model.id === currentModelId) && (
                           <span className="ml-2 px-2 py-0.5 text-[10px] bg-green-900/30 border border-green-700/50 text-green-400 rounded">
                             ACTIVE
+                          </span>
+                        )}
+                        {model.isCertified && (
+                          <span className="ml-2 px-2 py-0.5 text-[10px] bg-blue-900/30 border border-blue-700/50 text-blue-400 rounded">
+                            CERTIFIED
                           </span>
                         )}
                       </div>
@@ -217,8 +224,44 @@ export default function ModelManagement() {
                       </div>
                     )}
                     
-                    {/* Adaptive Weights Display */}
-                    {model.weights && Object.keys(model.weights).length > 0 && (
+                    {/* Base Model Display for Certified Models */}
+                    {model.isCertified && model.baseModel && (
+                      <div className="mb-2 p-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[#666] font-mono text-xs">Base Model:</span>
+                          <span className="text-[#aaa] font-mono text-xs">
+                            {model.baseModel}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Datasets Display for Certified Models */}
+                    {model.isCertified && model.datasets && model.datasets.length > 0 && (
+                      <div className="mb-2 p-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[#666] font-mono text-xs">Datasets:</span>
+                          <span className="text-[#aaa] font-mono text-xs">
+                            {model.datasets.join(', ')}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Language Display for Certified Models */}
+                    {model.isCertified && model.language && (
+                      <div className="mb-2 p-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[#666] font-mono text-xs">Language:</span>
+                          <span className="text-[#aaa] font-mono text-xs">
+                            {model.language === 'sv' ? 'Swedish' : model.language === 'en' ? 'English' : model.language === 'ensv' ? 'Bilingual (EN/SV)' : model.language}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Adaptive Weights Display (Legacy) */}
+                    {!model.isCertified && model.weights && Object.keys(model.weights).length > 0 && (
                       <div className="mb-2 p-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
                         <div className="text-[#666] font-mono text-xs mb-1">Model Weights:</div>
                         {Object.entries(model.weights).map(([modelName, weight]) => {

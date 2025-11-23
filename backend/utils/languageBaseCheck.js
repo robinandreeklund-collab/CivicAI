@@ -170,11 +170,85 @@ export async function ensureLanguageBaseModel(languageCode) {
 
 /**
  * Get all available trained models
+ * Checks both certified directory (DNA-based) and legacy weights directory
  * @returns {Promise<Array<{language: string, model: string, dna: string, exists: boolean}>>}
  */
 export async function getAvailableLanguageModels() {
   const results = [];
+  const certifiedDir = path.join(process.cwd(), '..', 'models', 'oneseek-certified');
   
+  // First, check which model is current by reading the symlink
+  let currentModelDir = null;
+  try {
+    const symlinkPath = path.join(certifiedDir, 'OneSeek-7B-Zero-CURRENT');
+    try {
+      // Try to read symlink
+      currentModelDir = await fs.readlink(symlinkPath);
+      currentModelDir = path.basename(currentModelDir);
+    } catch (e) {
+      // Try marker file
+      const markerPath = symlinkPath + '.txt';
+      try {
+        const markerContent = await fs.readFile(markerPath, 'utf-8');
+        currentModelDir = path.basename(markerContent.trim());
+      } catch (e2) {
+        // No current model set
+      }
+    }
+  } catch (err) {
+    console.log('[LanguageBaseCheck] Could not determine current model from symlink');
+  }
+  
+  // Check certified directory for DNA-based models
+  try {
+    await fs.mkdir(certifiedDir, { recursive: true });
+    const entries = await fs.readdir(certifiedDir, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === 'OneSeek-7B-Zero-CURRENT') continue; // Skip symlink
+      
+      // DNA-based directories: OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1
+      if (!entry.name.startsWith('OneSeek-7B-Zero.v')) {
+        if (entry.name.startsWith('run-')) continue; // Skip old temp directories
+        continue;
+      }
+      
+      const modelPath = path.join(certifiedDir, entry.name);
+      const metadataPath = path.join(modelPath, 'metadata.json');
+      
+      try {
+        const content = await fs.readFile(metadataPath, 'utf-8');
+        const metadata = JSON.parse(content);
+        
+        // Extract language from directory name
+        // Format: OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1
+        const nameParts = entry.name.split('.');
+        const language = nameParts[2] || 'unknown'; // 3rd part is language (sv, en, etc.)
+        
+        const dna = metadata.dna || entry.name;
+        const isCurrent = entry.name === currentModelDir;
+        
+        results.push({
+          language,
+          model: dna,
+          dna,
+          directoryName: entry.name,
+          exists: true,
+          isCurrent,
+          path: modelPath,
+          metadata,
+          isCertified: true,
+        });
+      } catch (err) {
+        console.error(`[LanguageBaseCheck] Error reading certified model ${entry.name}:`, err);
+      }
+    }
+  } catch (err) {
+    console.log('[LanguageBaseCheck] Certified directory not found or empty:', err.message);
+  }
+  
+  // Also check legacy weights directory for backward compatibility
   try {
     await fs.mkdir(WEIGHTS_DIR, { recursive: true });
     const files = await fs.readdir(WEIGHTS_DIR);
@@ -199,6 +273,7 @@ export async function getAvailableLanguageModels() {
           isCurrent: metadata.isCurrent || false,
           path: WEIGHTS_DIR,
           metadata,
+          isCertified: false, // Legacy model
         });
       } catch (err) {
         console.error(`[LanguageBaseCheck] Error reading ${file}:`, err);
