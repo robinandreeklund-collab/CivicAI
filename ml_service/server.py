@@ -1,41 +1,82 @@
 """
-ML Inference Service for OneSeek-7B-Zero
-FastAPI server for OneSeek-7B-Zero model inference using -CURRENT symlink
+ML Inference Service for OneSeek - DNA v2 Certified
+FastAPI server for OneSeek model inference with DNA v2 certified model support
+Supports rate limiting, dynamic model routing, and legacy model deprecation
 """
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, field_validator
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import os
 from pathlib import Path
 import logging
 import sys
+import time
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Model paths - use absolute paths relative to project root
+# Configuration
+RATE_LIMIT_PER_MINUTE = int(os.getenv('RATE_LIMIT_PER_MINUTE', '10'))
+
+# Model paths - use absolute paths relative to project root or MODELS_DIR env var
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+
+def get_models_base_dir():
+    """
+    Get the base models directory, respecting MODELS_DIR environment variable.
+    This allows for flexible deployment and testing scenarios.
+    
+    Priority:
+    1. MODELS_DIR environment variable (if set)
+    2. PRODUCTION_MODELS_PATH environment variable (legacy support)
+    3. PROJECT_ROOT/models (default)
+    """
+    models_dir = os.getenv('MODELS_DIR')
+    if models_dir:
+        models_path = Path(models_dir)
+        if models_path.exists():
+            logger.info(f"✓ Using MODELS_DIR: {models_path}")
+            return models_path
+        else:
+            logger.warning(f"⚠ MODELS_DIR set but doesn't exist: {models_dir}")
+            logger.warning("  Falling back to default location")
+    
+    # Legacy env var support
+    prod_models = os.getenv('PRODUCTION_MODELS_PATH')
+    if prod_models:
+        prod_path = Path(prod_models)
+        if prod_path.exists():
+            logger.info(f"✓ Using PRODUCTION_MODELS_PATH: {prod_path}")
+            return prod_path
+    
+    # Default to project root models directory
+    default_path = PROJECT_ROOT / 'models'
+    logger.info(f"Using default models directory: {default_path}")
+    return default_path
 
 def get_active_model_path():
     """
-    Get the active OneSeek model path via -CURRENT symlink ONLY.
-    No fallbacks to old models. If the symlink doesn't exist, fail clearly.
+    Get the active OneSeek model path with DNA v2 certified model priority.
     
-    The symlink now points to DNA-based directories like:
-    models/oneseek-certified/OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1/
-    
-    Priority order:
+    Priority order for finding certified models (DNA v2):
     1. Environment variable ONESEEK_MODEL_PATH (for manual override)
-    2. Production -CURRENT symlink (configurable via PRODUCTION_MODELS_PATH, defaults to /app/models)
-    3. Local -CURRENT symlink (models/oneseek-certified/OneSeek-7B-Zero-CURRENT)
+    2. oneseek-certified/OneSeek-7B-Zero-CURRENT symlink (DNA v2 certified)
+    3. Fallback to base models if certified model not found
     
-    If none exist, the service will NOT start.
+    The certified symlink points to DNA-based directories like:
+    models/oneseek-certified/OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1/
     """
+    models_base = get_models_base_dir()
+    
     # Check environment variable first (manual override)
     env_path = os.getenv('ONESEEK_MODEL_PATH')
     if env_path:
@@ -47,63 +88,64 @@ def get_active_model_path():
             logger.error(f"✗ ONESEEK_MODEL_PATH set but path doesn't exist: {env_path}")
             sys.exit(1)
     
-    # Check production -CURRENT symlink
-    production_models_path = os.getenv('PRODUCTION_MODELS_PATH', '/app/models')
-    production_current = Path(production_models_path) / 'oneseek-certified' / 'OneSeek-7B-Zero-CURRENT'
-    if production_current.exists() or production_current.is_symlink():
+    # Check for DNA v2 certified model (PRIORITY)
+    certified_current = models_base / 'oneseek-certified' / 'OneSeek-7B-Zero-CURRENT'
+    if certified_current.exists() or certified_current.is_symlink():
         try:
-            resolved_path = production_current.resolve()
+            resolved_path = certified_current.resolve()
             if resolved_path.exists():
-                logger.info(f"✓ Using production CURRENT symlink: {production_current}")
+                logger.info(f"✓ Using DNA v2 CERTIFIED model: {certified_current}")
                 logger.info(f"  → Resolves to: {resolved_path}")
                 return str(resolved_path)
         except Exception as e:
-            logger.warning(f"⚠ Could not resolve production symlink: {e}")
-    
-    # Check local -CURRENT symlink
-    local_current = PROJECT_ROOT / 'models' / 'oneseek-certified' / 'OneSeek-7B-Zero-CURRENT'
-    if local_current.exists() or local_current.is_symlink():
-        try:
-            resolved_path = local_current.resolve()
-            if resolved_path.exists():
-                logger.info(f"✓ Using local CURRENT symlink: {local_current}")
-                logger.info(f"  → Resolves to: {resolved_path}")
-                return str(resolved_path)
-        except Exception as e:
-            logger.warning(f"⚠ Could not resolve local symlink: {e}")
+            logger.warning(f"⚠ Could not resolve certified symlink: {e}")
     
     # Check for marker file (Windows fallback when symlinks require admin)
-    local_current_marker = PROJECT_ROOT / 'models' / 'oneseek-certified' / 'OneSeek-7B-Zero-CURRENT.txt'
-    if local_current_marker.exists():
+    certified_marker = models_base / 'oneseek-certified' / 'OneSeek-7B-Zero-CURRENT.txt'
+    if certified_marker.exists():
         try:
-            with open(local_current_marker, 'r', encoding='utf-8') as f:
+            with open(certified_marker, 'r', encoding='utf-8') as f:
                 target_path = f.read().strip()
             target_path_obj = Path(target_path)
             if target_path_obj.exists():
-                logger.info(f"✓ Using local CURRENT marker file: {local_current_marker}")
+                logger.info(f"✓ Using DNA v2 CERTIFIED model (marker): {certified_marker}")
                 logger.info(f"  → Points to: {target_path}")
                 return str(target_path_obj.resolve())
         except Exception as e:
-            logger.error(f"✗ Error reading marker file: {e}")
+            logger.error(f"✗ Error reading certified marker file: {e}")
     
-    # NO FALLBACKS - Fail clearly
+    # Fallback to legacy oneseek-7b-zero if certified not found
+    legacy_current = models_base / 'oneseek-7b-zero' / 'OneSeek-7B-Zero-CURRENT'
+    if legacy_current.exists() or legacy_current.is_symlink():
+        try:
+            resolved_path = legacy_current.resolve()
+            if resolved_path.exists():
+                logger.warning("⚠ Using LEGACY model (oneseek-7b-zero)")
+                logger.warning("  → Consider migrating to DNA v2 certified models")
+                logger.info(f"  → Resolves to: {resolved_path}")
+                return str(resolved_path)
+        except Exception as e:
+            logger.warning(f"⚠ Could not resolve legacy symlink: {e}")
+    
+    # NO MODEL FOUND - Fail clearly with helpful error message
     logger.error("")
     logger.error("=" * 80)
     logger.error("✗ ACTIVE MODEL NOT FOUND")
     logger.error("=" * 80)
     logger.error("")
-    logger.error("No active model symlink found. You must set a model as active first.")
+    logger.error("No active model found. You must set a DNA v2 certified model as active.")
     logger.error("")
     logger.error("How to fix:")
     logger.error("  1. Go to Admin Dashboard → Models tab")
-    logger.error("  2. Click 'Set as Active' on a trained model version")
+    logger.error("  2. Click 'Set as Active' on a DNA v2 certified model")
     logger.error("  3. Restart this service")
     logger.error("")
     logger.error("Checked locations:")
     logger.error(f"  - Environment variable ONESEEK_MODEL_PATH: {env_path or 'Not set'}")
-    logger.error(f"  - Production symlink: {production_current} (Not found)")
-    logger.error(f"  - Local symlink: {local_current} (Not found)")
+    logger.error(f"  - DNA v2 certified symlink: {certified_current} (Not found)")
+    logger.error(f"  - Legacy model symlink: {legacy_current} (Not found)")
     logger.error("")
+    logger.error("For DNA v2 migration guide, see: ONESEEK_7B_ZERO_MIGRATION_GUIDE.md")
     logger.error("=" * 80)
     logger.error("")
     sys.exit(1)
@@ -330,16 +372,34 @@ def find_all_base_models():
     return models_found if models_found else None
 
 class InferenceRequest(BaseModel):
-    text: str
-    max_length: int = 512
-    temperature: float = 0.7
-    top_p: float = 0.9
+    """Request model for inference with input validation"""
+    text: str = Field(..., min_length=1, max_length=10000, description="Input text for inference")
+    max_length: int = Field(default=512, ge=1, le=2048, description="Maximum generation length")
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Sampling temperature")
+    top_p: float = Field(default=0.9, ge=0.0, le=1.0, description="Nucleus sampling parameter")
+    
+    @field_validator('text')
+    @classmethod
+    def validate_text(cls, v: str) -> str:
+        """Validate and sanitize input text"""
+        if not v or not v.strip():
+            raise ValueError("Input text cannot be empty")
+        # Basic sanitization - remove null bytes
+        v = v.replace('\x00', '')
+        return v.strip()
 
 class InferenceResponse(BaseModel):
+    """Response model for inference results"""
     response: str
     model: str
     tokens: int
     latency_ms: float
+    
+class ErrorResponse(BaseModel):
+    """Error response model"""
+    error: str
+    detail: str
+    migration_guide: str = None
 
 def find_base_model_path():
     """Find a valid base model path for OneSeek-7B-Zero
@@ -756,12 +816,14 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("")
     logger.info("=" * 80)
-    logger.info("ML Service for OneSeek-7B-Zero - Starting...")
+    logger.info("ML Service for OneSeek - DNA v2 Certified - Starting...")
     logger.info("=" * 80)
     logger.info(f"Device: {DEVICE}")
     logger.info(f"Device Type: {DEVICE_TYPE}")
     logger.info(f"Project root: {PROJECT_ROOT}")
+    logger.info(f"Models base directory: {get_models_base_dir()}")
     logger.info(f"Active model path: {ONESEEK_PATH}")
+    logger.info(f"Rate limiting: 10 requests/minute per IP on /infer endpoint")
     logger.info("=" * 80)
     logger.info("")
     
@@ -773,8 +835,13 @@ async def lifespan(app: FastAPI):
         logger.error("Check that the symlink target exists and is correct.")
         sys.exit(1)
     
+    # Check if DNA v2 certified
+    is_certified = 'oneseek-certified' in str(model_path) or 'OneSeek-7B-Zero.v' in model_path.name
+    model_type = "DNA v2 CERTIFIED ✓" if is_certified else "Legacy (fallback)"
+    
     logger.info(f"✓ Active model directory found: {model_path}")
-    logger.info(f"  Ready to serve queries via OQT Dashboard")
+    logger.info(f"  Model type: {model_type}")
+    logger.info(f"  Ready to serve inference requests")
     logger.info("")
     
     yield
@@ -782,13 +849,20 @@ async def lifespan(app: FastAPI):
     # Shutdown (cleanup if needed)
     logger.info("Shutting down ML Service...")
 
+# Initialize rate limiter (10 requests per minute per IP for /infer endpoint)
+limiter = Limiter(key_func=get_remote_address)
+
 # Initialize FastAPI with lifespan
 app = FastAPI(
-    title="OneSeek-7B-Zero ML Service",
-    version="2.0.0",
-    description="ML inference service using active model via -CURRENT symlink",
+    title="OneSeek ML Service - DNA v2 Certified",
+    version="2.1.0",
+    description="ML inference service with DNA v2 certified model support and rate limiting",
     lifespan=lifespan
 )
+
+# Add rate limiter to app state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS middleware
 app.add_middleware(
@@ -801,15 +875,22 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    """Health check"""
+    """Health check and service information"""
     device_info = {
-        "service": "OneSeek-7B-Zero ML Service",
-        "version": "1.1.0",
-        "model": "OneSeek-7B-Zero.v1.1",
+        "service": "OneSeek ML Service - DNA v2 Certified",
+        "version": "2.1.0",
+        "model_type": "DNA v2 Certified",
         "status": "running",
         "device": str(DEVICE),
         "device_type": DEVICE_TYPE,
-        "models_loaded": list(models.keys())
+        "models_loaded": list(models.keys()),
+        "active_model_path": ONESEEK_PATH,
+        "endpoints": {
+            "/infer": "Primary inference endpoint (rate limited: 10 req/min/IP)",
+            "/infer-legacy": "Legacy endpoint (deprecated - returns HTTP 410)",
+            "/inference/oneseek": "Direct OneSeek inference",
+            "/models/status": "Model loading status"
+        }
     }
     
     # Add device-specific info
@@ -824,6 +905,106 @@ async def root():
             pass
     
     return device_info
+
+@app.post("/infer", response_model=InferenceResponse)
+@limiter.limit(f"{RATE_LIMIT_PER_MINUTE}/minute")
+async def infer(request: Request, inference_request: InferenceRequest):
+    """
+    Primary inference endpoint with rate limiting (configurable via RATE_LIMIT_PER_MINUTE).
+    
+    Routes to DNA v2 certified models with fallback to base models.
+    This is the recommended endpoint for all inference requests.
+    """
+    start_time = time.time()
+    
+    try:
+        # Determine if we're using certified model or fallback
+        model_path = Path(ONESEEK_PATH)
+        is_certified = 'oneseek-certified' in str(model_path) or 'OneSeek-7B-Zero.v' in model_path.name
+        
+        if DUAL_MODEL_MODE and not is_certified:
+            # Use dual-model inference for legacy models
+            logger.info("Using dual-model inference (legacy fallback)")
+            result = await dual_model_inference(
+                inference_request.text,
+                max_length=inference_request.max_length,
+                temperature=inference_request.temperature,
+                top_p=inference_request.top_p
+            )
+            
+            return InferenceResponse(
+                response=result['response'],
+                model=result['model'] + " (fallback)",
+                tokens=result['tokens'],
+                latency_ms=result['latency_ms']
+            )
+        else:
+            # Single-model inference (certified or fallback)
+            model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
+            
+            # Prepare input
+            inputs = tokenizer(inference_request.text, return_tensors="pt", padding=True).to(DEVICE)
+            
+            # Generate with explicit attention_mask
+            with torch.no_grad():
+                outputs = model.generate(
+                    input_ids=inputs.input_ids,
+                    attention_mask=inputs.attention_mask,
+                    max_length=inference_request.max_length,
+                    temperature=inference_request.temperature,
+                    top_p=inference_request.top_p,
+                    do_sample=True,
+                    pad_token_id=tokenizer.eos_token_id
+                )
+            
+            # Decode output
+            response_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            
+            # Remove input from response
+            if response_text.startswith(inference_request.text):
+                response_text = response_text[len(inference_request.text):].strip()
+            
+            latency_ms = (time.time() - start_time) * 1000
+            
+            model_name = "OneSeek DNA v2 Certified" if is_certified else "OneSeek (base model fallback)"
+            
+            return InferenceResponse(
+                response=response_text,
+                model=model_name,
+                tokens=len(outputs[0]),
+                latency_ms=latency_ms
+            )
+        
+    except Exception as e:
+        logger.error(f"Inference error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Inference failed: {str(e)}")
+
+@app.post("/infer-legacy")
+async def infer_legacy(request: InferenceRequest):
+    """
+    Legacy inference endpoint - DEPRECATED
+    
+    This endpoint is deprecated as of DNA v2 migration.
+    Please migrate to the /infer endpoint.
+    
+    Returns HTTP 410 Gone with migration instructions.
+    """
+    return JSONResponse(
+        status_code=410,
+        content={
+            "error": "Endpoint Deprecated",
+            "detail": "This legacy endpoint has been deprecated as of DNA v2 migration.",
+            "migration_guide": "ONESEEK_7B_ZERO_MIGRATION_GUIDE.md",
+            "new_endpoint": "/infer",
+            "instructions": [
+                "Update your code to use the /infer endpoint instead",
+                "The /infer endpoint supports DNA v2 certified models",
+                "Rate limit: 10 requests per minute per IP address",
+                "All legacy model references have been migrated to certified models"
+            ],
+            "documentation": "See INFERENCE_ROUTING_FIX.md for complete migration guide"
+        }
+    )
 
 @app.post("/inference/oneseek", response_model=InferenceResponse)
 async def oneseek_inference(request: InferenceRequest):
