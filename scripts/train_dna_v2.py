@@ -213,7 +213,7 @@ def run_real_training(args, data_dir, dataset_path):
         )
         
         # Setup paths - use temporary directory for training, then move to certified location
-        temp_model_dir = project_root / 'models' / 'oneseek-7b-zero' / 'weights'
+        temp_model_dir = project_root / 'models' / 'oneseek-certified' / '.temp_training'
         ledger_dir = project_root / 'ml' / 'ledger'
         
         temp_model_dir.mkdir(parents=True, exist_ok=True)

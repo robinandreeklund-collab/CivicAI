@@ -331,7 +331,7 @@ router.get('/micro/status', rateLimiter, (req, res) => {
  */
 router.get('/micro/stats', rateLimiter, async (req, res) => {
   try {
-    const modelsDir = path.join(__dirname, '..', '..', '..', 'models', 'oneseek-7b-zero');
+    const modelsDir = path.join(__dirname, '..', '..', '..', 'models', 'oneseek-certified');
     
     const stats = {
       totalRuns: microTrainingState.totalRuns,
