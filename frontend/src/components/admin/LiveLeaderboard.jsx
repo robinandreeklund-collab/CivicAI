@@ -25,6 +25,8 @@ export default function LiveLeaderboard({ runId, onClose }) {
     
     // Fallback: Poll live_metrics.json directly every 2 seconds
     // This provides real-time updates even if WebSocket is unavailable
+    // Note: 2 second interval chosen for responsive UX during training
+    // Could be increased to 5-10s if server load becomes a concern
     pollIntervalRef.current = setInterval(async () => {
       try {
         // First try: Direct fetch from live_metrics.json with cache-busting

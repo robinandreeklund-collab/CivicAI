@@ -432,21 +432,21 @@ def train_single_model_lora(
                 model_key = normalize_model_name(model_name)
                 
                 # TODO: Replace with actual validation accuracy from validation loop
-                # For now, using mock value only on final epoch for demonstration
-                # Real implementation should run validation set and calculate accuracy
-                val_accuracy = 0.85 if epoch == epochs - 1 else None
+                # Currently None - will be added when validation set is processed
+                # Mock value removed to avoid misleading metrics
+                val_accuracy = None  # Set to None until actual validation is implemented
                 
-                # TODO: Improve step tracking for intra-epoch progress
-                # Current simplified training uses 1 batch per epoch
-                # Real training loop should track actual batch_idx and len(dataloader)
+                # Note: This simplified training has 1 batch per epoch
+                # For real training with dataloader, track batch_idx within epoch
+                # Don't send step/total_steps for single-batch epochs (would be 1/1 = 100% always)
                 write_live_metrics(
                     run_id=run_id,
                     epoch=epoch + 1,
                     total_epochs=epochs,
                     model_losses={model_key: current_loss},
                     model_weights={model_key: 1.0},  # Will be adaptive weights later
-                    step=num_batches if num_batches > 1 else None,  # Only send step if multiple batches
-                    total_steps=num_batches if num_batches > 1 else None,
+                    step=None,  # Not tracking intra-epoch progress in simplified training
+                    total_steps=None,  # Will be len(dataloader) in real training
                     validation_accuracy=val_accuracy
                 )
         
