@@ -1705,7 +1705,12 @@ router.get('/models', requireAdmin, async (req, res) => {
       const files = await fs.readdir(modelsDir);
       
       // Filter for metadata JSON files
-      const metadataFiles = files.filter(f => f.startsWith('oneseek-7b-zero-v') && f.endsWith('.json'));
+      // Prioritize double-dot files (..) which are the correct format
+      // e.g., oneseek-7b-zero-v1.0..json is correct, oneseek-7b-zero-v1.0.json is incorrect
+      const metadataFiles = files.filter(f => 
+        (f.startsWith('oneseek-7b-zero-v') && f.endsWith('..json')) || // Correct format with ..
+        (f.startsWith('oneseek-7b-zero-v') && f.endsWith('.json') && !f.endsWith('..json')) // Fallback
+      );
       
       for (const file of metadataFiles) {
         const metadataPath = path.join(modelsDir, file);
@@ -1715,7 +1720,8 @@ router.get('/models', requireAdmin, async (req, res) => {
           const metadata = JSON.parse(metadataContent);
           
           // Extract version from filename as fallback
-          const versionMatch = file.match(/oneseek-7b-zero-v([0-9.]+)\.json/);
+          // Handle both double-dot (..) and single-dot (.) files
+          const versionMatch = file.match(/oneseek-7b-zero-v([0-9.]+)\.+json/);
           const versionId = versionMatch ? versionMatch[1] : 'unknown';
           
           models.push({

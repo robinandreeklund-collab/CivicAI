@@ -149,7 +149,19 @@ To enable data persistence and user authentication:
 - ✅ Automatic versioning (OneSeek-7B-Zero.v{MAJOR}.{MICRO})
 - ✅ GPU/CPU optimization and 8-bit quantization support
 - ✅ Model weights storage structure
+- ✅ Model Verification System (Exact Match, BLEU, Semantic Similarity)
+- ✅ Fidelity Score certification (CERTIFIED/WARNING/REJECT)
+- ✅ Active model management via -CURRENT symlink
+- ✅ PDF certificate generation for verified models
 - 🔄 PyTorch training implementation
+
+**Admin Dashboard:**
+- ✅ Dataset management (upload, browse, validate)
+- ✅ Training control panel (configure, start/stop, monitor)
+- ✅ Model management (list versions, compare, rollback)
+- ✅ Model verification tab with fidelity testing
+- ✅ Real-time monitoring (progress, GPU/CPU, notifications)
+- ✅ Unified admin design (grayscale theme, JetBrains Mono 13px)
 
 ### 🚧 In Progress
 
@@ -200,6 +212,49 @@ OneSeek-7B-Zero.v1.4    ← Microtraining Stage 2 (next question)
 ...
 OneSeek-7B-Zero.v2.0    ← Next major training
 ```
+
+### Model Verification System
+
+**OneSeek-7B-Zero** includes a comprehensive model verification system to ensure fidelity and quality:
+
+**Verification Process:**
+1. **Random Training Set (100 questions)**: Tests the model against randomly selected training examples
+2. **Control Questions (50 questions)**: Mix-and-match control questions to test generalization
+3. **Three Metrics**:
+   - **Exact Match %**: Percentage of responses that exactly match expected output
+   - **BLEU Score**: Measures linguistic quality (≥0.95 threshold)
+   - **Semantic Similarity**: Measures meaning preservation (≥0.98 threshold)
+
+**Fidelity Score & Certification:**
+- **CERTIFIED (≥97%)**: Model meets all quality standards, green badge across admin
+- **WARNING (90-96.9%)**: Model is functional but may need improvement
+- **REJECT (<90%)**: Model does not meet quality standards
+
+**Example Results:**
+```
+Slumpfrågor (Training Set):
+  Exact Match: 93%
+  BLEU: 98%
+  Semantic: 99%
+
+Kontrollfrågor (Control Questions):
+  Exact Match: 46%
+  BLEU: 49%
+  Semantic: 48%
+
+FINAL SCORE: 98.1% → CERTIFIED
+```
+
+**Active Model Management:**
+- The verification system can set verified models as "current" via symlink
+- OQT Dashboard always uses the active model at `models/oneseek-certified/OneSeek-7B-Zero-CURRENT`
+- Production environments use `/app/models/oneseek-certified/OneSeek-7B-Zero-CURRENT`
+- Main homepage and chat-v2 are unaffected by this symlink
+
+**PDF Certificate:**
+- Downloadable PDF certificate for certified models
+- Includes all metrics, timestamps, and certification status
+- Useful for documentation and compliance
 
 ### Architecture
 

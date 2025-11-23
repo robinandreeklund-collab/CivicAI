@@ -16,9 +16,11 @@ export default function ModelManagement() {
   const [selectedModel, setSelectedModel] = useState(null);
   const [compareMode, setCompareMode] = useState(false);
   const [selectedForCompare, setSelectedForCompare] = useState([]);
+  const [currentModelId, setCurrentModelId] = useState(null);
 
   useEffect(() => {
     fetchModels();
+    fetchCurrentModel();
   }, []);
 
   const fetchModels = async () => {
@@ -32,6 +34,20 @@ export default function ModelManagement() {
       console.error('Error fetching models:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCurrentModel = async () => {
+    try {
+      const response = await fetch('/api/models/current');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.currentModel) {
+          setCurrentModelId(data.currentModel);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching current model:', error);
     }
   };
 
@@ -78,6 +94,35 @@ export default function ModelManagement() {
     }
   };
 
+  const setAsCurrentModel = async (modelId) => {
+    if (!confirm('Set this model as the active model for OQT Dashboard?\n\nThis will create/update the -CURRENT symlink and ml_service will use this model on next startup.\n\nNote: The symlink points to the base oneseek-7b-zero directory which contains all model weights.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/models/set-current', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ modelId }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        alert(`Model version ${modelId} set as current successfully!\n\n${data.note || 'Restart ml_service (python ml_service/server.py) to load this model.'}`);
+        setCurrentModelId('oneseek-7b-zero'); // The symlink always points to the base directory
+        await fetchModels();
+      } else {
+        const data = await response.json();
+        alert(`Failed to set model: ${data.error}\n\n${data.note || ''}`);
+      }
+    } catch (error) {
+      console.error('Error setting current model:', error);
+      alert('Failed to set current model');
+    }
+  };
+
   const toggleCompare = (modelId) => {
     if (selectedForCompare.includes(modelId)) {
       setSelectedForCompare(selectedForCompare.filter(id => id !== modelId));
@@ -96,6 +141,17 @@ export default function ModelManagement() {
 
   return (
     <div className="space-y-6">
+      {/* Info Section */}
+      <div className="border border-blue-900/30 bg-blue-900/10 p-4 rounded">
+        <div className="text-blue-400 font-mono text-sm mb-2">ℹ️ Active Model System</div>
+        <div className="text-[#888] font-mono text-xs space-y-1">
+          <div>• Click "Set as Active" to make a model the current OQT Dashboard model</div>
+          <div>• Active model is stored as symlink: <code className="text-[#aaa]">models/oneseek-certified/OneSeek-7B-Zero-CURRENT</code></div>
+          <div>• Restart ml_service to load the active model: <code className="text-[#aaa]">python ml_service/server.py</code></div>
+          <div>• OQT Dashboard will always use the active model (homepage/chat-v2 unaffected)</div>
+        </div>
+      </div>
+
       {/* Model List */}
       <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">
         <div className="flex items-center justify-between mb-4">
@@ -140,10 +196,10 @@ export default function ModelManagement() {
                         />
                       )}
                       <div className="text-[#eee] font-mono text-sm">
-                        {model.version}
-                        {model.isCurrent && (
-                          <span className="ml-2 px-2 py-0.5 text-[10px] border border-[#2a2a2a] text-[#888] rounded">
-                            CURRENT
+                        {model.version || model.id}
+                        {(model.isCurrent || model.id === currentModelId) && (
+                          <span className="ml-2 px-2 py-0.5 text-[10px] bg-green-900/30 border border-green-700/50 text-green-400 rounded">
+                            ACTIVE
                           </span>
                         )}
                       </div>
@@ -209,6 +265,14 @@ export default function ModelManagement() {
                       >
                         Download
                       </button>
+                      {model.id !== currentModelId && (
+                        <button
+                          onClick={() => setAsCurrentModel(model.id)}
+                          className="px-3 py-1 border border-green-700/50 bg-green-900/20 text-green-400 text-xs font-mono hover:bg-green-900/30 transition-colors"
+                        >
+                          Set as Active
+                        </button>
+                      )}
                       {!model.isCurrent && (
                         <button
                           onClick={() => rollbackToModel(model.id)}
