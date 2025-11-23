@@ -478,9 +478,9 @@ def run_real_training(args, data_dir, dataset_path):
             "bias_score": raw_metrics.get('bias_score', 0.0)
         }
         
-        # Calculate finalized timestamp (store once to ensure consistency)
-        finalized_timestamp = datetime.now()
-        finalized_at = finalized_timestamp.isoformat() + ('Z' if not finalized_timestamp.tzinfo else '')
+        # Calculate finalized timestamp (use UTC for consistency with createdAt)
+        finalized_timestamp = datetime.utcnow()
+        finalized_at = finalized_timestamp.isoformat() + 'Z'
         
         # Save certified metadata with final aggregated metrics, status, and finalized timestamp
         print(f"\n[METADATA] Saving final aggregated metrics to certified directory...")
