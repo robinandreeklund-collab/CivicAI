@@ -54,6 +54,7 @@ net use Z: \\DIN-LAPTOP-IP\CivicAI\models /persistent:yes
 # 5. Set environment variables
 # Windows (PowerShell):
 $env:SHARED_MODELS_PATH = "Z:\models"
+$env:SHARED_MODELS_PATH = "\\FLOW-Z13\models"
 $env:LAPTOP_API_URL = "http://192.168.1.100:3001"
 
 # Linux/Mac:
