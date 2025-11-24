@@ -705,9 +705,15 @@ def train_single_model_lora(
             
             # CRITICAL FIX: Even if base model is not certified, check for OneSeek-7B-Zero-CURRENT
             # to enable continuous learning across training iterations
-            certified_models_dir = model_path.parent.parent / 'oneseek-certified'
+            # model_dir.parent is where oneseek-certified models are stored
+            certified_models_dir = model_dir.parent
+            print(f"[DEBUG] certified_models_dir: {certified_models_dir}")
             current_symlink = certified_models_dir / 'OneSeek-7B-Zero-CURRENT'
             current_marker = Path(str(current_symlink) + '.txt')
+            print(f"[DEBUG] Looking for symlink: {current_symlink}")
+            print(f"[DEBUG] Looking for marker: {current_marker}")
+            print(f"[DEBUG] Symlink exists: {current_symlink.exists()}")
+            print(f"[DEBUG] Marker exists: {current_marker.exists()}")
             
             # Check if symlink or marker file exists
             previous_model_path = None
