@@ -895,11 +895,16 @@ async def dual_model_inference(text: str, max_length: int = 512, temperature: fl
         inputs = tokenizer(prompt, return_tensors="pt", padding=True)
         inputs = ensure_device_compatibility(inputs, model)
         
+        # === DIRECTML SHARD-FIX (fixar hanging load) ===
+        if inputs.input_ids.device.type != model.device.type:
+            inputs = {k: v.to(model.device) for k, v in inputs.items()}
+            logger.info(f"[FIX] Synkade inputs till {model.device} – laddning fortsätter!")
+        
         # Generate with explicit attention_mask
         with torch.no_grad():
             outputs = model.generate(
-                input_ids=inputs.input_ids,
-                attention_mask=inputs.attention_mask,
+                input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
+                attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
                 max_length=max_length,
                 temperature=temperature,
                 top_p=top_p,
@@ -1121,11 +1126,16 @@ async def infer(request: Request, inference_request: InferenceRequest):
             inputs = tokenizer(inference_request.text, return_tensors="pt", padding=True)
             inputs = ensure_device_compatibility(inputs, model)
             
+            # === DIRECTML SHARD-FIX (fixar hanging load) ===
+            if inputs.input_ids.device.type != model.device.type:
+                inputs = {k: v.to(model.device) for k, v in inputs.items()}
+                logger.info(f"[FIX] Synkade inputs till {model.device} – laddning fortsätter!")
+            
             # Generate with explicit attention_mask
             with torch.no_grad():
                 outputs = model.generate(
-                    input_ids=inputs.input_ids,
-                    attention_mask=inputs.attention_mask,
+                    input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
+                    attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
                     max_length=inference_request.max_length,
                     temperature=inference_request.temperature,
                     top_p=inference_request.top_p,
@@ -1212,11 +1222,16 @@ async def oneseek_inference(request: InferenceRequest):
             inputs = tokenizer(request.text, return_tensors="pt", padding=True)
             inputs = ensure_device_compatibility(inputs, model)
             
+            # === DIRECTML SHARD-FIX (fixar hanging load) ===
+            if inputs.input_ids.device.type != model.device.type:
+                inputs = {k: v.to(model.device) for k, v in inputs.items()}
+                logger.info(f"[FIX] Synkade inputs till {model.device} – laddning fortsätter!")
+            
             # Generate with explicit attention_mask
             with torch.no_grad():
                 outputs = model.generate(
-                    input_ids=inputs.input_ids,
-                    attention_mask=inputs.attention_mask,
+                    input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
+                    attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
                     max_length=request.max_length,
                     temperature=request.temperature,
                     top_p=request.top_p,
@@ -1260,11 +1275,16 @@ async def llama_inference(request: InferenceRequest):
         inputs = tokenizer(formatted_prompt, return_tensors="pt", padding=True)
         inputs = ensure_device_compatibility(inputs, model)
         
+        # === DIRECTML SHARD-FIX (fixar hanging load) ===
+        if inputs.input_ids.device.type != model.device.type:
+            inputs = {k: v.to(model.device) for k, v in inputs.items()}
+            logger.info(f"[FIX] Synkade inputs till {model.device} – laddning fortsätter!")
+        
         # Generate with explicit attention_mask
         with torch.no_grad():
             outputs = model.generate(
-                input_ids=inputs.input_ids,
-                attention_mask=inputs.attention_mask,
+                input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
+                attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
                 max_length=request.max_length,
                 temperature=request.temperature,
                 top_p=request.top_p,
@@ -1307,11 +1327,16 @@ async def mistral_inference(request: InferenceRequest):
         inputs = tokenizer(request.text, return_tensors="pt", padding=True)
         inputs = ensure_device_compatibility(inputs, model)
         
+        # === DIRECTML SHARD-FIX (fixar hanging load) ===
+        if inputs.input_ids.device.type != model.device.type:
+            inputs = {k: v.to(model.device) for k, v in inputs.items()}
+            logger.info(f"[FIX] Synkade inputs till {model.device} – laddning fortsätter!")
+        
         # Generate with explicit attention_mask
         with torch.no_grad():
             outputs = model.generate(
-                input_ids=inputs.input_ids,
-                attention_mask=inputs.attention_mask,
+                input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
+                attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
                 max_length=request.max_length,
                 temperature=request.temperature,
                 top_p=request.top_p,
