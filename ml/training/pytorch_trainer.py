@@ -884,6 +884,48 @@ def train_with_pytorch_lora(
     
     print(f"\n[CONFIG] Selected base models from admin panel: {selected_base_models}")
     
+    # Process selections to handle certified models
+    processed_selections = []
+    for model_selection in selected_base_models:
+        # Check if this looks like a certified model (contains run ID pattern or version pattern)
+        if 'oneseek' in model_selection.lower() and ('v1.' in model_selection.lower() or 'run-' in model_selection.lower()):
+            # This is likely a certified model - try to extract base model
+            # Format: OneSeek-7B-Zero.v1.0.sv.dsoneseek-identity-core.79171dc2.3a95b79b
+            # We need to find the metadata to get the actual base model
+            certified_dir = base_models_dir.parent / 'oneseek-certified' / model_selection
+            metadata_file = certified_dir / 'metadata.json'
+            
+            if metadata_file.exists():
+                try:
+                    import json
+                    with open(metadata_file, 'r') as f:
+                        metadata = json.load(f)
+                    
+                    # Extract base models from metadata
+                    base_models_from_meta = metadata.get('baseModels', [])
+                    if base_models_from_meta:
+                        print(f"[INFO] Certified model {model_selection} uses base models: {base_models_from_meta}")
+                        processed_selections.extend(base_models_from_meta)
+                    else:
+                        # Fallback: try to infer from model name
+                        print(f"[WARNING] No base models in metadata for {model_selection}, using KB-Llama as fallback")
+                        processed_selections.append('KB-Llama-3.1-8B-Swedish')
+                except Exception as e:
+                    print(f"[WARNING] Could not read metadata for {model_selection}: {e}")
+                    # Fallback to Swedish model
+                    processed_selections.append('KB-Llama-3.1-8B-Swedish')
+            else:
+                # Certified model metadata doesn't exist, use default base model
+                print(f"[INFO] No metadata found for certified model {model_selection}, using KB-Llama-3.1-8B-Swedish")
+                processed_selections.append('KB-Llama-3.1-8B-Swedish')
+        else:
+            # This is a regular base model selection
+            processed_selections.append(model_selection)
+    
+    # Update selected_base_models with processed selections
+    selected_base_models = processed_selections
+    print(f"[CONFIG] Processed base models for training: {selected_base_models}")
+    
     # Check which models are available
     available_models = check_base_models(base_models_dir)
     
