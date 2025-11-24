@@ -485,6 +485,12 @@ def run_real_training(args, data_dir, dataset_path):
         finalized_timestamp = datetime.utcnow()
         finalized_at = finalized_timestamp.isoformat() + 'Z'
         
+        # CRITICAL: Extract adapters from training results BEFORE save_certified_metadata
+        adapters_from_training = results.get('adapters', [])
+        print(f"[ADAPTERS] Extracted {len(adapters_from_training)} adapter(s) from training results")
+        for i, adapter in enumerate(adapters_from_training, 1):
+            print(f"   {i}. {adapter}")
+        
         # === PERMANENT FIX: Preserve the original HuggingFace base model through the entire chain ===
         original_base_model = None
         
@@ -590,11 +596,7 @@ def run_real_training(args, data_dir, dataset_path):
         # Extract bias score
         bias_score = metrics.get('bias_score', 0.15)
         
-        # CRITICAL: Extract adapters from training results for continuous learning
-        adapters_from_training = results.get('adapters', [])
-        print(f"[ADAPTERS] Extracted {len(adapters_from_training)} adapter(s) from training results")
-        for i, adapter in enumerate(adapters_from_training, 1):
-            print(f"   {i}. {adapter}")
+        # NOTE: adapters_from_training already extracted earlier (before save_certified_metadata call)
         
         import time
         metadata_path = Path(certified_dir) / "metadata.json"
