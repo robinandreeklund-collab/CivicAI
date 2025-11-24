@@ -910,11 +910,7 @@ def train_single_model_lora(
         
         print(f"   [INFO] Only LoRA adapters saved (~300-600 MB), not full model (30 GB)")
         
-        # Calculate metrics
-        # Generate unique adapter name with timestamp to avoid overwriting previous adapters
-        from datetime import datetime
-        timestamp_suffix = datetime.utcnow().strftime('%Y%m%d%H%M%S')
-        
+        # Calculate metrics (use same timestamp_suffix from above)
         metrics = {
             'training_loss': avg_loss,
             'validation_accuracy': 0.85,
