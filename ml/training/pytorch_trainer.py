@@ -944,8 +944,14 @@ def train_with_pytorch_lora(
                         metadata = json.load(f)
                     print(f"[SUCCESS] Metadata laddad från: {metadata_file}")
                     
-                    # Extract base models from metadata
+                    # Extract base models from metadata (support both singular and plural)
                     base_models_from_meta = metadata.get('baseModels', [])
+                    if not base_models_from_meta:
+                        # Try singular form 'baseModel' (used in metadata.json)
+                        single_base = metadata.get('baseModel')
+                        if single_base:
+                            base_models_from_meta = [single_base]
+                    
                     if base_models_from_meta:
                         print(f"[INFO] Certified model {model_selection} uses base models: {base_models_from_meta}")
                         processed_selections.extend(base_models_from_meta)
