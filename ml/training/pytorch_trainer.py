@@ -199,13 +199,14 @@ def check_base_models(base_models_dir: Path):
     Checks in order:
     1. OneSeek base_models subdirectory (e.g., models/oneseek-7b-zero/base_models/*)
     2. Main models directory (e.g., models/mistral-7b-instruct, models/kb-llama-3-1-8b-swedish)
+    3. Certified models directory (e.g., models/oneseek-certified/*)
     
     Returns:
         Dict with normalized model names as keys and their paths as values
         Format: {'mistral-7b-instruct': Path(...), 'kb-llama-3-1-8b-swedish': Path(...)}
     """
-    # Directories to exclude from model discovery
-    EXCLUDED_DIRS = {'oneseek-7b-zero', 'oneseek-certified', 'backups'}
+    # Directories to exclude from model discovery (oneseek-7b-zero contains subdirectories, not a model itself)
+    EXCLUDED_DIRS = {'oneseek-7b-zero', 'backups'}
     
     models_found = {}
     
@@ -246,12 +247,243 @@ def check_base_models(base_models_dir: Path):
                         display_name = get_model_display_name(normalized, item)
                         print(f"[FOUND] {display_name} at {item}")
     
+    # Third, scan oneseek-certified directory for trained models that can be used as base models
+    certified_dir = root_models_dir / 'oneseek-certified'
+    if certified_dir.exists():
+        print(f"[SCAN] Scanning certified models directory: {certified_dir}")
+        for item in certified_dir.iterdir():
+            if item.is_dir() and not item.name.startswith('run-'):
+                # Check if it's a valid certified model (has model files)
+                has_config = (item / 'config.json').exists()
+                has_adapter = (item / 'adapter_model.bin').exists() or (item / 'adapter_model.safetensors').exists()
+                has_model_files = any(
+                    f.name.endswith(('.bin', '.safetensors', '.pth'))
+                    for f in item.iterdir() if f.is_file()
+                )
+                
+                if has_config or has_adapter or has_model_files:
+                    # Use the full directory name as the key (DNA-based name)
+                    normalized = normalize_model_name(item.name)
+                    if normalized not in models_found:
+                        models_found[normalized] = item
+                        display_name = get_model_display_name(normalized, item)
+                        print(f"[FOUND] {display_name} at {item} (certified model)")
+    
     if not models_found:
         print(f"[WARNING] No base models found in:")
         print(f"   - {base_models_dir}")
         print(f"   - {root_models_dir}")
+        print(f"   - {certified_dir if certified_dir.exists() else 'N/A (certified dir)'}")
     
     return models_found
+
+
+def is_certified_model(model_path: Path) -> bool:
+    """
+    Check if a model path points to a certified model (LoRA adapter or merged model).
+    Certified models are in the oneseek-certified directory and have metadata.json.
+    """
+    # Check if it's in the oneseek-certified directory
+    in_certified_dir = 'oneseek-certified' in str(model_path)
+    
+    # Check if it has metadata.json (all certified models should have this)
+    has_metadata = (model_path / 'metadata.json').exists()
+    
+    # Optional: Check for adapter files (LoRA adapters) - check both root and subdirectories
+    has_adapter = (model_path / 'adapter_model.bin').exists() or \
+                  (model_path / 'adapter_model.safetensors').exists() or \
+                  (model_path / 'adapter_config.json').exists()
+    
+    # Also check in subdirectories (adapters might be in subfolder)
+    if not has_adapter and model_path.exists():
+        for item in model_path.iterdir():
+            if item.is_dir():
+                if (item / 'adapter_model.bin').exists() or \
+                   (item / 'adapter_model.safetensors').exists() or \
+                   (item / 'adapter_config.json').exists():
+                    has_adapter = True
+                    break
+    
+    print(f"   [DEBUG] is_certified_model check for {model_path.name}:")
+    print(f"      - has_adapter: {has_adapter} (checked root and subdirs)")
+    print(f"      - has_metadata: {has_metadata}")
+    print(f"      - in_certified_dir: {in_certified_dir}")
+    
+    # A certified model must be in the certified directory AND have metadata
+    # It may or may not have adapter files (could be merged or LoRA)
+    result = in_certified_dir and has_metadata
+    
+    print(f"      - result: {result}")
+    
+    return result
+
+
+def get_base_model_from_certified(model_path: Path) -> tuple:
+    """
+    Extract the original base model information from a certified model's metadata.
+    
+    Returns:
+        tuple: (base_model_name, base_model_path) or (None, None) if not found
+    """
+    metadata_file = model_path / 'metadata.json'
+    if not metadata_file.exists():
+        print(f"   [DEBUG] metadata.json not found at {metadata_file}")
+        return None, None
+    
+    try:
+        import json
+        with open(metadata_file, 'r') as f:
+            metadata = json.load(f)
+        
+        print(f"   [DEBUG] Metadata loaded: {json.dumps(metadata, indent=2)}")
+        
+        base_model = metadata.get('baseModel', None)
+        if not base_model:
+            print(f"   [DEBUG] No 'baseModel' key in metadata")
+            return None, None
+        
+        print(f"   [DEBUG] Found baseModel in metadata: '{base_model}'")
+        
+        # Try to find the base model in the models directory
+        root_models_dir = model_path.parent.parent
+        print(f"   [DEBUG] Root models directory: {root_models_dir}")
+        
+        # CIVICAI HARD FIX – we know exactly what our base models are called in /models/
+        # This maps common variations to the exact directory names
+        BASE_MODEL_REMAP = {
+            "kb-llama-3-1-8b-swedish": "KB-Llama-3.1-8B-Swedish",
+            "kb-llama-3.1-8b-swedish": "KB-Llama-3.1-8B-Swedish",
+            "llama-3.1-8b-swedish": "KB-Llama-3.1-8B-Swedish",
+            "kbllama318bswedish": "KB-Llama-3.1-8B-Swedish",
+            "mistral-7b-instruct": "mistral-7b-instruct",
+            "llama-2-7b-chat-hf": "llama-2-7b-chat",
+            "llama-2-7b-chat": "llama-2-7b-chat",
+        }
+        
+        # Normalize the base model name for lookup
+        normalized = base_model.lower().replace("_", "-").replace(" ", "").strip()
+        print(f"   [DEBUG] Normalized base model name: '{normalized}'")
+        
+        if normalized in BASE_MODEL_REMAP:
+            correct_dir_name = BASE_MODEL_REMAP[normalized]
+            correct_path = root_models_dir / correct_dir_name
+            print(f"   [DEBUG] Base model matched in remap table: '{normalized}' → '{correct_dir_name}'")
+            print(f"   [DEBUG] Checking path: {correct_path}")
+            
+            if correct_path.exists() and correct_path.is_dir():
+                # Verify it's a model directory
+                has_config = (correct_path / 'config.json').exists()
+                has_tokenizer = (correct_path / 'tokenizer.json').exists() or (correct_path / 'tokenizer_config.json').exists()
+                has_special_tokens = (correct_path / 'special_tokens_map.json').exists()
+                
+                print(f"   [DEBUG] Path exists: {correct_path.exists()}")
+                print(f"   [DEBUG] Is directory: {correct_path.is_dir()}")
+                print(f"   [DEBUG] Has config.json: {has_config}")
+                print(f"   [DEBUG] Has tokenizer files: {has_tokenizer}")
+                print(f"   [DEBUG] Has special_tokens_map.json: {has_special_tokens}")
+                
+                if has_config or has_tokenizer or has_special_tokens:
+                    print(f"   [INFO] ✓ Base model path resolved via CivicAI remap → {correct_path}")
+                    return base_model, correct_path
+                else:
+                    print(f"   [WARNING] Path exists but doesn't contain model files")
+            else:
+                print(f"   [WARNING] Remapped path does not exist or is not a directory: {correct_path}")
+        else:
+            print(f"   [DEBUG] Base model '{normalized}' not found in remap table")
+            print(f"   [DEBUG] Available remaps: {list(BASE_MODEL_REMAP.keys())}")
+        
+        # FALLBACK: If remap didn't work, try common base model name normalizations with many variations
+        # Start with the exact name from metadata
+        possible_paths = [
+            root_models_dir / base_model,
+        ]
+        
+        # Try with dashes instead of underscores (and vice versa)
+        if '_' in base_model or '-' in base_model:
+            possible_paths.extend([
+                root_models_dir / base_model.replace('_', '-'),
+                root_models_dir / base_model.replace('-', '_'),
+            ])
+        
+        # Try lowercase variations
+        possible_paths.extend([
+            root_models_dir / base_model.lower(),
+            root_models_dir / base_model.lower().replace('_', '-'),
+            root_models_dir / base_model.lower().replace('-', '_'),
+        ])
+        
+        # Try uppercase variations
+        possible_paths.extend([
+            root_models_dir / base_model.upper(),
+            root_models_dir / base_model.upper().replace('_', '-'),
+            root_models_dir / base_model.upper().replace('-', '_'),
+        ])
+        
+        # Also try with KB- prefix removed/added if it's a KB model
+        if 'kb' in base_model.lower():
+            # Try without KB- prefix
+            base_without_kb = base_model.replace('KB-', '').replace('kb-', '').replace('Kb-', '')
+            possible_paths.extend([
+                root_models_dir / base_without_kb,
+                root_models_dir / base_without_kb.lower(),
+                root_models_dir / base_without_kb.lower().replace('_', '-'),
+                root_models_dir / base_without_kb.lower().replace('-', '_'),
+            ])
+            # Try with KB- prefix if not already there
+            if not base_model.startswith('KB-'):
+                possible_paths.extend([
+                    root_models_dir / f"KB-{base_model}",
+                    root_models_dir / f"kb-{base_model}",
+                ])
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_paths = []
+        for path in possible_paths:
+            path_str = str(path)
+            if path_str not in seen:
+                seen.add(path_str)
+                unique_paths.append(path)
+        
+        print(f"   [DEBUG] Will try {len(unique_paths)} possible paths:")
+        for i, path in enumerate(unique_paths, 1):
+            print(f"      {i}. {path}")
+        
+        for i, path in enumerate(unique_paths, 1):
+            exists = path.exists()
+            is_dir = path.is_dir() if exists else False
+            print(f"   [DEBUG] Checking path {i}/{len(unique_paths)}: {path.name}")
+            print(f"      Full path: {path}")
+            print(f"      Exists: {exists}")
+            print(f"      Is directory: {is_dir}")
+            
+            if exists and is_dir:
+                # Verify it's a model directory (has config.json or tokenizer files)
+                has_config = (path / 'config.json').exists()
+                has_tokenizer = (path / 'tokenizer.json').exists() or (path / 'tokenizer_config.json').exists()
+                has_special_tokens = (path / 'special_tokens_map.json').exists()
+                
+                print(f"      Has config.json: {has_config}")
+                print(f"      Has tokenizer files: {has_tokenizer}")
+                print(f"      Has special_tokens_map.json: {has_special_tokens}")
+                
+                if has_config or has_tokenizer or has_special_tokens:
+                    print(f"   [DEBUG] ✓ Found valid base model at: {path}")
+                    return base_model, path
+                else:
+                    print(f"      Path exists but doesn't look like a model directory")
+        
+        print(f"   [ERROR] Base model '{base_model}' not found in any of {len(unique_paths)} attempted paths")
+        print(f"   [ERROR] Root models directory: {root_models_dir}")
+        print(f"   [ERROR] Please ensure the base model exists in the models directory")
+        return base_model, None
+        
+    except Exception as e:
+        print(f"   [WARNING] Could not read metadata from {metadata_file}: {e}")
+        import traceback
+        traceback.print_exc()
+        return None, None
 
 
 def train_single_model_lora(
@@ -293,6 +525,33 @@ def train_single_model_lora(
     print(f"\n[LOADING] Loading base model: {model_name}")
     print(f"   Path: {model_path}")
     
+    # Check if this is a certified model (LoRA adapter)
+    actual_model_path = model_path  # Default to original path
+    
+    if is_certified_model(model_path):
+        print(f"   [INFO] Detected certified model (LoRA adapter)")
+        base_model_name, base_model_path = get_base_model_from_certified(model_path)
+        
+        if base_model_path and base_model_path.exists():
+            print(f"   [INFO] Using original base model: {base_model_name}")
+            print(f"   [INFO] Base model path: {base_model_path}")
+            # Use the original base model for loading tokenizer and model
+            actual_model_path = base_model_path
+            print(f"   [INFO] Will train new LoRA adapters on top of {base_model_name}")
+        elif base_model_name:
+            print(f"   [WARNING] Found base model name '{base_model_name}' in metadata, but path not found")
+            print(f"   [INFO] Attempting to use certified model path anyway (may fail)")
+            # Keep actual_model_path as model_path - this will likely fail but with a clear error
+        else:
+            print(f"   [WARNING] Could not extract base model from certified model metadata")
+            print(f"   [INFO] Attempting to use certified model path anyway (may fail)")
+            # Keep actual_model_path as model_path
+    else:
+        print(f"   [INFO] Using model as regular base model")
+        # Regular base model - use as-is
+    
+    print(f"   [DEBUG] Will load tokenizer from: {actual_model_path}")
+    
     try:
         # Load tokenizer
         print("   Loading tokenizer...")
@@ -300,7 +559,7 @@ def train_single_model_lora(
         # Try loading with trust_remote_code and use_fast options
         try:
             tokenizer = AutoTokenizer.from_pretrained(
-                str(model_path),
+                str(actual_model_path),
                 use_fast=False,
                 trust_remote_code=True,
                 legacy=False
@@ -319,7 +578,7 @@ def train_single_model_lora(
             try:
                 # Try with use_fast=True
                 tokenizer = AutoTokenizer.from_pretrained(
-                    str(model_path),
+                    str(actual_model_path),
                     use_fast=True,
                     trust_remote_code=True
                 )
@@ -346,7 +605,7 @@ def train_single_model_lora(
         print("   Loading model (this may take a few minutes)...")
         try:
             model = AutoModelForCausalLM.from_pretrained(
-                str(model_path),
+                str(actual_model_path),
                 torch_dtype=torch.float16 if device == "cuda" else torch.float32,
                 device_map="auto" if device == "cuda" else None,
                 load_in_8bit=config.get('quantize_8bit', False),
@@ -378,6 +637,42 @@ def train_single_model_lora(
         
         model = get_peft_model(model, lora_config)
         model.print_trainable_parameters()
+        
+        # === Load ALLA befintliga adaptrar från certifierad modell ===
+        existing_adapters = []
+        is_certified = is_certified_model(model_path)
+        if is_certified and os.path.isdir(model_path):
+            print(f"\n[ADAPTERS] Scanning for existing adapters in: {model_path}")
+            potential = []
+            for item in os.listdir(model_path):
+                full = os.path.join(model_path, item)
+                if os.path.isdir(full) and ("adapter_v" in item or "lora_" in item or item.endswith("_adapter")):
+                    # Extrahera versionsnummer för sortering
+                    try:
+                        import re
+                        match = re.search(r'(\d+\.\d+)', item)
+                        version_num = float(match.group(1)) if match else 0
+                    except:
+                        version_num = 0
+                    potential.append((version_num, full))
+            
+            # Sortera och ladda alla gamla
+            potential.sort(key=lambda x: x[0])  # äldst först
+            for version_num, adapter_path in potential:
+                if os.path.exists(os.path.join(adapter_path, "adapter_config.json")):
+                    print(f"[ADAPTERS] Loading existing adapter v{version_num}: {adapter_path}")
+                    existing_adapters.append(adapter_path)
+            
+            print(f"[ADAPTERS] Loaded {len(existing_adapters)} previous adapter(s). Will continue from there.")
+            
+            # Verification print
+            print(f"\n=== VERIFIERING ===")
+            print(f"Totalt laddade adaptrar: {len(existing_adapters)}")
+            for i, adapter in enumerate(existing_adapters, 1):
+                print(f"  {i:3d}. {adapter}")
+            print(f"==================\n")
+        else:
+            print("[ADAPTERS] No existing adapters found or not a certified model")
         
         # Prepare dataset
         print("\n[PREPARE] Preparing training data...")
@@ -491,10 +786,20 @@ def train_single_model_lora(
         
         print(f"   [SUCCESS] Versioned adapters saved to {versioned_path}")
         
-        # Save full model state  
-        weights_path = model_dir / f'oneseek-7b-zero-v{version}-{model_name}.pth'
-        torch.save(model.state_dict(), str(weights_path))
-        print(f"   [SUCCESS] Model weights saved to {weights_path}")
+        # === SAVE ONLY LoRA ADAPTER, NEVER FULL 30 GB MODEL ===
+        # PEFT model.save_pretrained() already saved adapter weights above
+        # No need to save full model state - adapters are only ~300-600 MB
+        
+        # Cleanup: Remove any accidentally created full model .pth files
+        full_model_pth_path = model_dir / f'oneseek-7b-zero-v{version}-{model_name}.pth'
+        if full_model_pth_path.exists():
+            try:
+                full_model_pth_path.unlink()
+                print(f"   [CLEANUP] Removed unnecessary full model file (would be 30 GB)")
+            except Exception as e:
+                print(f"   [WARNING] Could not remove full model file: {e}")
+        
+        print(f"   [INFO] Only LoRA adapters saved (~300-600 MB), not full model (30 GB)")
         
         # Calculate metrics
         metrics = {

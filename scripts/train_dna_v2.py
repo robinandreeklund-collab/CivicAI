@@ -485,6 +485,41 @@ def run_real_training(args, data_dir, dataset_path):
         finalized_timestamp = datetime.utcnow()
         finalized_at = finalized_timestamp.isoformat() + 'Z'
         
+        # === PERMANENT FIX: Preserve the original HuggingFace base model through the entire chain ===
+        original_base_model = None
+        
+        # Check if we're training from a certified model (OneSeek-* or CivicAI-* - case insensitive)
+        # Certified models contain "oneseek" or "civicai" in their names (lowercase in DNA format)
+        if base_model_name:
+            base_name_lower = base_model_name.lower()
+            is_certified = ("oneseek" in base_name_lower or "civicai" in base_name_lower)
+            
+            if is_certified:
+                # We're continuing training from a certified model → get original base from its metadata
+                cert_path = Path(output_dir) / base_model_name
+                meta_path = cert_path / "metadata.json"
+                if meta_path.exists():
+                    try:
+                        with open(meta_path, "r") as f:
+                            old_meta = json.load(f)
+                            original_base_model = old_meta.get("base_model") or old_meta.get("baseModel")
+                            if original_base_model:
+                                print(f"[BASE MODEL] Preserving original base from parent: {original_base_model}")
+                    except Exception as e:
+                        print(f"[WARNING] Could not read parent metadata: {e}")
+        
+        # If no original base model found yet, use hardcoded default or current base_model_name
+        if not original_base_model:
+            # Default to known base model if the name suggests it's a certified model
+            if base_model_name and ("oneseek" in base_model_name.lower() or "civicai" in base_model_name.lower()):
+                # Certified model but couldn't read metadata - use hardcoded default
+                original_base_model = "kb-llama-3-1-8b-swedish"
+                print(f"[BASE MODEL] Certified model without readable metadata - using default: {original_base_model}")
+            else:
+                # First training from a regular HF model
+                original_base_model = base_model_name
+                print(f"[BASE MODEL] First training - using: {original_base_model}")
+        
         # Save certified metadata with final aggregated metrics, status, and finalized timestamp
         print(f"\n[METADATA] Saving final aggregated metrics to certified directory...")
         print(f"   Loss: {formatted_metrics['loss']:.4f}")
@@ -496,7 +531,7 @@ def run_real_training(args, data_dir, dataset_path):
             model_dir=certified_dir,
             version=version,
             dna=dna,
-            base_model=base_model_name,
+            base_model=original_base_model,  # ALWAYS use the original HF base throughout the chain
             language=language,
             datasets=dataset_names,
             training_type='dna-v2',
