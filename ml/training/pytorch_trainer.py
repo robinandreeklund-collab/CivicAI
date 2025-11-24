@@ -335,54 +335,103 @@ def get_base_model_from_certified(model_path: Path) -> tuple:
         with open(metadata_file, 'r') as f:
             metadata = json.load(f)
         
-        print(f"   [DEBUG] Metadata loaded: {metadata}")
+        print(f"   [DEBUG] Metadata loaded: {json.dumps(metadata, indent=2)}")
         
         base_model = metadata.get('baseModel', None)
         if not base_model:
             print(f"   [DEBUG] No 'baseModel' key in metadata")
             return None, None
         
-        print(f"   [DEBUG] Found baseModel in metadata: {base_model}")
+        print(f"   [DEBUG] Found baseModel in metadata: '{base_model}'")
         
         # Try to find the base model in the models directory
         root_models_dir = model_path.parent.parent
-        print(f"   [DEBUG] Looking for base model in: {root_models_dir}")
+        print(f"   [DEBUG] Root models directory: {root_models_dir}")
         
         # Common base model name normalizations - try many variations
+        # Start with the exact name from metadata
         possible_paths = [
             root_models_dir / base_model,
-            root_models_dir / base_model.replace('_', '-'),
+        ]
+        
+        # Try with dashes instead of underscores (and vice versa)
+        if '_' in base_model or '-' in base_model:
+            possible_paths.extend([
+                root_models_dir / base_model.replace('_', '-'),
+                root_models_dir / base_model.replace('-', '_'),
+            ])
+        
+        # Try lowercase variations
+        possible_paths.extend([
             root_models_dir / base_model.lower(),
             root_models_dir / base_model.lower().replace('_', '-'),
+            root_models_dir / base_model.lower().replace('-', '_'),
+        ])
+        
+        # Try uppercase variations
+        possible_paths.extend([
             root_models_dir / base_model.upper(),
             root_models_dir / base_model.upper().replace('_', '-'),
-        ]
+            root_models_dir / base_model.upper().replace('-', '_'),
+        ])
         
         # Also try with KB- prefix removed/added if it's a KB model
         if 'kb' in base_model.lower():
-            base_without_kb = base_model.replace('KB-', '').replace('kb-', '')
+            # Try without KB- prefix
+            base_without_kb = base_model.replace('KB-', '').replace('kb-', '').replace('Kb-', '')
             possible_paths.extend([
                 root_models_dir / base_without_kb,
                 root_models_dir / base_without_kb.lower(),
                 root_models_dir / base_without_kb.lower().replace('_', '-'),
+                root_models_dir / base_without_kb.lower().replace('-', '_'),
             ])
+            # Try with KB- prefix if not already there
+            if not base_model.startswith('KB-'):
+                possible_paths.extend([
+                    root_models_dir / f"KB-{base_model}",
+                    root_models_dir / f"kb-{base_model}",
+                ])
         
-        print(f"   [DEBUG] Trying paths: {[str(p) for p in possible_paths]}")
-        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_paths = []
         for path in possible_paths:
-            print(f"   [DEBUG] Checking: {path} (exists={path.exists()}, is_dir={path.is_dir() if path.exists() else 'N/A'})")
-            if path.exists() and path.is_dir():
-                # Verify it's a model directory (has config.json or model files)
+            path_str = str(path)
+            if path_str not in seen:
+                seen.add(path_str)
+                unique_paths.append(path)
+        
+        print(f"   [DEBUG] Will try {len(unique_paths)} possible paths:")
+        for i, path in enumerate(unique_paths, 1):
+            print(f"      {i}. {path}")
+        
+        for i, path in enumerate(unique_paths, 1):
+            exists = path.exists()
+            is_dir = path.is_dir() if exists else False
+            print(f"   [DEBUG] Checking path {i}/{len(unique_paths)}: {path.name}")
+            print(f"      Full path: {path}")
+            print(f"      Exists: {exists}")
+            print(f"      Is directory: {is_dir}")
+            
+            if exists and is_dir:
+                # Verify it's a model directory (has config.json or tokenizer files)
                 has_config = (path / 'config.json').exists()
                 has_tokenizer = (path / 'tokenizer.json').exists() or (path / 'tokenizer_config.json').exists()
-                if has_config or has_tokenizer:
-                    print(f"   [DEBUG] Found base model at: {path}")
+                has_special_tokens = (path / 'special_tokens_map.json').exists()
+                
+                print(f"      Has config.json: {has_config}")
+                print(f"      Has tokenizer files: {has_tokenizer}")
+                print(f"      Has special_tokens_map.json: {has_special_tokens}")
+                
+                if has_config or has_tokenizer or has_special_tokens:
+                    print(f"   [DEBUG] ✓ Found valid base model at: {path}")
                     return base_model, path
                 else:
-                    print(f"   [DEBUG] Path exists but doesn't look like a model (no config/tokenizer)")
+                    print(f"      Path exists but doesn't look like a model directory")
         
-        
-        print(f"   [DEBUG] Base model '{base_model}' not found in any attempted paths")
+        print(f"   [ERROR] Base model '{base_model}' not found in any of {len(unique_paths)} attempted paths")
+        print(f"   [ERROR] Root models directory: {root_models_dir}")
+        print(f"   [ERROR] Please ensure the base model exists in the models directory")
         return base_model, None
         
     except Exception as e:
