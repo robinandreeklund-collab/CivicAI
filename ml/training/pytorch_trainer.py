@@ -515,7 +515,7 @@ def train_single_model_lora(
     """
     import torch
     from transformers import AutoTokenizer, AutoModelForCausalLM
-    from peft import LoraConfig, get_peft_model, TaskType
+    from peft import LoraConfig, get_peft_model, TaskType, PeftModel
     
     print(f"\n{'=' * 70}")
     print(f"Training {model_name.upper()}")
@@ -638,41 +638,68 @@ def train_single_model_lora(
         model = get_peft_model(model, lora_config)
         model.print_trainable_parameters()
         
-        # === Load ALLA befintliga adaptrar från certifierad modell ===
-        existing_adapters = []
+        # === LADDA ALLA TIDIGARE ADAPTERS FRÅN METADATA ===
+        # Detta är kritiskt för kontinuerlig träning - vi måste ladda ALLA tidigare adapters
+        # för att kunna bygga på tidigare kunskap istället för att börja om från scratch
         is_certified = is_certified_model(model_path)
-        if is_certified and os.path.isdir(model_path):
-            print(f"\n[ADAPTERS] Scanning for existing adapters in: {model_path}")
-            potential = []
-            for item in os.listdir(model_path):
-                full = os.path.join(model_path, item)
-                if os.path.isdir(full) and ("adapter_v" in item or "lora_" in item or item.endswith("_adapter")):
-                    # Extrahera versionsnummer för sortering
+        if is_certified:
+            print(f"\n[ADAPTERS] Detekterade certifierad modell - laddar adapter-kedja...")
+            
+            # Läs metadata.json för att hitta alla adapters
+            metadata_path = model_path / "metadata.json"
+            adapters_to_load = []
+            
+            if metadata_path.exists():
+                try:
+                    with open(metadata_path, 'r', encoding='utf-8') as f:
+                        metadata = json.load(f)
+                    
+                    adapters_list = metadata.get("adapters", [])
+                    print(f"[ADAPTERS] Hittade {len(adapters_list)} adapter(s) i metadata.json")
+                    
+                    # Bygg absoluta sökvägar till varje adapter
+                    for adapter_rel_path in adapters_list:
+                        # adapter_rel_path ser ut som: "lora_adapters/oneseek-7b-zero-v1.0-kb-llama-3-1-8b-swedish"
+                        # Vi behöver gå upp till models/oneseek-certified och sedan ner till adaptern
+                        adapter_path = model_path.parent / adapter_rel_path.replace("/", os.sep)
+                        
+                        if adapter_path.exists():
+                            # Kontrollera att adapter_config.json finns (validering)
+                            adapter_config = adapter_path / "adapter_config.json"
+                            if adapter_config.exists():
+                                adapters_to_load.append(adapter_path)
+                                print(f"   ✓ Hittade adapter: {adapter_rel_path}")
+                            else:
+                                print(f"   ⚠ Adapter saknar adapter_config.json: {adapter_rel_path}")
+                        else:
+                            print(f"   ⚠ Adapter-sökväg finns ej: {adapter_path}")
+                    
+                except Exception as e:
+                    print(f"[ERROR] Kunde inte läsa metadata.json: {e}")
+                    print(f"[WARNING] Fortsätter utan tidigare adapters - träning börjar från scratch")
+            else:
+                print(f"[INFO] Ingen metadata.json hittades i {model_path}")
+                print(f"[INFO] Ingen adapter-kedja att ladda - detta är första träningen på denna modell")
+            
+            # Ladda alla adapters i rätt ordning (äldst först)
+            if adapters_to_load:
+                print(f"\n[ADAPTERS] Laddar {len(adapters_to_load)} tidigare adapter(s) i kedjan...")
+                for i, adapter_path in enumerate(adapters_to_load, 1):
                     try:
-                        import re
-                        match = re.search(r'(\d+\.\d+)', item)
-                        version_num = float(match.group(1)) if match else 0
-                    except:
-                        version_num = 0
-                    potential.append((version_num, full))
-            
-            # Sortera och ladda alla gamla
-            potential.sort(key=lambda x: x[0])  # äldst först
-            for version_num, adapter_path in potential:
-                if os.path.exists(os.path.join(adapter_path, "adapter_config.json")):
-                    print(f"[ADAPTERS] Loading existing adapter v{version_num}: {adapter_path}")
-                    existing_adapters.append(adapter_path)
-            
-            print(f"[ADAPTERS] Loaded {len(existing_adapters)} previous adapter(s). Will continue from there.")
-            
-            # Verification print
-            print(f"\n=== VERIFIERING ===")
-            print(f"Totalt laddade adaptrar: {len(existing_adapters)}")
-            for i, adapter in enumerate(existing_adapters, 1):
-                print(f"  {i:3d}. {adapter}")
-            print(f"==================\n")
+                        print(f"   [{i}/{len(adapters_to_load)}] Laddar: {adapter_path.name}")
+                        model = PeftModel.from_pretrained(model, str(adapter_path))
+                        print(f"   ✓ Adapter {i} laddad")
+                    except Exception as e:
+                        print(f"   ✗ Kunde inte ladda adapter {i}: {e}")
+                        print(f"   [WARNING] Hoppar över denna adapter och fortsätter")
+                
+                print(f"\n[SUCCESS] Totalt {len(adapters_to_load)} tidigare adapter(s) laddade!")
+                print(f"[INFO] Ny träning kommer bygga ovanpå dessa adapters")
+                print(f"[INFO] Kunskap ackumuleras från alla tidigare träningar ✓")
+            else:
+                print(f"[INFO] Inga tidigare adapters att ladda - börjar från base model")
         else:
-            print("[ADAPTERS] No existing adapters found or not a certified model")
+            print("[ADAPTERS] Inte en certifierad modell - ingen adapter-kedja att ladda")
         
         # Prepare dataset
         print("\n[PREPARE] Preparing training data...")
