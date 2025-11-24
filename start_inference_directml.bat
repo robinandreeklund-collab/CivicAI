@@ -43,13 +43,13 @@ if errorlevel 1 (
 echo.
 echo Starting ML Service with DirectML GPU acceleration...
 echo.
-echo Configuration:
-echo - Auto device mapping: Enabled
-echo - DirectML: Enabled (Force)
-echo - Data type: bfloat16 (optimal for Ryzen AI)
-echo - GPU memory: 16 GB
-echo - GPU layers: 40
-echo - Keep-alive timeout: 600 seconds
+echo Configuration (matches command-line arguments below):
+echo - Auto device mapping: Enabled (--auto-devices)
+echo - DirectML: Enabled --directml
+echo - Data type: bfloat16 (automatic with DirectML + auto-devices)
+echo - GPU layers: 40 (--n-gpu-layers 40)
+echo - GPU memory: 16 GB (--gpu-memory 16)
+echo - Keep-alive timeout: 600 seconds (--timeout-keep-alive 600)
 echo.
 echo ================================================================================
 echo.
