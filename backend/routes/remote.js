@@ -3,6 +3,12 @@
  * 
  * Handles remote GPU training job submission, status monitoring,
  * and coordination between laptop and desktop systems.
+ * 
+ * Security Note: These endpoints are intended for internal admin use.
+ * In production, add:
+ * - Rate limiting (express-rate-limit)
+ * - Authentication/authorization middleware
+ * - Input validation (express-validator)
  */
 
 import express from 'express';
@@ -60,6 +66,8 @@ router.get('/status', async (req, res) => {
 /**
  * POST /api/remote/submit
  * Submit a training job to remote worker
+ * 
+ * Security: Add rate limiting and authentication in production
  */
 router.post('/submit', async (req, res) => {
   try {
@@ -72,6 +80,11 @@ router.post('/submit', async (req, res) => {
     
     if (!dataset || !baseModels || !params) {
       return res.status(400).json({ error: 'Missing required fields: dataset, baseModels, params' });
+    }
+    
+    // Basic input validation
+    if (typeof dataset !== 'string' || !Array.isArray(baseModels)) {
+      return res.status(400).json({ error: 'Invalid input types' });
     }
     
     const jobId = `remote-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
