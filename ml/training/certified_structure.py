@@ -109,7 +109,7 @@ def save_certified_metadata(
                 existing_metadata = json.load(f)
                 existing_adapters = existing_metadata.get("adapters", [])
                 print(f"[METADATA] Found {len(existing_adapters)} existing adapter(s) in metadata.json")
-        except Exception as e:
+        except (FileNotFoundError, json.JSONDecodeError, PermissionError, KeyError) as e:
             print(f"[METADATA] Could not read existing metadata.json: {e}")
             existing_adapters = []
     
