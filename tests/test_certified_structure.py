@@ -232,6 +232,131 @@ def test_add_to_ledger():
         assert ledger['models'][1]['directory'] == "OneSeek-7B-Zero.v1.1.en.dsIdentity.8f3a1c9d.a1b2c3d4"
 
 
+def test_save_certified_metadata_preserves_adapter_chain():
+    """Test that adapter chain is preserved across multiple training iterations."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        model_dir = Path(tmpdir)
+        
+        # First training iteration - save with one adapter
+        save_certified_metadata(
+            model_dir=model_dir,
+            version="1.0",
+            dna="OneSeek-7B-Zero.v1.0.141521ad.90cdf6f1",
+            base_model="KB-Llama-3.1-8B-Swedish",
+            language="sv",
+            datasets=["CivicID"],
+            training_type="dna-v2",
+            samples_processed=1000,
+            metrics={"loss": 0.5, "accuracy": 0.85},
+            training_data_hash="141521ad",
+            model_weights_hash="90cdf6f1",
+            adapters=["lora_adapters/oneseek-7b-zero-v1.0-kb-llama-3-1-8b-swedish"]
+        )
+        
+        # Verify first adapter is saved
+        metadata_file = model_dir / 'metadata.json'
+        with open(metadata_file, 'r', encoding='utf-8') as f:
+            metadata = json.load(f)
+        
+        assert len(metadata['adapters']) == 1
+        assert metadata['adapters'][0] == "lora_adapters/oneseek-7b-zero-v1.0-kb-llama-3-1-8b-swedish"
+        
+        # Second training iteration - save with a new adapter
+        save_certified_metadata(
+            model_dir=model_dir,
+            version="1.1",
+            dna="OneSeek-7B-Zero.v1.1.242631be.a1c2d3e4",
+            base_model="KB-Llama-3.1-8B-Swedish",
+            language="sv",
+            datasets=["CivicID", "SwedID"],
+            training_type="dna-v2",
+            samples_processed=2000,
+            metrics={"loss": 0.4, "accuracy": 0.88},
+            training_data_hash="242631be",
+            model_weights_hash="a1c2d3e4",
+            adapters=["lora_adapters/oneseek-7b-zero-v1.1-kb-llama-3-1-8b-swedish"]
+        )
+        
+        # Verify adapter chain is preserved (both adapters present)
+        with open(metadata_file, 'r', encoding='utf-8') as f:
+            metadata = json.load(f)
+        
+        assert len(metadata['adapters']) == 2
+        assert metadata['adapters'][0] == "lora_adapters/oneseek-7b-zero-v1.0-kb-llama-3-1-8b-swedish"
+        assert metadata['adapters'][1] == "lora_adapters/oneseek-7b-zero-v1.1-kb-llama-3-1-8b-swedish"
+        
+        # Third training iteration - save with another new adapter
+        save_certified_metadata(
+            model_dir=model_dir,
+            version="1.2",
+            dna="OneSeek-7B-Zero.v1.2.353742cf.b2d3e4f5",
+            base_model="KB-Llama-3.1-8B-Swedish",
+            language="sv",
+            datasets=["CivicID", "SwedID", "Identity"],
+            training_type="dna-v2",
+            samples_processed=3000,
+            metrics={"loss": 0.3, "accuracy": 0.90},
+            training_data_hash="353742cf",
+            model_weights_hash="b2d3e4f5",
+            adapters=["lora_adapters/oneseek-7b-zero-v1.2-kb-llama-3-1-8b-swedish"]
+        )
+        
+        # Verify all three adapters are in the chain
+        with open(metadata_file, 'r', encoding='utf-8') as f:
+            metadata = json.load(f)
+        
+        assert len(metadata['adapters']) == 3
+        assert metadata['adapters'][0] == "lora_adapters/oneseek-7b-zero-v1.0-kb-llama-3-1-8b-swedish"
+        assert metadata['adapters'][1] == "lora_adapters/oneseek-7b-zero-v1.1-kb-llama-3-1-8b-swedish"
+        assert metadata['adapters'][2] == "lora_adapters/oneseek-7b-zero-v1.2-kb-llama-3-1-8b-swedish"
+
+
+def test_save_certified_metadata_no_duplicate_adapters():
+    """Test that duplicate adapters are not added to the chain."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        model_dir = Path(tmpdir)
+        
+        # First save with adapter
+        save_certified_metadata(
+            model_dir=model_dir,
+            version="1.0",
+            dna="OneSeek-7B-Zero.v1.0.141521ad.90cdf6f1",
+            base_model="KB-Llama-3.1-8B-Swedish",
+            language="sv",
+            datasets=["CivicID"],
+            training_type="dna-v2",
+            samples_processed=1000,
+            metrics={"loss": 0.5, "accuracy": 0.85},
+            training_data_hash="141521ad",
+            model_weights_hash="90cdf6f1",
+            adapters=["lora_adapters/oneseek-7b-zero-v1.0-kb-llama-3-1-8b-swedish"]
+        )
+        
+        # Second save with same adapter (should not duplicate)
+        save_certified_metadata(
+            model_dir=model_dir,
+            version="1.0",
+            dna="OneSeek-7B-Zero.v1.0.141521ad.90cdf6f1",
+            base_model="KB-Llama-3.1-8B-Swedish",
+            language="sv",
+            datasets=["CivicID"],
+            training_type="dna-v2",
+            samples_processed=1000,
+            metrics={"loss": 0.4, "accuracy": 0.86},
+            training_data_hash="141521ad",
+            model_weights_hash="90cdf6f1",
+            adapters=["lora_adapters/oneseek-7b-zero-v1.0-kb-llama-3-1-8b-swedish"]
+        )
+        
+        # Verify no duplicates
+        metadata_file = model_dir / 'metadata.json'
+        with open(metadata_file, 'r', encoding='utf-8') as f:
+            metadata = json.load(f)
+        
+        assert len(metadata['adapters']) == 1
+        assert metadata['adapters'][0] == "lora_adapters/oneseek-7b-zero-v1.0-kb-llama-3-1-8b-swedish"
+
+
 def test_update_current_symlink():
     """Test symlink/marker file creation."""
     with tempfile.TemporaryDirectory() as tmpdir:

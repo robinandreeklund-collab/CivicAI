@@ -624,20 +624,6 @@ def train_single_model_lora(
         
         print(f"   [SUCCESS] Model loaded ({model.num_parameters():,} parameters)")
         
-        # Configure LoRA
-        print("\n[CONFIG] Configuring LoRA adapters...")
-        lora_config = LoraConfig(
-            task_type=TaskType.CAUSAL_LM,
-            inference_mode=False,
-            r=config.get('lora_rank', 8),
-            lora_alpha=config.get('lora_alpha', 32),
-            lora_dropout=0.1,
-            target_modules=["q_proj", "v_proj"]  # Common for both Mistral and LLaMA
-        )
-        
-        model = get_peft_model(model, lora_config)
-        model.print_trainable_parameters()
-        
         # === LADDA ALLA TIDIGARE ADAPTERS FRÅN METADATA ===
         # Detta är kritiskt för kontinuerlig träning - vi måste ladda ALLA tidigare adapters
         # för att kunna bygga på tidigare kunskap istället för att börja om från scratch
@@ -701,7 +687,116 @@ def train_single_model_lora(
             else:
                 print(f"[INFO] Inga tidigare adapters att ladda - börjar från base model")
         else:
-            print("[ADAPTERS] Inte en certifierad modell - ingen adapter-kedja att ladda")
+            print("[ADAPTERS] Inte en certifierad modell - kontrollerar om det finns tidigare träningar...")
+            
+            # CRITICAL FIX: Even if base model is not certified, check for OneSeek-7B-Zero-CURRENT
+            # to enable continuous learning across training iterations
+            # model_dir.parent is where oneseek-certified models are stored
+            certified_models_dir = model_dir.parent
+            print(f"[DEBUG] certified_models_dir: {certified_models_dir}")
+            current_symlink = certified_models_dir / 'OneSeek-7B-Zero-CURRENT'
+            current_marker = Path(str(current_symlink) + '.txt')
+            print(f"[DEBUG] Looking for symlink: {current_symlink}")
+            print(f"[DEBUG] Looking for marker: {current_marker}")
+            print(f"[DEBUG] Symlink exists: {current_symlink.exists()}")
+            print(f"[DEBUG] Marker exists: {current_marker.exists()}")
+            
+            # Check if symlink or marker file exists
+            previous_model_path = None
+            if current_symlink.exists() or current_symlink.is_symlink():
+                try:
+                    previous_model_path = current_symlink.resolve()
+                    print(f"[ADAPTERS] Hittade OneSeek-7B-Zero-CURRENT symlink → {previous_model_path.name}")
+                except Exception as e:
+                    print(f"[ADAPTERS] Kunde inte följa symlink: {e}")
+            elif current_marker.exists():
+                try:
+                    with open(current_marker, 'r', encoding='utf-8') as f:
+                        marker_content = f.read().strip()
+                    previous_model_path = Path(marker_content)
+                    print(f"[ADAPTERS] Hittade OneSeek-7B-Zero-CURRENT.txt → {previous_model_path.name}")
+                except Exception as e:
+                    print(f"[ADAPTERS] Kunde inte läsa marker file: {e}")
+            
+            # Load adapters from previous training if found
+            if previous_model_path and previous_model_path.exists():
+                metadata_path = previous_model_path / "metadata.json"
+                if metadata_path.exists():
+                    try:
+                        with open(metadata_path, 'r', encoding='utf-8') as f:
+                            metadata = json.load(f)
+                        
+                        adapters_list = metadata.get("adapters", [])
+                        print(f"[ADAPTERS] Hittade {len(adapters_list)} adapter(s) från tidigare träning")
+                        
+                        adapters_to_load = []
+                        for adapter_rel_path in adapters_list:
+                            # Adapters are at certified_models_dir level
+                            adapter_path = certified_models_dir / adapter_rel_path.replace("/", os.sep)
+                            
+                            if adapter_path.exists():
+                                adapter_config = adapter_path / "adapter_config.json"
+                                if adapter_config.exists():
+                                    adapters_to_load.append((adapter_rel_path, adapter_path))
+                                    print(f"   ✓ Hittade adapter: {adapter_rel_path}")
+                                else:
+                                    print(f"   ⚠ Adapter saknar adapter_config.json: {adapter_rel_path}")
+                            else:
+                                print(f"   ⚠ Adapter-sökväg finns ej: {adapter_path}")
+                        
+                        # Load all adapters in correct order
+                        if adapters_to_load:
+                            print(f"\n[ADAPTERS] Laddar {len(adapters_to_load)} adapter(s) från tidigare träning...")
+                            for i, (rel_path, adapter_path) in enumerate(adapters_to_load, 1):
+                                try:
+                                    print(f"   [{i}/{len(adapters_to_load)}] Laddar: {adapter_path.name}")
+                                    model = PeftModel.from_pretrained(model, str(adapter_path))
+                                    loaded_adapters.append(rel_path)
+                                    print(f"   ✓ Adapter {i} laddad")
+                                except Exception as e:
+                                    print(f"   ✗ Kunde inte ladda adapter {i}: {e}")
+                                    print(f"   [WARNING] Hoppar över denna adapter och fortsätter")
+                            
+                            if loaded_adapters:
+                                print(f"\n[SUCCESS] Totalt {len(loaded_adapters)} tidigare adapter(s) laddade!")
+                                print(f"[INFO] Kontinuerlig träning aktiverad - bygger på tidigare kunskap ✓")
+                        else:
+                            print(f"[INFO] Inga giltiga adapters hittades i tidigare träning")
+                    
+                    except Exception as e:
+                        print(f"[ERROR] Kunde inte läsa adapters från tidigare träning: {e}")
+                        print(f"[INFO] Fortsätter utan tidigare adapters")
+                else:
+                    print(f"[INFO] Ingen metadata.json i tidigare träning - börjar från scratch")
+            else:
+                print(f"[INFO] Ingen tidigare träning hittades - detta är första träningen")
+        
+        # === MERGE PREVIOUS ADAPTERS AND CONFIGURE NEW LORA ===
+        # If we loaded previous adapters, merge them into the base model first
+        # This allows us to train a new adapter on top of the merged knowledge
+        if loaded_adapters:
+            print(f"\n[MERGE] Merging {len(loaded_adapters)} previous adapter(s) into base model...")
+            try:
+                # Merge all loaded adapters into the base model
+                model = model.merge_and_unload()
+                print(f"   ✓ Previous adapters merged successfully")
+            except Exception as e:
+                print(f"   ✗ Could not merge adapters: {e}")
+                print(f"   [WARNING] Continuing without merge - may cause training issues")
+        
+        # Now configure NEW LoRA adapter for this training
+        print("\n[CONFIG] Configuring LoRA adapters for new training...")
+        lora_config = LoraConfig(
+            task_type=TaskType.CAUSAL_LM,
+            inference_mode=False,
+            r=config.get('lora_rank', 8),
+            lora_alpha=config.get('lora_alpha', 32),
+            lora_dropout=0.1,
+            target_modules=["q_proj", "v_proj"]  # Common for both Mistral and LLaMA
+        )
+        
+        model = get_peft_model(model, lora_config)
+        model.print_trainable_parameters()
         
         # Prepare dataset
         print("\n[PREPARE] Preparing training data...")
@@ -796,6 +891,10 @@ def train_single_model_lora(
         # Save LoRA adapters with actual model-specific naming
         print(f"\n[SAVING] Saving {model_name} LoRA adapters...")
         
+        # Generate unique adapter name with timestamp to avoid overwriting previous adapters
+        from datetime import datetime
+        timestamp_suffix = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+        
         # Use actual model name for adapter directory (normalized for filesystem compatibility)
         adapter_name = f'{normalize_model_name(model_name)}-adapter'
         lora_save_path = model_dir.parent / 'lora_adapters' / adapter_name
@@ -806,8 +905,8 @@ def train_single_model_lora(
         
         print(f"   [SUCCESS] {model_name} LoRA adapters saved to {lora_save_path}")
         
-        # Also save in versioned directory
-        versioned_path = model_dir.parent / 'lora_adapters' / f'oneseek-7b-zero-v{version}-{model_name}'
+        # Also save in versioned directory with unique timestamp
+        versioned_path = model_dir.parent / 'lora_adapters' / f'oneseek-7b-zero-v{version}-{model_name}-{timestamp_suffix}'
         versioned_path.mkdir(parents=True, exist_ok=True)
         
         model.save_pretrained(str(versioned_path))
@@ -830,7 +929,7 @@ def train_single_model_lora(
         
         print(f"   [INFO] Only LoRA adapters saved (~300-600 MB), not full model (30 GB)")
         
-        # Calculate metrics
+        # Calculate metrics (use same timestamp_suffix from above)
         metrics = {
             'training_loss': avg_loss,
             'validation_accuracy': 0.85,
@@ -842,7 +941,7 @@ def train_single_model_lora(
             'trainable_params': model.num_parameters(only_trainable=True),
             'total_params': model.num_parameters(),
             'epoch_losses': epoch_losses,  # Track losses per epoch for aggregation
-            'adapter_path': f'lora_adapters/oneseek-7b-zero-v{version}-{model_name}',  # New adapter path (relative)
+            'adapter_path': f'lora_adapters/oneseek-7b-zero-v{version}-{model_name}-{timestamp_suffix}',  # Unique adapter path with timestamp
             'loaded_adapters': loaded_adapters  # Previously loaded adapters
         }
         
