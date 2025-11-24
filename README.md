@@ -786,6 +786,22 @@ After completing this training guide:
 
 ## ✨ Features
 
+### 🤖 OneSeek Autonomy Engine v3.3 (NEW!)
+
+Fully self-governing autonomous training system with human oversight:
+- **Nightly autonomous cycles**: Automatic self-improvement
+- **Triple-AI review**: Gemini + GPT-4o + DeepSeek validation
+- **Dynamic dataset sizing**: Adjusts based on fidelity scores
+- **Self-generation**: Creates training examples automatically
+- **2-stage analysis**: Pre/post-training bias/toxicity checks
+- **Double-gate approval**: 2 of 4 required (internal + external)
+- **150-question verification**: Automated quality testing
+- **Golden checkpoint**: Ed25519 cryptographic admin approval
+- **PoW-protected voting**: Community input with bot prevention
+- **Full audit ledger**: Blockchain-inspired transparency
+
+See [AUTONOMY_ENGINE_V3.3.md](AUTONOMY_ENGINE_V3.3.md) for complete documentation.
+
 ### 🤖 Multi-AI Comparison
 
 Ask the same question to multiple AI models simultaneously and compare:

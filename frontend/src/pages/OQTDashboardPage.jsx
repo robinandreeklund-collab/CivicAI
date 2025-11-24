@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
-import LiveMicroTrainingActivity from '../components/admin/LiveMicroTrainingActivity';
+import EnhancedActivityTab from '../components/admin/EnhancedActivityTab';
+import EnhancedMetricsTab from '../components/admin/EnhancedMetricsTab';
 
 /**
  * OQT-1.0 Dashboard Page - Minimal Chat Interface
@@ -268,14 +269,13 @@ export default function OQTDashboardPage() {
 
           {selectedTab === 'activity' && (
             <div>
-              <LiveMicroTrainingActivity />
+              <EnhancedActivityTab />
             </div>
           )}
 
           {selectedTab === 'metrics' && (
-            <div className="text-center py-12">
-              <h3 className="text-lg font-light text-[#e7e7e7] mb-2">Mätvärden</h3>
-              <p className="text-sm text-[#666]">Prestanda och kvalitetsmått för OQT-1.0</p>
+            <div>
+              <EnhancedMetricsTab />
             </div>
           )}
 
