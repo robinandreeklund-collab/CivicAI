@@ -26,10 +26,12 @@ import verificationRouter from './api/verification/run.js';
 import modelsRouter from './api/models/set-current.js';
 import modelsResetRouter from './api/models/reset.js';
 import modelsCertifiedRouter from './api/models/certified.js';
+import autonomyRouter from './api/autonomy.js';
 import { logPythonServiceStatus } from './services/pythonNLPClient.js';
 import { getCachedPythonStatus } from './services/healthCache.js';
 import { isFirebaseAvailable } from './services/firebaseService.js';
 import { setupTrainingWebSocket } from './ws/training_ws.js';
+import autonomyEngine from './services/autonomyEngine.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -76,6 +78,7 @@ app.use('/api/verification', verificationRouter);
 app.use('/api/models', modelsRouter);
 app.use('/api/models', modelsResetRouter);
 app.use('/api/models/certified', modelsCertifiedRouter);
+app.use('/api/autonomy', autonomyRouter);
 
 // Inference Service Proxy
 // Proxies requests to the ML inference service (ml_service/server.py)
@@ -230,4 +233,16 @@ const server = app.listen(PORT, async () => {
   
   // Setup WebSocket for training updates
   setupTrainingWebSocket(server);
+  
+  // Initialize autonomy engine
+  console.log('');
+  console.log('🤖 Initializing Autonomy Engine v3.3...');
+  await autonomyEngine.initialize();
+  const autonomyConfig = autonomyEngine.getConfig();
+  console.log(`   Autonomy: ${autonomyConfig.enabled ? '✓ Enabled' : '✗ Disabled'}`);
+  if (autonomyConfig.enabled && autonomyConfig.schedule === 'nightly') {
+    const state = autonomyEngine.getState();
+    console.log(`   Next run: ${state.nextRun || 'Not scheduled'}`);
+  }
+  console.log('');
 });

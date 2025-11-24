@@ -6,6 +6,9 @@ import TrainingControl from '../components/admin/TrainingControl';
 import ModelManagement from '../components/admin/ModelManagement';
 import MonitoringDashboard from '../components/admin/MonitoringDashboard';
 import VerificationTab from '../components/admin/VerificationTab';
+import AutonomyControl from '../components/admin/AutonomyControl';
+import GoldenCheckpoint from '../components/admin/GoldenCheckpoint';
+import UserVoting from '../components/admin/UserVoting';
 import '../styles/admin-theme.css';
 
 /**
@@ -59,6 +62,9 @@ export default function AdminDashboardPage() {
     { id: 'training', label: 'Training' },
     { id: 'models', label: 'Models' },
     { id: 'verification', label: 'Verification' },
+    { id: 'autonomy', label: 'Autonomy' },
+    { id: 'checkpoint', label: 'Golden Checkpoint' },
+    { id: 'voting', label: 'Community Voting' },
     { id: 'monitoring', label: 'Monitoring' },
   ];
 
@@ -114,6 +120,9 @@ export default function AdminDashboardPage() {
           {selectedTab === 'training' && <TrainingControl />}
           {selectedTab === 'models' && <ModelManagement />}
           {selectedTab === 'verification' && <VerificationTab />}
+          {selectedTab === 'autonomy' && <AutonomyControl />}
+          {selectedTab === 'checkpoint' && <GoldenCheckpoint />}
+          {selectedTab === 'voting' && <UserVoting />}
           {selectedTab === 'monitoring' && <MonitoringDashboard />}
         </div>
       </div>
