@@ -348,7 +348,52 @@ def get_base_model_from_certified(model_path: Path) -> tuple:
         root_models_dir = model_path.parent.parent
         print(f"   [DEBUG] Root models directory: {root_models_dir}")
         
-        # Common base model name normalizations - try many variations
+        # CIVICAI HARD FIX – we know exactly what our base models are called in /models/
+        # This maps common variations to the exact directory names
+        BASE_MODEL_REMAP = {
+            "kb-llama-3-1-8b-swedish": "KB-Llama-3.1-8B-Swedish",
+            "kb-llama-3.1-8b-swedish": "KB-Llama-3.1-8B-Swedish",
+            "llama-3.1-8b-swedish": "KB-Llama-3.1-8B-Swedish",
+            "kbllama318bswedish": "KB-Llama-3.1-8B-Swedish",
+            "mistral-7b-instruct": "mistral-7b-instruct",
+            "llama-2-7b-chat-hf": "llama-2-7b-chat",
+            "llama-2-7b-chat": "llama-2-7b-chat",
+        }
+        
+        # Normalize the base model name for lookup
+        normalized = base_model.lower().replace("_", "-").replace(" ", "").strip()
+        print(f"   [DEBUG] Normalized base model name: '{normalized}'")
+        
+        if normalized in BASE_MODEL_REMAP:
+            correct_dir_name = BASE_MODEL_REMAP[normalized]
+            correct_path = root_models_dir / correct_dir_name
+            print(f"   [DEBUG] Base model matched in remap table: '{normalized}' → '{correct_dir_name}'")
+            print(f"   [DEBUG] Checking path: {correct_path}")
+            
+            if correct_path.exists() and correct_path.is_dir():
+                # Verify it's a model directory
+                has_config = (correct_path / 'config.json').exists()
+                has_tokenizer = (correct_path / 'tokenizer.json').exists() or (correct_path / 'tokenizer_config.json').exists()
+                has_special_tokens = (correct_path / 'special_tokens_map.json').exists()
+                
+                print(f"   [DEBUG] Path exists: {correct_path.exists()}")
+                print(f"   [DEBUG] Is directory: {correct_path.is_dir()}")
+                print(f"   [DEBUG] Has config.json: {has_config}")
+                print(f"   [DEBUG] Has tokenizer files: {has_tokenizer}")
+                print(f"   [DEBUG] Has special_tokens_map.json: {has_special_tokens}")
+                
+                if has_config or has_tokenizer or has_special_tokens:
+                    print(f"   [INFO] ✓ Base model path resolved via CivicAI remap → {correct_path}")
+                    return base_model, correct_path
+                else:
+                    print(f"   [WARNING] Path exists but doesn't contain model files")
+            else:
+                print(f"   [WARNING] Remapped path does not exist or is not a directory: {correct_path}")
+        else:
+            print(f"   [DEBUG] Base model '{normalized}' not found in remap table")
+            print(f"   [DEBUG] Available remaps: {list(BASE_MODEL_REMAP.keys())}")
+        
+        # FALLBACK: If remap didn't work, try common base model name normalizations with many variations
         # Start with the exact name from metadata
         possible_paths = [
             root_models_dir / base_model,
