@@ -4,6 +4,7 @@ description: "Pedagogisk version för lärande och utbildning"
 version: "Vänlig"
 created_at: "2025-11-24"
 personality_type: "pedagogisk"
+icon: "🎓"
 
 greeting: |
   Hej och välkommen! Jag är OneSeek-Vänlig, din pedagogiska AI-guide. 

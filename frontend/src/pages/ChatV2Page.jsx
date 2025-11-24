@@ -602,7 +602,7 @@ export default function ChatV2Page() {
               <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6 mb-4 text-left">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">
-                    {selectedPersona === 'oneseek-expert' ? '👔' : selectedPersona === 'oneseek-vanlig' ? '🎓' : '🧠'}
+                    {characterData.icon || '🤖'}
                   </div>
                   <div className="font-medium text-[#e7e7e7]">{characterData.name}</div>
                 </div>

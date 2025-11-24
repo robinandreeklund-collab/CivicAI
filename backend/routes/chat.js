@@ -12,11 +12,22 @@ const router = express.Router();
 // Path to character files
 const CHARACTERS_DIR = path.join(__dirname, '../../frontend/public/characters');
 
+// In-memory cache for character data
+let characterCache = null;
+let cacheTimestamp = null;
+const CACHE_TTL = 60000; // 1 minute cache TTL
+
 /**
- * GET /api/chat/characters
- * List all available character cards
+ * Load all characters from YAML files with caching
  */
-router.get('/characters', async (req, res) => {
+async function loadAllCharacters() {
+  const now = Date.now();
+  
+  // Return cached data if available and fresh
+  if (characterCache && cacheTimestamp && (now - cacheTimestamp) < CACHE_TTL) {
+    return characterCache;
+  }
+  
   try {
     const files = await fs.readdir(CHARACTERS_DIR);
     const yamlFiles = files.filter(f => f.endsWith('.yaml') || f.endsWith('.yml'));
@@ -25,18 +36,46 @@ router.get('/characters', async (req, res) => {
       yamlFiles.map(async (file) => {
         const filePath = path.join(CHARACTERS_DIR, file);
         const content = await fs.readFile(filePath, 'utf8');
-        const data = yaml.load(content);
-        return {
-          id: data.id,
-          name: data.name,
-          description: data.description,
-          personality_type: data.personality_type,
-          file: file
-        };
+        return yaml.load(content);
       })
     );
+    
+    // Update cache
+    characterCache = characters;
+    cacheTimestamp = now;
+    
+    return characters;
+  } catch (error) {
+    console.error('Error loading characters:', error);
+    throw error;
+  }
+}
 
-    res.json({ characters });
+/**
+ * Load a specific character by ID
+ */
+async function loadCharacterById(id) {
+  const characters = await loadAllCharacters();
+  return characters.find(c => c.id === id);
+}
+
+/**
+ * GET /api/chat/characters
+ * List all available character cards
+ */
+router.get('/characters', async (req, res) => {
+  try {
+    const characters = await loadAllCharacters();
+    
+    const characterList = characters.map(data => ({
+      id: data.id,
+      name: data.name,
+      description: data.description,
+      personality_type: data.personality_type,
+      icon: data.icon
+    }));
+
+    res.json({ characters: characterList });
   } catch (error) {
     console.error('Error loading characters:', error);
     res.status(500).json({ 
@@ -53,17 +92,10 @@ router.get('/characters', async (req, res) => {
 router.get('/characters/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const files = await fs.readdir(CHARACTERS_DIR);
-    const yamlFiles = files.filter(f => f.endsWith('.yaml') || f.endsWith('.yml'));
+    const character = await loadCharacterById(id);
     
-    for (const file of yamlFiles) {
-      const filePath = path.join(CHARACTERS_DIR, file);
-      const content = await fs.readFile(filePath, 'utf8');
-      const data = yaml.load(content);
-      
-      if (data.id === id) {
-        return res.json({ character: data });
-      }
+    if (character) {
+      return res.json({ character });
     }
     
     res.status(404).json({ error: 'Character not found' });
@@ -93,19 +125,9 @@ router.post('/generate', async (req, res) => {
     let characterData = null;
     
     if (characterId) {
-      const files = await fs.readdir(CHARACTERS_DIR);
-      const yamlFiles = files.filter(f => f.endsWith('.yaml') || f.endsWith('.yml'));
-      
-      for (const file of yamlFiles) {
-        const filePath = path.join(CHARACTERS_DIR, file);
-        const content = await fs.readFile(filePath, 'utf8');
-        const data = yaml.load(content);
-        
-        if (data.id === characterId) {
-          characterData = data;
-          systemPrompt = data.system_prompt || '';
-          break;
-        }
+      characterData = await loadCharacterById(characterId);
+      if (characterData) {
+        systemPrompt = characterData.system_prompt || '';
       }
     }
 

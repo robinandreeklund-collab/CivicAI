@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import PropTypes from 'prop-types';
+import { useState } from 'react';
 
 /**
  * CharacterSelector Component
@@ -8,11 +7,9 @@ import PropTypes from 'prop-types';
  */
 export default function CharacterSelector({ selectedPersona, onPersonaChange }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [personas, setPersonas] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   // Available personas
-  const availablePersonas = [
+  const personas = [
     {
       id: 'oneseek-medveten',
       name: 'OneSeek-7B-Zero (Medveten)',
@@ -36,25 +33,12 @@ export default function CharacterSelector({ selectedPersona, onPersonaChange }) 
     }
   ];
 
-  useEffect(() => {
-    setPersonas(availablePersonas);
-    setLoading(false);
-  }, []);
-
   const handleSelect = (persona) => {
     onPersonaChange(persona);
     setIsOpen(false);
   };
 
   const currentPersona = personas.find(p => p.id === selectedPersona) || personas[0];
-
-  if (loading) {
-    return (
-      <div className="w-full max-w-md animate-pulse">
-        <div className="h-12 bg-gray-200 rounded"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="relative w-full max-w-md">
@@ -121,8 +105,3 @@ export default function CharacterSelector({ selectedPersona, onPersonaChange }) 
     </div>
   );
 }
-
-CharacterSelector.propTypes = {
-  selectedPersona: PropTypes.string.isRequired,
-  onPersonaChange: PropTypes.func.isRequired,
-};
