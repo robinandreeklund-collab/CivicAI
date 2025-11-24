@@ -1206,7 +1206,8 @@ def train_with_pytorch_lora(
     return {
         'metrics': combined_metrics,
         'fairness_metrics': fairness_metrics,
-        'trained_models': trained_models
+        'trained_models': trained_models,
+        'adapters': adapters_array  # CRITICAL: Return adapters for metadata.json
     }
 
 

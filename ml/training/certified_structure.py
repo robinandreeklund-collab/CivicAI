@@ -76,7 +76,8 @@ def save_certified_metadata(
     training_data_hash: str,
     model_weights_hash: str,
     status: Optional[str] = None,
-    finalized_at: Optional[str] = None
+    finalized_at: Optional[str] = None,
+    adapters: Optional[List[str]] = None
 ) -> None:
     """
     Save metadata.json for a certified model.
@@ -95,6 +96,7 @@ def save_certified_metadata(
         model_weights_hash: Hash of model weights
         status: Training status (e.g., 'completed', 'failed', 'training')
         finalized_at: ISO timestamp when training was finalized
+        adapters: List of adapter paths for continuous learning (CRITICAL)
     """
     metadata = {
         "version": f"OneSeek-7B-Zero.v{version}",
@@ -117,6 +119,11 @@ def save_certified_metadata(
         metadata["status"] = status
     if finalized_at:
         metadata["finalizedAt"] = finalized_at
+    
+    # CRITICAL: Add adapters array for continuous learning
+    if adapters is not None:
+        metadata["adapters"] = adapters
+        print(f"[METADATA] Saving {len(adapters)} adapter(s) to metadata.json")
     
     metadata_file = model_dir / 'metadata.json'
     with open(metadata_file, 'w', encoding='utf-8') as f:

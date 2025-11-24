@@ -540,7 +540,8 @@ def run_real_training(args, data_dir, dataset_path):
             training_data_hash=training_data_hash,
             model_weights_hash=model_weights_hash,
             status='completed',
-            finalized_at=finalized_at
+            finalized_at=finalized_at,
+            adapters=adapters_from_training  # CRITICAL: Pass adapters for continuous learning
         )
         
         # Save training results with atomic write
@@ -588,6 +589,12 @@ def run_real_training(args, data_dir, dataset_path):
         
         # Extract bias score
         bias_score = metrics.get('bias_score', 0.15)
+        
+        # CRITICAL: Extract adapters from training results for continuous learning
+        adapters_from_training = results.get('adapters', [])
+        print(f"[ADAPTERS] Extracted {len(adapters_from_training)} adapter(s) from training results")
+        for i, adapter in enumerate(adapters_from_training, 1):
+            print(f"   {i}. {adapter}")
         
         import time
         metadata_path = Path(certified_dir) / "metadata.json"
