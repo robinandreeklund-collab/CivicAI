@@ -4,6 +4,7 @@ import ConsensusDebateCard from '../components/ConsensusDebateCard';
 import NLPProcessingLoader from '../components/NLPProcessingLoader';
 import ChangeDetectionPanel from '../components/ChangeDetectionPanel';
 import ReplayTimeline from '../components/ReplayTimeline';
+import CharacterSelector from '../components/CharacterSelector';
 import { useFirestoreDocument } from '../hooks/useFirestoreDocument';
 import { useAuth } from '../contexts/AuthContext';
 import { triggerMicroTrainingAsync } from '../utils/microTraining';
@@ -74,6 +75,8 @@ export default function ChatV2Page() {
   const [replayData, setReplayData] = useState(null);
   const [expandedPipelineStep, setExpandedPipelineStep] = useState(null);
   const [expandedModelDetails, setExpandedModelDetails] = useState({});
+  const [selectedPersona, setSelectedPersona] = useState('oneseek-medveten'); // Default persona
+  const [characterData, setCharacterData] = useState(null);
   const { isAuthenticated, user } = useAuth();
   
   // Firebase Firestore integration - Track current question's document ID
@@ -498,6 +501,27 @@ export default function ChatV2Page() {
     }
   }, [firestoreData]);
 
+  // Load character data when persona changes
+  useEffect(() => {
+    const loadCharacterData = async () => {
+      try {
+        const response = await fetch(`/api/chat/characters/${selectedPersona}`);
+        if (response.ok) {
+          const data = await response.json();
+          setCharacterData(data.character);
+        }
+      } catch (error) {
+        console.error('Error loading character data:', error);
+      }
+    };
+
+    loadCharacterData();
+  }, [selectedPersona]);
+
+  const handlePersonaChange = (personaId) => {
+    setSelectedPersona(personaId);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!question.trim() || isLoading) return;
@@ -571,9 +595,20 @@ export default function ChatV2Page() {
 
     if (!latestAiMessage) {
       return (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <h2 className="text-2xl font-light text-[#e7e7e7] mb-2">Välkommen till OneSeek.AI</h2>
+        <div className="flex-1 flex items-center justify-center px-4">
+          <div className="text-center max-w-2xl">
+            <h2 className="text-2xl font-light text-[#e7e7e7] mb-4">Välkommen till OneSeek.AI</h2>
+            {characterData && characterData.greeting && (
+              <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6 mb-4 text-left">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">
+                    {selectedPersona === 'oneseek-expert' ? '👔' : selectedPersona === 'oneseek-vanlig' ? '🎓' : '🧠'}
+                  </div>
+                  <div className="font-medium text-[#e7e7e7]">{characterData.name}</div>
+                </div>
+                <p className="text-[#888] whitespace-pre-wrap">{characterData.greeting}</p>
+              </div>
+            )}
             <p className="text-[#888]">Ställ en fråga för att komma igång</p>
           </div>
         </div>
@@ -2748,7 +2783,23 @@ export default function ChatV2Page() {
 
       {/* Premium Input Field (Concept 21 style) - Fixed Bottom */}
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent pt-8">
-        <div className="max-w-4xl mx-auto px-4 md:px-8 pb-6">
+        <div className="max-w-4xl mx-auto px-4 md:px-8 pb-6 space-y-4">
+          {/* Character Selector */}
+          <div className="flex items-center justify-between">
+            <div className="flex-1 max-w-md">
+              <CharacterSelector 
+                selectedPersona={selectedPersona}
+                onPersonaChange={handlePersonaChange}
+              />
+            </div>
+            {characterData && (
+              <div className="ml-4 text-sm text-[#666]">
+                {characterData.description}
+              </div>
+            )}
+          </div>
+          
+          {/* Question Input */}
           <form onSubmit={handleSubmit} className="relative">
             <input
               type="text"
