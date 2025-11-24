@@ -23,14 +23,16 @@ class AutonomyEngine {
     this.config = {
       enabled: false,
       schedule: 'nightly', // 'nightly', 'manual', 'continuous'
-      scheduleTime: '02:00', // 2 AM for nightly runs
-      minFidelityThreshold: 0.80, // 80% fidelity required
-      maxDatasetSize: 10000,
-      minDatasetSize: 100,
+      scheduleTime: '03:00', // 3 AM for nightly runs (Swedish spec)
+      minFidelityThreshold: 0.985, // 98.5% fidelity required
+      maxDatasetSize: 600,
+      minDatasetSize: 50,
       verificationQuestions: 150,
       externalReviewers: ['gemini', 'gpt4o', 'deepseek'],
-      approvalThreshold: 2, // 2 out of 3 + internal = 2 of 4 total
+      approvalThreshold: 2, // 2 out of 3 external + internal
       loraSteps: 2, // 2-step LoRA training
+      forceHumanCheckpoint: true,
+      autoPromotionEnabled: true,
     };
     
     this.state = {
