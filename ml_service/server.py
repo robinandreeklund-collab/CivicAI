@@ -50,7 +50,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Configuration
-RATE_LIMIT_PER_MINUTE = int(os.getenv('RATE_LIMIT_PER_MINUTE', '10'))
+# Rate limiting: Set high for development (1000/min), use lower in production via env var
+RATE_LIMIT_PER_MINUTE = int(os.getenv('RATE_LIMIT_PER_MINUTE', '1000'))
 
 # Model paths - use absolute paths relative to project root or MODELS_DIR env var
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
@@ -298,6 +299,52 @@ def ensure_device_compatibility(inputs, model=None):
         if hasattr(inputs, 'to'):
             return inputs.to(DEVICE)
         return inputs
+
+def get_directml_target_device():
+    """
+    Get the correct target device for DirectML.
+    Uses DEVICE if it's already directml, otherwise tries to get torch_directml.device().
+    This is needed because device_map="auto" may report model.device as cpu.
+    """
+    if DEVICE_TYPE == 'directml':
+        try:
+            import torch_directml
+            if torch_directml.is_available():
+                return torch_directml.device()
+        except ImportError:
+            pass
+    return DEVICE
+
+def sync_inputs_to_device(inputs):
+    """
+    Sync tokenizer inputs to the correct device for DirectML.
+    This fixes the 'unbox expects Dml at::Tensor' error.
+    
+    Args:
+        inputs: TokenizerOutput or dict with tensors
+    
+    Returns:
+        inputs moved to the target device
+    """
+    target_device = get_directml_target_device()
+    
+    # Get current device type
+    if hasattr(inputs, 'input_ids'):
+        current_device_type = inputs.input_ids.device.type
+    elif isinstance(inputs, dict) and 'input_ids' in inputs:
+        current_device_type = inputs['input_ids'].device.type
+    else:
+        return inputs
+    
+    # Sync if needed
+    if current_device_type != target_device.type:
+        if isinstance(inputs, dict):
+            inputs = {k: v.to(target_device) if hasattr(v, 'to') else v for k, v in inputs.items()}
+        elif hasattr(inputs, 'to'):
+            inputs = inputs.to(target_device)
+        logger.info(f"[FIX] Synkade inputs till {target_device} – laddning fortsätter!")
+    
+    return inputs
 
 # Model cache
 models = {}
@@ -891,14 +938,10 @@ async def dual_model_inference(text: str, max_length: int = 512, temperature: fl
         """Run inference on a single model"""
         start_time = time.time()
         
-        # Tokenize input and ensure correct device for DirectML
+        # Tokenize input and sync to correct device for DirectML
         inputs = tokenizer(prompt, return_tensors="pt", padding=True)
         inputs = ensure_device_compatibility(inputs, model)
-        
-        # === DIRECTML SHARD-FIX (fixar hanging load) ===
-        if inputs.input_ids.device.type != model.device.type:
-            inputs = {k: v.to(model.device) for k, v in inputs.items()}
-            logger.info(f"[FIX] Synkade inputs till {model.device} – laddning fortsätter!")
+        inputs = sync_inputs_to_device(inputs)
         
         # Generate with explicit attention_mask
         with torch.no_grad():
@@ -1003,7 +1046,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Project root: {PROJECT_ROOT}")
     logger.info(f"Models base directory: {get_models_base_dir()}")
     logger.info(f"Active model path: {ONESEEK_PATH}")
-    logger.info(f"Rate limiting: 10 requests/minute per IP on /infer endpoint")
+    logger.info(f"Rate limiting: {RATE_LIMIT_PER_MINUTE} requests/minute per IP on /infer endpoint")
     logger.info("=" * 80)
     logger.info("")
     
@@ -1122,14 +1165,10 @@ async def infer(request: Request, inference_request: InferenceRequest):
             # Single-model inference (certified or fallback)
             model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
             
-            # Prepare input and ensure correct device for DirectML
+            # Prepare input and sync to correct device for DirectML
             inputs = tokenizer(inference_request.text, return_tensors="pt", padding=True)
             inputs = ensure_device_compatibility(inputs, model)
-            
-            # === DIRECTML SHARD-FIX (fixar hanging load) ===
-            if inputs.input_ids.device.type != model.device.type:
-                inputs = {k: v.to(model.device) for k, v in inputs.items()}
-                logger.info(f"[FIX] Synkade inputs till {model.device} – laddning fortsätter!")
+            inputs = sync_inputs_to_device(inputs)
             
             # Generate with explicit attention_mask
             with torch.no_grad():
@@ -1218,14 +1257,10 @@ async def oneseek_inference(request: InferenceRequest):
             # Single-model fallback
             model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
             
-            # Prepare input and ensure correct device for DirectML
+            # Prepare input and sync to correct device for DirectML
             inputs = tokenizer(request.text, return_tensors="pt", padding=True)
             inputs = ensure_device_compatibility(inputs, model)
-            
-            # === DIRECTML SHARD-FIX (fixar hanging load) ===
-            if inputs.input_ids.device.type != model.device.type:
-                inputs = {k: v.to(model.device) for k, v in inputs.items()}
-                logger.info(f"[FIX] Synkade inputs till {model.device} – laddning fortsätter!")
+            inputs = sync_inputs_to_device(inputs)
             
             # Generate with explicit attention_mask
             with torch.no_grad():
@@ -1265,104 +1300,25 @@ async def llama_inference(request: InferenceRequest):
     import time
     start_time = time.time()
     
-    try:
-        # Redirect to OneSeek-7B-Zero.v1.1
-        logger.info("Legacy llama endpoint called - redirecting to OneSeek-7B-Zero.v1.1")
-        model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
-        
-        # Prepare input with LLaMA chat format for compatibility
-        formatted_prompt = f"<s>[INST] {request.text} [/INST]"
-        inputs = tokenizer(formatted_prompt, return_tensors="pt", padding=True)
-        inputs = ensure_device_compatibility(inputs, model)
-        
-        # === DIRECTML SHARD-FIX (fixar hanging load) ===
-        if inputs.input_ids.device.type != model.device.type:
-            inputs = {k: v.to(model.device) for k, v in inputs.items()}
-            logger.info(f"[FIX] Synkade inputs till {model.device} – laddning fortsätter!")
-        
-        # Generate with explicit attention_mask
-        with torch.no_grad():
-            outputs = model.generate(
-                input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
-                attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
-                max_length=request.max_length,
-                temperature=request.temperature,
-                top_p=request.top_p,
-                do_sample=True,
-                pad_token_id=tokenizer.eos_token_id
-            )
-        
-        # Decode output
-        response_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        
-        # Remove input from response
-        if formatted_prompt in response_text:
-            response_text = response_text.split('[/INST]')[-1].strip()
-        
-        latency_ms = (time.time() - start_time) * 1000
-        
-        return InferenceResponse(
-            response=response_text,
-            model="OneSeek-7B-Zero.v1.1 (via legacy LLaMA endpoint)",
-            tokens=len(outputs[0]),
-            latency_ms=latency_ms
-        )
-        
-    except Exception as e:
-        logger.error(f"OneSeek inference error (via legacy endpoint): {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    # Legacy endpoint deprecated - use /inference/oneseek instead
+    logger.warning("Legacy llama endpoint called - DEPRECATED. Use /inference/oneseek instead.")
+    raise HTTPException(
+        status_code=410,
+        detail="This legacy endpoint has been removed. Please use /inference/oneseek for all inference requests. OneSeek-7B-Zero is the unified model for all inference."
+    )
 
 @app.post("/inference/mistral", response_model=InferenceResponse)
 async def mistral_inference(request: InferenceRequest):
-    """Generate response using Mistral 7B (legacy endpoint - redirects to OneSeek)"""
+    """Generate response using Mistral 7B (DEPRECATED - use /inference/oneseek)"""
     import time
     start_time = time.time()
     
-    try:
-        # Redirect to OneSeek-7B-Zero.v1.1
-        logger.info("Legacy mistral endpoint called - redirecting to OneSeek-7B-Zero.v1.1")
-        model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
-        
-        # Prepare input and ensure correct device for DirectML
-        inputs = tokenizer(request.text, return_tensors="pt", padding=True)
-        inputs = ensure_device_compatibility(inputs, model)
-        
-        # === DIRECTML SHARD-FIX (fixar hanging load) ===
-        if inputs.input_ids.device.type != model.device.type:
-            inputs = {k: v.to(model.device) for k, v in inputs.items()}
-            logger.info(f"[FIX] Synkade inputs till {model.device} – laddning fortsätter!")
-        
-        # Generate with explicit attention_mask
-        with torch.no_grad():
-            outputs = model.generate(
-                input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
-                attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
-                max_length=request.max_length,
-                temperature=request.temperature,
-                top_p=request.top_p,
-                do_sample=True,
-                pad_token_id=tokenizer.eos_token_id
-            )
-        
-        # Decode output
-        response_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        
-        # Remove input from response
-        if response_text.startswith(request.text):
-            response_text = response_text[len(request.text):].strip()
-        
-        latency_ms = (time.time() - start_time) * 1000
-        
-        return InferenceResponse(
-            response=response_text,
-            model="OneSeek-7B-Zero.v1.1 (via legacy Mistral endpoint)",
-            tokens=len(outputs[0]),
-            latency_ms=latency_ms
-        )
-        
-    except Exception as e:
-        logger.error(f"OneSeek inference error (via legacy endpoint): {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    # Legacy endpoint deprecated - use /inference/oneseek instead
+    logger.warning("Legacy mistral endpoint called - DEPRECATED. Use /inference/oneseek instead.")
+    raise HTTPException(
+        status_code=410,
+        detail="This legacy endpoint has been removed. Please use /inference/oneseek for all inference requests. OneSeek-7B-Zero is the unified model for all inference."
+    )
 
 @app.get("/models/status")
 async def models_status():
