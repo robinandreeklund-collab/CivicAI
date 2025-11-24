@@ -13,10 +13,15 @@ slowapi==0.1.9
 # Note: Install PyTorch separately based on your hardware
 # For CUDA: pip install torch --index-url https://download.pytorch.org/whl/cu118
 # For CPU: pip install torch --index-url https://download.pytorch.org/whl/cpu
+# For DirectML (Windows AMD/Intel GPU): pip install torch-directml
 transformers>=4.35.0
 
 # LoRA/PEFT support for fine-tuned models
 peft>=0.6.0
+
+# Optional: GPU acceleration
+# torch-directml  # For Windows AMD/Intel GPU (DirectML)
+# bitsandbytes     # For 4-bit/8-bit quantization (Linux/CUDA only)
 
 # Utilities
 python-dotenv>=1.0.0
