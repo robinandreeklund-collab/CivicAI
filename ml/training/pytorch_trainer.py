@@ -664,6 +664,13 @@ def train_single_model_lora(
                     existing_adapters.append(adapter_path)
             
             print(f"[ADAPTERS] Loaded {len(existing_adapters)} previous adapter(s). Will continue from there.")
+            
+            # Verification print
+            print(f"\n=== VERIFIERING ===")
+            print(f"Totalt laddade adaptrar: {len(existing_adapters)}")
+            for i, adapter in enumerate(existing_adapters, 1):
+                print(f"  {i:3d}. {adapter}")
+            print(f"==================\n")
         else:
             print("[ADAPTERS] No existing adapters found or not a certified model")
         
