@@ -1,0 +1,12 @@
+{
+  "enabled": false,
+  "schedule": "manual",
+  "scheduleTime": "02:00",
+  "minFidelityThreshold": 0.80,
+  "maxDatasetSize": 10000,
+  "minDatasetSize": 100,
+  "verificationQuestions": 150,
+  "externalReviewers": ["gemini", "gpt4o", "deepseek"],
+  "approvalThreshold": 2,
+  "loraSteps": 2
+}
