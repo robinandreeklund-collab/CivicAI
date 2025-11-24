@@ -638,6 +638,35 @@ def train_single_model_lora(
         model = get_peft_model(model, lora_config)
         model.print_trainable_parameters()
         
+        # === Load ALLA befintliga adaptrar från certifierad modell ===
+        existing_adapters = []
+        is_certified = is_certified_model(model_path)
+        if is_certified and os.path.isdir(model_path):
+            print(f"\n[ADAPTERS] Scanning for existing adapters in: {model_path}")
+            potential = []
+            for item in os.listdir(model_path):
+                full = os.path.join(model_path, item)
+                if os.path.isdir(full) and ("adapter_v" in item or "lora_" in item or item.endswith("_adapter")):
+                    # Extrahera versionsnummer för sortering
+                    try:
+                        import re
+                        match = re.search(r'(\d+\.\d+)', item)
+                        version_num = float(match.group(1)) if match else 0
+                    except:
+                        version_num = 0
+                    potential.append((version_num, full))
+            
+            # Sortera och ladda alla gamla
+            potential.sort(key=lambda x: x[0])  # äldst först
+            for version_num, adapter_path in potential:
+                if os.path.exists(os.path.join(adapter_path, "adapter_config.json")):
+                    print(f"[ADAPTERS] Loading existing adapter v{version_num}: {adapter_path}")
+                    existing_adapters.append(adapter_path)
+            
+            print(f"[ADAPTERS] Loaded {len(existing_adapters)} previous adapter(s). Will continue from there.")
+        else:
+            print("[ADAPTERS] No existing adapters found or not a certified model")
+        
         # Prepare dataset
         print("\n[PREPARE] Preparing training data...")
         train_data = datasets.get('train', [])
