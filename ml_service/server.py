@@ -37,6 +37,10 @@ parser.add_argument('--gpu-memory', type=float, default=16.0,
                     help='GPU memory allocation in GB (default: 16.0)')
 parser.add_argument('--timeout-keep-alive', type=int, default=600,
                     help='Timeout keep-alive in seconds (default: 600)')
+parser.add_argument('--listen', action='store_true',
+                    help='Listen on all network interfaces (0.0.0.0) instead of localhost')
+parser.add_argument('--api', action='store_true',
+                    help='Enable API mode (currently always enabled, for compatibility)')
 args, unknown = parser.parse_known_args()
 
 # Setup logging
@@ -1283,10 +1287,12 @@ if __name__ == "__main__":
     import uvicorn
     
     port = int(os.getenv('ML_SERVICE_PORT', '5000'))
+    host = "0.0.0.0" if args.listen else "127.0.0.1"
     
     uvicorn.run(
         app,
-        host="0.0.0.0",
+        host=host,
         port=port,
-        log_level="info"
+        log_level="info",
+        timeout_keep_alive=args.timeout_keep_alive
     )
