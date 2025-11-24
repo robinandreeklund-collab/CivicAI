@@ -786,10 +786,20 @@ def train_single_model_lora(
         
         print(f"   [SUCCESS] Versioned adapters saved to {versioned_path}")
         
-        # Save full model state  
-        weights_path = model_dir / f'oneseek-7b-zero-v{version}-{model_name}.pth'
-        torch.save(model.state_dict(), str(weights_path))
-        print(f"   [SUCCESS] Model weights saved to {weights_path}")
+        # === SAVE ONLY LoRA ADAPTER, NEVER FULL 30 GB MODEL ===
+        # PEFT model.save_pretrained() already saved adapter weights above
+        # No need to save full model state - adapters are only ~300-600 MB
+        
+        # Cleanup: Remove any accidentally created full model .pth files
+        full_model_pth_path = model_dir / f'oneseek-7b-zero-v{version}-{model_name}.pth'
+        if full_model_pth_path.exists():
+            try:
+                full_model_pth_path.unlink()
+                print(f"   [CLEANUP] Removed unnecessary full model file (would be 30 GB)")
+            except Exception as e:
+                print(f"   [WARNING] Could not remove full model file: {e}")
+        
+        print(f"   [INFO] Only LoRA adapters saved (~300-600 MB), not full model (30 GB)")
         
         # Calculate metrics
         metrics = {
