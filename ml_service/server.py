@@ -707,7 +707,7 @@ def load_model(model_name: str, model_path: str):
     # Use float16 for CUDA/XPU
     # Use float32 for CPU
     if args.auto_devices and DEVICE_TYPE == 'directml':
-        dtype = torch.bfloat16
+        dtype = torch.float16
         logger.info("Using torch.bfloat16 for optimal Ryzen AI Max 390 performance")
     elif DEVICE_TYPE in ['cuda', 'xpu', 'directml']:
         dtype = torch.float16

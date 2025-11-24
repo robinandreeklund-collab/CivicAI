@@ -21,6 +21,7 @@ start "OneSeek BLIXXNABB" /HIGH /AFFINITY FF ^
     --n-gpu-layers 99 ^
     --gpu-memory 28 ^
     --timeout-keep-alive 600 ^
+    --timeout 1200 ^   :: NYTT – ger 20 minuters timeout (istället för 120s)
     --listen ^
     --api
 
