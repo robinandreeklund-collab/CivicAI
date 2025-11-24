@@ -440,6 +440,30 @@ Submit a vote with PoW verification.
 - Community-driven threshold adjustment
 - Extended verification question banks
 
+## Known Issues / TODO
+
+### NEED FIX: Items pending implementation
+
+1. **Docker-compose cron-jobb konfiguration** (NEED FIX)
+   - Automated cron scheduling for 03:00 nightly runs
+   - Docker container configuration for autonomy engine
+   - Volume mounts for model and dataset persistence
+   - Status: Pending implementation
+
+2. **Admin-flik "Autonomy Engine Control" i svenska** (NEED FIX)
+   - Full Swedish localization of admin control panel
+   - Swedish UI labels and tooltips
+   - Swedish error messages and notifications
+   - Status: Partial - some components need translation
+
+### Completed Integration
+
+✅ **Frontend-integration i OQT dashboard**
+   - ActivityTab updated with autonomy cycle information
+   - MätvärdenTab (Metrics) enhanced with fidelity scores and approval rates
+   - Live status updates every 30-60 seconds
+   - Status: ✅ COMPLETED
+
 ## License
 
 MIT License - See LICENSE file for details
