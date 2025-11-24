@@ -315,34 +315,46 @@ def get_directml_target_device():
             pass
     return DEVICE
 
-def sync_inputs_to_device(inputs):
+def sync_inputs_to_model_device(inputs, model):
     """
-    Sync tokenizer inputs to the correct device for DirectML.
-    This fixes the 'unbox expects Dml at::Tensor' error.
+    Sync tokenizer inputs to the SAME device as the model.
+    This fixes the 'unbox expects Dml at::Tensor' and device mismatch errors.
     
     Args:
         inputs: TokenizerOutput or dict with tensors
+        model: The model to sync inputs to
     
     Returns:
-        inputs moved to the target device
+        inputs moved to the model's device
     """
-    target_device = get_directml_target_device()
+    # Get model's actual device
+    try:
+        if hasattr(model, 'device'):
+            target_device = model.device
+        elif hasattr(model, 'parameters'):
+            # For models with device_map="auto", get device of first parameter
+            target_device = next(model.parameters()).device
+        else:
+            # Fallback to CPU
+            target_device = torch.device('cpu')
+    except Exception:
+        target_device = torch.device('cpu')
     
-    # Get current device type
+    # Get current device
     if hasattr(inputs, 'input_ids'):
-        current_device_type = inputs.input_ids.device.type
+        current_device = inputs.input_ids.device
     elif isinstance(inputs, dict) and 'input_ids' in inputs:
-        current_device_type = inputs['input_ids'].device.type
+        current_device = inputs['input_ids'].device
     else:
         return inputs
     
-    # Sync if needed
-    if current_device_type != target_device.type:
+    # Sync if devices don't match
+    if current_device.type != target_device.type:
+        logger.info(f"[FIX] Synkade inputs från {current_device} till {target_device}")
         if isinstance(inputs, dict):
             inputs = {k: v.to(target_device) if hasattr(v, 'to') else v for k, v in inputs.items()}
         elif hasattr(inputs, 'to'):
             inputs = inputs.to(target_device)
-        logger.info(f"[FIX] Synkade inputs till {target_device} – laddning fortsätter!")
     
     return inputs
 
@@ -940,10 +952,9 @@ async def dual_model_inference(text: str, max_length: int = 512, temperature: fl
         """Run inference on a single model"""
         start_time = time.time()
         
-        # Tokenize input and sync to correct device for DirectML
+        # Tokenize input and sync to model's device
         inputs = tokenizer(prompt, return_tensors="pt", padding=True)
-        inputs = ensure_device_compatibility(inputs, model)
-        inputs = sync_inputs_to_device(inputs)
+        inputs = sync_inputs_to_model_device(inputs, model)
         
         # Generate with explicit attention_mask
         with torch.no_grad():
@@ -1167,10 +1178,9 @@ async def infer(request: Request, inference_request: InferenceRequest):
             # Single-model inference (certified or fallback)
             model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
             
-            # Prepare input and sync to correct device for DirectML
+            # Prepare input and sync to model's device
             inputs = tokenizer(inference_request.text, return_tensors="pt", padding=True)
-            inputs = ensure_device_compatibility(inputs, model)
-            inputs = sync_inputs_to_device(inputs)
+            inputs = sync_inputs_to_model_device(inputs, model)
             
             # Generate with explicit attention_mask
             with torch.no_grad():
@@ -1259,10 +1269,9 @@ async def oneseek_inference(request: InferenceRequest):
             # Single-model fallback
             model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
             
-            # Prepare input and sync to correct device for DirectML
+            # Prepare input and sync to model's device
             inputs = tokenizer(request.text, return_tensors="pt", padding=True)
-            inputs = ensure_device_compatibility(inputs, model)
-            inputs = sync_inputs_to_device(inputs)
+            inputs = sync_inputs_to_model_device(inputs, model)
             
             # Generate with explicit attention_mask
             with torch.no_grad():
