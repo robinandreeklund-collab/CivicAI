@@ -344,7 +344,7 @@ class AutonomyEngine {
     
     // Step 2: Refinement LoRA training
     console.log('[Autonomy] Step 2 of 2: Refinement LoRA training...');
-    const step2 = await this.runLoRAStep(datasetPath, 2, step1.modelPath);
+    const step2 = await this.runLoRAStep(datasetInfo.datasetPath, 2, step1.modelPath);
     results.steps.push(step2);
     
     results.modelId = step2.runId;

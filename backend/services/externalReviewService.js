@@ -13,11 +13,15 @@ import axios from 'axios';
 import fs from 'fs/promises';
 import path from 'path';
 
+// Configuration constants
+const CONSENSUS_THRESHOLD = 2; // 2 of 3 reviewers must approve
+
 class ExternalReviewService {
   constructor() {
     this.openai = null;
     this.gemini = null;
     this.deepseekApiKey = null;
+    this.consensusThreshold = CONSENSUS_THRESHOLD;
     
     this.initializeClients();
   }
@@ -254,7 +258,7 @@ Provide only the JSON response, no additional text.`;
     
     // Calculate consensus
     const approvals = Object.values(reviews).filter(r => r.approved).length;
-    const consensus = approvals >= 2; // 2 of 3 approval
+    const consensus = approvals >= this.consensusThreshold;
     
     return {
       reviews,

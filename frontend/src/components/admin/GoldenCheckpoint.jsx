@@ -88,10 +88,13 @@ export default function GoldenCheckpoint() {
       if (response.ok) {
         const data = await response.json();
         setSignature(data.signature);
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Signing failed');
       }
     } catch (error) {
       console.error('Error signing cycle:', error);
-      alert('Failed to sign cycle. Check your secret key.');
+      alert(`Failed to sign cycle: ${error.message}\n\nPlease verify:\n- Secret key is correct\n- Secret key is in hex format\n- No extra whitespace in key`);
     }
   };
   

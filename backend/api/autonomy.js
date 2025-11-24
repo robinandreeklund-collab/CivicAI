@@ -11,9 +11,18 @@ import nacl from 'tweetnacl';
 const router = express.Router();
 
 // Middleware to check admin access
+// TODO: SECURITY - Implement proper authentication before production
+// This should verify:
+// - User is authenticated (via session/JWT)
+// - User has admin role (from Firebase or other auth system)
+// - Request is from authorized IP (optional additional layer)
 function requireAdmin(req, res, next) {
-  // In production, implement proper authentication
-  // For now, we allow all requests
+  // TEMPORARY: Allow all requests for development
+  // PRODUCTION: Replace with actual authentication check
+  // Example:
+  // if (!req.user || req.user.role !== 'admin') {
+  //   return res.status(403).json({ error: 'Admin access required' });
+  // }
   next();
 }
 

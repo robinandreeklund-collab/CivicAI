@@ -36,6 +36,16 @@ def generate_verification_questions(count=150, language='sv'):
 def verify_model(model_path, num_questions=150):
     """
     Run verification tests on trained model
+    
+    NOTE: This is a SIMULATED verification for development/testing.
+    In production, this should:
+    1. Load the actual trained model using transformers
+    2. Run inference for each verification question
+    3. Compare answers using BLEU/semantic similarity
+    4. Calculate real fidelity scores
+    
+    The current simulation provides realistic-looking scores for testing
+    the autonomy engine workflow without requiring a full model inference setup.
     """
     
     # Check if model exists
@@ -49,18 +59,19 @@ def verify_model(model_path, num_questions=150):
     # Generate verification questions
     questions = generate_verification_questions(num_questions)
     
-    # Simulated verification (would use actual model inference)
-    # In production, would:
-    # 1. Load the model
-    # 2. Run inference for each question
-    # 3. Evaluate answer quality
-    # 4. Calculate fidelity score
+    # TODO: PRODUCTION - Replace simulation with actual model inference
+    # Example production code:
+    # from transformers import AutoModelForCausalLM, AutoTokenizer
+    # model = AutoModelForCausalLM.from_pretrained(model_path)
+    # tokenizer = AutoTokenizer.from_pretrained(model_path)
+    # [Run inference and evaluation]
     
     results = []
     correct = 0
     
     for q in questions:
-        # Simulate answer evaluation
+        # SIMULATED: Simulate answer evaluation
+        # Replace with actual model inference in production
         passed = random.random() > 0.15  # ~85% pass rate
         
         results.append({
