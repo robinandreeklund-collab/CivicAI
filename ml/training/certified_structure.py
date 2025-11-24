@@ -98,6 +98,37 @@ def save_certified_metadata(
         finalized_at: ISO timestamp when training was finalized
         adapters: List of adapter paths for continuous learning (CRITICAL)
     """
+    metadata_file = model_dir / 'metadata.json'
+    
+    # CRITICAL: Read-modify-write pattern to preserve adapter chain
+    # Read existing metadata if it exists
+    existing_adapters = []
+    if metadata_file.exists():
+        try:
+            with open(metadata_file, 'r', encoding='utf-8') as f:
+                existing_metadata = json.load(f)
+                existing_adapters = existing_metadata.get("adapters", [])
+                print(f"[METADATA] Found {len(existing_adapters)} existing adapter(s) in metadata.json")
+        except Exception as e:
+            print(f"[METADATA] Could not read existing metadata.json: {e}")
+            existing_adapters = []
+    
+    # Build adapter chain: preserve existing adapters + add new ones
+    adapter_chain = list(existing_adapters)  # Copy existing adapters
+    
+    if adapters is not None:
+        # Add new adapters only if not already in chain
+        for adapter in adapters:
+            if adapter not in adapter_chain:
+                adapter_chain.append(adapter)
+                print(f"[METADATA] Adding new adapter to chain: {adapter}")
+            else:
+                print(f"[METADATA] Adapter already in chain (skipping): {adapter}")
+    
+    print(f"[METADATA] Final adapter chain: {len(adapter_chain)} adapter(s)")
+    for i, adapter in enumerate(adapter_chain, 1):
+        print(f"   {i}. {adapter}")
+    
     metadata = {
         "version": f"OneSeek-7B-Zero.v{version}",
         "dna": dna,
@@ -120,12 +151,9 @@ def save_certified_metadata(
     if finalized_at:
         metadata["finalizedAt"] = finalized_at
     
-    # CRITICAL: Add adapters array for continuous learning
-    if adapters is not None:
-        metadata["adapters"] = adapters
-        print(f"[METADATA] Saving {len(adapters)} adapter(s) to metadata.json")
+    # CRITICAL: Save the complete adapter chain for continuous learning
+    metadata["adapters"] = adapter_chain
     
-    metadata_file = model_dir / 'metadata.json'
     # Use atomic write with proper flushing for Windows compatibility
     import tempfile
     temp_file = model_dir / 'metadata.json.tmp'
