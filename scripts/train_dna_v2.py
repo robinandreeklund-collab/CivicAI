@@ -615,6 +615,10 @@ def run_real_training(args, data_dir, dataset_path):
                     data["metrics"] = final_metrics
                     data["status"] = "completed"
                     data["finalizedAt"] = datetime.utcnow().isoformat() + "Z"
+                    # CRITICAL: Preserve adapters array if it exists, or add if missing
+                    if "adapters" not in data and adapters_from_training:
+                        data["adapters"] = adapters_from_training
+                        print(f"[ADAPTERS] Added {len(adapters_from_training)} adapter(s) to metadata.json")
                     f.seek(0)
                     f.truncate()
                     json.dump(data, f, indent=2, ensure_ascii=False)
