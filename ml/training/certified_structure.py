@@ -126,8 +126,18 @@ def save_certified_metadata(
         print(f"[METADATA] Saving {len(adapters)} adapter(s) to metadata.json")
     
     metadata_file = model_dir / 'metadata.json'
-    with open(metadata_file, 'w', encoding='utf-8') as f:
+    # Use atomic write with proper flushing for Windows compatibility
+    import tempfile
+    temp_file = model_dir / 'metadata.json.tmp'
+    
+    with open(temp_file, 'w', encoding='utf-8') as f:
         json.dump(metadata, f, indent=2, ensure_ascii=False)
+        f.flush()  # Flush Python buffer
+        os.fsync(f.fileno())  # Force OS to write to disk (critical on Windows)
+    
+    # Atomic replace
+    temp_file.replace(metadata_file)
+    print(f"[METADATA] ✓ Saved to: {metadata_file}")
 
 
 def update_current_symlink(
