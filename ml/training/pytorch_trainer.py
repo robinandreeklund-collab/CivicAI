@@ -6,7 +6,7 @@ This module implements actual PyTorch training using LoRA adapters
 for efficient fine-tuning of any base models (Mistral 7B, LLaMA-2, KB-Llama-3.1-8B-Swedish, etc.).
 Dynamically discovers and trains selected base models from the admin panel.
 """
-
+import os
 import torch
 from pathlib import Path
 from typing import Dict, List
