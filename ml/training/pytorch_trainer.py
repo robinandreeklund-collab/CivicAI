@@ -892,13 +892,26 @@ def train_with_pytorch_lora(
             # This is likely a certified model - try to extract base model
             # Format: OneSeek-7B-Zero.v1.0.sv.dsoneseek-identity-core.79171dc2.3a95b79b
             # We need to find the metadata to get the actual base model
-            certified_dir = base_models_dir.parent / 'oneseek-certified' / model_selection
-            metadata_file = certified_dir / 'metadata.json'
             
+            # FIX: Korrekt sökväg + automatisk hantering av dolda filändelser på Windows
+            from pathlib import Path
+            
+            certified_dir = Path("models") / "oneseek-certified" / model_selection.strip()
+            metadata_file = certified_dir / "metadata.json"
+            
+            # Om metadata.json inte finns – testa med bara "metadata" (Windows gömmer .json)
+            if not metadata_file.exists():
+                alt_metadata = certified_dir / "metadata"
+                if alt_metadata.exists():
+                    alt_metadata.rename(metadata_file)
+                    print(f"[AUTOFIX] Döpt om 'metadata' → 'metadata.json' i {model_selection}")
+            
+            # Nu läsa metadata.json (ska nu finnas!)
             if metadata_file.exists():
                 try:
-                    with open(metadata_file, 'r') as f:
+                    with open(metadata_file, 'r', encoding='utf-8') as f:
                         metadata = json.load(f)
+                    print(f"[SUCCESS] Metadata laddad från: {metadata_file}")
                     
                     # Extract base models from metadata
                     base_models_from_meta = metadata.get('baseModels', [])
@@ -910,12 +923,12 @@ def train_with_pytorch_lora(
                         print(f"[WARNING] No base models in metadata for {model_selection}, using KB-Llama as fallback")
                         processed_selections.append('KB-Llama-3.1-8B-Swedish')
                 except Exception as e:
-                    print(f"[WARNING] Could not read metadata for {model_selection}: {e}")
+                    print(f"[ERROR] Kunde inte läsa metadata.json: {e}")
                     # Fallback to Swedish model
                     processed_selections.append('KB-Llama-3.1-8B-Swedish')
             else:
                 # Certified model metadata doesn't exist, use default base model
-                print(f"[INFO] No metadata found for certified model {model_selection}, using KB-Llama-3.1-8B-Swedish")
+                print(f"[INFO] Ingen metadata.json hittades för certifierad modell: {model_selection}")
                 processed_selections.append('KB-Llama-3.1-8B-Swedish')
         else:
             # This is a regular base model selection
