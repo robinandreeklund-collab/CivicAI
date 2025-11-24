@@ -897,7 +897,6 @@ def train_with_pytorch_lora(
             
             if metadata_file.exists():
                 try:
-                    import json
                     with open(metadata_file, 'r') as f:
                         metadata = json.load(f)
                     
