@@ -20,6 +20,9 @@ const router = express.Router();
 const jobQueue = [];
 const jobStatus = new Map();
 
+// Constants
+const WORKER_TIMEOUT_MS = 30000; // 30 seconds
+
 /**
  * GET /api/remote/status
  * Get remote worker status and job queue
@@ -35,10 +38,10 @@ router.get('/status', async (req, res) => {
       const statusData = await fs.readFile(statusFile, 'utf-8');
       workerStatus = JSON.parse(statusData);
       
-      // Check if last ping was within 30 seconds
+      // Check if last ping was within timeout period
       const lastPing = new Date(workerStatus.lastPing);
       const now = new Date();
-      workerStatus.online = (now - lastPing) < 30000;
+      workerStatus.online = (now - lastPing) < WORKER_TIMEOUT_MS;
     } catch (error) {
       // Status file doesn't exist or can't be read
     }

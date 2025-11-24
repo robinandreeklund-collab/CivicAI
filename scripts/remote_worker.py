@@ -31,7 +31,7 @@ def get_gpu_info():
                 'name': torch.cuda.get_device_name(0) if torch.cuda.device_count() > 0 else 'Unknown',
                 'memory': f"{torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB"
             }
-    except:
+    except ImportError:
         pass
     return {'count': 0, 'name': 'CPU-only', 'memory': '0 GB'}
 
@@ -41,7 +41,7 @@ def send_heartbeat():
         requests.post(f'{LAPTOP_API_URL}/api/remote/worker/ping', 
                      json={'hostname': socket.gethostname(), 'gpuInfo': get_gpu_info()},
                      timeout=5)
-    except:
+    except (requests.RequestException, OSError):
         pass
 
 def update_job_status(job_id, state, progress=0, message=''):
@@ -50,7 +50,7 @@ def update_job_status(job_id, state, progress=0, message=''):
         requests.post(f'{LAPTOP_API_URL}/api/remote/job/{job_id}/update',
                      json={'state': state, 'progress': progress, 'message': message},
                      timeout=5)
-    except:
+    except (requests.RequestException, OSError):
         pass
 
 def process_job(job_file):

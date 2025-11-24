@@ -11,7 +11,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Merge LoRA adapters into base model')
@@ -111,7 +111,7 @@ def merge_adapters(base_model, adapters, output_dir, output_name):
     metadata = {
         'baseModel': base_model,
         'adapters': adapters,
-        'mergedAt': datetime.utcnow().isoformat() + 'Z',
+        'mergedAt': datetime.now(timezone.utc).isoformat(),
         'outputName': output_name
     }
     

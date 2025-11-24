@@ -15,7 +15,7 @@ import hashlib
 import os
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Verify LoRA adapter chain integrity')
@@ -44,7 +44,7 @@ def get_directory_size(dirpath):
                 total += entry.stat().size
             elif entry.is_dir(follow_symlinks=False):
                 total += get_directory_size(entry.path)
-    except:
+    except (OSError, PermissionError):
         pass
     return total
 
@@ -126,7 +126,7 @@ def verify_chain(base_model, adapters, verbose=False):
         'issues': [],
         'adapters': {},
         'totalSize': 0,
-        'verifiedAt': datetime.utcnow().isoformat() + 'Z'
+        'verifiedAt': datetime.now(timezone.utc).isoformat()
     }
     
     # Verify each adapter

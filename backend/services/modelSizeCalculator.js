@@ -53,7 +53,7 @@ async function getDirectorySize(dirPath) {
       }
     }
   } catch (error) {
-    // Directory doesn't exist or can't be read
+    // Directory doesn't exist or can't be read - return 0
     return 0;
   }
   
@@ -137,12 +137,16 @@ export function getSizeWarning(totalSizeGB) {
   return { level: 'ok', message: 'Size is optimal' };
 }
 
+// Constants for size estimation
+const BASE_SIZE_PER_MODULE_MB = 6.5; // MB per module for rank 64
+const DEFAULT_LORA_RANK = 64;
+
 /**
  * Calculate estimated adapter size based on parameters
  */
-export function estimateAdapterSize(loraRank = 64, targetModules = 7) {
+export function estimateAdapterSize(loraRank = DEFAULT_LORA_RANK, targetModules = 7) {
   // Rough estimation: each rank adds ~6.5MB per target module for 8B model
-  const sizePerModule = (loraRank / 64) * 6.5; // MB per module
+  const sizePerModule = (loraRank / DEFAULT_LORA_RANK) * BASE_SIZE_PER_MODULE_MB;
   const totalMB = sizePerModule * targetModules;
   return bytesToGB(totalMB * 1024 * 1024);
 }
