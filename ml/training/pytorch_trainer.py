@@ -624,20 +624,6 @@ def train_single_model_lora(
         
         print(f"   [SUCCESS] Model loaded ({model.num_parameters():,} parameters)")
         
-        # Configure LoRA
-        print("\n[CONFIG] Configuring LoRA adapters...")
-        lora_config = LoraConfig(
-            task_type=TaskType.CAUSAL_LM,
-            inference_mode=False,
-            r=config.get('lora_rank', 8),
-            lora_alpha=config.get('lora_alpha', 32),
-            lora_dropout=0.1,
-            target_modules=["q_proj", "v_proj"]  # Common for both Mistral and LLaMA
-        )
-        
-        model = get_peft_model(model, lora_config)
-        model.print_trainable_parameters()
-        
         # === LADDA ALLA TIDIGARE ADAPTERS FRÅN METADATA ===
         # Detta är kritiskt för kontinuerlig träning - vi måste ladda ALLA tidigare adapters
         # för att kunna bygga på tidigare kunskap istället för att börja om från scratch
@@ -784,6 +770,33 @@ def train_single_model_lora(
                     print(f"[INFO] Ingen metadata.json i tidigare träning - börjar från scratch")
             else:
                 print(f"[INFO] Ingen tidigare träning hittades - detta är första träningen")
+        
+        # === MERGE PREVIOUS ADAPTERS AND CONFIGURE NEW LORA ===
+        # If we loaded previous adapters, merge them into the base model first
+        # This allows us to train a new adapter on top of the merged knowledge
+        if loaded_adapters:
+            print(f"\n[MERGE] Merging {len(loaded_adapters)} previous adapter(s) into base model...")
+            try:
+                # Merge all loaded adapters into the base model
+                model = model.merge_and_unload()
+                print(f"   ✓ Previous adapters merged successfully")
+            except Exception as e:
+                print(f"   ✗ Could not merge adapters: {e}")
+                print(f"   [WARNING] Continuing without merge - may cause training issues")
+        
+        # Now configure NEW LoRA adapter for this training
+        print("\n[CONFIG] Configuring LoRA adapters for new training...")
+        lora_config = LoraConfig(
+            task_type=TaskType.CAUSAL_LM,
+            inference_mode=False,
+            r=config.get('lora_rank', 8),
+            lora_alpha=config.get('lora_alpha', 32),
+            lora_dropout=0.1,
+            target_modules=["q_proj", "v_proj"]  # Common for both Mistral and LLaMA
+        )
+        
+        model = get_peft_model(model, lora_config)
+        model.print_trainable_parameters()
         
         # Prepare dataset
         print("\n[PREPARE] Preparing training data...")
