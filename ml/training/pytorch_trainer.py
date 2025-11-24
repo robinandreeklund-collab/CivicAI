@@ -515,7 +515,7 @@ def train_single_model_lora(
     """
     import torch
     from transformers import AutoTokenizer, AutoModelForCausalLM
-    from peft import LoraConfig, get_peft_model, TaskType
+    from peft import LoraConfig, get_peft_model, TaskType, PeftModel
     
     print(f"\n{'=' * 70}")
     print(f"Training {model_name.upper()}")
@@ -638,41 +638,70 @@ def train_single_model_lora(
         model = get_peft_model(model, lora_config)
         model.print_trainable_parameters()
         
-        # === Load ALLA befintliga adaptrar från certifierad modell ===
-        existing_adapters = []
+        # === LADDA ALLA TIDIGARE ADAPTERS FRÅN METADATA ===
+        # Detta är kritiskt för kontinuerlig träning - vi måste ladda ALLA tidigare adapters
+        # för att kunna bygga på tidigare kunskap istället för att börja om från scratch
+        loaded_adapters = []  # Track all loaded adapters for metadata
         is_certified = is_certified_model(model_path)
-        if is_certified and os.path.isdir(model_path):
-            print(f"\n[ADAPTERS] Scanning for existing adapters in: {model_path}")
-            potential = []
-            for item in os.listdir(model_path):
-                full = os.path.join(model_path, item)
-                if os.path.isdir(full) and ("adapter_v" in item or "lora_" in item or item.endswith("_adapter")):
-                    # Extrahera versionsnummer för sortering
+        if is_certified:
+            print(f"\n[ADAPTERS] Detekterade certifierad modell - laddar adapter-kedja...")
+            
+            # Läs metadata.json för att hitta alla adapters
+            metadata_path = model_path / "metadata.json"
+            adapters_to_load = []
+            
+            if metadata_path.exists():
+                try:
+                    with open(metadata_path, 'r', encoding='utf-8') as f:
+                        metadata = json.load(f)
+                    
+                    adapters_list = metadata.get("adapters", [])
+                    print(f"[ADAPTERS] Hittade {len(adapters_list)} adapter(s) i metadata.json")
+                    
+                    # Bygg absoluta sökvägar till varje adapter
+                    for adapter_rel_path in adapters_list:
+                        # adapter_rel_path ser ut som: "lora_adapters/oneseek-7b-zero-v1.0-kb-llama-3-1-8b-swedish"
+                        # Vi behöver gå upp till models/oneseek-certified och sedan ner till adaptern
+                        adapter_path = model_path.parent / adapter_rel_path.replace("/", os.sep)
+                        
+                        if adapter_path.exists():
+                            # Kontrollera att adapter_config.json finns (validering)
+                            adapter_config = adapter_path / "adapter_config.json"
+                            if adapter_config.exists():
+                                adapters_to_load.append((adapter_rel_path, adapter_path))
+                                print(f"   ✓ Hittade adapter: {adapter_rel_path}")
+                            else:
+                                print(f"   ⚠ Adapter saknar adapter_config.json: {adapter_rel_path}")
+                        else:
+                            print(f"   ⚠ Adapter-sökväg finns ej: {adapter_path}")
+                    
+                except Exception as e:
+                    print(f"[ERROR] Kunde inte läsa metadata.json: {e}")
+                    print(f"[WARNING] Fortsätter utan tidigare adapters - träning börjar från scratch")
+            else:
+                print(f"[INFO] Ingen metadata.json hittades i {model_path}")
+                print(f"[INFO] Ingen adapter-kedja att ladda - detta är första träningen på denna modell")
+            
+            # Ladda alla adapters i rätt ordning (äldst först)
+            if adapters_to_load:
+                print(f"\n[ADAPTERS] Laddar {len(adapters_to_load)} tidigare adapter(s) i kedjan...")
+                for i, (rel_path, adapter_path) in enumerate(adapters_to_load, 1):
                     try:
-                        import re
-                        match = re.search(r'(\d+\.\d+)', item)
-                        version_num = float(match.group(1)) if match else 0
-                    except:
-                        version_num = 0
-                    potential.append((version_num, full))
-            
-            # Sortera och ladda alla gamla
-            potential.sort(key=lambda x: x[0])  # äldst först
-            for version_num, adapter_path in potential:
-                if os.path.exists(os.path.join(adapter_path, "adapter_config.json")):
-                    print(f"[ADAPTERS] Loading existing adapter v{version_num}: {adapter_path}")
-                    existing_adapters.append(adapter_path)
-            
-            print(f"[ADAPTERS] Loaded {len(existing_adapters)} previous adapter(s). Will continue from there.")
-            
-            # Verification print
-            print(f"\n=== VERIFIERING ===")
-            print(f"Totalt laddade adaptrar: {len(existing_adapters)}")
-            for i, adapter in enumerate(existing_adapters, 1):
-                print(f"  {i:3d}. {adapter}")
-            print(f"==================\n")
+                        print(f"   [{i}/{len(adapters_to_load)}] Laddar: {adapter_path.name}")
+                        model = PeftModel.from_pretrained(model, str(adapter_path))
+                        loaded_adapters.append(rel_path)  # Track loaded adapter
+                        print(f"   ✓ Adapter {i} laddad")
+                    except Exception as e:
+                        print(f"   ✗ Kunde inte ladda adapter {i}: {e}")
+                        print(f"   [WARNING] Hoppar över denna adapter och fortsätter")
+                
+                print(f"\n[SUCCESS] Totalt {len(loaded_adapters)} tidigare adapter(s) laddade!")
+                print(f"[INFO] Ny träning kommer bygga ovanpå dessa adapters")
+                print(f"[INFO] Kunskap ackumuleras från alla tidigare träningar ✓")
+            else:
+                print(f"[INFO] Inga tidigare adapters att ladda - börjar från base model")
         else:
-            print("[ADAPTERS] No existing adapters found or not a certified model")
+            print("[ADAPTERS] Inte en certifierad modell - ingen adapter-kedja att ladda")
         
         # Prepare dataset
         print("\n[PREPARE] Preparing training data...")
@@ -812,7 +841,9 @@ def train_single_model_lora(
             'device': device,
             'trainable_params': model.num_parameters(only_trainable=True),
             'total_params': model.num_parameters(),
-            'epoch_losses': epoch_losses  # Track losses per epoch for aggregation
+            'epoch_losses': epoch_losses,  # Track losses per epoch for aggregation
+            'adapter_path': f'lora_adapters/oneseek-7b-zero-v{version}-{model_name}',  # New adapter path (relative)
+            'loaded_adapters': loaded_adapters  # Previously loaded adapters
         }
         
         print(f"\n[SUCCESS] {model_name} training completed!")
@@ -883,6 +914,66 @@ def train_with_pytorch_lora(
         )
     
     print(f"\n[CONFIG] Selected base models from admin panel: {selected_base_models}")
+    
+    # Process selections to handle certified models
+    processed_selections = []
+    for model_selection in selected_base_models:
+        # Check if this looks like a certified model (contains run ID pattern or version pattern)
+        if 'oneseek' in model_selection.lower() and ('v1.' in model_selection.lower() or 'run-' in model_selection.lower()):
+            # This is likely a certified model - try to extract base model
+            # Format: OneSeek-7B-Zero.v1.0.sv.dsoneseek-identity-core.79171dc2.3a95b79b
+            # We need to find the metadata to get the actual base model
+            
+            # FIX: Korrekt sökväg + automatisk hantering av dolda filändelser på Windows
+            from pathlib import Path
+            
+            certified_dir = Path("models") / "oneseek-certified" / model_selection.strip()
+            metadata_file = certified_dir / "metadata.json"
+            
+            # Om metadata.json inte finns – testa med bara "metadata" (Windows gömmer .json)
+            if not metadata_file.exists():
+                alt_metadata = certified_dir / "metadata"
+                if alt_metadata.exists():
+                    alt_metadata.rename(metadata_file)
+                    print(f"[AUTOFIX] Döpt om 'metadata' → 'metadata.json' i {model_selection}")
+            
+            # Nu läsa metadata.json (ska nu finnas!)
+            if metadata_file.exists():
+                try:
+                    with open(metadata_file, 'r', encoding='utf-8') as f:
+                        metadata = json.load(f)
+                    print(f"[SUCCESS] Metadata laddad från: {metadata_file}")
+                    
+                    # Extract base models from metadata (support both singular and plural)
+                    base_models_from_meta = metadata.get('baseModels', [])
+                    if not base_models_from_meta:
+                        # Try singular form 'baseModel' (used in metadata.json)
+                        single_base = metadata.get('baseModel')
+                        if single_base:
+                            base_models_from_meta = [single_base]
+                    
+                    if base_models_from_meta:
+                        print(f"[INFO] Certified model {model_selection} uses base models: {base_models_from_meta}")
+                        processed_selections.extend(base_models_from_meta)
+                    else:
+                        # Fallback: try to infer from model name
+                        print(f"[WARNING] No base models in metadata for {model_selection}, using KB-Llama as fallback")
+                        processed_selections.append('KB-Llama-3.1-8B-Swedish')
+                except Exception as e:
+                    print(f"[ERROR] Kunde inte läsa metadata.json: {e}")
+                    # Fallback to Swedish model
+                    processed_selections.append('KB-Llama-3.1-8B-Swedish')
+            else:
+                # Certified model metadata doesn't exist, use default base model
+                print(f"[INFO] Ingen metadata.json hittades för certifierad modell: {model_selection}")
+                processed_selections.append('KB-Llama-3.1-8B-Swedish')
+        else:
+            # This is a regular base model selection
+            processed_selections.append(model_selection)
+    
+    # Update selected_base_models with processed selections
+    selected_base_models = processed_selections
+    print(f"[CONFIG] Processed base models for training: {selected_base_models}")
     
     # Check which models are available
     available_models = check_base_models(base_models_dir)
@@ -1062,12 +1153,29 @@ def train_with_pytorch_lora(
             display_name = model_key.replace('-', ' ').title()
         base_model_names.append(display_name)
     
+    # Build adapters array for metadata (critical for continuous learning)
+    adapters_array = []
+    for model_key, metrics in trained_models.items():
+        # Get previously loaded adapters
+        loaded_adapters = metrics.get('loaded_adapters', [])
+        adapters_array.extend(loaded_adapters)
+        
+        # Add the new adapter created in this training
+        new_adapter_path = metrics.get('adapter_path')
+        if new_adapter_path:
+            adapters_array.append(new_adapter_path)
+    
+    print(f"[METADATA] Adapter-kedja: {len(adapters_array)} adapter(s) totalt")
+    for i, adapter in enumerate(adapters_array, 1):
+        print(f"   {i}. {adapter}")
+    
     metadata = {
         "version": f"OneSeek-7B-Zero.v{version}",
         "createdAt": datetime.utcnow().isoformat() + "Z",
         "trainingType": "dna-v2" if is_multi_model else "single-model",
         "multiModelMode": is_multi_model,
         "baseModels": base_model_names,
+        "adapters": adapters_array,  # KRITISKT: Adapter-kedjan för kontinuerlig träning
         "samplesProcessed": len(datasets.get('train', [])),
         "isCurrent": True,
         "metrics": {
@@ -1104,7 +1212,8 @@ def train_with_pytorch_lora(
     return {
         'metrics': combined_metrics,
         'fairness_metrics': fairness_metrics,
-        'trained_models': trained_models
+        'trained_models': trained_models,
+        'adapters': adapters_array  # CRITICAL: Return adapters for metadata.json
     }
 
 

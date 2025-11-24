@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import LiveLeaderboard from './LiveLeaderboard';
+import TrainingConsole from '../TrainingConsole';
+import ModelEvolutionTree from '../ModelEvolutionTree';
+import RemoteTrainingControl from '../RemoteTrainingControl';
 
 /**
  * Training Control Component
@@ -21,6 +24,8 @@ export default function TrainingControl() {
   const [selectedDatasets, setSelectedDatasets] = useState([]); // Changed to array for multi-selection
   const [languageAnalysis, setLanguageAnalysis] = useState(null);
   const [analyzingLanguage, setAnalyzingLanguage] = useState(false);
+  const [trainingMode, setTrainingMode] = useState('local'); // 'local' or 'remote'
+  const [activeView, setActiveView] = useState('config'); // 'config', 'console', 'tree', 'remote'
   // DNA v2 is now ALWAYS enabled - no toggle
   const [trainingParams, setTrainingParams] = useState({
     epochs: 3,
@@ -189,7 +194,7 @@ export default function TrainingControl() {
     }
   };
 
-  const startTraining = async () => {
+  const startTraining = async (mode = 'local') => {
     if (selectedDatasets.length === 0) {
       alert('Please select at least one dataset');
       return;
@@ -202,25 +207,49 @@ export default function TrainingControl() {
     }
 
     try {
-      // Always use DNA v2 endpoint
-      const endpoint = '/api/admin/training/start-dna-v2';
+      setTrainingMode(mode);
       
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          datasetIds: selectedDatasets, // Send array of dataset IDs
-          baseModels: selectedBaseModels,
-          ...trainingParams,
-        }),
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        alert('Training started successfully with DNA v2 certified structure!');
-        await fetchTrainingStatus();
+      if (mode === 'remote') {
+        // Submit to remote worker
+        const response = await fetch('/api/remote/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            dataset: selectedDatasets[0], // For now, use first dataset
+            baseModels: selectedBaseModels,
+            params: trainingParams,
+            runId: `remote-${Date.now()}`
+          }),
+        });
+        
+        const data = await response.json();
+        if (response.ok) {
+          alert('Training job submitted to remote GPU worker!');
+          await fetchTrainingStatus();
+        } else {
+          alert(`Failed to submit remote job: ${data.error}`);
+        }
       } else {
-        alert(`Failed to start training: ${data.error}`);
+        // Local training - use DNA v2 endpoint
+        const endpoint = '/api/admin/training/start-dna-v2';
+        
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            datasetIds: selectedDatasets, // Send array of dataset IDs
+            baseModels: selectedBaseModels,
+            ...trainingParams,
+          }),
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          alert('Training started successfully with DNA v2 certified structure!');
+          await fetchTrainingStatus();
+        } else {
+          alert(`Failed to start training: ${data.error}`);
+        }
       }
     } catch (error) {
       console.error('Error starting training:', error);
@@ -251,13 +280,84 @@ export default function TrainingControl() {
 
   return (
     <div className="space-y-6 w-full max-w-full overflow-x-hidden">
-      {/* Training Configuration */}
-      <div className="border border-[#2a2a2a] bg-[#111] p-4 sm:p-6 rounded w-full max-w-full overflow-hidden">
-        <h2 className="text-[#eee] font-mono text-lg mb-4">Training Configuration</h2>
-        
-        <div className="space-y-4 w-full max-w-full overflow-x-hidden">
-          {/* Dataset Selection - Multi-select */}
-          <div>
+      {/* View Tabs */}
+      <div className="border border-[#2a2a2a] bg-[#111] rounded overflow-hidden">
+        <div className="flex border-b border-[#2a2a2a]">
+          <button
+            onClick={() => setActiveView('config')}
+            className={`flex-1 px-4 py-3 font-mono text-sm transition-colors ${
+              activeView === 'config'
+                ? 'bg-[#1a1a1a] text-[#eee] border-b-2 border-[#2a2a2a]'
+                : 'text-[#888] hover:bg-[#1a1a1a]'
+            }`}
+          >
+            Configuration
+          </button>
+          <button
+            onClick={() => setActiveView('console')}
+            className={`flex-1 px-4 py-3 font-mono text-sm transition-colors ${
+              activeView === 'console'
+                ? 'bg-[#1a1a1a] text-[#eee] border-b-2 border-[#2a2a2a]'
+                : 'text-[#888] hover:bg-[#1a1a1a]'
+            }`}
+          >
+            Console
+          </button>
+          <button
+            onClick={() => setActiveView('tree')}
+            className={`flex-1 px-4 py-3 font-mono text-sm transition-colors ${
+              activeView === 'tree'
+                ? 'bg-[#1a1a1a] text-[#eee] border-b-2 border-[#2a2a2a]'
+                : 'text-[#888] hover:bg-[#1a1a1a]'
+            }`}
+          >
+            Model Tree
+          </button>
+          <button
+            onClick={() => setActiveView('remote')}
+            className={`flex-1 px-4 py-3 font-mono text-sm transition-colors ${
+              activeView === 'remote'
+                ? 'bg-[#1a1a1a] text-[#eee] border-b-2 border-[#2a2a2a]'
+                : 'text-[#888] hover:bg-[#1a1a1a]'
+            }`}
+          >
+            Remote Training
+          </button>
+        </div>
+      </div>
+
+      {/* Console View */}
+      {activeView === 'console' && (
+        <TrainingConsole
+          baseModel={selectedBaseModels[0] || 'kb-llama-3-1-8b-swedish'}
+          adapters={certifiedModels.slice(0, 3).map(m => m.runId)}
+          runId={trainingStatus?.runId}
+        />
+      )}
+
+      {/* Model Tree View */}
+      {activeView === 'tree' && (
+        <ModelEvolutionTree
+          baseModel={selectedBaseModels[0] || 'kb-llama-3-1-8b-swedish'}
+          adapters={certifiedModels.slice(0, 5).map(m => m.runId)}
+        />
+      )}
+
+      {/* Remote Training View */}
+      {activeView === 'remote' && (
+        <RemoteTrainingControl
+          onSubmit={startTraining}
+        />
+      )}
+
+      {/* Training Configuration (only show in config view) */}
+      {activeView === 'config' && (
+        <div className="border border-[#2a2a2a] bg-[#111] p-4 sm:p-6 rounded w-full max-w-full overflow-hidden">
+          <h2 className="text-[#eee] font-mono text-lg mb-4">Training Configuration</h2>
+          
+          <div className="space-y-4 w-full max-w-full overflow-x-hidden">
+            {/* Dataset Selection - Multi-select */}
+            <div>
             <label className="block text-[#888] font-mono text-sm mb-2">
               Select Dataset(s) *
             </label>
@@ -885,8 +985,10 @@ export default function TrainingControl() {
           </div>
         </div>
       </div>
+      )}
+      {/* End of Config View */}
 
-      {/* Training Status */}
+      {/* Training Status - Show in all views */}
       {trainingStatus && (
         <div className="border border-[#2a2a2a] bg-[#111] p-4 sm:p-6 rounded w-full max-w-full overflow-hidden">
           <h2 className="text-[#eee] font-mono text-lg mb-4">Training Status</h2>

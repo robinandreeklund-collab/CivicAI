@@ -76,7 +76,8 @@ def save_certified_metadata(
     training_data_hash: str,
     model_weights_hash: str,
     status: Optional[str] = None,
-    finalized_at: Optional[str] = None
+    finalized_at: Optional[str] = None,
+    adapters: Optional[List[str]] = None
 ) -> None:
     """
     Save metadata.json for a certified model.
@@ -95,6 +96,7 @@ def save_certified_metadata(
         model_weights_hash: Hash of model weights
         status: Training status (e.g., 'completed', 'failed', 'training')
         finalized_at: ISO timestamp when training was finalized
+        adapters: List of adapter paths for continuous learning (CRITICAL)
     """
     metadata = {
         "version": f"OneSeek-7B-Zero.v{version}",
@@ -118,9 +120,24 @@ def save_certified_metadata(
     if finalized_at:
         metadata["finalizedAt"] = finalized_at
     
+    # CRITICAL: Add adapters array for continuous learning
+    if adapters is not None:
+        metadata["adapters"] = adapters
+        print(f"[METADATA] Saving {len(adapters)} adapter(s) to metadata.json")
+    
     metadata_file = model_dir / 'metadata.json'
-    with open(metadata_file, 'w', encoding='utf-8') as f:
+    # Use atomic write with proper flushing for Windows compatibility
+    import tempfile
+    temp_file = model_dir / 'metadata.json.tmp'
+    
+    with open(temp_file, 'w', encoding='utf-8') as f:
         json.dump(metadata, f, indent=2, ensure_ascii=False)
+        f.flush()  # Flush Python buffer
+        os.fsync(f.fileno())  # Force OS to write to disk (critical on Windows)
+    
+    # Atomic replace
+    temp_file.replace(metadata_file)
+    print(f"[METADATA] ✓ Saved to: {metadata_file}")
 
 
 def update_current_symlink(
