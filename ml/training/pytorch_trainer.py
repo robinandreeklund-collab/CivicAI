@@ -641,6 +641,7 @@ def train_single_model_lora(
         # === LADDA ALLA TIDIGARE ADAPTERS FRÅN METADATA ===
         # Detta är kritiskt för kontinuerlig träning - vi måste ladda ALLA tidigare adapters
         # för att kunna bygga på tidigare kunskap istället för att börja om från scratch
+        loaded_adapters = []  # Track all loaded adapters for metadata
         is_certified = is_certified_model(model_path)
         if is_certified:
             print(f"\n[ADAPTERS] Detekterade certifierad modell - laddar adapter-kedja...")
@@ -667,7 +668,7 @@ def train_single_model_lora(
                             # Kontrollera att adapter_config.json finns (validering)
                             adapter_config = adapter_path / "adapter_config.json"
                             if adapter_config.exists():
-                                adapters_to_load.append(adapter_path)
+                                adapters_to_load.append((adapter_rel_path, adapter_path))
                                 print(f"   ✓ Hittade adapter: {adapter_rel_path}")
                             else:
                                 print(f"   ⚠ Adapter saknar adapter_config.json: {adapter_rel_path}")
@@ -684,16 +685,17 @@ def train_single_model_lora(
             # Ladda alla adapters i rätt ordning (äldst först)
             if adapters_to_load:
                 print(f"\n[ADAPTERS] Laddar {len(adapters_to_load)} tidigare adapter(s) i kedjan...")
-                for i, adapter_path in enumerate(adapters_to_load, 1):
+                for i, (rel_path, adapter_path) in enumerate(adapters_to_load, 1):
                     try:
                         print(f"   [{i}/{len(adapters_to_load)}] Laddar: {adapter_path.name}")
                         model = PeftModel.from_pretrained(model, str(adapter_path))
+                        loaded_adapters.append(rel_path)  # Track loaded adapter
                         print(f"   ✓ Adapter {i} laddad")
                     except Exception as e:
                         print(f"   ✗ Kunde inte ladda adapter {i}: {e}")
                         print(f"   [WARNING] Hoppar över denna adapter och fortsätter")
                 
-                print(f"\n[SUCCESS] Totalt {len(adapters_to_load)} tidigare adapter(s) laddade!")
+                print(f"\n[SUCCESS] Totalt {len(loaded_adapters)} tidigare adapter(s) laddade!")
                 print(f"[INFO] Ny träning kommer bygga ovanpå dessa adapters")
                 print(f"[INFO] Kunskap ackumuleras från alla tidigare träningar ✓")
             else:
@@ -839,7 +841,9 @@ def train_single_model_lora(
             'device': device,
             'trainable_params': model.num_parameters(only_trainable=True),
             'total_params': model.num_parameters(),
-            'epoch_losses': epoch_losses  # Track losses per epoch for aggregation
+            'epoch_losses': epoch_losses,  # Track losses per epoch for aggregation
+            'adapter_path': f'lora_adapters/oneseek-7b-zero-v{version}-{model_name}',  # New adapter path (relative)
+            'loaded_adapters': loaded_adapters  # Previously loaded adapters
         }
         
         print(f"\n[SUCCESS] {model_name} training completed!")
@@ -1143,12 +1147,29 @@ def train_with_pytorch_lora(
             display_name = model_key.replace('-', ' ').title()
         base_model_names.append(display_name)
     
+    # Build adapters array for metadata (critical for continuous learning)
+    adapters_array = []
+    for model_key, metrics in trained_models.items():
+        # Get previously loaded adapters
+        loaded_adapters = metrics.get('loaded_adapters', [])
+        adapters_array.extend(loaded_adapters)
+        
+        # Add the new adapter created in this training
+        new_adapter_path = metrics.get('adapter_path')
+        if new_adapter_path:
+            adapters_array.append(new_adapter_path)
+    
+    print(f"[METADATA] Adapter-kedja: {len(adapters_array)} adapter(s) totalt")
+    for i, adapter in enumerate(adapters_array, 1):
+        print(f"   {i}. {adapter}")
+    
     metadata = {
         "version": f"OneSeek-7B-Zero.v{version}",
         "createdAt": datetime.utcnow().isoformat() + "Z",
         "trainingType": "dna-v2" if is_multi_model else "single-model",
         "multiModelMode": is_multi_model,
         "baseModels": base_model_names,
+        "adapters": adapters_array,  # KRITISKT: Adapter-kedjan för kontinuerlig träning
         "samplesProcessed": len(datasets.get('train', [])),
         "isCurrent": True,
         "metrics": {
