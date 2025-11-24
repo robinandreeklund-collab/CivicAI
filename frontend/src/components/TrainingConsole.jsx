@@ -69,52 +69,51 @@ export default function TrainingConsole({ baseModel, adapters = [], runId }) {
 
   const getLogColor = (level) => {
     switch (level) {
-      case 'error': return 'text-red-400';
-      case 'warn': return 'text-yellow-400';
-      case 'info': return 'text-blue-400';
-      case 'success': return 'text-green-400';
-      default: return 'text-gray-300';
+      case 'error': return 'text-[#888]';
+      case 'warn': return 'text-[#888]';
+      case 'info': return 'text-[#888]';
+      case 'success': return 'text-[#888]';
+      default: return 'text-[#666]';
     }
   };
 
   const getWarningColor = (level) => {
     switch (level) {
-      case 'critical': return 'text-red-500 font-bold';
-      case 'warning': return 'text-yellow-500';
-      case 'info': return 'text-blue-500';
-      default: return 'text-green-500';
+      case 'critical': return 'text-[#888] font-mono';
+      case 'warning': return 'text-[#888] font-mono';
+      case 'info': return 'text-[#888] font-mono';
+      default: return 'text-[#666] font-mono';
     }
   };
 
   return (
-    <div className="bg-gray-900 rounded-lg border border-gray-700">
+    <div className="border border-[#2a2a2a] bg-[#111] rounded">
       {/* Header */}
-      <div className="border-b border-gray-700 px-4 py-3">
-        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-          <span className="text-green-500">▶</span>
+      <div className="border-b border-[#2a2a2a] px-4 py-3">
+        <h3 className="text-sm font-mono text-[#eee]">
           Training Console
         </h3>
       </div>
 
       {/* Size Info Panel */}
       {sizeInfo && (
-        <div className="border-b border-gray-700 px-4 py-3 bg-gray-800">
+        <div className="border-b border-[#2a2a2a] px-4 py-3 bg-[#0a0a0a]">
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-400">Base Model:</span>
-              <span className="text-white font-mono">{baseModel} ({sizeInfo.formatted.base})</span>
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="text-[#666]">Base Model:</span>
+              <span className="text-[#888]">{baseModel} ({sizeInfo.formatted.base})</span>
             </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-400">Adapters ({sizeInfo.adapterCount}):</span>
-              <span className="text-white font-mono">{sizeInfo.formatted.adapters}</span>
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="text-[#666]">Adapters ({sizeInfo.adapterCount}):</span>
+              <span className="text-[#888]">{sizeInfo.formatted.adapters}</span>
             </div>
-            <div className="flex items-center justify-between text-sm font-semibold border-t border-gray-700 pt-2">
-              <span className="text-gray-300">Total Size:</span>
-              <span className="text-white font-mono text-lg">{sizeInfo.formatted.total}</span>
+            <div className="flex items-center justify-between text-xs font-mono border-t border-[#2a2a2a] pt-2">
+              <span className="text-[#666]">Total Size:</span>
+              <span className="text-[#eee]">{sizeInfo.formatted.total}</span>
             </div>
             {sizeInfo.warning && sizeInfo.warning.level !== 'ok' && (
-              <div className={`text-sm ${getWarningColor(sizeInfo.warning.level)} flex items-center gap-2 mt-2`}>
-                <span>⚠️</span>
+              <div className={`text-xs ${getWarningColor(sizeInfo.warning.level)} flex items-center gap-2 mt-2`}>
+                <span>⚠</span>
                 <span>{sizeInfo.warning.message}</span>
               </div>
             )}
@@ -123,17 +122,17 @@ export default function TrainingConsole({ baseModel, adapters = [], runId }) {
       )}
 
       {/* Console Logs */}
-      <div className="p-4 bg-black rounded-b-lg">
-        <div className="font-mono text-sm space-y-1 max-h-96 overflow-y-auto">
+      <div className="p-4 bg-[#0a0a0a]">
+        <div className="font-mono text-xs space-y-1 max-h-96 overflow-y-auto">
           {logs.length === 0 ? (
-            <div className="text-gray-500 italic">Console logs will appear here...</div>
+            <div className="text-[#555]">Console logs will appear here...</div>
           ) : (
             logs.map((log, idx) => (
               <div key={idx} className={`${getLogColor(log.level)} flex gap-2`}>
-                <span className="text-gray-600">
+                <span className="text-[#555]">
                   {new Date(log.timestamp).toLocaleTimeString()}
                 </span>
-                <span className="font-semibold">[{log.level.toUpperCase()}]</span>
+                <span className="text-[#666]">[{log.level.toUpperCase()}]</span>
                 <span>{log.message}</span>
               </div>
             ))
@@ -143,14 +142,14 @@ export default function TrainingConsole({ baseModel, adapters = [], runId }) {
 
       {/* Progress Bar (if training) */}
       {runId && (
-        <div className="border-t border-gray-700 px-4 py-2 bg-gray-800">
-          <div className="w-full bg-gray-700 rounded-full h-2">
+        <div className="border-t border-[#2a2a2a] px-4 py-2 bg-[#0a0a0a]">
+          <div className="w-full bg-[#1a1a1a] border border-[#2a2a2a] h-2">
             <div 
-              className="bg-green-500 h-2 rounded-full transition-all duration-300"
+              className="bg-[#333] h-2 transition-all duration-300"
               style={{ width: '0%' }}
             />
           </div>
-          <div className="text-xs text-gray-400 mt-1 text-center">
+          <div className="text-xs text-[#666] font-mono mt-1 text-center">
             Training in progress...
           </div>
         </div>

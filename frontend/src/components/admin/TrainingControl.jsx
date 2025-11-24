@@ -287,41 +287,41 @@ export default function TrainingControl() {
             onClick={() => setActiveView('config')}
             className={`flex-1 px-4 py-3 font-mono text-sm transition-colors ${
               activeView === 'config'
-                ? 'bg-[#1a1a1a] text-[#eee] border-b-2 border-blue-500'
+                ? 'bg-[#1a1a1a] text-[#eee] border-b-2 border-[#2a2a2a]'
                 : 'text-[#888] hover:bg-[#1a1a1a]'
             }`}
           >
-            ⚙️ Configuration
+            Configuration
           </button>
           <button
             onClick={() => setActiveView('console')}
             className={`flex-1 px-4 py-3 font-mono text-sm transition-colors ${
               activeView === 'console'
-                ? 'bg-[#1a1a1a] text-[#eee] border-b-2 border-green-500'
+                ? 'bg-[#1a1a1a] text-[#eee] border-b-2 border-[#2a2a2a]'
                 : 'text-[#888] hover:bg-[#1a1a1a]'
             }`}
           >
-            🖥️ Console
+            Console
           </button>
           <button
             onClick={() => setActiveView('tree')}
             className={`flex-1 px-4 py-3 font-mono text-sm transition-colors ${
               activeView === 'tree'
-                ? 'bg-[#1a1a1a] text-[#eee] border-b-2 border-purple-500'
+                ? 'bg-[#1a1a1a] text-[#eee] border-b-2 border-[#2a2a2a]'
                 : 'text-[#888] hover:bg-[#1a1a1a]'
             }`}
           >
-            🌳 Model Tree
+            Model Tree
           </button>
           <button
             onClick={() => setActiveView('remote')}
             className={`flex-1 px-4 py-3 font-mono text-sm transition-colors ${
               activeView === 'remote'
-                ? 'bg-[#1a1a1a] text-[#eee] border-b-2 border-yellow-500'
+                ? 'bg-[#1a1a1a] text-[#eee] border-b-2 border-[#2a2a2a]'
                 : 'text-[#888] hover:bg-[#1a1a1a]'
             }`}
           >
-            🚀 Remote Training
+            Remote Training
           </button>
         </div>
       </div>
