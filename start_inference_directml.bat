@@ -16,8 +16,9 @@ start "OneSeek BLIXXNABB" /HIGH /AFFINITY FF ^
     python ml_service/server.py ^
     --auto-devices ^
     --directml ^
+    --use-direct ^
     --load-in-4bit ^
-    --n-gpu-layers 40 ^
+    --n-gpu-layers 99 ^
     --gpu-memory 28 ^
     --timeout-keep-alive 600 ^
     --listen ^

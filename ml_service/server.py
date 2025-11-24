@@ -27,12 +27,14 @@ parser.add_argument('--auto-devices', action='store_true',
                     help='Enable automatic device mapping for multi-GPU/NPU offloading')
 parser.add_argument('--directml', action='store_true',
                     help='Force DirectML acceleration (Windows AMD/Intel GPU)')
+parser.add_argument('--use-direct', action='store_true',
+                    help='Force direct device placement (fixes DirectML tensor issues)')
 parser.add_argument('--load-in-4bit', action='store_true',
                     help='Load model in 4-bit quantization for memory efficiency')
 parser.add_argument('--load-in-8bit', action='store_true',
                     help='Load model in 8-bit quantization')
 parser.add_argument('--n-gpu-layers', type=int, default=40,
-                    help='Number of layers to offload to GPU (default: 40)')
+                    help='Number of layers to offload to GPU (default: 40, use 99 for all layers)')
 parser.add_argument('--gpu-memory', type=float, default=16.0,
                     help='GPU memory allocation in GB (default: 16.0)')
 parser.add_argument('--timeout-keep-alive', type=int, default=600,
@@ -229,6 +231,73 @@ def get_device():
     return torch.device('cpu'), 'cpu'
 
 DEVICE, DEVICE_TYPE = get_device()
+
+def ensure_device_compatibility(inputs, model=None):
+    """
+    Ensure tokenizer inputs are on the correct device for DirectML.
+    
+    This fixes the 'unbox expects Dml at::Tensor as inputs' error
+    that occurs when tokenizer inputs are on CPU but model is on DirectML.
+    
+    Args:
+        inputs: TokenizerOutput or dict with tensors
+        model: Optional model to get device from
+    
+    Returns:
+        inputs moved to the correct device
+    """
+    try:
+        # Determine target device
+        target_device = None
+        
+        # If --use-direct flag is set, force direct device placement
+        if args.use_direct or args.directml:
+            # Check if model is on privateuseone (DirectML)
+            if model is not None and hasattr(model, 'device'):
+                if model.device.type == 'privateuseone':
+                    target_device = model.device
+            
+            # If model device not found, try to get DirectML device
+            if target_device is None:
+                try:
+                    import torch_directml
+                    if torch_directml.is_available():
+                        target_device = torch_directml.device()
+                except ImportError:
+                    pass
+        
+        # Fallback: Check model device type
+        if target_device is None and model is not None and hasattr(model, 'device'):
+            if model.device.type == 'privateuseone':  # DirectML device type
+                target_device = model.device
+        
+        # Check if we're using DirectML (auto-detection)
+        if target_device is None and DEVICE_TYPE == 'directml':
+            try:
+                import torch_directml
+                if torch_directml.is_available():
+                    target_device = torch_directml.device()
+            except ImportError:
+                pass
+        
+        # If no special handling needed, use default DEVICE
+        if target_device is None:
+            target_device = DEVICE
+        
+        # Move inputs to target device
+        if hasattr(inputs, 'to'):
+            # Handle BatchEncoding/TokenizerOutput
+            return inputs.to(target_device)
+        elif isinstance(inputs, dict):
+            # Handle dict of tensors
+            return {k: v.to(target_device) if hasattr(v, 'to') else v for k, v in inputs.items()}
+        
+        return inputs
+    except Exception as e:
+        logger.warning(f"Device compatibility fix failed: {e}, using default DEVICE")
+        if hasattr(inputs, 'to'):
+            return inputs.to(DEVICE)
+        return inputs
 
 # Model cache
 models = {}
@@ -822,8 +891,9 @@ async def dual_model_inference(text: str, max_length: int = 512, temperature: fl
         """Run inference on a single model"""
         start_time = time.time()
         
-        # Tokenize input
-        inputs = tokenizer(prompt, return_tensors="pt", padding=True).to(DEVICE)
+        # Tokenize input and ensure correct device for DirectML
+        inputs = tokenizer(prompt, return_tensors="pt", padding=True)
+        inputs = ensure_device_compatibility(inputs, model)
         
         # Generate with explicit attention_mask
         with torch.no_grad():
@@ -1047,8 +1117,9 @@ async def infer(request: Request, inference_request: InferenceRequest):
             # Single-model inference (certified or fallback)
             model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
             
-            # Prepare input
-            inputs = tokenizer(inference_request.text, return_tensors="pt", padding=True).to(DEVICE)
+            # Prepare input and ensure correct device for DirectML
+            inputs = tokenizer(inference_request.text, return_tensors="pt", padding=True)
+            inputs = ensure_device_compatibility(inputs, model)
             
             # Generate with explicit attention_mask
             with torch.no_grad():
@@ -1137,8 +1208,9 @@ async def oneseek_inference(request: InferenceRequest):
             # Single-model fallback
             model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
             
-            # Prepare input
-            inputs = tokenizer(request.text, return_tensors="pt", padding=True).to(DEVICE)
+            # Prepare input and ensure correct device for DirectML
+            inputs = tokenizer(request.text, return_tensors="pt", padding=True)
+            inputs = ensure_device_compatibility(inputs, model)
             
             # Generate with explicit attention_mask
             with torch.no_grad():
@@ -1185,7 +1257,8 @@ async def llama_inference(request: InferenceRequest):
         
         # Prepare input with LLaMA chat format for compatibility
         formatted_prompt = f"<s>[INST] {request.text} [/INST]"
-        inputs = tokenizer(formatted_prompt, return_tensors="pt", padding=True).to(DEVICE)
+        inputs = tokenizer(formatted_prompt, return_tensors="pt", padding=True)
+        inputs = ensure_device_compatibility(inputs, model)
         
         # Generate with explicit attention_mask
         with torch.no_grad():
@@ -1230,8 +1303,9 @@ async def mistral_inference(request: InferenceRequest):
         logger.info("Legacy mistral endpoint called - redirecting to OneSeek-7B-Zero.v1.1")
         model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
         
-        # Prepare input
-        inputs = tokenizer(request.text, return_tensors="pt", padding=True).to(DEVICE)
+        # Prepare input and ensure correct device for DirectML
+        inputs = tokenizer(request.text, return_tensors="pt", padding=True)
+        inputs = ensure_device_compatibility(inputs, model)
         
         # Generate with explicit attention_mask
         with torch.no_grad():
