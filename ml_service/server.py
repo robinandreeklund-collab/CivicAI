@@ -350,8 +350,10 @@ def sync_inputs_to_device(inputs):
 models = {}
 tokenizers = {}
 
-# Dual-model configuration for OneSeek-7B-Zero
-DUAL_MODEL_MODE = True  # Use both Mistral and LLaMA in parallel
+# Single-model configuration for OneSeek-7B-Zero
+# Set to False to use only the active certified model (recommended)
+# Set to True only if you want legacy dual-model inference (requires Mistral + LLaMA installed)
+DUAL_MODEL_MODE = False  # Use only the single certified OneSeek-7B-Zero model
 
 def read_model_metadata():
     """Read the latest model metadata to determine which base model was trained
