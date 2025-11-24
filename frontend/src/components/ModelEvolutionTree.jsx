@@ -16,6 +16,7 @@ export default function ModelEvolutionTree({ baseModel, adapters = [] }) {
     if (baseModel) {
       fetchChainInfo();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseModel, adapters]);
 
   const fetchChainInfo = async () => {

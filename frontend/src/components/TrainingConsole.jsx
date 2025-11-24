@@ -9,12 +9,12 @@ import { useState, useEffect } from 'react';
 export default function TrainingConsole({ baseModel, adapters = [], runId }) {
   const [sizeInfo, setSizeInfo] = useState(null);
   const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (baseModel) {
       fetchSizeInfo();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseModel, adapters]);
 
   useEffect(() => {
@@ -26,7 +26,6 @@ export default function TrainingConsole({ baseModel, adapters = [], runId }) {
   }, [runId]);
 
   const fetchSizeInfo = async () => {
-    setLoading(true);
     try {
       const adaptersList = adapters.join(',');
       const response = await fetch(`/api/remote/chain/size?baseModel=${baseModel}&adapters=${adaptersList}`);
@@ -44,7 +43,6 @@ export default function TrainingConsole({ baseModel, adapters = [], runId }) {
     } catch (error) {
       console.error('Error fetching size info:', error);
     }
-    setLoading(false);
   };
 
   const fetchTrainingLogs = async () => {

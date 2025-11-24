@@ -354,10 +354,10 @@ export default function TrainingControl() {
       {activeView === 'config' && (
         <div className="border border-[#2a2a2a] bg-[#111] p-4 sm:p-6 rounded w-full max-w-full overflow-hidden">
           <h2 className="text-[#eee] font-mono text-lg mb-4">Training Configuration</h2>
-        
-        <div className="space-y-4 w-full max-w-full overflow-x-hidden">
-          {/* Dataset Selection - Multi-select */}
-          <div>
+          
+          <div className="space-y-4 w-full max-w-full overflow-x-hidden">
+            {/* Dataset Selection - Multi-select */}
+            <div>
             <label className="block text-[#888] font-mono text-sm mb-2">
               Select Dataset(s) *
             </label>
@@ -984,6 +984,7 @@ export default function TrainingControl() {
             )}
           </div>
         </div>
+      </div>
       )}
       {/* End of Config View */}
 

@@ -8,7 +8,6 @@ import { useState, useEffect } from 'react';
  */
 export default function RemoteTrainingControl({ onSubmit }) {
   const [remoteStatus, setRemoteStatus] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
