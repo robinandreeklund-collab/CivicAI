@@ -1059,31 +1059,41 @@ def load_model(model_name: str, model_path: str):
             
             if PeftModel:
                 # Search for adapter directories in the certified model path
-                # Look for directories containing "adapter" or "lora" in the name
                 certified_model_path = Path(ONESEEK_PATH)
                 adapter_dirs = []
                 
-                # Check direct subdirectories with adapter files
+                logger.info(f"Söker DNA-adapters i: {certified_model_path}")
+                
+                # Check all subdirectories for adapter files
                 if certified_model_path.exists():
                     for item in certified_model_path.iterdir():
                         if item.is_dir():
-                            # Check for PEFT adapter format
+                            # Check for PEFT adapter format (adapter_model.safetensors or adapter_config.json)
                             if (item / "adapter_model.safetensors").exists() or (item / "adapter_config.json").exists():
                                 adapter_dirs.append(item)
+                                logger.info(f"  Hittade adapter: {item.name}")
                             # Also check if it's a lora_adapters subdirectory
                             elif item.name == "lora_adapters":
                                 for subitem in item.iterdir():
                                     if subitem.is_dir() and ((subitem / "adapter_model.safetensors").exists() or (subitem / "adapter_config.json").exists()):
                                         adapter_dirs.append(subitem)
+                                        logger.info(f"  Hittade adapter i lora_adapters/: {subitem.name}")
+                            # Also check directories containing "adapter" in name (fallback)
+                            elif "adapter" in item.name.lower():
+                                # Check inside this directory for adapter files
+                                if (item / "adapter_model.safetensors").exists() or (item / "adapter_config.json").exists():
+                                    adapter_dirs.append(item)
+                                    logger.info(f"  Hittade adapter (via namn): {item.name}")
                 
                 if adapter_dirs:
                     # Sort by name so newest (highest timestamp) loads last and "wins"
                     adapter_dirs.sort(key=lambda x: x.name)
                     loaded_count = 0
                     
+                    logger.info(f"Laddar {len(adapter_dirs)} DNA-adapter(s)...")
                     for adapter_dir in adapter_dirs:
                         try:
-                            logger.info(f"Laddar DNA-adapter från: {adapter_dir.name}")
+                            logger.info(f"  → Laddar: {adapter_dir.name}")
                             adapter_kwargs = {}
                             if args.auto_devices:
                                 adapter_kwargs['device_map'] = 'auto'
@@ -1091,7 +1101,7 @@ def load_model(model_name: str, model_path: str):
                             model = PeftModel.from_pretrained(model, str(adapter_dir), **adapter_kwargs)
                             loaded_count += 1
                         except Exception as e:
-                            logger.warning(f"⚠ Kunde inte ladda adapter {adapter_dir.name}: {e}")
+                            logger.warning(f"  ⚠ Kunde inte ladda {adapter_dir.name}: {e}")
                     
                     if loaded_count > 0:
                         logger.info(f"✓ DIN FULLA DNA ÄR AKTIV – {loaded_count} adapter(s) laddade!")
