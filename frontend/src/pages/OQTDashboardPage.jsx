@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import EnhancedActivityTab from '../components/admin/EnhancedActivityTab';
 import EnhancedMetricsTab from '../components/admin/EnhancedMetricsTab';
+import CharacterSelector from '../components/CharacterSelector';
 
 /**
  * OQT-1.0 Dashboard Page - Minimal Chat Interface
@@ -18,6 +19,10 @@ export default function OQTDashboardPage() {
   const [queryInput, setQueryInput] = useState('');
   const [queryLoading, setQueryLoading] = useState(false);
   const messagesEndRef = useRef(null);
+  
+  // Persona selection state
+  const [selectedPersona, setSelectedPersona] = useState('oneseek-medveten');
+  const [characterData, setCharacterData] = useState(null);
 
   // Scroll to bottom when new messages arrive
   const scrollToBottom = () => {
@@ -46,6 +51,27 @@ export default function OQTDashboardPage() {
 
     fetchModelStatus();
   }, []);
+
+  // Load character data when persona changes
+  useEffect(() => {
+    const loadCharacterData = async () => {
+      try {
+        const response = await fetch(`/api/chat/characters/${selectedPersona}`);
+        if (response.ok) {
+          const data = await response.json();
+          setCharacterData(data.character);
+        }
+      } catch (error) {
+        console.error('Error loading character data:', error);
+      }
+    };
+
+    loadCharacterData();
+  }, [selectedPersona]);
+
+  const handlePersonaChange = (personaId) => {
+    setSelectedPersona(personaId);
+  };
 
   // Handle query submission
   const handleQuerySubmit = async (e) => {
@@ -192,16 +218,26 @@ export default function OQTDashboardPage() {
             <>
               {messages.length === 0 && (
                 <div className="text-center py-12">
-                  <div className="text-6xl mb-4">🤖</div>
+                  {characterData && characterData.icon ? (
+                    <div className="text-6xl mb-4">{characterData.icon}</div>
+                  ) : (
+                    <div className="text-6xl mb-4">🤖</div>
+                  )}
                   <h2 className="text-xl font-light text-[#e7e7e7] mb-2">
-                    Välkommen till {modelStatus?.model?.dna || 'OneSeek-7B-Zero.v1.1'}
+                    Välkommen till {characterData?.name || modelStatus?.model?.dna || 'OneSeek-7B-Zero'}
                   </h2>
-                  <p className="text-sm text-[#666] max-w-md mx-auto">
-                    Ställ dina frågor direkt till vår egen AI-modell. 
-                    {modelStatus?.model?.dna || 'OneSeek-7B-Zero.v1.1'} ger transparenta och rättvisa svar baserat på kontinuerlig träning.
-                  </p>
+                  {characterData && characterData.greeting ? (
+                    <div className="bg-[#151515] border border-[#2a2a2a] rounded-lg p-6 mb-4 text-left max-w-xl mx-auto">
+                      <p className="text-[#888] whitespace-pre-wrap text-sm">{characterData.greeting}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[#666] max-w-md mx-auto">
+                      Ställ dina frågor direkt till vår egen AI-modell. 
+                      {modelStatus?.model?.dna || 'OneSeek-7B-Zero.v1.1'} ger transparenta och rättvisa svar baserat på kontinuerlig träning.
+                    </p>
+                  )}
                   <p className="text-xs text-[#555] mt-4">
-                    Alla frågor routas till {modelStatus?.model?.dna || 'OneSeek-7B-Zero.v1.1'}
+                    Alla frågor routas till {characterData?.name || modelStatus?.model?.dna || 'OneSeek-7B-Zero.v1.1'}
                   </p>
                 </div>
               )}
@@ -290,13 +326,29 @@ export default function OQTDashboardPage() {
 
       {/* Premium Input Field (ChatV2 style) - Fixed Bottom */}
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent pt-8">
-        <div className="max-w-4xl mx-auto px-4 md:px-8 pb-6">
+        <div className="max-w-4xl mx-auto px-4 md:px-8 pb-6 space-y-4">
+          {/* Character Selector */}
+          <div className="flex items-center justify-between">
+            <div className="flex-1 max-w-md">
+              <CharacterSelector 
+                selectedPersona={selectedPersona}
+                onPersonaChange={handlePersonaChange}
+              />
+            </div>
+            {characterData && (
+              <div className="ml-4 text-sm text-[#666]">
+                {characterData.description}
+              </div>
+            )}
+          </div>
+          
+          {/* Question Input */}
           <form onSubmit={handleQuerySubmit} className="relative">
             <input
               type="text"
               value={queryInput}
               onChange={(e) => setQueryInput(e.target.value)}
-              placeholder="Ställ en fråga till OQT-1.0..."
+              placeholder={`Ställ en fråga till ${characterData?.name || 'OneSeek'}...`}
               disabled={queryLoading}
               className="w-full px-6 py-4 pr-32 bg-[#151515] border border-[#2a2a2a] rounded-lg text-[#e7e7e7] placeholder-[#666] focus:outline-none focus:border-[#3a3a3a] transition-colors disabled:opacity-50"
             />
@@ -309,7 +361,7 @@ export default function OQTDashboardPage() {
             </button>
           </form>
           <p className="text-xs text-[#555] mt-2 text-center">
-            OQT-1.0 tränas kontinuerligt för att förbättra transparens och rättvisa
+            {characterData?.name || 'OneSeek'} tränas kontinuerligt för att förbättra transparens och rättvisa
           </p>
         </div>
       </div>

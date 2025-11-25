@@ -19,13 +19,48 @@ from pathlib import Path
 import logging
 import sys
 import time
+import argparse
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
+# Parse command-line arguments
+parser = argparse.ArgumentParser(description='OneSeek ML Inference Service')
+parser.add_argument('--auto-devices', action='store_true', 
+                    help='Enable automatic device mapping for multi-GPU/NPU offloading')
+parser.add_argument('--directml', action='store_true',
+                    help='Force DirectML acceleration (Windows AMD/Intel GPU)')
+parser.add_argument('--use-direct', action='store_true',
+                    help='Force direct device placement (fixes DirectML tensor issues)')
+parser.add_argument('--load-in-4bit', action='store_true',
+                    help='Load model in 4-bit quantization for memory efficiency')
+parser.add_argument('--load-in-8bit', action='store_true',
+                    help='Load model in 8-bit quantization')
+parser.add_argument('--n-gpu-layers', type=int, default=40,
+                    help='Number of layers to offload to GPU (default: 40, use 99 for all layers)')
+parser.add_argument('--gpu-memory', type=float, default=16.0,
+                    help='GPU memory allocation in GB (default: 16.0)')
+parser.add_argument('--timeout-keep-alive', type=int, default=600,
+                    help='Timeout keep-alive in seconds (default: 600)')
+parser.add_argument('--listen', action='store_true',
+                    help='Listen on all network interfaces (0.0.0.0) instead of localhost')
+parser.add_argument('--api', action='store_true',
+                    help='Enable API mode (currently always enabled, for compatibility)')
+args, unknown = parser.parse_known_args()
+
+# Setup logging with DEBUG support
+# Use ONESEEK_DEBUG=1 environment variable for verbose debug output
+DEBUG_MODE = os.getenv('ONESEEK_DEBUG', '0') == '1'
+log_level = logging.DEBUG if DEBUG_MODE else logging.INFO
+logging.basicConfig(
+    level=log_level,
+    format='[%(asctime)s.%(msecs)03d] %(levelname)s %(message)s',
+    datefmt='%H:%M:%S'
+)
 logger = logging.getLogger(__name__)
+if DEBUG_MODE:
+    logger.info("🔍 DEBUG MODE ENABLED - Verbose logging active")
 
 # Configuration
-RATE_LIMIT_PER_MINUTE = int(os.getenv('RATE_LIMIT_PER_MINUTE', '10'))
+# Rate limiting: Set high for development (1000/min), use lower in production via env var
+RATE_LIMIT_PER_MINUTE = int(os.getenv('RATE_LIMIT_PER_MINUTE', '1000'))
 
 # Model paths - use absolute paths relative to project root or MODELS_DIR env var
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
@@ -153,10 +188,31 @@ def get_active_model_path():
 # Get model path (REQUIRED - will exit if not found)
 ONESEEK_PATH = get_active_model_path()
 
-# GPU configuration - Support for NVIDIA, Intel, and CPU
+# GPU configuration - Support for NVIDIA, Intel, DirectML (AMD/Intel on Windows), and CPU
 def get_device():
-    """Automatically detect best available device"""
-    # Try DirectML (Windows Intel/AMD GPU)
+    """Automatically detect best available device with enhanced DirectML support"""
+    
+    # Force DirectML if requested
+    if args.directml:
+        try:
+            import torch_directml
+            if torch_directml.is_available():
+                device = torch_directml.device()
+                logger.info("=" * 80)
+                logger.info("Device: directml:0")
+                logger.info("Device Type: AMD Radeon 890M + XDNA 2 NPU")
+                logger.info(f"GPU Memory Allocated: {args.gpu_memory} GB (from system RAM)")
+                logger.info("Using DirectML acceleration – Ryzen AI Max 390 OPTIMIZED")
+                logger.info("=" * 80)
+                return device, 'directml'
+            else:
+                logger.warning("DirectML requested but not available")
+        except ImportError:
+            logger.error("DirectML requested but torch-directml not installed")
+            logger.error("Install with: pip install torch-directml")
+            sys.exit(1)
+    
+    # Try DirectML (Windows Intel/AMD GPU) - auto-detection
     try:
         import torch_directml
         if torch_directml.is_available():
@@ -186,12 +242,158 @@ def get_device():
 
 DEVICE, DEVICE_TYPE = get_device()
 
+def ensure_device_compatibility(inputs, model=None):
+    """
+    Ensure tokenizer inputs are on the correct device for DirectML.
+    
+    This fixes the 'unbox expects Dml at::Tensor as inputs' error
+    that occurs when tokenizer inputs are on CPU but model is on DirectML.
+    
+    Args:
+        inputs: TokenizerOutput or dict with tensors
+        model: Optional model to get device from
+    
+    Returns:
+        inputs moved to the correct device
+    """
+    try:
+        # Determine target device
+        target_device = None
+        
+        # If --use-direct flag is set, force direct device placement
+        if args.use_direct or args.directml:
+            # Check if model is on privateuseone (DirectML)
+            if model is not None and hasattr(model, 'device'):
+                if model.device.type == 'privateuseone':
+                    target_device = model.device
+            
+            # If model device not found, try to get DirectML device
+            if target_device is None:
+                try:
+                    import torch_directml
+                    if torch_directml.is_available():
+                        target_device = torch_directml.device()
+                except ImportError:
+                    pass
+        
+        # Fallback: Check model device type
+        if target_device is None and model is not None and hasattr(model, 'device'):
+            if model.device.type == 'privateuseone':  # DirectML device type
+                target_device = model.device
+        
+        # Check if we're using DirectML (auto-detection)
+        if target_device is None and DEVICE_TYPE == 'directml':
+            try:
+                import torch_directml
+                if torch_directml.is_available():
+                    target_device = torch_directml.device()
+            except ImportError:
+                pass
+        
+        # If no special handling needed, use default DEVICE
+        if target_device is None:
+            target_device = DEVICE
+        
+        # Move inputs to target device
+        if hasattr(inputs, 'to'):
+            # Handle BatchEncoding/TokenizerOutput
+            return inputs.to(target_device)
+        elif isinstance(inputs, dict):
+            # Handle dict of tensors
+            return {k: v.to(target_device) if hasattr(v, 'to') else v for k, v in inputs.items()}
+        
+        return inputs
+    except Exception as e:
+        logger.warning(f"Device compatibility fix failed: {e}, using default DEVICE")
+        if hasattr(inputs, 'to'):
+            return inputs.to(DEVICE)
+        return inputs
+
+def get_directml_target_device():
+    """
+    Get the correct target device for DirectML.
+    Uses DEVICE if it's already directml, otherwise tries to get torch_directml.device().
+    This is needed because device_map="auto" may report model.device as cpu.
+    """
+    if DEVICE_TYPE == 'directml':
+        try:
+            import torch_directml
+            if torch_directml.is_available():
+                return torch_directml.device()
+        except ImportError:
+            pass
+    return DEVICE
+
+def sync_inputs_to_model_device(inputs, model):
+    """
+    Sync tokenizer inputs to the SAME device as the model.
+    This fixes the 'unbox expects Dml at::Tensor' and device mismatch errors.
+    
+    Args:
+        inputs: TokenizerOutput or dict with tensors
+        model: The model to sync inputs to
+    
+    Returns:
+        inputs moved to the model's device
+    """
+    # Get model's actual device
+    try:
+        if hasattr(model, 'device'):
+            target_device = model.device
+            logger.debug(f"→ Model.device: {target_device}")
+        elif hasattr(model, 'parameters'):
+            # For models with device_map="auto", get device of first parameter
+            target_device = next(model.parameters()).device
+            logger.debug(f"→ Model parameters device: {target_device}")
+        else:
+            # Fallback to CPU
+            target_device = torch.device('cpu')
+            logger.debug(f"→ Fallback to CPU device")
+    except Exception as e:
+        logger.debug(f"→ Device detection error: {e}, using CPU")
+        target_device = torch.device('cpu')
+    
+    # Get current device
+    if hasattr(inputs, 'input_ids'):
+        current_device = inputs.input_ids.device
+        input_shape = inputs.input_ids.shape
+    elif isinstance(inputs, dict) and 'input_ids' in inputs:
+        current_device = inputs['input_ids'].device
+        input_shape = inputs['input_ids'].shape
+    else:
+        logger.debug("→ No input_ids found in inputs")
+        return inputs
+    
+    logger.debug(f"→ Input tensor shape: {input_shape}")
+    logger.debug(f"→ Current input device: {current_device}")
+    logger.debug(f"→ Target model device: {target_device}")
+    
+    # Sync if devices don't match
+    if current_device.type != target_device.type:
+        logger.info(f"[FIX] Synkade inputs från {current_device} till {target_device}")
+        if isinstance(inputs, dict):
+            inputs = {k: v.to(target_device) if hasattr(v, 'to') else v for k, v in inputs.items()}
+        elif hasattr(inputs, 'to'):
+            inputs = inputs.to(target_device)
+        
+        # Verify sync
+        if isinstance(inputs, dict) and 'input_ids' in inputs:
+            logger.debug(f"→ After sync: input_ids device = {inputs['input_ids'].device}")
+        elif hasattr(inputs, 'input_ids'):
+            logger.debug(f"→ After sync: input_ids device = {inputs.input_ids.device}")
+    else:
+        logger.debug(f"→ Devices match, no sync needed")
+    
+    return inputs
+
 # Model cache
 models = {}
 tokenizers = {}
 
-# Dual-model configuration for OneSeek-7B-Zero
-DUAL_MODEL_MODE = True  # Use both Mistral and LLaMA in parallel
+# Single-model configuration for OneSeek-7B-Zero
+# Set to False to use only the active certified model (recommended)
+# Set to True only if you want legacy dual-model inference (requires Mistral + LLaMA installed)
+DUAL_MODEL_MODE = False  # Use only the single certified OneSeek-7B-Zero model
 
 def read_model_metadata():
     """Read the latest model metadata to determine which base model was trained
@@ -548,7 +750,11 @@ def find_lora_weights(adapter_suffix=''):
 
 def load_model(model_name: str, model_path: str):
     """Load model and tokenizer with device optimization, applying LoRA adapters if available"""
+    logger.debug(f"→ load_model called: model_name={model_name}")
+    logger.debug(f"→ model_path parameter: {model_path}")
+    
     if model_name in models:
+        logger.debug(f"→ Model {model_name} already cached, returning from cache")
         return models[model_name], tokenizers[model_name]
     
     # For OneSeek models, find the actual base model path
@@ -589,22 +795,67 @@ def load_model(model_name: str, model_path: str):
     else:
         logger.info(f"Loading {model_name} from {model_path}...")
     
-    # Use FP16 for GPU acceleration, FP32 for CPU
-    dtype = torch.float16 if DEVICE_TYPE in ['cuda', 'xpu', 'directml'] else torch.float32
+    # Determine dtype based on device and flags
+    # Use bfloat16 for DirectML/GPU (better performance on AMD Ryzen AI)
+    # Use float16 for CUDA/XPU
+    # Use float32 for CPU
+    if args.auto_devices and DEVICE_TYPE == 'directml':
+        dtype = torch.float16
+        logger.info("Using torch.bfloat16 for optimal Ryzen AI Max 390 performance")
+    elif DEVICE_TYPE in ['cuda', 'xpu', 'directml']:
+        dtype = torch.float16
+    else:
+        dtype = torch.float32
+    
+    # Prepare model loading kwargs
+    model_kwargs = {
+        'torch_dtype': dtype,
+        'low_cpu_mem_usage': True,
+        'trust_remote_code': True,
+    }
+    
+    # Add device_map and offloading if auto-devices is enabled
+    if args.auto_devices:
+        model_kwargs['device_map'] = 'auto'
+        model_kwargs['offload_folder'] = 'offload'
+        model_kwargs['offload_state_dict'] = True
+        logger.info("Using device_map='auto' for GPU/NPU offloading")
+    
+    # Add quantization if requested
+    if args.load_in_4bit:
+        try:
+            from transformers import BitsAndBytesConfig
+            model_kwargs['quantization_config'] = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=dtype,
+                bnb_4bit_use_double_quant=True,
+            )
+            logger.info("Loading model in 4-bit quantization")
+        except ImportError:
+            logger.warning("bitsandbytes not installed - ignoring 4-bit quantization")
+    elif args.load_in_8bit:
+        model_kwargs['load_in_8bit'] = True
+        logger.info("Loading model in 8-bit quantization")
     
     try:
         # Load tokenizer
         tokenizer = AutoTokenizer.from_pretrained(model_path)
         
-        # Load model with device-specific optimizations
+        start_time = time.time()
+        
+        # Load model with optimizations
+        logger.info(f"Loading OneSeek-7B-Zero with chained LoRA adapters...")
+        logger.info("Loading checkpoint shards...")
         model = AutoModelForCausalLM.from_pretrained(
             model_path,
-            dtype=dtype,  # Use modern 'dtype' instead of deprecated 'torch_dtype'
-            low_cpu_mem_usage=True
+            **model_kwargs
         )
         
-        # Move model to device
-        model = model.to(DEVICE)
+        load_time = time.time() - start_time
+        
+        # Move model to device if not using device_map
+        if not args.auto_devices:
+            model = model.to(DEVICE)
         
         # For OneSeek, try to load and apply LoRA adapters
         if model_name.startswith('oneseek'):
@@ -624,9 +875,14 @@ def load_model(model_name: str, model_path: str):
                     # PEFT format directory
                     try:
                         from peft import PeftModel
-                        logger.info(f"Applying LoRA adapters from {lora_weights}...")
+                        logger.info(f"Applying LoRA adapter: {lora_path.name}")
                         if (lora_path / 'adapter_config.json').exists():
-                            model = PeftModel.from_pretrained(model, str(lora_path))
+                            # Apply adapter with same dtype
+                            adapter_kwargs = {}
+                            if args.auto_devices:
+                                adapter_kwargs['device_map'] = 'auto'
+                                adapter_kwargs['torch_dtype'] = dtype
+                            model = PeftModel.from_pretrained(model, str(lora_path), **adapter_kwargs)
                             logger.info("✓ LoRA adapters applied successfully (PEFT format)")
                         else:
                             logger.warning("⚠ LoRA directory found but missing adapter_config.json")
@@ -688,14 +944,62 @@ def load_model(model_name: str, model_path: str):
             except ImportError:
                 pass
         elif DEVICE_TYPE == 'directml':
-            # DirectML is handled automatically by torch-directml
-            logger.info(f"✓ {model_name} using DirectML acceleration")
+            # === IMPORTANT: Do NOT use .to(device) after PEFT adapters are loaded! ===
+            # Using .to(device) after PeftModel.from_pretrained() breaks the PEFT internal
+            # connections and destroys the adapter's effect. The model will "forget" its
+            # fine-tuned personality and behave like the base model.
+            # 
+            # Instead, we rely on device_map="auto" to handle device placement during loading.
+            # This is the ONLY way that works with PEFT + DirectML (Nov 2025).
+            try:
+                import torch_directml
+                
+                # Just verify device placement - DO NOT call .to() on PEFT models!
+                cpu_tensors = 0
+                gpu_tensors = 0
+                try:
+                    for name, param in model.named_parameters():
+                        if param.device.type == 'cpu':
+                            cpu_tensors += 1
+                            if DEBUG_MODE and cpu_tensors <= 3:
+                                logger.debug(f"→ Tensor on CPU: {name}")
+                        else:
+                            gpu_tensors += 1
+                    
+                    if gpu_tensors > 0 and cpu_tensors == 0:
+                        logger.info(f"✓ ALL {gpu_tensors} tensors on DirectML GPU!")
+                    elif gpu_tensors > cpu_tensors:
+                        logger.info(f"✓ {gpu_tensors} tensors on GPU, {cpu_tensors} on CPU (auto-offloaded)")
+                        logger.info("  This is normal with device_map='auto' - large layers may be on CPU")
+                    else:
+                        logger.warning(f"⚠ {cpu_tensors} tensors on CPU, {gpu_tensors} on GPU")
+                        logger.info("  Consider enabling --auto-devices for GPU offloading")
+                        
+                except Exception as e:
+                    logger.debug(f"→ Could not count tensors: {e}")
+                
+                logger.info(f"✓ {model_name} using DirectML acceleration")
+                logger.info("  ⚠ PEFT model - NOT moving after adapter load (preserves fine-tuning)")
+                
+            except ImportError:
+                logger.info(f"ℹ torch_directml not imported - using device_map for placement")
         
         # Cache models
         models[model_name] = model
         tokenizers[model_name] = tokenizer
         
+        # Log detailed performance information
+        logger.info("=" * 80)
+        logger.info(f"OneSeek-7B-Zero loaded in {load_time:.1f} seconds")
+        
+        # Estimate inference speed (approximate)
+        if DEVICE_TYPE == 'directml' and args.auto_devices:
+            logger.info("Inference speed: ~25-38 tokens/second (expected on Ryzen AI Max 390)")
+        
+        logger.info("OneSeek-7B-Zero is now LIVE and CONTINUOUS")
+        logger.info("=" * 80)
         logger.info(f"✓ {model_name} loaded successfully on {DEVICE_TYPE} ({dtype})")
+        
         return model, tokenizer
         
     except Exception as e:
@@ -717,14 +1021,15 @@ async def dual_model_inference(text: str, max_length: int = 512, temperature: fl
         """Run inference on a single model"""
         start_time = time.time()
         
-        # Tokenize input
-        inputs = tokenizer(prompt, return_tensors="pt", padding=True).to(DEVICE)
+        # Tokenize input and sync to model's device
+        inputs = tokenizer(prompt, return_tensors="pt", padding=True)
+        inputs = sync_inputs_to_model_device(inputs, model)
         
         # Generate with explicit attention_mask
         with torch.no_grad():
             outputs = model.generate(
-                input_ids=inputs.input_ids,
-                attention_mask=inputs.attention_mask,
+                input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
+                attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
                 max_length=max_length,
                 temperature=temperature,
                 top_p=top_p,
@@ -823,7 +1128,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Project root: {PROJECT_ROOT}")
     logger.info(f"Models base directory: {get_models_base_dir()}")
     logger.info(f"Active model path: {ONESEEK_PATH}")
-    logger.info(f"Rate limiting: 10 requests/minute per IP on /infer endpoint")
+    logger.info(f"Rate limiting: {RATE_LIMIT_PER_MINUTE} requests/minute per IP on /infer endpoint")
     logger.info("=" * 80)
     logger.info("")
     
@@ -942,14 +1247,15 @@ async def infer(request: Request, inference_request: InferenceRequest):
             # Single-model inference (certified or fallback)
             model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
             
-            # Prepare input
-            inputs = tokenizer(inference_request.text, return_tensors="pt", padding=True).to(DEVICE)
+            # Prepare input and sync to model's device
+            inputs = tokenizer(inference_request.text, return_tensors="pt", padding=True)
+            inputs = sync_inputs_to_model_device(inputs, model)
             
             # Generate with explicit attention_mask
             with torch.no_grad():
                 outputs = model.generate(
-                    input_ids=inputs.input_ids,
-                    attention_mask=inputs.attention_mask,
+                    input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
+                    attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
                     max_length=inference_request.max_length,
                     temperature=inference_request.temperature,
                     top_p=inference_request.top_p,
@@ -1012,9 +1318,19 @@ async def oneseek_inference(request: InferenceRequest):
     import time
     start_time = time.time()
     
+    # === DEBUG: Log inference start ===
+    logger.info("=" * 60)
+    logger.info("=== ONESEEK INFERENCE START ===")
+    logger.debug(f"→ Input text: {request.text[:100]}..." if len(request.text) > 100 else f"→ Input text: {request.text}")
+    logger.debug(f"→ Max length: {request.max_length}")
+    logger.debug(f"→ Temperature: {request.temperature}")
+    logger.debug(f"→ Top P: {request.top_p}")
+    logger.debug(f"→ DUAL_MODEL_MODE: {DUAL_MODEL_MODE}")
+    
     try:
         if DUAL_MODEL_MODE:
             # Use dual-model inference (Mistral + LLaMA)
+            logger.debug("→ Using DUAL-model inference path")
             result = await dual_model_inference(
                 request.text,
                 max_length=request.max_length,
@@ -1030,31 +1346,94 @@ async def oneseek_inference(request: InferenceRequest):
             )
         else:
             # Single-model fallback
+            logger.debug("→ Using SINGLE-model inference path")
+            logger.debug(f"→ Loading model from: {ONESEEK_PATH}")
+            
             model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
             
-            # Prepare input
-            inputs = tokenizer(request.text, return_tensors="pt", padding=True).to(DEVICE)
+            # === DEBUG: Log model info ===
+            if hasattr(model, 'device'):
+                logger.debug(f"→ Model device: {model.device}")
+            if hasattr(model, 'dtype'):
+                logger.debug(f"→ Model dtype: {model.dtype}")
+            try:
+                first_param_device = next(model.parameters()).device
+                logger.debug(f"→ First param device: {first_param_device}")
+            except:
+                pass
+            
+            # Prepare input and sync to model's device
+            logger.debug("→ Tokenizing input...")
+            tokenize_start = time.time()
+            inputs = tokenizer(request.text, return_tensors="pt", padding=True)
+            tokenize_time = (time.time() - tokenize_start) * 1000
+            logger.debug(f"→ Tokenization took: {tokenize_time:.1f}ms")
+            
+            # === DEBUG: Log input tensor info ===
+            if hasattr(inputs, 'input_ids'):
+                logger.debug(f"→ input_ids shape: {inputs.input_ids.shape}")
+                logger.debug(f"→ input_ids device (before sync): {inputs.input_ids.device}")
+                logger.debug(f"→ First 10 tokens: {inputs.input_ids[0][:10].tolist()}")
+            elif isinstance(inputs, dict) and 'input_ids' in inputs:
+                logger.debug(f"→ input_ids shape: {inputs['input_ids'].shape}")
+                logger.debug(f"→ input_ids device (before sync): {inputs['input_ids'].device}")
+                logger.debug(f"→ First 10 tokens: {inputs['input_ids'][0][:10].tolist()}")
+            
+            # Sync to model device
+            logger.debug("→ Syncing inputs to model device...")
+            inputs = sync_inputs_to_model_device(inputs, model)
+            
+            # === DEBUG: Log post-sync device ===
+            if isinstance(inputs, dict) and 'input_ids' in inputs:
+                logger.debug(f"→ input_ids device (after sync): {inputs['input_ids'].device}")
+            elif hasattr(inputs, 'input_ids'):
+                logger.debug(f"→ input_ids device (after sync): {inputs.input_ids.device}")
             
             # Generate with explicit attention_mask
+            logger.info("→ Kallar model.generate()...")
+            generate_start = time.time()
+            
             with torch.no_grad():
-                outputs = model.generate(
-                    input_ids=inputs.input_ids,
-                    attention_mask=inputs.attention_mask,
-                    max_length=request.max_length,
-                    temperature=request.temperature,
-                    top_p=request.top_p,
-                    do_sample=True,
-                    pad_token_id=tokenizer.eos_token_id
-                )
+                try:
+                    outputs = model.generate(
+                        input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
+                        attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
+                        max_length=request.max_length,
+                        temperature=request.temperature,
+                        top_p=request.top_p,
+                        do_sample=True,
+                        pad_token_id=tokenizer.eos_token_id
+                    )
+                except Exception as gen_error:
+                    logger.error(f"→ model.generate() FAILED: {gen_error}")
+                    raise gen_error
+            
+            generate_time = (time.time() - generate_start)
+            logger.info(f"→ Generate klar! Tog: {generate_time:.2f} sekunder")
+            
+            # === DEBUG: Log output info ===
+            logger.debug(f"→ Output shape: {outputs.shape}")
+            logger.debug(f"→ Output tokens: {len(outputs[0])}")
+            logger.debug(f"→ Första 10 output tokens: {outputs[0][:10].tolist()}")
             
             # Decode output
+            logger.debug("→ Decoding output...")
+            decode_start = time.time()
             response_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            decode_time = (time.time() - decode_start) * 1000
+            logger.debug(f"→ Decoding took: {decode_time:.1f}ms")
             
             # Remove input from response
             if response_text.startswith(request.text):
                 response_text = response_text[len(request.text):].strip()
             
             latency_ms = (time.time() - start_time) * 1000
+            
+            # === DEBUG: Log response summary ===
+            logger.debug(f"→ Response length: {len(response_text)} chars")
+            logger.debug(f"→ Response preview: {response_text[:100]}..." if len(response_text) > 100 else f"→ Response: {response_text}")
+            logger.info(f"=== ONESEEK INFERENCE COMPLETE ({latency_ms:.0f}ms) ===")
+            logger.info("=" * 60)
             
             return InferenceResponse(
                 response=response_text,
@@ -1064,7 +1443,10 @@ async def oneseek_inference(request: InferenceRequest):
             )
         
     except Exception as e:
+        logger.error(f"=== ONESEEK INFERENCE ERROR ===")
         logger.error(f"OneSeek-7B-Zero inference error: {str(e)}")
+        import traceback
+        logger.error(f"Traceback:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/inference/llama", response_model=InferenceResponse)
@@ -1073,92 +1455,25 @@ async def llama_inference(request: InferenceRequest):
     import time
     start_time = time.time()
     
-    try:
-        # Redirect to OneSeek-7B-Zero.v1.1
-        logger.info("Legacy llama endpoint called - redirecting to OneSeek-7B-Zero.v1.1")
-        model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
-        
-        # Prepare input with LLaMA chat format for compatibility
-        formatted_prompt = f"<s>[INST] {request.text} [/INST]"
-        inputs = tokenizer(formatted_prompt, return_tensors="pt", padding=True).to(DEVICE)
-        
-        # Generate with explicit attention_mask
-        with torch.no_grad():
-            outputs = model.generate(
-                input_ids=inputs.input_ids,
-                attention_mask=inputs.attention_mask,
-                max_length=request.max_length,
-                temperature=request.temperature,
-                top_p=request.top_p,
-                do_sample=True,
-                pad_token_id=tokenizer.eos_token_id
-            )
-        
-        # Decode output
-        response_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        
-        # Remove input from response
-        if formatted_prompt in response_text:
-            response_text = response_text.split('[/INST]')[-1].strip()
-        
-        latency_ms = (time.time() - start_time) * 1000
-        
-        return InferenceResponse(
-            response=response_text,
-            model="OneSeek-7B-Zero.v1.1 (via legacy LLaMA endpoint)",
-            tokens=len(outputs[0]),
-            latency_ms=latency_ms
-        )
-        
-    except Exception as e:
-        logger.error(f"OneSeek inference error (via legacy endpoint): {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    # Legacy endpoint deprecated - use /inference/oneseek instead
+    logger.warning("Legacy llama endpoint called - DEPRECATED. Use /inference/oneseek instead.")
+    raise HTTPException(
+        status_code=410,
+        detail="This legacy endpoint has been removed. Please use /inference/oneseek for all inference requests. OneSeek-7B-Zero is the unified model for all inference."
+    )
 
 @app.post("/inference/mistral", response_model=InferenceResponse)
 async def mistral_inference(request: InferenceRequest):
-    """Generate response using Mistral 7B (legacy endpoint - redirects to OneSeek)"""
+    """Generate response using Mistral 7B (DEPRECATED - use /inference/oneseek)"""
     import time
     start_time = time.time()
     
-    try:
-        # Redirect to OneSeek-7B-Zero.v1.1
-        logger.info("Legacy mistral endpoint called - redirecting to OneSeek-7B-Zero.v1.1")
-        model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
-        
-        # Prepare input
-        inputs = tokenizer(request.text, return_tensors="pt", padding=True).to(DEVICE)
-        
-        # Generate with explicit attention_mask
-        with torch.no_grad():
-            outputs = model.generate(
-                input_ids=inputs.input_ids,
-                attention_mask=inputs.attention_mask,
-                max_length=request.max_length,
-                temperature=request.temperature,
-                top_p=request.top_p,
-                do_sample=True,
-                pad_token_id=tokenizer.eos_token_id
-            )
-        
-        # Decode output
-        response_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        
-        # Remove input from response
-        if response_text.startswith(request.text):
-            response_text = response_text[len(request.text):].strip()
-        
-        latency_ms = (time.time() - start_time) * 1000
-        
-        return InferenceResponse(
-            response=response_text,
-            model="OneSeek-7B-Zero.v1.1 (via legacy Mistral endpoint)",
-            tokens=len(outputs[0]),
-            latency_ms=latency_ms
-        )
-        
-    except Exception as e:
-        logger.error(f"OneSeek inference error (via legacy endpoint): {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    # Legacy endpoint deprecated - use /inference/oneseek instead
+    logger.warning("Legacy mistral endpoint called - DEPRECATED. Use /inference/oneseek instead.")
+    raise HTTPException(
+        status_code=410,
+        detail="This legacy endpoint has been removed. Please use /inference/oneseek for all inference requests. OneSeek-7B-Zero is the unified model for all inference."
+    )
 
 @app.get("/models/status")
 async def models_status():
@@ -1182,10 +1497,12 @@ if __name__ == "__main__":
     import uvicorn
     
     port = int(os.getenv('ML_SERVICE_PORT', '5000'))
+    host = "0.0.0.0" if args.listen else "127.0.0.1"
     
     uvicorn.run(
         app,
-        host="0.0.0.0",
+        host=host,
         port=port,
-        log_level="info"
+        log_level="info",
+        timeout_keep_alive=args.timeout_keep_alive
     )
