@@ -944,84 +944,45 @@ def load_model(model_name: str, model_path: str):
             except ImportError:
                 pass
         elif DEVICE_TYPE == 'directml':
-            # === PEFT BUG FIX: Force move ALL tensors to DirectML after LoRA adapters ===
-            # Known PEFT+DirectML bug (Nov 2025): When using PeftModel.from_pretrained() 
-            # with device_map="auto", only some tensors move to GPU. Internal tensors like 
-            # LayerNorm weights can stay on CPU, causing "Expected all tensors on same device" errors.
-            # We must EXPLICITLY move the ENTIRE model including all submodules to DirectML.
+            # === IMPORTANT: Do NOT use .to(device) after PEFT adapters are loaded! ===
+            # Using .to(device) after PeftModel.from_pretrained() breaks the PEFT internal
+            # connections and destroys the adapter's effect. The model will "forget" its
+            # fine-tuned personality and behave like the base model.
+            # 
+            # Instead, we rely on device_map="auto" to handle device placement during loading.
+            # This is the ONLY way that works with PEFT + DirectML (Nov 2025).
             try:
                 import torch_directml
-                dml_device = torch_directml.device()
                 
-                # Check current device distribution before move
+                # Just verify device placement - DO NOT call .to() on PEFT models!
                 cpu_tensors = 0
                 gpu_tensors = 0
                 try:
                     for name, param in model.named_parameters():
                         if param.device.type == 'cpu':
                             cpu_tensors += 1
-                            if DEBUG_MODE and cpu_tensors <= 5:
-                                logger.debug(f"→ BEFORE: {name} on CPU")
+                            if DEBUG_MODE and cpu_tensors <= 3:
+                                logger.debug(f"→ Tensor on CPU: {name}")
                         else:
                             gpu_tensors += 1
-                    logger.debug(f"→ BEFORE force move: {cpu_tensors} CPU tensors, {gpu_tensors} GPU tensors")
+                    
+                    if gpu_tensors > 0 and cpu_tensors == 0:
+                        logger.info(f"✓ ALL {gpu_tensors} tensors on DirectML GPU!")
+                    elif gpu_tensors > cpu_tensors:
+                        logger.info(f"✓ {gpu_tensors} tensors on GPU, {cpu_tensors} on CPU (auto-offloaded)")
+                        logger.info("  This is normal with device_map='auto' - large layers may be on CPU")
+                    else:
+                        logger.warning(f"⚠ {cpu_tensors} tensors on CPU, {gpu_tensors} on GPU")
+                        logger.info("  Consider enabling --auto-devices for GPU offloading")
+                        
                 except Exception as e:
                     logger.debug(f"→ Could not count tensors: {e}")
                 
-                # Force move ENTIRE model to DirectML - this should move all submodules
-                logger.info(f"🔧 PEFT FIX: Moving ALL model tensors to DirectML GPU...")
-                model = model.to(dml_device, non_blocking=True)
-                
-                # Verify ALL tensors moved - check for any remaining CPU tensors
-                cpu_remaining = 0
-                gpu_count = 0
-                problematic = []
-                try:
-                    for name, param in model.named_parameters():
-                        if param.device.type == 'cpu':
-                            cpu_remaining += 1
-                            problematic.append(name)
-                        else:
-                            gpu_count += 1
-                    
-                    if cpu_remaining == 0:
-                        logger.info(f"✓ ALL {gpu_count} tensors now on DirectML GPU!")
-                    else:
-                        logger.warning(f"⚠ {cpu_remaining} tensors still on CPU (should be 0)")
-                        if DEBUG_MODE:
-                            for name in problematic[:5]:
-                                logger.debug(f"  Still on CPU: {name}")
-                        
-                        # Try a second force move for any stragglers
-                        logger.info("🔧 Attempting second force move for remaining CPU tensors...")
-                        for name, param in model.named_parameters():
-                            if param.device.type == 'cpu':
-                                param.data = param.data.to(dml_device)
-                        
-                        # Also move buffers (non-parameter tensors like running_mean, etc.)
-                        for name, buf in model.named_buffers():
-                            if buf.device.type == 'cpu':
-                                buf.data = buf.data.to(dml_device)
-                        
-                        # Final verification
-                        cpu_final = sum(1 for _, p in model.named_parameters() if p.device.type == 'cpu')
-                        if cpu_final == 0:
-                            logger.info(f"✓ Second pass complete - all tensors now on DirectML!")
-                        else:
-                            logger.error(f"✗ {cpu_final} tensors STILL on CPU after force move!")
-                            
-                except Exception as e:
-                    logger.warning(f"⚠ Could not verify tensor devices: {e}")
-                
                 logger.info(f"✓ {model_name} using DirectML acceleration")
+                logger.info("  ⚠ PEFT model - NOT moving after adapter load (preserves fine-tuning)")
                 
             except ImportError:
-                logger.warning("⚠ torch_directml not available for force move")
-            except Exception as e:
-                logger.error(f"✗ Failed to move model to DirectML: {e}")
-                import traceback
-                logger.debug(traceback.format_exc())
-                logger.info("  Model will remain on CPU - inference will be slow")
+                logger.info(f"ℹ torch_directml not imported - using device_map for placement")
         
         # Cache models
         models[model_name] = model
