@@ -938,8 +938,64 @@ def load_model(model_name: str, model_path: str):
     
     try:
         # Load tokenizer with trust_remote_code for custom model support
+        # Try multiple loading strategies to handle different model formats
         logger.info(f"Loading tokenizer from: {model_path}")
-        tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+        tokenizer = None
+        tokenizer_errors = []
+        
+        # Strategy 1: Try with trust_remote_code and use_fast=False (most compatible)
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(
+                model_path, 
+                trust_remote_code=True,
+                use_fast=False,
+                local_files_only=True
+            )
+            logger.info("✓ Tokenizer loaded with use_fast=False")
+        except Exception as e1:
+            tokenizer_errors.append(f"use_fast=False: {e1}")
+            
+            # Strategy 2: Try with trust_remote_code and use_fast=True
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(
+                    model_path, 
+                    trust_remote_code=True,
+                    use_fast=True,
+                    local_files_only=True
+                )
+                logger.info("✓ Tokenizer loaded with use_fast=True")
+            except Exception as e2:
+                tokenizer_errors.append(f"use_fast=True: {e2}")
+                
+                # Strategy 3: Try LlamaTokenizer directly for LLaMA-based models
+                try:
+                    from transformers import LlamaTokenizer
+                    tokenizer = LlamaTokenizer.from_pretrained(
+                        model_path,
+                        trust_remote_code=True,
+                        local_files_only=True
+                    )
+                    logger.info("✓ Tokenizer loaded with LlamaTokenizer")
+                except Exception as e3:
+                    tokenizer_errors.append(f"LlamaTokenizer: {e3}")
+                    
+                    # Strategy 4: Try LlamaTokenizerFast
+                    try:
+                        from transformers import LlamaTokenizerFast
+                        tokenizer = LlamaTokenizerFast.from_pretrained(
+                            model_path,
+                            trust_remote_code=True,
+                            local_files_only=True
+                        )
+                        logger.info("✓ Tokenizer loaded with LlamaTokenizerFast")
+                    except Exception as e4:
+                        tokenizer_errors.append(f"LlamaTokenizerFast: {e4}")
+        
+        if tokenizer is None:
+            logger.error("Failed to load tokenizer with all strategies:")
+            for err in tokenizer_errors:
+                logger.error(f"  - {err}")
+            raise RuntimeError(f"Could not load tokenizer from {model_path}. Tried 4 strategies, all failed.")
         
         start_time = time.time()
         
