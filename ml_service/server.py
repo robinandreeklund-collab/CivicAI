@@ -731,13 +731,44 @@ def find_lora_weights(adapter_suffix=''):
         # Look for LoRA adapters in certified directory
         logger.info(f"Searching for LoRA adapters in certified directory: {base_path}")
         
-        # Look for adapter directories matching pattern
+        # FIRST: Check metadata.json for adapter paths (most reliable)
+        metadata_file = base_path / 'metadata.json'
+        if metadata_file.exists():
+            try:
+                with open(metadata_file, 'r', encoding='utf-8') as f:
+                    metadata = json.load(f)
+                adapters = metadata.get('adapters', [])
+                if adapters:
+                    # Use the latest adapter (last in list)
+                    latest_adapter_path = adapters[-1]
+                    # Adapters are stored relative to the certified model directory
+                    full_adapter_path = base_path / latest_adapter_path
+                    if full_adapter_path.exists() and (full_adapter_path / 'adapter_config.json').exists():
+                        logger.info(f"Found LoRA adapter from metadata: {full_adapter_path}")
+                        return str(full_adapter_path)
+                    else:
+                        logger.warning(f"Adapter path from metadata not found: {full_adapter_path}")
+            except Exception as e:
+                logger.warning(f"Could not read adapters from metadata: {e}")
+        
+        # FALLBACK: Look for adapter directories matching pattern
         for item in base_path.iterdir():
             if item.is_dir() and '-adapter' in item.name:
                 # Check for PEFT format
                 if (item / 'adapter_config.json').exists():
                     logger.info(f"Found PEFT LoRA adapter in certified directory: {item}")
                     return str(item)
+        
+        # Check lora_adapters subdirectory
+        lora_adapters_dir = base_path / 'lora_adapters'
+        if lora_adapters_dir.exists():
+            # Find all adapter directories
+            adapter_dirs = [d for d in lora_adapters_dir.iterdir() if d.is_dir() and (d / 'adapter_config.json').exists()]
+            if adapter_dirs:
+                # Sort by modification time (newest first) and use the latest
+                latest_adapter = max(adapter_dirs, key=lambda p: p.stat().st_mtime)
+                logger.info(f"Found PEFT LoRA adapter in lora_adapters: {latest_adapter}")
+                return str(latest_adapter)
         
         # Look for .pth weight files
         pth_files = list(base_path.glob('*.pth'))
@@ -906,8 +937,9 @@ def load_model(model_name: str, model_path: str):
         logger.info("Loading model in 8-bit quantization")
     
     try:
-        # Load tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        # Load tokenizer with trust_remote_code for custom model support
+        logger.info(f"Loading tokenizer from: {model_path}")
+        tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         
         start_time = time.time()
         
