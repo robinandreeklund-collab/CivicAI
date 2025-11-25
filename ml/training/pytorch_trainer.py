@@ -113,14 +113,96 @@ def write_live_metrics(run_id: str, epoch: int, total_epochs: int,
         traceback.print_exc()
 
 
+def initialize_cuda():
+    """
+    Properly initialize CUDA and detect all available GPUs.
+    This must be called before any CUDA device operations.
+    
+    Returns:
+        tuple: (cuda_available, device_count, device_names)
+    """
+    try:
+        import torch
+        
+        if not torch.cuda.is_available():
+            print("[INFO] CUDA not available - will use CPU")
+            return False, 0, []
+        
+        # Initialize CUDA context - this is CRITICAL for multi-GPU setups
+        # Without this, accessing devices like cuda:1 may fail
+        try:
+            torch.cuda.init()
+            print("[INFO] CUDA initialized successfully")
+        except Exception as e:
+            print(f"[WARNING] CUDA init warning (may be already initialized): {e}")
+        
+        device_count = torch.cuda.device_count()
+        device_names = []
+        
+        print(f"[INFO] Found {device_count} CUDA device(s):")
+        for i in range(device_count):
+            try:
+                name = torch.cuda.get_device_name(i)
+                props = torch.cuda.get_device_properties(i)
+                memory_gb = props.total_memory / (1024**3)
+                device_names.append(name)
+                print(f"   cuda:{i} - {name} ({memory_gb:.1f} GB)")
+            except Exception as e:
+                print(f"   cuda:{i} - Error getting device info: {e}")
+                device_names.append("Unknown")
+        
+        return True, device_count, device_names
+        
+    except ImportError:
+        print("[ERROR] PyTorch not installed")
+        return False, 0, []
+    except Exception as e:
+        print(f"[ERROR] CUDA initialization failed: {e}")
+        return False, 0, []
+
+
+def get_best_device(prefer_multi_gpu: bool = True):
+    """
+    Get the best available device for training.
+    
+    Args:
+        prefer_multi_gpu: If True and multiple GPUs available, return 'cuda' for device_map='auto'
+                         If False, return 'cuda:0' for single GPU training
+    
+    Returns:
+        str: Device string ('cuda', 'cuda:0', 'cuda:1', or 'cpu')
+    """
+    cuda_available, device_count, _ = initialize_cuda()
+    
+    if not cuda_available:
+        return "cpu"
+    
+    if device_count > 1 and prefer_multi_gpu:
+        # For multi-GPU, return 'cuda' to let device_map='auto' handle distribution
+        print(f"[DEVICE] Using multi-GPU mode with {device_count} devices")
+        return "cuda"
+    elif device_count >= 1:
+        # Single GPU - use cuda:0 explicitly
+        print(f"[DEVICE] Using single GPU: cuda:0")
+        return "cuda:0"
+    else:
+        return "cpu"
+
+
 def check_pytorch_available():
     """Check if PyTorch and required libraries are available"""
     try:
         import torch
         print(f"[SUCCESS] PyTorch {torch.__version__} available")
-        print(f"   CUDA available: {torch.cuda.is_available()}")
-        if torch.cuda.is_available():
-            print(f"   CUDA device: {torch.cuda.get_device_name(0)}")
+        
+        # Initialize CUDA properly and show all devices
+        cuda_available, device_count, device_names = initialize_cuda()
+        print(f"   CUDA available: {cuda_available}")
+        if device_count > 0:
+            print(f"   CUDA device count: {device_count}")
+            for i, name in enumerate(device_names):
+                print(f"   CUDA device {i}: {name}")
+        
         return True
     except ImportError:
         print("[ERROR] PyTorch not installed")
@@ -600,27 +682,67 @@ def train_single_model_lora(
         
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
+            print(f"   [INFO] Set pad_token to eos_token: {tokenizer.eos_token}")
         
-        # Load model
+        # Load model with proper multi-GPU support
         print("   Loading model (this may take a few minutes)...")
+        
+        # Determine if we're using multi-GPU (device_map='auto') or single GPU
+        # device can be 'cuda' (multi-GPU), 'cuda:0' (single GPU), or 'cpu'
+        use_device_map = device == "cuda"  # Only use device_map='auto' for multi-GPU
+        use_fp16 = device.startswith("cuda")
+        
+        # Get model dtype - use float16 for GPU, float32 for CPU
+        model_dtype = torch.float16 if use_fp16 else torch.float32
+        
         try:
-            model = AutoModelForCausalLM.from_pretrained(
-                str(actual_model_path),
-                torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-                device_map="auto" if device == "cuda" else None,
-                load_in_8bit=config.get('quantize_8bit', False),
-                trust_remote_code=True
-            )
+            if use_device_map:
+                # Multi-GPU mode with device_map='auto'
+                print(f"   [INFO] Using device_map='auto' for multi-GPU distribution")
+                model = AutoModelForCausalLM.from_pretrained(
+                    str(actual_model_path),
+                    torch_dtype=model_dtype,
+                    device_map="auto",
+                    load_in_8bit=config.get('quantize_8bit', False),
+                    trust_remote_code=True
+                )
+            else:
+                # Single GPU or CPU mode
+                print(f"   [INFO] Loading model to device: {device}")
+                model = AutoModelForCausalLM.from_pretrained(
+                    str(actual_model_path),
+                    torch_dtype=model_dtype,
+                    load_in_8bit=config.get('quantize_8bit', False),
+                    trust_remote_code=True
+                )
+                # Move to specific device if not using device_map
+                if device != "cpu":
+                    model = model.to(device)
+                    
         except Exception as e:
             print(f"   [WARNING]  Local model loading failed: {e}")
             print(f"   [INFO] Attempting to download model from HuggingFace...")
             model_id = "mistralai/Mistral-7B-Instruct-v0.2" if "mistral" in model_name.lower() else "meta-llama/Llama-2-7b-chat-hf"
-            model = AutoModelForCausalLM.from_pretrained(
-                model_id,
-                torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-                device_map="auto" if device == "cuda" else None,
-                load_in_8bit=config.get('quantize_8bit', False)
-            )
+            
+            if use_device_map:
+                model = AutoModelForCausalLM.from_pretrained(
+                    model_id,
+                    torch_dtype=model_dtype,
+                    device_map="auto",
+                    load_in_8bit=config.get('quantize_8bit', False)
+                )
+            else:
+                model = AutoModelForCausalLM.from_pretrained(
+                    model_id,
+                    torch_dtype=model_dtype,
+                    load_in_8bit=config.get('quantize_8bit', False)
+                )
+                if device != "cpu":
+                    model = model.to(device)
+        
+        # Log device placement info
+        if hasattr(model, 'hf_device_map') and model.hf_device_map:
+            print(f"   [INFO] Model device map: {model.hf_device_map}")
         
         print(f"   [SUCCESS] Model loaded ({model.num_parameters():,} parameters)")
         
@@ -839,12 +961,29 @@ def train_single_model_lora(
         # Track losses per epoch for this model
         epoch_losses = []
         
+        # Determine the device for input tensors
+        # For device_map='auto', get the device of the first model parameter
+        if hasattr(model, 'hf_device_map') and model.hf_device_map:
+            # Model is distributed across devices - find input embedding device
+            try:
+                # Get the device where model expects inputs (usually embed_tokens)
+                first_param = next(model.parameters())
+                input_device = first_param.device
+                print(f"   [INFO] Using device for inputs: {input_device}")
+            except StopIteration:
+                input_device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+                print(f"   [WARNING] Could not get model device, using: {input_device}")
+        else:
+            # Single device mode - use the specified device
+            input_device = torch.device(device) if isinstance(device, str) else device
+            print(f"   [INFO] Single device mode: {input_device}")
+        
         for epoch in range(epochs):
             print(f"\n   Epoch {epoch + 1}/{epochs}")
             
-            # Simple training on small batch
-            inputs = train_encodings['input_ids'][:5].to(device)
-            attention_mask = train_encodings['attention_mask'][:5].to(device)
+            # Move inputs to the correct device
+            inputs = train_encodings['input_ids'][:5].to(input_device)
+            attention_mask = train_encodings['attention_mask'][:5].to(input_device)
             
             optimizer.zero_grad()
             outputs = model(inputs, attention_mask=attention_mask, labels=inputs)
@@ -989,9 +1128,16 @@ def train_with_pytorch_lora(
     print(f"PyTorch Training: OneSeek-7B-Zero v{version}")
     print(f"{'=' * 70}")
     
-    # Check what's available
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"\n[DEVICE] Device: {device}")
+    # Properly initialize CUDA and get best device for training
+    # This fixes "Device X is not available" and "did you call init?" errors
+    device = get_best_device(prefer_multi_gpu=True)
+    print(f"\n[DEVICE] Selected device: {device}")
+    
+    # Show CUDA environment info for debugging
+    if device.startswith("cuda"):
+        cuda_visible = os.environ.get('CUDA_VISIBLE_DEVICES', 'not set')
+        print(f"[DEVICE] CUDA_VISIBLE_DEVICES: {cuda_visible}")
+        print(f"[DEVICE] Available GPU count: {torch.cuda.device_count()}")
     
     # Get selected base models from admin panel via environment variable or argument
     if selected_base_models is None:

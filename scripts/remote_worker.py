@@ -22,18 +22,53 @@ JOBS_DIR = Path(SHARED_MODELS_PATH) / '.remote_jobs'
 POLL_INTERVAL = 5  # seconds
 
 def get_gpu_info():
-    """Get GPU information if available"""
+    """Get GPU information if available, including all available GPUs"""
     try:
         import torch
-        if torch.cuda.is_available():
-            return {
-                'count': torch.cuda.device_count(),
-                'name': torch.cuda.get_device_name(0) if torch.cuda.device_count() > 0 else 'Unknown',
-                'memory': f"{torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB"
-            }
+        
+        if not torch.cuda.is_available():
+            return {'count': 0, 'name': 'CPU-only', 'memory': '0 GB', 'devices': []}
+        
+        # Initialize CUDA to ensure all devices are accessible
+        try:
+            torch.cuda.init()
+        except Exception:
+            pass  # Already initialized or not needed
+        
+        device_count = torch.cuda.device_count()
+        
+        # Collect info for all GPUs
+        devices = []
+        total_memory_gb = 0
+        
+        for i in range(device_count):
+            try:
+                name = torch.cuda.get_device_name(i)
+                props = torch.cuda.get_device_properties(i)
+                memory_gb = props.total_memory / (1024**3)
+                total_memory_gb += memory_gb
+                devices.append({
+                    'id': i,
+                    'name': name,
+                    'memory': f"{memory_gb:.2f} GB"
+                })
+            except Exception as e:
+                devices.append({
+                    'id': i,
+                    'name': 'Unknown',
+                    'memory': '0 GB',
+                    'error': str(e)
+                })
+        
+        return {
+            'count': device_count,
+            'name': devices[0]['name'] if devices else 'Unknown',
+            'memory': f"{total_memory_gb:.2f} GB",
+            'devices': devices
+        }
     except ImportError:
         pass
-    return {'count': 0, 'name': 'CPU-only', 'memory': '0 GB'}
+    return {'count': 0, 'name': 'CPU-only', 'memory': '0 GB', 'devices': []}
 
 def send_heartbeat():
     """Send heartbeat to laptop server"""

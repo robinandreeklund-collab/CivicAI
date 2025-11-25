@@ -231,9 +231,26 @@ def get_device():
     except ImportError:
         pass
     
-    # Try NVIDIA GPU
+    # Try NVIDIA GPU with proper initialization for multi-GPU support
     if torch.cuda.is_available():
+        # Initialize CUDA to ensure all devices are accessible
+        try:
+            torch.cuda.init()
+        except Exception as e:
+            logger.debug(f"CUDA init note (may be already initialized): {e}")
+        
+        device_count = torch.cuda.device_count()
         logger.info(f"NVIDIA GPU detected: {torch.cuda.get_device_name(0)}")
+        if device_count > 1:
+            logger.info(f"Multi-GPU system: {device_count} CUDA devices available")
+            for i in range(device_count):
+                try:
+                    name = torch.cuda.get_device_name(i)
+                    props = torch.cuda.get_device_properties(i)
+                    memory_gb = props.total_memory / (1024**3)
+                    logger.info(f"  cuda:{i} - {name} ({memory_gb:.1f} GB)")
+                except Exception as e:
+                    logger.warning(f"  cuda:{i} - Error getting info: {e}")
         return torch.device('cuda'), 'cuda'
     
     # Fallback to CPU
