@@ -678,10 +678,33 @@ def train_single_model_lora(
                     raise Exception("Protobuf dependency error. Please run: pip install protobuf==3.20.3")
                 
                 print(f"   [WARNING]  Second tokenizer attempt failed: {e2}")
-                # Try loading from the model name instead of path
-                model_id = "mistralai/Mistral-7B-Instruct-v0.2" if "mistral" in model_name.lower() else "meta-llama/Llama-2-7b-chat-hf"
-                print(f"   [INFO] Attempting to load tokenizer from: {model_id}")
-                tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False)
+                
+                # === NO FALLBACK TO REMOTE MODELS ===
+                # We NEVER silently fall back to downloading from HuggingFace.
+                # This prevents unexpected behavior and ensures reproducibility.
+                print(f"\n   [ERROR] ✗ TOKENIZER LOADING FAILED")
+                print(f"   [ERROR] Could not load tokenizer from local path: {actual_model_path}")
+                print(f"\n   [DEBUG] Error details:")
+                print(f"      First attempt (use_fast=False): {e1}")
+                print(f"      Second attempt (use_fast=True): {e2}")
+                print(f"\n   [DEBUG] Possible causes:")
+                print(f"      1. Missing tokenizer files (tokenizer.json, tokenizer_config.json, etc.)")
+                print(f"      2. Corrupted or incomplete model download")
+                print(f"      3. Incompatible transformers version")
+                print(f"      4. 'dict object has no attribute model_type' - config.json may be malformed")
+                print(f"\n   [FIX] Suggested actions:")
+                print(f"      1. Verify model directory exists: {actual_model_path}")
+                print(f"      2. Check for tokenizer files: tokenizer.json, tokenizer_config.json, special_tokens_map.json")
+                print(f"      3. Re-download the model if files are missing or corrupted")
+                print(f"      4. Ensure transformers>=4.35.0 is installed")
+                print(f"\n   [FIX] To re-download the model:")
+                print(f"      huggingface-cli download <model-id> --local-dir {actual_model_path}")
+                
+                raise Exception(
+                    f"Tokenizer loading failed for {actual_model_path}. "
+                    f"No silent fallback to remote models. "
+                    f"See debug output above for troubleshooting steps."
+                )
         
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
@@ -727,25 +750,31 @@ def train_single_model_lora(
                     model = model.to(device)
                     
         except Exception as e:
-            print(f"   [WARNING]  Local model loading failed: {e}")
-            print(f"   [INFO] Attempting to download model from HuggingFace...")
-            model_id = "mistralai/Mistral-7B-Instruct-v0.2" if "mistral" in model_name.lower() else "meta-llama/Llama-2-7b-chat-hf"
+            # === NO FALLBACK TO REMOTE MODELS ===
+            # We NEVER silently fall back to downloading from HuggingFace.
+            # This prevents unexpected behavior and ensures reproducibility.
+            print(f"\n   [ERROR] ✗ MODEL LOADING FAILED")
+            print(f"   [ERROR] Could not load model from local path: {actual_model_path}")
+            print(f"\n   [DEBUG] Error details: {e}")
+            print(f"\n   [DEBUG] Possible causes:")
+            print(f"      1. Missing model files (config.json, model.safetensors, etc.)")
+            print(f"      2. Corrupted or incomplete model download")
+            print(f"      3. Insufficient GPU memory for model size")
+            print(f"      4. CUDA/GPU driver issues")
+            print(f"      5. 'dict object has no attribute model_type' - config.json may be malformed")
+            print(f"\n   [FIX] Suggested actions:")
+            print(f"      1. Verify model directory exists: {actual_model_path}")
+            print(f"      2. Check for model files: config.json, model.safetensors or model.bin")
+            print(f"      3. Check available GPU memory with: nvidia-smi")
+            print(f"      4. Re-download the model if files are missing or corrupted")
+            print(f"\n   [FIX] To re-download the model:")
+            print(f"      huggingface-cli download <model-id> --local-dir {actual_model_path}")
             
-            if use_device_map:
-                model = AutoModelForCausalLM.from_pretrained(
-                    model_id,
-                    torch_dtype=model_dtype,
-                    device_map="auto",
-                    load_in_8bit=config.get('quantize_8bit', False)
-                )
-            else:
-                model = AutoModelForCausalLM.from_pretrained(
-                    model_id,
-                    torch_dtype=model_dtype,
-                    load_in_8bit=config.get('quantize_8bit', False)
-                )
-                if device != "cpu":
-                    model = model.to(device)
+            raise Exception(
+                f"Model loading failed for {actual_model_path}: {e}. "
+                f"No silent fallback to remote models. "
+                f"See debug output above for troubleshooting steps."
+            )
         
         # Log device placement info for multi-GPU
         if hasattr(model, 'hf_device_map') and model.hf_device_map:

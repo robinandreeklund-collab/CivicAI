@@ -1026,10 +1026,35 @@ def load_model(model_name: str, model_path: str):
                 tokenizer_errors.append(f"LlamaTokenizerFast: {e5}")
         
         if tokenizer is None:
-            logger.error("Failed to load tokenizer with all strategies:")
+            logger.error("")
+            logger.error("=" * 80)
+            logger.error("✗ TOKENIZER LOADING FAILED - NO SILENT FALLBACK")
+            logger.error("=" * 80)
+            logger.error("")
+            logger.error(f"Could not load tokenizer from: {model_path}")
+            logger.error("")
+            logger.error("Strategies attempted:")
             for err in tokenizer_errors:
                 logger.error(f"  - {err}")
-            raise RuntimeError(f"Could not load tokenizer from {model_path}. Tried 5 strategies, all failed.")
+            logger.error("")
+            logger.error("Possible causes:")
+            logger.error("  1. Missing tokenizer files (tokenizer.json, tokenizer_config.json)")
+            logger.error("  2. Corrupted or incomplete model download")
+            logger.error("  3. 'dict object has no attribute model_type' - config.json may be malformed")
+            logger.error("  4. Incompatible transformers library version")
+            logger.error("")
+            logger.error("Suggested fixes:")
+            logger.error(f"  1. Verify directory exists: {model_path}")
+            logger.error("  2. Check for required files: tokenizer.json, tokenizer_config.json, special_tokens_map.json")
+            logger.error("  3. Re-download the model: huggingface-cli download <model-id> --local-dir <path>")
+            logger.error("  4. Update transformers: pip install --upgrade transformers>=4.35.0")
+            logger.error("")
+            logger.error("=" * 80)
+            raise RuntimeError(
+                f"Tokenizer loading failed for {model_path}. "
+                f"Tried 5 strategies, all failed. No silent fallback to remote models. "
+                f"Check logs above for debugging details."
+            )
         
         start_time = time.time()
         
@@ -1092,15 +1117,20 @@ def load_model(model_name: str, model_path: str):
                         logger.warning(f"Kunde inte läsa metadata.json: {e}")
                 
                 # PRIORITY 2: Fallback - scan subdirectories for adapter files
+                # NOTE: This is only a fallback when metadata.json doesn't exist or has no adapters
+                # This should NOT load adapters from unrelated base models
                 if not adapters_to_load and certified_model_path.exists():
+                    logger.warning("⚠ Ingen adapter-lista i metadata.json - använder fallback-sökning")
                     logger.info(f"Söker DNA-adapters i: {certified_model_path}")
+                    logger.info("  OBS: Endast adapters som tillhör denna modell kommer laddas")
                     
                     for item in certified_model_path.iterdir():
                         if item.is_dir():
                             # Check for PEFT adapter format
                             if (item / "adapter_model.safetensors").exists() or (item / "adapter_config.json").exists():
+                                # Log that we found an adapter via fallback scan
+                                logger.info(f"  Hittade adapter via fallback: {item.name}")
                                 adapters_to_load.append(item)
-                                logger.info(f"  Hittade adapter: {item.name}")
                 
                 if adapters_to_load:
                     # Sort by name so newest (highest timestamp) loads last and "wins"
