@@ -783,26 +783,19 @@ def train_single_model_lora(
                     print(f"[ADAPTERS] Hittade {len(adapters_list)} adapter(s) i metadata.json")
                     
                     # Bygg absoluta sökvägar till varje adapter
-                    for adapter_name in adapters_list:
-                        # NEW: adapter_name är nu bara mappnamnet (t.ex. "oneseek-7b-zero-v1.0-kb-llama-20251125173819")
-                        # Adaptern finns direkt i samma mapp som metadata.json
-                        
-                        # Handle both old format (with lora_adapters/) and new format (just folder name)
-                        if adapter_name.startswith("lora_adapters/"):
-                            # Old format: lora_adapters/oneseek-7b-zero-v1.0-kb-llama-...
-                            adapter_path = model_path.parent / adapter_name.replace("/", os.sep)
-                        else:
-                            # New format: just the folder name, relative to certified model dir
-                            adapter_path = model_path / adapter_name
+                    for adapter_rel_path in adapters_list:
+                        # adapter_rel_path ser ut som: "lora_adapters/oneseek-7b-zero-v1.0-kb-llama-3-1-8b-swedish"
+                        # Vi behöver gå upp till models/oneseek-certified och sedan ner till adaptern
+                        adapter_path = model_path.parent / adapter_rel_path.replace("/", os.sep)
                         
                         if adapter_path.exists():
                             # Kontrollera att adapter_config.json finns (validering)
                             adapter_config = adapter_path / "adapter_config.json"
                             if adapter_config.exists():
-                                adapters_to_load.append((adapter_name, adapter_path))
-                                print(f"   ✓ Hittade adapter: {adapter_name}")
+                                adapters_to_load.append((adapter_rel_path, adapter_path))
+                                print(f"   ✓ Hittade adapter: {adapter_rel_path}")
                             else:
-                                print(f"   ⚠ Adapter saknar adapter_config.json: {adapter_name}")
+                                print(f"   ⚠ Adapter saknar adapter_config.json: {adapter_rel_path}")
                         else:
                             print(f"   ⚠ Adapter-sökväg finns ej: {adapter_path}")
                     
@@ -875,22 +868,17 @@ def train_single_model_lora(
                         print(f"[ADAPTERS] Hittade {len(adapters_list)} adapter(s) från tidigare träning")
                         
                         adapters_to_load = []
-                        for adapter_name in adapters_list:
-                            # NEW: Handle both old format (with lora_adapters/) and new format (just folder name)
-                            if adapter_name.startswith("lora_adapters/"):
-                                # Old format: lora_adapters/oneseek-7b-zero-v1.0-kb-llama-...
-                                adapter_path = certified_models_dir / adapter_name.replace("/", os.sep)
-                            else:
-                                # New format: just the folder name, relative to previous model dir
-                                adapter_path = previous_model_path / adapter_name
+                        for adapter_rel_path in adapters_list:
+                            # Adapters are at certified_models_dir level
+                            adapter_path = certified_models_dir / adapter_rel_path.replace("/", os.sep)
                             
                             if adapter_path.exists():
                                 adapter_config = adapter_path / "adapter_config.json"
                                 if adapter_config.exists():
-                                    adapters_to_load.append((adapter_name, adapter_path))
-                                    print(f"   ✓ Hittade adapter: {adapter_name}")
+                                    adapters_to_load.append((adapter_rel_path, adapter_path))
+                                    print(f"   ✓ Hittade adapter: {adapter_rel_path}")
                                 else:
-                                    print(f"   ⚠ Adapter saknar adapter_config.json: {adapter_name}")
+                                    print(f"   ⚠ Adapter saknar adapter_config.json: {adapter_rel_path}")
                             else:
                                 print(f"   ⚠ Adapter-sökväg finns ej: {adapter_path}")
                         
@@ -1065,10 +1053,7 @@ def train_single_model_lora(
         
         # Use actual model name for adapter directory (normalized for filesystem compatibility)
         adapter_name = f'{normalize_model_name(model_name)}-adapter'
-        
-        # NEW: Save adapters INSIDE the certified model directory (portable structure)
-        # This makes the certified model fully self-contained and portable
-        lora_save_path = model_dir / adapter_name
+        lora_save_path = model_dir.parent / 'lora_adapters' / adapter_name
         lora_save_path.mkdir(parents=True, exist_ok=True)
         
         model.save_pretrained(str(lora_save_path))
@@ -1076,9 +1061,8 @@ def train_single_model_lora(
         
         print(f"   [SUCCESS] {model_name} LoRA adapters saved to {lora_save_path}")
         
-        # Also save versioned copy in same directory with unique timestamp
-        versioned_adapter_name = f'oneseek-7b-zero-v{version}-{model_name}-{timestamp_suffix}'
-        versioned_path = model_dir / versioned_adapter_name
+        # Also save in versioned directory with unique timestamp
+        versioned_path = model_dir.parent / 'lora_adapters' / f'oneseek-7b-zero-v{version}-{model_name}-{timestamp_suffix}'
         versioned_path.mkdir(parents=True, exist_ok=True)
         
         model.save_pretrained(str(versioned_path))
@@ -1113,7 +1097,7 @@ def train_single_model_lora(
             'trainable_params': model.num_parameters(only_trainable=True),
             'total_params': model.num_parameters(),
             'epoch_losses': epoch_losses,  # Track losses per epoch for aggregation
-            'adapter_path': versioned_adapter_name,  # Just the folder name (portable, relative to certified model dir)
+            'adapter_path': f'oneseek-7b-zero-v{version}-{model_name}-{timestamp_suffix}',  # Just folder name (portable, resolved relative to certified dir)
             'loaded_adapters': loaded_adapters  # Previously loaded adapters
         }
         
