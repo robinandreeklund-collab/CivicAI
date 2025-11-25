@@ -1047,82 +1047,59 @@ def load_model(model_name: str, model_path: str):
         if not args.auto_devices:
             model = model.to(DEVICE)
         
-        # For OneSeek, try to load and apply LoRA adapters
+        # For OneSeek, load ALL DNA adapters from subdirectories
+        # This loads adapters in order so the newest (by name/timestamp) wins
         if model_name.startswith('oneseek'):
-            # Determine which LoRA adapter to use
-            adapter_suffix = ''
-            if model_name == 'oneseek-mistral':
-                adapter_suffix = 'mistral'
-            elif model_name == 'oneseek-llama':
-                adapter_suffix = 'llama'
+            try:
+                from peft import PeftModel
+            except ImportError:
+                logger.warning("⚠ PEFT ej installerat – kan inte ladda DNA-adapters")
+                logger.info("  Installera med: pip install peft")
+                PeftModel = None
             
-            lora_weights = find_lora_weights(adapter_suffix)
-            if lora_weights:
-                lora_path = Path(lora_weights)
+            if PeftModel:
+                # Search for adapter directories in the certified model path
+                # Look for directories containing "adapter" or "lora" in the name
+                certified_model_path = Path(ONESEEK_PATH)
+                adapter_dirs = []
                 
-                # Check if it's a directory (PEFT format) or file (state_dict format)
-                if lora_path.is_dir():
-                    # PEFT format directory
-                    try:
-                        from peft import PeftModel
-                        logger.info(f"Applying LoRA adapter: {lora_path.name}")
-                        if (lora_path / 'adapter_config.json').exists():
-                            # Apply adapter with same dtype
+                # Check direct subdirectories with adapter files
+                if certified_model_path.exists():
+                    for item in certified_model_path.iterdir():
+                        if item.is_dir():
+                            # Check for PEFT adapter format
+                            if (item / "adapter_model.safetensors").exists() or (item / "adapter_config.json").exists():
+                                adapter_dirs.append(item)
+                            # Also check if it's a lora_adapters subdirectory
+                            elif item.name == "lora_adapters":
+                                for subitem in item.iterdir():
+                                    if subitem.is_dir() and ((subitem / "adapter_model.safetensors").exists() or (subitem / "adapter_config.json").exists()):
+                                        adapter_dirs.append(subitem)
+                
+                if adapter_dirs:
+                    # Sort by name so newest (highest timestamp) loads last and "wins"
+                    adapter_dirs.sort(key=lambda x: x.name)
+                    loaded_count = 0
+                    
+                    for adapter_dir in adapter_dirs:
+                        try:
+                            logger.info(f"Laddar DNA-adapter från: {adapter_dir.name}")
                             adapter_kwargs = {}
                             if args.auto_devices:
                                 adapter_kwargs['device_map'] = 'auto'
                                 adapter_kwargs['torch_dtype'] = dtype
-                            model = PeftModel.from_pretrained(model, str(lora_path), **adapter_kwargs)
-                            logger.info("✓ LoRA adapters applied successfully (PEFT format)")
-                        else:
-                            logger.warning("⚠ LoRA directory found but missing adapter_config.json")
-                            logger.info("  Using base model without adapters")
-                    except ImportError:
-                        logger.warning("⚠ PEFT not installed - cannot apply LoRA adapters")
-                        logger.info("  Install with: pip install peft")
-                    except Exception as e:
-                        logger.warning(f"⚠ Could not apply LoRA adapters: {e}")
-                        logger.info("  Using base model without adapters")
-                
-                elif lora_path.is_file() and lora_path.suffix == '.pth':
-                    # State dict format (.pth file)
-                    try:
-                        from peft import PeftModel, LoraConfig, get_peft_model
-                        logger.info(f"Loading LoRA weights from {lora_weights}...")
-                        
-                        # Check if adapter_config.json exists in the same directory
-                        adapter_dir = lora_path.parent.parent / 'lora_adapters'
-                        
-                        # Try to find matching PEFT adapter directory
-                        peft_adapter_found = False
-                        if adapter_dir.exists():
-                            # Look for adapter directory that matches the model
-                            for item in adapter_dir.iterdir():
-                                if item.is_dir() and (item / 'adapter_config.json').exists():
-                                    # Check if this adapter is for the same base model
-                                    try:
-                                        model = PeftModel.from_pretrained(model, str(item))
-                                        logger.info(f"✓ LoRA adapters applied successfully from {item} (PEFT format)")
-                                        peft_adapter_found = True
-                                        break
-                                    except:
-                                        continue
-                        
-                        if not peft_adapter_found:
-                            logger.warning("⚠ LoRA weights file found but PEFT adapter directory not available")
-                            logger.info("  The .pth file contains full model state dict, not LoRA adapters")
-                            logger.info("  Using base model without LoRA fine-tuning")
-                            logger.info("  To get LoRA adapters: they are saved in lora_adapters/<model>-adapter/ directory")
-                            
-                    except ImportError:
-                        logger.warning("⚠ PEFT not installed - cannot apply LoRA adapters")
-                        logger.info("  Install with: pip install peft")
-                    except Exception as e:
-                        logger.warning(f"⚠ Could not apply LoRA: {e}")
-                        logger.info("  Using base model")
-            else:
-                logger.info(f"ℹ No LoRA adapters found for {model_name} - using base model")
-                logger.info("  Train with: python scripts/train_identity.py")
+                            model = PeftModel.from_pretrained(model, str(adapter_dir), **adapter_kwargs)
+                            loaded_count += 1
+                        except Exception as e:
+                            logger.warning(f"⚠ Kunde inte ladda adapter {adapter_dir.name}: {e}")
+                    
+                    if loaded_count > 0:
+                        logger.info(f"✓ DIN FULLA DNA ÄR AKTIV – {loaded_count} adapter(s) laddade!")
+                    else:
+                        logger.warning("⚠ Inga adapters kunde laddas – kör basmodell")
+                else:
+                    logger.info(f"ℹ Ingen DNA-adapter hittad för {model_name} – kör basmodell")
+                    logger.info("  Träna med: python scripts/train_identity.py")
         
         # Apply device-specific optimizations
         if DEVICE_TYPE == 'xpu':
