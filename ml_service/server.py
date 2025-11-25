@@ -1047,8 +1047,8 @@ def load_model(model_name: str, model_path: str):
         if not args.auto_devices:
             model = model.to(DEVICE)
         
-        # For OneSeek, load ALL DNA adapters from subdirectories
-        # This loads adapters in order so the newest (by name/timestamp) wins
+        # For OneSeek, load ALL DNA adapters from metadata.json
+        # This uses the metadata as source of truth for which adapters to load
         if model_name.startswith('oneseek'):
             try:
                 from peft import PeftModel
@@ -1058,40 +1058,57 @@ def load_model(model_name: str, model_path: str):
                 PeftModel = None
             
             if PeftModel:
-                # Search for adapter directories in the certified model path
                 certified_model_path = Path(ONESEEK_PATH)
-                adapter_dirs = []
+                adapters_to_load = []
                 
-                logger.info(f"Söker DNA-adapters i: {certified_model_path}")
+                # PRIORITY 1: Read adapters from metadata.json (source of truth)
+                metadata_path = certified_model_path / "metadata.json"
+                if metadata_path.exists():
+                    try:
+                        with open(metadata_path, 'r', encoding='utf-8') as f:
+                            metadata = json.load(f)
+                        
+                        adapters_list = metadata.get("adapters", [])
+                        if adapters_list:
+                            logger.info(f"Hittade {len(adapters_list)} DNA-adapter(s) i metadata.json")
+                            
+                            for adapter_name in adapters_list:
+                                # Handle both old format (with lora_adapters/) and new format (just folder name)
+                                if adapter_name.startswith("lora_adapters/"):
+                                    # Old format - try parent directory
+                                    adapter_path = certified_model_path.parent / adapter_name.replace("/", os.sep)
+                                else:
+                                    # New format - adapter is inside certified model directory
+                                    adapter_path = certified_model_path / adapter_name
+                                
+                                if adapter_path.is_dir() and (adapter_path / "adapter_model.safetensors").exists():
+                                    adapters_to_load.append(adapter_path)
+                                    logger.info(f"  ✓ Hittade: {adapter_name}")
+                                else:
+                                    logger.warning(f"  ⚠ Adapter-mapp saknas: {adapter_name}")
+                        else:
+                            logger.info("Ingen adapter-lista i metadata.json")
+                    except Exception as e:
+                        logger.warning(f"Kunde inte läsa metadata.json: {e}")
                 
-                # Check all subdirectories for adapter files
-                if certified_model_path.exists():
+                # PRIORITY 2: Fallback - scan subdirectories for adapter files
+                if not adapters_to_load and certified_model_path.exists():
+                    logger.info(f"Söker DNA-adapters i: {certified_model_path}")
+                    
                     for item in certified_model_path.iterdir():
                         if item.is_dir():
-                            # Check for PEFT adapter format (adapter_model.safetensors or adapter_config.json)
+                            # Check for PEFT adapter format
                             if (item / "adapter_model.safetensors").exists() or (item / "adapter_config.json").exists():
-                                adapter_dirs.append(item)
+                                adapters_to_load.append(item)
                                 logger.info(f"  Hittade adapter: {item.name}")
-                            # Also check if it's a lora_adapters subdirectory
-                            elif item.name == "lora_adapters":
-                                for subitem in item.iterdir():
-                                    if subitem.is_dir() and ((subitem / "adapter_model.safetensors").exists() or (subitem / "adapter_config.json").exists()):
-                                        adapter_dirs.append(subitem)
-                                        logger.info(f"  Hittade adapter i lora_adapters/: {subitem.name}")
-                            # Also check directories containing "adapter" in name (fallback)
-                            elif "adapter" in item.name.lower():
-                                # Check inside this directory for adapter files
-                                if (item / "adapter_model.safetensors").exists() or (item / "adapter_config.json").exists():
-                                    adapter_dirs.append(item)
-                                    logger.info(f"  Hittade adapter (via namn): {item.name}")
                 
-                if adapter_dirs:
+                if adapters_to_load:
                     # Sort by name so newest (highest timestamp) loads last and "wins"
-                    adapter_dirs.sort(key=lambda x: x.name)
+                    adapters_to_load.sort(key=lambda x: x.name)
                     loaded_count = 0
                     
-                    logger.info(f"Laddar {len(adapter_dirs)} DNA-adapter(s)...")
-                    for adapter_dir in adapter_dirs:
+                    logger.info(f"Laddar {len(adapters_to_load)} DNA-adapter(s)...")
+                    for adapter_dir in adapters_to_load:
                         try:
                             logger.info(f"  → Laddar: {adapter_dir.name}")
                             adapter_kwargs = {}
