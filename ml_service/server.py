@@ -45,9 +45,18 @@ parser.add_argument('--api', action='store_true',
                     help='Enable API mode (currently always enabled, for compatibility)')
 args, unknown = parser.parse_known_args()
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
+# Setup logging with DEBUG support
+# Use ONESEEK_DEBUG=1 environment variable for verbose debug output
+DEBUG_MODE = os.getenv('ONESEEK_DEBUG', '0') == '1'
+log_level = logging.DEBUG if DEBUG_MODE else logging.INFO
+logging.basicConfig(
+    level=log_level,
+    format='[%(asctime)s.%(msecs)03d] %(levelname)s %(message)s',
+    datefmt='%H:%M:%S'
+)
 logger = logging.getLogger(__name__)
+if DEBUG_MODE:
+    logger.info("🔍 DEBUG MODE ENABLED - Verbose logging active")
 
 # Configuration
 # Rate limiting: Set high for development (1000/min), use lower in production via env var
@@ -331,22 +340,33 @@ def sync_inputs_to_model_device(inputs, model):
     try:
         if hasattr(model, 'device'):
             target_device = model.device
+            logger.debug(f"→ Model.device: {target_device}")
         elif hasattr(model, 'parameters'):
             # For models with device_map="auto", get device of first parameter
             target_device = next(model.parameters()).device
+            logger.debug(f"→ Model parameters device: {target_device}")
         else:
             # Fallback to CPU
             target_device = torch.device('cpu')
-    except Exception:
+            logger.debug(f"→ Fallback to CPU device")
+    except Exception as e:
+        logger.debug(f"→ Device detection error: {e}, using CPU")
         target_device = torch.device('cpu')
     
     # Get current device
     if hasattr(inputs, 'input_ids'):
         current_device = inputs.input_ids.device
+        input_shape = inputs.input_ids.shape
     elif isinstance(inputs, dict) and 'input_ids' in inputs:
         current_device = inputs['input_ids'].device
+        input_shape = inputs['input_ids'].shape
     else:
+        logger.debug("→ No input_ids found in inputs")
         return inputs
+    
+    logger.debug(f"→ Input tensor shape: {input_shape}")
+    logger.debug(f"→ Current input device: {current_device}")
+    logger.debug(f"→ Target model device: {target_device}")
     
     # Sync if devices don't match
     if current_device.type != target_device.type:
@@ -355,6 +375,14 @@ def sync_inputs_to_model_device(inputs, model):
             inputs = {k: v.to(target_device) if hasattr(v, 'to') else v for k, v in inputs.items()}
         elif hasattr(inputs, 'to'):
             inputs = inputs.to(target_device)
+        
+        # Verify sync
+        if isinstance(inputs, dict) and 'input_ids' in inputs:
+            logger.debug(f"→ After sync: input_ids device = {inputs['input_ids'].device}")
+        elif hasattr(inputs, 'input_ids'):
+            logger.debug(f"→ After sync: input_ids device = {inputs.input_ids.device}")
+    else:
+        logger.debug(f"→ Devices match, no sync needed")
     
     return inputs
 
@@ -722,7 +750,11 @@ def find_lora_weights(adapter_suffix=''):
 
 def load_model(model_name: str, model_path: str):
     """Load model and tokenizer with device optimization, applying LoRA adapters if available"""
+    logger.debug(f"→ load_model called: model_name={model_name}")
+    logger.debug(f"→ model_path parameter: {model_path}")
+    
     if model_name in models:
+        logger.debug(f"→ Model {model_name} already cached, returning from cache")
         return models[model_name], tokenizers[model_name]
     
     # For OneSeek models, find the actual base model path
@@ -1249,9 +1281,19 @@ async def oneseek_inference(request: InferenceRequest):
     import time
     start_time = time.time()
     
+    # === DEBUG: Log inference start ===
+    logger.info("=" * 60)
+    logger.info("=== ONESEEK INFERENCE START ===")
+    logger.debug(f"→ Input text: {request.text[:100]}..." if len(request.text) > 100 else f"→ Input text: {request.text}")
+    logger.debug(f"→ Max length: {request.max_length}")
+    logger.debug(f"→ Temperature: {request.temperature}")
+    logger.debug(f"→ Top P: {request.top_p}")
+    logger.debug(f"→ DUAL_MODEL_MODE: {DUAL_MODEL_MODE}")
+    
     try:
         if DUAL_MODEL_MODE:
             # Use dual-model inference (Mistral + LLaMA)
+            logger.debug("→ Using DUAL-model inference path")
             result = await dual_model_inference(
                 request.text,
                 max_length=request.max_length,
@@ -1267,32 +1309,94 @@ async def oneseek_inference(request: InferenceRequest):
             )
         else:
             # Single-model fallback
+            logger.debug("→ Using SINGLE-model inference path")
+            logger.debug(f"→ Loading model from: {ONESEEK_PATH}")
+            
             model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
             
+            # === DEBUG: Log model info ===
+            if hasattr(model, 'device'):
+                logger.debug(f"→ Model device: {model.device}")
+            if hasattr(model, 'dtype'):
+                logger.debug(f"→ Model dtype: {model.dtype}")
+            try:
+                first_param_device = next(model.parameters()).device
+                logger.debug(f"→ First param device: {first_param_device}")
+            except:
+                pass
+            
             # Prepare input and sync to model's device
+            logger.debug("→ Tokenizing input...")
+            tokenize_start = time.time()
             inputs = tokenizer(request.text, return_tensors="pt", padding=True)
+            tokenize_time = (time.time() - tokenize_start) * 1000
+            logger.debug(f"→ Tokenization took: {tokenize_time:.1f}ms")
+            
+            # === DEBUG: Log input tensor info ===
+            if hasattr(inputs, 'input_ids'):
+                logger.debug(f"→ input_ids shape: {inputs.input_ids.shape}")
+                logger.debug(f"→ input_ids device (before sync): {inputs.input_ids.device}")
+                logger.debug(f"→ First 10 tokens: {inputs.input_ids[0][:10].tolist()}")
+            elif isinstance(inputs, dict) and 'input_ids' in inputs:
+                logger.debug(f"→ input_ids shape: {inputs['input_ids'].shape}")
+                logger.debug(f"→ input_ids device (before sync): {inputs['input_ids'].device}")
+                logger.debug(f"→ First 10 tokens: {inputs['input_ids'][0][:10].tolist()}")
+            
+            # Sync to model device
+            logger.debug("→ Syncing inputs to model device...")
             inputs = sync_inputs_to_model_device(inputs, model)
             
+            # === DEBUG: Log post-sync device ===
+            if isinstance(inputs, dict) and 'input_ids' in inputs:
+                logger.debug(f"→ input_ids device (after sync): {inputs['input_ids'].device}")
+            elif hasattr(inputs, 'input_ids'):
+                logger.debug(f"→ input_ids device (after sync): {inputs.input_ids.device}")
+            
             # Generate with explicit attention_mask
+            logger.info("→ Kallar model.generate()...")
+            generate_start = time.time()
+            
             with torch.no_grad():
-                outputs = model.generate(
-                    input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
-                    attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
-                    max_length=request.max_length,
-                    temperature=request.temperature,
-                    top_p=request.top_p,
-                    do_sample=True,
-                    pad_token_id=tokenizer.eos_token_id
-                )
+                try:
+                    outputs = model.generate(
+                        input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
+                        attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
+                        max_length=request.max_length,
+                        temperature=request.temperature,
+                        top_p=request.top_p,
+                        do_sample=True,
+                        pad_token_id=tokenizer.eos_token_id
+                    )
+                except Exception as gen_error:
+                    logger.error(f"→ model.generate() FAILED: {gen_error}")
+                    raise gen_error
+            
+            generate_time = (time.time() - generate_start)
+            logger.info(f"→ Generate klar! Tog: {generate_time:.2f} sekunder")
+            
+            # === DEBUG: Log output info ===
+            logger.debug(f"→ Output shape: {outputs.shape}")
+            logger.debug(f"→ Output tokens: {len(outputs[0])}")
+            logger.debug(f"→ Första 10 output tokens: {outputs[0][:10].tolist()}")
             
             # Decode output
+            logger.debug("→ Decoding output...")
+            decode_start = time.time()
             response_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            decode_time = (time.time() - decode_start) * 1000
+            logger.debug(f"→ Decoding took: {decode_time:.1f}ms")
             
             # Remove input from response
             if response_text.startswith(request.text):
                 response_text = response_text[len(request.text):].strip()
             
             latency_ms = (time.time() - start_time) * 1000
+            
+            # === DEBUG: Log response summary ===
+            logger.debug(f"→ Response length: {len(response_text)} chars")
+            logger.debug(f"→ Response preview: {response_text[:100]}..." if len(response_text) > 100 else f"→ Response: {response_text}")
+            logger.info(f"=== ONESEEK INFERENCE COMPLETE ({latency_ms:.0f}ms) ===")
+            logger.info("=" * 60)
             
             return InferenceResponse(
                 response=response_text,
@@ -1302,7 +1406,10 @@ async def oneseek_inference(request: InferenceRequest):
             )
         
     except Exception as e:
+        logger.error(f"=== ONESEEK INFERENCE ERROR ===")
         logger.error(f"OneSeek-7B-Zero inference error: {str(e)}")
+        import traceback
+        logger.error(f"Traceback:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/inference/llama", response_model=InferenceResponse)

@@ -11,6 +11,10 @@ cd /d "%~dp0"
 :: Aktivera venv
 call backend\python_services\venv\Scripts\activate.bat
 
+:: === DEBUG MODE ===
+:: Sätt till 1 för detaljerad debug-loggning
+set ONESEEK_DEBUG=1
+
 :: Starta med MAXIMAL GPU + RAM-användning
 start "OneSeek BLIXXNABB" /HIGH /AFFINITY FF ^
     python ml_service/server.py ^
@@ -21,13 +25,13 @@ start "OneSeek BLIXXNABB" /HIGH /AFFINITY FF ^
     --n-gpu-layers 99 ^
     --gpu-memory 28 ^
     --timeout-keep-alive 600 ^
-    --timeout 1200 ^   :: NYTT – ger 20 minuters timeout (istället för 120s)
     --listen ^
     --api
 
 echo.
 echo [KLAR] OneSeek kör nu med 28 GB GPU-minne + full iGPU/NPU!
 echo        Förväntad svarstid: 1.5–2.8 sekunder
+echo        DEBUG MODE: %ONESEEK_DEBUG%
 echo        Stäng detta fönster för att stoppa
 echo.
 pause
