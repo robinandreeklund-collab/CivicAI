@@ -650,8 +650,14 @@ def find_base_model_path():
     legacy_mistral = PROJECT_ROOT / 'models' / 'mistral-7b-instruct'
     legacy_llama = PROJECT_ROOT / 'models' / 'llama-2-7b-chat'
     
-    # Check each path for config.json
+    # KB-Llama Swedish model paths (commonly used base model)
+    kb_llama_path = PROJECT_ROOT / 'models' / 'KB-Llama-3.1-8B-Swedish'
+    kb_llama_alt = PROJECT_ROOT / 'models' / 'kb-llama-3-1-8b-swedish'
+    
+    # Check each path for config.json - prioritize KB-Llama since it's commonly used
     for name, path in [
+        ('KB-Llama-3.1-8B-Swedish', kb_llama_path),
+        ('KB-Llama-3.1-8B-Swedish (lowercase)', kb_llama_alt),
         ('Mistral-7B (base_models)', mistral_base),
         ('LLaMA-2-7B (base_models)', llama_base),
         ('Mistral-7B (legacy)', legacy_mistral),
@@ -660,6 +666,16 @@ def find_base_model_path():
         if path.exists() and (path / 'config.json').exists():
             logger.info(f"Found base model: {name} at {path}")
             return str(path)
+    
+    # Also search for any model with config.json in the models directory
+    models_dir = PROJECT_ROOT / 'models'
+    if models_dir.exists():
+        logger.info("Searching for any base model in models directory...")
+        for item in models_dir.iterdir():
+            if item.is_dir() and item.name not in ['oneseek-7b-zero', 'oneseek-certified', 'backups']:
+                if (item / 'config.json').exists():
+                    logger.info(f"Found base model by search: {item.name} at {item}")
+                    return str(item)
     
     return None
 
@@ -802,11 +818,11 @@ def load_model(model_name: str, model_path: str):
             actual_path = find_base_model_path()
             if not actual_path:
                 error_msg = (
-                    "No base model found for OneSeek-7B-Zero. Please download one of:\n"
-                    "  1. Mistral-7B: huggingface-cli download mistralai/Mistral-7B-Instruct-v0.2 "
-                    f"--local-dir {ONESEEK_PATH}/base_models/mistral-7b\n"
-                    "  2. LLaMA-2-7B: huggingface-cli download meta-llama/Llama-2-7b-chat-hf "
-                    f"--local-dir {ONESEEK_PATH}/base_models/llama-2-7b"
+                    "No base model found for OneSeek-7B-Zero. Please ensure one of these models exists:\n"
+                    f"  1. KB-Llama-3.1-8B-Swedish at {PROJECT_ROOT / 'models' / 'KB-Llama-3.1-8B-Swedish'}\n"
+                    f"  2. Mistral-7B at {PROJECT_ROOT / 'models' / 'mistral-7b-instruct'}\n"
+                    f"  3. LLaMA-2-7B at {PROJECT_ROOT / 'models' / 'llama-2-7b-chat'}\n"
+                    "  Or download a model with: huggingface-cli download <model-id> --local-dir <path>"
                 )
                 logger.error(error_msg)
                 raise FileNotFoundError(error_msg)

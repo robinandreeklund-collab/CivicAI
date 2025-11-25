@@ -701,7 +701,11 @@ def train_single_model_lora(
         try:
             if use_device_map:
                 # Multi-GPU mode with device_map='auto'
-                print(f"   [INFO] Using device_map='auto' for multi-GPU distribution")
+                # This uses MODEL PARALLELISM - the model is split across GPUs
+                # For DATA PARALLELISM (training on both GPUs with different batches),
+                # you would need to use DataParallel or DistributedDataParallel
+                print(f"   [INFO] Using device_map='auto' for multi-GPU model distribution")
+                print(f"   [INFO] Model will be split across available GPUs (model parallelism)")
                 model = AutoModelForCausalLM.from_pretrained(
                     str(actual_model_path),
                     torch_dtype=model_dtype,
@@ -743,9 +747,18 @@ def train_single_model_lora(
                 if device != "cpu":
                     model = model.to(device)
         
-        # Log device placement info
+        # Log device placement info for multi-GPU
         if hasattr(model, 'hf_device_map') and model.hf_device_map:
-            print(f"   [INFO] Model device map: {model.hf_device_map}")
+            print(f"   [INFO] Model device map (layers → GPU):")
+            # Group by device for cleaner output
+            device_layers = {}
+            for layer, dev in model.hf_device_map.items():
+                dev_str = str(dev)
+                if dev_str not in device_layers:
+                    device_layers[dev_str] = []
+                device_layers[dev_str].append(layer)
+            for dev, layers in device_layers.items():
+                print(f"      {dev}: {len(layers)} layers")
         
         print(f"   [SUCCESS] Model loaded ({model.num_parameters():,} parameters)")
         
