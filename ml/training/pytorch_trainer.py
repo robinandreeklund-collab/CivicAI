@@ -321,16 +321,22 @@ def check_base_models(base_models_dir: Path):
                 # Only add if not already found in base_models
                 if normalized not in models_found:
                     # Check if it looks like a model directory (has config or model files)
+                    # Also check for GGUF files which are quantized models
                     has_config = (item / 'config.json').exists()
                     has_model_files = any(
-                        f.name.endswith(('.bin', '.safetensors', '.pth'))
+                        f.name.endswith(('.bin', '.safetensors', '.pth', '.gguf'))
                         for f in item.iterdir() if f.is_file()
                     )
                     
                     if has_config or has_model_files:
                         models_found[normalized] = item
                         display_name = get_model_display_name(normalized, item)
-                        print(f"[FOUND] {display_name} at {item}")
+                        # Check if this is a GGUF model for logging
+                        gguf_files = [f.name for f in item.iterdir() if f.is_file() and f.name.endswith('.gguf')]
+                        if gguf_files:
+                            print(f"[FOUND] {display_name} at {item} (GGUF: {gguf_files[0]})")
+                        else:
+                            print(f"[FOUND] {display_name} at {item}")
     
     # Third, scan oneseek-certified directory for trained models that can be used as base models
     certified_dir = root_models_dir / 'oneseek-certified'
@@ -339,10 +345,11 @@ def check_base_models(base_models_dir: Path):
         for item in certified_dir.iterdir():
             if item.is_dir() and not item.name.startswith('run-'):
                 # Check if it's a valid certified model (has model files)
+                # Also check for GGUF files which are quantized models
                 has_config = (item / 'config.json').exists()
                 has_adapter = (item / 'adapter_model.bin').exists() or (item / 'adapter_model.safetensors').exists()
                 has_model_files = any(
-                    f.name.endswith(('.bin', '.safetensors', '.pth'))
+                    f.name.endswith(('.bin', '.safetensors', '.pth', '.gguf'))
                     for f in item.iterdir() if f.is_file()
                 )
                 

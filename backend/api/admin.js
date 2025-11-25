@@ -258,24 +258,35 @@ router.get('/models/available', requireAdmin, async (req, res) => {
           if (item === 'oneseek-certified') continue;
           
           // Check if directory contains model files (weights, config, etc.)
+          // Also check for GGUF files which are quantized models (e.g., from bartowski)
           const dirContents = await fs.readdir(itemPath);
           const hasModelFiles = dirContents.some(file => 
             file.endsWith('.pth') || 
             file.endsWith('.bin') || 
             file.endsWith('.safetensors') ||
+            file.endsWith('.gguf') ||  // GGUF quantized models
             file === 'config.json' ||
             file === 'weights' ||
             file === 'pytorch_model.bin'
           );
           
           if (hasModelFiles || dirContents.includes('weights') || dirContents.includes('base_models')) {
-            models.push({
+            // Check for GGUF files and include info
+            const ggufFiles = dirContents.filter(f => f.endsWith('.gguf'));
+            const modelInfo = {
               id: item,
               name: item,
               path: itemPath,
               displayName: formatModelName(item),
               isCertified: false,
-            });
+            };
+            
+            if (ggufFiles.length > 0) {
+              modelInfo.ggufFile = ggufFiles[0];
+              modelInfo.type = 'gguf';
+            }
+            
+            models.push(modelInfo);
           }
         }
       } catch (error) {
@@ -1424,27 +1435,60 @@ router.get('/models/discover-base', requireAdmin, async (req, res) => {
         const modelDir = path.join(modelsDir, entry.name);
         
         // Check for model indicator files
+        // Also check for GGUF files which are quantized models (e.g., from bartowski)
         const hasConfig = await fs.access(path.join(modelDir, 'config.json')).then(() => true).catch(() => false);
         const hasTokenizer = await fs.access(path.join(modelDir, 'tokenizer_config.json')).then(() => true).catch(() => false);
         const hasPytorchModel = await fs.access(path.join(modelDir, 'pytorch_model.bin')).then(() => true).catch(() => false);
         const hasSafetensors = await fs.access(path.join(modelDir, 'model.safetensors')).then(() => true).catch(() => false);
         const hasAdapter = await fs.access(path.join(modelDir, 'adapter_model.bin')).then(() => true).catch(() => false);
         
-        if (hasConfig || hasTokenizer || hasPytorchModel || hasSafetensors || hasAdapter) {
+        // Check for GGUF files (quantized models)
+        let hasGguf = false;
+        try {
+          const dirContents = await fs.readdir(modelDir);
+          hasGguf = dirContents.some(file => file.endsWith('.gguf'));
+        } catch (err) {
+          // Directory might not be readable
+        }
+        
+        if (hasConfig || hasTokenizer || hasPytorchModel || hasSafetensors || hasAdapter || hasGguf) {
           let parameters = 'unknown';
           let modelType = 'causal_lm';
+          let ggufFile = null;
+          
+          // Check for GGUF files and extract info from filename
+          if (hasGguf) {
+            try {
+              const dirContents = await fs.readdir(modelDir);
+              const ggufFiles = dirContents.filter(file => file.endsWith('.gguf'));
+              if (ggufFiles.length > 0) {
+                ggufFile = ggufFiles[0];
+                modelType = 'gguf';
+                
+                // Try to extract parameters from GGUF filename (e.g., Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf)
+                const paramMatch = ggufFile.match(/(\d+(?:\.\d+)?)[Bb]/);
+                if (paramMatch) {
+                  parameters = `${paramMatch[1]}B`;
+                }
+              }
+            } catch (err) {
+              // Ignore errors
+            }
+          }
           
           // Try to read config for more info
           if (hasConfig) {
             try {
               const configContent = await fs.readFile(path.join(modelDir, 'config.json'), 'utf-8');
               const config = JSON.parse(configContent);
-              modelType = config.model_type || 'causal_lm';
+              if (!hasGguf) {
+                modelType = config.model_type || 'causal_lm';
+              }
               
               // Estimate parameters from config
               const hiddenSize = config.hidden_size || 0;
               const numLayers = config.num_hidden_layers || 0;
-              if (hiddenSize > 0 && numLayers > 0) {
+              if (hiddenSize > 0 && numLayers > 0 && parameters === 'unknown') {
                 const estParams = (hiddenSize / 1024) * numLayers * 12;
                 if (estParams > 1000) {
                   parameters = `${(estParams / 1000).toFixed(1)}B`;
@@ -1457,12 +1501,19 @@ router.get('/models/discover-base', requireAdmin, async (req, res) => {
             }
           }
           
-          discoveredModels.push({
+          const modelInfo = {
             name: entry.name,
             path: modelDir,
             type: modelType,
             parameters: parameters,
-          });
+          };
+          
+          // Include GGUF file info if present
+          if (ggufFile) {
+            modelInfo.ggufFile = ggufFile;
+          }
+          
+          discoveredModels.push(modelInfo);
         }
       }
       
