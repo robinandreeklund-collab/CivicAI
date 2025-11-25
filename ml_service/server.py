@@ -117,8 +117,18 @@ def get_active_model_path():
     if env_path:
         env_path_obj = Path(env_path)
         if env_path_obj.exists():
-            logger.info(f"✓ Using OneSeek model from ONESEEK_MODEL_PATH: {env_path}")
-            return str(env_path_obj.resolve())
+            # Check if this is a valid model directory (has config.json or metadata.json)
+            # or if it's just the models base directory
+            if (env_path_obj / 'config.json').exists() or (env_path_obj / 'metadata.json').exists():
+                logger.info(f"✓ Using OneSeek model from ONESEEK_MODEL_PATH: {env_path}")
+                return str(env_path_obj.resolve())
+            elif env_path_obj.name == 'models':
+                # User set the entire models directory - we'll search for certified models
+                logger.warning(f"⚠ ONESEEK_MODEL_PATH points to models directory, will search for certified model")
+                models_base = env_path_obj
+            else:
+                logger.warning(f"⚠ ONESEEK_MODEL_PATH path exists but is not a valid model directory: {env_path}")
+                logger.warning("  Expected config.json or metadata.json in the directory")
         else:
             logger.error(f"✗ ONESEEK_MODEL_PATH set but path doesn't exist: {env_path}")
             sys.exit(1)
@@ -149,6 +159,27 @@ def get_active_model_path():
         except Exception as e:
             logger.error(f"✗ Error reading certified marker file: {e}")
     
+    # Auto-discover latest certified model (fallback when no symlink/marker exists)
+    certified_dir = models_base / 'oneseek-certified'
+    if certified_dir.exists():
+        try:
+            # Find all certified model directories (format: OneSeek-7B-Zero.v*.*)
+            certified_models = []
+            for item in certified_dir.iterdir():
+                if item.is_dir() and item.name.startswith('OneSeek-7B-Zero.v'):
+                    # Check if it has metadata.json (valid trained model)
+                    if (item / 'metadata.json').exists():
+                        certified_models.append(item)
+            
+            if certified_models:
+                # Use max() for efficiency - only need the latest model
+                latest_model = max(certified_models, key=lambda p: p.stat().st_mtime)
+                logger.info(f"✓ Auto-discovered latest certified model: {latest_model.name}")
+                logger.info(f"  → Found {len(certified_models)} certified model(s)")
+                return str(latest_model.resolve())
+        except (PermissionError, OSError) as e:
+            logger.warning(f"⚠ Could not scan certified models directory: {e}")
+    
     # Fallback to legacy oneseek-7b-zero if certified not found
     legacy_current = models_base / 'oneseek-7b-zero' / 'OneSeek-7B-Zero-CURRENT'
     if legacy_current.exists() or legacy_current.is_symlink():
@@ -178,6 +209,7 @@ def get_active_model_path():
     logger.error("Checked locations:")
     logger.error(f"  - Environment variable ONESEEK_MODEL_PATH: {env_path or 'Not set'}")
     logger.error(f"  - DNA v2 certified symlink: {certified_current} (Not found)")
+    logger.error(f"  - Auto-discovery in: {certified_dir} (No certified models found)")
     logger.error(f"  - Legacy model symlink: {legacy_current} (Not found)")
     logger.error("")
     logger.error("For DNA v2 migration guide, see: ONESEEK_7B_ZERO_MIGRATION_GUIDE.md")
