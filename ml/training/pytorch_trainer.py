@@ -784,9 +784,13 @@ def train_single_model_lora(
                     
                     # Bygg absoluta sökvägar till varje adapter
                     for adapter_rel_path in adapters_list:
-                        # adapter_rel_path ser ut som: "lora_adapters/oneseek-7b-zero-v1.0-kb-llama-3-1-8b-swedish"
-                        # Vi behöver gå upp till models/oneseek-certified och sedan ner till adaptern
-                        adapter_path = model_path.parent / adapter_rel_path.replace("/", os.sep)
+                        # Hantera både gammalt format (lora_adapters/...) och nytt format (bara mappnamn)
+                        if adapter_rel_path.startswith("lora_adapters/"):
+                            # Gammalt format - sök i parent/lora_adapters/
+                            adapter_path = model_path.parent / adapter_rel_path.replace("/", os.sep)
+                        else:
+                            # Nytt format - adapter ligger direkt i certifierad modell-mapp
+                            adapter_path = model_path / adapter_rel_path
                         
                         if adapter_path.exists():
                             # Kontrollera att adapter_config.json finns (validering)
@@ -869,8 +873,13 @@ def train_single_model_lora(
                         
                         adapters_to_load = []
                         for adapter_rel_path in adapters_list:
-                            # Adapters are at certified_models_dir level
-                            adapter_path = certified_models_dir / adapter_rel_path.replace("/", os.sep)
+                            # Hantera både gammalt format (lora_adapters/...) och nytt format (bara mappnamn)
+                            if adapter_rel_path.startswith("lora_adapters/"):
+                                # Gammalt format - sök i certified_models_dir/lora_adapters/
+                                adapter_path = certified_models_dir / adapter_rel_path.replace("/", os.sep)
+                            else:
+                                # Nytt format - adapter ligger direkt i previous_model_path
+                                adapter_path = previous_model_path / adapter_rel_path
                             
                             if adapter_path.exists():
                                 adapter_config = adapter_path / "adapter_config.json"
