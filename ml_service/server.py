@@ -117,8 +117,18 @@ def get_active_model_path():
     if env_path:
         env_path_obj = Path(env_path)
         if env_path_obj.exists():
-            logger.info(f"✓ Using OneSeek model from ONESEEK_MODEL_PATH: {env_path}")
-            return str(env_path_obj.resolve())
+            # Check if this is a valid model directory (has config.json or metadata.json)
+            # or if it's just the models base directory
+            if (env_path_obj / 'config.json').exists() or (env_path_obj / 'metadata.json').exists():
+                logger.info(f"✓ Using OneSeek model from ONESEEK_MODEL_PATH: {env_path}")
+                return str(env_path_obj.resolve())
+            elif env_path_obj.name == 'models':
+                # User set the entire models directory - we'll search for certified models
+                logger.warning(f"⚠ ONESEEK_MODEL_PATH points to models directory, will search for certified model")
+                models_base = env_path_obj
+            else:
+                logger.warning(f"⚠ ONESEEK_MODEL_PATH path exists but is not a valid model directory: {env_path}")
+                logger.warning("  Expected config.json or metadata.json in the directory")
         else:
             logger.error(f"✗ ONESEEK_MODEL_PATH set but path doesn't exist: {env_path}")
             sys.exit(1)
@@ -149,6 +159,27 @@ def get_active_model_path():
         except Exception as e:
             logger.error(f"✗ Error reading certified marker file: {e}")
     
+    # Auto-discover latest certified model (fallback when no symlink/marker exists)
+    certified_dir = models_base / 'oneseek-certified'
+    if certified_dir.exists():
+        try:
+            # Find all certified model directories (format: OneSeek-7B-Zero.v*.*)
+            certified_models = []
+            for item in certified_dir.iterdir():
+                if item.is_dir() and item.name.startswith('OneSeek-7B-Zero.v'):
+                    # Check if it has metadata.json (valid trained model)
+                    if (item / 'metadata.json').exists():
+                        certified_models.append(item)
+            
+            if certified_models:
+                # Use max() for efficiency - only need the latest model
+                latest_model = max(certified_models, key=lambda p: p.stat().st_mtime)
+                logger.info(f"✓ Auto-discovered latest certified model: {latest_model.name}")
+                logger.info(f"  → Found {len(certified_models)} certified model(s)")
+                return str(latest_model.resolve())
+        except (PermissionError, OSError) as e:
+            logger.warning(f"⚠ Could not scan certified models directory: {e}")
+    
     # Fallback to legacy oneseek-7b-zero if certified not found
     legacy_current = models_base / 'oneseek-7b-zero' / 'OneSeek-7B-Zero-CURRENT'
     if legacy_current.exists() or legacy_current.is_symlink():
@@ -178,6 +209,7 @@ def get_active_model_path():
     logger.error("Checked locations:")
     logger.error(f"  - Environment variable ONESEEK_MODEL_PATH: {env_path or 'Not set'}")
     logger.error(f"  - DNA v2 certified symlink: {certified_current} (Not found)")
+    logger.error(f"  - Auto-discovery in: {certified_dir} (No certified models found)")
     logger.error(f"  - Legacy model symlink: {legacy_current} (Not found)")
     logger.error("")
     logger.error("For DNA v2 migration guide, see: ONESEEK_7B_ZERO_MIGRATION_GUIDE.md")
@@ -231,9 +263,29 @@ def get_device():
     except ImportError:
         pass
     
-    # Try NVIDIA GPU
+    # Try NVIDIA GPU with proper initialization for multi-GPU support
     if torch.cuda.is_available():
+        # Initialize CUDA to ensure all devices are accessible
+        # This may raise RuntimeError if CUDA drivers are not properly installed,
+        # or if initialization was already done - both cases are non-fatal
+        try:
+            torch.cuda.init()
+        except RuntimeError:
+            # CUDA already initialized or initialization not needed
+            pass
+        
+        device_count = torch.cuda.device_count()
         logger.info(f"NVIDIA GPU detected: {torch.cuda.get_device_name(0)}")
+        if device_count > 1:
+            logger.info(f"Multi-GPU system: {device_count} CUDA devices available")
+            for i in range(device_count):
+                try:
+                    name = torch.cuda.get_device_name(i)
+                    props = torch.cuda.get_device_properties(i)
+                    memory_gb = props.total_memory / (1024**3)
+                    logger.info(f"  cuda:{i} - {name} ({memory_gb:.1f} GB)")
+                except Exception as e:
+                    logger.warning(f"  cuda:{i} - Error getting info: {e}")
         return torch.device('cuda'), 'cuda'
     
     # Fallback to CPU
@@ -630,8 +682,14 @@ def find_base_model_path():
     legacy_mistral = PROJECT_ROOT / 'models' / 'mistral-7b-instruct'
     legacy_llama = PROJECT_ROOT / 'models' / 'llama-2-7b-chat'
     
-    # Check each path for config.json
+    # KB-Llama Swedish model paths (commonly used base model)
+    kb_llama_path = PROJECT_ROOT / 'models' / 'KB-Llama-3.1-8B-Swedish'
+    kb_llama_alt = PROJECT_ROOT / 'models' / 'kb-llama-3-1-8b-swedish'
+    
+    # Check each path for config.json - prioritize KB-Llama since it's commonly used
     for name, path in [
+        ('KB-Llama-3.1-8B-Swedish', kb_llama_path),
+        ('KB-Llama-3.1-8B-Swedish (lowercase)', kb_llama_alt),
         ('Mistral-7B (base_models)', mistral_base),
         ('LLaMA-2-7B (base_models)', llama_base),
         ('Mistral-7B (legacy)', legacy_mistral),
@@ -640,6 +698,16 @@ def find_base_model_path():
         if path.exists() and (path / 'config.json').exists():
             logger.info(f"Found base model: {name} at {path}")
             return str(path)
+    
+    # Also search for any model with config.json in the models directory
+    models_dir = PROJECT_ROOT / 'models'
+    if models_dir.exists():
+        logger.info("Searching for any base model in models directory...")
+        for item in models_dir.iterdir():
+            if item.is_dir() and item.name not in ['oneseek-7b-zero', 'oneseek-certified', 'backups']:
+                if (item / 'config.json').exists():
+                    logger.info(f"Found base model by search: {item.name} at {item}")
+                    return str(item)
     
     return None
 
@@ -663,13 +731,44 @@ def find_lora_weights(adapter_suffix=''):
         # Look for LoRA adapters in certified directory
         logger.info(f"Searching for LoRA adapters in certified directory: {base_path}")
         
-        # Look for adapter directories matching pattern
+        # FIRST: Check metadata.json for adapter paths (most reliable)
+        metadata_file = base_path / 'metadata.json'
+        if metadata_file.exists():
+            try:
+                with open(metadata_file, 'r', encoding='utf-8') as f:
+                    metadata = json.load(f)
+                adapters = metadata.get('adapters', [])
+                if adapters:
+                    # Use the latest adapter (last in list)
+                    latest_adapter_path = adapters[-1]
+                    # Adapters are stored relative to the certified model directory
+                    full_adapter_path = base_path / latest_adapter_path
+                    if full_adapter_path.exists() and (full_adapter_path / 'adapter_config.json').exists():
+                        logger.info(f"Found LoRA adapter from metadata: {full_adapter_path}")
+                        return str(full_adapter_path)
+                    else:
+                        logger.warning(f"Adapter path from metadata not found: {full_adapter_path}")
+            except Exception as e:
+                logger.warning(f"Could not read adapters from metadata: {e}")
+        
+        # FALLBACK: Look for adapter directories matching pattern
         for item in base_path.iterdir():
             if item.is_dir() and '-adapter' in item.name:
                 # Check for PEFT format
                 if (item / 'adapter_config.json').exists():
                     logger.info(f"Found PEFT LoRA adapter in certified directory: {item}")
                     return str(item)
+        
+        # Check lora_adapters subdirectory
+        lora_adapters_dir = base_path / 'lora_adapters'
+        if lora_adapters_dir.exists():
+            # Find all adapter directories
+            adapter_dirs = [d for d in lora_adapters_dir.iterdir() if d.is_dir() and (d / 'adapter_config.json').exists()]
+            if adapter_dirs:
+                # Sort by modification time (newest first) and use the latest
+                latest_adapter = max(adapter_dirs, key=lambda p: p.stat().st_mtime)
+                logger.info(f"Found PEFT LoRA adapter in lora_adapters: {latest_adapter}")
+                return str(latest_adapter)
         
         # Look for .pth weight files
         pth_files = list(base_path.glob('*.pth'))
@@ -782,11 +881,11 @@ def load_model(model_name: str, model_path: str):
             actual_path = find_base_model_path()
             if not actual_path:
                 error_msg = (
-                    "No base model found for OneSeek-7B-Zero. Please download one of:\n"
-                    "  1. Mistral-7B: huggingface-cli download mistralai/Mistral-7B-Instruct-v0.2 "
-                    f"--local-dir {ONESEEK_PATH}/base_models/mistral-7b\n"
-                    "  2. LLaMA-2-7B: huggingface-cli download meta-llama/Llama-2-7b-chat-hf "
-                    f"--local-dir {ONESEEK_PATH}/base_models/llama-2-7b"
+                    "No base model found for OneSeek-7B-Zero. Please ensure one of these models exists:\n"
+                    f"  1. KB-Llama-3.1-8B-Swedish at {PROJECT_ROOT / 'models' / 'KB-Llama-3.1-8B-Swedish'}\n"
+                    f"  2. Mistral-7B at {PROJECT_ROOT / 'models' / 'mistral-7b-instruct'}\n"
+                    f"  3. LLaMA-2-7B at {PROJECT_ROOT / 'models' / 'llama-2-7b-chat'}\n"
+                    "  Or download a model with: huggingface-cli download <model-id> --local-dir <path>"
                 )
                 logger.error(error_msg)
                 raise FileNotFoundError(error_msg)
@@ -838,12 +937,103 @@ def load_model(model_name: str, model_path: str):
         logger.info("Loading model in 8-bit quantization")
     
     try:
-        # Load tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        # Load tokenizer with config-fix to handle malformed config.json files
+        # This fixes the "'dict' object has no attribute 'model_type'" error
+        import json
+        from transformers import PretrainedConfig
+        
+        logger.info(f"Loading tokenizer from: {model_path}")
+        tokenizer = None
+        tokenizer_errors = []
+        model_path_obj = Path(model_path)
+        
+        # Strategy 0: Try loading config.json first and use PretrainedConfig.from_dict()
+        # This is the recommended fix for the model_type error
+        config_path = model_path_obj / "config.json"
+        config_obj = None
+        if config_path.exists():
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config_dict = json.load(f)
+                config_obj = PretrainedConfig.from_dict(config_dict)
+                logger.info(f"✓ Loaded config.json as PretrainedConfig (model_type: {config_obj.model_type})")
+            except Exception as e:
+                logger.warning(f"Could not parse config.json: {e}")
+        
+        # Strategy 1: Try with config object if available (most reliable)
+        if config_obj:
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(
+                    model_path, 
+                    config=config_obj,
+                    trust_remote_code=True,
+                    local_files_only=True
+                )
+                logger.info("✓ Tokenizer loaded with PretrainedConfig")
+            except Exception as e1:
+                tokenizer_errors.append(f"with config: {e1}")
+        
+        # Strategy 2: Try with use_fast=False (most compatible)
+        if tokenizer is None:
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(
+                    model_path, 
+                    trust_remote_code=True,
+                    use_fast=False,
+                    local_files_only=True
+                )
+                logger.info("✓ Tokenizer loaded with use_fast=False")
+            except Exception as e2:
+                tokenizer_errors.append(f"use_fast=False: {e2}")
+        
+        # Strategy 3: Try with use_fast=True
+        if tokenizer is None:
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(
+                    model_path, 
+                    trust_remote_code=True,
+                    use_fast=True,
+                    local_files_only=True
+                )
+                logger.info("✓ Tokenizer loaded with use_fast=True")
+            except Exception as e3:
+                tokenizer_errors.append(f"use_fast=True: {e3}")
+        
+        # Strategy 4: Try LlamaTokenizer directly for LLaMA-based models
+        if tokenizer is None:
+            try:
+                from transformers import LlamaTokenizer
+                tokenizer = LlamaTokenizer.from_pretrained(
+                    model_path,
+                    trust_remote_code=True,
+                    local_files_only=True
+                )
+                logger.info("✓ Tokenizer loaded with LlamaTokenizer")
+            except Exception as e4:
+                tokenizer_errors.append(f"LlamaTokenizer: {e4}")
+        
+        # Strategy 5: Try LlamaTokenizerFast
+        if tokenizer is None:
+            try:
+                from transformers import LlamaTokenizerFast
+                tokenizer = LlamaTokenizerFast.from_pretrained(
+                    model_path,
+                    trust_remote_code=True,
+                    local_files_only=True
+                )
+                logger.info("✓ Tokenizer loaded with LlamaTokenizerFast")
+            except Exception as e5:
+                tokenizer_errors.append(f"LlamaTokenizerFast: {e5}")
+        
+        if tokenizer is None:
+            logger.error("Failed to load tokenizer with all strategies:")
+            for err in tokenizer_errors:
+                logger.error(f"  - {err}")
+            raise RuntimeError(f"Could not load tokenizer from {model_path}. Tried 5 strategies, all failed.")
         
         start_time = time.time()
         
-        # Load model with optimizations
+        # Load model with optimizations for multi-GPU
         logger.info(f"Loading OneSeek-7B-Zero with chained LoRA adapters...")
         logger.info("Loading checkpoint shards...")
         model = AutoModelForCausalLM.from_pretrained(
@@ -857,82 +1047,86 @@ def load_model(model_name: str, model_path: str):
         if not args.auto_devices:
             model = model.to(DEVICE)
         
-        # For OneSeek, try to load and apply LoRA adapters
+        # For OneSeek, load ALL DNA adapters from metadata.json
+        # This uses the metadata as source of truth for which adapters to load
         if model_name.startswith('oneseek'):
-            # Determine which LoRA adapter to use
-            adapter_suffix = ''
-            if model_name == 'oneseek-mistral':
-                adapter_suffix = 'mistral'
-            elif model_name == 'oneseek-llama':
-                adapter_suffix = 'llama'
+            try:
+                from peft import PeftModel
+            except ImportError:
+                logger.warning("⚠ PEFT ej installerat – kan inte ladda DNA-adapters")
+                logger.info("  Installera med: pip install peft")
+                PeftModel = None
             
-            lora_weights = find_lora_weights(adapter_suffix)
-            if lora_weights:
-                lora_path = Path(lora_weights)
+            if PeftModel:
+                certified_model_path = Path(ONESEEK_PATH)
+                adapters_to_load = []
                 
-                # Check if it's a directory (PEFT format) or file (state_dict format)
-                if lora_path.is_dir():
-                    # PEFT format directory
+                # PRIORITY 1: Read adapters from metadata.json (source of truth)
+                metadata_path = certified_model_path / "metadata.json"
+                if metadata_path.exists():
                     try:
-                        from peft import PeftModel
-                        logger.info(f"Applying LoRA adapter: {lora_path.name}")
-                        if (lora_path / 'adapter_config.json').exists():
-                            # Apply adapter with same dtype
+                        with open(metadata_path, 'r', encoding='utf-8') as f:
+                            metadata = json.load(f)
+                        
+                        adapters_list = metadata.get("adapters", [])
+                        if adapters_list:
+                            logger.info(f"Hittade {len(adapters_list)} DNA-adapter(s) i metadata.json")
+                            
+                            for adapter_name in adapters_list:
+                                # Handle both old format (with lora_adapters/) and new format (just folder name)
+                                if adapter_name.startswith("lora_adapters/"):
+                                    # Old format - try parent directory
+                                    adapter_path = certified_model_path.parent / adapter_name.replace("/", os.sep)
+                                else:
+                                    # New format - adapter is inside certified model directory
+                                    adapter_path = certified_model_path / adapter_name
+                                
+                                if adapter_path.is_dir() and (adapter_path / "adapter_model.safetensors").exists():
+                                    adapters_to_load.append(adapter_path)
+                                    logger.info(f"  ✓ Hittade: {adapter_name}")
+                                else:
+                                    logger.warning(f"  ⚠ Adapter-mapp saknas: {adapter_name}")
+                        else:
+                            logger.info("Ingen adapter-lista i metadata.json")
+                    except Exception as e:
+                        logger.warning(f"Kunde inte läsa metadata.json: {e}")
+                
+                # PRIORITY 2: Fallback - scan subdirectories for adapter files
+                if not adapters_to_load and certified_model_path.exists():
+                    logger.info(f"Söker DNA-adapters i: {certified_model_path}")
+                    
+                    for item in certified_model_path.iterdir():
+                        if item.is_dir():
+                            # Check for PEFT adapter format
+                            if (item / "adapter_model.safetensors").exists() or (item / "adapter_config.json").exists():
+                                adapters_to_load.append(item)
+                                logger.info(f"  Hittade adapter: {item.name}")
+                
+                if adapters_to_load:
+                    # Sort by name so newest (highest timestamp) loads last and "wins"
+                    adapters_to_load.sort(key=lambda x: x.name)
+                    loaded_count = 0
+                    
+                    logger.info(f"Laddar {len(adapters_to_load)} DNA-adapter(s)...")
+                    for adapter_dir in adapters_to_load:
+                        try:
+                            logger.info(f"  → Laddar: {adapter_dir.name}")
                             adapter_kwargs = {}
                             if args.auto_devices:
                                 adapter_kwargs['device_map'] = 'auto'
                                 adapter_kwargs['torch_dtype'] = dtype
-                            model = PeftModel.from_pretrained(model, str(lora_path), **adapter_kwargs)
-                            logger.info("✓ LoRA adapters applied successfully (PEFT format)")
-                        else:
-                            logger.warning("⚠ LoRA directory found but missing adapter_config.json")
-                            logger.info("  Using base model without adapters")
-                    except ImportError:
-                        logger.warning("⚠ PEFT not installed - cannot apply LoRA adapters")
-                        logger.info("  Install with: pip install peft")
-                    except Exception as e:
-                        logger.warning(f"⚠ Could not apply LoRA adapters: {e}")
-                        logger.info("  Using base model without adapters")
-                
-                elif lora_path.is_file() and lora_path.suffix == '.pth':
-                    # State dict format (.pth file)
-                    try:
-                        from peft import PeftModel, LoraConfig, get_peft_model
-                        logger.info(f"Loading LoRA weights from {lora_weights}...")
-                        
-                        # Check if adapter_config.json exists in the same directory
-                        adapter_dir = lora_path.parent.parent / 'lora_adapters'
-                        
-                        # Try to find matching PEFT adapter directory
-                        peft_adapter_found = False
-                        if adapter_dir.exists():
-                            # Look for adapter directory that matches the model
-                            for item in adapter_dir.iterdir():
-                                if item.is_dir() and (item / 'adapter_config.json').exists():
-                                    # Check if this adapter is for the same base model
-                                    try:
-                                        model = PeftModel.from_pretrained(model, str(item))
-                                        logger.info(f"✓ LoRA adapters applied successfully from {item} (PEFT format)")
-                                        peft_adapter_found = True
-                                        break
-                                    except:
-                                        continue
-                        
-                        if not peft_adapter_found:
-                            logger.warning("⚠ LoRA weights file found but PEFT adapter directory not available")
-                            logger.info("  The .pth file contains full model state dict, not LoRA adapters")
-                            logger.info("  Using base model without LoRA fine-tuning")
-                            logger.info("  To get LoRA adapters: they are saved in lora_adapters/<model>-adapter/ directory")
-                            
-                    except ImportError:
-                        logger.warning("⚠ PEFT not installed - cannot apply LoRA adapters")
-                        logger.info("  Install with: pip install peft")
-                    except Exception as e:
-                        logger.warning(f"⚠ Could not apply LoRA: {e}")
-                        logger.info("  Using base model")
-            else:
-                logger.info(f"ℹ No LoRA adapters found for {model_name} - using base model")
-                logger.info("  Train with: python scripts/train_identity.py")
+                            model = PeftModel.from_pretrained(model, str(adapter_dir), **adapter_kwargs)
+                            loaded_count += 1
+                        except Exception as e:
+                            logger.warning(f"  ⚠ Kunde inte ladda {adapter_dir.name}: {e}")
+                    
+                    if loaded_count > 0:
+                        logger.info(f"✓ DIN FULLA DNA ÄR AKTIV – {loaded_count} adapter(s) laddade!")
+                    else:
+                        logger.warning("⚠ Inga adapters kunde laddas – kör basmodell")
+                else:
+                    logger.info(f"ℹ Ingen DNA-adapter hittad för {model_name} – kör basmodell")
+                    logger.info("  Träna med: python scripts/train_identity.py")
         
         # Apply device-specific optimizations
         if DEVICE_TYPE == 'xpu':
