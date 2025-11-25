@@ -944,8 +944,42 @@ def load_model(model_name: str, model_path: str):
             except ImportError:
                 pass
         elif DEVICE_TYPE == 'directml':
-            # DirectML is handled automatically by torch-directml
-            logger.info(f"✓ {model_name} using DirectML acceleration")
+            # === PEFT BUG FIX: Force move model to DirectML after LoRA adapters ===
+            # When using PeftModel.from_pretrained() with device_map="auto", 
+            # only the adapter moves to GPU, not the base model.
+            # We must explicitly move the entire model to DirectML.
+            try:
+                import torch_directml
+                dml_device = torch_directml.device()
+                
+                # Check current device before move
+                try:
+                    current_device = next(model.parameters()).device
+                    logger.debug(f"→ Model device BEFORE force move: {current_device}")
+                except:
+                    current_device = None
+                
+                # Force move entire model to DirectML
+                logger.info(f"🔧 PEFT FIX: Moving model to DirectML GPU...")
+                model = model.to(dml_device)
+                
+                # Verify the move worked
+                try:
+                    param_device = next(model.parameters()).device
+                    if param_device.type == "privateuseone":
+                        logger.info(f"✓ MODEL SUCCESSFULLY ON DirectML GPU: {param_device}")
+                    else:
+                        logger.error(f"✗ MODEL STILL ON {param_device} - DirectML move failed!")
+                except Exception as e:
+                    logger.warning(f"⚠ Could not verify model device: {e}")
+                
+                logger.info(f"✓ {model_name} using DirectML acceleration")
+                
+            except ImportError:
+                logger.warning("⚠ torch_directml not available for force move")
+            except Exception as e:
+                logger.error(f"✗ Failed to move model to DirectML: {e}")
+                logger.info("  Model will remain on CPU - inference will be slow")
         
         # Cache models
         models[model_name] = model
