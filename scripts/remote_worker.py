@@ -30,10 +30,13 @@ def get_gpu_info():
             return {'count': 0, 'name': 'CPU-only', 'memory': '0 GB', 'devices': []}
         
         # Initialize CUDA to ensure all devices are accessible
+        # This may raise RuntimeError if CUDA drivers are not properly installed,
+        # or if initialization was already done - both cases are non-fatal
         try:
             torch.cuda.init()
-        except Exception:
-            pass  # Already initialized or not needed
+        except RuntimeError:
+            # CUDA already initialized or initialization not needed
+            pass
         
         device_count = torch.cuda.device_count()
         

@@ -234,10 +234,13 @@ def get_device():
     # Try NVIDIA GPU with proper initialization for multi-GPU support
     if torch.cuda.is_available():
         # Initialize CUDA to ensure all devices are accessible
+        # This may raise RuntimeError if CUDA drivers are not properly installed,
+        # or if initialization was already done - both cases are non-fatal
         try:
             torch.cuda.init()
-        except Exception as e:
-            logger.debug(f"CUDA init note (may be already initialized): {e}")
+        except RuntimeError:
+            # CUDA already initialized or initialization not needed
+            pass
         
         device_count = torch.cuda.device_count()
         logger.info(f"NVIDIA GPU detected: {torch.cuda.get_device_name(0)}")

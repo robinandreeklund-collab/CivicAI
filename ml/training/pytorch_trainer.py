@@ -130,11 +130,14 @@ def initialize_cuda():
         
         # Initialize CUDA context - this is CRITICAL for multi-GPU setups
         # Without this, accessing devices like cuda:1 may fail
+        # This may raise RuntimeError if CUDA drivers are not properly installed,
+        # or if initialization was already done - both cases are non-fatal
         try:
             torch.cuda.init()
             print("[INFO] CUDA initialized successfully")
-        except Exception as e:
-            print(f"[WARNING] CUDA init warning (may be already initialized): {e}")
+        except RuntimeError as e:
+            # CUDA already initialized - this is expected and not an error
+            print(f"[INFO] CUDA already initialized: {e}")
         
         device_count = torch.cuda.device_count()
         device_names = []
@@ -971,8 +974,9 @@ def train_single_model_lora(
                 input_device = first_param.device
                 print(f"   [INFO] Using device for inputs: {input_device}")
             except StopIteration:
-                input_device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-                print(f"   [WARNING] Could not get model device, using: {input_device}")
+                # No parameters found - use the device variable which was set by get_best_device()
+                input_device = torch.device(device) if isinstance(device, str) else device
+                print(f"   [WARNING] Could not get model device, falling back to: {input_device}")
         else:
             # Single device mode - use the specified device
             input_device = torch.device(device) if isinstance(device, str) else device
