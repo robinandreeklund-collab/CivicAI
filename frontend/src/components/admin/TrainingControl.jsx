@@ -69,6 +69,14 @@ export default function TrainingControl() {
     // GPU minnesbegränsning (max_memory per GPU)
     maxMemoryPerGpu: '',          // Max VRAM per GPU, t.ex. "9.5GB" (tomt = använd allt)
     maxMemoryEnabled: false,      // Aktivera manuell minnesbegränsning
+    // Multi-GPU konfiguration
+    useMultiGpu: true,            // Aktivera multi-GPU träning (device_map='auto')
+    numGpus: 0,                   // Antal GPU:er (0 = auto-detect)
+    // DeepSpeed Tensor Parallel konfiguration (experimental)
+    useDeepSpeed: false,          // Aktivera DeepSpeed för tensor parallel träning
+    deepSpeedTpSize: 2,           // Tensor parallel size (antal GPU:er för tensor parallelism)
+    deepSpeedZeroStage: 3,        // ZeRO optimization stage (0, 1, 2, eller 3)
+    deepSpeedBatchSize: 32,       // Total batch size för DeepSpeed
   });
   const [trainingError, setTrainingError] = useState(null); // Felmeddelande för träningskrascher
   const [trainingStatus, setTrainingStatus] = useState(null);
@@ -1307,6 +1315,157 @@ export default function TrainingControl() {
                       </p>
                     </div>
                   </div>
+                </div>
+
+                {/* Multi-GPU Konfiguration */}
+                <div className="mt-4 p-3 bg-[#111] border border-blue-900/30 rounded">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-blue-400 font-mono text-xs font-semibold">🖥️ Multi-GPU Konfiguration</h4>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={trainingParams.useMultiGpu}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, useMultiGpu: e.target.checked })}
+                        disabled={isTraining}
+                        className="w-4 h-4 text-blue-600 bg-[#111] border-[#2a2a2a] rounded focus:ring-blue-500 disabled:opacity-50"
+                      />
+                      <span className="text-[#888] font-mono text-xs">Aktivera Multi-GPU</span>
+                    </label>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[#888] font-mono text-xs mb-1">
+                        Antal GPU:er
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="8"
+                        placeholder="0 = auto"
+                        value={trainingParams.numGpus}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, numGpus: parseInt(e.target.value) || 0 })}
+                        disabled={isTraining || !trainingParams.useMultiGpu}
+                        className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-blue-900/50 disabled:opacity-50"
+                      />
+                      <p className="text-[#555] font-mono text-xs mt-1">
+                        0 = auto-detect alla GPU:er
+                      </p>
+                    </div>
+                    <div className="flex flex-col justify-center">
+                      <p className="text-[#666] font-mono text-xs">
+                        💡 Använder device_map="auto" för att fördela modellen över alla GPU:er.
+                      </p>
+                      <p className="text-[#555] font-mono text-xs mt-1">
+                        Kombinera med max VRAM per GPU för stabilitet.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {trainingParams.useMultiGpu && (
+                    <div className="mt-3 p-2 bg-blue-900/10 border border-blue-900/20 rounded">
+                      <p className="text-blue-400 font-mono text-xs">
+                        ✓ Multi-GPU aktiverat: Modellen fördelas automatiskt över {trainingParams.numGpus > 0 ? `de första ${trainingParams.numGpus}` : 'alla tillgängliga'} GPU:er
+                        {trainingParams.maxMemoryEnabled && trainingParams.maxMemoryPerGpu && ` (max ${trainingParams.maxMemoryPerGpu} per GPU)`}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* DeepSpeed Tensor Parallel Konfiguration (Experimental) */}
+                <div className="mt-4 p-3 bg-[#111] border border-yellow-900/30 rounded">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-yellow-400 font-mono text-xs font-semibold">⚡ DeepSpeed Tensor Parallel (Experimental)</h4>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={trainingParams.useDeepSpeed}
+                        onChange={(e) => setTrainingParams({ 
+                          ...trainingParams, 
+                          useDeepSpeed: e.target.checked,
+                          // Om DeepSpeed aktiveras, inaktivera standard multi-GPU
+                          // Om DeepSpeed inaktiveras, återaktivera standard multi-GPU
+                          useMultiGpu: e.target.checked ? false : true
+                        })}
+                        disabled={isTraining}
+                        className="w-4 h-4 text-yellow-600 bg-[#111] border-[#2a2a2a] rounded focus:ring-yellow-500 disabled:opacity-50"
+                      />
+                      <span className="text-[#888] font-mono text-xs">Aktivera DeepSpeed</span>
+                    </label>
+                  </div>
+                  
+                  <p className="text-[#666] font-mono text-xs mb-3">
+                    DeepSpeed möjliggör tensor parallelism för att träna med båda GPU:erna samtidigt. Kräver <code className="text-yellow-400">pip install deepspeed</code>.
+                  </p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[#888] font-mono text-xs mb-1">
+                        Tensor Parallel Size
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="8"
+                        value={trainingParams.deepSpeedTpSize}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, deepSpeedTpSize: parseInt(e.target.value) || 2 })}
+                        disabled={isTraining || !trainingParams.useDeepSpeed}
+                        className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-yellow-900/50 disabled:opacity-50"
+                      />
+                      <p className="text-[#555] font-mono text-xs mt-1">
+                        Antal GPU:er (2 = båda)
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-[#888] font-mono text-xs mb-1">
+                        ZeRO Stage
+                      </label>
+                      <select
+                        value={trainingParams.deepSpeedZeroStage}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, deepSpeedZeroStage: parseInt(e.target.value) })}
+                        disabled={isTraining || !trainingParams.useDeepSpeed}
+                        className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-yellow-900/50 disabled:opacity-50"
+                      >
+                        <option value="0">Stage 0 (Ingen ZeRO)</option>
+                        <option value="1">Stage 1 (Optimizer)</option>
+                        <option value="2">Stage 2 (Optimizer + Gradients)</option>
+                        <option value="3">Stage 3 (Full Partition)</option>
+                      </select>
+                      <p className="text-[#555] font-mono text-xs mt-1">
+                        Stage 3 ger mest VRAM-besparing
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-[#888] font-mono text-xs mb-1">
+                        DeepSpeed Batch Size
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="256"
+                        value={trainingParams.deepSpeedBatchSize}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, deepSpeedBatchSize: parseInt(e.target.value) || 32 })}
+                        disabled={isTraining || !trainingParams.useDeepSpeed}
+                        className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-yellow-900/50 disabled:opacity-50"
+                      />
+                      <p className="text-[#555] font-mono text-xs mt-1">
+                        Total train_batch_size
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {trainingParams.useDeepSpeed && (
+                    <div className="mt-3 p-2 bg-yellow-900/10 border border-yellow-900/20 rounded">
+                      <p className="text-yellow-400 font-mono text-xs">
+                        ⚡ DeepSpeed Tensor Parallel aktiverat: tp_size={trainingParams.deepSpeedTpSize}, ZeRO Stage {trainingParams.deepSpeedZeroStage}
+                      </p>
+                      <p className="text-[#666] font-mono text-xs mt-1">
+                        OBS: Kräver <code className="text-yellow-400">pip install deepspeed</code> och kompatibel CUDA-miljö.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Info om VRAM-användning */}

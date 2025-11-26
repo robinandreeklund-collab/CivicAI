@@ -157,6 +157,21 @@ def parse_args():
                         help='LoRA skalningsfaktor alpha/rank (default: 2.0)')
     parser.add_argument('--max-memory-per-gpu', type=str, default=None,
                         help='Max VRAM per GPU, t.ex. "9.5GB" (ingen gräns om ej angiven)')
+    parser.add_argument('--use-multi-gpu', action='store_true', default=True,
+                        help='Aktivera multi-GPU träning med device_map="auto" (default: True)')
+    parser.add_argument('--no-multi-gpu', dest='use_multi_gpu', action='store_false',
+                        help='Inaktivera multi-GPU, använd endast första GPU:n')
+    parser.add_argument('--num-gpus', type=int, default=0,
+                        help='Antal GPU:er att använda (0 = auto-detect alla)')
+    # DeepSpeed Tensor Parallel konfiguration (experimental)
+    parser.add_argument('--use-deepspeed', action='store_true', default=False,
+                        help='Aktivera DeepSpeed för tensor parallel träning')
+    parser.add_argument('--deepspeed-tp-size', type=int, default=2,
+                        help='Tensor parallel size (antal GPU:er för tensor parallelism, default: 2)')
+    parser.add_argument('--deepspeed-zero-stage', type=int, default=3, choices=[0, 1, 2, 3],
+                        help='ZeRO optimization stage (0-3, default: 3)')
+    parser.add_argument('--deepspeed-batch-size', type=int, default=32,
+                        help='Total batch size för DeepSpeed (default: 32)')
 
     
     return parser.parse_args()
@@ -306,6 +321,13 @@ def run_real_training(args, data_dir, dataset_path):
         trainer.config['use_fast_tokenizer'] = not args.no_fast_tokenizer
         trainer.config['lora_scaling_factor'] = args.lora_scaling_factor
         trainer.config['max_memory_per_gpu'] = args.max_memory_per_gpu  # GPU minnesbegränsning
+        trainer.config['use_multi_gpu'] = args.use_multi_gpu  # Multi-GPU konfiguration
+        trainer.config['num_gpus'] = args.num_gpus
+        # DeepSpeed Tensor Parallel konfiguration
+        trainer.config['use_deepspeed'] = args.use_deepspeed
+        trainer.config['deepspeed_tp_size'] = args.deepspeed_tp_size
+        trainer.config['deepspeed_zero_stage'] = args.deepspeed_zero_stage
+        trainer.config['deepspeed_batch_size'] = args.deepspeed_batch_size
         
         # Set base models from args or environment
         if args.base_models:
@@ -337,9 +359,22 @@ def run_real_training(args, data_dir, dataset_path):
         print(f"   - Seed: {args.seed}")
         print(f"   - Base models: {trainer.config.get('base_models', [])}")
         
-        # Logga GPU minnesbegränsning
+        # Logga GPU-konfiguration
+        print(f"\n[CONFIG] GPU-konfiguration:")
+        print(f"   - Multi-GPU: {args.use_multi_gpu}")
+        if args.num_gpus > 0:
+            print(f"   - Antal GPU:er: {args.num_gpus}")
+        else:
+            print(f"   - Antal GPU:er: auto-detect")
         if args.max_memory_per_gpu:
             print(f"   - Max memory per GPU: {args.max_memory_per_gpu}")
+        
+        # Logga DeepSpeed-konfiguration
+        if args.use_deepspeed:
+            print(f"\n[CONFIG] DeepSpeed Tensor Parallel aktiverat:")
+            print(f"   - Tensor Parallel Size: {args.deepspeed_tp_size}")
+            print(f"   - ZeRO Stage: {args.deepspeed_zero_stage}")
+            print(f"   - Batch Size: {args.deepspeed_batch_size}")
         
         # Logga nya kvantiseringsparametrar
         if args.load_in_4bit or args.load_in_8bit:

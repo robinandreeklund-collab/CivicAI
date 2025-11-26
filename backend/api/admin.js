@@ -912,7 +912,11 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       loadIn4Bit, loadIn8Bit, quantizationType, computeDtype, doubleQuantization, useNestedQuant,
       gradientAccumulationSteps, maxSeqLength, packingEnabled, useFastTokenizer, loraScalingFactor,
       // GPU minnesbegränsning (nya)
-      maxMemoryPerGpu, maxMemoryEnabled
+      maxMemoryPerGpu, maxMemoryEnabled,
+      // Multi-GPU konfiguration (nya)
+      useMultiGpu, numGpus,
+      // DeepSpeed Tensor Parallel konfiguration (nya)
+      useDeepSpeed, deepSpeedTpSize, deepSpeedZeroStage, deepSpeedBatchSize
     } = req.body;
     
     // Accept either datasetId (single) or datasetIds (multiple)
@@ -1237,6 +1241,28 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
         pythonArgs.push('--max-memory-per-gpu', maxMemoryPerGpu.trim());
       } else {
         console.warn(`[WARNING] Invalid maxMemoryPerGpu format: ${maxMemoryPerGpu}, ignoring`);
+      }
+    }
+    // Multi-GPU konfiguration
+    if (useMultiGpu === true) {
+      pythonArgs.push('--use-multi-gpu');
+      if (numGpus !== undefined && numGpus > 0) {
+        pythonArgs.push('--num-gpus', String(numGpus));
+      }
+    } else if (useMultiGpu === false) {
+      pythonArgs.push('--no-multi-gpu');
+    }
+    // DeepSpeed Tensor Parallel konfiguration
+    if (useDeepSpeed === true) {
+      pythonArgs.push('--use-deepspeed');
+      if (deepSpeedTpSize !== undefined && deepSpeedTpSize > 0) {
+        pythonArgs.push('--deepspeed-tp-size', String(deepSpeedTpSize));
+      }
+      if (deepSpeedZeroStage !== undefined) {
+        pythonArgs.push('--deepspeed-zero-stage', String(deepSpeedZeroStage));
+      }
+      if (deepSpeedBatchSize !== undefined && deepSpeedBatchSize > 0) {
+        pythonArgs.push('--deepspeed-batch-size', String(deepSpeedBatchSize));
       }
     }
 

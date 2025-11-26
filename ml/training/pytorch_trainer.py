@@ -835,9 +835,49 @@ def train_single_model_lora(
         # Load model with proper multi-GPU support
         print("   Loading model (this may take a few minutes)...")
         
+        # Hämta multi-GPU konfiguration från config (nya)
+        use_multi_gpu = config.get('use_multi_gpu', True)
+        num_gpus = config.get('num_gpus', 0)
+        
+        # Hämta DeepSpeed konfiguration från config (nya)
+        use_deepspeed = config.get('use_deepspeed', False)
+        deepspeed_tp_size = config.get('deepspeed_tp_size', 2)
+        deepspeed_zero_stage = config.get('deepspeed_zero_stage', 3)
+        deepspeed_batch_size = config.get('deepspeed_batch_size', 32)
+        
         # Determine if we're using multi-GPU (device_map='auto') or single GPU
         # device can be 'cuda' (multi-GPU), 'cuda:0' (single GPU), or 'cpu'
-        use_device_map = device == "cuda"  # Only use device_map='auto' for multi-GPU
+        # Använd use_multi_gpu från config för att styra detta
+        available_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
+        
+        # DeepSpeed Tensor Parallel mode
+        if use_deepspeed and available_gpus >= deepspeed_tp_size:
+            print(f"   [DEEPSPEED] DeepSpeed Tensor Parallel aktiverat")
+            print(f"   [DEEPSPEED] TP Size: {deepspeed_tp_size}, ZeRO Stage: {deepspeed_zero_stage}")
+            use_device_map = False  # DeepSpeed hanterar device placement
+        elif use_multi_gpu and available_gpus > 1:
+            # Multi-GPU: använd device_map='auto'
+            use_device_map = device.startswith("cuda")
+            if use_device_map:
+                # Begränsa antal GPU:er om num_gpus är satt
+                if num_gpus > 0 and num_gpus < available_gpus:
+                    # Begränsa CUDA_VISIBLE_DEVICES för att använda endast de första n GPU:erna
+                    import os
+                    gpu_list = ','.join(str(i) for i in range(num_gpus))
+                    os.environ['CUDA_VISIBLE_DEVICES'] = gpu_list
+                    print(f"   [GPU] Begränsar till GPU:er: {gpu_list}")
+                    target_gpus = num_gpus
+                else:
+                    target_gpus = available_gpus
+                print(f"   [GPU] Multi-GPU aktiverad: använder {target_gpus} av {available_gpus} tillgängliga GPU:er")
+        else:
+            # Single GPU mode: använd cuda:0 explicit
+            use_device_map = False
+            if available_gpus > 1:
+                print(f"   [GPU] Single-GPU läge aktiverat (multi-GPU avstängt, {available_gpus} GPU:er tillgängliga)")
+            else:
+                print(f"   [GPU] Single-GPU läge ({available_gpus} GPU tillgänglig)")
+            
         use_fp16 = device.startswith("cuda")
         
         # Hämta kvantiseringsparametrar från config (nya)
@@ -897,7 +937,54 @@ def train_single_model_lora(
                     load_in_4bit = False
                     bnb_config = None
             
-            if use_device_map:
+            # DeepSpeed Tensor Parallel mode
+            if use_deepspeed:
+                try:
+                    import deepspeed
+                    print(f"   [DEEPSPEED] Laddar modell för DeepSpeed Tensor Parallel...")
+                    
+                    # Ladda modell utan device_map (DeepSpeed hanterar det)
+                    model = AutoModelForCausalLM.from_pretrained(
+                        str(actual_model_path),
+                        torch_dtype=torch.bfloat16,
+                        device_map=None,  # DeepSpeed hanterar device placement
+                        trust_remote_code=True
+                    )
+                    
+                    # DeepSpeed config för tensor parallel
+                    ds_config = {
+                        "tensor_parallel": {"tp_size": deepspeed_tp_size},
+                        "zero_optimization": {"stage": deepspeed_zero_stage},
+                        "fp16": {"enabled": True},
+                        "train_batch_size": deepspeed_batch_size
+                    }
+                    
+                    print(f"   [DEEPSPEED] Initialiserar DeepSpeed med config:")
+                    print(f"      - tensor_parallel.tp_size: {deepspeed_tp_size}")
+                    print(f"      - zero_optimization.stage: {deepspeed_zero_stage}")
+                    print(f"      - train_batch_size: {deepspeed_batch_size}")
+                    
+                    # DeepSpeed engine initialiseras under träningsloopen med deepspeed.initialize()
+                    # Vi sparar config för att kunna använda den i train_model()
+                    # Notera: LoRA-adapters måste skapas INNAN deepspeed.initialize() anropas
+                    self.deepspeed_config = ds_config
+                    self.use_deepspeed = True
+                    
+                    print(f"   [DEEPSPEED] ✓ Modell laddad för DeepSpeed (engine initialiseras vid träningsstart)")
+                    
+                except ImportError:
+                    print(f"   [ERROR] DeepSpeed inte installerat!")
+                    print(f"   [FIX] Installera med: pip install deepspeed")
+                    print(f"   [FALLBACK] Använder standard device_map='auto' istället")
+                    use_deepspeed = False
+                    use_device_map = True
+                except Exception as ds_error:
+                    print(f"   [ERROR] DeepSpeed-initialisering misslyckades: {ds_error}")
+                    print(f"   [FALLBACK] Använder standard device_map='auto' istället")
+                    use_deepspeed = False
+                    use_device_map = True
+            
+            if not use_deepspeed and use_device_map:
                 # Multi-GPU mode with device_map='auto'
                 # This uses MODEL PARALLELISM - the model is split across GPUs
                 # For DATA PARALLELISM (training on both GPUs with different batches),
@@ -923,8 +1010,8 @@ def train_single_model_lora(
                         load_in_8bit=load_in_8bit,
                         trust_remote_code=True
                     )
-            else:
-                # Single GPU or CPU mode
+            elif not use_deepspeed:
+                # Single GPU or CPU mode (inte DeepSpeed)
                 # OBS: max_memory används endast med device_map='auto' för multi-GPU
                 # För single GPU använder vi inte max_memory direkt - istället begränsas
                 # minnet genom att välja lämplig precision/kvantisering
