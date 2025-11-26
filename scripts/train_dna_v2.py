@@ -129,6 +129,50 @@ def parse_args():
                         help='Comma-separated list of target modules for LoRA')
     parser.add_argument('--dropout', type=float, default=0.05, help='LoRA dropout rate (default: 0.05)')
 
+    # Avancerade kvantiserings- och minnesoptimeringsparametrar (nya)
+    parser.add_argument('--load-in-4bit', action='store_true', default=False,
+                        help='Ladda modellen i 4-bit för VRAM-besparing (QLoRA)')
+    parser.add_argument('--load-in-8bit', action='store_true', default=False,
+                        help='Ladda modellen i 8-bit för VRAM-besparing')
+    parser.add_argument('--quantization-type', type=str, default='nf4', choices=['nf4', 'fp4'],
+                        help='Kvantiseringstyp för 4-bit (default: nf4)')
+    parser.add_argument('--compute-dtype', type=str, default='bfloat16', 
+                        choices=['bfloat16', 'float16', 'float32'],
+                        help='Beräkningstyp för kvantiserade vikter (default: bfloat16)')
+    parser.add_argument('--double-quantization', action='store_true', default=True,
+                        help='Aktivera dubbel kvantisering för extra VRAM-besparing')
+    parser.add_argument('--no-double-quantization', dest='double_quantization', action='store_false',
+                        help='Inaktivera dubbel kvantisering')
+    parser.add_argument('--use-nested-quant', action='store_true', default=True,
+                        help='Aktivera nested quantization för QLoRA')
+    parser.add_argument('--gradient-accumulation-steps', type=int, default=4,
+                        help='Antal steg för gradientackumulering (default: 4)')
+    parser.add_argument('--max-seq-length', type=int, default=2048,
+                        help='Max sekvenslängd för träning (default: 2048)')
+    parser.add_argument('--packing-enabled', action='store_true', default=False,
+                        help='Aktivera dataset packing för effektivitet')
+    parser.add_argument('--no-fast-tokenizer', action='store_true', default=False,
+                        help='Inaktivera snabb tokenizer')
+    parser.add_argument('--lora-scaling-factor', type=float, default=2.0,
+                        help='LoRA skalningsfaktor alpha/rank (default: 2.0)')
+    parser.add_argument('--max-memory-per-gpu', type=str, default=None,
+                        help='Max VRAM per GPU, t.ex. "9.5GB" (ingen gräns om ej angiven)')
+    parser.add_argument('--use-multi-gpu', action='store_true', default=True,
+                        help='Aktivera multi-GPU träning med device_map="auto" (default: True)')
+    parser.add_argument('--no-multi-gpu', dest='use_multi_gpu', action='store_false',
+                        help='Inaktivera multi-GPU, använd endast första GPU:n')
+    parser.add_argument('--num-gpus', type=int, default=0,
+                        help='Antal GPU:er att använda (0 = auto-detect alla)')
+    # DeepSpeed Tensor Parallel konfiguration (experimental)
+    parser.add_argument('--use-deepspeed', action='store_true', default=False,
+                        help='Aktivera DeepSpeed för tensor parallel träning')
+    parser.add_argument('--deepspeed-tp-size', type=int, default=2,
+                        help='Tensor parallel size (antal GPU:er för tensor parallelism, default: 2)')
+    parser.add_argument('--deepspeed-zero-stage', type=int, default=3, choices=[0, 1, 2, 3],
+                        help='ZeRO optimization stage (0-3, default: 3)')
+    parser.add_argument('--deepspeed-batch-size', type=int, default=32,
+                        help='Total batch size för DeepSpeed (default: 32)')
+
     
     return parser.parse_args()
 
@@ -264,6 +308,27 @@ def run_real_training(args, data_dir, dataset_path):
         trainer.config['gradient_checkpointing'] = args.gradient_checkpointing
         trainer.config['torch_compile'] = args.torch_compile
         
+        # Avancerade kvantiserings- och minnesoptimeringsparametrar (nya)
+        trainer.config['load_in_4bit'] = args.load_in_4bit
+        trainer.config['load_in_8bit'] = args.load_in_8bit
+        trainer.config['quantization_type'] = args.quantization_type
+        trainer.config['compute_dtype'] = args.compute_dtype
+        trainer.config['double_quantization'] = args.double_quantization
+        trainer.config['use_nested_quant'] = args.use_nested_quant
+        trainer.config['gradient_accumulation_steps'] = args.gradient_accumulation_steps
+        trainer.config['max_seq_length'] = args.max_seq_length
+        trainer.config['packing_enabled'] = args.packing_enabled
+        trainer.config['use_fast_tokenizer'] = not args.no_fast_tokenizer
+        trainer.config['lora_scaling_factor'] = args.lora_scaling_factor
+        trainer.config['max_memory_per_gpu'] = args.max_memory_per_gpu  # GPU minnesbegränsning
+        trainer.config['use_multi_gpu'] = args.use_multi_gpu  # Multi-GPU konfiguration
+        trainer.config['num_gpus'] = args.num_gpus
+        # DeepSpeed Tensor Parallel konfiguration
+        trainer.config['use_deepspeed'] = args.use_deepspeed
+        trainer.config['deepspeed_tp_size'] = args.deepspeed_tp_size
+        trainer.config['deepspeed_zero_stage'] = args.deepspeed_zero_stage
+        trainer.config['deepspeed_batch_size'] = args.deepspeed_batch_size
+        
         # Set base models from args or environment
         if args.base_models:
             trainer.config['base_models'] = args.base_models
@@ -293,6 +358,36 @@ def run_real_training(args, data_dir, dataset_path):
         print(f"   - Auto-stop: threshold={args.auto_stop_threshold}, patience={args.auto_stop_patience}")
         print(f"   - Seed: {args.seed}")
         print(f"   - Base models: {trainer.config.get('base_models', [])}")
+        
+        # Logga GPU-konfiguration
+        print(f"\n[CONFIG] GPU-konfiguration:")
+        print(f"   - Multi-GPU: {args.use_multi_gpu}")
+        if args.num_gpus > 0:
+            print(f"   - Antal GPU:er: {args.num_gpus}")
+        else:
+            print(f"   - Antal GPU:er: auto-detect")
+        if args.max_memory_per_gpu:
+            print(f"   - Max memory per GPU: {args.max_memory_per_gpu}")
+        
+        # Logga DeepSpeed-konfiguration
+        if args.use_deepspeed:
+            print(f"\n[CONFIG] DeepSpeed Tensor Parallel aktiverat:")
+            print(f"   - Tensor Parallel Size: {args.deepspeed_tp_size}")
+            print(f"   - ZeRO Stage: {args.deepspeed_zero_stage}")
+            print(f"   - Batch Size: {args.deepspeed_batch_size}")
+        
+        # Logga nya kvantiseringsparametrar
+        if args.load_in_4bit or args.load_in_8bit:
+            print(f"\n[CONFIG] Kvantisering aktiverad:")
+            print(f"   - Load in 4-bit: {args.load_in_4bit}")
+            print(f"   - Load in 8-bit: {args.load_in_8bit}")
+            if args.load_in_4bit:
+                print(f"   - Quantization type: {args.quantization_type}")
+                print(f"   - Compute dtype: {args.compute_dtype}")
+                print(f"   - Double quantization: {args.double_quantization}")
+                print(f"   - Nested quantization: {args.use_nested_quant}")
+            print(f"   - Gradient accumulation: {args.gradient_accumulation_steps}")
+            print(f"   - Max sequence length: {args.max_seq_length}")
         
         # Get run_id from environment (passed from backend) or generate if not provided
         timestamp = datetime.now()

@@ -53,7 +53,32 @@ export default function TrainingControl() {
     torchCompile: true,
     targetModules: 'q_proj,v_proj,k_proj,o_proj,gate_proj,up_proj,down_proj',
     dropout: 0.05,
+    // Avancerad kvantisering och minnesoptimering (nya parametrar)
+    loadIn4Bit: false,            // --load-in-4bit för minneseffektiv laddning
+    loadIn8Bit: false,            // --load-in-8bit alternativ
+    quantizationType: 'nf4',      // Kvantiseringstyp: nf4, fp4
+    computeDtype: 'bfloat16',     // Beräkningstyp: bfloat16, float16, float32
+    doubleQuantization: true,     // Dubbel kvantisering för extra VRAM-besparing
+    useNestedQuant: true,         // Nested quantization för QLoRA
+    // Ytterligare avancerade inställningar
+    gradientAccumulationSteps: 4, // Antal steg för gradientackumulering
+    maxSeqLength: 2048,           // Max sekvenslängd för träning
+    packingEnabled: false,        // Dataset packing för effektivitet
+    useFastTokenizer: true,       // Använd snabb tokenizer
+    loraScalingFactor: 2.0,       // LoRA skalningsfaktor (alpha/rank)
+    // GPU minnesbegränsning (max_memory per GPU)
+    maxMemoryPerGpu: '',          // Max VRAM per GPU, t.ex. "9.5GB" (tomt = använd allt)
+    maxMemoryEnabled: false,      // Aktivera manuell minnesbegränsning
+    // Multi-GPU konfiguration
+    useMultiGpu: true,            // Aktivera multi-GPU träning (device_map='auto')
+    numGpus: 0,                   // Antal GPU:er (0 = auto-detect)
+    // DeepSpeed Tensor Parallel konfiguration (experimental)
+    useDeepSpeed: false,          // Aktivera DeepSpeed för tensor parallel träning
+    deepSpeedTpSize: 2,           // Tensor parallel size (antal GPU:er för tensor parallelism)
+    deepSpeedZeroStage: 3,        // ZeRO optimization stage (0, 1, 2, eller 3)
+    deepSpeedBatchSize: 32,       // Total batch size för DeepSpeed
   });
+  const [trainingError, setTrainingError] = useState(null); // Felmeddelande för träningskrascher
   const [trainingStatus, setTrainingStatus] = useState(null);
   const [trainingLogs, setTrainingLogs] = useState([]);
   const [metrics, setMetrics] = useState(null);
@@ -140,6 +165,35 @@ export default function TrainingControl() {
         if (data.metrics) {
           setMetrics(data.metrics);
         }
+        // Kontrollera om träningen kraschade eller misslyckades
+        // Check if training crashed or failed by looking at logs
+        if (data.status === 'idle' && data.logs && data.logs.length > 0) {
+          const lastLogs = data.logs.slice(-10); // Senaste 10 loggmeddelanden
+          const errorLogs = lastLogs.filter(log => 
+            log.message && (
+              log.message.includes('[ERROR]') || 
+              log.message.includes('failed') ||
+              log.message.includes('Training failed') ||
+              log.message.includes('exit code') ||
+              log.message.includes('CRITICAL')
+            )
+          );
+          
+          if (errorLogs.length > 0) {
+            // Extrahera felmeddelande från loggar
+            const errorMessages = errorLogs.map(log => log.message).join('\n');
+            setTrainingError({
+              message: 'Träningen misslyckades',
+              details: errorMessages,
+              timestamp: errorLogs[0]?.timestamp || new Date().toISOString()
+            });
+          }
+        }
+        
+        // Rensa felmeddelandet om träningen startar igen
+        if (data.status === 'training') {
+          setTrainingError(null);
+        }
       }
     } catch (error) {
       console.error('Error fetching training status:', error);
@@ -219,6 +273,9 @@ export default function TrainingControl() {
       return;
     }
 
+    // Rensa tidigare felmeddelanden när ny träning startar
+    setTrainingError(null);
+
     try {
       setTrainingMode(mode);
       
@@ -240,7 +297,12 @@ export default function TrainingControl() {
           alert('Training job submitted to remote GPU worker!');
           await fetchTrainingStatus();
         } else {
-          alert(`Failed to submit remote job: ${data.error}`);
+          // Visa felmeddelande i GUI istället för bara alert
+          setTrainingError({
+            message: `Failed to submit remote job: ${data.error}`,
+            details: data.details || null,
+            timestamp: new Date().toISOString()
+          });
         }
       } else {
         // Local training - use DNA v2 endpoint
@@ -261,12 +323,22 @@ export default function TrainingControl() {
           alert('Training started successfully with DNA v2 certified structure!');
           await fetchTrainingStatus();
         } else {
-          alert(`Failed to start training: ${data.error}`);
+          // Visa detaljerat felmeddelande i GUI
+          setTrainingError({
+            message: `Kunde inte starta träning: ${data.error}`,
+            details: data.details || data.message || null,
+            timestamp: new Date().toISOString()
+          });
         }
       }
     } catch (error) {
       console.error('Error starting training:', error);
-      alert('Failed to start training');
+      // Visa nätverksfel i GUI
+      setTrainingError({
+        message: 'Nätverksfel vid start av träning',
+        details: error.message,
+        timestamp: new Date().toISOString()
+      });
     }
   };
 
@@ -983,6 +1055,433 @@ export default function TrainingControl() {
                 </div>
               </div>
 
+            {/* Avancerad Kvantisering och Minnesoptimering - Nya parametrar */}
+            <div className="mt-4 p-4 bg-[#0a0a0a] border border-purple-900/30 rounded">
+                <h3 className="text-purple-400 font-mono text-sm mb-4 font-semibold">🔧 Avancerad Kvantisering & Minnesoptimering</h3>
+                <p className="text-[#666] font-mono text-xs mb-4">
+                  Dessa inställningar möjliggör träning av stora modeller på GPU:er med begränsat VRAM genom 4-bit/8-bit kvantisering.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  
+                  {/* Ladda i 4-bit */}
+                  <div className="flex flex-col">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={trainingParams.loadIn4Bit}
+                        onChange={(e) => setTrainingParams({ 
+                          ...trainingParams, 
+                          loadIn4Bit: e.target.checked,
+                          loadIn8Bit: e.target.checked ? false : trainingParams.loadIn8Bit // Inaktivera 8-bit om 4-bit aktiveras
+                        })}
+                        disabled={isTraining}
+                        className="w-4 h-4 text-purple-600 bg-[#111] border-[#2a2a2a] rounded focus:ring-purple-500 disabled:opacity-50"
+                      />
+                      <span className="text-[#888] font-mono text-sm">Load in 4-bit (QLoRA)</span>
+                    </label>
+                    <p className="text-[#555] font-mono text-xs mt-1 ml-6">
+                      Laddar modellen i 4-bit för VRAM-besparing (~75% mindre)
+                    </p>
+                  </div>
+
+                  {/* Ladda i 8-bit */}
+                  <div className="flex flex-col">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={trainingParams.loadIn8Bit}
+                        onChange={(e) => setTrainingParams({ 
+                          ...trainingParams, 
+                          loadIn8Bit: e.target.checked,
+                          loadIn4Bit: e.target.checked ? false : trainingParams.loadIn4Bit // Inaktivera 4-bit om 8-bit aktiveras
+                        })}
+                        disabled={isTraining}
+                        className="w-4 h-4 text-purple-600 bg-[#111] border-[#2a2a2a] rounded focus:ring-purple-500 disabled:opacity-50"
+                      />
+                      <span className="text-[#888] font-mono text-sm">Load in 8-bit</span>
+                    </label>
+                    <p className="text-[#555] font-mono text-xs mt-1 ml-6">
+                      Laddar modellen i 8-bit (~50% mindre VRAM)
+                    </p>
+                  </div>
+
+                  {/* Dubbel kvantisering */}
+                  <div className="flex flex-col">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={trainingParams.doubleQuantization}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, doubleQuantization: e.target.checked })}
+                        disabled={isTraining || !trainingParams.loadIn4Bit}
+                        className="w-4 h-4 text-purple-600 bg-[#111] border-[#2a2a2a] rounded focus:ring-purple-500 disabled:opacity-50"
+                      />
+                      <span className={`font-mono text-sm ${trainingParams.loadIn4Bit ? 'text-[#888]' : 'text-[#555]'}`}>Double Quantization</span>
+                    </label>
+                    <p className="text-[#555] font-mono text-xs mt-1 ml-6">
+                      Extra VRAM-besparing (kräver 4-bit)
+                    </p>
+                  </div>
+
+                  {/* Kvantiseringstyp */}
+                  <div>
+                    <label className="block text-[#888] font-mono text-sm mb-2">
+                      Kvantiseringstyp
+                    </label>
+                    <select
+                      value={trainingParams.quantizationType}
+                      onChange={(e) => setTrainingParams({ ...trainingParams, quantizationType: e.target.value })}
+                      disabled={isTraining || !trainingParams.loadIn4Bit}
+                      className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                    >
+                      <option value="nf4">NF4 (rekommenderad för 4-bit)</option>
+                      <option value="fp4">FP4</option>
+                    </select>
+                    <p className="text-[#555] font-mono text-xs mt-1">
+                      NF4 ger bäst kvalitet för 4-bit (kräver 4-bit)
+                    </p>
+                  </div>
+
+                  {/* Compute Dtype */}
+                  <div>
+                    <label className="block text-[#888] font-mono text-sm mb-2">
+                      Compute Dtype
+                    </label>
+                    <select
+                      value={trainingParams.computeDtype}
+                      onChange={(e) => setTrainingParams({ ...trainingParams, computeDtype: e.target.value })}
+                      disabled={isTraining}
+                      className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                    >
+                      <option value="bfloat16">BFloat16 (rekommenderad)</option>
+                      <option value="float16">Float16</option>
+                      <option value="float32">Float32</option>
+                    </select>
+                    <p className="text-[#555] font-mono text-xs mt-1">
+                      Beräkningstyp för kvantiserade vikter
+                    </p>
+                  </div>
+
+                  {/* Gradient Accumulation Steps */}
+                  <div>
+                    <label className="block text-[#888] font-mono text-sm mb-2">
+                      Gradient Accumulation
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="64"
+                      step="1"
+                      value={trainingParams.gradientAccumulationSteps}
+                      onChange={(e) => setTrainingParams({ ...trainingParams, gradientAccumulationSteps: parseInt(e.target.value) })}
+                      disabled={isTraining}
+                      className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                    />
+                    <p className="text-[#555] font-mono text-xs mt-1">
+                      Simulerar större batch size
+                    </p>
+                  </div>
+
+                  {/* Max Sequence Length */}
+                  <div>
+                    <label className="block text-[#888] font-mono text-sm mb-2">
+                      Max Sekvenslängd
+                    </label>
+                    <input
+                      type="number"
+                      min="128"
+                      max="8192"
+                      step="128"
+                      value={trainingParams.maxSeqLength}
+                      onChange={(e) => setTrainingParams({ ...trainingParams, maxSeqLength: parseInt(e.target.value) })}
+                      disabled={isTraining}
+                      className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                    />
+                    <p className="text-[#555] font-mono text-xs mt-1">
+                      Max tokens per sample
+                    </p>
+                  </div>
+
+                  {/* LoRA Scaling Factor */}
+                  <div>
+                    <label className="block text-[#888] font-mono text-sm mb-2">
+                      LoRA Skalningsfaktor
+                    </label>
+                    <input
+                      type="number"
+                      min="0.5"
+                      max="8.0"
+                      step="0.5"
+                      value={trainingParams.loraScalingFactor}
+                      onChange={(e) => setTrainingParams({ ...trainingParams, loraScalingFactor: parseFloat(e.target.value) })}
+                      disabled={isTraining}
+                      className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+                    />
+                    <p className="text-[#555] font-mono text-xs mt-1">
+                      alpha/rank (2.0 = standard)
+                    </p>
+                  </div>
+
+                  {/* Packing Enabled */}
+                  <div className="flex flex-col">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={trainingParams.packingEnabled}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, packingEnabled: e.target.checked })}
+                        disabled={isTraining}
+                        className="w-4 h-4 text-purple-600 bg-[#111] border-[#2a2a2a] rounded focus:ring-purple-500 disabled:opacity-50"
+                      />
+                      <span className="text-[#888] font-mono text-sm">Dataset Packing</span>
+                    </label>
+                    <p className="text-[#555] font-mono text-xs mt-1 ml-6">
+                      Packar flera samples i en sekvens
+                    </p>
+                  </div>
+
+                  {/* Use Fast Tokenizer */}
+                  <div className="flex flex-col">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={trainingParams.useFastTokenizer}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, useFastTokenizer: e.target.checked })}
+                        disabled={isTraining}
+                        className="w-4 h-4 text-purple-600 bg-[#111] border-[#2a2a2a] rounded focus:ring-purple-500 disabled:opacity-50"
+                      />
+                      <span className="text-[#888] font-mono text-sm">Fast Tokenizer</span>
+                    </label>
+                    <p className="text-[#555] font-mono text-xs mt-1 ml-6">
+                      Rust-baserad, snabbare
+                    </p>
+                  </div>
+
+                  {/* Nested Quantization */}
+                  <div className="flex flex-col">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={trainingParams.useNestedQuant}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, useNestedQuant: e.target.checked })}
+                        disabled={isTraining || !trainingParams.loadIn4Bit}
+                        className="w-4 h-4 text-purple-600 bg-[#111] border-[#2a2a2a] rounded focus:ring-purple-500 disabled:opacity-50"
+                      />
+                      <span className={`font-mono text-sm ${trainingParams.loadIn4Bit ? 'text-[#888]' : 'text-[#555]'}`}>Nested Quantization</span>
+                    </label>
+                    <p className="text-[#555] font-mono text-xs mt-1 ml-6">
+                      QLoRA nested quant (kräver 4-bit)
+                    </p>
+                  </div>
+                </div>
+
+                {/* GPU Minnesbegränsning */}
+                <div className="mt-4 p-3 bg-[#111] border border-orange-900/30 rounded">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-orange-400 font-mono text-xs font-semibold">🎮 GPU Minnesbegränsning</h4>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={trainingParams.maxMemoryEnabled}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, maxMemoryEnabled: e.target.checked })}
+                        disabled={isTraining}
+                        className="w-4 h-4 text-orange-600 bg-[#111] border-[#2a2a2a] rounded focus:ring-orange-500 disabled:opacity-50"
+                      />
+                      <span className="text-[#888] font-mono text-xs">Aktivera</span>
+                    </label>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[#888] font-mono text-xs mb-1">
+                        Max VRAM per GPU
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="9.5GB"
+                        value={trainingParams.maxMemoryPerGpu}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, maxMemoryPerGpu: e.target.value })}
+                        disabled={isTraining || !trainingParams.maxMemoryEnabled}
+                        className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-orange-900/50 disabled:opacity-50"
+                      />
+                      <p className="text-[#555] font-mono text-xs mt-1">
+                        T.ex. "9.5GB", "10GB" (tomt = använd allt)
+                      </p>
+                    </div>
+                    <div className="flex flex-col justify-center">
+                      <p className="text-[#666] font-mono text-xs">
+                        💡 Sätt lägre än max för stabilitet vid stor träning.
+                      </p>
+                      <p className="text-[#555] font-mono text-xs mt-1">
+                        Standard: 10.7GB → Rekommenderat: 9.5GB
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Multi-GPU Konfiguration */}
+                <div className="mt-4 p-3 bg-[#111] border border-blue-900/30 rounded">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-blue-400 font-mono text-xs font-semibold">🖥️ Multi-GPU Konfiguration</h4>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={trainingParams.useMultiGpu}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, useMultiGpu: e.target.checked })}
+                        disabled={isTraining}
+                        className="w-4 h-4 text-blue-600 bg-[#111] border-[#2a2a2a] rounded focus:ring-blue-500 disabled:opacity-50"
+                      />
+                      <span className="text-[#888] font-mono text-xs">Aktivera Multi-GPU</span>
+                    </label>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[#888] font-mono text-xs mb-1">
+                        Antal GPU:er
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="8"
+                        placeholder="0 = auto"
+                        value={trainingParams.numGpus}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, numGpus: parseInt(e.target.value) || 0 })}
+                        disabled={isTraining || !trainingParams.useMultiGpu}
+                        className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-blue-900/50 disabled:opacity-50"
+                      />
+                      <p className="text-[#555] font-mono text-xs mt-1">
+                        0 = auto-detect alla GPU:er
+                      </p>
+                    </div>
+                    <div className="flex flex-col justify-center">
+                      <p className="text-[#666] font-mono text-xs">
+                        💡 Använder device_map="auto" för att fördela modellen över alla GPU:er.
+                      </p>
+                      <p className="text-[#555] font-mono text-xs mt-1">
+                        Kombinera med max VRAM per GPU för stabilitet.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {trainingParams.useMultiGpu && (
+                    <div className="mt-3 p-2 bg-blue-900/10 border border-blue-900/20 rounded">
+                      <p className="text-blue-400 font-mono text-xs">
+                        ✓ Multi-GPU aktiverat: Modellen fördelas automatiskt över {trainingParams.numGpus > 0 ? `de första ${trainingParams.numGpus}` : 'alla tillgängliga'} GPU:er
+                        {trainingParams.maxMemoryEnabled && trainingParams.maxMemoryPerGpu && ` (max ${trainingParams.maxMemoryPerGpu} per GPU)`}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* DeepSpeed Tensor Parallel Konfiguration (Experimental) */}
+                <div className="mt-4 p-3 bg-[#111] border border-yellow-900/30 rounded">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-yellow-400 font-mono text-xs font-semibold">⚡ DeepSpeed Tensor Parallel (Experimental)</h4>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={trainingParams.useDeepSpeed}
+                        onChange={(e) => setTrainingParams({ 
+                          ...trainingParams, 
+                          useDeepSpeed: e.target.checked,
+                          // Om DeepSpeed aktiveras, inaktivera standard multi-GPU
+                          // Om DeepSpeed inaktiveras, återaktivera standard multi-GPU
+                          useMultiGpu: e.target.checked ? false : true
+                        })}
+                        disabled={isTraining}
+                        className="w-4 h-4 text-yellow-600 bg-[#111] border-[#2a2a2a] rounded focus:ring-yellow-500 disabled:opacity-50"
+                      />
+                      <span className="text-[#888] font-mono text-xs">Aktivera DeepSpeed</span>
+                    </label>
+                  </div>
+                  
+                  <p className="text-[#666] font-mono text-xs mb-3">
+                    DeepSpeed möjliggör tensor parallelism för att träna med båda GPU:erna samtidigt. Kräver <code className="text-yellow-400">pip install deepspeed</code>.
+                  </p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[#888] font-mono text-xs mb-1">
+                        Tensor Parallel Size
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="8"
+                        value={trainingParams.deepSpeedTpSize}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, deepSpeedTpSize: parseInt(e.target.value) || 2 })}
+                        disabled={isTraining || !trainingParams.useDeepSpeed}
+                        className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-yellow-900/50 disabled:opacity-50"
+                      />
+                      <p className="text-[#555] font-mono text-xs mt-1">
+                        Antal GPU:er (2 = båda)
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-[#888] font-mono text-xs mb-1">
+                        ZeRO Stage
+                      </label>
+                      <select
+                        value={trainingParams.deepSpeedZeroStage}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, deepSpeedZeroStage: parseInt(e.target.value) })}
+                        disabled={isTraining || !trainingParams.useDeepSpeed}
+                        className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-yellow-900/50 disabled:opacity-50"
+                      >
+                        <option value="0">Stage 0 (Ingen ZeRO)</option>
+                        <option value="1">Stage 1 (Optimizer)</option>
+                        <option value="2">Stage 2 (Optimizer + Gradients)</option>
+                        <option value="3">Stage 3 (Full Partition)</option>
+                      </select>
+                      <p className="text-[#555] font-mono text-xs mt-1">
+                        Stage 3 ger mest VRAM-besparing
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-[#888] font-mono text-xs mb-1">
+                        DeepSpeed Batch Size
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="256"
+                        value={trainingParams.deepSpeedBatchSize}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, deepSpeedBatchSize: parseInt(e.target.value) || 32 })}
+                        disabled={isTraining || !trainingParams.useDeepSpeed}
+                        className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-yellow-900/50 disabled:opacity-50"
+                      />
+                      <p className="text-[#555] font-mono text-xs mt-1">
+                        Total train_batch_size
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {trainingParams.useDeepSpeed && (
+                    <div className="mt-3 p-2 bg-yellow-900/10 border border-yellow-900/20 rounded">
+                      <p className="text-yellow-400 font-mono text-xs">
+                        ⚡ DeepSpeed Tensor Parallel aktiverat: tp_size={trainingParams.deepSpeedTpSize}, ZeRO Stage {trainingParams.deepSpeedZeroStage}
+                      </p>
+                      <p className="text-[#666] font-mono text-xs mt-1">
+                        OBS: Kräver <code className="text-yellow-400">pip install deepspeed</code> och kompatibel CUDA-miljö.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Info om VRAM-användning */}
+                {(trainingParams.loadIn4Bit || trainingParams.loadIn8Bit) && (
+                  <div className="mt-4 p-3 bg-[#111] border border-purple-900/20 rounded">
+                    <p className="text-purple-400 font-mono text-xs">
+                      💾 VRAM-optimering aktiv: {trainingParams.loadIn4Bit ? '4-bit QLoRA' : '8-bit'} kvantisering 
+                      {trainingParams.doubleQuantization && trainingParams.loadIn4Bit && ' + dubbel kvantisering'}
+                    </p>
+                    <p className="text-[#666] font-mono text-xs mt-1">
+                      Uppskattad VRAM-besparing: ~{trainingParams.loadIn4Bit ? '75%' : '50%'} jämfört med FP16
+                    </p>
+                  </div>
+                )}
+              </div>
+
             {/* DNA v2 Features Info */}
             <div className="mt-4 p-3 bg-[#0a0a0a] border border-green-900/30 rounded max-w-full overflow-x-hidden">
               <p className="text-green-400 font-mono text-xs mb-2">✅ DNA v2 Features:</p>
@@ -1078,6 +1577,53 @@ export default function TrainingControl() {
                   ></div>
                 </div>
               </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Felmeddelande vid träningskrasch - Error display for training failures */}
+      {trainingError && (
+        <div className="border border-red-900/50 bg-[#111] p-4 sm:p-6 rounded w-full max-w-full overflow-hidden">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-red-400 font-mono text-lg flex items-center gap-2">
+              ⚠️ Träningsfel / Training Error
+            </h2>
+            <button
+              onClick={() => setTrainingError(null)}
+              className="text-[#666] hover:text-[#888] font-mono text-sm"
+            >
+              ✕ Stäng
+            </button>
+          </div>
+          
+          <div className="space-y-3 w-full max-w-full overflow-x-hidden">
+            <div className="p-4 bg-red-900/10 border border-red-900/30 rounded">
+              <p className="text-red-400 font-mono text-sm font-semibold mb-2">
+                {trainingError.message || 'Ett fel uppstod under träningen'}
+              </p>
+              {trainingError.details && (
+                <pre className="text-[#888] font-mono text-xs whitespace-pre-wrap break-words mt-2 p-3 bg-[#0a0a0a] rounded max-h-48 overflow-y-auto">
+                  {trainingError.details}
+                </pre>
+              )}
+            </div>
+            
+            <div className="p-3 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+              <p className="text-[#888] font-mono text-xs mb-2">💡 Felsökningsförslag:</p>
+              <ul className="text-[#666] font-mono text-xs space-y-1 pl-4">
+                <li>• Kontrollera att alla beroenden är installerade (PEFT, PyTorch, Transformers)</li>
+                <li>• Verifiera att basmodellen finns i /models/ katalogen</li>
+                <li>• Kontrollera GPU-minnesutrymme med nvidia-smi</li>
+                <li>• Se detaljerade loggar nedan för mer information</li>
+                <li>• Prova 4-bit kvantisering för att minska VRAM-användning</li>
+              </ul>
+            </div>
+
+            {trainingError.timestamp && (
+              <p className="text-[#555] font-mono text-xs">
+                Tidpunkt: {new Date(trainingError.timestamp).toLocaleString('sv-SE')}
+              </p>
             )}
           </div>
         </div>

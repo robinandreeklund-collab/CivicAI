@@ -907,7 +907,16 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       datasetId, datasetIds, epochs, learningRate, autoStopThreshold, autoStopPatience, seed, baseModels,
       // Advanced LoRA parameters
       loraRank, loraAlpha, lrScheduler, warmupSteps, weightDecay, maxGradNorm,
-      precision, optimizer, gradientCheckpointing, torchCompile, targetModules, dropout
+      precision, optimizer, gradientCheckpointing, torchCompile, targetModules, dropout,
+      // Avancerade kvantiserings- och minnesoptimeringsparametrar (nya)
+      loadIn4Bit, loadIn8Bit, quantizationType, computeDtype, doubleQuantization, useNestedQuant,
+      gradientAccumulationSteps, maxSeqLength, packingEnabled, useFastTokenizer, loraScalingFactor,
+      // GPU minnesbegränsning (nya)
+      maxMemoryPerGpu, maxMemoryEnabled,
+      // Multi-GPU konfiguration (nya)
+      useMultiGpu, numGpus,
+      // DeepSpeed Tensor Parallel konfiguration (nya)
+      useDeepSpeed, deepSpeedTpSize, deepSpeedZeroStage, deepSpeedBatchSize
     } = req.body;
     
     // Accept either datasetId (single) or datasetIds (multiple)
@@ -1179,6 +1188,82 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
     }
     if (dropout !== undefined) {
       pythonArgs.push('--dropout', String(dropout));
+    }
+
+    // Avancerade kvantiserings- och minnesoptimeringsparametrar (nya)
+    if (loadIn4Bit === true) {
+      pythonArgs.push('--load-in-4bit');
+    }
+    if (loadIn8Bit === true) {
+      pythonArgs.push('--load-in-8bit');
+    }
+    if (quantizationType) {
+      pythonArgs.push('--quantization-type', quantizationType);
+    }
+    if (computeDtype) {
+      pythonArgs.push('--compute-dtype', computeDtype);
+    }
+    if (doubleQuantization === true) {
+      pythonArgs.push('--double-quantization');
+    }
+    if (doubleQuantization === false) {
+      pythonArgs.push('--no-double-quantization');
+    }
+    if (useNestedQuant === true) {
+      pythonArgs.push('--use-nested-quant');
+    }
+    if (gradientAccumulationSteps !== undefined) {
+      pythonArgs.push('--gradient-accumulation-steps', String(gradientAccumulationSteps));
+    }
+    if (maxSeqLength !== undefined) {
+      pythonArgs.push('--max-seq-length', String(maxSeqLength));
+    }
+    if (packingEnabled === true) {
+      pythonArgs.push('--packing-enabled');
+    }
+    if (useFastTokenizer === false) {
+      pythonArgs.push('--no-fast-tokenizer');
+    }
+    // Validera loraScalingFactor innan det skickas till Python
+    if (loraScalingFactor !== undefined) {
+      const scalingFactor = parseFloat(loraScalingFactor);
+      if (!isNaN(scalingFactor) && scalingFactor > 0 && scalingFactor <= 16.0) {
+        pythonArgs.push('--lora-scaling-factor', String(scalingFactor));
+      } else {
+        console.warn(`[WARNING] Invalid loraScalingFactor: ${loraScalingFactor}, using default 2.0`);
+      }
+    }
+    // GPU minnesbegränsning - max_memory per GPU
+    if (maxMemoryEnabled === true && maxMemoryPerGpu) {
+      // Validera format (t.ex. "9.5GB", "10GB", "8000MB")
+      const memoryPattern = /^\d+(\.\d+)?(GB|MB)$/i;
+      if (memoryPattern.test(maxMemoryPerGpu.trim())) {
+        pythonArgs.push('--max-memory-per-gpu', maxMemoryPerGpu.trim());
+      } else {
+        console.warn(`[WARNING] Invalid maxMemoryPerGpu format: ${maxMemoryPerGpu}, ignoring`);
+      }
+    }
+    // Multi-GPU konfiguration
+    if (useMultiGpu === true) {
+      pythonArgs.push('--use-multi-gpu');
+      if (numGpus !== undefined && numGpus > 0) {
+        pythonArgs.push('--num-gpus', String(numGpus));
+      }
+    } else if (useMultiGpu === false) {
+      pythonArgs.push('--no-multi-gpu');
+    }
+    // DeepSpeed Tensor Parallel konfiguration
+    if (useDeepSpeed === true) {
+      pythonArgs.push('--use-deepspeed');
+      if (deepSpeedTpSize !== undefined && deepSpeedTpSize > 0) {
+        pythonArgs.push('--deepspeed-tp-size', String(deepSpeedTpSize));
+      }
+      if (deepSpeedZeroStage !== undefined) {
+        pythonArgs.push('--deepspeed-zero-stage', String(deepSpeedZeroStage));
+      }
+      if (deepSpeedBatchSize !== undefined && deepSpeedBatchSize > 0) {
+        pythonArgs.push('--deepspeed-batch-size', String(deepSpeedBatchSize));
+      }
     }
 
     
