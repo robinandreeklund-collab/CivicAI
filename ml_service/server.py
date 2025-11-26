@@ -1122,6 +1122,13 @@ def load_model(model_name: str, model_path: str):
                 f"Check logs above for debugging details."
             )
         
+        # CRITICAL FIX FOR LLAMA-2 (and all old Llama tokenizers without pad_token)
+        # Without this fix, padding will fail with: "Asking to pad but the tokenizer does not have a padding token"
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+            tokenizer.pad_token_id = tokenizer.eos_token_id
+            logger.info("✓ Set pad_token = eos_token (required for Llama-2 tokenizers)")
+        
         start_time = time.time()
         
         # Load model with optimizations for multi-GPU
