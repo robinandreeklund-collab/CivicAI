@@ -39,12 +39,26 @@ export default function ModelManagement() {
   const [ggufQuantization, setGgufQuantization] = useState('Q5_K_M');
   const [ggufExportWithMerge, setGgufExportWithMerge] = useState(false);
   const [exporting, setExporting] = useState(false);
+  
+  // Quick merge state (from model card buttons)
+  const [quickMergeModel, setQuickMergeModel] = useState(null);
+  const [quickMergeType, setQuickMergeType] = useState('micro'); // 'micro' or 'major'
+  const [quickMerging, setQuickMerging] = useState(false);
+  
+  // Quick GGUF export state (from model card)
+  const [quickExportModel, setQuickExportModel] = useState(null);
+  const [quickExporting, setQuickExporting] = useState(false);
+  
+  // Active GGUF state
+  const [activeGguf, setActiveGguf] = useState(null);
+  const [settingActiveGguf, setSettingActiveGguf] = useState(false);
 
   useEffect(() => {
     fetchModels();
     fetchCurrentModel();
     fetchManifests();
     fetchGgufExports();
+    fetchActiveGguf();
   }, []);
 
   const fetchModels = async () => {
@@ -96,6 +110,146 @@ export default function ModelManagement() {
       }
     } catch (error) {
       console.error('Error fetching GGUF exports:', error);
+    }
+  };
+  
+  const fetchActiveGguf = async () => {
+    try {
+      const response = await fetch('/api/models/gguf/active');
+      if (response.ok) {
+        const data = await response.json();
+        setActiveGguf(data.activeGguf || null);
+      }
+    } catch (error) {
+      console.error('Error fetching active GGUF:', error);
+    }
+  };
+  
+  // Quick merge from model card (Micro or Major)
+  const performQuickMerge = async (model, mergeType) => {
+    const currentVersion = model.version || '1.0';
+    const versionParts = currentVersion.replace('OneSeek-7B-Zero.v', '').split('.');
+    const major = parseInt(versionParts[0]) || 1;
+    const minor = parseInt(versionParts[1]) || 0;
+    
+    let newVersion;
+    if (mergeType === 'major') {
+      newVersion = `${major + 1}.0`;
+    } else {
+      newVersion = `${major}.${minor + 1}`;
+    }
+    
+    const confirmMsg = `Merge ${mergeType.toUpperCase()} Release?\n\n` +
+      `Current: v${major}.${minor}\n` +
+      `New: v${newVersion}\n\n` +
+      `This will merge all adapters from ${model.directoryName || model.id} into a standalone model.`;
+    
+    if (!confirm(confirmMsg)) return;
+    
+    setQuickMergeModel(model);
+    setQuickMergeType(mergeType);
+    setQuickMerging(true);
+    
+    try {
+      const response = await fetch('/api/models/merge/quick', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modelId: model.directoryName || model.id,
+          mergeType: mergeType,
+          newVersion: newVersion,
+          baseModel: model.baseModel || 'llama-2-7b-swedish',
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        alert(`✅ Merge ${mergeType.toUpperCase()} completed!\n\nNew version: v${newVersion}\n${data.message || ''}`);
+        await fetchModels();
+        await fetchManifests();
+      } else {
+        alert(`❌ Merge failed: ${data.error}\n\n${data.stderr || ''}`);
+      }
+    } catch (error) {
+      console.error('Error during quick merge:', error);
+      alert('❌ Merge failed. Check console for details.');
+    } finally {
+      setQuickMerging(false);
+      setQuickMergeModel(null);
+    }
+  };
+  
+  // Quick GGUF export from model card
+  const performQuickGgufExport = async (model, quantization = 'Q5_K_M') => {
+    const dna = model.dna || model.directoryName || model.id;
+    
+    if (!confirm(`Export GGUF?\n\nModel: ${dna}\nQuantization: ${quantization}\n\nThis will create a GGUF file for use in Verification and Chat.`)) {
+      return;
+    }
+    
+    setQuickExportModel(model);
+    setQuickExporting(true);
+    
+    try {
+      const response = await fetch('/api/models/gguf/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modelPath: model.directoryName || model.id,
+          outputName: dna,
+          quantization: quantization,
+          useDnaName: true,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        const instructions = data.instructions ? `\n\nManual steps:\n${data.instructions.join('\n')}` : '';
+        alert(`✅ GGUF export initiated!\n\n${data.message || 'Export started'}${instructions}\n\nFile: ${data.ggufPath || dna}.${quantization}.gguf`);
+        await fetchGgufExports();
+      } else {
+        alert(`❌ Export failed: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error during GGUF export:', error);
+      alert('❌ Export failed. Check console for details.');
+    } finally {
+      setQuickExporting(false);
+      setQuickExportModel(null);
+    }
+  };
+  
+  // Set GGUF as active for verification and chat
+  const setGgufAsActive = async (ggufName) => {
+    if (!confirm(`Set as Active GGUF?\n\nFile: ${ggufName}\n\nThis GGUF will be used for Verification and OQT Dashboard Chat.`)) {
+      return;
+    }
+    
+    setSettingActiveGguf(true);
+    
+    try {
+      const response = await fetch('/api/models/gguf/set-active', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ggufName }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        alert(`✅ Active GGUF set!\n\n${data.message || 'GGUF is now active'}`);
+        setActiveGguf(ggufName);
+        await fetchGgufExports();
+      } else {
+        alert(`❌ Failed: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error setting active GGUF:', error);
+      alert('❌ Failed to set active GGUF.');
+    } finally {
+      setSettingActiveGguf(false);
     }
   };
 
@@ -495,9 +649,34 @@ export default function ModelManagement() {
                         </div>
                       )}
                     </div>
+                    {/* Action Buttons */}
+                    <div className="flex items-center space-x-2">
+                      {gguf.status === 'completed' && gguf.name !== activeGguf && (
+                        <button
+                          onClick={() => setGgufAsActive(gguf.name)}
+                          disabled={settingActiveGguf}
+                          className="px-3 py-1 border border-green-700/50 bg-green-900/20 text-green-400 text-xs font-mono hover:bg-green-900/30 transition-colors disabled:opacity-50"
+                        >
+                          {settingActiveGguf ? '⏳...' : '✓ Set as Active'}
+                        </button>
+                      )}
+                      {gguf.name === activeGguf && (
+                        <span className="px-3 py-1 bg-green-900/30 border border-green-700/50 text-green-400 text-xs font-mono rounded">
+                          ⚡ ACTIVE
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+          
+          {/* Active GGUF Info */}
+          {activeGguf && (
+            <div className="mt-4 p-3 bg-green-900/10 border border-green-700/30 rounded">
+              <div className="text-green-400 font-mono text-sm mb-1">⚡ Active GGUF for Verification & Chat:</div>
+              <div className="text-[#aaa] font-mono text-xs break-all">{activeGguf}</div>
             </div>
           )}
         </div>
@@ -662,34 +841,59 @@ export default function ModelManagement() {
                   </div>
 
                   {!compareMode && (
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => setSelectedModel(model)}
-                        className="px-3 py-1 border border-[#2a2a2a] text-[#888] text-xs font-mono hover:bg-[#1a1a1a] transition-colors"
-                      >
-                        Details
-                      </button>
-                      <button
-                        onClick={() => downloadModel(model.id, 'weights')}
-                        className="px-3 py-1 border border-[#2a2a2a] text-[#888] text-xs font-mono hover:bg-[#1a1a1a] transition-colors"
-                      >
-                        Download
-                      </button>
-                      {model.id !== currentModelId && (
+                    <div className="flex flex-col space-y-2">
+                      {/* Primary Actions Row */}
+                      <div className="flex items-center space-x-2">
                         <button
-                          onClick={() => setAsCurrentModel(model.id)}
-                          className="px-3 py-1 border border-green-700/50 bg-green-900/20 text-green-400 text-xs font-mono hover:bg-green-900/30 transition-colors"
+                          onClick={() => setSelectedModel(model)}
+                          className="px-3 py-1 border border-[#2a2a2a] text-[#888] text-xs font-mono hover:bg-[#1a1a1a] transition-colors"
                         >
-                          Set as Active
+                          Details
                         </button>
-                      )}
-                      {!model.isCurrent && (
                         <button
-                          onClick={() => rollbackToModel(model.id)}
-                          className="px-3 py-1 border border-[#2a2a2a] text-[#666] text-xs font-mono hover:bg-[#1a1a1a] hover:text-[#888] transition-colors"
+                          onClick={() => downloadModel(model.id, 'weights')}
+                          className="px-3 py-1 border border-[#2a2a2a] text-[#888] text-xs font-mono hover:bg-[#1a1a1a] transition-colors"
                         >
-                          Rollback
+                          Download
                         </button>
+                        {model.id !== currentModelId && (
+                          <button
+                            onClick={() => setAsCurrentModel(model.id)}
+                            className="px-3 py-1 border border-green-700/50 bg-green-900/20 text-green-400 text-xs font-mono hover:bg-green-900/30 transition-colors"
+                          >
+                            Set as Active
+                          </button>
+                        )}
+                      </div>
+                      
+                      {/* Merge & Export Actions Row (for certified models) */}
+                      {model.isCertified && (
+                        <div className="flex items-center space-x-2 pt-1 border-t border-[#2a2a2a] mt-1">
+                          <button
+                            onClick={() => performQuickMerge(model, 'micro')}
+                            disabled={quickMerging && quickMergeModel?.id === model.id}
+                            className="px-3 py-1 border border-blue-700/50 bg-blue-900/20 text-blue-400 text-xs font-mono hover:bg-blue-900/30 transition-colors disabled:opacity-50"
+                            title="Merge Micro: v1.0 → v1.1 (minor update)"
+                          >
+                            {quickMerging && quickMergeModel?.id === model.id && quickMergeType === 'micro' ? '⏳...' : '🔀 Merge Micro'}
+                          </button>
+                          <button
+                            onClick={() => performQuickMerge(model, 'major')}
+                            disabled={quickMerging && quickMergeModel?.id === model.id}
+                            className="px-3 py-1 border border-purple-700/50 bg-purple-900/20 text-purple-400 text-xs font-mono hover:bg-purple-900/30 transition-colors disabled:opacity-50"
+                            title="Merge Major: v1.x → v2.0 (major release)"
+                          >
+                            {quickMerging && quickMergeModel?.id === model.id && quickMergeType === 'major' ? '⏳...' : '🚀 Merge Major'}
+                          </button>
+                          <button
+                            onClick={() => performQuickGgufExport(model, 'Q5_K_M')}
+                            disabled={quickExporting && quickExportModel?.id === model.id}
+                            className="px-3 py-1 border border-orange-700/50 bg-orange-900/20 text-orange-400 text-xs font-mono hover:bg-orange-900/30 transition-colors disabled:opacity-50"
+                            title="Export GGUF (Q5_K_M quantization)"
+                          >
+                            {quickExporting && quickExportModel?.id === model.id ? '⏳...' : '📦 Export GGUF'}
+                          </button>
+                        </div>
                       )}
                     </div>
                   )}

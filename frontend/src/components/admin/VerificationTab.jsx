@@ -29,12 +29,15 @@ const WARNING_THRESHOLD = 90;       // Minimum score for WARNING status
 
 export default function VerificationTab() {
   const [models, setModels] = useState([]);
+  const [ggufModels, setGgufModels] = useState([]);
   const [datasets, setDatasets] = useState([]);
   const [selectedModel, setSelectedModel] = useState('');
   const [selectedDataset, setSelectedDataset] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [modelType, setModelType] = useState('gguf'); // 'gguf' or 'certified'
+  const [activeGguf, setActiveGguf] = useState(null);
 
   useEffect(() => {
     fetchModelsAndDatasets();
@@ -42,11 +45,29 @@ export default function VerificationTab() {
 
   const fetchModelsAndDatasets = async () => {
     try {
-      // Fetch available models
+      // Fetch available certified models
       const modelsRes = await fetch('/api/admin/models/available');
       if (modelsRes.ok) {
         const modelsData = await modelsRes.json();
         setModels(modelsData.models || []);
+      }
+      
+      // Fetch available GGUF models
+      const ggufRes = await fetch('/api/models/gguf');
+      if (ggufRes.ok) {
+        const ggufData = await ggufRes.json();
+        setGgufModels(ggufData.exports || []);
+      }
+      
+      // Fetch active GGUF
+      const activeRes = await fetch('/api/models/gguf/active');
+      if (activeRes.ok) {
+        const activeData = await activeRes.json();
+        setActiveGguf(activeData.activeGguf || null);
+        // Pre-select active GGUF
+        if (activeData.activeGguf) {
+          setSelectedModel(activeData.activeGguf);
+        }
       }
 
       // Fetch available datasets
@@ -80,6 +101,7 @@ export default function VerificationTab() {
         body: JSON.stringify({
           modelId: selectedModel,
           datasetId: selectedDataset,
+          modelType: modelType,
         }),
       });
 
@@ -182,18 +204,71 @@ export default function VerificationTab() {
     >
       {/* Configuration Section */}
       <AdminSection title="Configuration">
+        {/* Model Type Selection */}
+        <div style={{ marginBottom: '16px' }}>
+          <label className="admin-metric-label" style={{ marginBottom: '8px', display: 'block' }}>
+            Model Type
+          </label>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="modelType"
+                value="gguf"
+                checked={modelType === 'gguf'}
+                onChange={() => {
+                  setModelType('gguf');
+                  setSelectedModel(activeGguf || '');
+                }}
+              />
+              <span style={{ color: '#888', fontSize: '13px' }}>GGUF Models (Recommended)</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="modelType"
+                value="certified"
+                checked={modelType === 'certified'}
+                onChange={() => {
+                  setModelType('certified');
+                  setSelectedModel('');
+                }}
+              />
+              <span style={{ color: '#888', fontSize: '13px' }}>Certified Models</span>
+            </label>
+          </div>
+        </div>
+        
         <div className="admin-grid admin-grid-2">
           <div>
             <label className="admin-metric-label" style={{ marginBottom: '8px', display: 'block' }}>
-              Select Model
+              Select Model {modelType === 'gguf' && activeGguf && '(⚡ = Active)'}
             </label>
-            <AdminSelect
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              options={models.map(m => ({ value: m.id, label: m.displayName || m.name }))}
-              placeholder="Choose a model..."
-              disabled={verifying}
-            />
+            {modelType === 'gguf' ? (
+              <AdminSelect
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                options={ggufModels.filter(g => g.status !== 'manual_required').map(g => ({
+                  value: g.name,
+                  label: g.name === activeGguf ? `⚡ ${g.name}` : g.name
+                }))}
+                placeholder="Choose a GGUF model..."
+                disabled={verifying}
+              />
+            ) : (
+              <AdminSelect
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                options={models.map(m => ({ value: m.id, label: m.displayName || m.name }))}
+                placeholder="Choose a certified model..."
+                disabled={verifying}
+              />
+            )}
+            {modelType === 'gguf' && ggufModels.length === 0 && (
+              <p style={{ color: '#666', fontSize: '11px', marginTop: '4px' }}>
+                No GGUF models found. Export a model from Models → GGUF Exports.
+              </p>
+            )}
           </div>
 
           <div>

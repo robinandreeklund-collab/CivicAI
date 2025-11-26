@@ -13,6 +13,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -327,11 +328,11 @@ router.get('/gguf', async (req, res) => {
 
 /**
  * POST /api/models/gguf/export
- * Export a model to GGUF format
+ * Export a model to GGUF format with DNA-based naming
  */
 router.post('/gguf/export', async (req, res) => {
   try {
-    const { modelPath, outputName, quantization } = req.body;
+    const { modelPath, outputName, quantization, useDnaName } = req.body;
     
     if (!modelPath) {
       return res.status(400).json({ error: 'modelPath is required' });
@@ -348,26 +349,57 @@ router.post('/gguf/export', async (req, res) => {
       ? modelPath 
       : path.join(modelsDir, 'oneseek-certified', modelPath);
     
-    // Build Python script arguments
-    const scriptPath = path.join(process.cwd(), '..', 'scripts', 'merge_adapters.py');
-    const finalOutputName = outputName || path.basename(modelPath);
+    // Try to read DNA from metadata for naming
+    let dnaName = outputName || path.basename(modelPath);
     
-    // For GGUF export only, we use a simpler approach
-    // The merge_adapters.py script handles GGUF export
+    if (useDnaName) {
+      try {
+        const metadataPath = path.join(resolvedModelPath, 'metadata.json');
+        const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+        const metadata = JSON.parse(metadataContent);
+        if (metadata.dna) {
+          dnaName = metadata.dna;
+        }
+      } catch {
+        // Use fallback name
+      }
+    }
     
-    res.json({
-      success: true,
-      message: 'GGUF export initiated',
+    // Final GGUF filename follows structure: DNA.quantization.gguf
+    const ggufFileName = `${dnaName}.${validQuantization}.gguf`;
+    const ggufPath = path.join(ggufDir, ggufFileName);
+    
+    // Create manifest for pending export
+    const manifestData = {
+      status: 'manual_required',
       modelPath: resolvedModelPath,
-      outputName: finalOutputName,
+      outputPath: ggufPath,
+      outputName: ggufFileName,
       quantization: validQuantization,
-      note: 'Use the merge endpoint with exportGguf=true for full conversion, or install llama.cpp for manual conversion',
+      dnaName: dnaName,
+      createdAt: new Date().toISOString(),
       instructions: [
         `1. Install llama.cpp: git clone https://github.com/ggerganov/llama.cpp`,
         `2. Build: cd llama.cpp && make`,
-        `3. Convert: python llama.cpp/convert.py ${resolvedModelPath} --outtype f16 --outfile ${ggufDir}/${finalOutputName}.f16.gguf`,
-        `4. Quantize: ./llama.cpp/quantize ${ggufDir}/${finalOutputName}.f16.gguf ${ggufDir}/${finalOutputName}.${validQuantization}.gguf ${validQuantization}`,
+        `3. Convert: python llama.cpp/convert.py "${resolvedModelPath}" --outtype f16 --outfile "${ggufDir}/${dnaName}.f16.gguf"`,
+        `4. Quantize: ./llama.cpp/quantize "${ggufDir}/${dnaName}.f16.gguf" "${ggufPath}" ${validQuantization}`,
+        `5. Delete intermediate: rm "${ggufDir}/${dnaName}.f16.gguf"`,
       ],
+    };
+    
+    // Save manifest
+    const manifestPath = path.join(ggufDir, `${dnaName}.manifest.json`);
+    await fs.writeFile(manifestPath, JSON.stringify(manifestData, null, 2));
+    
+    res.json({
+      success: true,
+      message: 'GGUF export manifest created',
+      modelPath: resolvedModelPath,
+      ggufPath: ggufPath,
+      outputName: ggufFileName,
+      quantization: validQuantization,
+      note: 'Follow the instructions below to complete the GGUF export, or wait for automatic llama.cpp integration',
+      instructions: manifestData.instructions,
     });
     
   } catch (error) {
@@ -384,5 +416,251 @@ function formatFileSize(bytes) {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
+
+// Active GGUF tracking file
+const ACTIVE_GGUF_FILE = path.join(process.cwd(), '..', 'models', 'gguf', 'active.json');
+
+/**
+ * POST /api/models/merge/quick
+ * Quick merge from model card (micro or major release)
+ */
+router.post('/merge/quick', async (req, res) => {
+  try {
+    const { modelId, mergeType, newVersion, baseModel } = req.body;
+    
+    if (!modelId) {
+      return res.status(400).json({ error: 'modelId is required' });
+    }
+    
+    if (!mergeType || !['micro', 'major'].includes(mergeType)) {
+      return res.status(400).json({ error: 'mergeType must be "micro" or "major"' });
+    }
+    
+    const modelsDir = path.join(process.cwd(), '..', 'models');
+    const certifiedDir = path.join(modelsDir, 'oneseek-certified');
+    const modelDir = path.join(certifiedDir, modelId);
+    
+    // Read model metadata to get adapter list
+    const metadataPath = path.join(modelDir, 'metadata.json');
+    let adapters = [];
+    let dna = modelId;
+    
+    try {
+      const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+      const metadata = JSON.parse(metadataContent);
+      adapters = metadata.adapters || [];
+      dna = metadata.dna || modelId;
+    } catch (error) {
+      // If no metadata, look for adapter folders
+      try {
+        const entries = await fs.readdir(modelDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isDirectory() && (entry.name.includes('adapter') || entry.name.includes('oneseek'))) {
+            adapters.push(entry.name);
+          }
+        }
+      } catch {
+        return res.status(400).json({ error: 'Cannot find adapters in model directory' });
+      }
+    }
+    
+    if (adapters.length === 0) {
+      return res.status(400).json({ error: 'No adapters found in model directory' });
+    }
+    
+    // Build new output name with version
+    const versionStr = newVersion || (mergeType === 'major' ? '2.0' : '1.1');
+    const outputName = `OneSeek-7B-Zero.v${versionStr}`;
+    
+    // Build Python script arguments
+    const scriptPath = path.join(process.cwd(), '..', 'scripts', 'merge_adapters.py');
+    const outputDir = path.join(certifiedDir, 'merged');
+    
+    const args = [
+      scriptPath,
+      '--base-model', baseModel || 'llama-2-7b-swedish',
+      '--adapters', ...adapters.map(a => path.join(modelDir, a)),
+      '--output', outputDir,
+      '--output-name', outputName,
+      '--version', versionStr,
+    ];
+    
+    // Determine Python command
+    let pythonCommand = 'python3';
+    const venvPath = path.join(process.cwd(), 'python_services', 'venv');
+    const venvPython = path.join(venvPath, process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python3');
+    
+    try {
+      await fs.access(venvPython);
+      pythonCommand = venvPython;
+    } catch {
+      // Use system Python
+    }
+    
+    // Run merge script
+    const mergeProcess = spawn(pythonCommand, args, {
+      cwd: path.join(process.cwd(), '..'),
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    mergeProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    mergeProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    mergeProcess.on('close', async (code) => {
+      if (code === 0) {
+        // Create merge manifest
+        const manifestPath = path.join(outputDir, outputName, 'merge_manifest.json');
+        const manifest = {
+          mergeType: mergeType,
+          version: versionStr,
+          sourceModel: modelId,
+          sourceDna: dna,
+          adapters: adapters,
+          baseModel: baseModel || 'llama-2-7b-swedish',
+          generatedAt: new Date().toISOString(),
+          mergeHash: crypto.createHash('sha256').update(JSON.stringify({
+            adapters, baseModel, versionStr, timestamp: Date.now()
+          })).digest('hex').substring(0, 16),
+        };
+        
+        try {
+          await fs.mkdir(path.join(outputDir, outputName), { recursive: true });
+          await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+        } catch (e) {
+          console.log('Could not write merge manifest:', e);
+        }
+        
+        res.json({
+          success: true,
+          message: `${mergeType.toUpperCase()} merge completed successfully`,
+          output: stdout,
+          outputDir: path.join(outputDir, outputName),
+          version: versionStr,
+          manifest: manifest,
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          error: `${mergeType.toUpperCase()} merge failed`,
+          output: stdout,
+          stderr: stderr,
+          exitCode: code,
+        });
+      }
+    });
+    
+    mergeProcess.on('error', (error) => {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to start merge process',
+        details: error.message,
+      });
+    });
+    
+  } catch (error) {
+    console.error('Error in quick merge endpoint:', error);
+    res.status(500).json({ error: 'Quick merge failed', message: error.message });
+  }
+});
+
+/**
+ * GET /api/models/gguf/active
+ * Get the currently active GGUF model
+ */
+router.get('/gguf/active', async (req, res) => {
+  try {
+    let activeGguf = null;
+    
+    try {
+      const content = await fs.readFile(ACTIVE_GGUF_FILE, 'utf-8');
+      const data = JSON.parse(content);
+      activeGguf = data.activeGguf || null;
+    } catch {
+      // No active GGUF file
+    }
+    
+    res.json({
+      success: true,
+      activeGguf: activeGguf,
+    });
+    
+  } catch (error) {
+    console.error('Error getting active GGUF:', error);
+    res.status(500).json({ error: 'Failed to get active GGUF', message: error.message });
+  }
+});
+
+/**
+ * POST /api/models/gguf/set-active
+ * Set a GGUF model as active for verification and chat
+ */
+router.post('/gguf/set-active', async (req, res) => {
+  try {
+    const { ggufName } = req.body;
+    
+    if (!ggufName) {
+      return res.status(400).json({ error: 'ggufName is required' });
+    }
+    
+    const ggufDir = path.join(process.cwd(), '..', 'models', 'gguf');
+    const ggufPath = path.join(ggufDir, ggufName);
+    
+    // Verify GGUF file exists
+    try {
+      await fs.access(ggufPath);
+    } catch {
+      return res.status(404).json({ error: 'GGUF file not found', path: ggufPath });
+    }
+    
+    // Save active GGUF
+    const activeData = {
+      activeGguf: ggufName,
+      ggufPath: ggufPath,
+      setAt: new Date().toISOString(),
+    };
+    
+    await fs.mkdir(ggufDir, { recursive: true });
+    await fs.writeFile(ACTIVE_GGUF_FILE, JSON.stringify(activeData, null, 2));
+    
+    // Also update ml_service config if it exists
+    try {
+      const mlConfigPath = path.join(process.cwd(), '..', 'ml_service', 'config.json');
+      let mlConfig = {};
+      try {
+        const existingConfig = await fs.readFile(mlConfigPath, 'utf-8');
+        mlConfig = JSON.parse(existingConfig);
+      } catch {
+        // Create new config
+      }
+      
+      mlConfig.activeGguf = ggufName;
+      mlConfig.ggufPath = ggufPath;
+      mlConfig.updatedAt = new Date().toISOString();
+      
+      await fs.writeFile(mlConfigPath, JSON.stringify(mlConfig, null, 2));
+    } catch (e) {
+      console.log('Could not update ml_service config:', e);
+    }
+    
+    res.json({
+      success: true,
+      message: `GGUF "${ggufName}" set as active`,
+      activeGguf: ggufName,
+      ggufPath: ggufPath,
+      note: 'Restart ml_service (python ml_service/server.py) to load the new model',
+    });
+    
+  } catch (error) {
+    console.error('Error setting active GGUF:', error);
+    res.status(500).json({ error: 'Failed to set active GGUF', message: error.message });
+  }
+});
 
 export default router;
