@@ -915,17 +915,42 @@ def launch_ddp_training(args, dataset_path: Path):
     print("DDP Training Mode - Full Distributed Data Parallel")
     print("=" * 70)
     
-    # Detect GPU count
+    def get_nvidia_smi_gpu_count():
+        """Use nvidia-smi to detect GPU count as fallback."""
+        try:
+            result = subprocess.run(
+                ['nvidia-smi', '--query-gpu=index', '--format=csv,noheader'],
+                capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0:
+                lines = [l.strip() for l in result.stdout.strip().split('\n') if l.strip()]
+                return len(lines)
+        except Exception as e:
+            print(f"[DEBUG] nvidia-smi fallback failed: {e}")
+        return 0
+    
+    # Detect GPU count - try PyTorch first, then nvidia-smi as fallback
+    pytorch_gpu_count = 0
     if torch.cuda.is_available():
-        gpu_count = torch.cuda.device_count()
-        print(f"\n[GPU] Detected {gpu_count} GPU(s):")
-        for i in range(gpu_count):
+        pytorch_gpu_count = torch.cuda.device_count()
+        print(f"\n[GPU] PyTorch detected {pytorch_gpu_count} GPU(s):")
+        for i in range(pytorch_gpu_count):
             name = torch.cuda.get_device_name(i)
             memory = torch.cuda.get_device_properties(i).total_memory / (1024**3)
             print(f"   cuda:{i} - {name} ({memory:.1f} GB)")
+    
+    # Try nvidia-smi as fallback
+    smi_gpu_count = get_nvidia_smi_gpu_count()
+    if smi_gpu_count > pytorch_gpu_count:
+        print(f"\n[GPU] nvidia-smi detected {smi_gpu_count} GPU(s) (more than PyTorch)")
+        print("[INFO] Using nvidia-smi GPU count for DDP")
+        gpu_count = smi_gpu_count
     else:
-        print("\n[ERROR] CUDA not available - DDP requires NVIDIA GPUs")
-        return {'success': False, 'error': 'CUDA not available'}
+        gpu_count = pytorch_gpu_count
+    
+    if gpu_count == 0:
+        print("\n[ERROR] No GPUs detected - DDP requires NVIDIA GPUs")
+        return {'success': False, 'error': 'No GPUs detected'}
     
     if gpu_count < 2:
         print("\n[WARNING] DDP is most effective with 2+ GPUs")

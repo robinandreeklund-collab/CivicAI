@@ -838,56 +838,108 @@ router.get('/gpu-info', requireAdmin, async (req, res) => {
   try {
     // Try to get GPU info by running a simple Python script
     // Uses multiple methods to ensure GPU detection works on all systems
+    // Includes nvidia-smi fallback for systems where PyTorch doesn't detect all GPUs
     const pythonScript = `
 import json
 import os
+import subprocess
+import sys
+
+def get_nvidia_smi_gpus():
+    """Fallback: Use nvidia-smi to detect GPUs when PyTorch fails."""
+    try:
+        result = subprocess.run(
+            ['nvidia-smi', '--query-gpu=index,name,memory.total', '--format=csv,noheader,nounits'],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0:
+            devices = []
+            for line in result.stdout.strip().split('\\n'):
+                if line.strip():
+                    parts = [p.strip() for p in line.split(',')]
+                    if len(parts) >= 3:
+                        devices.append({
+                            'index': int(parts[0]),
+                            'name': parts[1],
+                            'memory_gb': round(float(parts[2]) / 1024, 1),  # Convert MiB to GB
+                            'compute_capability': 'N/A'
+                        })
+            return devices
+    except Exception:
+        pass
+    return None
+
 try:
     import torch
     
     # Debug info for troubleshooting GPU detection issues
     cuda_visible = os.environ.get('CUDA_VISIBLE_DEVICES', 'not set')
     
+    # First try PyTorch detection
+    pytorch_count = 0
+    pytorch_devices = []
+    
     if torch.cuda.is_available():
-        count = torch.cuda.device_count()
-        devices = []
-        total_memory = 0
-        for i in range(count):
+        pytorch_count = torch.cuda.device_count()
+        for i in range(pytorch_count):
             props = torch.cuda.get_device_properties(i)
             memory_gb = props.total_memory / (1024**3)
-            total_memory += memory_gb
-            devices.append({
+            pytorch_devices.append({
                 'index': i,
                 'name': props.name,
                 'memory_gb': round(memory_gb, 1),
                 'compute_capability': f"{props.major}.{props.minor}"
             })
+    
+    # Try nvidia-smi as fallback to detect all GPUs
+    smi_devices = get_nvidia_smi_gpus()
+    
+    # Use whichever method found more GPUs
+    if smi_devices and len(smi_devices) > pytorch_count:
+        devices = smi_devices
+        count = len(smi_devices)
+        detection_method = 'nvidia-smi'
+    else:
+        devices = pytorch_devices
+        count = pytorch_count
+        detection_method = 'pytorch'
+    
+    total_memory = sum(d['memory_gb'] for d in devices)
+    
+    print(json.dumps({
+        'available': count > 0,
+        'count': count,
+        'devices': devices,
+        'total_memory_gb': round(total_memory, 1),
+        'ddp_supported': count >= 2,
+        'cuda_visible_devices': cuda_visible,
+        'torch_version': torch.__version__,
+        'detection_method': detection_method,
+        'pytorch_count': pytorch_count
+    }))
+
+except Exception as e:
+    # Even if PyTorch fails, try nvidia-smi
+    smi_devices = get_nvidia_smi_gpus()
+    if smi_devices:
+        total_memory = sum(d['memory_gb'] for d in smi_devices)
         print(json.dumps({
             'available': True,
-            'count': count,
-            'devices': devices,
+            'count': len(smi_devices),
+            'devices': smi_devices,
             'total_memory_gb': round(total_memory, 1),
-            'ddp_supported': count >= 2,
-            'cuda_visible_devices': cuda_visible,
-            'torch_version': torch.__version__
+            'ddp_supported': len(smi_devices) >= 2,
+            'detection_method': 'nvidia-smi-fallback',
+            'pytorch_error': str(e)
         }))
     else:
         print(json.dumps({
             'available': False,
             'count': 0,
             'devices': [],
-            'total_memory_gb': 0,
-            'ddp_supported': False,
-            'cuda_visible_devices': cuda_visible,
-            'torch_version': torch.__version__
+            'error': str(e),
+            'ddp_supported': False
         }))
-except Exception as e:
-    print(json.dumps({
-        'available': False,
-        'count': 0,
-        'devices': [],
-        'error': str(e),
-        'ddp_supported': False
-    }))
 `;
 
     // Determine Python command
