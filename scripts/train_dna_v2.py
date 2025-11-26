@@ -248,6 +248,22 @@ def run_real_training(args, data_dir, dataset_path):
         trainer.config['batch_size'] = args.batch_size
         trainer.config['learning_rate'] = args.learning_rate
         
+        # CRITICAL: Pass LoRA configuration to trainer
+        trainer.config['lora_rank'] = args.lora_rank
+        trainer.config['lora_alpha'] = args.lora_alpha
+        trainer.config['dropout'] = args.dropout
+        trainer.config['target_modules'] = args.target_modules.split(',') if isinstance(args.target_modules, str) else args.target_modules
+        
+        # Advanced training parameters
+        trainer.config['lr_scheduler'] = args.lr_scheduler
+        trainer.config['warmup_steps'] = args.warmup_steps
+        trainer.config['weight_decay'] = args.weight_decay
+        trainer.config['max_grad_norm'] = args.max_grad_norm
+        trainer.config['precision'] = args.precision
+        trainer.config['optimizer'] = args.optimizer
+        trainer.config['gradient_checkpointing'] = args.gradient_checkpointing
+        trainer.config['torch_compile'] = args.torch_compile
+        
         # Set base models from args or environment
         if args.base_models:
             trainer.config['base_models'] = args.base_models
@@ -265,6 +281,15 @@ def run_real_training(args, data_dir, dataset_path):
         print(f"   - Epochs: {args.epochs}")
         print(f"   - Batch size: {args.batch_size}")
         print(f"   - Learning rate: {args.learning_rate}")
+        print(f"   - LoRA Rank: {args.lora_rank}")
+        print(f"   - LoRA Alpha: {args.lora_alpha}")
+        print(f"   - Dropout: {args.dropout}")
+        print(f"   - Target Modules: {args.target_modules}")
+        print(f"   - LR Scheduler: {args.lr_scheduler}")
+        print(f"   - Warmup Steps: {args.warmup_steps}")
+        print(f"   - Weight Decay: {args.weight_decay}")
+        print(f"   - Optimizer: {args.optimizer}")
+        print(f"   - Precision: {args.precision}")
         print(f"   - Auto-stop: threshold={args.auto_stop_threshold}, patience={args.auto_stop_patience}")
         print(f"   - Seed: {args.seed}")
         print(f"   - Base models: {trainer.config.get('base_models', [])}")

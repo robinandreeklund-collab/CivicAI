@@ -1084,13 +1084,30 @@ def train_single_model_lora(
         
         # Now configure NEW LoRA adapter for this training
         print("\n[CONFIG] Configuring LoRA adapters for new training...")
+        
+        # Get LoRA configuration from config or use defaults
+        lora_rank = config.get('lora_rank', 64)  # Default 64 for better quality
+        lora_alpha = config.get('lora_alpha', 128)  # Default 128
+        lora_dropout = config.get('dropout', 0.05)  # Default 0.05
+        
+        # Target modules - use config or default to comprehensive set
+        default_target_modules = ["q_proj", "v_proj", "k_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+        target_modules = config.get('target_modules', default_target_modules)
+        if isinstance(target_modules, str):
+            target_modules = [m.strip() for m in target_modules.split(',')]
+        
+        print(f"   LoRA Rank: {lora_rank}")
+        print(f"   LoRA Alpha: {lora_alpha}")
+        print(f"   LoRA Dropout: {lora_dropout}")
+        print(f"   Target Modules: {target_modules}")
+        
         lora_config = LoraConfig(
             task_type=TaskType.CAUSAL_LM,
             inference_mode=False,
-            r=config.get('lora_rank', 8),
-            lora_alpha=config.get('lora_alpha', 32),
-            lora_dropout=0.1,
-            target_modules=["q_proj", "v_proj"]  # Common for both Mistral and LLaMA
+            r=lora_rank,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            target_modules=target_modules
         )
         
         model = get_peft_model(model, lora_config)
@@ -1112,22 +1129,25 @@ def train_single_model_lora(
             text = f"Question: {question}\nAnswer: {response}"
             train_texts.append(text)
         
-        # Tokenize
-        print("   Tokenizing...")
+        # Tokenize - use ALL training data, not just first 10
+        batch_size = config.get('batch_size', 8)
+        print(f"   Tokenizing {len(train_texts)} samples with batch_size={batch_size}...")
         train_encodings = tokenizer(
-            train_texts[:10],  # Start with small batch for testing
+            train_texts,  # Use all training data
             truncation=True,
             padding=True,
             max_length=512,
             return_tensors="pt"
         )
         
-        # Training loop (simplified for identity training)
+        # Training loop with proper batching
         print(f"\n[TRAINING] Starting training for {model_name}...")
         model.train()
         
         epochs = config.get('epochs', 3)
         learning_rate = config.get('learning_rate', 2e-5)
+        
+        print(f"   [CONFIG] Epochs: {epochs}, Learning Rate: {learning_rate}, Batch Size: {batch_size}")
         
         optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
         
@@ -1158,23 +1178,40 @@ def train_single_model_lora(
         for epoch in range(epochs):
             print(f"\n   Epoch {epoch + 1}/{epochs}")
             
-            # Move inputs to the correct device
-            inputs = train_encodings['input_ids'][:5].to(input_device)
-            attention_mask = train_encodings['attention_mask'][:5].to(input_device)
+            epoch_loss = 0.0
+            num_epoch_batches = 0
             
-            optimizer.zero_grad()
-            outputs = model(inputs, attention_mask=attention_mask, labels=inputs)
-            loss = outputs.loss
+            # Process data in batches
+            num_samples = train_encodings['input_ids'].size(0)
+            num_batches_per_epoch = max(1, num_samples // batch_size)
             
-            loss.backward()
-            optimizer.step()
+            for batch_idx in range(0, num_samples, batch_size):
+                batch_end = min(batch_idx + batch_size, num_samples)
+                
+                # Move inputs to the correct device
+                inputs = train_encodings['input_ids'][batch_idx:batch_end].to(input_device)
+                attention_mask = train_encodings['attention_mask'][batch_idx:batch_end].to(input_device)
+                
+                optimizer.zero_grad()
+                outputs = model(inputs, attention_mask=attention_mask, labels=inputs)
+                loss = outputs.loss
+                
+                loss.backward()
+                optimizer.step()
+                
+                epoch_loss += loss.item()
+                num_epoch_batches += 1
+                
+                # Print batch progress every few batches
+                if num_epoch_batches % max(1, num_batches_per_epoch // 5) == 0 or batch_idx == 0:
+                    print(f"      Batch {num_epoch_batches}/{num_batches_per_epoch}: Loss={loss.item():.4f}")
             
-            total_loss += loss.item()
-            num_batches += 1
-            current_loss = loss.item()
+            current_loss = epoch_loss / num_epoch_batches if num_epoch_batches > 0 else 0
+            total_loss += epoch_loss
+            num_batches += num_epoch_batches
             epoch_losses.append(current_loss)
             
-            print(f"      Loss: {current_loss:.4f}")
+            print(f"      Epoch {epoch + 1} Average Loss: {current_loss:.4f}")
             
             # Write live metrics after each epoch
             # Note: This will be overwritten if training multiple models sequentially
@@ -1188,17 +1225,14 @@ def train_single_model_lora(
                 # Mock value removed to avoid misleading metrics
                 val_accuracy = None  # Set to None until actual validation is implemented
                 
-                # Note: This simplified training has 1 batch per epoch
-                # For real training with dataloader, track batch_idx within epoch
-                # Don't send step/total_steps for single-batch epochs (would be 1/1 = 100% always)
                 write_live_metrics(
                     run_id=run_id,
                     epoch=epoch + 1,
                     total_epochs=epochs,
                     model_losses={model_key: current_loss},
                     model_weights={model_key: 1.0},  # Will be adaptive weights later
-                    step=None,  # Not tracking intra-epoch progress in simplified training
-                    total_steps=None,  # Will be len(dataloader) in real training
+                    step=num_epoch_batches,  # Track batch progress
+                    total_steps=num_batches_per_epoch,  # Total batches per epoch
                     validation_accuracy=val_accuracy
                 )
         
