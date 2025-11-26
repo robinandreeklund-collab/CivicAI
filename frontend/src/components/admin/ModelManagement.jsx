@@ -224,7 +224,7 @@ export default function ModelManagement() {
       <div className="border border-blue-900/30 bg-blue-900/10 p-4 rounded">
         <div className="text-blue-400 font-mono text-sm mb-2">ℹ️ Active Model System (DNA-Based Structure)</div>
         <div className="text-[#888] font-mono text-xs space-y-1">
-          <div>• Click "Set as Active" to make a model the current OQT Dashboard model</div>
+          <div>• Click &quot;Set as Active&quot; to make a model the current OQT Dashboard model</div>
           <div>• Certified models are stored in DNA-based directories (e.g., OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1)</div>
           <div>• Active model is linked via symlink: <code className="text-[#aaa]">models/oneseek-certified/OneSeek-7B-Zero-CURRENT</code></div>
           <div>• Restart ml_service to load the active model: <code className="text-[#aaa]">python ml_service/server.py</code></div>

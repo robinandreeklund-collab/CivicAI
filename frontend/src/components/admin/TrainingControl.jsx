@@ -644,7 +644,6 @@ export default function TrainingControl() {
                 <br />✓ Sequential training (no OOM) with adaptive weights
               </p>
             </div>
-          )}
 
           {/* Knowledge Source (formerly External Model) - Optional distillation */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
