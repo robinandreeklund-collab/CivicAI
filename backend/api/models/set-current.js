@@ -104,16 +104,49 @@ router.post('/set-current', rateLimiter, async (req, res) => {
     // or could still be a version number like "1.0" for backwards compatibility
     
     let modelPath;
+    const mergedDir = path.join(certifiedDir, 'merged');
     
     // Check if modelId is a DNA-based directory name using regex
     // Pattern: starts with OneSeek-7B-Zero.v followed by version and multiple dot-separated components
     // More lenient pattern to match various DNA formats
-    const dnaPattern = /^OneSeek-7B-Zero\.v\d+\.\d+\./;  // Must start with OneSeek-7B-Zero.vX.Y.
+    const dnaPattern = /^OneSeek-7B-Zero\.v\d+\.\d+/;  // Must start with OneSeek-7B-Zero.vX.Y
     
     if (dnaPattern.test(modelId)) {
-      // It's a DNA-based directory name
+      // It's a DNA-based directory name - try multiple locations
+      // 1. First try the certified directory directly
       modelPath = path.join(certifiedDir, modelId);
-      console.log(`[DNA] Using DNA-based model path: ${modelPath}`);
+      console.log(`[DNA] Trying certified path: ${modelPath}`);
+      
+      // 2. Check if it exists there
+      try {
+        await fs.access(modelPath);
+        console.log(`[DNA] Found model in certified dir: ${modelPath}`);
+      } catch (error) {
+        // 3. Try the merged directory
+        const mergedPath = path.join(mergedDir, modelId);
+        console.log(`[DNA] Trying merged path: ${mergedPath}`);
+        
+        try {
+          await fs.access(mergedPath);
+          modelPath = mergedPath;
+          console.log(`[DNA] Found model in merged dir: ${modelPath}`);
+        } catch (mergedError) {
+          // 4. Try without full DNA (for merged models with shorter names)
+          // e.g., OneSeek-7B-Zero.v1.1 might match OneSeek-7B-Zero.v1.1.sv.dsoneseek...
+          try {
+            const mergedEntries = await fs.readdir(mergedDir, { withFileTypes: true });
+            const matchingEntry = mergedEntries.find(entry => 
+              entry.isDirectory() && entry.name.startsWith(modelId)
+            );
+            if (matchingEntry) {
+              modelPath = path.join(mergedDir, matchingEntry.name);
+              console.log(`[DNA] Found partial match in merged dir: ${modelPath}`);
+            }
+          } catch (readError) {
+            // mergedDir doesn't exist yet
+          }
+        }
+      }
     } else {
       // Legacy: try to find by version number
       // This is for backward compatibility during transition
@@ -127,14 +160,23 @@ router.post('/set-current', rateLimiter, async (req, res) => {
     try {
       await fs.access(modelPath);
     } catch (error) {
-      // If DNA-based directory doesn't exist, try to find it by searching
+      // If DNA-based directory doesn't exist, also check merged folder
       if (modelId.includes('.') && modelId.includes('OneSeek-7B-Zero')) {
-        return res.status(404).json({ 
-          error: 'Model directory not found', 
-          modelId,
-          expectedPath: modelPath,
-          note: 'The DNA-based model directory does not exist. Please train a model first.'
-        });
+        // Try merged folder as last resort
+        const mergedPath = path.join(mergedDir, modelId);
+        try {
+          await fs.access(mergedPath);
+          modelPath = mergedPath;
+          console.log(`[DNA] Final check: found model in merged dir: ${modelPath}`);
+        } catch (mergedError) {
+          return res.status(404).json({ 
+            error: 'Model directory not found', 
+            modelId,
+            expectedPath: modelPath,
+            checkedPaths: [path.join(certifiedDir, modelId), mergedPath],
+            note: 'The DNA-based model directory does not exist. Please train a model first or check if it is a merged model.'
+          });
+        }
       }
       
       // Legacy fallback: check if metadata file exists
