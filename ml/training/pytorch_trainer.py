@@ -916,6 +916,29 @@ def train_single_model_lora(
                 max_memory = {str(i): max_memory_per_gpu for i in range(gpu_count)}
                 print(f"   [MEMORY] GPU minnesbegränsning aktiverad: {max_memory_per_gpu} per GPU")
                 print(f"   [MEMORY] max_memory config: {max_memory}")
+                
+                # CRITICAL: Also set memory fraction via PyTorch to FULLY respect the limit
+                # Parse memory limit (e.g., "9.5GB", "8GB", "8000MB")
+                try:
+                    memory_str = max_memory_per_gpu.strip().upper()
+                    if memory_str.endswith('GB'):
+                        memory_bytes = float(memory_str[:-2]) * (1024**3)
+                    elif memory_str.endswith('MB'):
+                        memory_bytes = float(memory_str[:-2]) * (1024**2)
+                    else:
+                        # Assume GB if no unit
+                        memory_bytes = float(memory_str) * (1024**3)
+                    
+                    # Set memory fraction for each GPU
+                    for i in range(gpu_count):
+                        total_memory = torch.cuda.get_device_properties(i).total_memory
+                        fraction = memory_bytes / total_memory
+                        fraction = min(0.99, max(0.1, fraction))  # Clamp between 10% and 99%
+                        torch.cuda.set_per_process_memory_fraction(fraction, device=i)
+                        print(f"   [MEMORY] GPU {i}: Memory fraction set to {fraction:.1%} ({max_memory_per_gpu} of {total_memory / (1024**3):.1f}GB)")
+                except Exception as mem_error:
+                    print(f"   [WARNING] Could not set memory fraction: {mem_error}")
+                    print(f"   [INFO] Falling back to max_memory dict only")
         
         try:
             # Bygg BitsAndBytesConfig om kvantisering är aktiverad

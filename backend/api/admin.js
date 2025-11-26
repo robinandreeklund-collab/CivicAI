@@ -833,6 +833,134 @@ router.post('/datasets/analyze-multiple-languages', requireAdmin, async (req, re
   }
 });
 
+// GET /api/admin/gpu-info - Get GPU information for DDP configuration
+router.get('/gpu-info', requireAdmin, async (req, res) => {
+  try {
+    // Try to get GPU info by running a simple Python script
+    const pythonScript = `
+import json
+try:
+    import torch
+    if torch.cuda.is_available():
+        count = torch.cuda.device_count()
+        devices = []
+        total_memory = 0
+        for i in range(count):
+            props = torch.cuda.get_device_properties(i)
+            memory_gb = props.total_memory / (1024**3)
+            total_memory += memory_gb
+            devices.append({
+                'index': i,
+                'name': props.name,
+                'memory_gb': round(memory_gb, 1),
+                'compute_capability': f"{props.major}.{props.minor}"
+            })
+        print(json.dumps({
+            'available': True,
+            'count': count,
+            'devices': devices,
+            'total_memory_gb': round(total_memory, 1),
+            'ddp_supported': count >= 2
+        }))
+    else:
+        print(json.dumps({
+            'available': False,
+            'count': 0,
+            'devices': [],
+            'total_memory_gb': 0,
+            'ddp_supported': False
+        }))
+except Exception as e:
+    print(json.dumps({
+        'available': False,
+        'count': 0,
+        'devices': [],
+        'error': str(e),
+        'ddp_supported': False
+    }))
+`;
+
+    // Determine Python command
+    let pythonCommand;
+    const venvPath = path.join(process.cwd(), 'python_services', 'venv');
+    
+    if (process.platform === 'win32') {
+      const venvPython = path.join(venvPath, 'Scripts', 'python.exe');
+      try {
+        await fs.access(venvPython);
+        pythonCommand = venvPython;
+      } catch {
+        pythonCommand = 'python';
+      }
+    } else {
+      const venvPython = path.join(venvPath, 'bin', 'python3');
+      try {
+        await fs.access(venvPython);
+        pythonCommand = venvPython;
+      } catch {
+        pythonCommand = 'python3';
+      }
+    }
+
+    const gpuProcess = spawn(pythonCommand, ['-c', pythonScript]);
+    
+    let stdout = '';
+    let stderr = '';
+    
+    gpuProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    gpuProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    gpuProcess.on('close', (code) => {
+      if (code === 0 && stdout) {
+        try {
+          const gpuInfo = JSON.parse(stdout.trim());
+          res.json(gpuInfo);
+        } catch (parseError) {
+          res.json({
+            available: false,
+            count: 0,
+            devices: [],
+            error: 'Failed to parse GPU info',
+            ddp_supported: false
+          });
+        }
+      } else {
+        res.json({
+          available: false,
+          count: 0,
+          devices: [],
+          error: stderr || 'Failed to get GPU info',
+          ddp_supported: false
+        });
+      }
+    });
+    
+    gpuProcess.on('error', (error) => {
+      res.json({
+        available: false,
+        count: 0,
+        devices: [],
+        error: error.message,
+        ddp_supported: false
+      });
+    });
+  } catch (error) {
+    console.error('Error getting GPU info:', error);
+    res.json({
+      available: false,
+      count: 0,
+      devices: [],
+      error: error.message,
+      ddp_supported: false
+    });
+  }
+});
+
 // Training Control Endpoints
 
 // GET /api/admin/training/status - Get training status
@@ -916,7 +1044,9 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       // Multi-GPU konfiguration (nya)
       useMultiGpu, numGpus,
       // DeepSpeed Tensor Parallel konfiguration (nya)
-      useDeepSpeed, deepSpeedTpSize, deepSpeedZeroStage, deepSpeedBatchSize
+      useDeepSpeed, deepSpeedTpSize, deepSpeedZeroStage, deepSpeedBatchSize,
+      // DDP (Distributed Data Parallel) konfiguration
+      useDdp, ddpBackend
     } = req.body;
     
     // Accept either datasetId (single) or datasetIds (multiple)
@@ -1265,6 +1395,13 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
         pythonArgs.push('--deepspeed-batch-size', String(deepSpeedBatchSize));
       }
     }
+    // DDP (Distributed Data Parallel) konfiguration
+    if (useDdp === true) {
+      pythonArgs.push('--use-ddp');
+      if (ddpBackend) {
+        pythonArgs.push('--ddp-backend', ddpBackend);
+      }
+    }
 
     
     trainingState.logs.push({
@@ -1278,6 +1415,7 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       MODELS_DIR: 'models',
       BASE_MODELS: baseModels.join(','),  // Pass selected base models
       RUN_ID: runId,  // Pass run_id to Python script for consistent tracking
+      USE_DDP: useDdp ? 'true' : 'false',  // Pass DDP flag to Python
     };
     
     // Add ledger configuration if available

@@ -216,6 +216,15 @@ export const TRAINING_CONFIG = {
       max_batch_size: 64,
       gradient_accumulation_steps: 1
     }
+  },
+  
+  // DDP (Distributed Data Parallel) Configuration
+  ddp: {
+    enabled: false,           // Enable full DDP training via torchrun
+    backend: 'nccl',          // nccl for NVIDIA GPUs, gloo for CPU
+    auto_detect_gpus: true,   // Auto-detect available GPUs
+    recommended_for_multi_gpu: true,  // DDP is recommended for 2+ GPUs
+    estimated_speedup_per_gpu: 0.95   // ~95% efficiency per additional GPU
   }
 };
 
