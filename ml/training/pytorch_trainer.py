@@ -647,6 +647,7 @@ def train_single_model_lora(
         # Check config.json first to understand the model type
         config_path = actual_model_path / "config.json"
         model_type = None
+        config_dict = None
         if config_path.exists():
             try:
                 with open(config_path, 'r', encoding='utf-8') as f:
@@ -659,18 +660,58 @@ def train_single_model_lora(
         
         # Check tokenizer_config.json to understand the tokenizer class
         tokenizer_config_path = actual_model_path / "tokenizer_config.json"
-        tokenizer_class = None
+        tokenizer_class_name = None
         if tokenizer_config_path.exists():
             try:
                 with open(tokenizer_config_path, 'r', encoding='utf-8') as f:
                     tokenizer_config = json.load(f)
-                tokenizer_class = tokenizer_config.get('tokenizer_class', None)
-                if tokenizer_class:
-                    print(f"   [INFO] Tokenizer class from tokenizer_config.json: {tokenizer_class}")
+                tokenizer_class_name = tokenizer_config.get('tokenizer_class', None)
+                if tokenizer_class_name:
+                    print(f"   [INFO] Tokenizer class from tokenizer_config.json: {tokenizer_class_name}")
             except Exception as tok_config_err:
                 print(f"   [DEBUG] Could not read tokenizer_config.json: {tok_config_err}")
         
-        # Strategy 1: Try AutoTokenizer with defaults first (best compatibility)
+        # For Llama models, pre-load the config as LlamaConfig to avoid 'dict' object has no attribute 'model_type' error
+        llama_config = None
+        if model_type == 'llama' and config_dict:
+            try:
+                from transformers import LlamaConfig
+                llama_config = LlamaConfig(**config_dict)
+                print(f"   [INFO] Pre-loaded LlamaConfig successfully")
+            except Exception as llama_config_err:
+                print(f"   [DEBUG] Could not pre-load LlamaConfig: {llama_config_err}")
+        
+        # Strategy 1: For PreTrainedTokenizerFast (check tokenizer_config.json), try loading directly with tokenizer.json
+        if tokenizer is None and tokenizer_class_name == 'PreTrainedTokenizerFast':
+            tokenizer_json_path = actual_model_path / "tokenizer.json"
+            if tokenizer_json_path.exists():
+                try:
+                    from transformers import PreTrainedTokenizerFast
+                    tokenizer = PreTrainedTokenizerFast(
+                        tokenizer_file=str(tokenizer_json_path),
+                        bos_token="<|begin_of_text|>",
+                        eos_token="<|end_of_text|>",
+                        pad_token="<|end_of_text|>",
+                    )
+                    print(f"   [SUCCESS] Tokenizer loaded directly from tokenizer.json")
+                except Exception as e0:
+                    tokenizer_errors.append(f"PreTrainedTokenizerFast from tokenizer.json: {e0}")
+        
+        # Strategy 2: Try AutoTokenizer with LlamaConfig if available
+        if tokenizer is None and llama_config is not None:
+            try:
+                from transformers import AutoTokenizer
+                tokenizer = AutoTokenizer.from_pretrained(
+                    str(actual_model_path),
+                    config=llama_config,
+                    trust_remote_code=True,
+                    local_files_only=True
+                )
+                print(f"   [SUCCESS] Tokenizer loaded with AutoTokenizer + LlamaConfig")
+            except Exception as e1:
+                tokenizer_errors.append(f"AutoTokenizer + LlamaConfig: {e1}")
+        
+        # Strategy 3: Try AutoTokenizer with defaults (best compatibility)
         if tokenizer is None:
             try:
                 from transformers import AutoTokenizer
@@ -680,18 +721,18 @@ def train_single_model_lora(
                     local_files_only=True
                 )
                 print(f"   [SUCCESS] Tokenizer loaded with AutoTokenizer (defaults)")
-            except Exception as e1:
+            except Exception as e2:
                 # Check for protobuf compatibility error
-                if "Descriptors cannot be created directly" in str(e1) or "protobuf" in str(e1).lower():
+                if "Descriptors cannot be created directly" in str(e2) or "protobuf" in str(e2).lower():
                     print(f"   [WARNING]  Protobuf compatibility error detected")
                     print(f"   [INFO] This is a dependency version conflict between protobuf and sentencepiece")
                     print(f"\n   [FIX] Quick fix:")
                     print(f"      pip install protobuf==3.20.3")
                     print(f"\n   After fixing, run the training script again.")
                     raise Exception("Protobuf dependency error. Please run: pip install protobuf==3.20.3")
-                tokenizer_errors.append(f"AutoTokenizer (defaults): {e1}")
+                tokenizer_errors.append(f"AutoTokenizer (defaults): {e2}")
         
-        # Strategy 2: Try with use_fast=True explicitly
+        # Strategy 4: Try with use_fast=True explicitly
         if tokenizer is None:
             try:
                 from transformers import AutoTokenizer
@@ -702,10 +743,10 @@ def train_single_model_lora(
                     local_files_only=True
                 )
                 print(f"   [SUCCESS] Tokenizer loaded with use_fast=True")
-            except Exception as e2:
-                tokenizer_errors.append(f"use_fast=True: {e2}")
+            except Exception as e3:
+                tokenizer_errors.append(f"use_fast=True: {e3}")
         
-        # Strategy 3: Try with use_fast=False
+        # Strategy 5: Try with use_fast=False
         if tokenizer is None:
             try:
                 from transformers import AutoTokenizer
@@ -717,10 +758,10 @@ def train_single_model_lora(
                     local_files_only=True
                 )
                 print(f"   [SUCCESS] Tokenizer loaded with use_fast=False")
-            except Exception as e3:
-                tokenizer_errors.append(f"use_fast=False: {e3}")
+            except Exception as e4:
+                tokenizer_errors.append(f"use_fast=False: {e4}")
         
-        # Strategy 4: Try PreTrainedTokenizerFast directly (for models that use fast tokenizer)
+        # Strategy 6: Try PreTrainedTokenizerFast.from_pretrained (for models that use fast tokenizer)
         if tokenizer is None:
             try:
                 from transformers import PreTrainedTokenizerFast
@@ -729,11 +770,11 @@ def train_single_model_lora(
                     trust_remote_code=True,
                     local_files_only=True
                 )
-                print(f"   [SUCCESS] Tokenizer loaded with PreTrainedTokenizerFast")
-            except Exception as e4:
-                tokenizer_errors.append(f"PreTrainedTokenizerFast: {e4}")
+                print(f"   [SUCCESS] Tokenizer loaded with PreTrainedTokenizerFast.from_pretrained")
+            except Exception as e5:
+                tokenizer_errors.append(f"PreTrainedTokenizerFast.from_pretrained: {e5}")
         
-        # Strategy 5: Try LlamaTokenizerFast for Llama-based models
+        # Strategy 7: Try LlamaTokenizerFast for Llama-based models
         if tokenizer is None and model_type and 'llama' in model_type.lower():
             try:
                 from transformers import LlamaTokenizerFast
@@ -743,10 +784,10 @@ def train_single_model_lora(
                     local_files_only=True
                 )
                 print(f"   [SUCCESS] Tokenizer loaded with LlamaTokenizerFast")
-            except Exception as e5:
-                tokenizer_errors.append(f"LlamaTokenizerFast: {e5}")
+            except Exception as e6:
+                tokenizer_errors.append(f"LlamaTokenizerFast: {e6}")
         
-        # Strategy 6: Try LlamaTokenizer for Llama-based models (legacy)
+        # Strategy 8: Try LlamaTokenizer for Llama-based models (legacy)
         if tokenizer is None and model_type and 'llama' in model_type.lower():
             try:
                 from transformers import LlamaTokenizer
@@ -756,8 +797,8 @@ def train_single_model_lora(
                     local_files_only=True
                 )
                 print(f"   [SUCCESS] Tokenizer loaded with LlamaTokenizer")
-            except Exception as e6:
-                tokenizer_errors.append(f"LlamaTokenizer: {e6}")
+            except Exception as e7:
+                tokenizer_errors.append(f"LlamaTokenizer: {e7}")
         
         if tokenizer is None:
             # === NO FALLBACK TO REMOTE MODELS ===
