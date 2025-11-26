@@ -875,8 +875,9 @@ def train_single_model_lora(
                         bnb_4bit_quant_type=quantization_type,  # 'nf4' eller 'fp4'
                         bnb_4bit_compute_dtype=compute_dtype,
                         bnb_4bit_use_double_quant=double_quantization,
+                        bnb_4bit_use_nested_quant=use_nested_quant,  # Aktivera nested quantization för QLoRA
                     )
-                    print(f"   [QUANT] BitsAndBytesConfig: type={quantization_type}, double_quant={double_quantization}")
+                    print(f"   [QUANT] BitsAndBytesConfig: type={quantization_type}, double_quant={double_quantization}, nested_quant={use_nested_quant}")
                 except ImportError:
                     print(f"   [WARNING] bitsandbytes inte installerat - kan inte använda 4-bit kvantisering")
                     print(f"   [FIX] Installera med: pip install bitsandbytes")

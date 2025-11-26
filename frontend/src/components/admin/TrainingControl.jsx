@@ -1119,14 +1119,14 @@ export default function TrainingControl() {
                     <select
                       value={trainingParams.quantizationType}
                       onChange={(e) => setTrainingParams({ ...trainingParams, quantizationType: e.target.value })}
-                      disabled={isTraining || (!trainingParams.loadIn4Bit && !trainingParams.loadIn8Bit)}
+                      disabled={isTraining || !trainingParams.loadIn4Bit}
                       className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
                     >
                       <option value="nf4">NF4 (rekommenderad för 4-bit)</option>
                       <option value="fp4">FP4</option>
                     </select>
                     <p className="text-[#555] font-mono text-xs mt-1">
-                      NF4 ger bäst kvalitet för 4-bit
+                      NF4 ger bäst kvalitet för 4-bit (kräver 4-bit)
                     </p>
                   </div>
 

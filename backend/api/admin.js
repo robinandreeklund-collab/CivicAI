@@ -1218,8 +1218,14 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
     if (useFastTokenizer === false) {
       pythonArgs.push('--no-fast-tokenizer');
     }
+    // Validera loraScalingFactor innan det skickas till Python
     if (loraScalingFactor !== undefined) {
-      pythonArgs.push('--lora-scaling-factor', String(loraScalingFactor));
+      const scalingFactor = parseFloat(loraScalingFactor);
+      if (!isNaN(scalingFactor) && scalingFactor > 0 && scalingFactor <= 16.0) {
+        pythonArgs.push('--lora-scaling-factor', String(scalingFactor));
+      } else {
+        console.warn(`[WARNING] Invalid loraScalingFactor: ${loraScalingFactor}, using default 2.0`);
+      }
     }
 
     
