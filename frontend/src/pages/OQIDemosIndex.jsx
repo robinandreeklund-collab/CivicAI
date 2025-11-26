@@ -68,6 +68,40 @@ export default function OQIDemosIndex() {
     },
   ];
 
+  // OQI Demo 10 variants with enhanced features
+  const demo10Variants = [
+    {
+      id: 'v1',
+      title: 'Enhanced Grok Timeline',
+      description: 'Full Grok-style vertical timelines on both sides, character personas, live response time',
+      features: ['Grok-style timeline', 'DNA Chain ledger', 'Character personas', 'Live timer'],
+    },
+    {
+      id: 'v2',
+      title: 'Minimalist Edge',
+      description: 'Ultra-thin edge timelines, character pills, animated number counter',
+      features: ['Edge timelines', 'Character pills', 'Number flip animation', 'Compact design'],
+    },
+    {
+      id: 'v3',
+      title: 'Symmetric DNA',
+      description: 'Mirrored timelines with character wheel, pulsing response timer',
+      features: ['Symmetric layout', 'Character wheel', 'Timer pulse', 'DNA helix effect'],
+    },
+    {
+      id: 'v4',
+      title: 'Curved Timelines',
+      description: 'Arc-shaped timelines, floating character badges, streaming time display',
+      features: ['Arc timelines', 'Floating badges', 'Stream timer', 'Dynamic spacing'],
+    },
+    {
+      id: 'v5',
+      title: 'Integrated Edges',
+      description: 'Seamless edge integration, inline character selector, comprehensive metrics',
+      features: ['Edge integration', 'Inline selector', 'Live counter', 'Full metrics bar'],
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] font-sans">
       <div className="max-w-6xl mx-auto px-8 py-12">
@@ -95,7 +129,58 @@ export default function OQIDemosIndex() {
           </div>
         </div>
 
-        {/* Demo Grid */}
+        {/* Demo 10 Enhanced Variants Section */}
+        <div className="mb-16">
+          <div className="mb-6">
+            <h2 className="text-2xl font-light text-[#e7e7e7] mb-2">
+              ★ Design 10 Variants – Enhanced Immersive Cinema
+            </h2>
+            <p className="text-sm text-[#888]">
+              5 variants of the Immersive Cinema design with Grok-style timelines, character personas, DNA Chain ledger, and live response metrics.
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {demo10Variants.map((variant) => (
+              <Link
+                key={variant.id}
+                to={`/oqi-demo-10-${variant.id}`}
+                className="block bg-[#0d0d0d] border border-[#6D28D9]/30 rounded-xl p-5 hover:border-[#6D28D9]/60 hover:bg-[#111111] transition-all duration-300 group"
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="text-[10px] font-mono text-[#6D28D9] uppercase tracking-wider">
+                    Variant {variant.id.toUpperCase()}
+                  </div>
+                  <span className="text-[#666] group-hover:text-[#6D28D9] transition-colors">
+                    →
+                  </span>
+                </div>
+                <h3 className="text-lg font-light text-[#e7e7e7] mb-2 group-hover:text-[#fff] transition-colors">
+                  {variant.title}
+                </h3>
+                <p className="text-xs text-[#888] mb-3">
+                  {variant.description}
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {variant.features.map((feature, idx) => (
+                    <span 
+                      key={idx}
+                      className="text-[9px] px-2 py-0.5 bg-[#6D28D9]/10 text-[#6D28D9]/70 rounded"
+                    >
+                      {feature}
+                    </span>
+                  ))}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* Original Demo Grid */}
+        <div className="mb-8">
+          <h2 className="text-xl font-light text-[#888] mb-4">Original Design Proposals</h2>
+        </div>
+        
         <div className="grid md:grid-cols-2 gap-6">
           {demos.map((demo) => (
             <Link
