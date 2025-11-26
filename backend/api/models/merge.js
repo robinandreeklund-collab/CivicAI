@@ -468,9 +468,30 @@ router.post('/merge/quick', async (req, res) => {
       return res.status(400).json({ error: 'No adapters found in model directory' });
     }
     
-    // Build new output name with version
+    // Build new output name with version - inherit DNA structure from source
     const versionStr = newVersion || (mergeType === 'major' ? '2.0' : '1.1');
-    const outputName = `OneSeek-7B-Zero.v${versionStr}`;
+    
+    // Parse DNA to extract parts and update version
+    // DNA format: OneSeek-7B-Zero.v1.0.sv.dsoneseek-identity-core.79171dc2.43da4687
+    let outputName;
+    if (dna && dna.includes('.v') && dna.includes('.')) {
+      // Extract parts from DNA: model name, language, dataset suffix, hashes
+      const dnaParts = dna.split('.');
+      // Find version position (vX.Y)
+      const versionIdx = dnaParts.findIndex(part => part.startsWith('v') && /^\d+$/.test(part.charAt(1)));
+      if (versionIdx >= 0 && dnaParts[versionIdx + 1]) {
+        // Replace version in DNA
+        dnaParts[versionIdx] = `v${versionStr.split('.')[0]}`;
+        dnaParts[versionIdx + 1] = versionStr.split('.')[1] || '0';
+        outputName = dnaParts.join('.');
+      } else {
+        // Try simpler replacement: OneSeek-7B-Zero.vX.Y... -> OneSeek-7B-Zero.vNEW...
+        outputName = dna.replace(/\.v\d+\.\d+/, `.v${versionStr}`);
+      }
+    } else {
+      // Fallback to simple name
+      outputName = `OneSeek-7B-Zero.v${versionStr}`;
+    }
     
     // Build Python script arguments
     const scriptPath = path.join(process.cwd(), '..', 'scripts', 'merge_adapters.py');

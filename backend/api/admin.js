@@ -1605,11 +1605,21 @@ router.get('/models', requireAdmin, async (req, res) => {
         
         const modelPath = path.join(certifiedDir, entry.name);
         const metadataPath = path.join(modelPath, 'metadata.json');
+        const mergeManifestPath = path.join(modelPath, 'merge_manifest.json');
         
         try {
           // Check if metadata.json exists
           const metadataContent = await fs.readFile(metadataPath, 'utf-8');
           const metadata = JSON.parse(metadataContent);
+          
+          // Check if this is a merged model (has merge_manifest.json)
+          let isMerged = false;
+          try {
+            await fs.access(mergeManifestPath);
+            isMerged = true;
+          } catch {
+            // No merge manifest, not a merged model
+          }
           
           // Extract components from directory name
           // Format: OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1
@@ -1639,6 +1649,7 @@ router.get('/models', requireAdmin, async (req, res) => {
             training: null,
             metadata: metadata,
             isCertified: true,
+            isMerged: isMerged, // True if model has been merged (standalone, no adapters)
           });
         } catch (error) {
           console.log(`Skipping ${entry.name}: ${error.message}`);
@@ -1646,6 +1657,80 @@ router.get('/models', requireAdmin, async (req, res) => {
       }
     } catch (error) {
       console.log('Certified directory not found or empty:', error.message);
+    }
+    
+    // Also scan merged models directory
+    try {
+      const mergedDir = path.join(certifiedDir, 'merged');
+      await fs.mkdir(mergedDir, { recursive: true });
+      const mergedEntries = await fs.readdir(mergedDir, { withFileTypes: true });
+      
+      for (const entry of mergedEntries) {
+        if (!entry.isDirectory()) continue;
+        if (!entry.name.startsWith('OneSeek-7B-Zero.v')) continue;
+        
+        const modelPath = path.join(mergedDir, entry.name);
+        const metadataPath = path.join(modelPath, 'metadata.json');
+        const mergeManifestPath = path.join(modelPath, 'merge_manifest.json');
+        
+        try {
+          // Read metadata if exists
+          let metadata = {};
+          try {
+            const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+            metadata = JSON.parse(metadataContent);
+          } catch {
+            // No metadata file, use merge manifest for info
+          }
+          
+          // Read merge manifest
+          let mergeManifest = {};
+          try {
+            const manifestContent = await fs.readFile(mergeManifestPath, 'utf-8');
+            mergeManifest = JSON.parse(manifestContent);
+          } catch {
+            // No manifest
+          }
+          
+          // Extract version from directory name
+          const nameParts = entry.name.split('.');
+          const versionPart = nameParts[1]; // v1.1
+          const versionId = versionPart.replace('v', ''); // 1.1
+          
+          models.push({
+            id: entry.name,
+            version: metadata.version || mergeManifest.version || `OneSeek-7B-Zero.v${versionId}`,
+            dna: metadata.dna || mergeManifest.sourceDna || entry.name,
+            directoryName: entry.name,
+            createdAt: metadata.createdAt || mergeManifest.generatedAt || new Date().toISOString(),
+            trainingType: 'merged',
+            samplesProcessed: metadata.samplesProcessed || 0,
+            isCurrent: false,
+            metrics: metadata.metrics || { loss: null, accuracy: null, fairness: null },
+            weights: null,
+            baseModels: mergeManifest.baseModel ? [mergeManifest.baseModel] : [],
+            baseModel: mergeManifest.baseModel || metadata.baseModel || 'Unknown',
+            language: metadata.language || 'sv',
+            datasets: metadata.datasets || [],
+            training: null,
+            metadata: metadata,
+            isCertified: true,
+            isMerged: true, // This is a merged model
+            mergeInfo: {
+              type: mergeManifest.mergeType,
+              version: mergeManifest.version,
+              sourceModel: mergeManifest.sourceModel,
+              sourceDna: mergeManifest.sourceDna,
+              adapters: mergeManifest.adapters,
+              mergeHash: mergeManifest.mergeHash,
+            },
+          });
+        } catch (error) {
+          console.log(`Skipping merged model ${entry.name}: ${error.message}`);
+        }
+      }
+    } catch (error) {
+      console.log('Merged directory not found or empty:', error.message);
     }
     
     // Check which model is current by reading symlink

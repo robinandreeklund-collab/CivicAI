@@ -885,14 +885,17 @@ export default function ModelManagement() {
                           >
                             {quickMerging && quickMergeModel?.id === model.id && quickMergeType === 'major' ? '⏳...' : '🚀 Merge Major'}
                           </button>
-                          <button
-                            onClick={() => performQuickGgufExport(model, 'Q5_K_M')}
-                            disabled={quickExporting && quickExportModel?.id === model.id}
-                            className="px-3 py-1 border border-orange-700/50 bg-orange-900/20 text-orange-400 text-xs font-mono hover:bg-orange-900/30 transition-colors disabled:opacity-50"
-                            title="Export GGUF (Q5_K_M quantization)"
-                          >
-                            {quickExporting && quickExportModel?.id === model.id ? '⏳...' : '📦 Export GGUF'}
-                          </button>
+                          {/* Only show GGUF export for merged models */}
+                          {model.isMerged && (
+                            <button
+                              onClick={() => performQuickGgufExport(model, 'Q5_K_M')}
+                              disabled={quickExporting && quickExportModel?.id === model.id}
+                              className="px-3 py-1 border border-orange-700/50 bg-orange-900/20 text-orange-400 text-xs font-mono hover:bg-orange-900/30 transition-colors disabled:opacity-50"
+                              title="Export GGUF (Q5_K_M quantization) - Only available for merged models"
+                            >
+                              {quickExporting && quickExportModel?.id === model.id ? '⏳...' : '📦 Export GGUF'}
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
