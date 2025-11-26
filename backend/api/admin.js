@@ -907,7 +907,10 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       datasetId, datasetIds, epochs, learningRate, autoStopThreshold, autoStopPatience, seed, baseModels,
       // Advanced LoRA parameters
       loraRank, loraAlpha, lrScheduler, warmupSteps, weightDecay, maxGradNorm,
-      precision, optimizer, gradientCheckpointing, torchCompile, targetModules, dropout
+      precision, optimizer, gradientCheckpointing, torchCompile, targetModules, dropout,
+      // Avancerade kvantiserings- och minnesoptimeringsparametrar (nya)
+      loadIn4Bit, loadIn8Bit, quantizationType, computeDtype, doubleQuantization, useNestedQuant,
+      gradientAccumulationSteps, maxSeqLength, packingEnabled, useFastTokenizer, loraScalingFactor
     } = req.body;
     
     // Accept either datasetId (single) or datasetIds (multiple)
@@ -1179,6 +1182,44 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
     }
     if (dropout !== undefined) {
       pythonArgs.push('--dropout', String(dropout));
+    }
+
+    // Avancerade kvantiserings- och minnesoptimeringsparametrar (nya)
+    if (loadIn4Bit === true) {
+      pythonArgs.push('--load-in-4bit');
+    }
+    if (loadIn8Bit === true) {
+      pythonArgs.push('--load-in-8bit');
+    }
+    if (quantizationType) {
+      pythonArgs.push('--quantization-type', quantizationType);
+    }
+    if (computeDtype) {
+      pythonArgs.push('--compute-dtype', computeDtype);
+    }
+    if (doubleQuantization === true) {
+      pythonArgs.push('--double-quantization');
+    }
+    if (doubleQuantization === false) {
+      pythonArgs.push('--no-double-quantization');
+    }
+    if (useNestedQuant === true) {
+      pythonArgs.push('--use-nested-quant');
+    }
+    if (gradientAccumulationSteps !== undefined) {
+      pythonArgs.push('--gradient-accumulation-steps', String(gradientAccumulationSteps));
+    }
+    if (maxSeqLength !== undefined) {
+      pythonArgs.push('--max-seq-length', String(maxSeqLength));
+    }
+    if (packingEnabled === true) {
+      pythonArgs.push('--packing-enabled');
+    }
+    if (useFastTokenizer === false) {
+      pythonArgs.push('--no-fast-tokenizer');
+    }
+    if (loraScalingFactor !== undefined) {
+      pythonArgs.push('--lora-scaling-factor', String(loraScalingFactor));
     }
 
     

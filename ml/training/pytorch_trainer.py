@@ -840,10 +840,49 @@ def train_single_model_lora(
         use_device_map = device == "cuda"  # Only use device_map='auto' for multi-GPU
         use_fp16 = device.startswith("cuda")
         
+        # Hämta kvantiseringsparametrar från config (nya)
+        load_in_4bit = config.get('load_in_4bit', False)
+        load_in_8bit = config.get('load_in_8bit', False)
+        quantization_type = config.get('quantization_type', 'nf4')
+        compute_dtype_str = config.get('compute_dtype', 'bfloat16')
+        double_quantization = config.get('double_quantization', True)
+        use_nested_quant = config.get('use_nested_quant', True)
+        
+        # Konvertera compute_dtype sträng till torch dtype
+        compute_dtype_map = {
+            'bfloat16': torch.bfloat16,
+            'float16': torch.float16,
+            'float32': torch.float32
+        }
+        compute_dtype = compute_dtype_map.get(compute_dtype_str, torch.bfloat16)
+        
         # Get model dtype - use float16 for GPU, float32 for CPU
-        model_dtype = torch.float16 if use_fp16 else torch.float32
+        # Om 4-bit kvantisering används, välj compute_dtype istället
+        if load_in_4bit:
+            model_dtype = compute_dtype
+            print(f"   [QUANT] 4-bit kvantisering aktiverad med {quantization_type}, compute_dtype={compute_dtype_str}")
+        else:
+            model_dtype = torch.float16 if use_fp16 else torch.float32
         
         try:
+            # Bygg BitsAndBytesConfig om kvantisering är aktiverad
+            bnb_config = None
+            if load_in_4bit:
+                try:
+                    from transformers import BitsAndBytesConfig
+                    bnb_config = BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_quant_type=quantization_type,  # 'nf4' eller 'fp4'
+                        bnb_4bit_compute_dtype=compute_dtype,
+                        bnb_4bit_use_double_quant=double_quantization,
+                    )
+                    print(f"   [QUANT] BitsAndBytesConfig: type={quantization_type}, double_quant={double_quantization}")
+                except ImportError:
+                    print(f"   [WARNING] bitsandbytes inte installerat - kan inte använda 4-bit kvantisering")
+                    print(f"   [FIX] Installera med: pip install bitsandbytes")
+                    load_in_4bit = False
+                    bnb_config = None
+            
             if use_device_map:
                 # Multi-GPU mode with device_map='auto'
                 # This uses MODEL PARALLELISM - the model is split across GPUs
@@ -851,25 +890,45 @@ def train_single_model_lora(
                 # you would need to use DataParallel or DistributedDataParallel
                 print(f"   [INFO] Using device_map='auto' for multi-GPU model distribution")
                 print(f"   [INFO] Model will be split across available GPUs (model parallelism)")
-                model = AutoModelForCausalLM.from_pretrained(
-                    str(actual_model_path),
-                    torch_dtype=model_dtype,
-                    device_map="auto",
-                    load_in_8bit=config.get('quantize_8bit', False),
-                    trust_remote_code=True
-                )
+                
+                if bnb_config:
+                    # Ladda med 4-bit kvantisering
+                    model = AutoModelForCausalLM.from_pretrained(
+                        str(actual_model_path),
+                        quantization_config=bnb_config,
+                        device_map="auto",
+                        trust_remote_code=True
+                    )
+                else:
+                    model = AutoModelForCausalLM.from_pretrained(
+                        str(actual_model_path),
+                        torch_dtype=model_dtype,
+                        device_map="auto",
+                        load_in_8bit=load_in_8bit,
+                        trust_remote_code=True
+                    )
             else:
                 # Single GPU or CPU mode
                 print(f"   [INFO] Loading model to device: {device}")
-                model = AutoModelForCausalLM.from_pretrained(
-                    str(actual_model_path),
-                    torch_dtype=model_dtype,
-                    load_in_8bit=config.get('quantize_8bit', False),
-                    trust_remote_code=True
-                )
-                # Move to specific device if not using device_map
-                if device != "cpu":
-                    model = model.to(device)
+                
+                if bnb_config:
+                    # Ladda med 4-bit kvantisering
+                    model = AutoModelForCausalLM.from_pretrained(
+                        str(actual_model_path),
+                        quantization_config=bnb_config,
+                        device_map={"": device},  # Explicit device mapping för kvantiserade modeller
+                        trust_remote_code=True
+                    )
+                else:
+                    model = AutoModelForCausalLM.from_pretrained(
+                        str(actual_model_path),
+                        torch_dtype=model_dtype,
+                        load_in_8bit=load_in_8bit,
+                        trust_remote_code=True
+                    )
+                    # Move to specific device if not using device_map
+                    if device != "cpu" and not load_in_8bit:
+                        model = model.to(device)
                     
         except Exception as e:
             # === NO FALLBACK TO REMOTE MODELS ===
