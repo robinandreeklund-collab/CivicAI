@@ -991,17 +991,32 @@ def launch_ddp_training(args, dataset_path: Path):
     # Build torchrun command
     ddp_script = project_root / 'ml' / 'training' / 'ddp_trainer.py'
     
-    # Use --standalone for single-node training (avoids libuv issues on Windows)
-    # --standalone uses c10d rendezvous backend which doesn't require libuv
+    # Check if we're on Windows
+    import platform
+    is_windows = platform.system() == 'Windows'
+    
+    # Build command based on platform
+    # On Windows, we need to explicitly set master_addr to 127.0.0.1 to avoid
+    # connection issues with the rendezvous backend
     torchrun_cmd = [
         sys.executable, '-m', 'torch.distributed.run',
-        '--standalone',  # Single-node mode, avoids libuv dependency
+        '--standalone',  # Single-node mode
         f'--nproc_per_node={gpu_count}',
+    ]
+    
+    # Windows needs explicit localhost binding for TCP store to work
+    if is_windows:
+        torchrun_cmd.extend([
+            '--master_addr=127.0.0.1',
+            '--master_port=29500',
+        ])
+    
+    torchrun_cmd.extend([
         str(ddp_script),
         '--config', str(config_path),
         '--dataset', str(dataset_path),
         '--output-dir', str(project_root / 'models' / 'oneseek-certified')
-    ]
+    ])
     
     print(f"\n[LAUNCH] Running: {' '.join(torchrun_cmd[:5])} ...")
     
@@ -1012,6 +1027,11 @@ def launch_ddp_training(args, dataset_path: Path):
     # Ensure all GPUs are visible (fixes detection issues on some systems)
     if 'CUDA_VISIBLE_DEVICES' not in env:
         env['CUDA_VISIBLE_DEVICES'] = ','.join(str(i) for i in range(gpu_count))
+    
+    # Windows-specific: Set these environment variables for better TCP store compatibility
+    if is_windows:
+        env['MASTER_ADDR'] = '127.0.0.1'
+        env['MASTER_PORT'] = '29500'
     
     # Run torchrun
     try:
