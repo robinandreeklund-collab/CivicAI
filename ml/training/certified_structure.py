@@ -77,7 +77,10 @@ def save_certified_metadata(
     model_weights_hash: str,
     status: Optional[str] = None,
     finalized_at: Optional[str] = None,
-    adapters: Optional[List[str]] = None
+    adapters: Optional[List[str]] = None,
+    training_config: Optional[Dict] = None,
+    training_duration: Optional[Dict] = None,
+    epoch_losses: Optional[List[Dict]] = None
 ) -> None:
     """
     Save metadata.json for a certified model.
@@ -97,6 +100,9 @@ def save_certified_metadata(
         status: Training status (e.g., 'completed', 'failed', 'training')
         finalized_at: ISO timestamp when training was finalized
         adapters: List of adapter paths for continuous learning (CRITICAL)
+        training_config: Full training configuration (LoRA, epochs, batch_size, etc.)
+        training_duration: Training time info (start_time, end_time, duration_seconds)
+        epoch_losses: List of per-epoch loss values [{epoch: 1, loss: X}, ...]
     """
     metadata_file = model_dir / 'metadata.json'
     
@@ -153,6 +159,22 @@ def save_certified_metadata(
     
     # CRITICAL: Save the complete adapter chain for continuous learning
     metadata["adapters"] = adapter_chain
+    
+    # Add training configuration (LoRA params, epochs, batch_size, learning_rate, etc.)
+    if training_config:
+        metadata["trainingConfig"] = training_config
+        print(f"[METADATA] Added trainingConfig with {len(training_config)} parameters")
+    
+    # Add training duration (start_time, end_time, duration_seconds)
+    if training_duration:
+        metadata["trainingDuration"] = training_duration
+        duration_str = f"{training_duration.get('duration_seconds', 0):.1f}s"
+        print(f"[METADATA] Added trainingDuration: {duration_str}")
+    
+    # Add per-epoch loss values
+    if epoch_losses:
+        metadata["epochLosses"] = epoch_losses
+        print(f"[METADATA] Added epochLosses for {len(epoch_losses)} epoch(s)")
     
     # Use atomic write with proper flushing for Windows compatibility
     import tempfile

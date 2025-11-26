@@ -103,6 +103,78 @@ router.get('/', async (req, res) => {
         }
       }
       
+      // Also scan merged models directory
+      const mergedDir = path.join(modelsDir, 'merged');
+      try {
+        await fs.access(mergedDir);
+        const mergedEntries = await fs.readdir(mergedDir, { withFileTypes: true });
+        
+        for (const entry of mergedEntries) {
+          if (!entry.isDirectory()) continue;
+          if (!entry.name.startsWith('OneSeek-7B-Zero.v')) continue;
+          
+          const modelPath = path.join(mergedDir, entry.name);
+          
+          // Extract version number for sorting
+          const versionMatch = entry.name.match(VERSION_REGEX);
+          const majorVersion = versionMatch ? parseInt(versionMatch[1]) : 0;
+          const minorVersion = versionMatch ? parseInt(versionMatch[2]) : 0;
+          
+          // Try to read metadata or merge manifest
+          let modelInfo = {
+            name: entry.name,
+            displayName: `${entry.name} (Merged)`,
+            path: modelPath,
+            version: entry.name,
+            dna: entry.name,
+            createdAt: new Date().toISOString(),
+            baseModel: 'Unknown',
+            language: 'sv',
+            datasets: [],
+            trainingType: 'merged',
+            samplesProcessed: 0,
+            metrics: {},
+            isCertified: true,
+            isTrained: true,
+            isMerged: true,
+            majorVersion,
+            minorVersion,
+          };
+          
+          // Try metadata.json first
+          try {
+            const metadataPath = path.join(modelPath, 'metadata.json');
+            const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+            const metadata = JSON.parse(metadataContent);
+            modelInfo.dna = metadata.dna || entry.name;
+            modelInfo.version = metadata.version || entry.name;
+            modelInfo.createdAt = metadata.createdAt || modelInfo.createdAt;
+            modelInfo.baseModel = metadata.baseModel || modelInfo.baseModel;
+            modelInfo.language = metadata.language || 'sv';
+            modelInfo.datasets = metadata.datasets || [];
+          } catch {
+            // Try merge_manifest.json
+            try {
+              const manifestPath = path.join(modelPath, 'merge_manifest.json');
+              const manifestContent = await fs.readFile(manifestPath, 'utf-8');
+              const manifest = JSON.parse(manifestContent);
+              modelInfo.dna = manifest.outputDna || manifest.sourceDna || entry.name;
+              modelInfo.createdAt = manifest.mergedAt || modelInfo.createdAt;
+              modelInfo.mergeType = manifest.mergeType;
+              modelInfo.sourceVersion = manifest.sourceVersion;
+            } catch {
+              // Use defaults
+            }
+          }
+          
+          certifiedModels.push(modelInfo);
+          console.log(`[Certified] Found merged model: ${entry.name}`);
+        }
+      } catch (err) {
+        // Merged directory doesn't exist - that's OK
+        console.log('Merged models directory not found:', err.message);
+      }
+      
       // Sort models by version (newest first)
       certifiedModels.sort((a, b) => {
         // Sort by major version first

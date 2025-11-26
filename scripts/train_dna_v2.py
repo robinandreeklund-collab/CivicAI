@@ -248,6 +248,22 @@ def run_real_training(args, data_dir, dataset_path):
         trainer.config['batch_size'] = args.batch_size
         trainer.config['learning_rate'] = args.learning_rate
         
+        # CRITICAL: Pass LoRA configuration to trainer
+        trainer.config['lora_rank'] = args.lora_rank
+        trainer.config['lora_alpha'] = args.lora_alpha
+        trainer.config['dropout'] = args.dropout
+        trainer.config['target_modules'] = args.target_modules.split(',') if isinstance(args.target_modules, str) else args.target_modules
+        
+        # Advanced training parameters
+        trainer.config['lr_scheduler'] = args.lr_scheduler
+        trainer.config['warmup_steps'] = args.warmup_steps
+        trainer.config['weight_decay'] = args.weight_decay
+        trainer.config['max_grad_norm'] = args.max_grad_norm
+        trainer.config['precision'] = args.precision
+        trainer.config['optimizer'] = args.optimizer
+        trainer.config['gradient_checkpointing'] = args.gradient_checkpointing
+        trainer.config['torch_compile'] = args.torch_compile
+        
         # Set base models from args or environment
         if args.base_models:
             trainer.config['base_models'] = args.base_models
@@ -265,6 +281,15 @@ def run_real_training(args, data_dir, dataset_path):
         print(f"   - Epochs: {args.epochs}")
         print(f"   - Batch size: {args.batch_size}")
         print(f"   - Learning rate: {args.learning_rate}")
+        print(f"   - LoRA Rank: {args.lora_rank}")
+        print(f"   - LoRA Alpha: {args.lora_alpha}")
+        print(f"   - Dropout: {args.dropout}")
+        print(f"   - Target Modules: {args.target_modules}")
+        print(f"   - LR Scheduler: {args.lr_scheduler}")
+        print(f"   - Warmup Steps: {args.warmup_steps}")
+        print(f"   - Weight Decay: {args.weight_decay}")
+        print(f"   - Optimizer: {args.optimizer}")
+        print(f"   - Precision: {args.precision}")
         print(f"   - Auto-stop: threshold={args.auto_stop_threshold}, patience={args.auto_stop_patience}")
         print(f"   - Seed: {args.seed}")
         print(f"   - Base models: {trainer.config.get('base_models', [])}")
@@ -286,6 +311,9 @@ def run_real_training(args, data_dir, dataset_path):
         temp_run_dir.mkdir(parents=True, exist_ok=True)
         print(f"\n[INFO] Created temporary run directory for live metrics: {temp_run_dir}")
         
+        # Record training start time
+        training_start_time = datetime.now()
+        
         # Train the model (this calls real PyTorch training)
         print(f"\n[TRAINING] Starting real PyTorch training...")
         datasets = trainer.load_training_data()
@@ -293,6 +321,10 @@ def run_real_training(args, data_dir, dataset_path):
         # Train with strict mode - no simulation allowed
         # Pass run_id for live metrics
         results = trainer.train_model(datasets, version, run_id)
+        
+        # Record training end time
+        training_end_time = datetime.now()
+        training_duration_seconds = (training_end_time - training_start_time).total_seconds()
         
         # CRITICAL: Check if training actually succeeded (not simulation)
         # DNA v2 MUST NOT create fake model files - only real trained models are allowed
@@ -533,6 +565,69 @@ def run_real_training(args, data_dir, dataset_path):
         print(f"   Fairness: {formatted_metrics['fairness']:.3f}")
         print(f"   Bias Score: {formatted_metrics['bias_score']:.3f}")
         
+        # Build complete training configuration for metadata
+        training_config = {
+            # Basic training parameters
+            "epochs": args.epochs,
+            "batchSize": args.batch_size,
+            "learningRate": args.learning_rate,
+            "seed": args.seed,
+            
+            # LoRA Configuration
+            "loraConfig": {
+                "rank": args.lora_rank,
+                "alpha": args.lora_alpha,
+                "dropout": args.dropout,
+                "targetModules": args.target_modules.split(',') if isinstance(args.target_modules, str) else args.target_modules
+            },
+            
+            # Advanced Training Parameters
+            "advancedConfig": {
+                "lrScheduler": args.lr_scheduler,
+                "warmupSteps": args.warmup_steps,
+                "weightDecay": args.weight_decay,
+                "maxGradNorm": args.max_grad_norm,
+                "precision": args.precision,
+                "optimizer": args.optimizer,
+                "gradientCheckpointing": args.gradient_checkpointing,
+                "torchCompile": args.torch_compile
+            },
+            
+            # Auto-stop settings
+            "autoStop": {
+                "threshold": args.auto_stop_threshold,
+                "patience": args.auto_stop_patience
+            }
+        }
+        
+        # Build training duration info
+        training_duration = {
+            "startTime": training_start_time.isoformat() + "Z",
+            "endTime": training_end_time.isoformat() + "Z",
+            "durationSeconds": round(training_duration_seconds, 2),
+            "durationFormatted": f"{int(training_duration_seconds // 60)}m {int(training_duration_seconds % 60)}s"
+        }
+        
+        # Extract per-epoch losses from results
+        epoch_losses = []
+        metrics_data = results.get('metrics', {})
+        epoch_history = metrics_data.get('epoch_losses', [])
+        
+        if epoch_history:
+            for i, loss in enumerate(epoch_history, 1):
+                epoch_losses.append({
+                    "epoch": i,
+                    "loss": round(loss, 4) if isinstance(loss, (int, float)) else loss
+                })
+        else:
+            # Fallback: use final loss for all epochs if per-epoch not available
+            final_loss = metrics_data.get('training_loss', 0.0)
+            for i in range(1, args.epochs + 1):
+                epoch_losses.append({
+                    "epoch": i,
+                    "loss": round(final_loss, 4)
+                })
+        
         save_certified_metadata(
             model_dir=certified_dir,
             version=version,
@@ -547,7 +642,10 @@ def run_real_training(args, data_dir, dataset_path):
             model_weights_hash=model_weights_hash,
             status='completed',
             finalized_at=finalized_at,
-            adapters=adapters_from_training  # CRITICAL: Pass adapters for continuous learning
+            adapters=adapters_from_training,  # CRITICAL: Pass adapters for continuous learning
+            training_config=training_config,
+            training_duration=training_duration,
+            epoch_losses=epoch_losses
         )
         
         # Save training results with atomic write
@@ -563,7 +661,7 @@ def run_real_training(args, data_dir, dataset_path):
             'fairness_metrics': results.get('fairness_metrics', {}),
             'trained_models': list(trained_models_info.keys()) if trained_models_info else [],
             'timestamp': timestamp.isoformat(),
-            'duration_seconds': 0  # Will be calculated
+            'duration_seconds': training_duration_seconds
         }
         
         results_file = certified_dir / 'training_results.json'

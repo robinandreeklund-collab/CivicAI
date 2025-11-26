@@ -24,11 +24,16 @@ const __dirname = dirname(__filename);
 
 const router = express.Router();
 
-// Configure multer for file uploads
+// Configure multer for file uploads with category support
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
     // Save to datasets folder in project root (one level up from backend)
-    const uploadDir = path.join(process.cwd(), '..', 'datasets');
+    // Check for category in the request body (requires parsing before file upload)
+    const category = req.query.category || 'custom'; // Default to custom category
+    const validCategories = ['politik', 'sverige', 'oneseek', 'custom'];
+    const targetCategory = validCategories.includes(category) ? category : 'custom';
+    
+    const uploadDir = path.join(process.cwd(), '..', 'datasets', targetCategory);
     await fs.mkdir(uploadDir, { recursive: true });
     cb(null, uploadDir);
   },
@@ -132,6 +137,22 @@ function requireAdmin(req, res, next) {
 
 // Dataset Management Endpoints
 
+// Dataset categories
+const DATASET_CATEGORIES = ['politik', 'sverige', 'oneseek', 'custom'];
+
+// Helper function to resolve dataset path (supports category/file format)
+function resolveDatasetPath(datasetId) {
+  const datasetsDir = path.join(process.cwd(), '..', 'datasets');
+  // Dataset ID can be "category/filename.jsonl" or just "filename.jsonl"
+  return path.join(datasetsDir, datasetId);
+}
+
+// Helper function to get filename from dataset ID
+function getDatasetFilename(datasetId) {
+  // Dataset ID can be "category/filename.jsonl" or just "filename.jsonl"
+  return path.basename(datasetId);
+}
+
 // GET /api/admin/datasets - List all datasets
 router.get('/datasets', requireAdmin, async (req, res) => {
   try {
@@ -139,39 +160,83 @@ router.get('/datasets', requireAdmin, async (req, res) => {
     const datasetsDir = path.join(process.cwd(), '..', 'datasets');
     await fs.mkdir(datasetsDir, { recursive: true });
     
-    const files = await fs.readdir(datasetsDir);
-    const datasets = await Promise.all(
-      files
-        .filter(file => file.endsWith('.json') || file.endsWith('.jsonl'))
-        .map(async (file) => {
-          const filePath = path.join(datasetsDir, file);
-          const stats = await fs.stat(filePath);
-          
-          // Try to count entries
-          let entries = 0;
-          try {
-            const content = await fs.readFile(filePath, 'utf-8');
-            if (file.endsWith('.jsonl')) {
-              entries = content.trim().split('\n').filter(line => line.trim()).length;
-            } else {
-              const json = JSON.parse(content);
-              entries = Array.isArray(json) ? json.length : 1;
-            }
-          } catch (error) {
-            console.error('Error counting entries:', error);
-          }
-          
-          return {
-            id: file,
-            name: file,
-            size: stats.size,
-            uploadedAt: stats.mtime.toISOString(),
-            entries,
-          };
-        })
-    );
+    const datasets = [];
+    const categories = {};
     
-    res.json({ datasets });
+    // Initialize categories
+    for (const cat of DATASET_CATEGORIES) {
+      categories[cat] = [];
+      const catDir = path.join(datasetsDir, cat);
+      await fs.mkdir(catDir, { recursive: true });
+    }
+    
+    // Helper to process dataset file
+    const processDatasetFile = async (file, category, filePath) => {
+      const stats = await fs.stat(filePath);
+      
+      // Try to count entries
+      let entries = 0;
+      try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        if (file.endsWith('.jsonl')) {
+          entries = content.trim().split('\n').filter(line => line.trim()).length;
+        } else {
+          const json = JSON.parse(content);
+          entries = Array.isArray(json) ? json.length : 1;
+        }
+      } catch (error) {
+        console.error('Error counting entries:', error);
+      }
+      
+      return {
+        id: category ? `${category}/${file}` : file,
+        name: file,
+        category: category || 'root',
+        size: stats.size,
+        uploadedAt: stats.mtime.toISOString(),
+        entries,
+      };
+    };
+    
+    // Read files from each category directory
+    for (const category of DATASET_CATEGORIES) {
+      const catDir = path.join(datasetsDir, category);
+      try {
+        const files = await fs.readdir(catDir);
+        for (const file of files) {
+          if (file.endsWith('.json') || file.endsWith('.jsonl')) {
+            const filePath = path.join(catDir, file);
+            const stats = await fs.stat(filePath);
+            if (stats.isFile()) {
+              const dataset = await processDatasetFile(file, category, filePath);
+              datasets.push(dataset);
+              categories[category].push(dataset);
+            }
+          }
+        }
+      } catch (error) {
+        console.log(`Category ${category} directory not found or empty`);
+      }
+    }
+    
+    // Also read files from root datasets directory (legacy support)
+    const rootFiles = await fs.readdir(datasetsDir);
+    for (const file of rootFiles) {
+      if ((file.endsWith('.json') || file.endsWith('.jsonl')) && !DATASET_CATEGORIES.includes(file)) {
+        const filePath = path.join(datasetsDir, file);
+        const stats = await fs.stat(filePath);
+        if (stats.isFile()) {
+          const dataset = await processDatasetFile(file, null, filePath);
+          datasets.push(dataset);
+        }
+      }
+    }
+    
+    res.json({ 
+      datasets,
+      categories,
+      availableCategories: DATASET_CATEGORIES
+    });
   } catch (error) {
     console.error('Error listing datasets:', error);
     res.status(500).json({ error: 'Failed to list datasets' });
@@ -213,6 +278,7 @@ router.get('/models/available', requireAdmin, async (req, res) => {
       for (const entry of certifiedEntries) {
         if (!entry.isDirectory()) continue;
         if (entry.name === 'OneSeek-7B-Zero-CURRENT') continue; // Skip symlink
+        if (entry.name === 'merged') continue; // Handle merged separately
         
         // DNA-based directories: OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1
         if (!entry.name.startsWith('OneSeek-7B-Zero.v')) {
@@ -234,6 +300,7 @@ router.get('/models/available', requireAdmin, async (req, res) => {
             displayName: entry.name, // Use full DNA name as display
             dna: metadata.dna || entry.name,
             isCertified: true,
+            isMerged: false,
             language: metadata.language || 'unknown',
             datasets: metadata.datasets || [],
           });
@@ -243,6 +310,59 @@ router.get('/models/available', requireAdmin, async (req, res) => {
       }
     } catch (err) {
       console.log('Certified directory not found or empty:', err.message);
+    }
+    
+    // Check merged models directory
+    const mergedDir = path.join(certifiedDir, 'merged');
+    try {
+      const mergedEntries = await fs.readdir(mergedDir, { withFileTypes: true });
+      
+      for (const entry of mergedEntries) {
+        if (!entry.isDirectory()) continue;
+        if (!entry.name.startsWith('OneSeek-7B-Zero.v')) continue;
+        
+        const modelPath = path.join(mergedDir, entry.name);
+        
+        // Try to read metadata or merge manifest
+        let modelInfo = {
+          id: entry.name,
+          name: entry.name,
+          path: modelPath,
+          displayName: `${entry.name} (Merged)`,
+          dna: entry.name,
+          isCertified: true,
+          isMerged: true,
+          language: 'sv',
+          datasets: [],
+        };
+        
+        // Try metadata.json first
+        try {
+          const metadataPath = path.join(modelPath, 'metadata.json');
+          const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+          const metadata = JSON.parse(metadataContent);
+          modelInfo.dna = metadata.dna || entry.name;
+          modelInfo.language = metadata.language || 'sv';
+          modelInfo.datasets = metadata.datasets || [];
+        } catch {
+          // Try merge_manifest.json
+          try {
+            const manifestPath = path.join(modelPath, 'merge_manifest.json');
+            const manifestContent = await fs.readFile(manifestPath, 'utf-8');
+            const manifest = JSON.parse(manifestContent);
+            modelInfo.dna = manifest.outputDna || manifest.sourceDna || entry.name;
+            modelInfo.mergeType = manifest.mergeType;
+            modelInfo.sourceVersion = manifest.sourceVersion;
+          } catch {
+            // Use defaults
+          }
+        }
+        
+        models.push(modelInfo);
+        console.log(`[Models] Found merged model: ${entry.name}`);
+      }
+    } catch (err) {
+      console.log('Merged directory not found or empty:', err.message);
     }
     
     // Also check root directory for legacy models
@@ -256,6 +376,7 @@ router.get('/models/available', requireAdmin, async (req, res) => {
         if (stats.isDirectory()) {
           // Skip certified directory (already processed above)
           if (item === 'oneseek-certified') continue;
+          if (item === 'gguf') continue; // Skip GGUF directory
           
           // Check if directory contains model files (weights, config, etc.)
           const dirContents = await fs.readdir(itemPath);
@@ -275,6 +396,7 @@ router.get('/models/available', requireAdmin, async (req, res) => {
               path: itemPath,
               displayName: formatModelName(item),
               isCertified: false,
+              isMerged: false,
             });
           }
         }
@@ -398,16 +520,18 @@ router.post('/datasets/upload', requireAdmin, upload.single('dataset'), async (r
 });
 
 // GET /api/admin/datasets/:id/validate - Validate a specific dataset
-router.get('/datasets/:id/validate', requireAdmin, async (req, res) => {
+// Use wildcard to support paths like "politik/filename.jsonl"
+router.get('/datasets/:id(*)/validate', requireAdmin, async (req, res) => {
   try {
-    const filePath = path.join(process.cwd(), '..', 'datasets', req.params.id);
+    const filePath = resolveDatasetPath(req.params.id);
     const content = await fs.readFile(filePath, 'utf-8');
+    const filename = getDatasetFilename(req.params.id);
     
     let validEntries = 0;
     let invalidEntries = 0;
     const errors = [];
     
-    if (req.params.id.endsWith('.jsonl')) {
+    if (filename.endsWith('.jsonl')) {
       const lines = content.trim().split('\n');
       lines.forEach((line, index) => {
         if (!line.trim()) return; // Skip empty lines
@@ -454,9 +578,9 @@ router.get('/datasets/:id/validate', requireAdmin, async (req, res) => {
 });
 
 // DELETE /api/admin/datasets/:id - Delete a dataset
-router.delete('/datasets/:id', requireAdmin, async (req, res) => {
+router.delete('/datasets/:id(*)', requireAdmin, async (req, res) => {
   try {
-    const filePath = path.join(process.cwd(), '..', 'datasets', req.params.id);
+    const filePath = resolveDatasetPath(req.params.id);
     await fs.unlink(filePath);
     res.json({ success: true, message: 'Dataset deleted successfully' });
   } catch (error) {
@@ -466,15 +590,16 @@ router.delete('/datasets/:id', requireAdmin, async (req, res) => {
 });
 
 // GET /api/admin/datasets/:id/analyze-language - Analyze language distribution in dataset
-router.get('/datasets/:id/analyze-language', requireAdmin, async (req, res) => {
+router.get('/datasets/:id(*)/analyze-language', requireAdmin, async (req, res) => {
   try {
-    const filePath = path.join(process.cwd(), '..', 'datasets', req.params.id);
+    const filePath = resolveDatasetPath(req.params.id);
     const content = await fs.readFile(filePath, 'utf-8');
+    const filename = getDatasetFilename(req.params.id);
     
     let texts = [];
     
     // Extract texts from dataset
-    if (req.params.id.endsWith('.jsonl')) {
+    if (filename.endsWith('.jsonl')) {
       const lines = content.trim().split('\n');
       lines.forEach((line) => {
         if (!line.trim()) return;
@@ -601,12 +726,13 @@ router.post('/datasets/analyze-multiple-languages', requireAdmin, async (req, re
     // Analyze each dataset and combine results
     for (const datasetId of datasetIds) {
       try {
-        const filePath = path.join(process.cwd(), '..', 'datasets', datasetId);
+        const filePath = resolveDatasetPath(datasetId);
         const content = await fs.readFile(filePath, 'utf-8');
+        const filename = getDatasetFilename(datasetId);
         
         let texts = [];
         
-        if (datasetId.endsWith('.jsonl')) {
+        if (filename.endsWith('.jsonl')) {
           const lines = content.trim().split('\n');
           for (const line of lines) {
             if (!line.trim()) continue;
@@ -799,9 +925,9 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Training already in progress' });
     }
     
-    // Verify all datasets exist
+    // Verify all datasets exist (supports category paths like "politik/file.jsonl")
     for (const dsId of datasets) {
-      const datasetPath = path.join(process.cwd(), '..', 'datasets', dsId);
+      const datasetPath = resolveDatasetPath(dsId);
       try {
         await fs.access(datasetPath);
       } catch (error) {
@@ -814,18 +940,19 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
     let finalDatasetId;
     
     if (datasets.length > 1) {
-      // Create merged dataset
-      const mergedDatasetId = `merged_${Date.now()}.jsonl`;
-      finalDatasetPath = path.join(process.cwd(), '..', 'datasets', mergedDatasetId);
+      // Create merged dataset in custom folder
+      const mergedDatasetId = `custom/merged_${Date.now()}.jsonl`;
+      finalDatasetPath = resolveDatasetPath(mergedDatasetId);
       finalDatasetId = mergedDatasetId;
       
       // Merge all datasets into one JSONL file
       let mergedContent = '';
       for (const dsId of datasets) {
-        const dsPath = path.join(process.cwd(), '..', 'datasets', dsId);
+        const dsPath = resolveDatasetPath(dsId);
         const content = await fs.readFile(dsPath, 'utf-8');
+        const filename = getDatasetFilename(dsId);
         
-        if (dsId.endsWith('.jsonl')) {
+        if (filename.endsWith('.jsonl')) {
           mergedContent += content.trim() + '\n';
         } else {
           // Convert JSON to JSONL
@@ -850,7 +977,7 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       });
     } else {
       finalDatasetId = datasets[0];
-      finalDatasetPath = path.join(process.cwd(), '..', 'datasets', finalDatasetId);
+      finalDatasetPath = resolveDatasetPath(finalDatasetId);
     }
     
     // Validate that base models are selected (not using defaults)
@@ -1535,11 +1662,21 @@ router.get('/models', requireAdmin, async (req, res) => {
         
         const modelPath = path.join(certifiedDir, entry.name);
         const metadataPath = path.join(modelPath, 'metadata.json');
+        const mergeManifestPath = path.join(modelPath, 'merge_manifest.json');
         
         try {
           // Check if metadata.json exists
           const metadataContent = await fs.readFile(metadataPath, 'utf-8');
           const metadata = JSON.parse(metadataContent);
+          
+          // Check if this is a merged model (has merge_manifest.json)
+          let isMerged = false;
+          try {
+            await fs.access(mergeManifestPath);
+            isMerged = true;
+          } catch {
+            // No merge manifest, not a merged model
+          }
           
           // Extract components from directory name
           // Format: OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1
@@ -1569,6 +1706,7 @@ router.get('/models', requireAdmin, async (req, res) => {
             training: null,
             metadata: metadata,
             isCertified: true,
+            isMerged: isMerged, // True if model has been merged (standalone, no adapters)
           });
         } catch (error) {
           console.log(`Skipping ${entry.name}: ${error.message}`);
@@ -1576,6 +1714,80 @@ router.get('/models', requireAdmin, async (req, res) => {
       }
     } catch (error) {
       console.log('Certified directory not found or empty:', error.message);
+    }
+    
+    // Also scan merged models directory
+    try {
+      const mergedDir = path.join(certifiedDir, 'merged');
+      await fs.mkdir(mergedDir, { recursive: true });
+      const mergedEntries = await fs.readdir(mergedDir, { withFileTypes: true });
+      
+      for (const entry of mergedEntries) {
+        if (!entry.isDirectory()) continue;
+        if (!entry.name.startsWith('OneSeek-7B-Zero.v')) continue;
+        
+        const modelPath = path.join(mergedDir, entry.name);
+        const metadataPath = path.join(modelPath, 'metadata.json');
+        const mergeManifestPath = path.join(modelPath, 'merge_manifest.json');
+        
+        try {
+          // Read metadata if exists
+          let metadata = {};
+          try {
+            const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+            metadata = JSON.parse(metadataContent);
+          } catch {
+            // No metadata file, use merge manifest for info
+          }
+          
+          // Read merge manifest
+          let mergeManifest = {};
+          try {
+            const manifestContent = await fs.readFile(mergeManifestPath, 'utf-8');
+            mergeManifest = JSON.parse(manifestContent);
+          } catch {
+            // No manifest
+          }
+          
+          // Extract version from directory name
+          const nameParts = entry.name.split('.');
+          const versionPart = nameParts[1]; // v1.1
+          const versionId = versionPart.replace('v', ''); // 1.1
+          
+          models.push({
+            id: entry.name,
+            version: metadata.version || mergeManifest.version || `OneSeek-7B-Zero.v${versionId}`,
+            dna: metadata.dna || mergeManifest.sourceDna || entry.name,
+            directoryName: entry.name,
+            createdAt: metadata.createdAt || mergeManifest.generatedAt || new Date().toISOString(),
+            trainingType: 'merged',
+            samplesProcessed: metadata.samplesProcessed || 0,
+            isCurrent: false,
+            metrics: metadata.metrics || { loss: null, accuracy: null, fairness: null },
+            weights: null,
+            baseModels: mergeManifest.baseModel ? [mergeManifest.baseModel] : [],
+            baseModel: mergeManifest.baseModel || metadata.baseModel || 'Unknown',
+            language: metadata.language || 'sv',
+            datasets: metadata.datasets || [],
+            training: null,
+            metadata: metadata,
+            isCertified: true,
+            isMerged: true, // This is a merged model
+            mergeInfo: {
+              type: mergeManifest.mergeType,
+              version: mergeManifest.version,
+              sourceModel: mergeManifest.sourceModel,
+              sourceDna: mergeManifest.sourceDna,
+              adapters: mergeManifest.adapters,
+              mergeHash: mergeManifest.mergeHash,
+            },
+          });
+        } catch (error) {
+          console.log(`Skipping merged model ${entry.name}: ${error.message}`);
+        }
+      }
+    } catch (error) {
+      console.log('Merged directory not found or empty:', error.message);
     }
     
     // Check which model is current by reading symlink
@@ -1674,6 +1886,55 @@ router.get('/models', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Error listing models:', error);
     res.status(500).json({ error: 'Failed to list models' });
+  }
+});
+
+// GET /api/admin/models/:id/metadata - Get model metadata
+router.get('/models/:id/metadata', requireAdmin, async (req, res) => {
+  try {
+    const modelId = decodeURIComponent(req.params.id);
+    const modelsDir = path.join(process.cwd(), '..', 'models');
+    const certifiedDir = path.join(modelsDir, 'oneseek-certified');
+    
+    // Try to find in certified directory
+    const modelPath = path.join(certifiedDir, modelId);
+    const metadataPath = path.join(modelPath, 'metadata.json');
+    
+    try {
+      const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+      const metadata = JSON.parse(metadataContent);
+      
+      // Get directory size
+      let totalSize = 0;
+      try {
+        const files = await fs.readdir(modelPath);
+        for (const file of files) {
+          try {
+            const stats = await fs.stat(path.join(modelPath, file));
+            if (stats.isFile()) {
+              totalSize += stats.size;
+            }
+          } catch {
+            // Skip files we can't stat
+          }
+        }
+      } catch {
+        // Ignore size calculation errors
+      }
+      
+      res.json({
+        ...metadata,
+        size: totalSize,
+        adapterSize: totalSize,
+        directory: modelId,
+      });
+    } catch (error) {
+      // Model not found
+      res.status(404).json({ error: 'Model metadata not found', modelId });
+    }
+  } catch (error) {
+    console.error('Error getting model metadata:', error);
+    res.status(500).json({ error: 'Failed to get model metadata' });
   }
 });
 

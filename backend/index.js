@@ -28,6 +28,7 @@ import verificationRouter from './api/verification/run.js';
 import modelsRouter from './api/models/set-current.js';
 import modelsResetRouter from './api/models/reset.js';
 import modelsCertifiedRouter from './api/models/certified.js';
+import modelsMergeRouter from './api/models/merge.js';
 import autonomyRouter from './api/autonomy.js';
 import { logPythonServiceStatus } from './services/pythonNLPClient.js';
 import { getCachedPythonStatus } from './services/healthCache.js';
@@ -82,6 +83,7 @@ app.use('/api/verification', verificationRouter);
 app.use('/api/models', modelsRouter);
 app.use('/api/models', modelsResetRouter);
 app.use('/api/models/certified', modelsCertifiedRouter);
+app.use('/api/models', modelsMergeRouter);
 app.use('/api/autonomy', autonomyRouter);
 
 // Inference Service Proxy

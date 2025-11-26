@@ -5,13 +5,17 @@ import { useState, useEffect, useCallback } from 'react';
  * 
  * Features:
  * - Upload datasets (JSONL format) with drag-and-drop
- * - Browse and preview existing datasets
+ * - Browse and preview existing datasets by category
  * - Validate dataset format and quality
  * - Inline editing of dataset entries
  * - Dataset version control
  */
 export default function DatasetManagement() {
   const [datasets, setDatasets] = useState([]);
+  const [datasetCategories, setDatasetCategories] = useState({});
+  const [availableCategories, setAvailableCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [uploadCategory, setUploadCategory] = useState('custom');
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -28,12 +32,22 @@ export default function DatasetManagement() {
       if (response.ok) {
         const data = await response.json();
         setDatasets(data.datasets || []);
+        setDatasetCategories(data.categories || {});
+        setAvailableCategories(data.availableCategories || ['politik', 'sverige', 'oneseek', 'custom']);
       }
     } catch (error) {
       console.error('Error fetching datasets:', error);
     } finally {
       setLoading(false);
     }
+  };
+  
+  // Filter datasets by selected category
+  const getFilteredDatasets = () => {
+    if (selectedCategory === 'all') {
+      return datasets;
+    }
+    return datasets.filter(d => d.category === selectedCategory);
   };
 
   const handleDrag = useCallback((e) => {
@@ -55,7 +69,7 @@ export default function DatasetManagement() {
     if (files && files.length > 0) {
       await handleFileUpload(files[0]);
     }
-  }, []);
+  }, [uploadCategory]);
 
   const handleFileInput = async (e) => {
     const files = e.target.files;
@@ -75,7 +89,8 @@ export default function DatasetManagement() {
     formData.append('dataset', file);
 
     try {
-      const response = await fetch('/api/admin/datasets/upload', {
+      // Include category in the upload URL
+      const response = await fetch(`/api/admin/datasets/upload?category=${uploadCategory}`, {
         method: 'POST',
         body: formData,
       });
@@ -87,7 +102,7 @@ export default function DatasetManagement() {
         await fetchDatasets();
         
         // Show naming convention suggestion if provided
-        let message = `Dataset uploaded successfully! ${data.validation.validEntries} valid entries.`;
+        let message = `Dataset uploaded to '${uploadCategory}' category! ${data.validation.validEntries} valid entries.`;
         if (data.suggestedName && data.suggestedName !== file.name) {
           message += `\n\nNaming Convention: ${data.namingConvention}\nSuggested name: ${data.suggestedName}`;
         }
@@ -105,7 +120,7 @@ export default function DatasetManagement() {
 
   const validateDataset = async (datasetId) => {
     try {
-      const response = await fetch(`/api/admin/datasets/${datasetId}/validate`);
+      const response = await fetch(`/api/admin/datasets/${encodeURIComponent(datasetId)}/validate`);
       const data = await response.json();
       setValidationResults(data);
     } catch (error) {
@@ -119,7 +134,7 @@ export default function DatasetManagement() {
     }
 
     try {
-      const response = await fetch(`/api/admin/datasets/${datasetId}`, {
+      const response = await fetch(`/api/admin/datasets/${encodeURIComponent(datasetId)}`, {
         method: 'DELETE',
       });
 
@@ -148,6 +163,27 @@ export default function DatasetManagement() {
       <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">
         <h2 className="text-[#eee] font-mono text-lg mb-4">Upload Dataset</h2>
         
+        {/* Category Selection for Upload */}
+        <div className="mb-4">
+          <label className="block text-[#888] font-mono text-sm mb-2">
+            Target Category
+          </label>
+          <select
+            value={uploadCategory}
+            onChange={(e) => setUploadCategory(e.target.value)}
+            className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444]"
+          >
+            {availableCategories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat.charAt(0).toUpperCase() + cat.slice(1)}
+              </option>
+            ))}
+          </select>
+          <p className="text-[#555] font-mono text-xs mt-1">
+            Select the category folder where the dataset will be stored
+          </p>
+        </div>
+        
         <div
           className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
             dragActive
@@ -161,7 +197,7 @@ export default function DatasetManagement() {
         >
           {uploading ? (
             <div className="space-y-3">
-              <div className="text-[#888] font-mono text-sm">Uploading...</div>
+              <div className="text-[#888] font-mono text-sm">Uploading to {uploadCategory}/...</div>
               <div className="w-full h-1 bg-[#2a2a2a] rounded overflow-hidden">
                 <div className="h-full bg-[#666] animate-pulse"></div>
               </div>
@@ -208,22 +244,41 @@ export default function DatasetManagement() {
 
       {/* Dataset List */}
       <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">
-        <h2 className="text-[#eee] font-mono text-lg mb-4">Existing Datasets</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[#eee] font-mono text-lg">Existing Datasets</h2>
+          
+          {/* Category Filter */}
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444]"
+          >
+            <option value="all">All Categories ({datasets.length})</option>
+            {availableCategories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat.charAt(0).toUpperCase() + cat.slice(1)} ({datasetCategories[cat]?.length || 0})
+              </option>
+            ))}
+          </select>
+        </div>
         
-        {datasets.length === 0 ? (
+        {getFilteredDatasets().length === 0 ? (
           <div className="text-[#666] font-mono text-sm text-center py-8">
-            No datasets uploaded yet
+            {selectedCategory === 'all' ? 'No datasets uploaded yet' : `No datasets in '${selectedCategory}' category`}
           </div>
         ) : (
           <div className="space-y-3">
-            {datasets.map((dataset) => (
+            {getFilteredDatasets().map((dataset) => (
               <div
                 key={dataset.id}
                 className="border border-[#2a2a2a] p-4 rounded hover:border-[#444] transition-colors"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
-                    <div className="text-[#eee] font-mono text-sm mb-1">
+                    <div className="text-[#eee] font-mono text-sm mb-1 flex items-center gap-2">
+                      <span className="px-2 py-0.5 text-[10px] bg-[#1a1a1a] border border-[#2a2a2a] text-[#666] rounded">
+                        {dataset.category || 'root'}
+                      </span>
                       {dataset.name}
                     </div>
                     <div className="text-[#666] font-mono text-xs space-x-4">
@@ -264,7 +319,10 @@ export default function DatasetManagement() {
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-6">
           <div className="bg-[#111] border border-[#2a2a2a] rounded-lg max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-[#2a2a2a]">
-              <h3 className="text-[#eee] font-mono text-lg">{selectedDataset.name}</h3>
+              <div>
+                <h3 className="text-[#eee] font-mono text-lg">{selectedDataset.name}</h3>
+                <span className="text-[#666] font-mono text-xs">Category: {selectedDataset.category || 'root'}</span>
+              </div>
               <button
                 onClick={() => setSelectedDataset(null)}
                 className="text-[#666] hover:text-[#888] text-2xl"
