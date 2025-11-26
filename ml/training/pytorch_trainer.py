@@ -919,6 +919,8 @@ def train_single_model_lora(
                 
                 # CRITICAL: Also set memory fraction via PyTorch to FULLY respect the limit
                 # Parse memory limit (e.g., "9.5GB", "8GB", "8000MB")
+                # Note: This is safe for non-DDP training (single process).
+                # For DDP training, the ddp_trainer.py handles memory limits per-process.
                 try:
                     memory_str = max_memory_per_gpu.strip().upper()
                     if memory_str.endswith('GB'):
@@ -929,7 +931,8 @@ def train_single_model_lora(
                         # Assume GB if no unit
                         memory_bytes = float(memory_str) * (1024**3)
                     
-                    # Set memory fraction for each GPU
+                    # Set memory fraction for each GPU in this process
+                    # When using device_map='auto', transformers may use multiple GPUs
                     for i in range(gpu_count):
                         total_memory = torch.cuda.get_device_properties(i).total_memory
                         fraction = memory_bytes / total_memory

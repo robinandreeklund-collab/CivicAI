@@ -1011,8 +1011,8 @@ def launch_ddp_training(args, dataset_path: Path):
         if config_path.exists():
             try:
                 config_path.unlink()
-            except:
-                pass
+            except Exception:
+                pass  # Ignore cleanup errors
 
 
 def main():

@@ -4,6 +4,9 @@ import TrainingConsole from '../TrainingConsole';
 import ModelEvolutionTree from '../ModelEvolutionTree';
 import RemoteTrainingControl from '../RemoteTrainingControl';
 
+// DDP efficiency constant - approximately 95% efficiency per GPU due to communication overhead
+const DDP_EFFICIENCY_PER_GPU = 0.95;
+
 /**
  * Training Control Component
  * 
@@ -1525,7 +1528,7 @@ export default function TrainingControl() {
                       ))}
                       {gpuInfo.count >= 2 && (
                         <p className="text-green-400 font-mono text-xs mt-2">
-                          ✓ Uppskattad speedup med DDP: ~{(gpuInfo.count * 0.95).toFixed(1)}×
+                          ✓ Uppskattad speedup med DDP: ~{(gpuInfo.count * DDP_EFFICIENCY_PER_GPU).toFixed(1)}×
                         </p>
                       )}
                     </div>
@@ -1547,7 +1550,7 @@ export default function TrainingControl() {
                       <p className="text-[#666] font-mono text-xs mt-1">
                         • 4-bit + fp16 träning (standard för snabbhet)
                         <br />• GPU minnesgräns respekteras 100%
-                        <br />• ~{((gpuInfo?.count || 2) * 0.95).toFixed(1)}× speedup
+                        <br />• ~{((gpuInfo?.count || 2) * DDP_EFFICIENCY_PER_GPU).toFixed(1)}× speedup
                       </p>
                     </div>
                   )}
