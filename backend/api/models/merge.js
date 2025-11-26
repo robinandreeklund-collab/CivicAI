@@ -329,6 +329,7 @@ router.get('/gguf', async (req, res) => {
 /**
  * POST /api/models/gguf/export
  * Export a model to GGUF format with DNA-based naming
+ * Automatically runs the conversion using llama.cpp or transformers
  */
 router.post('/gguf/export', async (req, res) => {
   try {
@@ -344,10 +345,23 @@ router.post('/gguf/export', async (req, res) => {
     const ggufDir = path.join(modelsDir, 'gguf');
     await fs.mkdir(ggufDir, { recursive: true });
     
-    // Resolve model path
-    const resolvedModelPath = path.isAbsolute(modelPath) 
+    // Resolve model path - check both regular certified and merged directories
+    let resolvedModelPath = path.isAbsolute(modelPath) 
       ? modelPath 
       : path.join(modelsDir, 'oneseek-certified', modelPath);
+    
+    // If not found in certified, check merged directory
+    try {
+      await fs.access(resolvedModelPath);
+    } catch {
+      const mergedPath = path.join(modelsDir, 'oneseek-certified', 'merged', modelPath);
+      try {
+        await fs.access(mergedPath);
+        resolvedModelPath = mergedPath;
+      } catch {
+        return res.status(404).json({ error: 'Model path not found', path: modelPath });
+      }
+    }
     
     // Try to read DNA from metadata for naming
     let dnaName = outputName || path.basename(modelPath);
@@ -361,7 +375,17 @@ router.post('/gguf/export', async (req, res) => {
           dnaName = metadata.dna;
         }
       } catch {
-        // Use fallback name
+        // Try merge manifest
+        try {
+          const manifestPath = path.join(resolvedModelPath, 'merge_manifest.json');
+          const manifestContent = await fs.readFile(manifestPath, 'utf-8');
+          const manifest = JSON.parse(manifestContent);
+          if (manifest.sourceDna) {
+            dnaName = manifest.sourceDna.replace(/\.v\d+\.\d+/, `.v${manifest.version || '1.0'}`);
+          }
+        } catch {
+          // Use fallback name
+        }
       }
     }
     
@@ -369,37 +393,150 @@ router.post('/gguf/export', async (req, res) => {
     const ggufFileName = `${dnaName}.${validQuantization}.gguf`;
     const ggufPath = path.join(ggufDir, ggufFileName);
     
-    // Create manifest for pending export
-    const manifestData = {
-      status: 'manual_required',
-      modelPath: resolvedModelPath,
-      outputPath: ggufPath,
-      outputName: ggufFileName,
-      quantization: validQuantization,
-      dnaName: dnaName,
-      createdAt: new Date().toISOString(),
-      instructions: [
-        `1. Install llama.cpp: git clone https://github.com/ggerganov/llama.cpp`,
-        `2. Build: cd llama.cpp && make`,
-        `3. Convert: python llama.cpp/convert.py "${resolvedModelPath}" --outtype f16 --outfile "${ggufDir}/${dnaName}.f16.gguf"`,
-        `4. Quantize: ./llama.cpp/quantize "${ggufDir}/${dnaName}.f16.gguf" "${ggufPath}" ${validQuantization}`,
-        `5. Delete intermediate: rm "${ggufDir}/${dnaName}.f16.gguf"`,
-      ],
-    };
+    // Check if GGUF already exists
+    try {
+      await fs.access(ggufPath);
+      return res.json({
+        success: true,
+        message: 'GGUF file already exists',
+        ggufPath: ggufPath,
+        outputName: ggufFileName,
+        quantization: validQuantization,
+        alreadyExists: true,
+      });
+    } catch {
+      // File doesn't exist, proceed with export
+    }
     
-    // Save manifest
-    const manifestPath = path.join(ggufDir, `${dnaName}.manifest.json`);
-    await fs.writeFile(manifestPath, JSON.stringify(manifestData, null, 2));
+    // Run the export script
+    const scriptPath = path.join(process.cwd(), '..', 'scripts', 'export_gguf.py');
     
+    // Determine Python command
+    let pythonCommand = 'python3';
+    if (process.platform === 'win32') {
+      pythonCommand = 'python';
+    }
+    
+    // Check for venv
+    const venvPath = path.join(process.cwd(), '..', 'venv');
+    const venvPython = path.join(venvPath, process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python3');
+    
+    try {
+      await fs.access(venvPython);
+      pythonCommand = venvPython;
+    } catch {
+      // Try backend venv
+      const backendVenv = path.join(process.cwd(), 'python_services', 'venv');
+      const backendPython = path.join(backendVenv, process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python3');
+      try {
+        await fs.access(backendPython);
+        pythonCommand = backendPython;
+      } catch {
+        // Use system Python
+      }
+    }
+    
+    const args = [
+      scriptPath,
+      '--model-path', resolvedModelPath,
+      '--output', ggufPath,
+      '--quantization', validQuantization,
+      '--json-output',
+    ];
+    
+    console.log(`[GGUF Export] Running: ${pythonCommand} ${args.join(' ')}`);
+    
+    // Send initial response that export is starting
     res.json({
       success: true,
-      message: 'GGUF export manifest created',
+      message: 'GGUF export started',
+      status: 'running',
       modelPath: resolvedModelPath,
       ggufPath: ggufPath,
       outputName: ggufFileName,
       quantization: validQuantization,
-      note: 'Follow the instructions below to complete the GGUF export, or wait for automatic llama.cpp integration',
-      instructions: manifestData.instructions,
+      note: 'Export is running in background. Check GGUF Exports tab for status.',
+    });
+    
+    // Run export in background
+    const exportProcess = spawn(pythonCommand, args, {
+      cwd: path.join(process.cwd(), '..'),
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    exportProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+      console.log('[GGUF Export]', data.toString());
+    });
+    
+    exportProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+      console.error('[GGUF Export Error]', data.toString());
+    });
+    
+    exportProcess.on('close', async (code) => {
+      // Save status to manifest file
+      let result = {};
+      try {
+        result = JSON.parse(stdout);
+      } catch {
+        result = {
+          success: code === 0,
+          error: stderr || 'Unknown error',
+        };
+      }
+      
+      const manifestData = {
+        status: result.success ? 'completed' : 'failed',
+        modelPath: resolvedModelPath,
+        outputPath: ggufPath,
+        outputName: ggufFileName,
+        quantization: result.quantization || validQuantization,
+        dnaName: dnaName,
+        createdAt: new Date().toISOString(),
+        result: result,
+      };
+      
+      // Save manifest
+      const manifestPath = path.join(ggufDir, `${dnaName}.${validQuantization}.manifest.json`);
+      try {
+        await fs.writeFile(manifestPath, JSON.stringify(manifestData, null, 2));
+      } catch (e) {
+        console.error('[GGUF Export] Could not save manifest:', e);
+      }
+      
+      console.log(`[GGUF Export] Completed with code ${code}:`, result.success ? 'SUCCESS' : 'FAILED');
+    });
+    
+    exportProcess.on('error', async (error) => {
+      console.error('[GGUF Export] Process error:', error);
+      
+      // Save error to manifest
+      const manifestData = {
+        status: 'failed',
+        modelPath: resolvedModelPath,
+        outputPath: ggufPath,
+        outputName: ggufFileName,
+        quantization: validQuantization,
+        dnaName: dnaName,
+        createdAt: new Date().toISOString(),
+        error: error.message,
+        instructions: [
+          '1. Install llama.cpp: git clone https://github.com/ggerganov/llama.cpp',
+          '2. Build: cd llama.cpp && make',
+          `3. Convert: python llama.cpp/convert_hf_to_gguf.py "${resolvedModelPath}" --outtype f16 --outfile "${ggufDir}/${dnaName}.f16.gguf"`,
+          `4. Quantize: ./llama.cpp/quantize "${ggufDir}/${dnaName}.f16.gguf" "${ggufPath}" ${validQuantization}`,
+        ],
+      };
+      
+      const manifestPath = path.join(ggufDir, `${dnaName}.${validQuantization}.manifest.json`);
+      try {
+        await fs.writeFile(manifestPath, JSON.stringify(manifestData, null, 2));
+      } catch (e) {
+        console.error('[GGUF Export] Could not save manifest:', e);
+      }
     });
     
   } catch (error) {
