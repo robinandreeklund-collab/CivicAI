@@ -1665,6 +1665,17 @@ def train_with_pytorch_lora(
     print(f"   [INFO] Base models: {', '.join(base_model_names)}")
     print(f"   [INFO] Multi-model mode: {is_multi_model}")
     
+    # Collect epoch losses from all models for metadata
+    all_epoch_losses = []
+    for model_key, metrics in trained_models.items():
+        model_epoch_losses = metrics.get('epoch_losses', [])
+        if model_epoch_losses:
+            all_epoch_losses = model_epoch_losses  # Use losses from trained model
+            break  # Use first model's losses (or average if multi-model)
+    
+    # Add epoch_losses to combined_metrics for metadata.json
+    combined_metrics['epoch_losses'] = all_epoch_losses
+    
     return {
         'metrics': combined_metrics,
         'fairness_metrics': fairness_metrics,
