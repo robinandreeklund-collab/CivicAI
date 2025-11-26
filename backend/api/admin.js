@@ -154,6 +154,7 @@ function getDatasetFilename(datasetId) {
 }
 
 // GET /api/admin/datasets - List all datasets
+router.get('/datasets', requireAdmin, async (req, res) => {
   try {
     // Use datasets directory in project root (one level up from backend)
     const datasetsDir = path.join(process.cwd(), '..', 'datasets');
