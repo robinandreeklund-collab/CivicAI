@@ -864,6 +864,19 @@ def train_single_model_lora(
         else:
             model_dtype = torch.float16 if use_fp16 else torch.float32
         
+        # Hämta max_memory_per_gpu från config (ny parameter)
+        max_memory_per_gpu = config.get('max_memory_per_gpu', None)
+        max_memory = None
+        
+        if max_memory_per_gpu:
+            # Bygg max_memory dict för alla tillgängliga GPU:er
+            # Format: {"0": "9.5GB", "1": "9.5GB", ...}
+            gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
+            if gpu_count > 0:
+                max_memory = {str(i): max_memory_per_gpu for i in range(gpu_count)}
+                print(f"   [MEMORY] GPU minnesbegränsning aktiverad: {max_memory_per_gpu} per GPU")
+                print(f"   [MEMORY] max_memory config: {max_memory}")
+        
         try:
             # Bygg BitsAndBytesConfig om kvantisering är aktiverad
             bnb_config = None
@@ -898,6 +911,7 @@ def train_single_model_lora(
                         str(actual_model_path),
                         quantization_config=bnb_config,
                         device_map="auto",
+                        max_memory=max_memory,  # GPU minnesbegränsning
                         trust_remote_code=True
                     )
                 else:
@@ -905,12 +919,18 @@ def train_single_model_lora(
                         str(actual_model_path),
                         torch_dtype=model_dtype,
                         device_map="auto",
+                        max_memory=max_memory,  # GPU minnesbegränsning
                         load_in_8bit=load_in_8bit,
                         trust_remote_code=True
                     )
             else:
                 # Single GPU or CPU mode
+                # OBS: max_memory används endast med device_map='auto' för multi-GPU
+                # För single GPU använder vi inte max_memory direkt - istället begränsas
+                # minnet genom att välja lämplig precision/kvantisering
                 print(f"   [INFO] Loading model to device: {device}")
+                if max_memory:
+                    print(f"   [INFO] max_memory ignoreras i single-GPU läge (använd device_map='auto' för multi-GPU)")
                 
                 if bnb_config:
                     # Ladda med 4-bit kvantisering

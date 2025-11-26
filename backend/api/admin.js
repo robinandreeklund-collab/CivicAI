@@ -910,7 +910,9 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       precision, optimizer, gradientCheckpointing, torchCompile, targetModules, dropout,
       // Avancerade kvantiserings- och minnesoptimeringsparametrar (nya)
       loadIn4Bit, loadIn8Bit, quantizationType, computeDtype, doubleQuantization, useNestedQuant,
-      gradientAccumulationSteps, maxSeqLength, packingEnabled, useFastTokenizer, loraScalingFactor
+      gradientAccumulationSteps, maxSeqLength, packingEnabled, useFastTokenizer, loraScalingFactor,
+      // GPU minnesbegränsning (nya)
+      maxMemoryPerGpu, maxMemoryEnabled
     } = req.body;
     
     // Accept either datasetId (single) or datasetIds (multiple)
@@ -1225,6 +1227,16 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
         pythonArgs.push('--lora-scaling-factor', String(scalingFactor));
       } else {
         console.warn(`[WARNING] Invalid loraScalingFactor: ${loraScalingFactor}, using default 2.0`);
+      }
+    }
+    // GPU minnesbegränsning - max_memory per GPU
+    if (maxMemoryEnabled === true && maxMemoryPerGpu) {
+      // Validera format (t.ex. "9.5GB", "10GB", "8000MB")
+      const memoryPattern = /^\d+(\.\d+)?(GB|MB)$/i;
+      if (memoryPattern.test(maxMemoryPerGpu.trim())) {
+        pythonArgs.push('--max-memory-per-gpu', maxMemoryPerGpu.trim());
+      } else {
+        console.warn(`[WARNING] Invalid maxMemoryPerGpu format: ${maxMemoryPerGpu}, ignoring`);
       }
     }
 

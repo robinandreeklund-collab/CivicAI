@@ -66,6 +66,9 @@ export default function TrainingControl() {
     packingEnabled: false,        // Dataset packing för effektivitet
     useFastTokenizer: true,       // Använd snabb tokenizer
     loraScalingFactor: 2.0,       // LoRA skalningsfaktor (alpha/rank)
+    // GPU minnesbegränsning (max_memory per GPU)
+    maxMemoryPerGpu: '',          // Max VRAM per GPU, t.ex. "9.5GB" (tomt = använd allt)
+    maxMemoryEnabled: false,      // Aktivera manuell minnesbegränsning
   });
   const [trainingError, setTrainingError] = useState(null); // Felmeddelande för träningskrascher
   const [trainingStatus, setTrainingStatus] = useState(null);
@@ -1259,6 +1262,50 @@ export default function TrainingControl() {
                     <p className="text-[#555] font-mono text-xs mt-1 ml-6">
                       QLoRA nested quant (kräver 4-bit)
                     </p>
+                  </div>
+                </div>
+
+                {/* GPU Minnesbegränsning */}
+                <div className="mt-4 p-3 bg-[#111] border border-orange-900/30 rounded">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-orange-400 font-mono text-xs font-semibold">🎮 GPU Minnesbegränsning</h4>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={trainingParams.maxMemoryEnabled}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, maxMemoryEnabled: e.target.checked })}
+                        disabled={isTraining}
+                        className="w-4 h-4 text-orange-600 bg-[#111] border-[#2a2a2a] rounded focus:ring-orange-500 disabled:opacity-50"
+                      />
+                      <span className="text-[#888] font-mono text-xs">Aktivera</span>
+                    </label>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[#888] font-mono text-xs mb-1">
+                        Max VRAM per GPU
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="9.5GB"
+                        value={trainingParams.maxMemoryPerGpu}
+                        onChange={(e) => setTrainingParams({ ...trainingParams, maxMemoryPerGpu: e.target.value })}
+                        disabled={isTraining || !trainingParams.maxMemoryEnabled}
+                        className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-orange-900/50 disabled:opacity-50"
+                      />
+                      <p className="text-[#555] font-mono text-xs mt-1">
+                        T.ex. "9.5GB", "10GB" (tomt = använd allt)
+                      </p>
+                    </div>
+                    <div className="flex flex-col justify-center">
+                      <p className="text-[#666] font-mono text-xs">
+                        💡 Sätt lägre än max för stabilitet vid stor träning.
+                      </p>
+                      <p className="text-[#555] font-mono text-xs mt-1">
+                        Standard: 10.7GB → Rekommenderat: 9.5GB
+                      </p>
+                    </div>
                   </div>
                 </div>
 

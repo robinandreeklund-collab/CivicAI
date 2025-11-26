@@ -155,6 +155,8 @@ def parse_args():
                         help='Inaktivera snabb tokenizer')
     parser.add_argument('--lora-scaling-factor', type=float, default=2.0,
                         help='LoRA skalningsfaktor alpha/rank (default: 2.0)')
+    parser.add_argument('--max-memory-per-gpu', type=str, default=None,
+                        help='Max VRAM per GPU, t.ex. "9.5GB" (ingen gräns om ej angiven)')
 
     
     return parser.parse_args()
@@ -303,6 +305,7 @@ def run_real_training(args, data_dir, dataset_path):
         trainer.config['packing_enabled'] = args.packing_enabled
         trainer.config['use_fast_tokenizer'] = not args.no_fast_tokenizer
         trainer.config['lora_scaling_factor'] = args.lora_scaling_factor
+        trainer.config['max_memory_per_gpu'] = args.max_memory_per_gpu  # GPU minnesbegränsning
         
         # Set base models from args or environment
         if args.base_models:
@@ -333,6 +336,10 @@ def run_real_training(args, data_dir, dataset_path):
         print(f"   - Auto-stop: threshold={args.auto_stop_threshold}, patience={args.auto_stop_patience}")
         print(f"   - Seed: {args.seed}")
         print(f"   - Base models: {trainer.config.get('base_models', [])}")
+        
+        # Logga GPU minnesbegränsning
+        if args.max_memory_per_gpu:
+            print(f"   - Max memory per GPU: {args.max_memory_per_gpu}")
         
         # Logga nya kvantiseringsparametrar
         if args.load_in_4bit or args.load_in_8bit:
