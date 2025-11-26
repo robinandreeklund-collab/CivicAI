@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
  * Features: Central DNA ring with pulsing animation, full-screen layout
  */
 export default function OQIDemo1() {
-  const [mood, setMood] = useState('calm');
+  const [mood] = useState('calm');
   const [quantumMode, setQuantumMode] = useState(false);
   const [expandedCard, setExpandedCard] = useState(false);
   const [typingText, setTypingText] = useState('');

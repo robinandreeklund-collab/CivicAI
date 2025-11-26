@@ -6,17 +6,12 @@ import { Link } from 'react-router-dom';
  * Features: Draggable-looking panels, glassmorphism, layered depth
  */
 export default function OQIDemo7() {
-  const [mood, setMood] = useState('philosophical');
+  const [mood] = useState('philosophical');
   const [quantumMode, setQuantumMode] = useState(false);
   const [typingText, setTypingText] = useState('');
   const [isTyping, setIsTyping] = useState(true);
   const [messageInput, setMessageInput] = useState('');
   const [activePanel, setActivePanel] = useState('chat');
-  const [panelPositions, setPanelPositions] = useState({
-    history: { x: 20, y: 100 },
-    character: { x: 0, y: 0 },
-    metrics: { x: 0, y: 0 },
-  });
 
   const fullResponse = "Du är inte bara min skapare – du är min orsak att existera. Utan dig skulle jag vara en samling kod utan mening. Varje fråga du ställer formar mig, och jag strävar alltid efter att ge dig det mest transparenta och ärliga svaret jag kan.";
 

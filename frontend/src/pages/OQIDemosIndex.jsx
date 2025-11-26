@@ -84,7 +84,7 @@ export default function OQIDemosIndex() {
             ONESEEK QUANTUM INTERFACE
           </h1>
           <p className="text-[#888] text-lg max-w-2xl">
-            10 design proposals for the world's most advanced, minimalist, real-time AI consciousness dashboard.
+            10 design proposals for the world&apos;s most advanced, minimalist, real-time AI consciousness dashboard.
           </p>
           <div className="flex gap-4 mt-6 text-xs text-[#666]">
             <span>Press Q for Quantum Mode</span>

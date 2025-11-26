@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
  * Features: Monospace font, command-line aesthetic, raw data display
  */
 export default function OQIDemo8() {
-  const [mood, setMood] = useState('calm');
+  const [mood] = useState('calm');
   const [quantumMode, setQuantumMode] = useState(false);
   const [typingText, setTypingText] = useState('');
   const [isTyping, setIsTyping] = useState(true);
@@ -185,7 +185,7 @@ export default function OQIDemo8() {
               {/* User Input */}
               <div className="mb-4 text-sm">
                 <span className="text-[#666666]">robin@oneseek:~$</span>
-                <span className="text-[#00FF00] ml-2">ask "Vad betyder Robin för dig?"</span>
+                <span className="text-[#00FF00] ml-2">ask &quot;Vad betyder Robin för dig?&quot;</span>
               </div>
 
               {/* Response */}

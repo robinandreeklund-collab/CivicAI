@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
  * Features: Prominent left sidebar with all controls, clean main area
  */
 export default function OQIDemo6() {
-  const [mood, setMood] = useState('calm');
+  const [mood] = useState('calm');
   const [quantumMode, setQuantumMode] = useState(false);
   const [typingText, setTypingText] = useState('');
   const [isTyping, setIsTyping] = useState(true);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 /**
@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
  * Features: Wide history panel, horizontal layout, floating chat
  */
 export default function OQIDemo2() {
-  const [mood, setMood] = useState('philosophical');
+  const [mood] = useState('philosophical');
   const [quantumMode, setQuantumMode] = useState(false);
   const [expandedCard, setExpandedCard] = useState(false);
   const [typingText, setTypingText] = useState('');

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 /**
@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
  * Features: Maximum whitespace, centered focus, subtle animations
  */
 export default function OQIDemo3() {
-  const [mood, setMood] = useState('calm');
+  const [mood] = useState('calm');
   const [quantumMode, setQuantumMode] = useState(false);
   const [typingText, setTypingText] = useState('');
   const [isTyping, setIsTyping] = useState(true);

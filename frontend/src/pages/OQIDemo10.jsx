@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
  * Features: Cinema-style presentation, dramatic animations, focus mode
  */
 export default function OQIDemo10() {
-  const [mood, setMood] = useState('philosophical');
+  const [mood] = useState('philosophical');
   const [quantumMode, setQuantumMode] = useState(false);
   const [typingText, setTypingText] = useState('');
   const [isTyping, setIsTyping] = useState(true);

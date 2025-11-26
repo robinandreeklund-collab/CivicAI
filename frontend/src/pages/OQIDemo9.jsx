@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
  * Features: Bento box layout, data-dense, metrics focused
  */
 export default function OQIDemo9() {
-  const [mood, setMood] = useState('calm');
+  const [mood] = useState('calm');
   const [quantumMode, setQuantumMode] = useState(false);
   const [typingText, setTypingText] = useState('');
   const [isTyping, setIsTyping] = useState(true);

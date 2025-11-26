@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
  * Features: Clickable card panels, modular design, stacked information
  */
 export default function OQIDemo4() {
-  const [mood, setMood] = useState('philosophical');
+  const [mood] = useState('philosophical');
   const [quantumMode, setQuantumMode] = useState(false);
   const [typingText, setTypingText] = useState('');
   const [isTyping, setIsTyping] = useState(true);

@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
  * Features: Full-width sections stacked vertically, scrolling experience
  */
 export default function OQIDemo5() {
-  const [mood, setMood] = useState('calm');
+  const [mood] = useState('calm');
   const [quantumMode, setQuantumMode] = useState(false);
   const [typingText, setTypingText] = useState('');
   const [isTyping, setIsTyping] = useState(true);
@@ -298,7 +298,7 @@ export default function OQIDemo5() {
           <div className="max-w-5xl mx-auto">
             <h2 className="text-[10px] font-mono text-[#666666] uppercase tracking-widest mb-6">Mätvärden</h2>
             <div className="grid grid-cols-3 gap-6">
-              {Object.entries(demoMetrics).map(([key, value], idx) => (
+              {Object.entries(demoMetrics).map(([key, value]) => (
                 <div key={key} className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-6 hover:border-[#2a2a2a] transition-colors cursor-pointer">
                   <div className="text-3xl font-light text-[#FFFFFF] mb-2">{value}{typeof value === 'number' && key !== 'biasScore' ? '%' : ''}</div>
                   <div className="text-xs text-[#666666] uppercase tracking-wider">
