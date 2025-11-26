@@ -947,46 +947,86 @@ def load_model(model_name: str, model_path: str):
         tokenizer_errors = []
         model_path_obj = Path(model_path)
         
-        # Strategy 0: Try loading config.json first and use PretrainedConfig.from_dict()
-        # This is the recommended fix for the model_type error
+        # Read model_type from config.json to understand model architecture
         config_path = model_path_obj / "config.json"
-        config_obj = None
+        model_type = None
+        config_dict = None
         if config_path.exists():
             try:
                 with open(config_path, 'r', encoding='utf-8') as f:
                     config_dict = json.load(f)
-                config_obj = PretrainedConfig.from_dict(config_dict)
-                logger.info(f"✓ Loaded config.json as PretrainedConfig (model_type: {config_obj.model_type})")
+                model_type = config_dict.get('model_type', None)
+                if model_type:
+                    logger.info(f"✓ Found model_type in config.json: {model_type}")
             except Exception as e:
-                logger.warning(f"Could not parse config.json: {e}")
+                logger.warning(f"Could not read config.json: {e}")
         
-        # Strategy 1: Try with config object if available (most reliable)
-        if config_obj:
+        # Read tokenizer class from tokenizer_config.json
+        tokenizer_config_path = model_path_obj / "tokenizer_config.json"
+        tokenizer_class_name = None
+        if tokenizer_config_path.exists():
+            try:
+                with open(tokenizer_config_path, 'r', encoding='utf-8') as f:
+                    tokenizer_config = json.load(f)
+                tokenizer_class_name = tokenizer_config.get('tokenizer_class', None)
+                if tokenizer_class_name:
+                    logger.info(f"✓ Found tokenizer_class in tokenizer_config.json: {tokenizer_class_name}")
+            except Exception as e:
+                logger.warning(f"Could not read tokenizer_config.json: {e}")
+        
+        # Strategy 1: For PreTrainedTokenizerFast, try loading directly from tokenizer.json
+        # This bypasses config.json entirely and avoids the 'dict has no attribute model_type' error
+        if tokenizer is None and tokenizer_class_name == 'PreTrainedTokenizerFast':
+            tokenizer_json_path = model_path_obj / "tokenizer.json"
+            if tokenizer_json_path.exists():
+                try:
+                    from transformers import PreTrainedTokenizerFast
+                    tokenizer = PreTrainedTokenizerFast(
+                        tokenizer_file=str(tokenizer_json_path),
+                        bos_token="<|begin_of_text|>",
+                        eos_token="<|end_of_text|>",
+                        pad_token="<|end_of_text|>",
+                    )
+                    logger.info("✓ Tokenizer loaded directly from tokenizer.json")
+                except Exception as e0:
+                    tokenizer_errors.append(f"PreTrainedTokenizerFast from tokenizer.json: {e0}")
+        
+        # Strategy 2: For llama models, pre-load config as LlamaConfig
+        llama_config = None
+        if model_type == 'llama' and config_dict:
+            try:
+                from transformers import LlamaConfig
+                llama_config = LlamaConfig(**config_dict)
+                logger.info("✓ Pre-loaded LlamaConfig successfully")
+            except Exception as e:
+                logger.warning(f"Could not pre-load LlamaConfig: {e}")
+        
+        # Strategy 3: Try with LlamaConfig if available
+        if tokenizer is None and llama_config is not None:
             try:
                 tokenizer = AutoTokenizer.from_pretrained(
                     model_path, 
-                    config=config_obj,
+                    config=llama_config,
                     trust_remote_code=True,
                     local_files_only=True
                 )
-                logger.info("✓ Tokenizer loaded with PretrainedConfig")
+                logger.info("✓ Tokenizer loaded with LlamaConfig")
             except Exception as e1:
-                tokenizer_errors.append(f"with config: {e1}")
+                tokenizer_errors.append(f"with LlamaConfig: {e1}")
         
-        # Strategy 2: Try with use_fast=False (most compatible)
+        # Strategy 4: Try AutoTokenizer with defaults (best compatibility)
         if tokenizer is None:
             try:
                 tokenizer = AutoTokenizer.from_pretrained(
                     model_path, 
                     trust_remote_code=True,
-                    use_fast=False,
                     local_files_only=True
                 )
-                logger.info("✓ Tokenizer loaded with use_fast=False")
+                logger.info("✓ Tokenizer loaded with AutoTokenizer (defaults)")
             except Exception as e2:
-                tokenizer_errors.append(f"use_fast=False: {e2}")
+                tokenizer_errors.append(f"AutoTokenizer (defaults): {e2}")
         
-        # Strategy 3: Try with use_fast=True
+        # Strategy 5: Try with use_fast=True
         if tokenizer is None:
             try:
                 tokenizer = AutoTokenizer.from_pretrained(
@@ -999,21 +1039,34 @@ def load_model(model_name: str, model_path: str):
             except Exception as e3:
                 tokenizer_errors.append(f"use_fast=True: {e3}")
         
-        # Strategy 4: Try LlamaTokenizer directly for LLaMA-based models
+        # Strategy 6: Try with use_fast=False
         if tokenizer is None:
             try:
-                from transformers import LlamaTokenizer
-                tokenizer = LlamaTokenizer.from_pretrained(
+                tokenizer = AutoTokenizer.from_pretrained(
+                    model_path, 
+                    trust_remote_code=True,
+                    use_fast=False,
+                    local_files_only=True
+                )
+                logger.info("✓ Tokenizer loaded with use_fast=False")
+            except Exception as e4:
+                tokenizer_errors.append(f"use_fast=False: {e4}")
+        
+        # Strategy 7: Try PreTrainedTokenizerFast.from_pretrained
+        if tokenizer is None:
+            try:
+                from transformers import PreTrainedTokenizerFast
+                tokenizer = PreTrainedTokenizerFast.from_pretrained(
                     model_path,
                     trust_remote_code=True,
                     local_files_only=True
                 )
-                logger.info("✓ Tokenizer loaded with LlamaTokenizer")
-            except Exception as e4:
-                tokenizer_errors.append(f"LlamaTokenizer: {e4}")
+                logger.info("✓ Tokenizer loaded with PreTrainedTokenizerFast.from_pretrained")
+            except Exception as e5:
+                tokenizer_errors.append(f"PreTrainedTokenizerFast.from_pretrained: {e5}")
         
-        # Strategy 5: Try LlamaTokenizerFast
-        if tokenizer is None:
+        # Strategy 8: Try LlamaTokenizerFast (only for llama models)
+        if tokenizer is None and model_type and 'llama' in model_type.lower():
             try:
                 from transformers import LlamaTokenizerFast
                 tokenizer = LlamaTokenizerFast.from_pretrained(
@@ -1022,14 +1075,52 @@ def load_model(model_name: str, model_path: str):
                     local_files_only=True
                 )
                 logger.info("✓ Tokenizer loaded with LlamaTokenizerFast")
-            except Exception as e5:
-                tokenizer_errors.append(f"LlamaTokenizerFast: {e5}")
+            except Exception as e6:
+                tokenizer_errors.append(f"LlamaTokenizerFast: {e6}")
+        
+        # Strategy 9: Try LlamaTokenizer (only for llama models)
+        if tokenizer is None and model_type and 'llama' in model_type.lower():
+            try:
+                from transformers import LlamaTokenizer
+                tokenizer = LlamaTokenizer.from_pretrained(
+                    model_path,
+                    trust_remote_code=True,
+                    local_files_only=True
+                )
+                logger.info("✓ Tokenizer loaded with LlamaTokenizer")
+            except Exception as e7:
+                tokenizer_errors.append(f"LlamaTokenizer: {e7}")
         
         if tokenizer is None:
-            logger.error("Failed to load tokenizer with all strategies:")
+            logger.error("")
+            logger.error("=" * 80)
+            logger.error("✗ TOKENIZER LOADING FAILED - NO SILENT FALLBACK")
+            logger.error("=" * 80)
+            logger.error("")
+            logger.error(f"Could not load tokenizer from: {model_path}")
+            logger.error("")
+            logger.error("Strategies attempted:")
             for err in tokenizer_errors:
                 logger.error(f"  - {err}")
-            raise RuntimeError(f"Could not load tokenizer from {model_path}. Tried 5 strategies, all failed.")
+            logger.error("")
+            logger.error("Possible causes:")
+            logger.error("  1. Missing tokenizer files (tokenizer.json, tokenizer_config.json)")
+            logger.error("  2. Corrupted or incomplete model download")
+            logger.error("  3. 'dict object has no attribute model_type' - config.json may be malformed")
+            logger.error("  4. Incompatible transformers library version")
+            logger.error("")
+            logger.error("Suggested fixes:")
+            logger.error(f"  1. Verify directory exists: {model_path}")
+            logger.error("  2. Check for required files: tokenizer.json, tokenizer_config.json, special_tokens_map.json")
+            logger.error("  3. Re-download the model: huggingface-cli download <model-id> --local-dir <path>")
+            logger.error("  4. Update transformers: pip install --upgrade transformers>=4.35.0")
+            logger.error("")
+            logger.error("=" * 80)
+            raise RuntimeError(
+                f"Tokenizer loading failed for {model_path}. "
+                f"Tried 5 strategies, all failed. No silent fallback to remote models. "
+                f"Check logs above for debugging details."
+            )
         
         start_time = time.time()
         
@@ -1092,15 +1183,20 @@ def load_model(model_name: str, model_path: str):
                         logger.warning(f"Kunde inte läsa metadata.json: {e}")
                 
                 # PRIORITY 2: Fallback - scan subdirectories for adapter files
+                # NOTE: This is only a fallback when metadata.json doesn't exist or has no adapters
+                # This should NOT load adapters from unrelated base models
                 if not adapters_to_load and certified_model_path.exists():
+                    logger.warning("⚠ Ingen adapter-lista i metadata.json - använder fallback-sökning")
                     logger.info(f"Söker DNA-adapters i: {certified_model_path}")
+                    logger.info("  OBS: Endast adapters som tillhör denna modell kommer laddas")
                     
                     for item in certified_model_path.iterdir():
                         if item.is_dir():
                             # Check for PEFT adapter format
                             if (item / "adapter_model.safetensors").exists() or (item / "adapter_config.json").exists():
+                                # Log that we found an adapter via fallback scan
+                                logger.info(f"  Hittade adapter via fallback: {item.name}")
                                 adapters_to_load.append(item)
-                                logger.info(f"  Hittade adapter: {item.name}")
                 
                 if adapters_to_load:
                     # Sort by name so newest (highest timestamp) loads last and "wins"
