@@ -411,28 +411,48 @@ router.post('/gguf/export', async (req, res) => {
     // Run the export script
     const scriptPath = path.join(process.cwd(), '..', 'scripts', 'export_gguf.py');
     
-    // Determine Python command
+    // Determine Python command - MUST use project venv for llama-cpp-python
     let pythonCommand = 'python3';
     if (process.platform === 'win32') {
       pythonCommand = 'python';
     }
     
-    // Check for venv
-    const venvPath = path.join(process.cwd(), '..', 'venv');
-    const venvPython = path.join(venvPath, process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python3');
+    // Check for project root venv (CivicAI/venv)
+    const projectRoot = path.join(process.cwd(), '..');
+    const venvPath = path.join(projectRoot, 'venv');
+    const venvPythonWin = path.join(venvPath, 'Scripts', 'python.exe');
+    const venvPythonUnix = path.join(venvPath, 'bin', 'python3');
+    const venvPython = process.platform === 'win32' ? venvPythonWin : venvPythonUnix;
+    
+    console.log(`[GGUF Export] Looking for venv Python at: ${venvPython}`);
     
     try {
       await fs.access(venvPython);
       pythonCommand = venvPython;
+      console.log(`[GGUF Export] Using project venv: ${pythonCommand}`);
     } catch {
-      // Try backend venv
-      const backendVenv = path.join(process.cwd(), 'python_services', 'venv');
-      const backendPython = path.join(backendVenv, process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python3');
-      try {
-        await fs.access(backendPython);
-        pythonCommand = backendPython;
-      } catch {
-        // Use system Python
+      // Try alternate venv locations
+      const altVenvPaths = [
+        path.join(projectRoot, '.venv', process.platform === 'win32' ? 'Scripts' : 'bin', process.platform === 'win32' ? 'python.exe' : 'python3'),
+        path.join(process.cwd(), 'venv', process.platform === 'win32' ? 'Scripts' : 'bin', process.platform === 'win32' ? 'python.exe' : 'python3'),
+      ];
+      
+      let foundVenv = false;
+      for (const altPath of altVenvPaths) {
+        try {
+          await fs.access(altPath);
+          pythonCommand = altPath;
+          console.log(`[GGUF Export] Using alternate venv: ${pythonCommand}`);
+          foundVenv = true;
+          break;
+        } catch {
+          continue;
+        }
+      }
+      
+      if (!foundVenv) {
+        console.log(`[GGUF Export] No venv found, using system Python: ${pythonCommand}`);
+        console.log(`[GGUF Export] WARNING: llama-cpp-python may not be installed in system Python!`);
       }
     }
     
@@ -455,12 +475,18 @@ router.post('/gguf/export', async (req, res) => {
       ggufPath: ggufPath,
       outputName: ggufFileName,
       quantization: validQuantization,
+      pythonUsed: pythonCommand,
       note: 'Export is running in background. Check GGUF Exports tab for status.',
     });
     
-    // Run export in background
+    // Run export in background with proper environment
     const exportProcess = spawn(pythonCommand, args, {
-      cwd: path.join(process.cwd(), '..'),
+      cwd: projectRoot,
+      env: {
+        ...process.env,
+        // Ensure CUDA is available if installed
+        CUDA_VISIBLE_DEVICES: process.env.CUDA_VISIBLE_DEVICES || '0,1',
+      },
     });
     
     let stdout = '';
