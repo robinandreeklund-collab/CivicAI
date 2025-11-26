@@ -641,32 +641,79 @@ def train_single_model_lora(
         # Load tokenizer
         print("   Loading tokenizer...")
         
-        # Try loading with trust_remote_code and use_fast options
-        try:
-            tokenizer = AutoTokenizer.from_pretrained(
-                str(actual_model_path),
-                use_fast=False,
-                trust_remote_code=True,
-                legacy=False
-            )
-        except Exception as e1:
-            # Check for protobuf compatibility error
-            if "Descriptors cannot be created directly" in str(e1) or "protobuf" in str(e1).lower():
-                print(f"   [WARNING]  Protobuf compatibility error detected")
-                print(f"   [INFO] This is a dependency version conflict between protobuf and sentencepiece")
-                print(f"\n   [FIX] Quick fix:")
-                print(f"      pip install protobuf==3.20.3")
-                print(f"\n   After fixing, run the training script again.")
-                raise Exception("Protobuf dependency error. Please run: pip install protobuf==3.20.3")
-            
-            print(f"   [WARNING]  First tokenizer attempt failed: {e1}")
+        tokenizer = None
+        tokenizer_errors = []
+        
+        # Strategy 0: Check for 'dict' object has no attribute 'model_type' error
+        # This happens when config.json is malformed or incompatible with transformers.
+        # We try to load the config first using PretrainedConfig.from_json_file()
+        config_path = actual_model_path / "config.json"
+        preloaded_config = None
+        if config_path.exists():
             try:
-                # Try with use_fast=True
+                from transformers import PretrainedConfig
+                preloaded_config = PretrainedConfig.from_json_file(str(config_path))
+                print(f"   [INFO] Pre-loaded config.json (model_type: {preloaded_config.model_type})")
+            except Exception as config_err:
+                print(f"   [DEBUG] Could not pre-load config.json: {config_err}")
+                # Try to fix the model_type issue by reading the config directly
+                try:
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        config_dict = json.load(f)
+                    if 'model_type' in config_dict:
+                        print(f"   [INFO] Found model_type in config.json: {config_dict['model_type']}")
+                except Exception:
+                    pass
+        
+        # Strategy 1: Try with PretrainedConfig if we loaded it successfully
+        if preloaded_config is not None:
+            try:
+                from transformers import AutoTokenizer
+                tokenizer = AutoTokenizer.from_pretrained(
+                    str(actual_model_path),
+                    config=preloaded_config,
+                    use_fast=False,
+                    trust_remote_code=True,
+                    local_files_only=True
+                )
+                print(f"   [SUCCESS] Tokenizer loaded with pre-loaded config")
+            except Exception as e0:
+                tokenizer_errors.append(f"with preloaded config: {e0}")
+        
+        # Strategy 2: Try loading with trust_remote_code and use_fast=False
+        if tokenizer is None:
+            try:
+                from transformers import AutoTokenizer
+                tokenizer = AutoTokenizer.from_pretrained(
+                    str(actual_model_path),
+                    use_fast=False,
+                    trust_remote_code=True,
+                    legacy=False,
+                    local_files_only=True
+                )
+                print(f"   [SUCCESS] Tokenizer loaded with use_fast=False")
+            except Exception as e1:
+                # Check for protobuf compatibility error
+                if "Descriptors cannot be created directly" in str(e1) or "protobuf" in str(e1).lower():
+                    print(f"   [WARNING]  Protobuf compatibility error detected")
+                    print(f"   [INFO] This is a dependency version conflict between protobuf and sentencepiece")
+                    print(f"\n   [FIX] Quick fix:")
+                    print(f"      pip install protobuf==3.20.3")
+                    print(f"\n   After fixing, run the training script again.")
+                    raise Exception("Protobuf dependency error. Please run: pip install protobuf==3.20.3")
+                tokenizer_errors.append(f"use_fast=False: {e1}")
+        
+        # Strategy 3: Try with use_fast=True
+        if tokenizer is None:
+            try:
+                from transformers import AutoTokenizer
                 tokenizer = AutoTokenizer.from_pretrained(
                     str(actual_model_path),
                     use_fast=True,
-                    trust_remote_code=True
+                    trust_remote_code=True,
+                    local_files_only=True
                 )
+                print(f"   [SUCCESS] Tokenizer loaded with use_fast=True")
             except Exception as e2:
                 # Check for protobuf error in second attempt
                 if "Descriptors cannot be created directly" in str(e2) or "protobuf" in str(e2).lower():
@@ -676,35 +723,61 @@ def train_single_model_lora(
                     print(f"      pip install protobuf==3.20.3")
                     print(f"\n   After fixing, run the training script again.")
                     raise Exception("Protobuf dependency error. Please run: pip install protobuf==3.20.3")
-                
-                print(f"   [WARNING]  Second tokenizer attempt failed: {e2}")
-                
-                # === NO FALLBACK TO REMOTE MODELS ===
-                # We NEVER silently fall back to downloading from HuggingFace.
-                # This prevents unexpected behavior and ensures reproducibility.
-                print(f"\n   [ERROR] ✗ TOKENIZER LOADING FAILED")
-                print(f"   [ERROR] Could not load tokenizer from local path: {actual_model_path}")
-                print(f"\n   [DEBUG] Error details:")
-                print(f"      First attempt (use_fast=False): {e1}")
-                print(f"      Second attempt (use_fast=True): {e2}")
-                print(f"\n   [DEBUG] Possible causes:")
-                print(f"      1. Missing tokenizer files (tokenizer.json, tokenizer_config.json, etc.)")
-                print(f"      2. Corrupted or incomplete model download")
-                print(f"      3. Incompatible transformers version")
-                print(f"      4. 'dict object has no attribute model_type' - config.json may be malformed")
-                print(f"\n   [FIX] Suggested actions:")
-                print(f"      1. Verify model directory exists: {actual_model_path}")
-                print(f"      2. Check for tokenizer files: tokenizer.json, tokenizer_config.json, special_tokens_map.json")
-                print(f"      3. Re-download the model if files are missing or corrupted")
-                print(f"      4. Ensure transformers>=4.35.0 is installed")
-                print(f"\n   [FIX] To re-download the model:")
-                print(f"      huggingface-cli download <model-id> --local-dir {actual_model_path}")
-                
-                raise Exception(
-                    f"Tokenizer loading failed for {actual_model_path}. "
-                    f"No silent fallback to remote models. "
-                    f"See debug output above for troubleshooting steps."
+                tokenizer_errors.append(f"use_fast=True: {e2}")
+        
+        # Strategy 4: Try LlamaTokenizer directly for Llama-based models
+        if tokenizer is None:
+            try:
+                from transformers import LlamaTokenizer
+                tokenizer = LlamaTokenizer.from_pretrained(
+                    str(actual_model_path),
+                    trust_remote_code=True,
+                    local_files_only=True
                 )
+                print(f"   [SUCCESS] Tokenizer loaded with LlamaTokenizer")
+            except Exception as e3:
+                tokenizer_errors.append(f"LlamaTokenizer: {e3}")
+        
+        # Strategy 5: Try LlamaTokenizerFast for Llama-based models
+        if tokenizer is None:
+            try:
+                from transformers import LlamaTokenizerFast
+                tokenizer = LlamaTokenizerFast.from_pretrained(
+                    str(actual_model_path),
+                    trust_remote_code=True,
+                    local_files_only=True
+                )
+                print(f"   [SUCCESS] Tokenizer loaded with LlamaTokenizerFast")
+            except Exception as e4:
+                tokenizer_errors.append(f"LlamaTokenizerFast: {e4}")
+        
+        if tokenizer is None:
+            # === NO FALLBACK TO REMOTE MODELS ===
+            # We NEVER silently fall back to downloading from HuggingFace.
+            # This prevents unexpected behavior and ensures reproducibility.
+            print(f"\n   [ERROR] ✗ TOKENIZER LOADING FAILED")
+            print(f"   [ERROR] Could not load tokenizer from local path: {actual_model_path}")
+            print(f"\n   [DEBUG] Error details:")
+            for err in tokenizer_errors:
+                print(f"      - {err}")
+            print(f"\n   [DEBUG] Possible causes:")
+            print(f"      1. Missing tokenizer files (tokenizer.json, tokenizer_config.json, etc.)")
+            print(f"      2. Corrupted or incomplete model download")
+            print(f"      3. Incompatible transformers version")
+            print(f"      4. 'dict object has no attribute model_type' - config.json may be malformed")
+            print(f"\n   [FIX] Suggested actions:")
+            print(f"      1. Verify model directory exists: {actual_model_path}")
+            print(f"      2. Check for tokenizer files: tokenizer.json, tokenizer_config.json, special_tokens_map.json")
+            print(f"      3. Re-download the model if files are missing or corrupted")
+            print(f"      4. Ensure transformers>=4.35.0 is installed")
+            print(f"\n   [FIX] To re-download the model:")
+            print(f"      huggingface-cli download <model-id> --local-dir {actual_model_path}")
+            
+            raise Exception(
+                f"Tokenizer loading failed for {actual_model_path}. "
+                f"No silent fallback to remote models. "
+                f"See debug output above for troubleshooting steps."
+            )
         
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
