@@ -966,10 +966,12 @@ def launch_ddp_training(args, dataset_path: Path):
     # Build torchrun command
     ddp_script = project_root / 'ml' / 'training' / 'ddp_trainer.py'
     
+    # Use --standalone for single-node training (avoids libuv issues on Windows)
+    # --standalone uses c10d rendezvous backend which doesn't require libuv
     torchrun_cmd = [
         sys.executable, '-m', 'torch.distributed.run',
+        '--standalone',  # Single-node mode, avoids libuv dependency
         f'--nproc_per_node={gpu_count}',
-        '--master_port=29500',
         str(ddp_script),
         '--config', str(config_path),
         '--dataset', str(dataset_path),
@@ -981,6 +983,10 @@ def launch_ddp_training(args, dataset_path: Path):
     # Set environment variables
     env = os.environ.copy()
     env['RUN_ID'] = os.environ.get('RUN_ID', f"ddp-{datetime.now().strftime('%Y%m%d-%H%M%S')}")
+    
+    # Ensure all GPUs are visible (fixes detection issues on some systems)
+    if 'CUDA_VISIBLE_DEVICES' not in env:
+        env['CUDA_VISIBLE_DEVICES'] = ','.join(str(i) for i in range(gpu_count))
     
     # Run torchrun
     try:

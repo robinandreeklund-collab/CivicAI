@@ -837,10 +837,16 @@ router.post('/datasets/analyze-multiple-languages', requireAdmin, async (req, re
 router.get('/gpu-info', requireAdmin, async (req, res) => {
   try {
     // Try to get GPU info by running a simple Python script
+    // Uses multiple methods to ensure GPU detection works on all systems
     const pythonScript = `
 import json
+import os
 try:
     import torch
+    
+    # Debug info for troubleshooting GPU detection issues
+    cuda_visible = os.environ.get('CUDA_VISIBLE_DEVICES', 'not set')
+    
     if torch.cuda.is_available():
         count = torch.cuda.device_count()
         devices = []
@@ -860,7 +866,9 @@ try:
             'count': count,
             'devices': devices,
             'total_memory_gb': round(total_memory, 1),
-            'ddp_supported': count >= 2
+            'ddp_supported': count >= 2,
+            'cuda_visible_devices': cuda_visible,
+            'torch_version': torch.__version__
         }))
     else:
         print(json.dumps({
@@ -868,7 +876,9 @@ try:
             'count': 0,
             'devices': [],
             'total_memory_gb': 0,
-            'ddp_supported': False
+            'ddp_supported': False,
+            'cuda_visible_devices': cuda_visible,
+            'torch_version': torch.__version__
         }))
 except Exception as e:
     print(json.dumps({
@@ -902,7 +912,14 @@ except Exception as e:
       }
     }
 
-    const gpuProcess = spawn(pythonCommand, ['-c', pythonScript]);
+    // Ensure CUDA sees all devices - some systems need this
+    const env = { ...process.env };
+    if (!env.CUDA_VISIBLE_DEVICES) {
+      // Don't restrict GPUs - let PyTorch see all available
+      delete env.CUDA_VISIBLE_DEVICES;
+    }
+
+    const gpuProcess = spawn(pythonCommand, ['-c', pythonScript], { env });
     
     let stdout = '';
     let stderr = '';

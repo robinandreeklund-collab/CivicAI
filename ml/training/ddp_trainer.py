@@ -125,8 +125,14 @@ def setup_ddp():
         
         # Initialize process group
         if torch.cuda.is_available() and world_size > 1:
+            # Use gloo backend on Windows (nccl not well supported)
+            # Use nccl backend on Linux (better performance)
+            import platform
+            backend = 'gloo' if platform.system() == 'Windows' else 'nccl'
+            
+            print(f"[DDP] Initializing with backend: {backend}")
             dist.init_process_group(
-                backend='nccl',
+                backend=backend,
                 init_method='env://',
                 world_size=world_size,
                 rank=rank
