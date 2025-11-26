@@ -3,10 +3,17 @@
 GGUF Export Script for OneSeek Models
 
 Automatically exports merged models to GGUF format with specified quantization.
-Uses llama.cpp for conversion and quantization.
+Uses llama-cpp-python or llama.cpp for conversion and quantization.
 
 Usage:
     python scripts/export_gguf.py --model-path <path> --output <path> --quantization Q5_K_M
+
+Requirements:
+    pip install llama-cpp-python --upgrade
+    
+    # For GPU acceleration (recommended for RTX 2080 Ti):
+    pip uninstall llama-cpp-python -y
+    CMAKE_ARGS="-DLLAMA_CUDA=on" pip install llama-cpp-python --force-reinstall --no-cache-dir
 """
 
 import argparse
@@ -25,6 +32,47 @@ QUANTIZATION_TYPES = {
     'Q8_0': 'Best quality, largest size',
 }
 
+
+def ensure_llama_cpp_python():
+    """Ensure llama-cpp-python is installed."""
+    try:
+        import llama_cpp
+        print(f"[GGUF Export] llama-cpp-python version: {llama_cpp.__version__ if hasattr(llama_cpp, '__version__') else 'installed'}")
+        return True
+    except ImportError:
+        print("[GGUF Export] llama-cpp-python not found, attempting to install...")
+        try:
+            result = subprocess.run(
+                [sys.executable, '-m', 'pip', 'install', 'llama-cpp-python', '--upgrade', '-q'],
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            if result.returncode == 0:
+                print("[GGUF Export] llama-cpp-python installed successfully")
+                return True
+            else:
+                print(f"[GGUF Export] Failed to install: {result.stderr}")
+                return False
+        except Exception as e:
+            print(f"[GGUF Export] Installation error: {e}")
+            return False
+
+
+def ensure_gguf_package():
+    """Ensure gguf package is installed."""
+    try:
+        import gguf
+        return True
+    except ImportError:
+        print("[GGUF Export] Installing gguf package...")
+        result = subprocess.run(
+            [sys.executable, '-m', 'pip', 'install', 'gguf', '-q'],
+            capture_output=True
+        )
+        return result.returncode == 0
+
+
 def find_llama_cpp():
     """Find llama.cpp installation."""
     # Check common locations
@@ -34,15 +82,56 @@ def find_llama_cpp():
         Path('./llama.cpp'),
         Path('../llama.cpp'),
         Path('C:/llama.cpp'),
-        Path('C:/Users') / os.environ.get('USERNAME', 'user') / 'llama.cpp',
     ]
+    
+    # Add Windows user paths
+    username = os.environ.get('USERNAME', os.environ.get('USER', 'user'))
+    possible_paths.append(Path(f'C:/Users/{username}/llama.cpp'))
+    possible_paths.append(Path(f'/home/{username}/llama.cpp'))
     
     for p in possible_paths:
         if p.exists() and (p / 'convert_hf_to_gguf.py').exists():
             return p
-        # Also check for older convert.py
-        if p.exists() and (p / 'convert.py').exists():
-            return p
+    
+    return None
+
+
+def find_convert_script():
+    """Find the convert script from llama-cpp-python or llama.cpp."""
+    # First check if llama-cpp-python has the convert script
+    try:
+        import llama_cpp
+        llama_cpp_path = Path(llama_cpp.__file__).parent
+        
+        # Check various possible locations within the package
+        possible_scripts = [
+            llama_cpp_path / 'convert_hf_to_gguf.py',
+            llama_cpp_path / 'scripts' / 'convert_hf_to_gguf.py',
+            llama_cpp_path.parent / 'convert_hf_to_gguf.py',
+        ]
+        
+        for script in possible_scripts:
+            if script.exists():
+                return script
+    except ImportError:
+        pass
+    
+    # Check site-packages for convert script
+    try:
+        import site
+        for site_dir in site.getsitepackages():
+            convert_path = Path(site_dir) / 'llama_cpp' / 'convert_hf_to_gguf.py'
+            if convert_path.exists():
+                return convert_path
+    except:
+        pass
+    
+    # Check local llama.cpp installation
+    llama_cpp_dir = find_llama_cpp()
+    if llama_cpp_dir:
+        convert_script = llama_cpp_dir / 'convert_hf_to_gguf.py'
+        if convert_script.exists():
+            return convert_script
     
     return None
 
@@ -60,7 +149,7 @@ def download_convert_script():
         convert_url = 'https://raw.githubusercontent.com/ggerganov/llama.cpp/master/convert_hf_to_gguf.py'
         convert_path = script_dir / 'convert_hf_to_gguf.py'
         
-        if not convert_path.exists():
+        if not convert_path.exists() or (datetime.now().timestamp() - convert_path.stat().st_mtime > 86400):
             print(f"[GGUF Export] Downloading convert script from GitHub...")
             urllib.request.urlretrieve(convert_url, convert_path)
             print(f"[GGUF Export] Downloaded to {convert_path}")
@@ -69,20 +158,6 @@ def download_convert_script():
     except Exception as e:
         print(f"[GGUF Export] Failed to download convert script: {e}")
         return None
-
-
-def ensure_gguf_package():
-    """Ensure gguf package is installed."""
-    try:
-        import gguf
-        return True
-    except ImportError:
-        print("[GGUF Export] Installing gguf package...")
-        result = subprocess.run(
-            [sys.executable, '-m', 'pip', 'install', 'gguf', '-q'],
-            capture_output=True
-        )
-        return result.returncode == 0
 
 
 def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5_K_M'):
@@ -105,151 +180,99 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
     # Ensure output directory exists
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
-    # Find llama.cpp local installation
-    llama_cpp_path = find_llama_cpp()
+    # Ensure required packages are installed
+    ensure_llama_cpp_python()
+    ensure_gguf_package()
     
-    if llama_cpp_path:
-        print(f"[GGUF Export] Found llama.cpp at: {llama_cpp_path}")
-        return convert_with_llama_cpp(model_path, output_path, quantization, llama_cpp_path)
+    # Find or download the convert script
+    convert_script = find_convert_script()
     
-    # Try to download and use the convert script
-    print("[GGUF Export] llama.cpp not found locally, trying to download convert script...")
+    if not convert_script:
+        print("[GGUF Export] Convert script not found locally, downloading from GitHub...")
+        convert_script = download_convert_script()
     
-    # Ensure gguf package is installed
-    if not ensure_gguf_package():
-        print("[GGUF Export] Could not install gguf package")
-    
-    convert_script = download_convert_script()
-    
-    if convert_script and convert_script.exists():
-        print(f"[GGUF Export] Using downloaded script: {convert_script}")
-        return convert_with_script(model_path, output_path, quantization, convert_script)
-    
-    # Last resort: provide manual instructions
-    return {
-        'success': False,
-        'error': 'llama.cpp not found and could not download convert script',
-        'instructions': get_manual_instructions(model_path, output_path, quantization),
-    }
-
-
-def convert_with_llama_cpp(model_path: Path, output_path: Path, quantization: str, llama_cpp_path: Path):
-    """Convert using local llama.cpp installation."""
-    try:
-        # Determine which convert script to use
-        convert_script = llama_cpp_path / 'convert_hf_to_gguf.py'
-        if not convert_script.exists():
-            convert_script = llama_cpp_path / 'convert.py'
-        
-        if not convert_script.exists():
-            return {
-                'success': False,
-                'error': 'llama.cpp convert script not found',
-            }
-        
-        # First convert to f16 GGUF
-        f16_output = output_path.parent / f"{output_path.stem}.f16.gguf"
-        
-        print(f"[GGUF Export] Step 1: Converting to F16 GGUF...")
-        convert_cmd = [
-            sys.executable, str(convert_script),
-            str(model_path),
-            '--outtype', 'f16',
-            '--outfile', str(f16_output),
-        ]
-        
-        result = subprocess.run(convert_cmd, capture_output=True, text=True, timeout=3600)
-        if result.returncode != 0:
-            return {
-                'success': False,
-                'error': f'F16 conversion failed: {result.stderr}',
-                'stdout': result.stdout,
-            }
-        
-        if not f16_output.exists():
-            return {
-                'success': False,
-                'error': 'F16 GGUF file was not created',
-            }
-        
-        print(f"[GGUF Export] F16 GGUF created: {f16_output} ({f16_output.stat().st_size / 1024 / 1024:.1f} MB)")
-        
-        # Find quantize binary
-        quantize_bin = find_quantize_binary(llama_cpp_path)
-        
-        if quantize_bin:
-            print(f"[GGUF Export] Step 2: Quantizing to {quantization}...")
-            return run_quantization(f16_output, output_path, quantization, quantize_bin)
-        else:
-            # No quantize binary, rename f16 to final output
-            print("[GGUF Export] Quantize binary not found, using F16 output")
-            shutil.move(str(f16_output), str(output_path))
-            return {
-                'success': True,
-                'output_path': str(output_path),
-                'quantization': 'f16',
-                'size_bytes': output_path.stat().st_size,
-                'note': f'Converted to F16. For {quantization} quantization, compile llama.cpp and use the quantize binary.',
-            }
-        
-    except subprocess.TimeoutExpired:
+    if not convert_script or not convert_script.exists():
         return {
             'success': False,
-            'error': 'Conversion timed out after 1 hour',
+            'error': 'Could not find or download convert script',
+            'instructions': get_manual_instructions(model_path, output_path, quantization),
         }
-    except Exception as e:
+    
+    print(f"[GGUF Export] Using convert script: {convert_script}")
+    
+    # Find llama.cpp for quantization binary
+    llama_cpp_dir = find_llama_cpp()
+    quantize_bin = find_quantize_binary(llama_cpp_dir) if llama_cpp_dir else None
+    
+    # Convert to f16 first
+    f16_output = output_path.parent / f"{output_path.stem.replace(f'.{quantization}', '')}.f16.gguf"
+    
+    print(f"[GGUF Export] Step 1: Converting to F16 GGUF...")
+    convert_result = run_convert_script(convert_script, model_path, f16_output)
+    
+    if not convert_result.get('success'):
+        return convert_result
+    
+    if not f16_output.exists():
         return {
             'success': False,
-            'error': str(e),
+            'error': 'F16 GGUF file was not created',
         }
-
-
-def convert_with_script(model_path: Path, output_path: Path, quantization: str, convert_script: Path):
-    """Convert using downloaded convert script."""
-    try:
-        # Convert to f16 (quantization needs the binary which we don't have)
-        f16_output = output_path.parent / f"{output_path.stem}.f16.gguf"
+    
+    f16_size = f16_output.stat().st_size / (1024 * 1024)
+    print(f"[GGUF Export] F16 GGUF created: {f16_output} ({f16_size:.1f} MB)")
+    
+    # Try to quantize if binary available
+    if quantize_bin:
+        print(f"[GGUF Export] Step 2: Quantizing to {quantization}...")
+        return run_quantization(f16_output, output_path, quantization, quantize_bin)
+    else:
+        # No quantize binary - rename f16 to final name
+        print(f"[GGUF Export] Quantize binary not found, using F16 output")
+        final_output = output_path.parent / f"{output_path.stem.replace(f'.{quantization}', '')}.f16.gguf"
         
-        print(f"[GGUF Export] Converting to F16 GGUF using downloaded script...")
-        convert_cmd = [
-            sys.executable, str(convert_script),
-            str(model_path),
-            '--outtype', 'f16',
-            '--outfile', str(f16_output),
-        ]
-        
-        result = subprocess.run(convert_cmd, capture_output=True, text=True, timeout=3600)
-        
-        if result.returncode != 0:
-            print(f"[GGUF Export] Script failed with stderr: {result.stderr}")
-            print(f"[GGUF Export] Script stdout: {result.stdout}")
-            return {
-                'success': False,
-                'error': f'Conversion failed: {result.stderr[:500]}',
-                'instructions': get_manual_instructions(model_path, output_path, quantization),
-            }
-        
-        if not f16_output.exists():
-            return {
-                'success': False,
-                'error': 'GGUF file was not created',
-                'instructions': get_manual_instructions(model_path, output_path, quantization),
-            }
-        
-        # Rename f16 to final output (can't quantize without binary)
-        final_output = output_path.parent / f"{output_path.stem}.gguf"
-        shutil.move(str(f16_output), str(final_output))
-        
-        size_bytes = final_output.stat().st_size
-        print(f"[GGUF Export] ✅ GGUF created: {final_output} ({size_bytes / 1024 / 1024:.1f} MB)")
+        # If output path differs, move the file
+        if str(final_output) != str(f16_output):
+            shutil.move(str(f16_output), str(final_output))
         
         return {
             'success': True,
             'output_path': str(final_output),
             'quantization': 'f16',
-            'size_bytes': size_bytes,
-            'note': f'Created F16 GGUF. For {quantization} quantization, compile llama.cpp quantize binary.',
+            'size_bytes': final_output.stat().st_size,
+            'note': f'Created F16 GGUF. For {quantization} quantization, install llama.cpp and run: llama-quantize "{final_output}" "{output_path}" {quantization}',
         }
+
+
+def run_convert_script(convert_script: Path, model_path: Path, output_path: Path):
+    """Run the convert script to create F16 GGUF."""
+    try:
+        convert_cmd = [
+            sys.executable, str(convert_script),
+            str(model_path),
+            '--outtype', 'f16',
+            '--outfile', str(output_path),
+        ]
+        
+        print(f"[GGUF Export] Running: {' '.join(convert_cmd)}")
+        
+        result = subprocess.run(
+            convert_cmd,
+            capture_output=True,
+            text=True,
+            timeout=3600,  # 1 hour timeout
+            cwd=str(model_path.parent),
+        )
+        
+        if result.returncode != 0:
+            print(f"[GGUF Export] Convert stderr: {result.stderr}")
+            print(f"[GGUF Export] Convert stdout: {result.stdout}")
+            return {
+                'success': False,
+                'error': f'Conversion failed: {result.stderr[:500] if result.stderr else result.stdout[:500]}',
+            }
+        
+        return {'success': True}
         
     except subprocess.TimeoutExpired:
         return {
@@ -257,27 +280,31 @@ def convert_with_script(model_path: Path, output_path: Path, quantization: str, 
             'error': 'Conversion timed out after 1 hour',
         }
     except Exception as e:
-        import traceback
         return {
             'success': False,
             'error': str(e),
-            'traceback': traceback.format_exc(),
         }
 
 
 def find_quantize_binary(llama_cpp_path: Path):
     """Find the quantize binary in llama.cpp installation."""
+    if not llama_cpp_path:
+        return None
+        
     possible_paths = [
-        llama_cpp_path / 'quantize',
-        llama_cpp_path / 'build' / 'bin' / 'quantize',
-        llama_cpp_path / 'build' / 'bin' / 'Release' / 'quantize.exe',
-        llama_cpp_path / 'build' / 'quantize',
         llama_cpp_path / 'llama-quantize',
+        llama_cpp_path / 'quantize',
         llama_cpp_path / 'build' / 'bin' / 'llama-quantize',
+        llama_cpp_path / 'build' / 'bin' / 'quantize',
+        llama_cpp_path / 'build' / 'bin' / 'Release' / 'llama-quantize.exe',
+        llama_cpp_path / 'build' / 'bin' / 'Release' / 'quantize.exe',
+        llama_cpp_path / 'build' / 'llama-quantize',
+        llama_cpp_path / 'build' / 'quantize',
     ]
     
     for p in possible_paths:
         if p.exists():
+            print(f"[GGUF Export] Found quantize binary: {p}")
             return p
     
     return None
@@ -293,22 +320,23 @@ def run_quantization(f16_path: Path, output_path: Path, quantization: str, quant
             quantization,
         ]
         
+        print(f"[GGUF Export] Running: {' '.join(quantize_cmd)}")
+        
         result = subprocess.run(quantize_cmd, capture_output=True, text=True, timeout=3600)
         
         if result.returncode != 0:
             # If quantization fails, keep the f16 version
             print(f"[GGUF Export] Quantization failed: {result.stderr}")
-            shutil.move(str(f16_path), str(output_path))
             return {
                 'success': True,
-                'output_path': str(output_path),
+                'output_path': str(f16_path),
                 'quantization': 'f16',
-                'size_bytes': output_path.stat().st_size,
+                'size_bytes': f16_path.stat().st_size,
                 'warning': f'Quantization failed, using F16: {result.stderr[:200]}',
             }
         
         # Clean up intermediate f16 file
-        if f16_path.exists():
+        if f16_path.exists() and output_path.exists() and str(f16_path) != str(output_path):
             f16_path.unlink()
         
         if not output_path.exists():
@@ -316,6 +344,9 @@ def run_quantization(f16_path: Path, output_path: Path, quantization: str, quant
                 'success': False,
                 'error': 'Quantized file was not created',
             }
+        
+        size_mb = output_path.stat().st_size / (1024 * 1024)
+        print(f"[GGUF Export] ✅ Quantized GGUF created: {output_path} ({size_mb:.1f} MB)")
         
         return {
             'success': True,
@@ -325,14 +356,13 @@ def run_quantization(f16_path: Path, output_path: Path, quantization: str, quant
         }
         
     except Exception as e:
-        # If anything fails, try to keep f16
+        # If anything fails, try to return f16
         if f16_path.exists():
-            shutil.move(str(f16_path), str(output_path))
             return {
                 'success': True,
-                'output_path': str(output_path),
+                'output_path': str(f16_path),
                 'quantization': 'f16',
-                'size_bytes': output_path.stat().st_size,
+                'size_bytes': f16_path.stat().st_size,
                 'warning': f'Quantization error, using F16: {str(e)}',
             }
         return {
@@ -344,10 +374,11 @@ def run_quantization(f16_path: Path, output_path: Path, quantization: str, quant
 def get_manual_instructions(model_path: Path, output_path: Path, quantization: str):
     """Get manual instructions for GGUF conversion."""
     return [
-        '1. Clone llama.cpp: git clone https://github.com/ggerganov/llama.cpp',
-        '2. Build: cd llama.cpp && make',
-        f'3. Convert: python llama.cpp/convert_hf_to_gguf.py "{model_path}" --outtype f16 --outfile "{output_path.with_suffix(".f16.gguf")}"',
-        f'4. Quantize: ./llama.cpp/llama-quantize "{output_path.with_suffix(".f16.gguf")}" "{output_path}" {quantization}',
+        '1. Install llama-cpp-python: pip install llama-cpp-python --upgrade',
+        '   For GPU acceleration: CMAKE_ARGS="-DLLAMA_CUDA=on" pip install llama-cpp-python --force-reinstall --no-cache-dir',
+        '2. Or clone llama.cpp: git clone https://github.com/ggerganov/llama.cpp && cd llama.cpp && make',
+        f'3. Convert: python convert_hf_to_gguf.py "{model_path}" --outtype f16 --outfile "{output_path.with_suffix(".f16.gguf")}"',
+        f'4. Quantize: llama-quantize "{output_path.with_suffix(".f16.gguf")}" "{output_path}" {quantization}',
     ]
 
 
