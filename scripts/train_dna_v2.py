@@ -995,28 +995,71 @@ def launch_ddp_training(args, dataset_path: Path):
     import platform
     is_windows = platform.system() == 'Windows'
     
-    # Build command based on platform
-    # On Windows, we need to explicitly set master_addr to 127.0.0.1 to avoid
-    # connection issues with the rendezvous backend
+    if is_windows:
+        # On Windows, torchrun has issues with TCP store and rendezvous.
+        # Instead, we'll use a simpler approach: run the DDP script directly
+        # with environment variables set, and let it handle multi-GPU via
+        # torch.multiprocessing.spawn internally.
+        print(f"\n[INFO] Windows detected - using spawn-based DDP (avoids torchrun TCP issues)")
+        
+        # Add spawn mode flag to config
+        ddp_config['use_spawn'] = True
+        ddp_config['world_size'] = gpu_count
+        with open(config_path, 'w') as f:
+            json.dump(ddp_config, f, indent=2)
+        
+        # Run the DDP script directly (it will use mp.spawn internally)
+        direct_cmd = [
+            sys.executable,
+            str(ddp_script),
+            '--config', str(config_path),
+            '--dataset', str(dataset_path),
+            '--output-dir', str(project_root / 'models' / 'oneseek-certified')
+        ]
+        
+        print(f"\n[LAUNCH] Running: {' '.join(direct_cmd[:3])} ...")
+        
+        # Set environment variables
+        env = os.environ.copy()
+        env['RUN_ID'] = os.environ.get('RUN_ID', f"ddp-{datetime.now().strftime('%Y%m%d-%H%M%S')}")
+        env['CUDA_VISIBLE_DEVICES'] = ','.join(str(i) for i in range(gpu_count))
+        env['WORLD_SIZE'] = str(gpu_count)
+        
+        try:
+            result = subprocess.run(
+                direct_cmd,
+                cwd=str(project_root),
+                env=env,
+                capture_output=False,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                print("\n[SUCCESS] DDP training completed!")
+                return {'success': True, 'dna': 'DDP-TRAINED'}
+            else:
+                print(f"\n[ERROR] DDP training failed with exit code {result.returncode}")
+                return {'success': False, 'error': f'Exit code {result.returncode}'}
+        except Exception as e:
+            print(f"\n[ERROR] DDP launch failed: {e}")
+            return {'success': False, 'error': str(e)}
+        finally:
+            if config_path.exists():
+                try:
+                    config_path.unlink()
+                except Exception:
+                    pass
+    
+    # Linux/Mac: Use torchrun normally (works well)
     torchrun_cmd = [
         sys.executable, '-m', 'torch.distributed.run',
-        '--standalone',  # Single-node mode
+        '--standalone',
         f'--nproc_per_node={gpu_count}',
-    ]
-    
-    # Windows needs explicit localhost binding for TCP store to work
-    if is_windows:
-        torchrun_cmd.extend([
-            '--master_addr=127.0.0.1',
-            '--master_port=29500',
-        ])
-    
-    torchrun_cmd.extend([
         str(ddp_script),
         '--config', str(config_path),
         '--dataset', str(dataset_path),
         '--output-dir', str(project_root / 'models' / 'oneseek-certified')
-    ])
+    ]
     
     print(f"\n[LAUNCH] Running: {' '.join(torchrun_cmd[:5])} ...")
     

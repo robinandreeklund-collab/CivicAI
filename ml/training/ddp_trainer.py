@@ -767,6 +767,133 @@ def run_ddp_training(config: Dict, dataset_path: Path, output_dir: Path,
         trainer.cleanup()
 
 
+def run_spawn_training_worker(rank: int, world_size: int, config: Dict, 
+                               dataset_path: Path, output_dir: Path, run_id: str):
+    """
+    Worker function for spawn-based DDP training (Windows compatible).
+    
+    This is called by torch.multiprocessing.spawn for each GPU.
+    """
+    import torch.multiprocessing as mp
+    
+    # Set environment variables for this process
+    os.environ['RANK'] = str(rank)
+    os.environ['LOCAL_RANK'] = str(rank)
+    os.environ['WORLD_SIZE'] = str(world_size)
+    os.environ['MASTER_ADDR'] = '127.0.0.1'
+    os.environ['MASTER_PORT'] = '29500'
+    
+    # Set CUDA device for this process
+    torch.cuda.set_device(rank)
+    
+    # Initialize process group with gloo backend (works on Windows)
+    dist.init_process_group(
+        backend='gloo',
+        init_method='env://',
+        world_size=world_size,
+        rank=rank
+    )
+    
+    print(f"[SPAWN] Worker {rank}/{world_size} initialized on GPU {rank}")
+    
+    try:
+        # Update config with spawn-specific settings
+        config['use_ddp'] = True
+        
+        # Create trainer
+        trainer = DDPTrainer(config)
+        trainer.local_rank = rank
+        trainer.world_size = world_size
+        trainer.rank = rank
+        trainer.is_main_process = (rank == 0)
+        
+        # Get base model path
+        base_model = config.get('base_models', ['KB-Llama-3.1-8B-Swedish'])[0]
+        model_path = Path(config.get('models_dir', 'models')) / base_model
+        
+        if not model_path.exists():
+            alt_paths = [
+                Path('models') / base_model,
+                Path('..') / 'models' / base_model,
+            ]
+            for alt in alt_paths:
+                if alt.exists():
+                    model_path = alt
+                    break
+        
+        # Load model and tokenizer
+        model, tokenizer = trainer.load_model_and_tokenizer(model_path)
+        
+        # Setup LoRA
+        model = trainer.setup_lora(model)
+        
+        # Wrap with DDP
+        model = trainer.wrap_model_ddp(model)
+        
+        # Load training data
+        train_data = []
+        with open(dataset_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.strip():
+                    item = json.loads(line)
+                    train_data.append({
+                        'question': item.get('instruction', item.get('question', '')),
+                        'responses': [{
+                            'response_text': item.get('output', item.get('response', ''))
+                        }]
+                    })
+        
+        # Run training
+        metrics = trainer.train(model, tokenizer, train_data, [], run_id)
+        
+        # Save model (only main process)
+        if rank == 0:
+            timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+            adapter_name = f"ddp-adapter-{timestamp}"
+            trainer.save_model(model, tokenizer, output_dir / 'lora_adapters', adapter_name)
+            print(f"[SPAWN] Model saved: {adapter_name}")
+        
+    except Exception as e:
+        if rank == 0:
+            print(f"[SPAWN ERROR] Worker {rank} failed: {e}")
+            import traceback
+            traceback.print_exc()
+    finally:
+        dist.destroy_process_group()
+
+
+def run_spawn_training(config: Dict, dataset_path: Path, output_dir: Path, 
+                       run_id: str = None) -> Dict:
+    """
+    Run DDP training using torch.multiprocessing.spawn (Windows compatible).
+    
+    This avoids torchrun and its TCP store issues on Windows.
+    """
+    import torch.multiprocessing as mp
+    
+    world_size = config.get('world_size', 2)
+    
+    print(f"\n[SPAWN] Starting spawn-based DDP training with {world_size} GPUs")
+    print(f"[SPAWN] This method avoids torchrun TCP issues on Windows")
+    
+    try:
+        # Use spawn to start worker processes
+        mp.spawn(
+            run_spawn_training_worker,
+            args=(world_size, config, dataset_path, output_dir, run_id or 'spawn-ddp'),
+            nprocs=world_size,
+            join=True
+        )
+        
+        return {'success': True, 'metrics': {}}
+        
+    except Exception as e:
+        print(f"[SPAWN ERROR] Training failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return {'success': False, 'error': str(e)}
+
+
 def main():
     """Main entry point for standalone DDP training."""
     parser = argparse.ArgumentParser(description='DDP Training for OneSeek-7B-Zero')
@@ -810,13 +937,25 @@ def main():
             'use_ddp': True  # Always use DDP when running this script
         }
     
-    # Run training
-    result = run_ddp_training(
-        config=config,
-        dataset_path=Path(args.dataset),
-        output_dir=Path(args.output_dir),
-        run_id=os.environ.get('RUN_ID', f"ddp-{datetime.now().strftime('%Y%m%d%H%M%S')}")
-    )
+    # Check if we should use spawn-based training (Windows)
+    use_spawn = config.get('use_spawn', False)
+    
+    if use_spawn:
+        print("[MODE] Using spawn-based DDP (Windows compatible)")
+        result = run_spawn_training(
+            config=config,
+            dataset_path=Path(args.dataset),
+            output_dir=Path(args.output_dir),
+            run_id=os.environ.get('RUN_ID', f"ddp-{datetime.now().strftime('%Y%m%d%H%M%S')}")
+        )
+    else:
+        # Standard torchrun-based training (Linux/Mac)
+        result = run_ddp_training(
+            config=config,
+            dataset_path=Path(args.dataset),
+            output_dir=Path(args.output_dir),
+            run_id=os.environ.get('RUN_ID', f"ddp-{datetime.now().strftime('%Y%m%d%H%M%S')}")
+        )
     
     if result['success']:
         print("\n" + "=" * 70)
