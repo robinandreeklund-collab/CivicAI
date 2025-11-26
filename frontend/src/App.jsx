@@ -37,6 +37,11 @@ import OQIDemo10v2 from './pages/OQIDemo10v2';
 import OQIDemo10v3 from './pages/OQIDemo10v3';
 import OQIDemo10v4 from './pages/OQIDemo10v4';
 import OQIDemo10v5 from './pages/OQIDemo10v5';
+import OQIDemo10v6 from './pages/OQIDemo10v6';
+import OQIDemo10v7 from './pages/OQIDemo10v7';
+import OQIDemo10v8 from './pages/OQIDemo10v8';
+import OQIDemo10v9 from './pages/OQIDemo10v9';
+import OQIDemo10v10 from './pages/OQIDemo10v10';
 import OQIDemosIndex from './pages/OQIDemosIndex';
 
 /**
@@ -166,6 +171,11 @@ function AppContent() {
           <Route path="/oqi-demo-10-v3" element={<OQIDemo10v3 />} />
           <Route path="/oqi-demo-10-v4" element={<OQIDemo10v4 />} />
           <Route path="/oqi-demo-10-v5" element={<OQIDemo10v5 />} />
+          <Route path="/oqi-demo-10-v6" element={<OQIDemo10v6 />} />
+          <Route path="/oqi-demo-10-v7" element={<OQIDemo10v7 />} />
+          <Route path="/oqi-demo-10-v8" element={<OQIDemo10v8 />} />
+          <Route path="/oqi-demo-10-v9" element={<OQIDemo10v9 />} />
+          <Route path="/oqi-demo-10-v10" element={<OQIDemo10v10 />} />
           <Route path="/oqi-demos" element={<OQIDemosIndex />} />
         </Routes>
       </div>

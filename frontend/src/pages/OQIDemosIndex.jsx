@@ -102,6 +102,40 @@ export default function OQIDemosIndex() {
     },
   ];
 
+  // NEW: Refined variants with horizontal DNA chain, classic chat layout, and organic timeline
+  const demo10RefinedVariants = [
+    {
+      id: 'v6',
+      title: 'Refined Cinema',
+      description: 'Horizontal DNA chain in header, classic chat layout, expandable sidebar with tools',
+      features: ['Horizontal DNA chain', 'Chat bubbles', 'Organic timeline', 'Ghost sidebar'],
+    },
+    {
+      id: 'v7',
+      title: 'Elegant Monochrome',
+      description: 'Flowing DNA, whisper-light UI, organic rhythm timeline, ultra-minimal aesthetic',
+      features: ['Flowing DNA', 'Whisper UI', 'Natural rhythm', 'Fade-in send'],
+    },
+    {
+      id: 'v8',
+      title: 'Pure Essence',
+      description: 'Centered DNA chain, asymmetric bubbles, whisper-thin timeline, ghost sidebar',
+      features: ['Centered DNA', 'Asymmetric chat', 'Thin timeline', 'Ghost expand'],
+    },
+    {
+      id: 'v9',
+      title: 'Zen Flow',
+      description: 'Breath-like animations, natural spacing, extremely minimal elements',
+      features: ['Breath animation', 'Natural gaps', 'Zen aesthetic', 'Floating sidebar'],
+    },
+    {
+      id: 'v10',
+      title: 'Ultimate Refinement',
+      description: 'The most polished version combining all requested features in perfect harmony',
+      features: ['All features', 'Premium feel', 'Perfect balance', 'Production ready'],
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] font-sans">
       <div className="max-w-6xl mx-auto px-8 py-12">
@@ -166,6 +200,53 @@ export default function OQIDemosIndex() {
                     <span 
                       key={idx}
                       className="text-[9px] px-2 py-0.5 bg-[#6D28D9]/10 text-[#6D28D9]/70 rounded"
+                    >
+                      {feature}
+                    </span>
+                  ))}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* NEW: Refined Variants Section */}
+        <div className="mb-16">
+          <div className="mb-6">
+            <h2 className="text-2xl font-light text-[#e7e7e7] mb-2">
+              ★★ Design 10 – Refined Variants (NEW)
+            </h2>
+            <p className="text-sm text-[#888]">
+              5 new refined variants with horizontal DNA chain in header, classic chat layout, organic timeline rhythm, and ghost sidebar.
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {demo10RefinedVariants.map((variant) => (
+              <Link
+                key={variant.id}
+                to={`/oqi-demo-10-${variant.id}`}
+                className="block bg-[#0d0d0d] border border-[#059669]/30 rounded-xl p-5 hover:border-[#059669]/60 hover:bg-[#111111] transition-all duration-300 group"
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="text-[10px] font-mono text-[#059669] uppercase tracking-wider">
+                    Variant {variant.id.toUpperCase()}
+                  </div>
+                  <span className="text-[#666] group-hover:text-[#059669] transition-colors">
+                    →
+                  </span>
+                </div>
+                <h3 className="text-lg font-light text-[#e7e7e7] mb-2 group-hover:text-[#fff] transition-colors">
+                  {variant.title}
+                </h3>
+                <p className="text-xs text-[#888] mb-3">
+                  {variant.description}
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {variant.features.map((feature, idx) => (
+                    <span 
+                      key={idx}
+                      className="text-[9px] px-2 py-0.5 bg-[#059669]/10 text-[#059669]/70 rounded"
                     >
                       {feature}
                     </span>
