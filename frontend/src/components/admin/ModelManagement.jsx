@@ -24,6 +24,21 @@ export default function ModelManagement() {
   const [manifests, setManifests] = useState([]);
   const [ggufExports, setGgufExports] = useState([]);
   const [selectedManifest, setSelectedManifest] = useState(null);
+  
+  // Merge state
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [selectedForMerge, setSelectedForMerge] = useState([]);
+  const [mergeBaseModel, setMergeBaseModel] = useState('');
+  const [mergeOutputName, setMergeOutputName] = useState('');
+  const [mergeVersion, setMergeVersion] = useState('1.0');
+  const [merging, setMerging] = useState(false);
+  
+  // GGUF Export state
+  const [showGgufDialog, setShowGgufDialog] = useState(false);
+  const [ggufModelPath, setGgufModelPath] = useState('');
+  const [ggufQuantization, setGgufQuantization] = useState('Q5_K_M');
+  const [ggufExportWithMerge, setGgufExportWithMerge] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     fetchModels();
@@ -210,6 +225,91 @@ export default function ModelManagement() {
     }
   };
 
+  // Merge adapters into a standalone model
+  const performMerge = async () => {
+    if (!mergeBaseModel) {
+      alert('Please select a base model');
+      return;
+    }
+    if (selectedForMerge.length === 0) {
+      alert('Please select at least one adapter to merge');
+      return;
+    }
+
+    setMerging(true);
+    try {
+      const response = await fetch('/api/models/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          baseModel: mergeBaseModel,
+          adapters: selectedForMerge,
+          outputName: mergeOutputName || `merged-${Date.now()}`,
+          version: mergeVersion,
+          exportGguf: ggufExportWithMerge,
+          quantization: ggufQuantization,
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        alert(`✅ Merge completed!\n\n${data.message || 'Models merged successfully'}`);
+        setShowMergeDialog(false);
+        setSelectedForMerge([]);
+        await fetchModels();
+        await fetchManifests();
+        if (ggufExportWithMerge) {
+          await fetchGgufExports();
+        }
+      } else {
+        alert(`❌ Merge failed: ${data.error}\n\n${data.stderr || ''}`);
+      }
+    } catch (error) {
+      console.error('Error during merge:', error);
+      alert('❌ Merge failed. Check console for details.');
+    } finally {
+      setMerging(false);
+    }
+  };
+
+  // Export model to GGUF format
+  const performGgufExport = async () => {
+    if (!ggufModelPath) {
+      alert('Please select a model to export');
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const response = await fetch('/api/models/gguf/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modelPath: ggufModelPath,
+          outputName: ggufModelPath.split('/').pop(),
+          quantization: ggufQuantization,
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        const instructions = data.instructions ? `\n\nManual steps:\n${data.instructions.join('\n')}` : '';
+        alert(`✅ GGUF export initiated!\n\n${data.message || 'Export started'}${instructions}`);
+        setShowGgufDialog(false);
+        await fetchGgufExports();
+      } else {
+        alert(`❌ Export failed: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error during GGUF export:', error);
+      alert('❌ Export failed. Check console for details.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -340,14 +440,25 @@ export default function ModelManagement() {
       {/* GGUF Tab */}
       {activeTab === 'gguf' && (
         <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">
-          <h2 className="text-[#eee] font-mono text-lg mb-4">GGUF Exports</h2>
-          <p className="text-[#666] font-mono text-xs mb-4">
-            GGUF format models for llama.cpp inference. Export merged models with quantization (Q5_K_M, Q6_K, Q8_0).
-          </p>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-[#eee] font-mono text-lg">GGUF Exports</h2>
+              <p className="text-[#666] font-mono text-xs mt-1">
+                GGUF format models for llama.cpp inference. Export merged models with quantization (Q5_K_M, Q6_K, Q8_0).
+              </p>
+            </div>
+            <button
+              onClick={() => setShowGgufDialog(true)}
+              className="px-4 py-2 border border-green-700/50 bg-green-900/20 text-green-400 font-mono text-sm hover:bg-green-900/30 transition-colors"
+            >
+              + Export GGUF
+            </button>
+          </div>
           
           {ggufExports.length === 0 ? (
             <div className="text-[#666] font-mono text-sm text-center py-8">
-              No GGUF exports found. Use the merge function with GGUF export enabled.
+              <div className="mb-2">No GGUF exports found.</div>
+              <div className="text-xs">Click &quot;Export GGUF&quot; to convert a model, or use the Merge function with GGUF export enabled.</div>
             </div>
           ) : (
             <div className="space-y-3">
@@ -398,6 +509,12 @@ export default function ModelManagement() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-[#eee] font-mono text-lg">Model Versions</h2>
           <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setShowMergeDialog(true)}
+              className="px-4 py-2 border border-blue-700/50 bg-blue-900/20 text-blue-400 font-mono text-sm hover:bg-blue-900/30 transition-colors"
+            >
+              🔀 Merge Adapters
+            </button>
             <button
               onClick={() => setCompareMode(!compareMode)}
               className={`px-4 py-2 border border-[#2a2a2a] font-mono text-sm transition-colors ${
@@ -701,6 +818,207 @@ export default function ModelManagement() {
               <pre className="text-[#888] font-mono text-xs whitespace-pre-wrap bg-[#0a0a0a] border border-[#2a2a2a] p-4 rounded">
                 {JSON.stringify(selectedManifest, null, 2)}
               </pre>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Merge Dialog */}
+      {showMergeDialog && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-6">
+          <div className="bg-[#111] border border-[#2a2a2a] rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-[#2a2a2a]">
+              <h3 className="text-[#eee] font-mono text-lg">🔀 Merge LoRA Adapters</h3>
+              <button
+                onClick={() => setShowMergeDialog(false)}
+                className="text-[#666] hover:text-[#888] text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              {/* Base Model Selection */}
+              <div>
+                <label className="block text-[#888] font-mono text-sm mb-2">Base Model *</label>
+                <input
+                  type="text"
+                  value={mergeBaseModel}
+                  onChange={(e) => setMergeBaseModel(e.target.value)}
+                  placeholder="e.g., KB-Llama-3.1-8B-Swedish"
+                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#eee] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444]"
+                />
+              </div>
+              
+              {/* Adapter Selection */}
+              <div>
+                <label className="block text-[#888] font-mono text-sm mb-2">Select Adapters to Merge *</label>
+                <div className="max-h-40 overflow-y-auto border border-[#2a2a2a] rounded bg-[#0a0a0a] p-2">
+                  {models.filter(m => m.isCertified).length === 0 ? (
+                    <div className="text-[#666] font-mono text-xs p-2">No certified models available</div>
+                  ) : (
+                    models.filter(m => m.isCertified).map((model) => (
+                      <label key={model.id} className="flex items-center gap-2 p-2 hover:bg-[#1a1a1a] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedForMerge.includes(model.directoryName || model.id)}
+                          onChange={(e) => {
+                            const id = model.directoryName || model.id;
+                            if (e.target.checked) {
+                              setSelectedForMerge([...selectedForMerge, id]);
+                            } else {
+                              setSelectedForMerge(selectedForMerge.filter(x => x !== id));
+                            }
+                          }}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-[#888] font-mono text-xs truncate">{model.directoryName || model.id}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+                <div className="text-[#666] font-mono text-xs mt-1">Selected: {selectedForMerge.length}</div>
+              </div>
+              
+              {/* Output Name */}
+              <div>
+                <label className="block text-[#888] font-mono text-sm mb-2">Output Name</label>
+                <input
+                  type="text"
+                  value={mergeOutputName}
+                  onChange={(e) => setMergeOutputName(e.target.value)}
+                  placeholder="e.g., OneSeek-7B-Merged"
+                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#eee] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444]"
+                />
+              </div>
+              
+              {/* Version */}
+              <div>
+                <label className="block text-[#888] font-mono text-sm mb-2">Version</label>
+                <input
+                  type="text"
+                  value={mergeVersion}
+                  onChange={(e) => setMergeVersion(e.target.value)}
+                  placeholder="e.g., 1.0"
+                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#eee] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444]"
+                />
+              </div>
+              
+              {/* GGUF Export Option */}
+              <div className="border border-[#2a2a2a] rounded p-4 bg-[#0a0a0a]">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={ggufExportWithMerge}
+                    onChange={(e) => setGgufExportWithMerge(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-[#888] font-mono text-sm">Export to GGUF after merge</span>
+                </label>
+                {ggufExportWithMerge && (
+                  <div className="mt-3">
+                    <label className="block text-[#666] font-mono text-xs mb-1">Quantization</label>
+                    <select
+                      value={ggufQuantization}
+                      onChange={(e) => setGgufQuantization(e.target.value)}
+                      className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444]"
+                    >
+                      <option value="Q5_K_M">Q5_K_M (Medium quality, balanced)</option>
+                      <option value="Q6_K">Q6_K (High quality, larger)</option>
+                      <option value="Q8_0">Q8_0 (Best quality, largest)</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="p-6 border-t border-[#2a2a2a] flex justify-end space-x-3">
+              <button
+                onClick={() => setShowMergeDialog(false)}
+                className="px-4 py-2 border border-[#2a2a2a] text-[#888] text-sm font-mono hover:bg-[#1a1a1a] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={performMerge}
+                disabled={merging || !mergeBaseModel || selectedForMerge.length === 0}
+                className="px-4 py-2 border border-blue-700/50 bg-blue-900/20 text-blue-400 text-sm font-mono hover:bg-blue-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {merging ? '⏳ Merging...' : '🔀 Start Merge'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* GGUF Export Dialog */}
+      {showGgufDialog && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-6">
+          <div className="bg-[#111] border border-[#2a2a2a] rounded-lg max-w-xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-[#2a2a2a]">
+              <h3 className="text-[#eee] font-mono text-lg">📦 Export to GGUF</h3>
+              <button
+                onClick={() => setShowGgufDialog(false)}
+                className="text-[#666] hover:text-[#888] text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              {/* Model Selection */}
+              <div>
+                <label className="block text-[#888] font-mono text-sm mb-2">Select Model *</label>
+                <select
+                  value={ggufModelPath}
+                  onChange={(e) => setGgufModelPath(e.target.value)}
+                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444]"
+                >
+                  <option value="">-- Select a model --</option>
+                  {models.filter(m => m.isCertified).map((model) => (
+                    <option key={model.id} value={model.directoryName || model.id}>
+                      {model.directoryName || model.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Quantization */}
+              <div>
+                <label className="block text-[#888] font-mono text-sm mb-2">Quantization</label>
+                <select
+                  value={ggufQuantization}
+                  onChange={(e) => setGgufQuantization(e.target.value)}
+                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444]"
+                >
+                  <option value="Q5_K_M">Q5_K_M (Medium quality, balanced)</option>
+                  <option value="Q6_K">Q6_K (High quality, larger)</option>
+                  <option value="Q8_0">Q8_0 (Best quality, largest)</option>
+                </select>
+                <p className="text-[#555] font-mono text-xs mt-1">
+                  Q5_K_M is recommended for most use cases
+                </p>
+              </div>
+              
+              {/* Info */}
+              <div className="border border-yellow-900/30 bg-yellow-900/10 p-3 rounded">
+                <div className="text-yellow-400 font-mono text-xs mb-1">ℹ️ Note:</div>
+                <div className="text-[#888] font-mono text-xs">
+                  GGUF export requires llama.cpp to be installed. The system will provide manual instructions if automatic conversion is not available.
+                </div>
+              </div>
+            </div>
+            <div className="p-6 border-t border-[#2a2a2a] flex justify-end space-x-3">
+              <button
+                onClick={() => setShowGgufDialog(false)}
+                className="px-4 py-2 border border-[#2a2a2a] text-[#888] text-sm font-mono hover:bg-[#1a1a1a] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={performGgufExport}
+                disabled={exporting || !ggufModelPath}
+                className="px-4 py-2 border border-green-700/50 bg-green-900/20 text-green-400 text-sm font-mono hover:bg-green-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {exporting ? '⏳ Exporting...' : '📦 Export GGUF'}
+              </button>
             </div>
           </div>
         </div>

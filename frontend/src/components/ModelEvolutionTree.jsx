@@ -5,16 +5,18 @@ import { useState, useEffect } from 'react';
  * 
  * Visual tree view of the entire model chain showing:
  * - Base model at the root
- * - Adapters as branches
- * - Size and metadata for each node
+ * - Adapters as branches with real metadata
+ * - Size and training parameters for each node
  */
-export default function ModelEvolutionTree({ baseModel, adapters = [] }) {
+export default function ModelEvolutionTree({ baseModel, adapters = [], adapterMetadata = {} }) {
   const [chainInfo, setChainInfo] = useState(null);
   const [expandedNodes, setExpandedNodes] = useState(new Set(['base']));
+  const [adapterDetails, setAdapterDetails] = useState({});
 
   useEffect(() => {
     if (baseModel) {
       fetchChainInfo();
+      fetchAdapterDetails();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseModel, adapters]);
@@ -30,6 +32,31 @@ export default function ModelEvolutionTree({ baseModel, adapters = [] }) {
     } catch (error) {
       console.error('Error fetching chain info:', error);
     }
+  };
+
+  const fetchAdapterDetails = async () => {
+    // Fetch metadata for each adapter
+    const details = {};
+    for (const adapter of adapters) {
+      try {
+        const response = await fetch(`/api/admin/models/${encodeURIComponent(adapter)}/metadata`);
+        if (response.ok) {
+          const data = await response.json();
+          details[adapter] = data;
+        }
+      } catch (error) {
+        console.error(`Error fetching metadata for ${adapter}:`, error);
+      }
+    }
+    setAdapterDetails(details);
+  };
+
+  // Format file size
+  const formatSize = (sizeBytes) => {
+    if (!sizeBytes) return 'Unknown';
+    const mb = sizeBytes / (1024 * 1024);
+    if (mb < 1024) return `${mb.toFixed(1)} MB`;
+    return `${(mb / 1024).toFixed(2)} GB`;
   };
 
   const toggleNode = (nodeId) => {
@@ -94,42 +121,122 @@ export default function ModelEvolutionTree({ baseModel, adapters = [] }) {
         {/* Adapters */}
         {adapters.length > 0 && (
           <div className="ml-8 space-y-3 border-l-2 border-[#2a2a2a] pl-4">
-            {adapters.map((adapter, idx) => (
-              <div key={adapter}>
-                <div 
-                  className="flex items-center gap-3 p-3 bg-[#0a0a0a] border border-[#2a2a2a] cursor-pointer hover:bg-[#1a1a1a] transition-colors"
-                  onClick={() => toggleNode(adapter)}
-                >
-                  <span className="text-[#888] font-mono text-xs">
-                    {expandedNodes.has(adapter) ? '▼' : '▶'}
-                  </span>
-                  <div className="flex-1">
-                    <div className="font-mono text-sm text-[#eee]">Adapter #{idx + 1}</div>
-                    <div className="text-xs text-[#666] font-mono">{adapter}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs font-mono text-[#888]">~420 MB</div>
-                    <div className="text-xs text-[#555] font-mono">LoRA</div>
-                  </div>
-                </div>
-
-                {/* Adapter Details (Expanded) */}
-                {expandedNodes.has(adapter) && (
-                  <div className="ml-8 mt-2 p-3 bg-[#0a0a0a] border-l-2 border-[#2a2a2a] text-xs font-mono">
-                    <div className="grid grid-cols-2 gap-2 text-[#666]">
-                      <div>Type:</div>
-                      <div className="text-[#888]">LoRA Adapter</div>
-                      <div>Rank:</div>
-                      <div className="text-[#888]">64</div>
-                      <div>Alpha:</div>
-                      <div className="text-[#888]">128</div>
-                      <div>Status:</div>
-                      <div className="text-[#888]">Verified</div>
+            {adapters.map((adapter, idx) => {
+              const meta = adapterDetails[adapter] || adapterMetadata[adapter] || {};
+              const training = meta.training || {};
+              const loraConfig = training.loraConfig || {};
+              const adapterSize = meta.size || meta.adapterSize;
+              
+              return (
+                <div key={adapter}>
+                  <div 
+                    className="flex items-center gap-3 p-3 bg-[#0a0a0a] border border-[#2a2a2a] cursor-pointer hover:bg-[#1a1a1a] transition-colors"
+                    onClick={() => toggleNode(adapter)}
+                  >
+                    <span className="text-[#888] font-mono text-xs">
+                      {expandedNodes.has(adapter) ? '▼' : '▶'}
+                    </span>
+                    <div className="flex-1">
+                      <div className="font-mono text-sm text-[#eee]">Adapter #{idx + 1}</div>
+                      <div className="text-xs text-[#666] font-mono truncate max-w-[300px]" title={adapter}>{adapter}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-mono text-[#888]">
+                        {adapterSize ? formatSize(adapterSize) : '~30 MB'}
+                      </div>
+                      <div className="text-xs text-[#555] font-mono">LoRA</div>
                     </div>
                   </div>
-                )}
-              </div>
-            ))}
+
+                  {/* Adapter Details (Expanded) - Show Real Training Data */}
+                  {expandedNodes.has(adapter) && (
+                    <div className="ml-8 mt-2 p-3 bg-[#0a0a0a] border-l-2 border-[#2a2a2a] text-xs font-mono">
+                      <div className="grid grid-cols-2 gap-2 text-[#666]">
+                        <div>Type:</div>
+                        <div className="text-[#888]">LoRA Adapter</div>
+                        
+                        {/* LoRA Configuration */}
+                        <div>Rank:</div>
+                        <div className="text-[#888]">{loraConfig.rank || training.loraRank || meta.loraRank || 64}</div>
+                        <div>Alpha:</div>
+                        <div className="text-[#888]">{loraConfig.alpha || training.loraAlpha || meta.loraAlpha || 128}</div>
+                        <div>Dropout:</div>
+                        <div className="text-[#888]">{loraConfig.dropout || training.dropout || meta.dropout || 0.05}</div>
+                        
+                        {/* Training Parameters */}
+                        {(training.epochs || meta.epochs) && (
+                          <>
+                            <div>Epochs:</div>
+                            <div className="text-[#888]">{training.epochs || meta.epochs}</div>
+                          </>
+                        )}
+                        {(training.batchSize || meta.batchSize) && (
+                          <>
+                            <div>Batch Size:</div>
+                            <div className="text-[#888]">{training.batchSize || meta.batchSize}</div>
+                          </>
+                        )}
+                        {(training.learningRate || meta.learningRate) && (
+                          <>
+                            <div>Learning Rate:</div>
+                            <div className="text-[#888]">{training.learningRate || meta.learningRate}</div>
+                          </>
+                        )}
+                        {(training.optimizer || meta.optimizer) && (
+                          <>
+                            <div>Optimizer:</div>
+                            <div className="text-[#888]">{training.optimizer || meta.optimizer}</div>
+                          </>
+                        )}
+                        
+                        {/* Dataset Info */}
+                        {(meta.datasets || training.datasets) && (
+                          <>
+                            <div>Datasets:</div>
+                            <div className="text-[#888] truncate max-w-[200px]" title={(meta.datasets || training.datasets).join(', ')}>
+                              {(meta.datasets || training.datasets).join(', ')}
+                            </div>
+                          </>
+                        )}
+                        
+                        {/* Language */}
+                        {(meta.language || training.language) && (
+                          <>
+                            <div>Language:</div>
+                            <div className="text-[#888]">
+                              {(meta.language || training.language) === 'sv' ? 'Swedish' : 
+                               (meta.language || training.language) === 'en' ? 'English' : 
+                               (meta.language || training.language)}
+                            </div>
+                          </>
+                        )}
+                        
+                        {/* Base Model */}
+                        {(meta.baseModel || training.baseModel) && (
+                          <>
+                            <div>Base Model:</div>
+                            <div className="text-[#888] truncate max-w-[200px]" title={meta.baseModel || training.baseModel}>
+                              {meta.baseModel || training.baseModel}
+                            </div>
+                          </>
+                        )}
+                        
+                        {/* Training Time */}
+                        {meta.createdAt && (
+                          <>
+                            <div>Created:</div>
+                            <div className="text-[#888]">{new Date(meta.createdAt).toLocaleString()}</div>
+                          </>
+                        )}
+                        
+                        <div>Status:</div>
+                        <div className="text-[#888]">{meta.status || 'Verified'}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 

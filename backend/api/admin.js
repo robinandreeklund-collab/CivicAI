@@ -1747,6 +1747,55 @@ router.get('/models', requireAdmin, async (req, res) => {
   }
 });
 
+// GET /api/admin/models/:id/metadata - Get model metadata
+router.get('/models/:id/metadata', requireAdmin, async (req, res) => {
+  try {
+    const modelId = decodeURIComponent(req.params.id);
+    const modelsDir = path.join(process.cwd(), '..', 'models');
+    const certifiedDir = path.join(modelsDir, 'oneseek-certified');
+    
+    // Try to find in certified directory
+    const modelPath = path.join(certifiedDir, modelId);
+    const metadataPath = path.join(modelPath, 'metadata.json');
+    
+    try {
+      const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+      const metadata = JSON.parse(metadataContent);
+      
+      // Get directory size
+      let totalSize = 0;
+      try {
+        const files = await fs.readdir(modelPath);
+        for (const file of files) {
+          try {
+            const stats = await fs.stat(path.join(modelPath, file));
+            if (stats.isFile()) {
+              totalSize += stats.size;
+            }
+          } catch {
+            // Skip files we can't stat
+          }
+        }
+      } catch {
+        // Ignore size calculation errors
+      }
+      
+      res.json({
+        ...metadata,
+        size: totalSize,
+        adapterSize: totalSize,
+        directory: modelId,
+      });
+    } catch (error) {
+      // Model not found
+      res.status(404).json({ error: 'Model metadata not found', modelId });
+    }
+  } catch (error) {
+    console.error('Error getting model metadata:', error);
+    res.status(500).json({ error: 'Failed to get model metadata' });
+  }
+});
+
 // GET /api/admin/models/:id/download - Download model weights
 router.get('/models/:id/download', requireAdmin, async (req, res) => {
   try {
