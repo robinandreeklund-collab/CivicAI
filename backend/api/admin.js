@@ -278,6 +278,7 @@ router.get('/models/available', requireAdmin, async (req, res) => {
       for (const entry of certifiedEntries) {
         if (!entry.isDirectory()) continue;
         if (entry.name === 'OneSeek-7B-Zero-CURRENT') continue; // Skip symlink
+        if (entry.name === 'merged') continue; // Handle merged separately
         
         // DNA-based directories: OneSeek-7B-Zero.v1.0.sv.dsCivicID-SwedID.141521ad.90cdf6f1
         if (!entry.name.startsWith('OneSeek-7B-Zero.v')) {
@@ -299,6 +300,7 @@ router.get('/models/available', requireAdmin, async (req, res) => {
             displayName: entry.name, // Use full DNA name as display
             dna: metadata.dna || entry.name,
             isCertified: true,
+            isMerged: false,
             language: metadata.language || 'unknown',
             datasets: metadata.datasets || [],
           });
@@ -308,6 +310,59 @@ router.get('/models/available', requireAdmin, async (req, res) => {
       }
     } catch (err) {
       console.log('Certified directory not found or empty:', err.message);
+    }
+    
+    // Check merged models directory
+    const mergedDir = path.join(certifiedDir, 'merged');
+    try {
+      const mergedEntries = await fs.readdir(mergedDir, { withFileTypes: true });
+      
+      for (const entry of mergedEntries) {
+        if (!entry.isDirectory()) continue;
+        if (!entry.name.startsWith('OneSeek-7B-Zero.v')) continue;
+        
+        const modelPath = path.join(mergedDir, entry.name);
+        
+        // Try to read metadata or merge manifest
+        let modelInfo = {
+          id: entry.name,
+          name: entry.name,
+          path: modelPath,
+          displayName: `${entry.name} (Merged)`,
+          dna: entry.name,
+          isCertified: true,
+          isMerged: true,
+          language: 'sv',
+          datasets: [],
+        };
+        
+        // Try metadata.json first
+        try {
+          const metadataPath = path.join(modelPath, 'metadata.json');
+          const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+          const metadata = JSON.parse(metadataContent);
+          modelInfo.dna = metadata.dna || entry.name;
+          modelInfo.language = metadata.language || 'sv';
+          modelInfo.datasets = metadata.datasets || [];
+        } catch {
+          // Try merge_manifest.json
+          try {
+            const manifestPath = path.join(modelPath, 'merge_manifest.json');
+            const manifestContent = await fs.readFile(manifestPath, 'utf-8');
+            const manifest = JSON.parse(manifestContent);
+            modelInfo.dna = manifest.outputDna || manifest.sourceDna || entry.name;
+            modelInfo.mergeType = manifest.mergeType;
+            modelInfo.sourceVersion = manifest.sourceVersion;
+          } catch {
+            // Use defaults
+          }
+        }
+        
+        models.push(modelInfo);
+        console.log(`[Models] Found merged model: ${entry.name}`);
+      }
+    } catch (err) {
+      console.log('Merged directory not found or empty:', err.message);
     }
     
     // Also check root directory for legacy models
@@ -321,6 +376,7 @@ router.get('/models/available', requireAdmin, async (req, res) => {
         if (stats.isDirectory()) {
           // Skip certified directory (already processed above)
           if (item === 'oneseek-certified') continue;
+          if (item === 'gguf') continue; // Skip GGUF directory
           
           // Check if directory contains model files (weights, config, etc.)
           const dirContents = await fs.readdir(itemPath);
@@ -340,6 +396,7 @@ router.get('/models/available', requireAdmin, async (req, res) => {
               path: itemPath,
               displayName: formatModelName(item),
               isCertified: false,
+              isMerged: false,
             });
           }
         }

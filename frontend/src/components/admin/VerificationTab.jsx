@@ -259,10 +259,20 @@ export default function VerificationTab() {
               <AdminSelect
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
-                options={models.map(m => ({ value: m.id, label: m.displayName || m.name }))}
-                placeholder="Choose a certified model..."
+                options={models.map(m => ({ 
+                  value: m.id, 
+                  label: m.isMerged 
+                    ? `✓ ${m.displayName || m.name}` 
+                    : `${m.displayName || m.name}${m.isCertified ? '' : ' (Base)'}`
+                }))}
+                placeholder="Choose a model..."
                 disabled={verifying}
               />
+            )}
+            {modelType === 'certified' && models.length > 0 && (
+              <p style={{ color: '#666', fontSize: '11px', marginTop: '4px' }}>
+                ✓ = Merged standalone model (recommended for verification)
+              </p>
             )}
             {modelType === 'gguf' && ggufModels.length === 0 && (
               <p style={{ color: '#666', fontSize: '11px', marginTop: '4px' }}>
