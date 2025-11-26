@@ -4,9 +4,11 @@ import { useState, useEffect } from 'react';
  * Model Management Component
  * 
  * Features:
- * - List all model versions
+ * - List all model versions with merge manifests
  * - View model metadata and metrics
+ * - View merge traceability and version table
  * - Download model weights and LoRA adapters
+ * - GGUF export management
  * - Compare versions side-by-side
  * - Rollback to previous versions
  */
@@ -18,10 +20,16 @@ export default function ModelManagement() {
   const [selectedForCompare, setSelectedForCompare] = useState([]);
   const [currentModelId, setCurrentModelId] = useState(null);
   const [resetting, setResetting] = useState(false);
+  const [activeTab, setActiveTab] = useState('models'); // 'models', 'manifests', 'gguf'
+  const [manifests, setManifests] = useState([]);
+  const [ggufExports, setGgufExports] = useState([]);
+  const [selectedManifest, setSelectedManifest] = useState(null);
 
   useEffect(() => {
     fetchModels();
     fetchCurrentModel();
+    fetchManifests();
+    fetchGgufExports();
   }, []);
 
   const fetchModels = async () => {
@@ -49,6 +57,30 @@ export default function ModelManagement() {
       }
     } catch (error) {
       console.error('Error fetching current model:', error);
+    }
+  };
+  
+  const fetchManifests = async () => {
+    try {
+      const response = await fetch('/api/models/merge/manifests');
+      if (response.ok) {
+        const data = await response.json();
+        setManifests(data.manifests || []);
+      }
+    } catch (error) {
+      console.error('Error fetching manifests:', error);
+    }
+  };
+  
+  const fetchGgufExports = async () => {
+    try {
+      const response = await fetch('/api/models/gguf');
+      if (response.ok) {
+        const data = await response.json();
+        setGgufExports(data.exports || []);
+      }
+    } catch (error) {
+      console.error('Error fetching GGUF exports:', error);
     }
   };
 
@@ -199,8 +231,169 @@ export default function ModelManagement() {
           <div>• OQT Dashboard will always use the active model (homepage/chat-v2 unaffected)</div>
         </div>
       </div>
+      
+      {/* Tab Navigation */}
+      <div className="border border-[#2a2a2a] bg-[#111] rounded overflow-hidden">
+        <div className="flex border-b border-[#2a2a2a]">
+          <button
+            onClick={() => setActiveTab('models')}
+            className={`flex-1 px-4 py-3 font-mono text-sm transition-colors ${
+              activeTab === 'models'
+                ? 'bg-[#1a1a1a] text-[#eee] border-b-2 border-[#666]'
+                : 'text-[#888] hover:bg-[#1a1a1a]'
+            }`}
+          >
+            Models ({models.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('manifests')}
+            className={`flex-1 px-4 py-3 font-mono text-sm transition-colors ${
+              activeTab === 'manifests'
+                ? 'bg-[#1a1a1a] text-[#eee] border-b-2 border-[#666]'
+                : 'text-[#888] hover:bg-[#1a1a1a]'
+            }`}
+          >
+            Merge Manifests ({manifests.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('gguf')}
+            className={`flex-1 px-4 py-3 font-mono text-sm transition-colors ${
+              activeTab === 'gguf'
+                ? 'bg-[#1a1a1a] text-[#eee] border-b-2 border-[#666]'
+                : 'text-[#888] hover:bg-[#1a1a1a]'
+            }`}
+          >
+            GGUF Exports ({ggufExports.length})
+          </button>
+        </div>
+      </div>
+      
+      {/* Manifests Tab */}
+      {activeTab === 'manifests' && (
+        <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">
+          <h2 className="text-[#eee] font-mono text-lg mb-4">Merge Manifests (100% Traceability)</h2>
+          
+          {manifests.length === 0 ? (
+            <div className="text-[#666] font-mono text-sm text-center py-8">
+              No merge manifests found. Merge adapters to create traceability records.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {manifests.map((manifest, index) => (
+                <div
+                  key={index}
+                  className="border border-[#2a2a2a] p-4 rounded hover:border-[#444] transition-colors"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="text-[#eee] font-mono text-sm mb-2">
+                        {manifest.directory}
+                        {manifest.merge?.version && (
+                          <span className="ml-2 px-2 py-0.5 text-[10px] bg-green-900/30 border border-green-700/50 text-green-400 rounded">
+                            v{manifest.merge.version}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Merge Hash */}
+                      <div className="mb-2 p-2 bg-[#0a0a0a] border border-green-900/30 rounded">
+                        <div className="text-[#666] font-mono text-xs">Merge Hash:</div>
+                        <div className="text-green-400 font-mono text-xs break-all">{manifest.mergeHash}</div>
+                      </div>
+                      
+                      {/* Adapter Info */}
+                      {manifest.traceability && (
+                        <div className="mb-2 p-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                          <div className="text-[#666] font-mono text-xs mb-1">Adapters ({manifest.traceability.totalAdapters}):</div>
+                          <div className="text-[#888] font-mono text-xs">
+                            {manifest.traceability.mergeOrder?.join(' → ')}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Base Model */}
+                      {manifest.baseModel && (
+                        <div className="mb-2 p-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                          <div className="text-[#666] font-mono text-xs">Base Model:</div>
+                          <div className="text-[#888] font-mono text-xs">{manifest.baseModel.name} ({manifest.baseModel.type})</div>
+                        </div>
+                      )}
+                      
+                      <div className="text-[#666] font-mono text-xs">
+                        Generated: {new Date(manifest.generatedAt).toLocaleString()}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setSelectedManifest(manifest)}
+                      className="px-3 py-1 border border-[#2a2a2a] text-[#888] text-xs font-mono hover:bg-[#1a1a1a] transition-colors"
+                    >
+                      View Full
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* GGUF Tab */}
+      {activeTab === 'gguf' && (
+        <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">
+          <h2 className="text-[#eee] font-mono text-lg mb-4">GGUF Exports</h2>
+          <p className="text-[#666] font-mono text-xs mb-4">
+            GGUF format models for llama.cpp inference. Export merged models with quantization (Q5_K_M, Q6_K, Q8_0).
+          </p>
+          
+          {ggufExports.length === 0 ? (
+            <div className="text-[#666] font-mono text-sm text-center py-8">
+              No GGUF exports found. Use the merge function with GGUF export enabled.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {ggufExports.map((gguf, index) => (
+                <div
+                  key={index}
+                  className="border border-[#2a2a2a] p-4 rounded hover:border-[#444] transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="text-[#eee] font-mono text-sm mb-1">
+                        {gguf.name}
+                        {gguf.status && (
+                          <span className={`ml-2 px-2 py-0.5 text-[10px] border rounded ${
+                            gguf.status === 'completed' 
+                              ? 'bg-green-900/30 border-green-700/50 text-green-400'
+                              : 'bg-yellow-900/30 border-yellow-700/50 text-yellow-400'
+                          }`}>
+                            {gguf.status}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[#666] font-mono text-xs space-x-4">
+                        {gguf.sizeFormatted && <span>{gguf.sizeFormatted}</span>}
+                        {gguf.quantization && <span>Quantization: {gguf.quantization}</span>}
+                        {gguf.createdAt && <span>{new Date(gguf.createdAt).toLocaleDateString()}</span>}
+                      </div>
+                      {gguf.instructions && (
+                        <div className="mt-2 p-2 bg-[#0a0a0a] border border-yellow-900/30 rounded">
+                          <div className="text-yellow-400 font-mono text-xs mb-1">Manual steps required:</div>
+                          {gguf.instructions.map((step, i) => (
+                            <div key={i} className="text-[#888] font-mono text-xs">{step}</div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Model List */}
+      {/* Model List (only show in models tab) */}
+      {activeTab === 'models' && (
       <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-[#eee] font-mono text-lg">Model Versions</h2>
@@ -415,6 +608,8 @@ export default function ModelManagement() {
           </div>
         )}
       </div>
+      )}
+      {/* End of Models Tab */}
 
       {/* Model Details Modal */}
       {selectedModel && (
@@ -482,6 +677,30 @@ export default function ModelManagement() {
               >
                 Download LoRA
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Manifest Details Modal */}
+      {selectedManifest && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-6">
+          <div className="bg-[#111] border border-[#2a2a2a] rounded-lg max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-[#2a2a2a]">
+              <h3 className="text-[#eee] font-mono text-lg">
+                Merge Manifest: {selectedManifest.directory}
+              </h3>
+              <button
+                onClick={() => setSelectedManifest(null)}
+                className="text-[#666] hover:text-[#888] text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              <pre className="text-[#888] font-mono text-xs whitespace-pre-wrap bg-[#0a0a0a] border border-[#2a2a2a] p-4 rounded">
+                {JSON.stringify(selectedManifest, null, 2)}
+              </pre>
             </div>
           </div>
         </div>

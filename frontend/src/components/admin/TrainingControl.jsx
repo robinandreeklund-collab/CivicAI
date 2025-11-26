@@ -8,7 +8,7 @@ import RemoteTrainingControl from '../RemoteTrainingControl';
  * Training Control Component
  * 
  * Features:
- * - Select dataset(s) for training
+ * - Select dataset(s) for training with category filtering
  * - Configure parameters: epochs, batch size, learning rate
  * - DNA v2 training mode with adaptive weights (ALWAYS ENABLED)
  * - Start/stop training sessions
@@ -17,6 +17,9 @@ import RemoteTrainingControl from '../RemoteTrainingControl';
  */
 export default function TrainingControl() {
   const [datasets, setDatasets] = useState([]);
+  const [datasetCategories, setDatasetCategories] = useState({});
+  const [availableCategories, setAvailableCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('all'); // 'all' or specific category
   const [availableModels, setAvailableModels] = useState([]);
   const [discoveredBaseModels, setDiscoveredBaseModels] = useState([]);
   const [certifiedModels, setCertifiedModels] = useState([]);
@@ -73,10 +76,20 @@ export default function TrainingControl() {
       if (response.ok) {
         const data = await response.json();
         setDatasets(data.datasets || []);
+        setDatasetCategories(data.categories || {});
+        setAvailableCategories(data.availableCategories || ['politik', 'sverige', 'oneseek', 'custom']);
       }
     } catch (error) {
       console.error('Error fetching datasets:', error);
     }
+  };
+  
+  // Filter datasets by selected category
+  const getFilteredDatasets = () => {
+    if (selectedCategory === 'all') {
+      return datasets;
+    }
+    return datasets.filter(d => d.category === selectedCategory);
   };
 
   const fetchAvailableModels = async () => {
@@ -356,11 +369,31 @@ export default function TrainingControl() {
           <h2 className="text-[#eee] font-mono text-lg mb-4">Training Configuration</h2>
           
           <div className="space-y-4 w-full max-w-full overflow-x-hidden">
-            {/* Dataset Selection - Multi-select */}
+            {/* Dataset Selection - Multi-select with Category Filter */}
             <div>
             <label className="block text-[#888] font-mono text-sm mb-2">
               Select Dataset(s) *
             </label>
+            
+            {/* Category Filter Dropdown */}
+            <div className="mb-3">
+              <label className="block text-[#666] font-mono text-xs mb-1">
+                Filter by Category
+              </label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                disabled={isTraining}
+                className="w-full sm:w-auto bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
+              >
+                <option value="all">All Categories</option>
+                {availableCategories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat.charAt(0).toUpperCase() + cat.slice(1)} ({datasetCategories[cat]?.length || 0} datasets)
+                  </option>
+                ))}
+              </select>
+            </div>
             
             {/* Selected Datasets as Chips */}
             {selectedDatasets.length > 0 && (
@@ -372,6 +405,7 @@ export default function TrainingControl() {
                       key={datasetId}
                       className="flex items-center gap-2 px-3 py-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded text-[#eee] font-mono text-xs"
                     >
+                      <span className="text-[#666] mr-1">[{dataset?.category || 'root'}]</span>
                       <span>{dataset?.name || datasetId}</span>
                       <button
                         onClick={() => {
@@ -411,9 +445,9 @@ export default function TrainingControl() {
                 className="flex-1 bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444] disabled:opacity-50"
               >
                 <option value="">-- Add dataset --</option>
-                {datasets.filter(d => !selectedDatasets.includes(d.id)).map((dataset) => (
+                {getFilteredDatasets().filter(d => !selectedDatasets.includes(d.id)).map((dataset) => (
                   <option key={dataset.id} value={dataset.id}>
-                    {dataset.name} ({dataset.entries} entries)
+                    [{dataset.category}] {dataset.name} ({dataset.entries} entries)
                   </option>
                 ))}
               </select>

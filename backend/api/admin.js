@@ -24,11 +24,16 @@ const __dirname = dirname(__filename);
 
 const router = express.Router();
 
-// Configure multer for file uploads
+// Configure multer for file uploads with category support
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
     // Save to datasets folder in project root (one level up from backend)
-    const uploadDir = path.join(process.cwd(), '..', 'datasets');
+    // Check for category in the request body (requires parsing before file upload)
+    const category = req.query.category || 'custom'; // Default to custom category
+    const validCategories = ['politik', 'sverige', 'oneseek', 'custom'];
+    const targetCategory = validCategories.includes(category) ? category : 'custom';
+    
+    const uploadDir = path.join(process.cwd(), '..', 'datasets', targetCategory);
     await fs.mkdir(uploadDir, { recursive: true });
     cb(null, uploadDir);
   },
@@ -132,46 +137,105 @@ function requireAdmin(req, res, next) {
 
 // Dataset Management Endpoints
 
+// Dataset categories
+const DATASET_CATEGORIES = ['politik', 'sverige', 'oneseek', 'custom'];
+
+// Helper function to resolve dataset path (supports category/file format)
+function resolveDatasetPath(datasetId) {
+  const datasetsDir = path.join(process.cwd(), '..', 'datasets');
+  // Dataset ID can be "category/filename.jsonl" or just "filename.jsonl"
+  return path.join(datasetsDir, datasetId);
+}
+
+// Helper function to get filename from dataset ID
+function getDatasetFilename(datasetId) {
+  // Dataset ID can be "category/filename.jsonl" or just "filename.jsonl"
+  return path.basename(datasetId);
+}
+
 // GET /api/admin/datasets - List all datasets
-router.get('/datasets', requireAdmin, async (req, res) => {
   try {
     // Use datasets directory in project root (one level up from backend)
     const datasetsDir = path.join(process.cwd(), '..', 'datasets');
     await fs.mkdir(datasetsDir, { recursive: true });
     
-    const files = await fs.readdir(datasetsDir);
-    const datasets = await Promise.all(
-      files
-        .filter(file => file.endsWith('.json') || file.endsWith('.jsonl'))
-        .map(async (file) => {
-          const filePath = path.join(datasetsDir, file);
-          const stats = await fs.stat(filePath);
-          
-          // Try to count entries
-          let entries = 0;
-          try {
-            const content = await fs.readFile(filePath, 'utf-8');
-            if (file.endsWith('.jsonl')) {
-              entries = content.trim().split('\n').filter(line => line.trim()).length;
-            } else {
-              const json = JSON.parse(content);
-              entries = Array.isArray(json) ? json.length : 1;
-            }
-          } catch (error) {
-            console.error('Error counting entries:', error);
-          }
-          
-          return {
-            id: file,
-            name: file,
-            size: stats.size,
-            uploadedAt: stats.mtime.toISOString(),
-            entries,
-          };
-        })
-    );
+    const datasets = [];
+    const categories = {};
     
-    res.json({ datasets });
+    // Initialize categories
+    for (const cat of DATASET_CATEGORIES) {
+      categories[cat] = [];
+      const catDir = path.join(datasetsDir, cat);
+      await fs.mkdir(catDir, { recursive: true });
+    }
+    
+    // Helper to process dataset file
+    const processDatasetFile = async (file, category, filePath) => {
+      const stats = await fs.stat(filePath);
+      
+      // Try to count entries
+      let entries = 0;
+      try {
+        const content = await fs.readFile(filePath, 'utf-8');
+        if (file.endsWith('.jsonl')) {
+          entries = content.trim().split('\n').filter(line => line.trim()).length;
+        } else {
+          const json = JSON.parse(content);
+          entries = Array.isArray(json) ? json.length : 1;
+        }
+      } catch (error) {
+        console.error('Error counting entries:', error);
+      }
+      
+      return {
+        id: category ? `${category}/${file}` : file,
+        name: file,
+        category: category || 'root',
+        size: stats.size,
+        uploadedAt: stats.mtime.toISOString(),
+        entries,
+      };
+    };
+    
+    // Read files from each category directory
+    for (const category of DATASET_CATEGORIES) {
+      const catDir = path.join(datasetsDir, category);
+      try {
+        const files = await fs.readdir(catDir);
+        for (const file of files) {
+          if (file.endsWith('.json') || file.endsWith('.jsonl')) {
+            const filePath = path.join(catDir, file);
+            const stats = await fs.stat(filePath);
+            if (stats.isFile()) {
+              const dataset = await processDatasetFile(file, category, filePath);
+              datasets.push(dataset);
+              categories[category].push(dataset);
+            }
+          }
+        }
+      } catch (error) {
+        console.log(`Category ${category} directory not found or empty`);
+      }
+    }
+    
+    // Also read files from root datasets directory (legacy support)
+    const rootFiles = await fs.readdir(datasetsDir);
+    for (const file of rootFiles) {
+      if ((file.endsWith('.json') || file.endsWith('.jsonl')) && !DATASET_CATEGORIES.includes(file)) {
+        const filePath = path.join(datasetsDir, file);
+        const stats = await fs.stat(filePath);
+        if (stats.isFile()) {
+          const dataset = await processDatasetFile(file, null, filePath);
+          datasets.push(dataset);
+        }
+      }
+    }
+    
+    res.json({ 
+      datasets,
+      categories,
+      availableCategories: DATASET_CATEGORIES
+    });
   } catch (error) {
     console.error('Error listing datasets:', error);
     res.status(500).json({ error: 'Failed to list datasets' });
@@ -398,16 +462,18 @@ router.post('/datasets/upload', requireAdmin, upload.single('dataset'), async (r
 });
 
 // GET /api/admin/datasets/:id/validate - Validate a specific dataset
-router.get('/datasets/:id/validate', requireAdmin, async (req, res) => {
+// Use wildcard to support paths like "politik/filename.jsonl"
+router.get('/datasets/:id(*)/validate', requireAdmin, async (req, res) => {
   try {
-    const filePath = path.join(process.cwd(), '..', 'datasets', req.params.id);
+    const filePath = resolveDatasetPath(req.params.id);
     const content = await fs.readFile(filePath, 'utf-8');
+    const filename = getDatasetFilename(req.params.id);
     
     let validEntries = 0;
     let invalidEntries = 0;
     const errors = [];
     
-    if (req.params.id.endsWith('.jsonl')) {
+    if (filename.endsWith('.jsonl')) {
       const lines = content.trim().split('\n');
       lines.forEach((line, index) => {
         if (!line.trim()) return; // Skip empty lines
@@ -454,9 +520,9 @@ router.get('/datasets/:id/validate', requireAdmin, async (req, res) => {
 });
 
 // DELETE /api/admin/datasets/:id - Delete a dataset
-router.delete('/datasets/:id', requireAdmin, async (req, res) => {
+router.delete('/datasets/:id(*)', requireAdmin, async (req, res) => {
   try {
-    const filePath = path.join(process.cwd(), '..', 'datasets', req.params.id);
+    const filePath = resolveDatasetPath(req.params.id);
     await fs.unlink(filePath);
     res.json({ success: true, message: 'Dataset deleted successfully' });
   } catch (error) {
@@ -466,15 +532,16 @@ router.delete('/datasets/:id', requireAdmin, async (req, res) => {
 });
 
 // GET /api/admin/datasets/:id/analyze-language - Analyze language distribution in dataset
-router.get('/datasets/:id/analyze-language', requireAdmin, async (req, res) => {
+router.get('/datasets/:id(*)/analyze-language', requireAdmin, async (req, res) => {
   try {
-    const filePath = path.join(process.cwd(), '..', 'datasets', req.params.id);
+    const filePath = resolveDatasetPath(req.params.id);
     const content = await fs.readFile(filePath, 'utf-8');
+    const filename = getDatasetFilename(req.params.id);
     
     let texts = [];
     
     // Extract texts from dataset
-    if (req.params.id.endsWith('.jsonl')) {
+    if (filename.endsWith('.jsonl')) {
       const lines = content.trim().split('\n');
       lines.forEach((line) => {
         if (!line.trim()) return;
@@ -601,12 +668,13 @@ router.post('/datasets/analyze-multiple-languages', requireAdmin, async (req, re
     // Analyze each dataset and combine results
     for (const datasetId of datasetIds) {
       try {
-        const filePath = path.join(process.cwd(), '..', 'datasets', datasetId);
+        const filePath = resolveDatasetPath(datasetId);
         const content = await fs.readFile(filePath, 'utf-8');
+        const filename = getDatasetFilename(datasetId);
         
         let texts = [];
         
-        if (datasetId.endsWith('.jsonl')) {
+        if (filename.endsWith('.jsonl')) {
           const lines = content.trim().split('\n');
           for (const line of lines) {
             if (!line.trim()) continue;
@@ -799,9 +867,9 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Training already in progress' });
     }
     
-    // Verify all datasets exist
+    // Verify all datasets exist (supports category paths like "politik/file.jsonl")
     for (const dsId of datasets) {
-      const datasetPath = path.join(process.cwd(), '..', 'datasets', dsId);
+      const datasetPath = resolveDatasetPath(dsId);
       try {
         await fs.access(datasetPath);
       } catch (error) {
@@ -814,18 +882,19 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
     let finalDatasetId;
     
     if (datasets.length > 1) {
-      // Create merged dataset
-      const mergedDatasetId = `merged_${Date.now()}.jsonl`;
-      finalDatasetPath = path.join(process.cwd(), '..', 'datasets', mergedDatasetId);
+      // Create merged dataset in custom folder
+      const mergedDatasetId = `custom/merged_${Date.now()}.jsonl`;
+      finalDatasetPath = resolveDatasetPath(mergedDatasetId);
       finalDatasetId = mergedDatasetId;
       
       // Merge all datasets into one JSONL file
       let mergedContent = '';
       for (const dsId of datasets) {
-        const dsPath = path.join(process.cwd(), '..', 'datasets', dsId);
+        const dsPath = resolveDatasetPath(dsId);
         const content = await fs.readFile(dsPath, 'utf-8');
+        const filename = getDatasetFilename(dsId);
         
-        if (dsId.endsWith('.jsonl')) {
+        if (filename.endsWith('.jsonl')) {
           mergedContent += content.trim() + '\n';
         } else {
           // Convert JSON to JSONL
@@ -850,7 +919,7 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       });
     } else {
       finalDatasetId = datasets[0];
-      finalDatasetPath = path.join(process.cwd(), '..', 'datasets', finalDatasetId);
+      finalDatasetPath = resolveDatasetPath(finalDatasetId);
     }
     
     // Validate that base models are selected (not using defaults)
