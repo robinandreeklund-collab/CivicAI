@@ -21,6 +21,11 @@ import subprocess
 from pathlib import Path
 from datetime import datetime, timezone
 
+# Configurable paths
+CERTIFIED_DIR_NAME = 'oneseek-certified'
+BASE_MODELS_DIR_NAME = 'base_models'
+ONESEEK_MODEL_DIR = 'oneseek-7b-zero'
+
 # GGUF quantization configurations
 QUANTIZATION_TYPES = {
     'Q5_K_M': {'description': 'Medium quality, good balance of size/quality', 'bits': 5},
@@ -148,7 +153,7 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
     base_model_candidates = [
         models_dir / base_model,
         models_dir / 'base' / base_model,
-        models_dir / 'oneseek-7b-zero' / 'base_models' / base_model,
+        models_dir / ONESEEK_MODEL_DIR / BASE_MODELS_DIR_NAME / base_model,
         base_model  # Fallback to HuggingFace model ID
     ]
     
@@ -252,12 +257,13 @@ def export_to_gguf(model_path, output_dir, output_name, quantization='Q5_K_M'):
         from llama_cpp import Llama
         print("[GGUF] Using llama-cpp-python for conversion")
         
-        # Create a simple GGUF export (basic implementation)
-        # In production, this would use proper GGUF conversion tools
-        print(f"[GGUF] NOTE: Full GGUF conversion requires llama.cpp tools")
-        print(f"[GGUF] Install llama.cpp and run: python convert.py {model_path} --outtype {quantization.lower()}")
+        # NOTE: GGUF export currently creates a manifest with conversion instructions
+        # Full automated conversion requires llama.cpp tools to be installed locally.
+        # The manifest contains the exact command to run for conversion.
+        print(f"[GGUF] Creating export manifest - manual conversion required")
+        print(f"[GGUF] See manifest for llama.cpp conversion command")
         
-        # Create a placeholder manifest for GGUF export
+        # Create a manifest for GGUF export with conversion instructions
         gguf_manifest = {
             'modelPath': str(model_path),
             'outputPath': str(gguf_output),
@@ -265,7 +271,8 @@ def export_to_gguf(model_path, output_dir, output_name, quantization='Q5_K_M'):
             'quantizationInfo': QUANTIZATION_TYPES[quantization],
             'exportedAt': datetime.now(timezone.utc).isoformat(),
             'status': 'pending',
-            'command': f"python llama.cpp/convert.py {model_path} --outtype {quantization.lower()} --outfile {gguf_output}"
+            'command': f"python llama.cpp/convert.py {model_path} --outtype {quantization.lower()} --outfile {gguf_output}",
+            'note': 'Run the command above after installing llama.cpp to complete the conversion'
         }
         
         manifest_path = gguf_dir / f"{output_name}.{quantization}.manifest.json"
