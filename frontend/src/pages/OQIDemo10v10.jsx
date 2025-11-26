@@ -157,24 +157,30 @@ export default function OQIDemo10v10() {
             ← Tillbaka
           </Link>
 
-          {/* DNA Chain - Horizontal, Left of Center */}
-          <div className="absolute left-1/2 -translate-x-[55%] flex items-center gap-[5px]">
-            {Array.from({ length: dnaNodes }).map((_, i) => {
-              const isLast = i === dnaNodes - 1;
-              const opacity = i < dnaNodes - 5 ? 0.25 : i < dnaNodes - 2 ? 0.45 : isLast ? 1 : 0.65;
-              return (
-                <div
-                  key={i}
-                  className={`rounded-full bg-[#D1D5DB] ${isLast ? 'last-node-glow' : ''}`}
-                  style={{
-                    width: isLast ? '6px' : '3px',
-                    height: isLast ? '6px' : '3px',
-                    opacity,
-                    transition: 'opacity 0.3s ease',
-                  }}
-                />
-              );
-            })}
+          {/* ONESEEK Title + DNA Chain - Horizontal, Left of Center */}
+          <div className="absolute left-1/2 -translate-x-[55%] flex items-center gap-4">
+            {/* ONESEEK Title */}
+            <span className="text-[10px] font-mono text-[#555] tracking-[0.2em] uppercase">ONESEEK</span>
+            
+            {/* DNA Chain */}
+            <div className="flex items-center gap-[5px]">
+              {Array.from({ length: dnaNodes }).map((_, i) => {
+                const isLast = i === dnaNodes - 1;
+                const opacity = i < dnaNodes - 5 ? 0.25 : i < dnaNodes - 2 ? 0.45 : isLast ? 1 : 0.65;
+                return (
+                  <div
+                    key={i}
+                    className={`rounded-full bg-[#D1D5DB] ${isLast ? 'last-node-glow' : ''}`}
+                    style={{
+                      width: isLast ? '6px' : '3px',
+                      height: isLast ? '6px' : '3px',
+                      opacity,
+                      transition: 'opacity 0.3s ease',
+                    }}
+                  />
+                );
+              })}
+            </div>
           </div>
 
           {/* Status Indicators - Metadata Style */}
@@ -278,9 +284,9 @@ export default function OQIDemo10v10() {
           {/* AI Response - Left Aligned */}
           <div className="flex justify-start elegant-fade" style={{ animationDelay: '0.1s' }}>
             <div className="max-w-md">
-              {/* Meta info line */}
-              <div className="text-[8px] text-[#3a3a3a] mb-3 tracking-wide font-light">
-                OneSeek <span className="text-[#555]">{responseTime}s</span> · 26 nov 2025 14:18
+              {/* Meta info line with ONESEEK SVARAR */}
+              <div className="text-[8px] text-[#3a3a3a] mb-3 tracking-wide font-light uppercase">
+                <span className="text-[#555]">ONESEEK SVARAR</span> · <span className="text-[#444]">{responseTime}s</span> · 26 nov 2025 14:18
               </div>
               
               {/* Response text - reduced size */}
