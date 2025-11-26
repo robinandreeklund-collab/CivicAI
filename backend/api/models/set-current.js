@@ -224,6 +224,12 @@ router.post('/set-current', rateLimiter, async (req, res) => {
     // Use relative path for better portability within the same filesystem
     const relativeModelPath = path.relative(certifiedDir, modelPath);
     
+    // ALWAYS create/update the marker file first - this ensures ml_service can read it
+    // regardless of symlink/junction success
+    const markerPath = symlinkPath + '.txt';
+    await fs.writeFile(markerPath, modelPath, 'utf-8');
+    console.log(`Marker file updated: ${markerPath} -> ${modelPath}`);
+
     // On Windows, try junction first (doesn't require admin), then symlink
     // On Unix, use symlink directly
     try {
@@ -238,8 +244,8 @@ router.post('/set-current', rateLimiter, async (req, res) => {
       }
     } catch (error) {
       if (error.code === 'EPERM' && process.platform === 'win32') {
-        // Windows: EPERM means we need admin for symlinks, fallback to marker file
-        console.warn('Symlink creation requires admin privileges. Creating marker file instead.');
+        // Windows: EPERM means we need admin for symlinks, marker file already created above
+        console.warn('Symlink creation requires admin privileges. Using marker file instead.');
         
         // Remove the failed symlink attempt
         try {
@@ -247,16 +253,12 @@ router.post('/set-current', rateLimiter, async (req, res) => {
         } catch (e) {
           // Ignore
         }
-        
-        // Create a marker file with the target path
-        await fs.writeFile(
-          symlinkPath + '.txt',
-          modelPath,
-          'utf-8'
-        );
-        console.log(`Marker file created: ${symlinkPath}.txt -> ${modelPath}`);
+      } else if (error.code === 'EEXIST') {
+        // Junction/symlink already exists - marker file is the source of truth anyway
+        console.log('Symlink/junction already exists, marker file is authoritative');
       } else {
-        throw error;
+        // Log but don't throw - marker file is the fallback
+        console.warn(`Symlink/junction creation failed: ${error.message}. Using marker file.`);
       }
     }
 
