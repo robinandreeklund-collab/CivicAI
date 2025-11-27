@@ -775,21 +775,35 @@ def run_spawn_training_worker(rank: int, world_size: int, config: Dict,
     This is called by torch.multiprocessing.spawn for each GPU.
     """
     import torch.multiprocessing as mp
+    import tempfile
     
     # Set environment variables for this process
     os.environ['RANK'] = str(rank)
     os.environ['LOCAL_RANK'] = str(rank)
     os.environ['WORLD_SIZE'] = str(world_size)
-    os.environ['MASTER_ADDR'] = '127.0.0.1'
-    os.environ['MASTER_PORT'] = '29500'
     
     # Set CUDA device for this process
     torch.cuda.set_device(rank)
     
+    # Use file-based store instead of TCP store to avoid libuv issues on Windows
+    # Create a shared file path for the rendezvous
+    import platform
+    if platform.system() == 'Windows':
+        # Use file-based init_method on Windows (avoids TCP/libuv issues)
+        temp_dir = tempfile.gettempdir()
+        init_file = os.path.join(temp_dir, 'ddp_init_file')
+        init_method = f'file:///{init_file}'
+        print(f"[SPAWN] Using file-based init: {init_method}")
+    else:
+        # Use env-based init on Linux/Mac
+        os.environ['MASTER_ADDR'] = '127.0.0.1'
+        os.environ['MASTER_PORT'] = '29500'
+        init_method = 'env://'
+    
     # Initialize process group with gloo backend (works on Windows)
     dist.init_process_group(
         backend='gloo',
-        init_method='env://',
+        init_method=init_method,
         world_size=world_size,
         rank=rank
     )
@@ -870,11 +884,26 @@ def run_spawn_training(config: Dict, dataset_path: Path, output_dir: Path,
     This avoids torchrun and its TCP store issues on Windows.
     """
     import torch.multiprocessing as mp
+    import tempfile
+    import platform
     
     world_size = config.get('world_size', 2)
     
     print(f"\n[SPAWN] Starting spawn-based DDP training with {world_size} GPUs")
     print(f"[SPAWN] This method avoids torchrun TCP issues on Windows")
+    
+    # Clean up any old init file on Windows
+    init_file = None
+    if platform.system() == 'Windows':
+        temp_dir = tempfile.gettempdir()
+        init_file = os.path.join(temp_dir, 'ddp_init_file')
+        # Remove old init file if it exists
+        if os.path.exists(init_file):
+            try:
+                os.remove(init_file)
+                print(f"[SPAWN] Cleaned up old init file: {init_file}")
+            except Exception:
+                pass
     
     try:
         # Use spawn to start worker processes
@@ -892,6 +921,13 @@ def run_spawn_training(config: Dict, dataset_path: Path, output_dir: Path,
         import traceback
         traceback.print_exc()
         return {'success': False, 'error': str(e)}
+    finally:
+        # Clean up init file
+        if init_file and os.path.exists(init_file):
+            try:
+                os.remove(init_file)
+            except Exception:
+                pass
 
 
 def main():
