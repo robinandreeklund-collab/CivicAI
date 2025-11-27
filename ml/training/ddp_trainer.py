@@ -485,10 +485,28 @@ class DDPTrainer:
             # max_memory only works with device_map='auto', not with DDP
             model_kwargs['max_memory'] = max_memory
         
-        model = AutoModelForCausalLM.from_pretrained(
-            str(model_path),
-            **model_kwargs
-        )
+        try:
+            model = AutoModelForCausalLM.from_pretrained(
+                str(model_path),
+                **model_kwargs
+            )
+        except RuntimeError as e:
+            if "out of memory" in str(e).lower() or "CUDA" in str(e):
+                if self.is_main_process:
+                    print(f"\n[ERROR] GPU memory error loading model: {e}")
+                    print(f"[FIX] Try one of these solutions:")
+                    print(f"   1. Enable 4-bit quantization in dashboard (load_in_4bit=True)")
+                    print(f"   2. Reduce batch size to 1 or 2")
+                    print(f"   3. Set lower GPU memory limit in dashboard")
+                    print(f"   4. Use a smaller model")
+                raise
+            raise
+        
+        # Enable gradient checkpointing to reduce memory usage
+        if hasattr(model, 'gradient_checkpointing_enable'):
+            model.gradient_checkpointing_enable()
+            if self.is_main_process:
+                print(f"[MEMORY] Gradient checkpointing enabled (reduces memory usage)")
         
         if self.is_main_process:
             print(f"[LOAD] Model loaded: {model.num_parameters():,} parameters")
@@ -656,7 +674,16 @@ class DDPTrainer:
         sampler = self.create_distributed_sampler(train_dataset)
         
         # Create dataloader
-        batch_size = self.config.get('batch_size', 8)
+        # Default batch size is now 2 for better memory efficiency on 11GB GPUs
+        batch_size = self.config.get('batch_size', 2)
+        
+        # For 7B+ models on 11GB GPUs, limit batch size to prevent OOM
+        gpu_memory_gb = torch.cuda.get_device_properties(self.local_rank).total_memory / (1024**3)
+        if gpu_memory_gb <= 12 and batch_size > 4:
+            old_batch = batch_size
+            batch_size = min(batch_size, 4)
+            if self.is_main_process:
+                print(f"[MEMORY] Reduced batch size from {old_batch} to {batch_size} for {gpu_memory_gb:.1f}GB GPU")
         
         # Scale batch size for DDP (each GPU processes batch_size samples)
         effective_batch_size = batch_size * self.world_size
@@ -702,24 +729,38 @@ class DDPTrainer:
                 print(f"\n[TRAIN] Epoch {epoch + 1}/{epochs}")
             
             for batch_idx, batch in enumerate(train_loader):
-                input_ids = batch['input_ids'].to(device)
-                attention_mask = batch['attention_mask'].to(device)
-                labels = batch['labels'].to(device)
-                
-                optimizer.zero_grad()
-                
-                outputs = model(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    labels=labels
-                )
-                
-                loss = outputs.loss
-                loss.backward()
-                optimizer.step()
-                
-                epoch_loss += loss.item()
-                epoch_batches += 1
+                try:
+                    input_ids = batch['input_ids'].to(device)
+                    attention_mask = batch['attention_mask'].to(device)
+                    labels = batch['labels'].to(device)
+                    
+                    optimizer.zero_grad()
+                    
+                    outputs = model(
+                        input_ids=input_ids,
+                        attention_mask=attention_mask,
+                        labels=labels
+                    )
+                    
+                    loss = outputs.loss
+                    loss.backward()
+                    optimizer.step()
+                    
+                    epoch_loss += loss.item()
+                    epoch_batches += 1
+                    
+                except RuntimeError as e:
+                    if "out of memory" in str(e).lower():
+                        # Clear GPU cache and try to recover
+                        torch.cuda.empty_cache()
+                        if self.is_main_process:
+                            print(f"\n[ERROR] CUDA out of memory at batch {batch_idx}")
+                            print(f"[FIX] Solutions:")
+                            print(f"   1. Reduce batch_size in admin dashboard (current: {batch_size})")
+                            print(f"   2. Enable 4-bit quantization")
+                            print(f"   3. Reduce max sequence length")
+                        raise
+                    raise
                 
                 # Log progress
                 if self.is_main_process and batch_idx % max(1, len(train_loader) // 5) == 0:
