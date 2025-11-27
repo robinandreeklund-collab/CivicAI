@@ -364,21 +364,99 @@ class DDPTrainer:
         # Get quantization config
         bnb_config = self._get_quantization_config()
         
-        # Load tokenizer
+        # Load tokenizer with multiple fallback strategies (like pytorch_trainer)
+        tokenizer = None
+        tokenizer_errors = []
+        
+        # Strategy 1: Try with LlamaConfig if available
+        llama_config = None
         try:
-            tokenizer = AutoTokenizer.from_pretrained(
-                str(model_path),
-                trust_remote_code=True,
-                local_files_only=True
-            )
-        except Exception as tok_error:
-            print(f"[ERROR] Failed to load tokenizer from {model_path}: {tok_error}")
-            print(f"[INFO] Trying to load tokenizer with use_fast=False...")
-            tokenizer = AutoTokenizer.from_pretrained(
-                str(model_path),
-                trust_remote_code=True,
-                local_files_only=True,
-                use_fast=False
+            from transformers import LlamaConfig
+            config_file = model_path / 'config.json'
+            if config_file.exists():
+                import json
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    config_data = json.load(f)
+                if 'model_type' in config_data and 'llama' in config_data.get('model_type', '').lower():
+                    llama_config = LlamaConfig.from_pretrained(str(model_path))
+        except Exception:
+            pass
+        
+        if tokenizer is None and llama_config is not None:
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(
+                    str(model_path),
+                    config=llama_config,
+                    trust_remote_code=True,
+                    local_files_only=True
+                )
+                if self.is_main_process:
+                    print(f"[LOAD] Tokenizer loaded with AutoTokenizer + LlamaConfig")
+            except Exception as e1:
+                tokenizer_errors.append(f"LlamaConfig: {e1}")
+        
+        # Strategy 2: Try AutoTokenizer with defaults
+        if tokenizer is None:
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(
+                    str(model_path),
+                    trust_remote_code=True,
+                    local_files_only=True
+                )
+                if self.is_main_process:
+                    print(f"[LOAD] Tokenizer loaded with AutoTokenizer (defaults)")
+            except Exception as e2:
+                tokenizer_errors.append(f"defaults: {e2}")
+        
+        # Strategy 3: Try with use_fast=True
+        if tokenizer is None:
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(
+                    str(model_path),
+                    use_fast=True,
+                    trust_remote_code=True,
+                    local_files_only=True
+                )
+                if self.is_main_process:
+                    print(f"[LOAD] Tokenizer loaded with use_fast=True")
+            except Exception as e3:
+                tokenizer_errors.append(f"use_fast=True: {e3}")
+        
+        # Strategy 4: Try with use_fast=False
+        if tokenizer is None:
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(
+                    str(model_path),
+                    use_fast=False,
+                    trust_remote_code=True,
+                    legacy=False,
+                    local_files_only=True
+                )
+                if self.is_main_process:
+                    print(f"[LOAD] Tokenizer loaded with use_fast=False")
+            except Exception as e4:
+                tokenizer_errors.append(f"use_fast=False: {e4}")
+        
+        # Strategy 5: Try loading from pretrained_model_name_or_path only  
+        if tokenizer is None:
+            try:
+                # Some models need legacy=True
+                tokenizer = AutoTokenizer.from_pretrained(
+                    str(model_path),
+                    use_fast=False,
+                    trust_remote_code=True,
+                    legacy=True,
+                    local_files_only=True
+                )
+                if self.is_main_process:
+                    print(f"[LOAD] Tokenizer loaded with legacy=True")
+            except Exception as e5:
+                tokenizer_errors.append(f"legacy=True: {e5}")
+        
+        if tokenizer is None:
+            raise RuntimeError(
+                f"Failed to load tokenizer from {model_path}. "
+                f"Errors: {tokenizer_errors}"
             )
         
         if tokenizer.pad_token is None:
