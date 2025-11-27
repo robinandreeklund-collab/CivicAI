@@ -25,7 +25,7 @@ export default function OQIDemo10v10() {
   const [responseTime, setResponseTime] = useState(0);
   const [hoveredTick, setHoveredTick] = useState(null);
   const [hoveredDnaNode, setHoveredDnaNode] = useState(null);
-  const [sidebarExpanded, setSidebarExpanded] = useState(true);
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [microtrainingQueue, setMicrotrainingQueue] = useState(3);
   const [microtrainingActive, setMicrotrainingActive] = useState(true);
   const [activeHistoryId, setActiveHistoryId] = useState(4);
@@ -214,7 +214,7 @@ export default function OQIDemo10v10() {
       `}</style>
 
       {/* ===== HEADER ===== */}
-      <header className={`fixed inset-x-0 right-[280px] top-0 z-50 px-8 py-6 transition-opacity duration-500 ${showUI ? 'opacity-100' : 'opacity-0'}`}>
+      <header className={`fixed inset-x-0 top-0 z-50 px-8 py-6 transition-all duration-500 ${showUI ? 'opacity-100' : 'opacity-0'}`} style={{ right: sidebarExpanded ? '280px' : '4px' }}>
         <div className="flex items-center justify-between">
           {/* Back */}
           <Link 
@@ -373,73 +373,98 @@ export default function OQIDemo10v10() {
         </div>
       </aside>
 
-      {/* ===== RIGHT SIDEBAR - Premium Dark Purple Theme ===== */}
-      <aside className="fixed right-0 top-0 bottom-0 w-[280px] z-30 bg-[#0c0a1f] border-l border-[#1e1b3a] flex flex-col">
+      {/* ===== RIGHT SIDEBAR - Minimal Monochrome ===== */}
+      <aside 
+        className={`fixed right-0 top-0 bottom-0 z-30 flex flex-col transition-all duration-500 ease-out ${
+          sidebarExpanded 
+            ? 'w-[280px]' 
+            : 'w-[4px]'
+        } ${whiteMode ? 'bg-[#f5f5f5] border-l border-[#e0e0e0]' : 'bg-[#0a0a0a] border-l border-[#151515]'}`}
+        onMouseEnter={() => setSidebarExpanded(true)}
+        onMouseLeave={() => setSidebarExpanded(false)}
+      >
+        {/* Collapsed State - Just a thin glowing line */}
+        {!sidebarExpanded && (
+          <div className={`absolute inset-0 w-[4px] ${
+            whiteMode ? 'bg-gradient-to-b from-[#e0e0e0] via-[#bbb] to-[#e0e0e0]' : 'bg-gradient-to-b from-[#1a1a1a] via-[#333] to-[#1a1a1a]'
+          } sidebar-glow-pulse`} />
+        )}
         
-        {/* Top: Logo */}
-        <div className="px-5 pt-6 pb-4">
-          <div className="flex items-center gap-2">
-            <span className="text-[#a78bfa] text-lg">◍</span>
-            <span className="text-[#a78bfa] text-xl font-semibold tracking-wide">Oneseek</span>
-          </div>
-        </div>
-        
-        {/* New Search Button */}
-        <div className="px-4 pb-4">
-          <button className="w-full py-3 px-4 rounded-full bg-gradient-to-r from-[#5b21b6] to-[#4c1d95] hover:from-[#6d28d9] hover:to-[#5b21b6] text-white text-sm font-medium flex items-center justify-center gap-2 transition-all duration-300 hover:shadow-lg hover:shadow-purple-900/30 hover:-translate-y-0.5">
-            <span className="text-lg leading-none">+</span>
-            <span>Ny sökning</span>
-          </button>
-        </div>
-        
-        {/* Search History - Scrollable */}
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 sidebar-scroll">
-          {searchHistory.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveSearchId(item.id)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-3 transition-all duration-200 group ${
-                activeSearchId === item.id
-                  ? 'bg-[#5b21b6] text-white'
-                  : 'text-[#9ca3af] hover:bg-[#1e1b3a]'
-              }`}
-            >
-              <svg className={`w-4 h-4 flex-shrink-0 ${activeSearchId === item.id ? 'text-white' : 'text-[#4b5563]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <span className={`text-sm truncate ${activeSearchId === item.id ? 'font-medium' : ''}`}>
-                {item.query}
-              </span>
-            </button>
-          ))}
-        </div>
-        
-        {/* Bottom Section - Fixed */}
-        <div className="px-4 py-4 border-t border-[#1e1b3a]">
-          {/* Alpha Badge */}
-          <div className="flex items-center gap-1 mb-4">
-            <span className="text-[#0ff] text-xs font-medium tracking-wide">Oneseek Alpha</span>
-            <span className="text-[#0ff]">⚡️</span>
+        {/* Expanded Content */}
+        <div className={`flex flex-col h-full transition-opacity duration-300 ${sidebarExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+          {/* Top: Logo */}
+          <div className="px-5 pt-6 pb-4">
+            <div className="flex items-center gap-2">
+              <span className={`text-lg ${whiteMode ? 'text-[#666]' : 'text-[#666]'}`}>◍</span>
+              <span className={`text-xl font-light tracking-wide ${whiteMode ? 'text-[#444]' : 'text-[#888]'}`}>Oneseek</span>
+            </div>
           </div>
           
-          {/* User Profile */}
-          <button className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-[#1e1b3a] transition-colors group">
-            <div className="w-[38px] h-[38px] rounded-full bg-gradient-to-br from-[#7c3aed] to-[#5b21b6] flex items-center justify-center text-white text-sm font-medium">
-              R
+          {/* New Search Button */}
+          <div className="px-4 pb-4">
+            <button className={`w-full py-3 px-4 rounded-full text-sm font-light flex items-center justify-center gap-2 transition-all duration-300 border ${
+              whiteMode 
+                ? 'bg-[#333] text-white border-[#333] hover:bg-[#222]' 
+                : 'bg-[#1a1a1a] text-[#999] border-[#222] hover:bg-[#222] hover:text-white hover:border-[#333]'
+            }`}>
+              <span className="text-lg leading-none">+</span>
+              <span>Ny sökning</span>
+            </button>
+          </div>
+          
+          {/* Search History - Scrollable */}
+          <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 sidebar-scroll">
+            {searchHistory.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveSearchId(item.id)}
+                className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-3 transition-all duration-200 group ${
+                  activeSearchId === item.id
+                    ? (whiteMode ? 'bg-[#333] text-white' : 'bg-[#222] text-white')
+                    : (whiteMode ? 'text-[#888] hover:bg-[#e8e8e8]' : 'text-[#666] hover:bg-[#151515]')
+                }`}
+              >
+                <svg className={`w-4 h-4 flex-shrink-0 ${activeSearchId === item.id ? 'text-white' : (whiteMode ? 'text-[#aaa]' : 'text-[#444]')}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span className={`text-sm truncate ${activeSearchId === item.id ? 'font-medium' : 'font-light'}`}>
+                  {item.query}
+                </span>
+              </button>
+            ))}
+          </div>
+          
+          {/* Bottom Section - Fixed */}
+          <div className={`px-4 py-4 border-t ${whiteMode ? 'border-[#e0e0e0]' : 'border-[#1a1a1a]'}`}>
+            {/* Alpha Badge */}
+            <div className="flex items-center gap-1 mb-4">
+              <span className={`text-xs font-light tracking-wide ${whiteMode ? 'text-[#888]' : 'text-[#555]'}`}>Oneseek Alpha</span>
+              <span className={whiteMode ? 'text-[#888]' : 'text-[#555]'}>⚡️</span>
             </div>
-            <div className="flex-1 text-left">
-              <p className="text-white text-sm font-medium">Robin</p>
-              <p className="text-[#6b7280] text-xs">Premium</p>
-            </div>
-            <svg className="w-4 h-4 text-[#6b7280] group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
+            
+            {/* User Profile */}
+            <button className={`w-full flex items-center gap-3 p-2 rounded-lg transition-colors group ${
+              whiteMode ? 'hover:bg-[#e8e8e8]' : 'hover:bg-[#151515]'
+            }`}>
+              <div className={`w-[38px] h-[38px] rounded-full flex items-center justify-center text-sm font-light ${
+                whiteMode ? 'bg-[#333] text-white' : 'bg-[#222] text-[#888]'
+              }`}>
+                R
+              </div>
+              <div className="flex-1 text-left">
+                <p className={`text-sm font-light ${whiteMode ? 'text-[#444]' : 'text-[#999]'}`}>Robin</p>
+                <p className={`text-xs ${whiteMode ? 'text-[#999]' : 'text-[#555]'}`}>Premium</p>
+              </div>
+              <svg className={`w-4 h-4 transition-colors ${whiteMode ? 'text-[#aaa] group-hover:text-[#666]' : 'text-[#444] group-hover:text-[#888]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
         </div>
       </aside>
 
       {/* ===== MAIN CHAT AREA ===== */}
-      <main className={`min-h-screen flex flex-col justify-end px-24 pr-[320px] pb-52 pt-24 ${focusMode ? 'scale-[1.01]' : ''} transition-transform duration-500`}>
+      <main className={`min-h-screen flex flex-col justify-end px-24 pb-52 pt-24 ${focusMode ? 'scale-[1.01]' : ''} transition-all duration-500`} style={{ paddingRight: sidebarExpanded ? '320px' : '40px' }}>
         <div className="max-w-2xl mx-auto w-full space-y-10">
           
           {/* User Message - Right Aligned with timestamp */}
@@ -484,7 +509,7 @@ export default function OQIDemo10v10() {
       </main>
 
       {/* ===== INPUT AREA ===== */}
-      <div className={`fixed inset-x-0 right-[280px] bottom-0 z-40 transition-opacity duration-500 ${showUI ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`fixed inset-x-0 bottom-0 z-40 transition-all duration-500 ${showUI ? 'opacity-100' : 'opacity-0'}`} style={{ right: sidebarExpanded ? '280px' : '4px' }}>
         <div className={`px-24 pb-10 pt-6 ${
           whiteMode 
             ? 'bg-gradient-to-t from-[#fafafa] via-[#fafafa]/98 to-transparent' 
