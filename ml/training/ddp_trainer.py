@@ -503,10 +503,13 @@ class DDPTrainer:
             raise
         
         # Enable gradient checkpointing to reduce memory usage
-        if hasattr(model, 'gradient_checkpointing_enable'):
-            model.gradient_checkpointing_enable()
+        # Use gradient_checkpointing setting from config (default True)
+        use_gradient_checkpointing = self.config.get('gradient_checkpointing', True)
+        if use_gradient_checkpointing and hasattr(model, 'gradient_checkpointing_enable'):
+            # Use use_reentrant=False to avoid warnings and improve compatibility
+            model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
             if self.is_main_process:
-                print(f"[MEMORY] Gradient checkpointing enabled (reduces memory usage)")
+                print(f"[MEMORY] Gradient checkpointing enabled (use_reentrant=False)")
         
         if self.is_main_process:
             print(f"[LOAD] Model loaded: {model.num_parameters():,} parameters")
@@ -673,17 +676,13 @@ class DDPTrainer:
         # Create distributed sampler for DDP
         sampler = self.create_distributed_sampler(train_dataset)
         
-        # Create dataloader
-        # Default batch size is now 2 for better memory efficiency on 11GB GPUs
-        batch_size = self.config.get('batch_size', 2)
+        # Create dataloader - use batch size from config (dashboard setting respected)
+        batch_size = self.config.get('batch_size', 8)
         
-        # For 7B+ models on 11GB GPUs, limit batch size to prevent OOM
+        # Log GPU memory info for debugging
         gpu_memory_gb = torch.cuda.get_device_properties(self.local_rank).total_memory / (1024**3)
-        if gpu_memory_gb <= 12 and batch_size > 4:
-            old_batch = batch_size
-            batch_size = min(batch_size, 4)
-            if self.is_main_process:
-                print(f"[MEMORY] Reduced batch size from {old_batch} to {batch_size} for {gpu_memory_gb:.1f}GB GPU")
+        if self.is_main_process:
+            print(f"[GPU] GPU memory: {gpu_memory_gb:.1f}GB, Batch size: {batch_size}")
         
         # Scale batch size for DDP (each GPU processes batch_size samples)
         effective_batch_size = batch_size * self.world_size
@@ -704,9 +703,49 @@ class DDPTrainer:
             print(f"   Training samples: {len(train_data)}")
             print(f"   Batches per epoch: {len(train_loader)}")
         
-        # Setup optimizer
+        # Setup optimizer - use optimizer type from config
         learning_rate = self.config.get('learning_rate', 2e-5)
-        optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+        weight_decay = self.config.get('weight_decay', 0.01)
+        optimizer_type = self.config.get('optimizer', 'adamw_torch')
+        
+        if optimizer_type == 'paged_adamw_8bit':
+            try:
+                import bitsandbytes as bnb
+                optimizer = bnb.optim.PagedAdamW8bit(
+                    model.parameters(), 
+                    lr=learning_rate,
+                    weight_decay=weight_decay
+                )
+                if self.is_main_process:
+                    print(f"[OPTIM] Using PagedAdamW8bit optimizer")
+            except ImportError:
+                optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+                if self.is_main_process:
+                    print(f"[OPTIM] bitsandbytes not available, using AdamW")
+        elif optimizer_type == 'adamw_8bit':
+            try:
+                import bitsandbytes as bnb
+                optimizer = bnb.optim.AdamW8bit(
+                    model.parameters(),
+                    lr=learning_rate,
+                    weight_decay=weight_decay
+                )
+                if self.is_main_process:
+                    print(f"[OPTIM] Using AdamW8bit optimizer")
+            except ImportError:
+                optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        else:
+            optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+            if self.is_main_process:
+                print(f"[OPTIM] Using AdamW optimizer (lr={learning_rate}, weight_decay={weight_decay})")
+        
+        # Gradient accumulation steps from config
+        gradient_accumulation_steps = self.config.get('gradient_accumulation_steps', 1)
+        if self.is_main_process and gradient_accumulation_steps > 1:
+            print(f"[TRAIN] Gradient accumulation steps: {gradient_accumulation_steps}")
+        
+        # Max gradient norm from config
+        max_grad_norm = self.config.get('max_grad_norm', 1.0)
         
         # Training loop
         epochs = self.config.get('epochs', 3)
@@ -724,6 +763,7 @@ class DDPTrainer:
             
             epoch_loss = 0
             epoch_batches = 0
+            optimizer.zero_grad()  # Zero gradients at start of epoch
             
             if self.is_main_process:
                 print(f"\n[TRAIN] Epoch {epoch + 1}/{epochs}")
@@ -734,8 +774,6 @@ class DDPTrainer:
                     attention_mask = batch['attention_mask'].to(device)
                     labels = batch['labels'].to(device)
                     
-                    optimizer.zero_grad()
-                    
                     outputs = model(
                         input_ids=input_ids,
                         attention_mask=attention_mask,
@@ -743,10 +781,18 @@ class DDPTrainer:
                     )
                     
                     loss = outputs.loss
+                    # Scale loss for gradient accumulation
+                    loss = loss / gradient_accumulation_steps
                     loss.backward()
-                    optimizer.step()
                     
-                    epoch_loss += loss.item()
+                    # Only update weights after accumulating gradients
+                    if (batch_idx + 1) % gradient_accumulation_steps == 0:
+                        # Clip gradients
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+                        optimizer.step()
+                        optimizer.zero_grad()
+                    
+                    epoch_loss += loss.item() * gradient_accumulation_steps  # Un-scale for logging
                     epoch_batches += 1
                     
                 except RuntimeError as e:
@@ -764,7 +810,7 @@ class DDPTrainer:
                 
                 # Log progress
                 if self.is_main_process and batch_idx % max(1, len(train_loader) // 5) == 0:
-                    print(f"   Batch {batch_idx}/{len(train_loader)}: Loss={loss.item():.4f}")
+                    print(f"   Batch {batch_idx}/{len(train_loader)}: Loss={loss.item() * gradient_accumulation_steps:.4f}")
             
             avg_epoch_loss = epoch_loss / max(1, epoch_batches)
             epoch_losses.append(avg_epoch_loss)

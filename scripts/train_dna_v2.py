@@ -956,20 +956,48 @@ def launch_ddp_training(args, dataset_path: Path):
         print("\n[WARNING] DDP is most effective with 2+ GPUs")
         print("[INFO] Continuing with single GPU DDP (for testing)")
     
-    # Build the DDP trainer config
+    # Build the DDP trainer config - include ALL advanced parameters from dashboard
     ddp_config = {
+        # Basic training parameters
         'epochs': args.epochs,
         'batch_size': args.batch_size,
         'learning_rate': args.learning_rate,
+        'seed': args.seed,
+        
+        # LoRA parameters
         'lora_rank': args.lora_rank,
         'lora_alpha': args.lora_alpha,
         'dropout': args.dropout,
         'target_modules': args.target_modules,
-        'max_memory_per_gpu': args.max_memory_per_gpu,
+        'lora_scaling_factor': getattr(args, 'lora_scaling_factor', 2.0),
+        
+        # Quantization parameters
         'load_in_4bit': args.load_in_4bit,
+        'load_in_8bit': getattr(args, 'load_in_8bit', False),
         'quantization_type': args.quantization_type,
         'compute_dtype': args.compute_dtype,
         'double_quantization': args.double_quantization,
+        'use_nested_quant': getattr(args, 'use_nested_quant', True),
+        
+        # Memory and optimization parameters
+        'max_memory_per_gpu': args.max_memory_per_gpu,
+        'gradient_checkpointing': getattr(args, 'gradient_checkpointing', True),
+        'gradient_accumulation_steps': getattr(args, 'gradient_accumulation_steps', 4),
+        'max_seq_length': getattr(args, 'max_seq_length', 2048),
+        
+        # Training optimization
+        'weight_decay': getattr(args, 'weight_decay', 0.01),
+        'max_grad_norm': getattr(args, 'max_grad_norm', 1.0),
+        'warmup_steps': getattr(args, 'warmup_steps', 20),
+        'lr_scheduler': getattr(args, 'lr_scheduler', 'cosine'),
+        'optimizer': getattr(args, 'optimizer', 'paged_adamw_8bit'),
+        'precision': getattr(args, 'precision', 'bf16'),
+        
+        # Dataset options
+        'packing_enabled': getattr(args, 'packing_enabled', False),
+        'use_fast_tokenizer': not getattr(args, 'no_fast_tokenizer', False),
+        
+        # Model and DDP settings
         'base_models': args.base_models or [],
         'use_ddp': True,
         'models_dir': str(project_root / 'models')
