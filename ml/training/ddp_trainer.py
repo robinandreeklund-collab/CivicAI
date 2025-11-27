@@ -339,6 +339,25 @@ class DDPTrainer:
         if self.is_main_process:
             print(f"\n[LOAD] Loading model from: {model_path}")
         
+        # Validate model path exists and has required files
+        model_path = Path(model_path)
+        if not model_path.exists():
+            raise FileNotFoundError(f"Model path does not exist: {model_path}")
+        
+        config_file = model_path / 'config.json'
+        if not config_file.exists():
+            raise FileNotFoundError(f"Model config.json not found: {config_file}")
+        
+        # Validate config.json is proper JSON
+        try:
+            import json
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config_data = json.load(f)
+            if not isinstance(config_data, dict) or 'model_type' not in config_data:
+                print(f"[WARNING] config.json may be incomplete. Contents: {list(config_data.keys())[:5]}...")
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid config.json: {e}")
+        
         # Setup memory limit
         max_memory = self._setup_memory_limit()
         
@@ -346,11 +365,21 @@ class DDPTrainer:
         bnb_config = self._get_quantization_config()
         
         # Load tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(
-            str(model_path),
-            trust_remote_code=True,
-            local_files_only=True
-        )
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(
+                str(model_path),
+                trust_remote_code=True,
+                local_files_only=True
+            )
+        except Exception as tok_error:
+            print(f"[ERROR] Failed to load tokenizer from {model_path}: {tok_error}")
+            print(f"[INFO] Trying to load tokenizer with use_fast=False...")
+            tokenizer = AutoTokenizer.from_pretrained(
+                str(model_path),
+                trust_remote_code=True,
+                local_files_only=True,
+                use_fast=False
+            )
         
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
