@@ -1,0 +1,94 @@
+# Docker Compose Configuration for CivicAI/OneSeek
+# 
+# This configuration sets up the complete CivicAI platform including:
+# - ML Service (FastAPI inference server)
+# - Backend (Node.js Express API)
+# - Frontend (React/Vite)
+#
+# Volume Mounts:
+# - ./models: Model weights and checkpoints
+# - ./datasets: Training datasets and system prompts
+# - ./datasets/system_prompts: System prompt JSON files (managed via Admin Dashboard)
+
+version: '3.8'
+
+services:
+  # ML Inference Service (FastAPI)
+  ml-service:
+    build:
+      context: ./ml_service
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      # Model weights (read-only in production)
+      - ./models:/app/models:ro
+      # Datasets including system prompts (read-write for admin management)
+      - ./datasets:/app/datasets:rw
+      # System prompts directory (ensure it exists and is writable)
+      - ./datasets/system_prompts:/app/datasets/system_prompts:rw
+    environment:
+      - MODELS_DIR=/app/models
+      - ONESEEK_DEBUG=0
+      - RATE_LIMIT_PER_MINUTE=100
+      - ML_SERVICE_PORT=5000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # Backend API (Node.js Express)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./datasets:/app/datasets:rw
+      - ./frontend/public/characters:/app/frontend/public/characters:ro
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - ML_SERVICE_URL=http://ml-service:5000
+    depends_on:
+      ml-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Frontend (React/Vite - for development or static serving)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://backend:3001
+      - VITE_ML_SERVICE_URL=http://ml-service:5000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+# Named volumes for persistent data
+volumes:
+  models:
+    driver: local
+  datasets:
+    driver: local
+  system_prompts:
+    driver: local
+
+# Network configuration
+networks:
+  default:
+    name: civicai-network
+    driver: bridge

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import DatasetManagement from '../components/admin/DatasetManagement';
@@ -9,6 +9,7 @@ import VerificationTab from '../components/admin/VerificationTab';
 import AutonomyControl from '../components/admin/AutonomyControl';
 import GoldenCheckpoint from '../components/admin/GoldenCheckpoint';
 import UserVoting from '../components/admin/UserVoting';
+import SystemPromptManagement from '../components/admin/SystemPromptManagement';
 import '../styles/admin-theme.css';
 
 /**
@@ -61,6 +62,7 @@ export default function AdminDashboardPage() {
     { id: 'datasets', label: 'Datasets' },
     { id: 'training', label: 'Training' },
     { id: 'models', label: 'Models' },
+    { id: 'prompts', label: 'System Prompts' },
     { id: 'verification', label: 'Verification' },
     { id: 'autonomy', label: 'Autonomy' },
     { id: 'checkpoint', label: 'Golden Checkpoint' },
@@ -119,6 +121,7 @@ export default function AdminDashboardPage() {
           {selectedTab === 'datasets' && <DatasetManagement />}
           {selectedTab === 'training' && <TrainingControl />}
           {selectedTab === 'models' && <ModelManagement />}
+          {selectedTab === 'prompts' && <SystemPromptManagement />}
           {selectedTab === 'verification' && <VerificationTab />}
           {selectedTab === 'autonomy' && <AutonomyControl />}
           {selectedTab === 'checkpoint' && <GoldenCheckpoint />}
