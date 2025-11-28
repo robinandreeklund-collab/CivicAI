@@ -161,7 +161,6 @@ export default function ModelManagement() {
     setQuickMergeType(mergeType);
     setQuickMerging(true);
     setMergeStatus('pending');
-    // Error logging:(null);
     
     try {
       const response = await fetch('/api/models/merge/quick', {
@@ -208,7 +207,7 @@ export default function ModelManagement() {
           }
         }
         
-        // Error logging:(errorMsg);
+        console.error('Merge error:', errorMsg);
         alert(errorMsg);
       }
     } catch (error) {
@@ -219,7 +218,7 @@ export default function ModelManagement() {
         '• Check that the backend server is running\n' +
         '• Verify network connectivity\n' +
         '• Check backend logs for details';
-      // Error logging:(networkError);
+      console.error('Network error:', networkError);
       alert(networkError);
     } finally {
       setQuickMerging(false);
