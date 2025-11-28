@@ -140,7 +140,11 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
     import traceback
     
     # Force unbuffered output for real-time logging
-    sys.stdout.reconfigure(line_buffering=True) if hasattr(sys.stdout, 'reconfigure') else None
+    try:
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(line_buffering=True)
+    except Exception:
+        pass  # Ignore if reconfigure fails (e.g., on some Windows configurations)
     
     print("=" * 70)
     print("[MERGE DEBUG] Python merge_adapters() started")
@@ -154,25 +158,45 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
     for i, adapter in enumerate(adapters, 1):
         print(f"[MERGE DEBUG]   Adapter {i}: {adapter}")
     print("=" * 70)
+    sys.stdout.flush()  # Ensure all output is flushed
     
     try:
         print("[MERGE DEBUG] Importing required libraries...")
+        sys.stdout.flush()
         from transformers import AutoModelForCausalLM, AutoTokenizer
+        print("[MERGE DEBUG]   ✓ transformers imported")
+        sys.stdout.flush()
         from peft import PeftModel
+        print("[MERGE DEBUG]   ✓ peft imported")
+        sys.stdout.flush()
         import torch
+        print("[MERGE DEBUG]   ✓ torch imported")
+        sys.stdout.flush()
         import gc
-        print(f"[MERGE DEBUG] ✓ Libraries imported successfully")
+        print(f"[MERGE DEBUG] ✓ All libraries imported successfully")
         print(f"[MERGE DEBUG] PyTorch version: {torch.__version__}")
         print(f"[MERGE DEBUG] CUDA available: {torch.cuda.is_available()}")
+        sys.stdout.flush()
         if torch.cuda.is_available():
-            print(f"[MERGE DEBUG] CUDA device: {torch.cuda.get_device_name(0)}")
-            print(f"[MERGE DEBUG] GPU memory total: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
-            print(f"[MERGE DEBUG] GPU memory allocated: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
-            print(f"[MERGE DEBUG] GPU memory reserved: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
+            try:
+                print(f"[MERGE DEBUG] CUDA device: {torch.cuda.get_device_name(0)}")
+                print(f"[MERGE DEBUG] GPU memory total: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+                print(f"[MERGE DEBUG] GPU memory allocated: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+                print(f"[MERGE DEBUG] GPU memory reserved: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
+            except Exception as cuda_e:
+                print(f"[MERGE DEBUG] ⚠️ Could not get CUDA details: {cuda_e}")
+        sys.stdout.flush()
     except ImportError as e:
         print(f"[MERGE DEBUG] ✗ Import error: {e}")
         print("ERROR: Required libraries not found. Install with:")
         print("  pip install transformers peft torch")
+        sys.stdout.flush()
+        return None, None
+    except Exception as e:
+        print(f"[MERGE DEBUG] ✗ Unexpected error during import: {type(e).__name__}: {e}")
+        print("[MERGE DEBUG] Full traceback:")
+        traceback.print_exc()
+        sys.stdout.flush()
         return None, None
     
     project_root = Path(__file__).parent.parent
