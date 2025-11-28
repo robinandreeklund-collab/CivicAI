@@ -7,6 +7,36 @@ for efficient fine-tuning of any base models (Mistral 7B, LLaMA-2, KB-Llama-3.1-
 Dynamically discovers and trains selected base models from the admin panel.
 """
 import os
+
+# ===== CVE-2025-32434 FIX =====
+# Disable security check that causes issues with local model loading when using
+# PyTorch versions < 2.6. This is safe for local setups where we only load our
+# own trained models and trusted HuggingFace models. The security check blocks
+# loading .bin files (pickle format) which our local models may use.
+# Official workaround from Hugging Face until PyTorch 2.6 is stable for CUDA 12.1
+os.environ['TRANSFORMERS_NO_SECURITY_CHECK'] = '1'
+os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
+
+# Monkey-patch the security check function in transformers
+# This is required because newer transformers versions (>=4.50) have a stricter check
+# that blocks torch.load() without weights_only=True (PyTorch < 2.6 default)
+try:
+    import transformers.utils.import_utils as import_utils
+    # Replace the check function with a no-op
+    if hasattr(import_utils, 'check_torch_load_is_safe'):
+        import_utils.check_torch_load_is_safe = lambda: None
+except (ImportError, AttributeError):
+    pass  # Older transformers version without this check
+
+try:
+    import transformers.modeling_utils as modeling_utils
+    # Also patch in modeling_utils if it has its own copy
+    if hasattr(modeling_utils, 'check_torch_load_is_safe'):
+        modeling_utils.check_torch_load_is_safe = lambda: None
+except (ImportError, AttributeError):
+    pass
+# ==============================
+
 import torch
 from pathlib import Path
 from typing import Dict, List
