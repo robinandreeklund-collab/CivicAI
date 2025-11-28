@@ -839,6 +839,38 @@ def get_active_system_prompt() -> str:
     return DEFAULT_SYSTEM_PROMPT
 
 
+def format_inference_input(user_text: str) -> str:
+    """
+    Format the inference input with system prompt.
+    This ensures the model always knows its identity.
+    
+    Format: "[System Prompt]\n\nUser: [User's question]\n\nAssistant:"
+    """
+    system_prompt = get_active_system_prompt()
+    return f"{system_prompt}\n\nUser: {user_text}\n\nAssistant:"
+
+
+def clean_inference_response(response_text: str, full_input: str, user_text: str) -> str:
+    """
+    Clean the model response by removing the input prompt.
+    
+    Args:
+        response_text: Raw model output
+        full_input: The full input including system prompt
+        user_text: Just the user's input text
+        
+    Returns:
+        Cleaned response text
+    """
+    # First try to remove the full input (system prompt + user input)
+    if response_text.startswith(full_input):
+        return response_text[len(full_input):].strip()
+    # Fallback: remove just the user input if full input doesn't match
+    elif response_text.startswith(user_text):
+        return response_text[len(user_text):].strip()
+    return response_text.strip()
+
+
 def deactivate_all_prompts():
     """Deactivate all system prompts (helper for setting a new active prompt)"""
     prompts = load_all_system_prompts()
@@ -2109,13 +2141,10 @@ async def infer(request: Request, inference_request: InferenceRequest):
     """
     start_time = time.time()
     
-    # Get the active system prompt from Admin Dashboard (datasets/system_prompts/)
-    system_prompt = get_active_system_prompt()
+    # Format input with system prompt - ensures model always knows its identity
+    full_input = format_inference_input(inference_request.text)
     
-    # Inject system prompt before user input - the model always knows who it is
-    full_input = f"{system_prompt}\n\nUser: {inference_request.text}\n\nAssistant:"
-    
-    logger.info(f"Injecting system prompt ({len(system_prompt)} chars) into inference request")
+    logger.info(f"Injecting system prompt into inference request")
     
     try:
         # Determine if we're using certified model or fallback
@@ -2161,11 +2190,8 @@ async def infer(request: Request, inference_request: InferenceRequest):
             # Decode output
             response_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
             
-            # Remove full input (system prompt + user input) from response
-            if response_text.startswith(full_input):
-                response_text = response_text[len(full_input):].strip()
-            elif response_text.startswith(inference_request.text):
-                response_text = response_text[len(inference_request.text):].strip()
+            # Clean response using utility function
+            response_text = clean_inference_response(response_text, full_input, inference_request.text)
             
             latency_ms = (time.time() - start_time) * 1000
             
@@ -2219,18 +2245,13 @@ async def oneseek_inference(request: InferenceRequest):
     import time
     start_time = time.time()
     
-    # Get the active system prompt from Admin Dashboard (datasets/system_prompts/)
-    system_prompt = get_active_system_prompt()
-    
-    # Inject system prompt before user input - the model always knows who it is
-    # Format: "[System Prompt]\n\n[User Input]"
-    full_input = f"{system_prompt}\n\nUser: {request.text}\n\nAssistant:"
+    # Format input with system prompt - ensures model always knows its identity
+    full_input = format_inference_input(request.text)
     
     # === DEBUG: Log inference start ===
     logger.info("=" * 60)
     logger.info("=== ONESEEK INFERENCE START ===")
-    logger.info(f"→ System prompt injected ({len(system_prompt)} chars)")
-    logger.debug(f"→ System prompt (first 100 chars): {system_prompt[:100]}...")
+    logger.info("→ System prompt injected")
     logger.debug(f"→ Input text: {request.text[:100]}..." if len(request.text) > 100 else f"→ Input text: {request.text}")
     logger.debug(f"→ Max length: {request.max_length}")
     logger.debug(f"→ Temperature: {request.temperature}")
@@ -2333,12 +2354,8 @@ async def oneseek_inference(request: InferenceRequest):
             decode_time = (time.time() - decode_start) * 1000
             logger.debug(f"→ Decoding took: {decode_time:.1f}ms")
             
-            # Remove full input (system prompt + user input) from response
-            if response_text.startswith(full_input):
-                response_text = response_text[len(full_input):].strip()
-            elif response_text.startswith(request.text):
-                # Fallback: remove just the user input if full input doesn't match
-                response_text = response_text[len(request.text):].strip()
+            # Clean response using utility function
+            response_text = clean_inference_response(response_text, full_input, request.text)
             
             latency_ms = (time.time() - start_time) * 1000
             
