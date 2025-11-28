@@ -831,11 +831,11 @@ def get_active_system_prompt() -> str:
     # Find the active prompt
     for prompt in prompts:
         if prompt.is_active:
-            logger.info(f"Using active system prompt: {prompt.name} (ID: {prompt.id})")
+            logger.debug(f"Using active system prompt: {prompt.name} (ID: {prompt.id})")
             return prompt.content
     
     # No active prompt found - return default
-    logger.info("No active system prompt found, using default")
+    logger.debug("No active system prompt found, using default")
     return DEFAULT_SYSTEM_PROMPT
 
 
@@ -1093,9 +1093,6 @@ def sync_character_cards_to_prompts() -> dict:
     
     character_files = list(characters_dir.glob('*.yaml')) + list(characters_dir.glob('*.yml'))
     existing_prompts = load_all_system_prompts()
-    existing_tags = set()
-    for p in existing_prompts:
-        existing_tags.update(p.tags)
     
     for char_file in character_files:
         try:
@@ -2192,7 +2189,7 @@ async def infer(request: Request, inference_request: InferenceRequest):
     # Format input with system prompt - ensures model always knows its identity
     full_input = format_inference_input(inference_request.text)
     
-    logger.info(f"Injecting system prompt into inference request")
+    logger.debug("Injecting system prompt into inference request")
     
     try:
         # Determine if we're using certified model or fallback
@@ -2297,8 +2294,8 @@ async def oneseek_inference(request: InferenceRequest):
     full_input = format_inference_input(request.text)
     
     # === DEBUG: Log inference start ===
-    logger.info("=" * 60)
-    logger.info("=== ONESEEK INFERENCE START ===")
+    logger.debug("=" * 60)
+    logger.debug("=== ONESEEK INFERENCE START ===")
     logger.debug("→ System prompt injected")
     logger.debug(f"→ Input text: {request.text[:100]}..." if len(request.text) > 100 else f"→ Input text: {request.text}")
     logger.debug(f"→ Max length: {request.max_length}")
