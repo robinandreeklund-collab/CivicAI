@@ -17,6 +17,15 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
+# CRITICAL: Remove CUDA_VISIBLE_DEVICES restriction BEFORE importing torch or other modules
+# This ensures PyTorch can see ALL available GPUs
+# IDEs, shells, or other environments may set this to restrict GPU access
+_cuda_visible = os.environ.get('CUDA_VISIBLE_DEVICES', None)
+if _cuda_visible is not None and _cuda_visible not in ('', 'all'):
+    print(f"[STARTUP] CUDA_VISIBLE_DEVICES was set to: {_cuda_visible}")
+    print(f"[STARTUP] Removing restriction to allow access to all GPUs")
+    del os.environ['CUDA_VISIBLE_DEVICES']
+
 # Set stdout to UTF-8 encoding to handle Unicode characters on Windows
 if sys.platform == 'win32':
     import io

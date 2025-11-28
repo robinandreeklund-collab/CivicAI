@@ -123,6 +123,18 @@ def initialize_cuda():
     """
     try:
         import torch
+        import os
+        
+        # CRITICAL: Remove CUDA_VISIBLE_DEVICES restriction if it's limiting us to a single GPU
+        # This ensures PyTorch can see ALL available GPUs
+        # IDEs, shells, or other environments may set this to restrict GPU access
+        cuda_visible = os.environ.get('CUDA_VISIBLE_DEVICES', None)
+        if cuda_visible is not None and cuda_visible not in ('', 'all'):
+            # Check if restriction is limiting to less than actual hardware
+            restricted_count = len([x for x in cuda_visible.split(',') if x.strip()])
+            print(f"[INFO] CUDA_VISIBLE_DEVICES was set to: {cuda_visible} ({restricted_count} GPU(s))")
+            print(f"[INFO] Removing restriction to allow access to all GPUs")
+            del os.environ['CUDA_VISIBLE_DEVICES']
         
         if not torch.cuda.is_available():
             print("[INFO] CUDA not available - will use CPU")

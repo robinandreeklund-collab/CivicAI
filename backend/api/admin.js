@@ -1501,6 +1501,11 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       PYTHONUNBUFFERED: '1',  // Force unbuffered Python output for real-time logs
     };
     
+    // CRITICAL: Remove any CUDA_VISIBLE_DEVICES restriction from parent process
+    // This ensures PyTorch can see ALL available GPUs for training
+    // Without this, IDEs or shells that set CUDA_VISIBLE_DEVICES=0 will restrict to 1 GPU
+    delete env.CUDA_VISIBLE_DEVICES;
+    
     // Add ledger configuration if available
     if (process.env.LEDGER_URL) {
       env.LEDGER_URL = process.env.LEDGER_URL;

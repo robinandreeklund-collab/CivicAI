@@ -19,6 +19,16 @@ Or via train_dna_v2.py with --use-ddp flag.
 
 import os
 import sys
+
+# CRITICAL: Remove CUDA_VISIBLE_DEVICES restriction BEFORE importing torch
+# This ensures PyTorch can see ALL available GPUs
+# IDEs, shells, or other environments may set this to restrict GPU access
+_cuda_visible = os.environ.get('CUDA_VISIBLE_DEVICES', None)
+if _cuda_visible is not None and _cuda_visible not in ('', 'all'):
+    print(f"[DDP] CUDA_VISIBLE_DEVICES was set to: {_cuda_visible}")
+    print(f"[DDP] Removing restriction to allow access to all GPUs")
+    del os.environ['CUDA_VISIBLE_DEVICES']
+
 import json
 import argparse
 import torch
