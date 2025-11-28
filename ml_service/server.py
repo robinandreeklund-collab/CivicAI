@@ -865,9 +865,6 @@ def clean_inference_response(response_text: str, full_input: str, user_text: str
     # First try to remove the full input (system prompt + user input)
     if response_text.startswith(full_input):
         return response_text[len(full_input):].strip()
-    # Fallback: remove just the user input if full input doesn't match
-    elif response_text.startswith(user_text):
-        return response_text[len(user_text):].strip()
     return response_text.strip()
 
 
