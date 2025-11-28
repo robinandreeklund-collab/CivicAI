@@ -529,8 +529,11 @@ export default function OQIDemo10v10() {
       {/* ===== MAIN CHAT AREA - Extended Conversation ===== */}
       <main 
         ref={chatScrollRef}
-        className={`min-h-screen flex flex-col px-24 pb-52 pt-32 overflow-y-auto ${focusMode ? 'scale-[1.01]' : ''} transition-all duration-500`} 
-        style={{ paddingRight: sidebarExpanded ? '320px' : '40px' }}
+        className={`fixed inset-0 top-[120px] bottom-[180px] px-24 overflow-y-auto ${focusMode ? 'scale-[1.01]' : ''} transition-all duration-500`} 
+        style={{ 
+          paddingRight: sidebarExpanded ? '320px' : '40px',
+          paddingLeft: '80px',
+        }}
       >
         <div className="max-w-2xl mx-auto w-full space-y-8">
           
