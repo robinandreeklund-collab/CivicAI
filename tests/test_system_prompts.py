@@ -326,5 +326,147 @@ class TestCharacterImport:
             assert response.status_code == 404
 
 
+class TestSimpleSystemPromptAPI:
+    """Test the simple /api/system-prompt GET endpoint (convenience wrapper)"""
+    
+    @pytest.fixture
+    def client(self):
+        """Create test client"""
+        from server import app
+        from fastapi.testclient import TestClient
+        return TestClient(app)
+    
+    def test_get_simple_prompt_returns_default(self, client, tmp_path):
+        """Test GET /api/system-prompt returns default when no active prompt exists"""
+        with patch('server.SYSTEM_PROMPTS_DIR', tmp_path):
+            response = client.get("/api/system-prompt")
+            assert response.status_code == 200
+            data = response.json()
+            assert "content" in data
+            # Should return the default prompt since no prompt files exist
+            assert len(data["content"]) > 0
+    
+    def test_get_simple_prompt_returns_active(self, client, tmp_path):
+        """Test GET /api/system-prompt returns the active prompt"""
+        from server import SystemPrompt, save_system_prompt
+        
+        with patch('server.SYSTEM_PROMPTS_DIR', tmp_path):
+            # Create and save an active prompt
+            prompt = SystemPrompt(
+                id="test-active",
+                name="Active Test Prompt",
+                content="This is the active system prompt for testing",
+                is_active=True
+            )
+            save_system_prompt(prompt)
+            
+            response = client.get("/api/system-prompt")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["content"] == "This is the active system prompt for testing"
+
+
+class TestInferenceUtilityFunctions:
+    """Test the utility functions for inference prompt formatting and response cleaning"""
+    
+    def test_format_inference_input_with_default_prompt(self, tmp_path):
+        """Test format_inference_input uses default prompt when no active prompt exists"""
+        from server import format_inference_input, DEFAULT_SYSTEM_PROMPT
+        
+        with patch('server.SYSTEM_PROMPTS_DIR', tmp_path):
+            result = format_inference_input("Vem är du?")
+            
+            # Verify the format includes system prompt, user input, and Assistant suffix
+            assert result.startswith(DEFAULT_SYSTEM_PROMPT)
+            assert "\n\nUser: Vem är du?\n\nAssistant:" in result
+    
+    def test_format_inference_input_with_active_prompt(self, tmp_path):
+        """Test format_inference_input uses the active system prompt"""
+        from server import format_inference_input, SystemPrompt, save_system_prompt
+        
+        with patch('server.SYSTEM_PROMPTS_DIR', tmp_path):
+            # Create and save an active prompt
+            prompt = SystemPrompt(
+                id="format-test",
+                name="Format Test Prompt",
+                content="Du är en testassistent.",
+                is_active=True
+            )
+            save_system_prompt(prompt)
+            
+            result = format_inference_input("Hej!")
+            
+            # Verify the format includes the active prompt
+            assert result.startswith("Du är en testassistent.")
+            assert "\n\nUser: Hej!\n\nAssistant:" in result
+    
+    def test_format_inference_input_correct_structure(self, tmp_path):
+        """Test format_inference_input produces the correct format structure"""
+        from server import format_inference_input, DEFAULT_SYSTEM_PROMPT
+        
+        with patch('server.SYSTEM_PROMPTS_DIR', tmp_path):
+            user_input = "Berätta om Sverige"
+            result = format_inference_input(user_input)
+            
+            # Expected format: "[System Prompt]\n\nUser: [input]\n\nAssistant:"
+            expected = f"{DEFAULT_SYSTEM_PROMPT}\n\nUser: {user_input}\n\nAssistant:"
+            assert result == expected
+    
+    def test_clean_inference_response_removes_full_input(self):
+        """Test clean_inference_response removes the full input from response"""
+        from server import clean_inference_response
+        
+        full_input = "System prompt\n\nUser: Question\n\nAssistant:"
+        response = "System prompt\n\nUser: Question\n\nAssistant: This is the answer."
+        
+        result = clean_inference_response(response, full_input, "Question")
+        
+        assert result == "This is the answer."
+    
+    def test_clean_inference_response_strips_whitespace(self):
+        """Test clean_inference_response strips leading/trailing whitespace"""
+        from server import clean_inference_response
+        
+        full_input = "Prompt\n\nUser: Q\n\nAssistant:"
+        response = "Prompt\n\nUser: Q\n\nAssistant:   Answer with spaces   "
+        
+        result = clean_inference_response(response, full_input, "Q")
+        
+        assert result == "Answer with spaces"
+    
+    def test_clean_inference_response_no_match(self):
+        """Test clean_inference_response returns stripped response when no match"""
+        from server import clean_inference_response
+        
+        full_input = "Different prompt\n\nUser: Different\n\nAssistant:"
+        response = "  Some model output  "
+        
+        result = clean_inference_response(response, full_input, "Different")
+        
+        # Should just strip whitespace when there's no match
+        assert result == "Some model output"
+    
+    def test_clean_inference_response_empty_response(self):
+        """Test clean_inference_response handles empty response"""
+        from server import clean_inference_response
+        
+        full_input = "Prompt\n\nUser: Q\n\nAssistant:"
+        
+        result = clean_inference_response("", full_input, "Q")
+        
+        assert result == ""
+    
+    def test_clean_inference_response_exact_match(self):
+        """Test clean_inference_response when response is exactly the input"""
+        from server import clean_inference_response
+        
+        full_input = "Prompt\n\nUser: Q\n\nAssistant:"
+        response = "Prompt\n\nUser: Q\n\nAssistant:"
+        
+        result = clean_inference_response(response, full_input, "Q")
+        
+        assert result == ""
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

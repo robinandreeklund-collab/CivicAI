@@ -3,12 +3,21 @@ import { useState, useEffect } from 'react';
 /**
  * System Prompt Management Component
  * 
+ * The active system prompt is automatically injected into every inference request,
+ * ensuring the model always knows its identity and personality.
+ * 
  * Features:
  * - Create, edit, delete system prompts
  * - Activate/deactivate prompts for chatbot inference
- * - JSONL-format validation
+ * - 100% integration with model - prompt follows with every request
+ * - No server restart required - changes take effect immediately
  * - Real-time chat testing
  * - Import character cards as prompts
+ * 
+ * How it works:
+ * - Prompts are stored in datasets/system_prompts/ as JSON files
+ * - The active prompt is read on every inference request
+ * - Format: "[System Prompt]\n\nUser: [input]\n\nAssistant:"
  */
 export default function SystemPromptManagement() {
   const [prompts, setPrompts] = useState([]);
@@ -99,6 +108,39 @@ export default function SystemPromptManagement() {
     } catch (err) {
       console.error('Error fetching characters:', err);
     }
+  };
+
+  const handleSyncCharacters = async () => {
+    setLoading(true);
+    try {
+      let response;
+      try {
+        response = await fetch('http://localhost:5000/api/system-prompts/sync-characters', {
+          method: 'POST'
+        });
+      } catch {
+        response = await fetch('/api/system-prompts/sync-characters', {
+          method: 'POST'
+        });
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.synced && data.synced.length > 0) {
+          setSuccess(`Synced ${data.synced.length} character card(s) as system prompts!`);
+        } else {
+          setSuccess('All character cards are already synced.');
+        }
+        fetchPrompts();
+        fetchAvailableCharacters();
+      } else {
+        throw new Error('Sync failed');
+      }
+    } catch (err) {
+      console.error('Error syncing characters:', err);
+      setError('Failed to sync character cards');
+    }
+    setLoading(false);
   };
 
   const handleCreate = () => {
@@ -367,6 +409,14 @@ export default function SystemPromptManagement() {
 
   return (
     <div className="space-y-6">
+      {/* Info Banner */}
+      <div className="border border-blue-500/30 bg-blue-500/5 p-4 rounded">
+        <p className="text-blue-300 font-mono text-sm">
+          💡 System prompts are automatically injected into every inference request. 
+          The model always knows its identity. Activate a prompt to use it.
+        </p>
+      </div>
+
       {/* Status Messages */}
       {error && (
         <div className="border border-red-500/30 bg-red-500/10 text-red-400 p-4 rounded font-mono text-sm">
@@ -380,13 +430,21 @@ export default function SystemPromptManagement() {
       )}
 
       {/* Header Actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <h2 className="text-[#eee] font-mono text-lg">System Prompts</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleSyncCharacters}
+            disabled={loading}
+            className="px-4 py-2 border border-purple-500/30 text-purple-300 text-sm font-mono hover:bg-purple-500/10 transition-colors disabled:opacity-50"
+            title="Sync all character cards as system prompts"
+          >
+            🔄 Synka Character Cards
+          </button>
           <button
             onClick={() => setShowImportModal(true)}
             className="px-4 py-2 border border-[#2a2a2a] text-[#888] text-sm font-mono hover:bg-[#1a1a1a] transition-colors"
-            title="Import from character card"
+            title="Import a specific character card"
           >
             Import Character
           </button>
@@ -398,6 +456,63 @@ export default function SystemPromptManagement() {
           </button>
         </div>
       </div>
+
+      {/* Character Cards Section */}
+      {availableCharacters.length > 0 && (
+        <div className="border border-[#2a2a2a] bg-[#111] p-4 rounded">
+          <h3 className="text-[#eee] font-mono text-base mb-3">
+            🎭 Character Cards ({availableCharacters.length})
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {availableCharacters.map((char) => (
+              <div
+                key={char.id}
+                className={`p-3 rounded border transition-colors ${
+                  char.is_active 
+                    ? 'border-green-500/50 bg-green-500/5' 
+                    : char.is_synced 
+                      ? 'border-[#2a2a2a] bg-[#0a0a0a]' 
+                      : 'border-yellow-500/30 bg-yellow-500/5'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xl">{char.icon || '🤖'}</span>
+                  <span className="text-[#eee] font-mono text-sm font-medium">{char.name}</span>
+                </div>
+                <p className="text-[#666] font-mono text-xs mb-2 line-clamp-2">{char.description || 'No description available'}</p>
+                <div className="flex items-center gap-2">
+                  {char.is_active && (
+                    <span className="px-2 py-0.5 text-[10px] bg-green-500/20 text-green-400 rounded font-mono">
+                      ACTIVE
+                    </span>
+                  )}
+                  {char.is_synced && !char.is_active && (
+                    <span className="px-2 py-0.5 text-[10px] bg-[#1a1a1a] text-[#666] rounded font-mono">
+                      SYNCED
+                    </span>
+                  )}
+                  {!char.is_synced && (
+                    <span className="px-2 py-0.5 text-[10px] bg-yellow-500/20 text-yellow-400 rounded font-mono">
+                      NOT SYNCED
+                    </span>
+                  )}
+                  <span className="px-2 py-0.5 text-[10px] bg-[#1a1a1a] text-[#555] rounded font-mono">
+                    {char.personality_type}
+                  </span>
+                </div>
+                {char.is_synced && !char.is_active && (
+                  <button
+                    onClick={() => handleActivate({ id: char.synced_prompt_id, name: char.name })}
+                    className="mt-2 w-full px-2 py-1 text-xs border border-green-500/30 text-green-400 font-mono hover:bg-green-500/10 transition-colors rounded"
+                  >
+                    Aktivera
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Create/Edit Form */}
       {(isCreating || isEditing) && (
@@ -496,13 +611,18 @@ export default function SystemPromptManagement() {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="text-[#eee] font-mono text-sm font-medium">
                         {prompt.name}
                       </span>
                       {prompt.is_active && (
                         <span className="px-2 py-0.5 text-[10px] bg-green-500/20 text-green-400 rounded font-mono">
                           ACTIVE
+                        </span>
+                      )}
+                      {prompt.tags && prompt.tags.includes('character-card') && (
+                        <span className="px-2 py-0.5 text-[10px] bg-purple-500/20 text-purple-300 rounded font-mono">
+                          🎭 CHARACTER
                         </span>
                       )}
                       <span className="px-2 py-0.5 text-[10px] bg-[#1a1a1a] border border-[#2a2a2a] text-[#666] rounded font-mono">
