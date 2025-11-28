@@ -829,6 +829,8 @@ The active system prompt is automatically prepended to every inference request:
 [System Prompt]
 
 User: [User's question]
+
+Assistant:
 ```
 
 This ensures the model always knows its identity, regardless of which character is selected.
