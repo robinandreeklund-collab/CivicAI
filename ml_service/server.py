@@ -2302,7 +2302,7 @@ async def oneseek_inference(request: InferenceRequest):
     # === DEBUG: Log inference start ===
     logger.info("=" * 60)
     logger.info("=== ONESEEK INFERENCE START ===")
-    logger.info("→ System prompt injected")
+    logger.debug("→ System prompt injected")
     logger.debug(f"→ Input text: {request.text[:100]}..." if len(request.text) > 100 else f"→ Input text: {request.text}")
     logger.debug(f"→ Max length: {request.max_length}")
     logger.debug(f"→ Temperature: {request.temperature}")
