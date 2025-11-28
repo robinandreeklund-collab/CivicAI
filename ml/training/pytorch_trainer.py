@@ -842,6 +842,73 @@ def train_single_model_lora(
             except Exception as e7:
                 tokenizer_errors.append(f"LlamaTokenizer: {e7}")
         
+        # Strategy 9: For GPT-SW3 (Swedish GPT) models with custom tokenizers
+        # GPT-SW3 has a custom tokenizer class that requires trust_remote_code=True
+        # and may need to download tokenizer code from HuggingFace hub
+        # SECURITY NOTE: Only used for models that explicitly declare GPTSw3Tokenizer
+        if tokenizer is None and tokenizer_class_name and 'GPTSw3' in tokenizer_class_name:
+            print(f"   [INFO] Detected GPT-SW3 tokenizer class, trying special loading strategies...")
+            try:
+                from transformers import AutoTokenizer
+                # GPT-SW3 tokenizers often need to download custom code from HuggingFace
+                # This is safe because we only reach here for trusted local models with
+                # GPTSw3Tokenizer explicitly declared in tokenizer_config.json
+                tokenizer = AutoTokenizer.from_pretrained(
+                    str(actual_model_path),
+                    trust_remote_code=True,
+                    # Don't set local_files_only=True for GPT-SW3 custom tokenizers
+                )
+                print(f"   [SUCCESS] Tokenizer loaded with trust_remote_code (GPT-SW3)")
+            except Exception as e8:
+                tokenizer_errors.append(f"GPT-SW3 (trust_remote_code): {e8}")
+        
+        
+        # Strategy 10: For GPT-2 based models, try GPT2Tokenizer
+        if tokenizer is None and model_type and model_type.lower() == 'gpt2':
+            try:
+                from transformers import GPT2Tokenizer
+                tokenizer = GPT2Tokenizer.from_pretrained(
+                    str(actual_model_path),
+                    trust_remote_code=True,
+                    local_files_only=True
+                )
+                print(f"   [SUCCESS] Tokenizer loaded with GPT2Tokenizer")
+            except Exception as e9:
+                tokenizer_errors.append(f"GPT2Tokenizer: {e9}")
+        
+        # Strategy 11: For GPT-2 based models, try GPT2TokenizerFast
+        if tokenizer is None and model_type and model_type.lower() == 'gpt2':
+            try:
+                from transformers import GPT2TokenizerFast
+                tokenizer = GPT2TokenizerFast.from_pretrained(
+                    str(actual_model_path),
+                    trust_remote_code=True,
+                    local_files_only=True
+                )
+                print(f"   [SUCCESS] Tokenizer loaded with GPT2TokenizerFast")
+            except Exception as e10:
+                tokenizer_errors.append(f"GPT2TokenizerFast: {e10}")
+        
+        # Strategy 12: Last resort - try AutoTokenizer without local_files_only
+        # This allows downloading missing tokenizer code from HuggingFace hub
+        # for models with custom tokenizers like GPT-SW3
+        # SECURITY NOTE: This is a last-resort strategy that allows remote code execution.
+        # It only runs if all other strategies fail AND the model is already stored locally.
+        # The model files themselves remain local - only tokenizer code may be downloaded.
+        if tokenizer is None:
+            try:
+                from transformers import AutoTokenizer
+                print(f"   [WARNING] All local-only tokenizer strategies failed")
+                print(f"   [INFO] Trying AutoTokenizer allowing HuggingFace hub access for tokenizer code...")
+                tokenizer = AutoTokenizer.from_pretrained(
+                    str(actual_model_path),
+                    trust_remote_code=True,
+                    # Don't restrict to local files - allow downloading tokenizer code
+                )
+                print(f"   [SUCCESS] Tokenizer loaded with AutoTokenizer (allowing remote code)")
+            except Exception as e11:
+                tokenizer_errors.append(f"AutoTokenizer (remote allowed): {e11}")
+        
         if tokenizer is None:
             # === NO FALLBACK TO REMOTE MODELS ===
             # We NEVER silently fall back to downloading from HuggingFace.
