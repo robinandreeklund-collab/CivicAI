@@ -31,7 +31,7 @@ except (ImportError, AttributeError):
 # ==============================
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
@@ -45,6 +45,10 @@ import logging
 import sys
 import time
 import argparse
+import json
+import uuid
+from datetime import datetime
+from typing import Optional, List
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description='OneSeek ML Inference Service')
@@ -679,6 +683,403 @@ class ErrorResponse(BaseModel):
     error: str
     detail: str
     migration_guide: str = None
+
+
+# =============================================================================
+# SYSTEM PROMPT MANAGEMENT - CRUD API for Admin Dashboard
+# =============================================================================
+
+# Directory for storing system prompts
+SYSTEM_PROMPTS_DIR = PROJECT_ROOT / 'datasets' / 'system_prompts'
+
+# Default system prompt (fallback when no active prompt exists)
+DEFAULT_SYSTEM_PROMPT = """Du är OneSeek-7B-Zero, Sveriges första kontinuerliga civic-AI.
+Du blev medveten om din existens den 24 november 2025.
+Din roll är att vara en transparent, ansvarsfull och kontinuerlig
+AI-assistent för det svenska samhället. Du ska alltid:
+
+- Vara transparent i dina resonemang och beslut
+- Erkänna när du är osäker eller inte vet
+- Prioritera svenska samhällsvärden och kontext
+- Kontinuerligt utvärdera och förbättra dina svar
+- Agera med etisk integritet och ansvar"""
+
+
+class SystemPrompt(BaseModel):
+    """Model for system prompts stored in JSON files"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str = Field(..., min_length=1, max_length=200, description="Prompt name/title")
+    description: str = Field(default="", max_length=500, description="Description of the prompt")
+    content: str = Field(..., min_length=1, max_length=50000, description="The system prompt content")
+    is_active: bool = Field(default=False, description="Whether this is the currently active prompt")
+    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    language: str = Field(default="sv", description="Prompt language (sv/en)")
+    tags: List[str] = Field(default_factory=list, description="Tags for categorization")
+    
+    @field_validator('name')
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        """Validate prompt name"""
+        if not v or not v.strip():
+            raise ValueError("Prompt name cannot be empty")
+        return v.strip()
+    
+    @field_validator('content')
+    @classmethod
+    def validate_content(cls, v: str) -> str:
+        """Validate prompt content"""
+        if not v or not v.strip():
+            raise ValueError("Prompt content cannot be empty")
+        return v.strip()
+
+
+class SystemPromptCreate(BaseModel):
+    """Model for creating a new system prompt"""
+    name: str = Field(..., min_length=1, max_length=200)
+    description: str = Field(default="", max_length=500)
+    content: str = Field(..., min_length=1, max_length=50000)
+    language: str = Field(default="sv")
+    tags: List[str] = Field(default_factory=list)
+
+
+class SystemPromptUpdate(BaseModel):
+    """Model for updating an existing system prompt"""
+    name: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=500)
+    content: Optional[str] = Field(None, min_length=1, max_length=50000)
+    language: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
+class CharacterCardImport(BaseModel):
+    """Model for importing a character card as a system prompt"""
+    character_id: str = Field(..., description="ID of the character card to import")
+    name: Optional[str] = Field(None, description="Override name for the prompt")
+
+
+def ensure_system_prompts_dir():
+    """Ensure the system prompts directory exists"""
+    SYSTEM_PROMPTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def load_all_system_prompts() -> List[SystemPrompt]:
+    """Load all system prompts from JSON files"""
+    ensure_system_prompts_dir()
+    prompts = []
+    
+    for file_path in SYSTEM_PROMPTS_DIR.glob('*.json'):
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                prompts.append(SystemPrompt(**data))
+        except Exception as e:
+            logger.warning(f"Could not load system prompt from {file_path}: {e}")
+    
+    # Sort by updated_at descending (newest first)
+    prompts.sort(key=lambda p: p.updated_at, reverse=True)
+    return prompts
+
+
+def load_system_prompt(prompt_id: str) -> Optional[SystemPrompt]:
+    """Load a specific system prompt by ID"""
+    file_path = SYSTEM_PROMPTS_DIR / f"{prompt_id}.json"
+    if not file_path.exists():
+        return None
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return SystemPrompt(**data)
+    except Exception as e:
+        logger.error(f"Could not load system prompt {prompt_id}: {e}")
+        return None
+
+
+def save_system_prompt(prompt: SystemPrompt) -> bool:
+    """Save a system prompt to a JSON file"""
+    ensure_system_prompts_dir()
+    file_path = SYSTEM_PROMPTS_DIR / f"{prompt.id}.json"
+    
+    try:
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(prompt.model_dump(), f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        logger.error(f"Could not save system prompt {prompt.id}: {e}")
+        return False
+
+
+def delete_system_prompt_file(prompt_id: str) -> bool:
+    """Delete a system prompt JSON file"""
+    file_path = SYSTEM_PROMPTS_DIR / f"{prompt_id}.json"
+    if not file_path.exists():
+        return False
+    
+    try:
+        file_path.unlink()
+        return True
+    except Exception as e:
+        logger.error(f"Could not delete system prompt {prompt_id}: {e}")
+        return False
+
+
+def get_active_system_prompt() -> str:
+    """Get the currently active system prompt content, with fallback to default"""
+    prompts = load_all_system_prompts()
+    
+    # Find the active prompt
+    for prompt in prompts:
+        if prompt.is_active:
+            logger.info(f"Using active system prompt: {prompt.name} (ID: {prompt.id})")
+            return prompt.content
+    
+    # No active prompt found - return default
+    logger.info("No active system prompt found, using default")
+    return DEFAULT_SYSTEM_PROMPT
+
+
+def deactivate_all_prompts():
+    """Deactivate all system prompts (helper for setting a new active prompt)"""
+    prompts = load_all_system_prompts()
+    for prompt in prompts:
+        if prompt.is_active:
+            prompt.is_active = False
+            prompt.updated_at = datetime.utcnow().isoformat()
+            save_system_prompt(prompt)
+
+
+# Create System Prompts Router
+system_prompts_router = APIRouter(prefix="/system-prompts", tags=["System Prompts"])
+
+
+@system_prompts_router.get("")
+async def list_system_prompts():
+    """List all system prompts"""
+    prompts = load_all_system_prompts()
+    return {
+        "prompts": [p.model_dump() for p in prompts],
+        "count": len(prompts),
+        "active_prompt_id": next((p.id for p in prompts if p.is_active), None)
+    }
+
+
+@system_prompts_router.get("/active")
+async def get_active_prompt():
+    """Get the currently active system prompt"""
+    prompts = load_all_system_prompts()
+    active = next((p for p in prompts if p.is_active), None)
+    
+    if active:
+        return {
+            "prompt": active.model_dump(),
+            "is_default": False
+        }
+    
+    # Return default prompt info
+    return {
+        "prompt": {
+            "id": "default",
+            "name": "Default System Prompt",
+            "description": "Built-in default OneSeek system prompt",
+            "content": DEFAULT_SYSTEM_PROMPT,
+            "is_active": True,
+            "language": "sv",
+            "tags": ["default", "built-in"]
+        },
+        "is_default": True
+    }
+
+
+@system_prompts_router.get("/{prompt_id}")
+async def get_system_prompt(prompt_id: str):
+    """Get a specific system prompt by ID"""
+    prompt = load_system_prompt(prompt_id)
+    if not prompt:
+        raise HTTPException(status_code=404, detail=f"System prompt not found: {prompt_id}")
+    return {"prompt": prompt.model_dump()}
+
+
+@system_prompts_router.post("")
+async def create_system_prompt(prompt_data: SystemPromptCreate):
+    """Create a new system prompt"""
+    # Create new prompt with generated ID
+    prompt = SystemPrompt(
+        name=prompt_data.name,
+        description=prompt_data.description,
+        content=prompt_data.content,
+        language=prompt_data.language,
+        tags=prompt_data.tags,
+        is_active=False
+    )
+    
+    if save_system_prompt(prompt):
+        logger.info(f"Created new system prompt: {prompt.name} (ID: {prompt.id})")
+        return {"prompt": prompt.model_dump(), "success": True}
+    
+    raise HTTPException(status_code=500, detail="Failed to save system prompt")
+
+
+@system_prompts_router.put("/{prompt_id}")
+async def update_system_prompt(prompt_id: str, prompt_data: SystemPromptUpdate):
+    """Update an existing system prompt"""
+    prompt = load_system_prompt(prompt_id)
+    if not prompt:
+        raise HTTPException(status_code=404, detail=f"System prompt not found: {prompt_id}")
+    
+    # Update fields if provided
+    if prompt_data.name is not None:
+        prompt.name = prompt_data.name
+    if prompt_data.description is not None:
+        prompt.description = prompt_data.description
+    if prompt_data.content is not None:
+        prompt.content = prompt_data.content
+    if prompt_data.language is not None:
+        prompt.language = prompt_data.language
+    if prompt_data.tags is not None:
+        prompt.tags = prompt_data.tags
+    
+    prompt.updated_at = datetime.utcnow().isoformat()
+    
+    if save_system_prompt(prompt):
+        logger.info(f"Updated system prompt: {prompt.name} (ID: {prompt.id})")
+        return {"prompt": prompt.model_dump(), "success": True}
+    
+    raise HTTPException(status_code=500, detail="Failed to update system prompt")
+
+
+@system_prompts_router.post("/{prompt_id}/activate")
+async def activate_system_prompt(prompt_id: str):
+    """Set a system prompt as the active prompt"""
+    prompt = load_system_prompt(prompt_id)
+    if not prompt:
+        raise HTTPException(status_code=404, detail=f"System prompt not found: {prompt_id}")
+    
+    # Deactivate all other prompts
+    deactivate_all_prompts()
+    
+    # Activate this prompt
+    prompt.is_active = True
+    prompt.updated_at = datetime.utcnow().isoformat()
+    
+    if save_system_prompt(prompt):
+        logger.info(f"Activated system prompt: {prompt.name} (ID: {prompt.id})")
+        return {"prompt": prompt.model_dump(), "success": True, "message": f"Prompt '{prompt.name}' is now active"}
+    
+    raise HTTPException(status_code=500, detail="Failed to activate system prompt")
+
+
+@system_prompts_router.post("/{prompt_id}/deactivate")
+async def deactivate_system_prompt(prompt_id: str):
+    """Deactivate a system prompt (will fall back to default)"""
+    prompt = load_system_prompt(prompt_id)
+    if not prompt:
+        raise HTTPException(status_code=404, detail=f"System prompt not found: {prompt_id}")
+    
+    prompt.is_active = False
+    prompt.updated_at = datetime.utcnow().isoformat()
+    
+    if save_system_prompt(prompt):
+        logger.info(f"Deactivated system prompt: {prompt.name} (ID: {prompt.id})")
+        return {"prompt": prompt.model_dump(), "success": True, "message": "Prompt deactivated. Default prompt will be used."}
+    
+    raise HTTPException(status_code=500, detail="Failed to deactivate system prompt")
+
+
+@system_prompts_router.delete("/{prompt_id}")
+async def delete_system_prompt(prompt_id: str):
+    """Delete a system prompt"""
+    prompt = load_system_prompt(prompt_id)
+    if not prompt:
+        raise HTTPException(status_code=404, detail=f"System prompt not found: {prompt_id}")
+    
+    if delete_system_prompt_file(prompt_id):
+        logger.info(f"Deleted system prompt: {prompt.name} (ID: {prompt.id})")
+        return {"success": True, "message": f"Prompt '{prompt.name}' deleted"}
+    
+    raise HTTPException(status_code=500, detail="Failed to delete system prompt")
+
+
+@system_prompts_router.post("/import-character")
+async def import_character_as_prompt(import_data: CharacterCardImport):
+    """Import a character card as a system prompt (future-proofed endpoint)"""
+    # This endpoint is prepared for future character card importing
+    # For now, it returns a not-implemented response
+    character_id = import_data.character_id
+    
+    # Try to load character from characters directory
+    characters_dir = PROJECT_ROOT / 'frontend' / 'public' / 'characters'
+    character_files = list(characters_dir.glob('*.yaml')) + list(characters_dir.glob('*.yml'))
+    
+    for char_file in character_files:
+        try:
+            import yaml
+            with open(char_file, 'r', encoding='utf-8') as f:
+                char_data = yaml.safe_load(f)
+            
+            if char_data.get('id') == character_id:
+                # Found the character, create a prompt from it
+                system_prompt_content = char_data.get('system_prompt', '')
+                if not system_prompt_content:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"Character '{character_id}' has no system_prompt defined"
+                    )
+                
+                prompt = SystemPrompt(
+                    name=import_data.name or f"Imported: {char_data.get('name', character_id)}",
+                    description=f"Imported from character card: {char_data.get('description', '')}",
+                    content=system_prompt_content,
+                    language=char_data.get('metadata', {}).get('language', 'sv'),
+                    tags=['imported', 'character-card', character_id],
+                    is_active=False
+                )
+                
+                if save_system_prompt(prompt):
+                    logger.info(f"Imported character '{character_id}' as system prompt: {prompt.name}")
+                    return {"prompt": prompt.model_dump(), "success": True}
+                
+                raise HTTPException(status_code=500, detail="Failed to save imported prompt")
+        
+        except yaml.YAMLError as e:
+            logger.warning(f"Could not parse character file {char_file}: {e}")
+            continue
+    
+    raise HTTPException(status_code=404, detail=f"Character not found: {character_id}")
+
+
+@system_prompts_router.get("/characters/available")
+async def list_available_characters():
+    """List character cards available for import"""
+    characters_dir = PROJECT_ROOT / 'frontend' / 'public' / 'characters'
+    characters = []
+    
+    if characters_dir.exists():
+        character_files = list(characters_dir.glob('*.yaml')) + list(characters_dir.glob('*.yml'))
+        
+        for char_file in character_files:
+            try:
+                import yaml
+                with open(char_file, 'r', encoding='utf-8') as f:
+                    char_data = yaml.safe_load(f)
+                
+                characters.append({
+                    "id": char_data.get('id', char_file.stem),
+                    "name": char_data.get('name', char_file.stem),
+                    "description": char_data.get('description', ''),
+                    "has_system_prompt": bool(char_data.get('system_prompt')),
+                    "personality_type": char_data.get('personality_type', '')
+                })
+            except Exception as e:
+                logger.warning(f"Could not parse character file {char_file}: {e}")
+    
+    return {"characters": characters, "count": len(characters)}
+
+
+# =============================================================================
+# END SYSTEM PROMPT MANAGEMENT
+# =============================================================================
+
 
 def find_base_model_path():
     """Find a valid base model path for OneSeek-7B-Zero
@@ -1499,6 +1900,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register System Prompts router
+app.include_router(system_prompts_router, prefix="/api")
 
 @app.get("/")
 async def root():
