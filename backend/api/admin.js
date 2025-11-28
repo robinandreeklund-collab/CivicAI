@@ -833,6 +833,203 @@ router.post('/datasets/analyze-multiple-languages', requireAdmin, async (req, re
   }
 });
 
+// GET /api/admin/gpu-info - Get GPU information for DDP configuration
+router.get('/gpu-info', requireAdmin, async (req, res) => {
+  try {
+    // Try to get GPU info by running a simple Python script
+    // Uses multiple methods to ensure GPU detection works on all systems
+    // Includes nvidia-smi fallback for systems where PyTorch doesn't detect all GPUs
+    const pythonScript = `
+import json
+import os
+import subprocess
+import sys
+
+def get_nvidia_smi_gpus():
+    """Fallback: Use nvidia-smi to detect GPUs when PyTorch fails."""
+    try:
+        result = subprocess.run(
+            ['nvidia-smi', '--query-gpu=index,name,memory.total', '--format=csv,noheader,nounits'],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0:
+            devices = []
+            for line in result.stdout.strip().split('\\n'):
+                if line.strip():
+                    parts = [p.strip() for p in line.split(',')]
+                    if len(parts) >= 3:
+                        devices.append({
+                            'index': int(parts[0]),
+                            'name': parts[1],
+                            'memory_gb': round(float(parts[2]) / 1024, 1),  # Convert MiB to GB
+                            'compute_capability': 'N/A'
+                        })
+            return devices
+    except Exception:
+        pass
+    return None
+
+try:
+    import torch
+    
+    # Debug info for troubleshooting GPU detection issues
+    cuda_visible = os.environ.get('CUDA_VISIBLE_DEVICES', 'not set')
+    
+    # First try PyTorch detection
+    pytorch_count = 0
+    pytorch_devices = []
+    
+    if torch.cuda.is_available():
+        pytorch_count = torch.cuda.device_count()
+        for i in range(pytorch_count):
+            props = torch.cuda.get_device_properties(i)
+            memory_gb = props.total_memory / (1024**3)
+            pytorch_devices.append({
+                'index': i,
+                'name': props.name,
+                'memory_gb': round(memory_gb, 1),
+                'compute_capability': f"{props.major}.{props.minor}"
+            })
+    
+    # Try nvidia-smi as fallback to detect all GPUs
+    smi_devices = get_nvidia_smi_gpus()
+    
+    # Use whichever method found more GPUs
+    if smi_devices and len(smi_devices) > pytorch_count:
+        devices = smi_devices
+        count = len(smi_devices)
+        detection_method = 'nvidia-smi'
+    else:
+        devices = pytorch_devices
+        count = pytorch_count
+        detection_method = 'pytorch'
+    
+    total_memory = sum(d['memory_gb'] for d in devices)
+    
+    print(json.dumps({
+        'available': count > 0,
+        'count': count,
+        'devices': devices,
+        'total_memory_gb': round(total_memory, 1),
+        'ddp_supported': count >= 2,
+        'cuda_visible_devices': cuda_visible,
+        'torch_version': torch.__version__,
+        'detection_method': detection_method,
+        'pytorch_count': pytorch_count
+    }))
+
+except Exception as e:
+    # Even if PyTorch fails, try nvidia-smi
+    smi_devices = get_nvidia_smi_gpus()
+    if smi_devices:
+        total_memory = sum(d['memory_gb'] for d in smi_devices)
+        print(json.dumps({
+            'available': True,
+            'count': len(smi_devices),
+            'devices': smi_devices,
+            'total_memory_gb': round(total_memory, 1),
+            'ddp_supported': len(smi_devices) >= 2,
+            'detection_method': 'nvidia-smi-fallback',
+            'pytorch_error': str(e)
+        }))
+    else:
+        print(json.dumps({
+            'available': False,
+            'count': 0,
+            'devices': [],
+            'error': str(e),
+            'ddp_supported': False
+        }))
+`;
+
+    // Determine Python command
+    let pythonCommand;
+    const venvPath = path.join(process.cwd(), 'python_services', 'venv');
+    
+    if (process.platform === 'win32') {
+      const venvPython = path.join(venvPath, 'Scripts', 'python.exe');
+      try {
+        await fs.access(venvPython);
+        pythonCommand = venvPython;
+      } catch {
+        pythonCommand = 'python';
+      }
+    } else {
+      const venvPython = path.join(venvPath, 'bin', 'python3');
+      try {
+        await fs.access(venvPython);
+        pythonCommand = venvPython;
+      } catch {
+        pythonCommand = 'python3';
+      }
+    }
+
+    // Ensure CUDA sees all devices - some systems need this
+    const env = { ...process.env };
+    if (!env.CUDA_VISIBLE_DEVICES) {
+      // Don't restrict GPUs - let PyTorch see all available
+      delete env.CUDA_VISIBLE_DEVICES;
+    }
+
+    const gpuProcess = spawn(pythonCommand, ['-c', pythonScript], { env });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    gpuProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    gpuProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    gpuProcess.on('close', (code) => {
+      if (code === 0 && stdout) {
+        try {
+          const gpuInfo = JSON.parse(stdout.trim());
+          res.json(gpuInfo);
+        } catch (parseError) {
+          res.json({
+            available: false,
+            count: 0,
+            devices: [],
+            error: 'Failed to parse GPU info',
+            ddp_supported: false
+          });
+        }
+      } else {
+        res.json({
+          available: false,
+          count: 0,
+          devices: [],
+          error: stderr || 'Failed to get GPU info',
+          ddp_supported: false
+        });
+      }
+    });
+    
+    gpuProcess.on('error', (error) => {
+      res.json({
+        available: false,
+        count: 0,
+        devices: [],
+        error: error.message,
+        ddp_supported: false
+      });
+    });
+  } catch (error) {
+    console.error('Error getting GPU info:', error);
+    res.json({
+      available: false,
+      count: 0,
+      devices: [],
+      error: error.message,
+      ddp_supported: false
+    });
+  }
+});
+
 // Training Control Endpoints
 
 // GET /api/admin/training/status - Get training status
@@ -916,7 +1113,9 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       // Multi-GPU konfiguration (nya)
       useMultiGpu, numGpus,
       // DeepSpeed Tensor Parallel konfiguration (nya)
-      useDeepSpeed, deepSpeedTpSize, deepSpeedZeroStage, deepSpeedBatchSize
+      useDeepSpeed, deepSpeedTpSize, deepSpeedZeroStage, deepSpeedBatchSize,
+      // DDP (Distributed Data Parallel) konfiguration
+      useDdp, ddpBackend
     } = req.body;
     
     // Accept either datasetId (single) or datasetIds (multiple)
@@ -1051,6 +1250,19 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
     
     // Initialize training state with proper runId (no colons in timestamp)
     const runId = generateRunId();
+    
+    // === CONSOLE: Training Start Banner ===
+    console.log('\n' + '='.repeat(70));
+    console.log('[TRAINING START] DNA v2 Training Session');
+    console.log('='.repeat(70));
+    console.log(`[TRAINING] Run ID: ${runId}`);
+    console.log(`[TRAINING] Datasets: ${datasets.join(', ')}`);
+    console.log(`[TRAINING] Language: ${languageCode}`);
+    console.log(`[TRAINING] Base Models: ${baseModels.join(', ')}`);
+    console.log(`[TRAINING] Epochs: ${epochs || TRAINING_CONFIG.defaults.epochs}`);
+    console.log(`[TRAINING] DDP Mode: ${useDdp ? 'ENABLED' : 'disabled'}`);
+    console.log('='.repeat(70) + '\n');
+    
     trainingState = {
       status: 'training',
       runId: runId,
@@ -1265,6 +1477,13 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
         pythonArgs.push('--deepspeed-batch-size', String(deepSpeedBatchSize));
       }
     }
+    // DDP (Distributed Data Parallel) konfiguration
+    if (useDdp === true) {
+      pythonArgs.push('--use-ddp');
+      if (ddpBackend) {
+        pythonArgs.push('--ddp-backend', ddpBackend);
+      }
+    }
 
     
     trainingState.logs.push({
@@ -1278,7 +1497,14 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       MODELS_DIR: 'models',
       BASE_MODELS: baseModels.join(','),  // Pass selected base models
       RUN_ID: runId,  // Pass run_id to Python script for consistent tracking
+      USE_DDP: useDdp ? 'true' : 'false',  // Pass DDP flag to Python
+      PYTHONUNBUFFERED: '1',  // Force unbuffered Python output for real-time logs
     };
+    
+    // CRITICAL: Remove any CUDA_VISIBLE_DEVICES restriction from parent process
+    // This ensures PyTorch can see ALL available GPUs for training
+    // Without this, IDEs or shells that set CUDA_VISIBLE_DEVICES=0 will restrict to 1 GPU
+    delete env.CUDA_VISIBLE_DEVICES;
     
     // Add ledger configuration if available
     if (process.env.LEDGER_URL) {
@@ -1288,19 +1514,27 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       env.LEDGER_PRIVATE_KEY_PATH = process.env.LEDGER_PRIVATE_KEY_PATH;
     }
     
-    trainingProcess = spawn(pythonCommand, pythonArgs, {
+    // Use -u flag for unbuffered Python output (real-time logging)
+    const pythonArgsWithUnbuffered = ['-u', ...pythonArgs];
+    
+    trainingProcess = spawn(pythonCommand, pythonArgsWithUnbuffered, {
       cwd: path.join(process.cwd(), '..'),
       env: env,
     });
     
-    // Handle stdout
+    // Handle stdout - log to both trainingState AND console for real-time visibility
     trainingProcess.stdout.on('data', (data) => {
       const message = data.toString().trim();
       if (message) {
+        const timestamp = new Date().toISOString();
         trainingState.logs.push({
-          timestamp: new Date().toISOString(),
+          timestamp,
           message,
         });
+        
+        // === REAL-TIME CONSOLE OUTPUT ===
+        // Print to backend terminal so user can see training progress
+        console.log(`[TRAINING ${timestamp.split('T')[1].split('.')[0]}] ${message}`);
         
         // Parse epoch progress
         const epochMatch = message.match(/Epoch (\d+)\/(\d+)/);
@@ -1308,30 +1542,37 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
           trainingState.currentEpoch = parseInt(epochMatch[1]);
           trainingState.totalEpochs = parseInt(epochMatch[2]);
           trainingState.progress = Math.round((trainingState.currentEpoch / trainingState.totalEpochs) * 100);
+          // Also log progress summary
+          console.log(`[TRAINING PROGRESS] Epoch ${trainingState.currentEpoch}/${trainingState.totalEpochs} (${trainingState.progress}%)`);
         }
         
         // Parse loss
         const lossMatch = message.match(/loss[=:]\s*([0-9.]+)/i);
         if (lossMatch) {
           trainingState.loss = parseFloat(lossMatch[1]);
+          console.log(`[TRAINING LOSS] ${trainingState.loss.toFixed(4)}`);
         }
         
         // Parse DNA
         const dnaMatch = message.match(/DNA:\s*(OneSeek-7B-Zero\.v[\w.]+)/);
         if (dnaMatch) {
           trainingState.dna = dnaMatch[1];
+          console.log(`[TRAINING DNA] ${trainingState.dna}`);
         }
       }
     });
     
-    // Handle stderr
+    // Handle stderr - log errors to both trainingState AND console
     trainingProcess.stderr.on('data', (data) => {
       const message = data.toString().trim();
       if (message) {
+        const timestamp = new Date().toISOString();
         trainingState.logs.push({
-          timestamp: new Date().toISOString(),
+          timestamp,
           message: `[ERROR] ${message}`,
         });
+        // Print errors in red to console
+        console.error(`[TRAINING ERROR ${timestamp.split('T')[1].split('.')[0]}] ${message}`);
       }
     });
     
@@ -1346,6 +1587,11 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
           timestamp: endTime,
           message: `Training completed successfully with DNA v2!`,
         });
+        
+        // === CONSOLE: Training Success Banner ===
+        console.log('\n' + '='.repeat(70));
+        console.log('[TRAINING COMPLETE] ✓ Training finished successfully!');
+        console.log('='.repeat(70));
         
         // Try to load DNA v2 training results from the most recent run
         let trainingResults = null;
@@ -1391,6 +1637,12 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
           const lastEpoch = trainingHistory[trainingHistory.length - 1];
           finalLoss = lastEpoch.loss || finalLoss;
         }
+        
+        // Log completion details to console
+        console.log(`[TRAINING] Duration: ${Math.floor(duration / 60)}m ${duration % 60}s`);
+        console.log(`[TRAINING] Final Loss: ${finalLoss?.toFixed(4) || 'N/A'}`);
+        console.log(`[TRAINING] DNA: ${dna || 'N/A'}`);
+        console.log('='.repeat(70) + '\n');
         
         // Count samples from dataset
         let samplesProcessed = 0;
@@ -1592,6 +1844,13 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
           message: `Training failed with exit code ${code}`,
         });
         
+        // === CONSOLE: Training Failure Banner ===
+        console.log('\n' + '='.repeat(70));
+        console.error(`[TRAINING FAILED] ✗ Training exited with code ${code}`);
+        console.log('='.repeat(70));
+        console.log('[TRAINING] Check the logs above for error details');
+        console.log('='.repeat(70) + '\n');
+        
         notifications.push({
           id: uuidv4(),
           message: `Training failed with exit code ${code}`,
@@ -1608,6 +1867,8 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
         timestamp: new Date().toISOString(),
         message: `Process error: ${error.message}`,
       });
+      // === CONSOLE: Process Error ===
+      console.error(`[TRAINING ERROR] Process error: ${error.message}`);
       trainingProcess = null;
     });
     

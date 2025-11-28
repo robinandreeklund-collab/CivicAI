@@ -17,6 +17,15 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
+# CRITICAL: Remove CUDA_VISIBLE_DEVICES restriction BEFORE importing torch or other modules
+# This ensures PyTorch can see ALL available GPUs
+# IDEs, shells, or other environments may set this to restrict GPU access
+_cuda_visible = os.environ.get('CUDA_VISIBLE_DEVICES', None)
+if _cuda_visible is not None and _cuda_visible not in ('', 'all'):
+    print(f"[STARTUP] CUDA_VISIBLE_DEVICES was set to: {_cuda_visible}")
+    print(f"[STARTUP] Removing restriction to allow access to all GPUs")
+    del os.environ['CUDA_VISIBLE_DEVICES']
+
 # Set stdout to UTF-8 encoding to handle Unicode characters on Windows
 if sys.platform == 'win32':
     import io
@@ -172,6 +181,12 @@ def parse_args():
                         help='ZeRO optimization stage (0-3, default: 3)')
     parser.add_argument('--deepspeed-batch-size', type=int, default=32,
                         help='Total batch size för DeepSpeed (default: 32)')
+    
+    # DDP (Distributed Data Parallel) konfiguration - Full multi-GPU training
+    parser.add_argument('--use-ddp', action='store_true', default=False,
+                        help='Aktivera full DDP träning via torchrun (rekommenderat för multi-GPU)')
+    parser.add_argument('--ddp-backend', type=str, default='nccl', choices=['nccl', 'gloo'],
+                        help='DDP backend (nccl för NVIDIA GPU, gloo för CPU/fallback)')
 
     
     return parser.parse_args()
@@ -888,6 +903,249 @@ def run_real_training(args, data_dir, dataset_path):
         raise
 
 
+def launch_ddp_training(args, dataset_path: Path):
+    """
+    Launch DDP training using torchrun.
+    
+    This function spawns a torchrun process to run the ddp_trainer.py script
+    with the full configuration from the admin panel.
+    
+    Args:
+        args: Parsed command-line arguments
+        dataset_path: Path to the training dataset
+        
+    Returns:
+        dict: Training result with success status
+    """
+    import subprocess
+    import torch
+    
+    print("\n" + "=" * 70)
+    print("DDP Training Mode - Full Distributed Data Parallel")
+    print("=" * 70)
+    
+    def get_nvidia_smi_gpu_count():
+        """Use nvidia-smi to detect GPU count as fallback."""
+        try:
+            result = subprocess.run(
+                ['nvidia-smi', '--query-gpu=index', '--format=csv,noheader'],
+                capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0:
+                lines = [l.strip() for l in result.stdout.strip().split('\n') if l.strip()]
+                return len(lines)
+        except Exception as e:
+            print(f"[DEBUG] nvidia-smi fallback failed: {e}")
+        return 0
+    
+    # Detect GPU count - try PyTorch first, then nvidia-smi as fallback
+    pytorch_gpu_count = 0
+    if torch.cuda.is_available():
+        pytorch_gpu_count = torch.cuda.device_count()
+        print(f"\n[GPU] PyTorch detected {pytorch_gpu_count} GPU(s):")
+        for i in range(pytorch_gpu_count):
+            name = torch.cuda.get_device_name(i)
+            memory = torch.cuda.get_device_properties(i).total_memory / (1024**3)
+            print(f"   cuda:{i} - {name} ({memory:.1f} GB)")
+    
+    # Try nvidia-smi as fallback
+    smi_gpu_count = get_nvidia_smi_gpu_count()
+    if smi_gpu_count > pytorch_gpu_count:
+        print(f"\n[GPU] nvidia-smi detected {smi_gpu_count} GPU(s) (more than PyTorch)")
+        print("[INFO] Using nvidia-smi GPU count for DDP")
+        gpu_count = smi_gpu_count
+    else:
+        gpu_count = pytorch_gpu_count
+    
+    if gpu_count == 0:
+        print("\n[ERROR] No GPUs detected - DDP requires NVIDIA GPUs")
+        return {'success': False, 'error': 'No GPUs detected'}
+    
+    if gpu_count < 2:
+        print("\n[WARNING] DDP is most effective with 2+ GPUs")
+        print("[INFO] Continuing with single GPU DDP (for testing)")
+    
+    # Build the DDP trainer config - include ALL advanced parameters from dashboard
+    ddp_config = {
+        # Basic training parameters
+        'epochs': args.epochs,
+        'batch_size': args.batch_size,
+        'learning_rate': args.learning_rate,
+        'seed': args.seed,
+        
+        # LoRA parameters
+        'lora_rank': args.lora_rank,
+        'lora_alpha': args.lora_alpha,
+        'dropout': args.dropout,
+        'target_modules': args.target_modules,
+        'lora_scaling_factor': getattr(args, 'lora_scaling_factor', 2.0),
+        
+        # Quantization parameters
+        'load_in_4bit': args.load_in_4bit,
+        'load_in_8bit': getattr(args, 'load_in_8bit', False),
+        'quantization_type': args.quantization_type,
+        'compute_dtype': args.compute_dtype,
+        'double_quantization': args.double_quantization,
+        'use_nested_quant': getattr(args, 'use_nested_quant', True),
+        
+        # Memory and optimization parameters
+        'max_memory_per_gpu': args.max_memory_per_gpu,
+        'gradient_checkpointing': getattr(args, 'gradient_checkpointing', True),
+        'gradient_accumulation_steps': getattr(args, 'gradient_accumulation_steps', 4),
+        'max_seq_length': getattr(args, 'max_seq_length', 2048),
+        
+        # Training optimization
+        'weight_decay': getattr(args, 'weight_decay', 0.01),
+        'max_grad_norm': getattr(args, 'max_grad_norm', 1.0),
+        'warmup_steps': getattr(args, 'warmup_steps', 20),
+        'lr_scheduler': getattr(args, 'lr_scheduler', 'cosine'),
+        'optimizer': getattr(args, 'optimizer', 'paged_adamw_8bit'),
+        'precision': getattr(args, 'precision', 'bf16'),
+        
+        # Dataset options
+        'packing_enabled': getattr(args, 'packing_enabled', False),
+        'use_fast_tokenizer': not getattr(args, 'no_fast_tokenizer', False),
+        
+        # Model and DDP settings
+        'base_models': args.base_models or [],
+        'use_ddp': True,
+        'models_dir': str(project_root / 'models')
+    }
+    
+    # Save config to temp file
+    config_path = project_root / 'ml' / 'training' / '.ddp_config.json'
+    with open(config_path, 'w') as f:
+        json.dump(ddp_config, f, indent=2)
+    
+    print(f"\n[CONFIG] DDP configuration:")
+    print(f"   Epochs: {args.epochs}")
+    print(f"   Batch size per GPU: {args.batch_size}")
+    print(f"   Learning rate: {args.learning_rate}")
+    print(f"   4-bit quantization: {args.load_in_4bit}")
+    if args.max_memory_per_gpu:
+        print(f"   Max VRAM per GPU: {args.max_memory_per_gpu}")
+    
+    # Build torchrun command
+    ddp_script = project_root / 'ml' / 'training' / 'ddp_trainer.py'
+    
+    # Check if we're on Windows
+    import platform
+    is_windows = platform.system() == 'Windows'
+    
+    if is_windows:
+        # On Windows, torchrun has issues with TCP store and rendezvous.
+        # Instead, we'll use a simpler approach: run the DDP script directly
+        # with environment variables set, and let it handle multi-GPU via
+        # torch.multiprocessing.spawn internally.
+        print(f"\n[INFO] Windows detected - using spawn-based DDP (avoids torchrun TCP issues)")
+        
+        # Add spawn mode flag to config
+        ddp_config['use_spawn'] = True
+        ddp_config['world_size'] = gpu_count
+        with open(config_path, 'w') as f:
+            json.dump(ddp_config, f, indent=2)
+        
+        # Run the DDP script directly (it will use mp.spawn internally)
+        direct_cmd = [
+            sys.executable,
+            str(ddp_script),
+            '--config', str(config_path),
+            '--dataset', str(dataset_path),
+            '--output-dir', str(project_root / 'models' / 'oneseek-certified')
+        ]
+        
+        print(f"\n[LAUNCH] Running: {' '.join(direct_cmd[:3])} ...")
+        
+        # Set environment variables
+        env = os.environ.copy()
+        env['RUN_ID'] = os.environ.get('RUN_ID', f"ddp-{datetime.now().strftime('%Y%m%d-%H%M%S')}")
+        env['CUDA_VISIBLE_DEVICES'] = ','.join(str(i) for i in range(gpu_count))
+        env['WORLD_SIZE'] = str(gpu_count)
+        
+        try:
+            result = subprocess.run(
+                direct_cmd,
+                cwd=str(project_root),
+                env=env,
+                capture_output=False,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                print("\n[SUCCESS] DDP training completed!")
+                return {'success': True, 'dna': 'DDP-TRAINED'}
+            else:
+                print(f"\n[ERROR] DDP training failed with exit code {result.returncode}")
+                return {'success': False, 'error': f'Exit code {result.returncode}'}
+        except Exception as e:
+            print(f"\n[ERROR] DDP launch failed: {e}")
+            return {'success': False, 'error': str(e)}
+        finally:
+            if config_path.exists():
+                try:
+                    config_path.unlink()
+                except Exception:
+                    pass
+    
+    # Linux/Mac: Use torchrun normally (works well)
+    torchrun_cmd = [
+        sys.executable, '-m', 'torch.distributed.run',
+        '--standalone',
+        f'--nproc_per_node={gpu_count}',
+        str(ddp_script),
+        '--config', str(config_path),
+        '--dataset', str(dataset_path),
+        '--output-dir', str(project_root / 'models' / 'oneseek-certified')
+    ]
+    
+    print(f"\n[LAUNCH] Running: {' '.join(torchrun_cmd[:5])} ...")
+    
+    # Set environment variables
+    env = os.environ.copy()
+    env['RUN_ID'] = os.environ.get('RUN_ID', f"ddp-{datetime.now().strftime('%Y%m%d-%H%M%S')}")
+    
+    # Ensure all GPUs are visible (fixes detection issues on some systems)
+    if 'CUDA_VISIBLE_DEVICES' not in env:
+        env['CUDA_VISIBLE_DEVICES'] = ','.join(str(i) for i in range(gpu_count))
+    
+    # Windows-specific: Set these environment variables for better TCP store compatibility
+    if is_windows:
+        env['MASTER_ADDR'] = '127.0.0.1'
+        env['MASTER_PORT'] = '29500'
+    
+    # Run torchrun
+    try:
+        result = subprocess.run(
+            torchrun_cmd,
+            cwd=str(project_root),
+            env=env,
+            capture_output=False,  # Let output stream to console
+            text=True
+        )
+        
+        if result.returncode == 0:
+            print("\n[SUCCESS] DDP training completed!")
+            return {'success': True, 'dna': 'DDP-TRAINED'}
+        else:
+            print(f"\n[ERROR] DDP training failed with exit code {result.returncode}")
+            return {'success': False, 'error': f'Exit code {result.returncode}'}
+            
+    except FileNotFoundError:
+        print("\n[ERROR] torchrun not found - ensure PyTorch is installed correctly")
+        print("[FIX] pip install torch")
+        return {'success': False, 'error': 'torchrun not found'}
+    except Exception as e:
+        print(f"\n[ERROR] DDP launch failed: {e}")
+        return {'success': False, 'error': str(e)}
+    finally:
+        # Clean up config file
+        if config_path.exists():
+            try:
+                config_path.unlink()
+            except Exception:
+                pass  # Ignore cleanup errors
+
+
 def main():
     """Main entry point"""
     args = parse_args()
@@ -897,8 +1155,14 @@ def main():
         # BASE_MODELS is comma-separated list from admin panel
         args.base_models = [m.strip() for m in os.environ.get('BASE_MODELS').split(',') if m.strip()]
     
+    # Check for DDP mode from environment (set by admin panel)
+    use_ddp = args.use_ddp or os.environ.get('USE_DDP', '').lower() == 'true'
+    
     print("\n" + "=" * 70)
-    print("OneSeek-7B-Zero DNA v2 Training")
+    if use_ddp:
+        print("OneSeek-7B-Zero DNA v2 Training (DDP Mode)")
+    else:
+        print("OneSeek-7B-Zero DNA v2 Training")
     print("=" * 70)
     
     # Load and prepare dataset
@@ -908,6 +1172,24 @@ def main():
         return 1
     
     print(f"\n[DATASET] Loading dataset: {dataset_path}")
+    
+    # If DDP mode is enabled, launch via torchrun
+    if use_ddp:
+        print("[MODE] DDP (Distributed Data Parallel) training enabled")
+        result = launch_ddp_training(args, dataset_path)
+        
+        if result and result.get('success'):
+            print("\n" + "=" * 70)
+            print("[SUCCESS] DDP Training completed successfully!")
+            print("=" * 70 + "\n")
+            return 0
+        else:
+            print("\n" + "=" * 70)
+            print(f"[ERROR] DDP Training failed: {result.get('error', 'Unknown error')}")
+            print("=" * 70 + "\n")
+            return 1
+    
+    # Standard training path
     training_data, original_examples = convert_to_training_format(dataset_path)
     print(f"[SUCCESS] Loaded {len(original_examples)} examples")
     

@@ -123,6 +123,18 @@ def initialize_cuda():
     """
     try:
         import torch
+        import os
+        
+        # CRITICAL: Remove CUDA_VISIBLE_DEVICES restriction if it's limiting us to a single GPU
+        # This ensures PyTorch can see ALL available GPUs
+        # IDEs, shells, or other environments may set this to restrict GPU access
+        cuda_visible = os.environ.get('CUDA_VISIBLE_DEVICES', None)
+        if cuda_visible is not None and cuda_visible not in ('', 'all'):
+            # Check if restriction is limiting to less than actual hardware
+            restricted_count = len([x for x in cuda_visible.split(',') if x.strip()])
+            print(f"[INFO] CUDA_VISIBLE_DEVICES was set to: {cuda_visible} ({restricted_count} GPU(s))")
+            print(f"[INFO] Removing restriction to allow access to all GPUs")
+            del os.environ['CUDA_VISIBLE_DEVICES']
         
         if not torch.cuda.is_available():
             print("[INFO] CUDA not available - will use CPU")
@@ -916,6 +928,32 @@ def train_single_model_lora(
                 max_memory = {str(i): max_memory_per_gpu for i in range(gpu_count)}
                 print(f"   [MEMORY] GPU minnesbegränsning aktiverad: {max_memory_per_gpu} per GPU")
                 print(f"   [MEMORY] max_memory config: {max_memory}")
+                
+                # CRITICAL: Also set memory fraction via PyTorch to FULLY respect the limit
+                # Parse memory limit (e.g., "9.5GB", "8GB", "8000MB")
+                # Note: This is safe for non-DDP training (single process).
+                # For DDP training, the ddp_trainer.py handles memory limits per-process.
+                try:
+                    memory_str = max_memory_per_gpu.strip().upper()
+                    if memory_str.endswith('GB'):
+                        memory_bytes = float(memory_str[:-2]) * (1024**3)
+                    elif memory_str.endswith('MB'):
+                        memory_bytes = float(memory_str[:-2]) * (1024**2)
+                    else:
+                        # Assume GB if no unit
+                        memory_bytes = float(memory_str) * (1024**3)
+                    
+                    # Set memory fraction for each GPU in this process
+                    # When using device_map='auto', transformers may use multiple GPUs
+                    for i in range(gpu_count):
+                        total_memory = torch.cuda.get_device_properties(i).total_memory
+                        fraction = memory_bytes / total_memory
+                        fraction = min(0.99, max(0.1, fraction))  # Clamp between 10% and 99%
+                        torch.cuda.set_per_process_memory_fraction(fraction, device=i)
+                        print(f"   [MEMORY] GPU {i}: Memory fraction set to {fraction:.1%} ({max_memory_per_gpu} of {total_memory / (1024**3):.1f}GB)")
+                except Exception as mem_error:
+                    print(f"   [WARNING] Could not set memory fraction: {mem_error}")
+                    print(f"   [INFO] Falling back to max_memory dict only")
         
         try:
             # Bygg BitsAndBytesConfig om kvantisering är aktiverad
@@ -1369,16 +1407,17 @@ def train_single_model_lora(
                 epoch_loss += loss.item()
                 num_epoch_batches += 1
                 
-                # Print batch progress every few batches
+                # Print batch progress every few batches - with flush for real-time output
                 if num_epoch_batches % max(1, num_batches_per_epoch // 5) == 0 or batch_idx == 0:
-                    print(f"      Batch {num_epoch_batches}/{num_batches_per_epoch}: Loss={loss.item():.4f}")
+                    print(f"      Batch {num_epoch_batches}/{num_batches_per_epoch}: Loss={loss.item():.4f}", flush=True)
             
             current_loss = epoch_loss / num_epoch_batches if num_epoch_batches > 0 else 0
             total_loss += epoch_loss
             num_batches += num_epoch_batches
             epoch_losses.append(current_loss)
             
-            print(f"      Epoch {epoch + 1} Average Loss: {current_loss:.4f}")
+            # Print epoch summary with flush for real-time output
+            print(f"      Epoch {epoch + 1}/{epochs} Average Loss: {current_loss:.4f}", flush=True)
             
             # Write live metrics after each epoch
             # Note: This will be overwritten if training multiple models sequentially

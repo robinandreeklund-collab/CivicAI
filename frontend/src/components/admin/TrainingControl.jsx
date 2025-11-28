@@ -4,6 +4,9 @@ import TrainingConsole from '../TrainingConsole';
 import ModelEvolutionTree from '../ModelEvolutionTree';
 import RemoteTrainingControl from '../RemoteTrainingControl';
 
+// DDP efficiency constant - approximately 95% efficiency per GPU due to communication overhead
+const DDP_EFFICIENCY_PER_GPU = 0.95;
+
 /**
  * Training Control Component
  * 
@@ -77,7 +80,11 @@ export default function TrainingControl() {
     deepSpeedTpSize: 2,           // Tensor parallel size (antal GPU:er för tensor parallelism)
     deepSpeedZeroStage: 3,        // ZeRO optimization stage (0, 1, 2, eller 3)
     deepSpeedBatchSize: 32,       // Total batch size för DeepSpeed
+    // DDP (Distributed Data Parallel) konfiguration - Full multi-GPU training
+    useDdp: false,                // Aktivera full DDP träning via torchrun
+    ddpBackend: 'nccl',           // DDP backend (nccl för NVIDIA GPU)
   });
+  const [gpuInfo, setGpuInfo] = useState(null);  // GPU detection info
   const [trainingError, setTrainingError] = useState(null); // Felmeddelande för träningskrascher
   const [trainingStatus, setTrainingStatus] = useState(null);
   const [trainingLogs, setTrainingLogs] = useState([]);
@@ -89,11 +96,24 @@ export default function TrainingControl() {
     fetchCertifiedModels();
     fetchDiscoveredBaseModels();
     fetchTrainingStatus();
+    fetchGpuInfo();
     
     // Poll for training status every 5 seconds
     const interval = setInterval(fetchTrainingStatus, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  const fetchGpuInfo = async () => {
+    try {
+      const response = await fetch('/api/admin/gpu-info');
+      if (response.ok) {
+        const data = await response.json();
+        setGpuInfo(data);
+      }
+    } catch (error) {
+      console.error('Error fetching GPU info:', error);
+    }
+  };
 
   const fetchDatasets = async () => {
     try {
@@ -1463,6 +1483,74 @@ export default function TrainingControl() {
                       </p>
                       <p className="text-[#666] font-mono text-xs mt-1">
                         OBS: Kräver <code className="text-yellow-400">pip install deepspeed</code> och kompatibel CUDA-miljö.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* DDP (Distributed Data Parallel) Konfiguration - Full Multi-GPU Training */}
+                <div className="mt-4 p-3 bg-[#111] border border-green-900/30 rounded">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-green-400 font-mono text-xs font-semibold">🚀 DDP Training (Distributed Data Parallel)</h4>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={trainingParams.useDdp}
+                        onChange={(e) => setTrainingParams({ 
+                          ...trainingParams, 
+                          useDdp: e.target.checked,
+                          // Om DDP aktiveras, inaktivera DeepSpeed och standard multi-GPU
+                          useDeepSpeed: e.target.checked ? false : trainingParams.useDeepSpeed,
+                          useMultiGpu: e.target.checked ? false : trainingParams.useMultiGpu
+                        })}
+                        disabled={isTraining}
+                        className="w-4 h-4 text-green-600 bg-[#111] border-[#2a2a2a] rounded focus:ring-green-500 disabled:opacity-50"
+                      />
+                      <span className="text-[#888] font-mono text-xs">Aktivera DDP</span>
+                    </label>
+                  </div>
+                  
+                  <p className="text-[#666] font-mono text-xs mb-3">
+                    Full Distributed Data Parallel träning via <code className="text-green-400">torchrun</code>. 
+                    Rekommenderat för multi-GPU system (t.ex. 2×RTX 2080 Ti).
+                  </p>
+                  
+                  {/* GPU Detection Info */}
+                  {gpuInfo && (
+                    <div className="mb-3 p-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                      <p className="text-[#888] font-mono text-xs mb-2">
+                        🎮 Detekterade GPU:er: {gpuInfo.count || 0}
+                      </p>
+                      {gpuInfo.devices && gpuInfo.devices.map((gpu, idx) => (
+                        <div key={idx} className="text-[#666] font-mono text-xs ml-4">
+                          cuda:{gpu.index} - {gpu.name} ({gpu.memory_gb} GB)
+                        </div>
+                      ))}
+                      {gpuInfo.count >= 2 && (
+                        <p className="text-green-400 font-mono text-xs mt-2">
+                          ✓ Uppskattad speedup med DDP: ~{(gpuInfo.count * DDP_EFFICIENCY_PER_GPU).toFixed(1)}×
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {!gpuInfo && (
+                    <div className="mb-3 p-2 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                      <p className="text-[#666] font-mono text-xs">
+                        GPU-information laddas...
+                      </p>
+                    </div>
+                  )}
+                  
+                  {trainingParams.useDdp && (
+                    <div className="mt-3 p-2 bg-green-900/10 border border-green-900/20 rounded">
+                      <p className="text-green-400 font-mono text-xs">
+                        🚀 DDP aktiverat: Träning sker på alla {gpuInfo?.count || 'N/A'} GPU:er samtidigt
+                      </p>
+                      <p className="text-[#666] font-mono text-xs mt-1">
+                        • 4-bit + fp16 träning (standard för snabbhet)
+                        <br />• GPU minnesgräns respekteras 100%
+                        <br />• ~{((gpuInfo?.count || 2) * DDP_EFFICIENCY_PER_GPU).toFixed(1)}× speedup
                       </p>
                     </div>
                   )}
