@@ -166,6 +166,35 @@ Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name
 
 Should return: `LongPathsEnabled : 1`
 
+### 7. Training Error: "torch.load vulnerability: requires torch >=2.6 at .bin" (CVE-2025-32434)
+
+**Symptoms:**
+```
+ERROR: torch.load vulnerability: requires torch >=2.6 at .bin
+Training aborted - model cannot be loaded
+```
+
+**Cause:** Starting with transformers library version 4.50+, a security check was added that blocks loading `.bin` model files (which use Python's pickle format) when using PyTorch versions < 2.6. This is related to CVE-2025-32434 security vulnerability.
+
+Your local models stored in `models/` directory may have `pytorch_model.bin` or `pytorch_model-00001-of-00002.bin` files which trigger this check.
+
+**Solution:** This has been fixed in the training scripts. The fix disables the security check for local model loading (safe for your own trained models and trusted HuggingFace models).
+
+If you're still seeing this error, make sure you have the latest code that includes the CVE-2025-32434 bypass in these files:
+- `scripts/train_dna_v2.py`
+- `ml/training/pytorch_trainer.py`
+- `ml/training/ddp_trainer.py`
+- `ml/training/train_language_model.py`
+- `ml_service/server.py`
+
+**Alternative Solution (manual):** If you prefer to use PyTorch 2.6+:
+```powershell
+# Upgrade PyTorch to 2.6 or later
+pip install torch>=2.6.0 --index-url https://download.pytorch.org/whl/cu121
+```
+
+**Note:** PyTorch 2.6+ has `weights_only=True` as default for `torch.load()`, which is the secure default. However, PyTorch 2.6 for CUDA 12.1 may not be available on all systems yet.
+
 ## Recommended Clean Install Steps
 
 If you're experiencing multiple issues, follow these steps for a clean installation:

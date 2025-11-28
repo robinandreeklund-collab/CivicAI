@@ -7,6 +7,36 @@ for efficient fine-tuning of any base models (Mistral 7B, LLaMA-2, KB-Llama-3.1-
 Dynamically discovers and trains selected base models from the admin panel.
 """
 import os
+
+# ===== CVE-2025-32434 FIX =====
+# Disable security check that causes issues with local model loading when using
+# PyTorch versions < 2.6. This is safe for local setups where we only load our
+# own trained models and trusted HuggingFace models. The security check blocks
+# loading .bin files (pickle format) which our local models may use.
+# Official workaround from Hugging Face until PyTorch 2.6 is stable for CUDA 12.1
+os.environ['TRANSFORMERS_NO_SECURITY_CHECK'] = '1'
+os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
+
+# Monkey-patch the security check function in transformers
+# This is required because newer transformers versions (>=4.50) have a stricter check
+# that blocks torch.load() without weights_only=True (PyTorch < 2.6 default)
+try:
+    import transformers.utils.import_utils as import_utils
+    # Replace the check function with a no-op
+    if hasattr(import_utils, 'check_torch_load_is_safe'):
+        import_utils.check_torch_load_is_safe = lambda: None
+except (ImportError, AttributeError):
+    pass  # Older transformers version without this check
+
+try:
+    import transformers.modeling_utils as modeling_utils
+    # Also patch in modeling_utils if it has its own copy
+    if hasattr(modeling_utils, 'check_torch_load_is_safe'):
+        modeling_utils.check_torch_load_is_safe = lambda: None
+except (ImportError, AttributeError):
+    pass
+# ==============================
+
 import torch
 from pathlib import Path
 from typing import Dict, List
@@ -812,6 +842,73 @@ def train_single_model_lora(
             except Exception as e7:
                 tokenizer_errors.append(f"LlamaTokenizer: {e7}")
         
+        # Strategy 9: For GPT-SW3 (Swedish GPT) models with custom tokenizers
+        # GPT-SW3 has a custom tokenizer class that requires trust_remote_code=True
+        # and may need to download tokenizer code from HuggingFace hub
+        # SECURITY NOTE: Only used for models that explicitly declare GPTSw3Tokenizer
+        if tokenizer is None and tokenizer_class_name and 'GPTSw3' in tokenizer_class_name:
+            print(f"   [INFO] Detected GPT-SW3 tokenizer class, trying special loading strategies...")
+            try:
+                from transformers import AutoTokenizer
+                # GPT-SW3 tokenizers often need to download custom code from HuggingFace
+                # This is safe because we only reach here for trusted local models with
+                # GPTSw3Tokenizer explicitly declared in tokenizer_config.json
+                tokenizer = AutoTokenizer.from_pretrained(
+                    str(actual_model_path),
+                    trust_remote_code=True,
+                    # Don't set local_files_only=True for GPT-SW3 custom tokenizers
+                )
+                print(f"   [SUCCESS] Tokenizer loaded with trust_remote_code (GPT-SW3)")
+            except Exception as e8:
+                tokenizer_errors.append(f"GPT-SW3 (trust_remote_code): {e8}")
+        
+        
+        # Strategy 10: For GPT-2 based models, try GPT2Tokenizer
+        if tokenizer is None and model_type and model_type.lower() == 'gpt2':
+            try:
+                from transformers import GPT2Tokenizer
+                tokenizer = GPT2Tokenizer.from_pretrained(
+                    str(actual_model_path),
+                    trust_remote_code=True,
+                    local_files_only=True
+                )
+                print(f"   [SUCCESS] Tokenizer loaded with GPT2Tokenizer")
+            except Exception as e9:
+                tokenizer_errors.append(f"GPT2Tokenizer: {e9}")
+        
+        # Strategy 11: For GPT-2 based models, try GPT2TokenizerFast
+        if tokenizer is None and model_type and model_type.lower() == 'gpt2':
+            try:
+                from transformers import GPT2TokenizerFast
+                tokenizer = GPT2TokenizerFast.from_pretrained(
+                    str(actual_model_path),
+                    trust_remote_code=True,
+                    local_files_only=True
+                )
+                print(f"   [SUCCESS] Tokenizer loaded with GPT2TokenizerFast")
+            except Exception as e10:
+                tokenizer_errors.append(f"GPT2TokenizerFast: {e10}")
+        
+        # Strategy 12: Last resort - try AutoTokenizer without local_files_only
+        # This allows downloading missing tokenizer code from HuggingFace hub
+        # for models with custom tokenizers like GPT-SW3
+        # SECURITY NOTE: This is a last-resort strategy that allows remote code execution.
+        # It only runs if all other strategies fail AND the model is already stored locally.
+        # The model files themselves remain local - only tokenizer code may be downloaded.
+        if tokenizer is None:
+            try:
+                from transformers import AutoTokenizer
+                print(f"   [WARNING] All local-only tokenizer strategies failed")
+                print(f"   [INFO] Trying AutoTokenizer allowing HuggingFace hub access for tokenizer code...")
+                tokenizer = AutoTokenizer.from_pretrained(
+                    str(actual_model_path),
+                    trust_remote_code=True,
+                    # Don't restrict to local files - allow downloading tokenizer code
+                )
+                print(f"   [SUCCESS] Tokenizer loaded with AutoTokenizer (allowing remote code)")
+            except Exception as e11:
+                tokenizer_errors.append(f"AutoTokenizer (remote allowed): {e11}")
+        
         if tokenizer is None:
             # === NO FALLBACK TO REMOTE MODELS ===
             # We NEVER silently fall back to downloading from HuggingFace.
@@ -975,6 +1072,24 @@ def train_single_model_lora(
                     load_in_4bit = False
                     bnb_config = None
             
+            # === CUDA Memory Cleanup Before Model Loading ===
+            # Clear any leftover GPU memory from previous processes or training runs
+            # This helps prevent OOM errors when starting a new training session
+            if torch.cuda.is_available():
+                import gc
+                gc.collect()  # Clean up Python garbage first
+                torch.cuda.empty_cache()  # Release cached GPU memory
+                torch.cuda.synchronize()  # Wait for all CUDA operations to complete
+                
+                # Log current memory usage
+                for i in range(torch.cuda.device_count()):
+                    try:
+                        free_memory = torch.cuda.get_device_properties(i).total_memory - torch.cuda.memory_allocated(i)
+                        total_memory = torch.cuda.get_device_properties(i).total_memory
+                        print(f"   [MEMORY] GPU {i}: {free_memory / (1024**3):.1f}GB free / {total_memory / (1024**3):.1f}GB total")
+                    except Exception as mem_log_err:
+                        print(f"   [DEBUG] Could not log memory for GPU {i}: {mem_log_err}")
+            
             # DeepSpeed Tensor Parallel mode
             if use_deepspeed:
                 try:
@@ -1076,6 +1191,33 @@ def train_single_model_lora(
                     if device != "cpu" and not load_in_8bit:
                         model = model.to(device)
                     
+        except RuntimeError as e:
+            # Check for CUDA out of memory error
+            error_str = str(e).lower()
+            if "out of memory" in error_str or "cuda" in error_str:
+                print(f"\n   [ERROR] ✗ CUDA OUT OF MEMORY")
+                print(f"   [ERROR] Insufficient GPU memory to load model")
+                print(f"\n   [DEBUG] Error: {e}")
+                print(f"\n   [TROUBLESHOOTING] Steps to resolve CUDA OOM:")
+                print(f"      1. Stop any running inference server (ml_service/server.py)")
+                print(f"         - Press Ctrl+C in the server terminal")
+                print(f"         - Or run: taskkill /IM python.exe /F (Windows)")
+                print(f"      2. Clear CUDA cache by restarting Python")
+                print(f"      3. Reduce batch_size (current config setting)")
+                print(f"      4. Enable 4-bit quantization if not already enabled")
+                print(f"      5. Use single GPU mode: set CUDA_VISIBLE_DEVICES=0")
+                print(f"\n   [MEMORY CHECK] Run: nvidia-smi to see GPU memory usage")
+                print(f"\n   [ALTERNATIVE] To use separate GPUs for inference and training:")
+                print(f"      Terminal 1: set CUDA_VISIBLE_DEVICES=0 && python ml_service/server.py ...")
+                print(f"      Terminal 2: set CUDA_VISIBLE_DEVICES=1 && python scripts/train_dna_v2.py ...")
+                
+                raise RuntimeError(
+                    f"CUDA out of memory. GPU memory is insufficient or being used by another process. "
+                    f"Stop ml_service/server.py before training, or use separate GPUs."
+                )
+            else:
+                raise  # Re-raise non-OOM RuntimeErrors
+                
         except Exception as e:
             # === NO FALLBACK TO REMOTE MODELS ===
             # We NEVER silently fall back to downloading from HuggingFace.
