@@ -1250,6 +1250,19 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
     
     // Initialize training state with proper runId (no colons in timestamp)
     const runId = generateRunId();
+    
+    // === CONSOLE: Training Start Banner ===
+    console.log('\n' + '='.repeat(70));
+    console.log('[TRAINING START] DNA v2 Training Session');
+    console.log('='.repeat(70));
+    console.log(`[TRAINING] Run ID: ${runId}`);
+    console.log(`[TRAINING] Datasets: ${datasets.join(', ')}`);
+    console.log(`[TRAINING] Language: ${languageCode}`);
+    console.log(`[TRAINING] Base Models: ${baseModels.join(', ')}`);
+    console.log(`[TRAINING] Epochs: ${epochs || TRAINING_CONFIG.defaults.epochs}`);
+    console.log(`[TRAINING] DDP Mode: ${useDdp ? 'ENABLED' : 'disabled'}`);
+    console.log('='.repeat(70) + '\n');
+    
     trainingState = {
       status: 'training',
       runId: runId,
@@ -1500,14 +1513,19 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       env: env,
     });
     
-    // Handle stdout
+    // Handle stdout - log to both trainingState AND console for real-time visibility
     trainingProcess.stdout.on('data', (data) => {
       const message = data.toString().trim();
       if (message) {
+        const timestamp = new Date().toISOString();
         trainingState.logs.push({
-          timestamp: new Date().toISOString(),
+          timestamp,
           message,
         });
+        
+        // === REAL-TIME CONSOLE OUTPUT ===
+        // Print to backend terminal so user can see training progress
+        console.log(`[TRAINING ${timestamp.split('T')[1].split('.')[0]}] ${message}`);
         
         // Parse epoch progress
         const epochMatch = message.match(/Epoch (\d+)\/(\d+)/);
@@ -1515,30 +1533,37 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
           trainingState.currentEpoch = parseInt(epochMatch[1]);
           trainingState.totalEpochs = parseInt(epochMatch[2]);
           trainingState.progress = Math.round((trainingState.currentEpoch / trainingState.totalEpochs) * 100);
+          // Also log progress summary
+          console.log(`[TRAINING PROGRESS] Epoch ${trainingState.currentEpoch}/${trainingState.totalEpochs} (${trainingState.progress}%)`);
         }
         
         // Parse loss
         const lossMatch = message.match(/loss[=:]\s*([0-9.]+)/i);
         if (lossMatch) {
           trainingState.loss = parseFloat(lossMatch[1]);
+          console.log(`[TRAINING LOSS] ${trainingState.loss.toFixed(4)}`);
         }
         
         // Parse DNA
         const dnaMatch = message.match(/DNA:\s*(OneSeek-7B-Zero\.v[\w.]+)/);
         if (dnaMatch) {
           trainingState.dna = dnaMatch[1];
+          console.log(`[TRAINING DNA] ${trainingState.dna}`);
         }
       }
     });
     
-    // Handle stderr
+    // Handle stderr - log errors to both trainingState AND console
     trainingProcess.stderr.on('data', (data) => {
       const message = data.toString().trim();
       if (message) {
+        const timestamp = new Date().toISOString();
         trainingState.logs.push({
-          timestamp: new Date().toISOString(),
+          timestamp,
           message: `[ERROR] ${message}`,
         });
+        // Print errors in red to console
+        console.error(`[TRAINING ERROR ${timestamp.split('T')[1].split('.')[0]}] ${message}`);
       }
     });
     
@@ -1553,6 +1578,11 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
           timestamp: endTime,
           message: `Training completed successfully with DNA v2!`,
         });
+        
+        // === CONSOLE: Training Success Banner ===
+        console.log('\n' + '='.repeat(70));
+        console.log('[TRAINING COMPLETE] ✓ Training finished successfully!');
+        console.log('='.repeat(70));
         
         // Try to load DNA v2 training results from the most recent run
         let trainingResults = null;
@@ -1598,6 +1628,12 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
           const lastEpoch = trainingHistory[trainingHistory.length - 1];
           finalLoss = lastEpoch.loss || finalLoss;
         }
+        
+        // Log completion details to console
+        console.log(`[TRAINING] Duration: ${Math.floor(duration / 60)}m ${duration % 60}s`);
+        console.log(`[TRAINING] Final Loss: ${finalLoss?.toFixed(4) || 'N/A'}`);
+        console.log(`[TRAINING] DNA: ${dna || 'N/A'}`);
+        console.log('='.repeat(70) + '\n');
         
         // Count samples from dataset
         let samplesProcessed = 0;
@@ -1799,6 +1835,13 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
           message: `Training failed with exit code ${code}`,
         });
         
+        // === CONSOLE: Training Failure Banner ===
+        console.log('\n' + '='.repeat(70));
+        console.error(`[TRAINING FAILED] ✗ Training exited with code ${code}`);
+        console.log('='.repeat(70));
+        console.log('[TRAINING] Check the logs above for error details');
+        console.log('='.repeat(70) + '\n');
+        
         notifications.push({
           id: uuidv4(),
           message: `Training failed with exit code ${code}`,
@@ -1815,6 +1858,8 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
         timestamp: new Date().toISOString(),
         message: `Process error: ${error.message}`,
       });
+      // === CONSOLE: Process Error ===
+      console.error(`[TRAINING ERROR] Process error: ${error.message}`);
       trainingProcess = null;
     });
     
