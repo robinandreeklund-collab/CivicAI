@@ -1498,6 +1498,7 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       BASE_MODELS: baseModels.join(','),  // Pass selected base models
       RUN_ID: runId,  // Pass run_id to Python script for consistent tracking
       USE_DDP: useDdp ? 'true' : 'false',  // Pass DDP flag to Python
+      PYTHONUNBUFFERED: '1',  // Force unbuffered Python output for real-time logs
     };
     
     // Add ledger configuration if available
@@ -1508,7 +1509,10 @@ router.post('/training/start-dna-v2', requireAdmin, async (req, res) => {
       env.LEDGER_PRIVATE_KEY_PATH = process.env.LEDGER_PRIVATE_KEY_PATH;
     }
     
-    trainingProcess = spawn(pythonCommand, pythonArgs, {
+    // Use -u flag for unbuffered Python output (real-time logging)
+    const pythonArgsWithUnbuffered = ['-u', ...pythonArgs];
+    
+    trainingProcess = spawn(pythonCommand, pythonArgsWithUnbuffered, {
       cwd: path.join(process.cwd(), '..'),
       env: env,
     });

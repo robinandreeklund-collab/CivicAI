@@ -1395,16 +1395,17 @@ def train_single_model_lora(
                 epoch_loss += loss.item()
                 num_epoch_batches += 1
                 
-                # Print batch progress every few batches
+                # Print batch progress every few batches - with flush for real-time output
                 if num_epoch_batches % max(1, num_batches_per_epoch // 5) == 0 or batch_idx == 0:
-                    print(f"      Batch {num_epoch_batches}/{num_batches_per_epoch}: Loss={loss.item():.4f}")
+                    print(f"      Batch {num_epoch_batches}/{num_batches_per_epoch}: Loss={loss.item():.4f}", flush=True)
             
             current_loss = epoch_loss / num_epoch_batches if num_epoch_batches > 0 else 0
             total_loss += epoch_loss
             num_batches += num_epoch_batches
             epoch_losses.append(current_loss)
             
-            print(f"      Epoch {epoch + 1} Average Loss: {current_loss:.4f}")
+            # Print epoch summary with flush for real-time output
+            print(f"      Epoch {epoch + 1}/{epochs} Average Loss: {current_loss:.4f}", flush=True)
             
             # Write live metrics after each epoch
             # Note: This will be overwritten if training multiple models sequentially

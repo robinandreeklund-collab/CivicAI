@@ -766,7 +766,7 @@ class DDPTrainer:
             optimizer.zero_grad()  # Zero gradients at start of epoch
             
             if self.is_main_process:
-                print(f"\n[TRAIN] Epoch {epoch + 1}/{epochs}")
+                print(f"\n[TRAIN] Epoch {epoch + 1}/{epochs}", flush=True)
             
             for batch_idx, batch in enumerate(train_loader):
                 try:
@@ -800,17 +800,17 @@ class DDPTrainer:
                         # Clear GPU cache and try to recover
                         torch.cuda.empty_cache()
                         if self.is_main_process:
-                            print(f"\n[ERROR] CUDA out of memory at batch {batch_idx}")
-                            print(f"[FIX] Solutions:")
-                            print(f"   1. Reduce batch_size in admin dashboard (current: {batch_size})")
-                            print(f"   2. Enable 4-bit quantization")
-                            print(f"   3. Reduce max sequence length")
+                            print(f"\n[ERROR] CUDA out of memory at batch {batch_idx}", flush=True)
+                            print(f"[FIX] Solutions:", flush=True)
+                            print(f"   1. Reduce batch_size in admin dashboard (current: {batch_size})", flush=True)
+                            print(f"   2. Enable 4-bit quantization", flush=True)
+                            print(f"   3. Reduce max sequence length", flush=True)
                         raise
                     raise
                 
-                # Log progress
+                # Log progress - with flush for real-time output
                 if self.is_main_process and batch_idx % max(1, len(train_loader) // 5) == 0:
-                    print(f"   Batch {batch_idx}/{len(train_loader)}: Loss={loss.item() * gradient_accumulation_steps:.4f}")
+                    print(f"   Batch {batch_idx}/{len(train_loader)}: Loss={loss.item() * gradient_accumulation_steps:.4f}", flush=True)
             
             avg_epoch_loss = epoch_loss / max(1, epoch_batches)
             epoch_losses.append(avg_epoch_loss)
@@ -818,7 +818,7 @@ class DDPTrainer:
             num_batches += epoch_batches
             
             if self.is_main_process:
-                print(f"   Epoch {epoch + 1} Average Loss: {avg_epoch_loss:.4f}")
+                print(f"   Epoch {epoch + 1}/{epochs} Average Loss: {avg_epoch_loss:.4f}", flush=True)
             
             # Synchronize between processes
             if self.use_ddp:
