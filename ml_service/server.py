@@ -1048,11 +1048,114 @@ async def import_character_as_prompt(import_data: CharacterCardImport):
     raise HTTPException(status_code=404, detail=f"Character not found: {character_id}")
 
 
+def sync_character_cards_to_prompts() -> dict:
+    """
+    Synchronize all character cards from frontend/public/characters/ to system prompts.
+    This ensures character cards are always available as system prompts.
+    
+    Returns dict with sync results.
+    """
+    characters_dir = PROJECT_ROOT / 'frontend' / 'public' / 'characters'
+    results = {"synced": [], "skipped": [], "errors": []}
+    
+    if not characters_dir.exists():
+        logger.warning(f"Characters directory not found: {characters_dir}")
+        return results
+    
+    character_files = list(characters_dir.glob('*.yaml')) + list(characters_dir.glob('*.yml'))
+    existing_prompts = load_all_system_prompts()
+    existing_tags = set()
+    for p in existing_prompts:
+        existing_tags.update(p.tags)
+    
+    for char_file in character_files:
+        try:
+            import yaml
+            with open(char_file, 'r', encoding='utf-8') as f:
+                char_data = yaml.safe_load(f)
+            
+            character_id = char_data.get('id', char_file.stem)
+            system_prompt_content = char_data.get('system_prompt', '')
+            
+            if not system_prompt_content:
+                results["skipped"].append({
+                    "id": character_id,
+                    "reason": "No system_prompt defined"
+                })
+                continue
+            
+            # Check if already imported (by checking if a prompt with this character-card tag exists)
+            already_imported = any(
+                character_id in p.tags and 'character-card' in p.tags 
+                for p in existing_prompts
+            )
+            
+            if already_imported:
+                results["skipped"].append({
+                    "id": character_id,
+                    "reason": "Already imported"
+                })
+                continue
+            
+            # Create and save the prompt
+            prompt = SystemPrompt(
+                name=char_data.get('name', character_id),
+                description=char_data.get('description', ''),
+                content=system_prompt_content.strip(),
+                language=char_data.get('metadata', {}).get('language', 'sv'),
+                tags=['character-card', character_id, char_data.get('personality_type', 'default')],
+                is_active=False
+            )
+            
+            if save_system_prompt(prompt):
+                results["synced"].append({
+                    "id": character_id,
+                    "name": prompt.name,
+                    "prompt_id": prompt.id
+                })
+                logger.info(f"Synced character card '{character_id}' as system prompt: {prompt.name}")
+            else:
+                results["errors"].append({
+                    "id": character_id,
+                    "error": "Failed to save"
+                })
+                
+        except Exception as e:
+            results["errors"].append({
+                "id": char_file.stem,
+                "error": str(e)
+            })
+            logger.warning(f"Could not sync character file {char_file}: {e}")
+    
+    return results
+
+
+@system_prompts_router.post("/sync-characters")
+async def sync_all_characters():
+    """
+    Synchronize all character cards to system prompts.
+    This imports all character cards that haven't been imported yet.
+    Already imported character cards are skipped.
+    """
+    results = sync_character_cards_to_prompts()
+    
+    return {
+        "success": True,
+        "message": f"Synced {len(results['synced'])} character cards",
+        "synced": results["synced"],
+        "skipped": results["skipped"],
+        "errors": results["errors"]
+    }
+
+
 @system_prompts_router.get("/characters/available")
 async def list_available_characters():
-    """List character cards available for import"""
+    """List character cards available for import with sync status"""
     characters_dir = PROJECT_ROOT / 'frontend' / 'public' / 'characters'
     characters = []
+    
+    # Get existing prompts to check sync status
+    existing_prompts = load_all_system_prompts()
     
     if characters_dir.exists():
         character_files = list(characters_dir.glob('*.yaml')) + list(characters_dir.glob('*.yml'))
@@ -1063,17 +1166,50 @@ async def list_available_characters():
                 with open(char_file, 'r', encoding='utf-8') as f:
                     char_data = yaml.safe_load(f)
                 
+                character_id = char_data.get('id', char_file.stem)
+                
+                # Check if already synced
+                synced_prompt = next(
+                    (p for p in existing_prompts if character_id in p.tags and 'character-card' in p.tags),
+                    None
+                )
+                
                 characters.append({
-                    "id": char_data.get('id', char_file.stem),
+                    "id": character_id,
                     "name": char_data.get('name', char_file.stem),
                     "description": char_data.get('description', ''),
                     "has_system_prompt": bool(char_data.get('system_prompt')),
-                    "personality_type": char_data.get('personality_type', '')
+                    "personality_type": char_data.get('personality_type', ''),
+                    "icon": char_data.get('icon', '🤖'),
+                    "is_synced": synced_prompt is not None,
+                    "synced_prompt_id": synced_prompt.id if synced_prompt else None,
+                    "is_active": synced_prompt.is_active if synced_prompt else False
                 })
             except Exception as e:
                 logger.warning(f"Could not parse character file {char_file}: {e}")
     
     return {"characters": characters, "count": len(characters)}
+
+
+# =============================================================================
+# SIMPLE SYSTEM PROMPT API - Convenience wrapper for Dashboard Integration
+# =============================================================================
+# This provides a simpler GET endpoint that wraps the main system prompt API
+# The main CRUD operations are at /api/system-prompts (plural)
+
+# Create simple system prompt router (convenience wrapper)
+simple_prompt_router = APIRouter(prefix="/api/system-prompt", tags=["Simple System Prompt"])
+
+
+@simple_prompt_router.get("")
+async def get_current_prompt():
+    """
+    Get the currently active system prompt.
+    This is a convenience endpoint that wraps get_active_system_prompt().
+    
+    The prompt is configured via Admin Dashboard at /api/system-prompts.
+    """
+    return {"content": get_active_system_prompt()}
 
 
 # =============================================================================
@@ -1872,6 +2008,27 @@ async def lifespan(app: FastAPI):
     logger.info(f"  Ready to serve inference requests")
     logger.info("")
     
+    # Auto-sync character cards to system prompts
+    logger.info("Syncing character cards to system prompts...")
+    try:
+        sync_results = sync_character_cards_to_prompts()
+        if sync_results["synced"]:
+            logger.info(f"  ✓ Synced {len(sync_results['synced'])} character card(s)")
+            for synced in sync_results["synced"]:
+                logger.info(f"    - {synced['name']}")
+        if sync_results["skipped"]:
+            logger.info(f"  ℹ Skipped {len(sync_results['skipped'])} (already synced or no prompt)")
+        if sync_results["errors"]:
+            logger.warning(f"  ⚠ {len(sync_results['errors'])} error(s) during sync")
+    except Exception as e:
+        logger.warning(f"  ⚠ Could not sync character cards: {e}")
+    
+    # Log active system prompt
+    active_prompt = get_active_system_prompt()
+    prompt_preview = active_prompt[:100] + "..." if len(active_prompt) > 100 else active_prompt
+    logger.info(f"Active system prompt: {prompt_preview}")
+    logger.info("")
+    
     yield
     
     # Shutdown (cleanup if needed)
@@ -1903,6 +2060,9 @@ app.add_middleware(
 
 # Register System Prompts router
 app.include_router(system_prompts_router, prefix="/api")
+
+# Register Simple System Prompt router (for dashboard integration)
+app.include_router(simple_prompt_router)
 
 @app.get("/")
 async def root():
@@ -1945,8 +2105,17 @@ async def infer(request: Request, inference_request: InferenceRequest):
     
     Routes to DNA v2 certified models with fallback to base models.
     This is the recommended endpoint for all inference requests.
+    System prompt is automatically injected from the active prompt in Admin Dashboard.
     """
     start_time = time.time()
+    
+    # Get the active system prompt from Admin Dashboard (datasets/system_prompts/)
+    system_prompt = get_active_system_prompt()
+    
+    # Inject system prompt before user input - the model always knows who it is
+    full_input = f"{system_prompt}\n\nUser: {inference_request.text}\n\nAssistant:"
+    
+    logger.info(f"Injecting system prompt ({len(system_prompt)} chars) into inference request")
     
     try:
         # Determine if we're using certified model or fallback
@@ -1957,7 +2126,7 @@ async def infer(request: Request, inference_request: InferenceRequest):
             # Use dual-model inference for legacy models
             logger.info("Using dual-model inference (legacy fallback)")
             result = await dual_model_inference(
-                inference_request.text,
+                full_input,  # Use full input with system prompt
                 max_length=inference_request.max_length,
                 temperature=inference_request.temperature,
                 top_p=inference_request.top_p
@@ -1973,8 +2142,8 @@ async def infer(request: Request, inference_request: InferenceRequest):
             # Single-model inference (certified or fallback)
             model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
             
-            # Prepare input and sync to model's device
-            inputs = tokenizer(inference_request.text, return_tensors="pt", padding=True)
+            # Prepare input with system prompt and sync to model's device
+            inputs = tokenizer(full_input, return_tensors="pt", padding=True)
             inputs = sync_inputs_to_model_device(inputs, model)
             
             # Generate with explicit attention_mask
@@ -1992,8 +2161,10 @@ async def infer(request: Request, inference_request: InferenceRequest):
             # Decode output
             response_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
             
-            # Remove input from response
-            if response_text.startswith(inference_request.text):
+            # Remove full input (system prompt + user input) from response
+            if response_text.startswith(full_input):
+                response_text = response_text[len(full_input):].strip()
+            elif response_text.startswith(inference_request.text):
                 response_text = response_text[len(inference_request.text):].strip()
             
             latency_ms = (time.time() - start_time) * 1000
@@ -2040,13 +2211,26 @@ async def infer_legacy(request: InferenceRequest):
 
 @app.post("/inference/oneseek", response_model=InferenceResponse)
 async def oneseek_inference(request: InferenceRequest):
-    """Generate response using OneSeek-7B-Zero.v1.1 with dual-model architecture"""
+    """Generate response using OneSeek-7B-Zero.v1.1 with dual-model architecture.
+    
+    System prompt is automatically injected from the active prompt in Admin Dashboard.
+    The model always knows who it is - the prompt follows with every request.
+    """
     import time
     start_time = time.time()
+    
+    # Get the active system prompt from Admin Dashboard (datasets/system_prompts/)
+    system_prompt = get_active_system_prompt()
+    
+    # Inject system prompt before user input - the model always knows who it is
+    # Format: "[System Prompt]\n\n[User Input]"
+    full_input = f"{system_prompt}\n\nUser: {request.text}\n\nAssistant:"
     
     # === DEBUG: Log inference start ===
     logger.info("=" * 60)
     logger.info("=== ONESEEK INFERENCE START ===")
+    logger.info(f"→ System prompt injected ({len(system_prompt)} chars)")
+    logger.debug(f"→ System prompt (first 100 chars): {system_prompt[:100]}...")
     logger.debug(f"→ Input text: {request.text[:100]}..." if len(request.text) > 100 else f"→ Input text: {request.text}")
     logger.debug(f"→ Max length: {request.max_length}")
     logger.debug(f"→ Temperature: {request.temperature}")
@@ -2058,7 +2242,7 @@ async def oneseek_inference(request: InferenceRequest):
             # Use dual-model inference (Mistral + LLaMA)
             logger.debug("→ Using DUAL-model inference path")
             result = await dual_model_inference(
-                request.text,
+                full_input,  # Use full input with system prompt
                 max_length=request.max_length,
                 temperature=request.temperature,
                 top_p=request.top_p
@@ -2088,10 +2272,10 @@ async def oneseek_inference(request: InferenceRequest):
             except:
                 pass
             
-            # Prepare input and sync to model's device
-            logger.debug("→ Tokenizing input...")
+            # Prepare input with system prompt and sync to model's device
+            logger.debug("→ Tokenizing input with system prompt...")
             tokenize_start = time.time()
-            inputs = tokenizer(request.text, return_tensors="pt", padding=True)
+            inputs = tokenizer(full_input, return_tensors="pt", padding=True)
             tokenize_time = (time.time() - tokenize_start) * 1000
             logger.debug(f"→ Tokenization took: {tokenize_time:.1f}ms")
             
@@ -2149,8 +2333,11 @@ async def oneseek_inference(request: InferenceRequest):
             decode_time = (time.time() - decode_start) * 1000
             logger.debug(f"→ Decoding took: {decode_time:.1f}ms")
             
-            # Remove input from response
-            if response_text.startswith(request.text):
+            # Remove full input (system prompt + user input) from response
+            if response_text.startswith(full_input):
+                response_text = response_text[len(full_input):].strip()
+            elif response_text.startswith(request.text):
+                # Fallback: remove just the user input if full input doesn't match
                 response_text = response_text[len(request.text):].strip()
             
             latency_ms = (time.time() - start_time) * 1000

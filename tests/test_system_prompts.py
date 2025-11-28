@@ -326,5 +326,74 @@ class TestCharacterImport:
             assert response.status_code == 404
 
 
+class TestSimpleSystemPromptAPI:
+    """Test the simple /api/system-prompt GET endpoint (convenience wrapper)"""
+    
+    @pytest.fixture
+    def client(self):
+        """Create test client"""
+        from server import app
+        from fastapi.testclient import TestClient
+        return TestClient(app)
+    
+    def test_get_simple_prompt_returns_default(self, client, tmp_path):
+        """Test GET /api/system-prompt returns default when no active prompt exists"""
+        with patch('server.SYSTEM_PROMPTS_DIR', tmp_path):
+            response = client.get("/api/system-prompt")
+            assert response.status_code == 200
+            data = response.json()
+            assert "content" in data
+            # Should return the default prompt since no prompt files exist
+            assert len(data["content"]) > 0
+    
+    def test_get_simple_prompt_returns_active(self, client, tmp_path):
+        """Test GET /api/system-prompt returns the active prompt"""
+        from server import SystemPrompt, save_system_prompt
+        
+        with patch('server.SYSTEM_PROMPTS_DIR', tmp_path):
+            # Create and save an active prompt
+            prompt = SystemPrompt(
+                id="test-active",
+                name="Active Test Prompt",
+                content="This is the active system prompt for testing",
+                is_active=True
+            )
+            save_system_prompt(prompt)
+            
+            response = client.get("/api/system-prompt")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["content"] == "This is the active system prompt for testing"
+
+
+class TestSystemPromptInference:
+    """Test that system prompt is injected into inference requests"""
+    
+    def test_get_active_system_prompt_returns_default(self, tmp_path):
+        """Test get_active_system_prompt returns default when no active prompt"""
+        from server import get_active_system_prompt, DEFAULT_SYSTEM_PROMPT
+        
+        with patch('server.SYSTEM_PROMPTS_DIR', tmp_path):
+            result = get_active_system_prompt()
+            assert result == DEFAULT_SYSTEM_PROMPT
+    
+    def test_get_active_system_prompt_returns_active(self, tmp_path):
+        """Test get_active_system_prompt returns the active prompt content"""
+        from server import SystemPrompt, save_system_prompt, get_active_system_prompt
+        
+        with patch('server.SYSTEM_PROMPTS_DIR', tmp_path):
+            # Create and save an active prompt
+            prompt = SystemPrompt(
+                id="inference-test",
+                name="Inference Test Prompt",
+                content="Du är en hjälpsam svensk AI-assistent.",
+                is_active=True
+            )
+            save_system_prompt(prompt)
+            
+            result = get_active_system_prompt()
+            assert result == "Du är en hjälpsam svensk AI-assistent."
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
