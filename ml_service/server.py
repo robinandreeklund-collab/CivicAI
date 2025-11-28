@@ -1106,8 +1106,59 @@ def sync_character_cards_to_prompts() -> dict:
             with open(char_file, 'r', encoding='utf-8') as f:
                 char_data = yaml.safe_load(f)
             
+            # Validate char_data structure
+            if not isinstance(char_data, dict):
+                results["errors"].append({
+                    "id": char_file.stem,
+                    "error": "Invalid character file format (not a dict)"
+                })
+                continue
+            
             character_id = char_data.get('id', char_file.stem)
             system_prompt_content = char_data.get('system_prompt', '')
+            
+            # Validate system_prompt_content
+            if not isinstance(system_prompt_content, str):
+                results["errors"].append({
+                    "id": character_id,
+                    "error": "system_prompt is not a string"
+                })
+                continue
+            if len(system_prompt_content) > 50000:
+                results["errors"].append({
+                    "id": character_id,
+                    "error": f"system_prompt too large: {len(system_prompt_content)} chars"
+                })
+                continue
+            
+            # Validate name and description fields
+            name = char_data.get('name', character_id)
+            if not isinstance(name, str):
+                results["errors"].append({
+                    "id": character_id,
+                    "error": "name is not a string"
+                })
+                continue
+            if len(name) > 256:
+                results["errors"].append({
+                    "id": character_id,
+                    "error": f"name too long: {len(name)} chars"
+                })
+                continue
+            
+            description = char_data.get('description', '')
+            if not isinstance(description, str):
+                results["errors"].append({
+                    "id": character_id,
+                    "error": "description is not a string"
+                })
+                continue
+            if len(description) > 2048:
+                results["errors"].append({
+                    "id": character_id,
+                    "error": f"description too long: {len(description)} chars"
+                })
+                continue
             
             if not system_prompt_content:
                 results["skipped"].append({
