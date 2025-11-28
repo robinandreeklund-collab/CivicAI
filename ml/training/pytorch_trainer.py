@@ -1072,6 +1072,24 @@ def train_single_model_lora(
                     load_in_4bit = False
                     bnb_config = None
             
+            # === CUDA Memory Cleanup Before Model Loading ===
+            # Clear any leftover GPU memory from previous processes or training runs
+            # This helps prevent OOM errors when starting a new training session
+            if torch.cuda.is_available():
+                import gc
+                gc.collect()  # Clean up Python garbage first
+                torch.cuda.empty_cache()  # Release cached GPU memory
+                torch.cuda.synchronize()  # Wait for all CUDA operations to complete
+                
+                # Log current memory usage
+                for i in range(torch.cuda.device_count()):
+                    try:
+                        free_memory = torch.cuda.get_device_properties(i).total_memory - torch.cuda.memory_allocated(i)
+                        total_memory = torch.cuda.get_device_properties(i).total_memory
+                        print(f"   [MEMORY] GPU {i}: {free_memory / (1024**3):.1f}GB free / {total_memory / (1024**3):.1f}GB total")
+                    except Exception as mem_log_err:
+                        print(f"   [DEBUG] Could not log memory for GPU {i}: {mem_log_err}")
+            
             # DeepSpeed Tensor Parallel mode
             if use_deepspeed:
                 try:
@@ -1173,6 +1191,33 @@ def train_single_model_lora(
                     if device != "cpu" and not load_in_8bit:
                         model = model.to(device)
                     
+        except RuntimeError as e:
+            # Check for CUDA out of memory error
+            error_str = str(e).lower()
+            if "out of memory" in error_str or "cuda" in error_str:
+                print(f"\n   [ERROR] ✗ CUDA OUT OF MEMORY")
+                print(f"   [ERROR] Insufficient GPU memory to load model")
+                print(f"\n   [DEBUG] Error: {e}")
+                print(f"\n   [TROUBLESHOOTING] Steps to resolve CUDA OOM:")
+                print(f"      1. Stop any running inference server (ml_service/server.py)")
+                print(f"         - Press Ctrl+C in the server terminal")
+                print(f"         - Or run: taskkill /IM python.exe /F (Windows)")
+                print(f"      2. Clear CUDA cache by restarting Python")
+                print(f"      3. Reduce batch_size (current config setting)")
+                print(f"      4. Enable 4-bit quantization if not already enabled")
+                print(f"      5. Use single GPU mode: set CUDA_VISIBLE_DEVICES=0")
+                print(f"\n   [MEMORY CHECK] Run: nvidia-smi to see GPU memory usage")
+                print(f"\n   [ALTERNATIVE] To use separate GPUs for inference and training:")
+                print(f"      Terminal 1: set CUDA_VISIBLE_DEVICES=0 && python ml_service/server.py ...")
+                print(f"      Terminal 2: set CUDA_VISIBLE_DEVICES=1 && python scripts/train_dna_v2.py ...")
+                
+                raise RuntimeError(
+                    f"CUDA out of memory. GPU memory is insufficient or being used by another process. "
+                    f"Stop ml_service/server.py before training, or use separate GPUs."
+                )
+            else:
+                raise  # Re-raise non-OOM RuntimeErrors
+                
         except Exception as e:
             # === NO FALLBACK TO REMOTE MODELS ===
             # We NEVER silently fall back to downloading from HuggingFace.
