@@ -164,16 +164,16 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
         print("[MERGE DEBUG] Importing required libraries...")
         sys.stdout.flush()
         from transformers import AutoModelForCausalLM, AutoTokenizer
-        print("[MERGE DEBUG]   ✓ transformers imported")
+        print("[MERGE DEBUG]   [OK] transformers imported")
         sys.stdout.flush()
         from peft import PeftModel
-        print("[MERGE DEBUG]   ✓ peft imported")
+        print("[MERGE DEBUG]   [OK] peft imported")
         sys.stdout.flush()
         import torch
-        print("[MERGE DEBUG]   ✓ torch imported")
+        print("[MERGE DEBUG]   [OK] torch imported")
         sys.stdout.flush()
         import gc
-        print(f"[MERGE DEBUG] ✓ All libraries imported successfully")
+        print(f"[MERGE DEBUG] [OK] All libraries imported successfully")
         print(f"[MERGE DEBUG] PyTorch version: {torch.__version__}")
         print(f"[MERGE DEBUG] CUDA available: {torch.cuda.is_available()}")
         sys.stdout.flush()
@@ -184,16 +184,16 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
                 print(f"[MERGE DEBUG] GPU memory allocated: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
                 print(f"[MERGE DEBUG] GPU memory reserved: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
             except Exception as cuda_e:
-                print(f"[MERGE DEBUG] ⚠️ Could not get CUDA details: {cuda_e}")
+                print(f"[MERGE DEBUG] [!] Could not get CUDA details: {cuda_e}")
         sys.stdout.flush()
     except ImportError as e:
-        print(f"[MERGE DEBUG] ✗ Import error: {e}")
+        print(f"[MERGE DEBUG] [X] Import error: {e}")
         print("ERROR: Required libraries not found. Install with:")
         print("  pip install transformers peft torch")
         sys.stdout.flush()
         return None, None
     except Exception as e:
-        print(f"[MERGE DEBUG] ✗ Unexpected error during import: {type(e).__name__}: {e}")
+        print(f"[MERGE DEBUG] [X] Unexpected error during import: {type(e).__name__}: {e}")
         print("[MERGE DEBUG] Full traceback:")
         traceback.print_exc()
         sys.stdout.flush()
@@ -210,16 +210,16 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
     # Verify adapters
     print("[MERGE DEBUG] Verifying adapters exist...")
     if not verify_adapters_exist(certified_dir, adapters):
-        print("[MERGE DEBUG] ✗ Adapter verification failed")
+        print("[MERGE DEBUG] [X] Adapter verification failed")
         return None, None
-    print("[MERGE DEBUG] ✓ All adapters verified")
+    print("[MERGE DEBUG] [OK] All adapters verified")
     
     print(f"[MERGE] Loading base model: {base_model}")
     print(f"[MERGE] Total adapters to merge: {len(adapters)}")
     
     # Memory optimization for 5+ adapters
     if len(adapters) >= 5:
-        print(f"[MERGE] ⚠️ Enabling enhanced memory management for {len(adapters)} adapters")
+        print(f"[MERGE] [!] Enabling enhanced memory management for {len(adapters)} adapters")
         print(f"[MERGE DEBUG] This may take longer due to memory cleanup between merges")
     
     # Determine base model path - try to find it locally
@@ -236,7 +236,7 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
         print(f"[MERGE DEBUG]   Checking: {candidate}")
         if Path(candidate).exists():
             base_model_path = str(candidate)
-            print(f"[MERGE DEBUG]   ✓ Found at: {base_model_path}")
+            print(f"[MERGE DEBUG]   [OK] Found at: {base_model_path}")
             break
     
     if not base_model_path:
@@ -257,7 +257,7 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
             trust_remote_code=False,  # Security: don't execute remote code
             low_cpu_mem_usage=True,  # Memory optimization
         )
-        print(f"[MERGE DEBUG] ✓ Model loaded successfully")
+        print(f"[MERGE DEBUG] [OK] Model loaded successfully")
         if torch.cuda.is_available():
             print(f"[MERGE DEBUG] GPU memory after model load: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
         
@@ -266,9 +266,9 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
             base_model_path,
             trust_remote_code=False,  # Security: don't execute remote code
         )
-        print(f"[MERGE DEBUG] ✓ Tokenizer loaded successfully")
+        print(f"[MERGE DEBUG] [OK] Tokenizer loaded successfully")
     except Exception as e:
-        print(f"[MERGE DEBUG] ✗ Failed to load base model")
+        print(f"[MERGE DEBUG] [X] Failed to load base model")
         print(f"ERROR: Failed to load base model: {e}")
         print(f"[MERGE DEBUG] Traceback:")
         traceback.print_exc()
@@ -305,12 +305,12 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
         try:
             print(f"[MERGE DEBUG] Loading adapter with PeftModel.from_pretrained...")
             model = PeftModel.from_pretrained(model, str(adapter_path))
-            print(f"[MERGE DEBUG] ✓ Adapter loaded")
+            print(f"[MERGE DEBUG] [OK] Adapter loaded")
             
             # Merge adapter into base model
             print(f"[MERGE DEBUG] Merging and unloading adapter...")
             model = model.merge_and_unload()
-            print(f"[MERGE] ✓ Adapter {adapter} merged successfully")
+            print(f"[MERGE] [OK] Adapter {adapter} merged successfully")
             
             if torch.cuda.is_available():
                 mem_after = torch.cuda.memory_allocated() / 1e9
@@ -325,7 +325,7 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
                     print(f"[MERGE DEBUG] GPU memory after cleanup: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
                     
         except Exception as e:
-            print(f"[MERGE DEBUG] ✗ Failed to merge adapter {adapter}")
+            print(f"[MERGE DEBUG] [X] Failed to merge adapter {adapter}")
             print(f"ERROR: Failed to merge adapter {adapter}: {e}")
             print(f"[MERGE DEBUG] Traceback:")
             traceback.print_exc()
