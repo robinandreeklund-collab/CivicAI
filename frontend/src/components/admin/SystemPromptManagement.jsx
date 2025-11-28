@@ -479,7 +479,7 @@ export default function SystemPromptManagement() {
                   <span className="text-xl">{char.icon || '🤖'}</span>
                   <span className="text-[#eee] font-mono text-sm font-medium">{char.name}</span>
                 </div>
-                <p className="text-[#666] font-mono text-xs mb-2 line-clamp-2">{char.description}</p>
+                <p className="text-[#666] font-mono text-xs mb-2 line-clamp-2">{char.description || 'No description available'}</p>
                 <div className="flex items-center gap-2">
                   {char.is_active && (
                     <span className="px-2 py-0.5 text-[10px] bg-green-500/20 text-green-400 rounded font-mono">
