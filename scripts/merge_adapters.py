@@ -136,12 +136,41 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
     - Releases GPU memory after each adapter to prevent OOM
     - Supports trust_remote_code=False for security
     """
+    import sys
+    import traceback
+    
+    # Force unbuffered output for real-time logging
+    sys.stdout.reconfigure(line_buffering=True) if hasattr(sys.stdout, 'reconfigure') else None
+    
+    print("=" * 70)
+    print("[MERGE DEBUG] Python merge_adapters() started")
+    print("=" * 70)
+    print(f"[MERGE DEBUG] Base model: {base_model}")
+    print(f"[MERGE DEBUG] Output dir: {output_dir}")
+    print(f"[MERGE DEBUG] Output name: {output_name}")
+    print(f"[MERGE DEBUG] Version: {version}")
+    print(f"[MERGE DEBUG] Datasets: {datasets}")
+    print(f"[MERGE DEBUG] Number of adapters: {len(adapters)}")
+    for i, adapter in enumerate(adapters, 1):
+        print(f"[MERGE DEBUG]   Adapter {i}: {adapter}")
+    print("=" * 70)
+    
     try:
+        print("[MERGE DEBUG] Importing required libraries...")
         from transformers import AutoModelForCausalLM, AutoTokenizer
         from peft import PeftModel
         import torch
         import gc
-    except ImportError:
+        print(f"[MERGE DEBUG] ✓ Libraries imported successfully")
+        print(f"[MERGE DEBUG] PyTorch version: {torch.__version__}")
+        print(f"[MERGE DEBUG] CUDA available: {torch.cuda.is_available()}")
+        if torch.cuda.is_available():
+            print(f"[MERGE DEBUG] CUDA device: {torch.cuda.get_device_name(0)}")
+            print(f"[MERGE DEBUG] GPU memory total: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+            print(f"[MERGE DEBUG] GPU memory allocated: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+            print(f"[MERGE DEBUG] GPU memory reserved: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
+    except ImportError as e:
+        print(f"[MERGE DEBUG] ✗ Import error: {e}")
         print("ERROR: Required libraries not found. Install with:")
         print("  pip install transformers peft torch")
         return None, None
@@ -150,16 +179,24 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
     models_dir = project_root / 'models'
     certified_dir = models_dir / 'oneseek-certified'
     
+    print(f"[MERGE DEBUG] Project root: {project_root}")
+    print(f"[MERGE DEBUG] Models dir: {models_dir}")
+    print(f"[MERGE DEBUG] Certified dir: {certified_dir}")
+    
     # Verify adapters
+    print("[MERGE DEBUG] Verifying adapters exist...")
     if not verify_adapters_exist(certified_dir, adapters):
+        print("[MERGE DEBUG] ✗ Adapter verification failed")
         return None, None
+    print("[MERGE DEBUG] ✓ All adapters verified")
     
     print(f"[MERGE] Loading base model: {base_model}")
     print(f"[MERGE] Total adapters to merge: {len(adapters)}")
     
     # Memory optimization for 5+ adapters
     if len(adapters) >= 5:
-        print(f"[MERGE] Enabling enhanced memory management for {len(adapters)} adapters")
+        print(f"[MERGE] ⚠️ Enabling enhanced memory management for {len(adapters)} adapters")
+        print(f"[MERGE DEBUG] This may take longer due to memory cleanup between merges")
     
     # Determine base model path - try to find it locally
     base_model_candidates = [
@@ -169,18 +206,25 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
         base_model  # Fallback to HuggingFace model ID
     ]
     
+    print("[MERGE DEBUG] Searching for base model...")
     base_model_path = None
     for candidate in base_model_candidates:
+        print(f"[MERGE DEBUG]   Checking: {candidate}")
         if Path(candidate).exists():
             base_model_path = str(candidate)
+            print(f"[MERGE DEBUG]   ✓ Found at: {base_model_path}")
             break
     
     if not base_model_path:
         # Use HuggingFace model ID
+        print(f"[MERGE DEBUG] Base model not found locally")
         print(f"[MERGE] Base model not found locally, using HuggingFace: {base_model}")
         base_model_path = base_model
     
     # Load base model with improved settings
+    print(f"[MERGE DEBUG] Loading base model from: {base_model_path}")
+    print(f"[MERGE DEBUG] Settings: torch_dtype=float16, device_map=auto, trust_remote_code=False, low_cpu_mem_usage=True")
+    
     try:
         model = AutoModelForCausalLM.from_pretrained(
             base_model_path,
@@ -189,46 +233,87 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
             trust_remote_code=False,  # Security: don't execute remote code
             low_cpu_mem_usage=True,  # Memory optimization
         )
+        print(f"[MERGE DEBUG] ✓ Model loaded successfully")
+        if torch.cuda.is_available():
+            print(f"[MERGE DEBUG] GPU memory after model load: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+        
+        print(f"[MERGE DEBUG] Loading tokenizer...")
         tokenizer = AutoTokenizer.from_pretrained(
             base_model_path,
             trust_remote_code=False,  # Security: don't execute remote code
         )
+        print(f"[MERGE DEBUG] ✓ Tokenizer loaded successfully")
     except Exception as e:
+        print(f"[MERGE DEBUG] ✗ Failed to load base model")
         print(f"ERROR: Failed to load base model: {e}")
+        print(f"[MERGE DEBUG] Traceback:")
+        traceback.print_exc()
         return None, None
     
     # Collect adapter info for manifest
     adapter_infos = []
     
+    print("=" * 70)
+    print(f"[MERGE DEBUG] Starting adapter merge loop ({len(adapters)} adapters)")
+    print("=" * 70)
+    
     # Apply adapters sequentially with memory management
     for i, adapter in enumerate(adapters, 1):
         adapter_path = certified_dir / adapter
+        print(f"\n[MERGE DEBUG] === Adapter {i}/{len(adapters)} ===")
+        print(f"[MERGE DEBUG] Adapter name: {adapter}")
+        print(f"[MERGE DEBUG] Adapter path: {adapter_path}")
+        print(f"[MERGE DEBUG] Path exists: {adapter_path.exists()}")
+        
+        if torch.cuda.is_available():
+            mem_before = torch.cuda.memory_allocated() / 1e9
+            print(f"[MERGE DEBUG] GPU memory before merge: {mem_before:.2f} GB")
+        
         print(f"[MERGE] Applying adapter {i}/{len(adapters)}: {adapter}")
         
         # Collect adapter info
+        print(f"[MERGE DEBUG] Computing adapter info...")
         adapter_info = compute_adapter_info(adapter_path)
         adapter_info['mergeOrder'] = i
         adapter_infos.append(adapter_info)
+        print(f"[MERGE DEBUG] Adapter info: {adapter_info}")
         
         try:
+            print(f"[MERGE DEBUG] Loading adapter with PeftModel.from_pretrained...")
             model = PeftModel.from_pretrained(model, str(adapter_path))
+            print(f"[MERGE DEBUG] ✓ Adapter loaded")
+            
             # Merge adapter into base model
+            print(f"[MERGE DEBUG] Merging and unloading adapter...")
             model = model.merge_and_unload()
-            print(f"[MERGE] Adapter {adapter} merged successfully")
+            print(f"[MERGE] ✓ Adapter {adapter} merged successfully")
+            
+            if torch.cuda.is_available():
+                mem_after = torch.cuda.memory_allocated() / 1e9
+                print(f"[MERGE DEBUG] GPU memory after merge: {mem_after:.2f} GB (delta: {mem_after - mem_before:+.2f} GB)")
             
             # Memory cleanup after each adapter (especially important for 5+ adapters)
             if len(adapters) >= 3:
+                print(f"[MERGE DEBUG] Running memory cleanup (gc.collect + cuda.empty_cache)...")
                 gc.collect()
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
+                    print(f"[MERGE DEBUG] GPU memory after cleanup: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
                     
         except Exception as e:
+            print(f"[MERGE DEBUG] ✗ Failed to merge adapter {adapter}")
             print(f"ERROR: Failed to merge adapter {adapter}: {e}")
+            print(f"[MERGE DEBUG] Traceback:")
+            traceback.print_exc()
             # Cleanup on error
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             return None, None
+    
+    print("\n" + "=" * 70)
+    print(f"[MERGE DEBUG] All {len(adapters)} adapters merged successfully!")
+    print("=" * 70)
     
     # Save merged model
     output_path = Path(output_dir) / output_name

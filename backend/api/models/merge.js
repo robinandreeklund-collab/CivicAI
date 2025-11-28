@@ -681,23 +681,73 @@ router.post('/merge/quick', async (req, res) => {
       // Use system Python
     }
     
-    // Run merge script
+    // === DEBUG: Start of Quick Merge Process ===
+    console.log('\n' + '='.repeat(70));
+    console.log('[MERGE DEBUG] Starting Quick Merge Process');
+    console.log('='.repeat(70));
+    console.log(`[MERGE DEBUG] Timestamp: ${new Date().toISOString()}`);
+    console.log(`[MERGE DEBUG] Model ID: ${modelId}`);
+    console.log(`[MERGE DEBUG] Merge Type: ${mergeType}`);
+    console.log(`[MERGE DEBUG] New Version: ${versionStr}`);
+    console.log(`[MERGE DEBUG] Base Model: ${baseModel || 'llama-2-7b-swedish'}`);
+    console.log(`[MERGE DEBUG] Output Name: ${outputName}`);
+    console.log(`[MERGE DEBUG] Number of Adapters: ${adapters.length}`);
+    if (adapters.length >= 5) {
+      console.log(`[MERGE DEBUG] ⚠️ WARNING: Merging ${adapters.length} adapters - this may require significant memory`);
+    }
+    console.log(`[MERGE DEBUG] Adapters:`);
+    adapters.forEach((adapter, i) => console.log(`  ${i + 1}. ${adapter}`));
+    console.log(`[MERGE DEBUG] Python Command: ${pythonCommand}`);
+    console.log(`[MERGE DEBUG] Script Path: ${scriptPath}`);
+    console.log(`[MERGE DEBUG] Output Dir: ${outputDir}`);
+    console.log(`[MERGE DEBUG] Full Command:`);
+    console.log(`  ${pythonCommand} ${args.join(' ')}`);
+    console.log('='.repeat(70));
+    
+    // Run merge script with real-time output logging
     const mergeProcess = spawn(pythonCommand, args, {
       cwd: path.join(process.cwd(), '..'),
     });
     
+    console.log(`[MERGE DEBUG] Process spawned with PID: ${mergeProcess.pid}`);
+    const startTime = Date.now();
+    
     let stdout = '';
     let stderr = '';
     
+    // Real-time logging of Python script stdout
     mergeProcess.stdout.on('data', (data) => {
-      stdout += data.toString();
+      const text = data.toString();
+      stdout += text;
+      // Print each line to backend terminal for real-time debugging
+      text.split('\n').forEach(line => {
+        if (line.trim()) {
+          console.log(`[MERGE PYTHON] ${line}`);
+        }
+      });
     });
     
+    // Real-time logging of Python script stderr (errors/warnings)
     mergeProcess.stderr.on('data', (data) => {
-      stderr += data.toString();
+      const text = data.toString();
+      stderr += text;
+      // Print errors in real-time with timestamp
+      text.split('\n').forEach(line => {
+        if (line.trim()) {
+          console.error(`[MERGE STDERR] ${line}`);
+        }
+      });
     });
     
     mergeProcess.on('close', async (code) => {
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.log('='.repeat(70));
+      console.log(`[MERGE DEBUG] Process completed`);
+      console.log(`[MERGE DEBUG] Exit Code: ${code}`);
+      console.log(`[MERGE DEBUG] Duration: ${duration} seconds`);
+      console.log(`[MERGE DEBUG] Status: ${code === 0 ? '✓ SUCCESS' : '✗ FAILED'}`);
+      console.log('='.repeat(70));
+      
       if (code === 0) {
         // Create merge manifest
         const outputPath = path.join(outputDir, outputName);
@@ -755,11 +805,14 @@ router.post('/merge/quick', async (req, res) => {
             `# Merge hash: ${mergeHash}\n` +
             `# Adapters: ${adapters.length}\n`;
           await fs.writeFile(currentTxtPath, currentContent);
-          console.log(`[MERGE] Updated CURRENT.txt: ${currentTxtPath}`);
+          console.log(`[MERGE DEBUG] Updated CURRENT.txt: ${currentTxtPath}`);
+          console.log(`[MERGE DEBUG] ✓ All merge files created successfully`);
           
         } catch (e) {
-          console.log('Could not write merge files:', e);
+          console.error(`[MERGE DEBUG] ✗ Failed to write merge files:`, e);
         }
+        
+        console.log('\n[MERGE DEBUG] ✓ Quick Merge completed successfully!\n');
         
         res.json({
           success: true,
@@ -770,6 +823,17 @@ router.post('/merge/quick', async (req, res) => {
           manifest: manifest,
         });
       } else {
+        console.log('\n[MERGE DEBUG] ✗ Quick Merge FAILED');
+        console.log(`[MERGE DEBUG] Exit code: ${code}`);
+        console.log(`[MERGE DEBUG] Stdout length: ${stdout.length} chars`);
+        console.log(`[MERGE DEBUG] Stderr length: ${stderr.length} chars`);
+        if (stderr) {
+          console.log('[MERGE DEBUG] Last error output:');
+          const lastLines = stderr.split('\n').slice(-10).join('\n');
+          console.log(lastLines);
+        }
+        console.log('='.repeat(70) + '\n');
+        
         res.status(500).json({
           success: false,
           error: `${mergeType.toUpperCase()} merge failed`,
@@ -781,6 +845,9 @@ router.post('/merge/quick', async (req, res) => {
     });
     
     mergeProcess.on('error', (error) => {
+      console.error(`[MERGE DEBUG] ✗ Process spawn error: ${error.message}`);
+      console.error(error);
+      
       res.status(500).json({
         success: false,
         error: 'Failed to start merge process',
