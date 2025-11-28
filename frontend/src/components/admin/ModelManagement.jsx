@@ -125,6 +125,9 @@ export default function ModelManagement() {
     }
   };
   
+  // Merge status state for better UI feedback
+  const [mergeStatus, setMergeStatus] = useState(null); // null, 'pending', 'success', 'error'
+  
   // Quick merge from model card (Micro or Major)
   const performQuickMerge = async (model, mergeType) => {
     const currentVersion = model.version || '1.0';
@@ -139,16 +142,26 @@ export default function ModelManagement() {
       newVersion = `${major}.${minor + 1}`;
     }
     
+    // Count adapters to show in confirmation
+    const adapterCount = model.metadata?.adapters?.length || model.adaptersCount || 'multiple';
+    const memoryWarning = adapterCount >= 5 
+      ? '\n\n⚠️ Note: Merging 5+ adapters may require significant memory. Enhanced memory management is enabled.'
+      : '';
+    
     const confirmMsg = `Merge ${mergeType.toUpperCase()} Release?\n\n` +
       `Current: v${major}.${minor}\n` +
-      `New: v${newVersion}\n\n` +
-      `This will merge all adapters from ${model.directoryName || model.id} into a standalone model.`;
+      `New: v${newVersion}\n` +
+      `Adapters: ${adapterCount}\n\n` +
+      `This will merge all adapters from ${model.directoryName || model.id} into a standalone model.` +
+      memoryWarning;
     
     if (!confirm(confirmMsg)) return;
     
     setQuickMergeModel(model);
     setQuickMergeType(mergeType);
     setQuickMerging(true);
+    setMergeStatus('pending');
+    // Error logging:(null);
     
     try {
       const response = await fetch('/api/models/merge/quick', {
@@ -165,18 +178,54 @@ export default function ModelManagement() {
       const data = await response.json();
       
       if (response.ok) {
-        alert(`✅ Merge ${mergeType.toUpperCase()} completed!\n\nNew version: v${newVersion}\n${data.message || ''}`);
+        setMergeStatus('success');
+        const successMsg = `✅ Merge ${mergeType.toUpperCase()} completed!\n\n` +
+          `New version: v${newVersion}\n` +
+          `${data.message || ''}\n\n` +
+          `Merge Hash: ${data.manifest?.mergeHash || 'N/A'}\n` +
+          `Output: ${data.outputDir || 'See Models tab'}`;
+        alert(successMsg);
         await fetchModels();
         await fetchManifests();
       } else {
-        alert(`❌ Merge failed: ${data.error}\n\n${data.stderr || ''}`);
+        setMergeStatus('error');
+        // Provide more detailed error messages
+        let errorMsg = `❌ Merge failed: ${data.error || 'Unknown error'}`;
+        
+        if (data.stderr) {
+          // Check for common error patterns
+          if (data.stderr.includes('out of memory') || data.stderr.includes('CUDA')) {
+            errorMsg += '\n\n💡 Suggestion: GPU memory issue detected.\n' +
+              '• Try merging fewer adapters at once\n' +
+              '• Ensure GPU has at least 16GB VRAM for 7B model merges\n' +
+              '• Consider using CPU-only merge (slower but works with less memory)';
+          } else if (data.stderr.includes('adapter not found') || data.stderr.includes('FileNotFound')) {
+            errorMsg += '\n\n💡 Suggestion: Adapter files may be missing.\n' +
+              '• Check that all adapters exist in the certified directory\n' +
+              '• Verify adapter paths in metadata.json';
+          } else {
+            errorMsg += `\n\nDetails:\n${data.stderr.slice(0, 500)}`;
+          }
+        }
+        
+        // Error logging:(errorMsg);
+        alert(errorMsg);
       }
     } catch (error) {
       console.error('Error during quick merge:', error);
-      alert('❌ Merge failed. Check console for details.');
+      setMergeStatus('error');
+      const networkError = '❌ Merge failed: Network error or server unreachable.\n\n' +
+        '💡 Suggestions:\n' +
+        '• Check that the backend server is running\n' +
+        '• Verify network connectivity\n' +
+        '• Check backend logs for details';
+      // Error logging:(networkError);
+      alert(networkError);
     } finally {
       setQuickMerging(false);
       setQuickMergeModel(null);
+      // Clear status after a delay
+      setTimeout(() => setMergeStatus(null), 5000);
     }
   };
   
@@ -872,18 +921,38 @@ export default function ModelManagement() {
                           <button
                             onClick={() => performQuickMerge(model, 'micro')}
                             disabled={quickMerging && quickMergeModel?.id === model.id}
-                            className="px-3 py-1 border border-blue-700/50 bg-blue-900/20 text-blue-400 text-xs font-mono hover:bg-blue-900/30 transition-colors disabled:opacity-50"
+                            className={`px-3 py-1 border text-xs font-mono transition-colors disabled:opacity-50 ${
+                              mergeStatus === 'success' && quickMergeModel?.id === model.id
+                                ? 'border-green-700/50 bg-green-900/20 text-green-400'
+                                : mergeStatus === 'error' && quickMergeModel?.id === model.id
+                                ? 'border-red-700/50 bg-red-900/20 text-red-400'
+                                : 'border-blue-700/50 bg-blue-900/20 text-blue-400 hover:bg-blue-900/30'
+                            }`}
                             title="Merge Micro: v1.0 → v1.1 (minor update)"
                           >
-                            {quickMerging && quickMergeModel?.id === model.id && quickMergeType === 'micro' ? '⏳...' : '🔀 Merge Micro'}
+                            {quickMerging && quickMergeModel?.id === model.id && quickMergeType === 'micro' 
+                              ? '⏳ Merging...' 
+                              : mergeStatus === 'success' && quickMergeModel?.id === model.id 
+                              ? '✅ Done' 
+                              : '🔀 Merge Micro'}
                           </button>
                           <button
                             onClick={() => performQuickMerge(model, 'major')}
                             disabled={quickMerging && quickMergeModel?.id === model.id}
-                            className="px-3 py-1 border border-purple-700/50 bg-purple-900/20 text-purple-400 text-xs font-mono hover:bg-purple-900/30 transition-colors disabled:opacity-50"
+                            className={`px-3 py-1 border text-xs font-mono transition-colors disabled:opacity-50 ${
+                              mergeStatus === 'success' && quickMergeModel?.id === model.id && quickMergeType === 'major'
+                                ? 'border-green-700/50 bg-green-900/20 text-green-400'
+                                : mergeStatus === 'error' && quickMergeModel?.id === model.id && quickMergeType === 'major'
+                                ? 'border-red-700/50 bg-red-900/20 text-red-400'
+                                : 'border-purple-700/50 bg-purple-900/20 text-purple-400 hover:bg-purple-900/30'
+                            }`}
                             title="Merge Major: v1.x → v2.0 (major release)"
                           >
-                            {quickMerging && quickMergeModel?.id === model.id && quickMergeType === 'major' ? '⏳...' : '🚀 Merge Major'}
+                            {quickMerging && quickMergeModel?.id === model.id && quickMergeType === 'major' 
+                              ? '⏳ Merging...' 
+                              : mergeStatus === 'success' && quickMergeModel?.id === model.id && quickMergeType === 'major'
+                              ? '✅ Done'
+                              : '🚀 Merge Major'}
                           </button>
                           {/* Only show GGUF export for merged models */}
                           {model.isMerged && (

@@ -129,11 +129,18 @@ def generate_merge_manifest(base_model, adapters, adapter_infos, output_path, ve
     return manifest
 
 def merge_adapters(base_model, adapters, output_dir, output_name, version, datasets):
-    """Merge adapters using PEFT library - creates standalone model"""
+    """Merge adapters using PEFT library - creates standalone model
+    
+    Improved memory handling for 5+ adapters:
+    - Uses garbage collection between adapter merges
+    - Releases GPU memory after each adapter to prevent OOM
+    - Supports trust_remote_code=False for security
+    """
     try:
         from transformers import AutoModelForCausalLM, AutoTokenizer
         from peft import PeftModel
         import torch
+        import gc
     except ImportError:
         print("ERROR: Required libraries not found. Install with:")
         print("  pip install transformers peft torch")
@@ -148,6 +155,11 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
         return None, None
     
     print(f"[MERGE] Loading base model: {base_model}")
+    print(f"[MERGE] Total adapters to merge: {len(adapters)}")
+    
+    # Memory optimization for 5+ adapters
+    if len(adapters) >= 5:
+        print(f"[MERGE] Enabling enhanced memory management for {len(adapters)} adapters")
     
     # Determine base model path - try to find it locally
     base_model_candidates = [
@@ -168,14 +180,19 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
         print(f"[MERGE] Base model not found locally, using HuggingFace: {base_model}")
         base_model_path = base_model
     
-    # Load base model
+    # Load base model with improved settings
     try:
         model = AutoModelForCausalLM.from_pretrained(
             base_model_path,
             torch_dtype=torch.float16,
-            device_map='auto'
+            device_map='auto',
+            trust_remote_code=False,  # Security: don't execute remote code
+            low_cpu_mem_usage=True,  # Memory optimization
         )
-        tokenizer = AutoTokenizer.from_pretrained(base_model_path)
+        tokenizer = AutoTokenizer.from_pretrained(
+            base_model_path,
+            trust_remote_code=False,  # Security: don't execute remote code
+        )
     except Exception as e:
         print(f"ERROR: Failed to load base model: {e}")
         return None, None
@@ -183,7 +200,7 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
     # Collect adapter info for manifest
     adapter_infos = []
     
-    # Apply adapters sequentially
+    # Apply adapters sequentially with memory management
     for i, adapter in enumerate(adapters, 1):
         adapter_path = certified_dir / adapter
         print(f"[MERGE] Applying adapter {i}/{len(adapters)}: {adapter}")
@@ -198,8 +215,19 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
             # Merge adapter into base model
             model = model.merge_and_unload()
             print(f"[MERGE] Adapter {adapter} merged successfully")
+            
+            # Memory cleanup after each adapter (especially important for 5+ adapters)
+            if len(adapters) >= 3:
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    
         except Exception as e:
             print(f"ERROR: Failed to merge adapter {adapter}: {e}")
+            # Cleanup on error
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
             return None, None
     
     # Save merged model
@@ -217,8 +245,41 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
         json.dump(manifest, f, indent=2)
     print(f"[MERGE] Manifest saved: {manifest_path}")
     
-    # Save legacy metadata for compatibility
+    # Create metadata.json (standard format for certified models)
     metadata = {
+        'dna': output_name,
+        'version': version,
+        'baseModel': base_model,
+        'adapters': adapters,
+        'datasets': datasets,
+        'language': 'sv',  # Default to Swedish, can be updated from adapter metadata
+        'createdAt': datetime.now(timezone.utc).isoformat(),
+        'trainingType': 'merged',
+        'isStandalone': True,
+        'isMerged': True,
+        'mergeHash': manifest['mergeHash'],
+        'adaptersCount': len(adapters),
+        'metrics': {
+            'loss': None,
+            'accuracy': None,
+            'fairness': None,
+        },
+    }
+    
+    # Try to get language from adapter metadata
+    for adapter_info in adapter_infos:
+        if adapter_info.get('language') and adapter_info['language'] != 'unknown':
+            metadata['language'] = adapter_info['language']
+            break
+    
+    # Save metadata.json (primary metadata file)
+    metadata_path = output_path / 'metadata.json'
+    with open(metadata_path, 'w') as f:
+        json.dump(metadata, f, indent=2, ensure_ascii=False)
+    print(f"[MERGE] Metadata saved: {metadata_path}")
+    
+    # Save legacy merge_metadata.json for compatibility
+    legacy_metadata = {
         'baseModel': base_model,
         'adapters': adapters,
         'mergedAt': datetime.now(timezone.utc).isoformat(),
@@ -228,9 +289,26 @@ def merge_adapters(base_model, adapters, output_dir, output_name, version, datas
         'mergeHash': manifest['mergeHash'],
     }
     
-    metadata_path = output_path / 'merge_metadata.json'
-    with open(metadata_path, 'w') as f:
-        json.dump(metadata, f, indent=2)
+    legacy_metadata_path = output_path / 'merge_metadata.json'
+    with open(legacy_metadata_path, 'w') as f:
+        json.dump(legacy_metadata, f, indent=2)
+    
+    # Update CURRENT.txt with latest merge version
+    try:
+        current_txt_path = certified_dir / 'CURRENT.txt'
+        with open(current_txt_path, 'w') as f:
+            f.write(f"{output_name}\n")
+            f.write(f"# Last merged: {datetime.now(timezone.utc).isoformat()}\n")
+            f.write(f"# Merge hash: {manifest['mergeHash']}\n")
+            f.write(f"# Adapters: {len(adapters)}\n")
+        print(f"[MERGE] Updated CURRENT.txt: {current_txt_path}")
+    except Exception as e:
+        print(f"[MERGE] Warning: Could not update CURRENT.txt: {e}")
+    
+    # Final memory cleanup
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     
     print(f"[MERGE] Merge completed successfully!")
     print(f"[MERGE] Merged {len(adapters)} adapters into standalone model: {output_name}")

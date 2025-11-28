@@ -700,7 +700,12 @@ router.post('/merge/quick', async (req, res) => {
     mergeProcess.on('close', async (code) => {
       if (code === 0) {
         // Create merge manifest
-        const manifestPath = path.join(outputDir, outputName, 'merge_manifest.json');
+        const outputPath = path.join(outputDir, outputName);
+        const manifestPath = path.join(outputPath, 'merge_manifest.json');
+        const mergeHash = crypto.createHash('sha256').update(JSON.stringify({
+          adapters, baseModel, versionStr, timestamp: Date.now()
+        })).digest('hex').substring(0, 16);
+        
         const manifest = {
           mergeType: mergeType,
           version: versionStr,
@@ -709,23 +714,58 @@ router.post('/merge/quick', async (req, res) => {
           adapters: adapters,
           baseModel: baseModel || 'llama-2-7b-swedish',
           generatedAt: new Date().toISOString(),
-          mergeHash: crypto.createHash('sha256').update(JSON.stringify({
-            adapters, baseModel, versionStr, timestamp: Date.now()
-          })).digest('hex').substring(0, 16),
+          mergeHash: mergeHash,
         };
         
         try {
-          await fs.mkdir(path.join(outputDir, outputName), { recursive: true });
+          await fs.mkdir(outputPath, { recursive: true });
           await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+          
+          // Create metadata.json (standard format for certified models)
+          const metadataPath = path.join(outputPath, 'metadata.json');
+          const metadata = {
+            dna: outputName,
+            version: versionStr,
+            baseModel: baseModel || 'llama-2-7b-swedish',
+            adapters: adapters,
+            datasets: [],
+            language: 'sv',
+            createdAt: new Date().toISOString(),
+            trainingType: 'merged',
+            isStandalone: true,
+            isMerged: true,
+            mergeType: mergeType,
+            mergeHash: mergeHash,
+            adaptersCount: adapters.length,
+            sourceModel: modelId,
+            sourceDna: dna,
+            metrics: {
+              loss: null,
+              accuracy: null,
+              fairness: null,
+            },
+          };
+          await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
+          
+          // Update CURRENT.txt with latest merge version
+          const currentTxtPath = path.join(certifiedDir, 'CURRENT.txt');
+          const currentContent = `${outputName}\n` +
+            `# Last merged: ${new Date().toISOString()}\n` +
+            `# Merge type: ${mergeType}\n` +
+            `# Merge hash: ${mergeHash}\n` +
+            `# Adapters: ${adapters.length}\n`;
+          await fs.writeFile(currentTxtPath, currentContent);
+          console.log(`[MERGE] Updated CURRENT.txt: ${currentTxtPath}`);
+          
         } catch (e) {
-          console.log('Could not write merge manifest:', e);
+          console.log('Could not write merge files:', e);
         }
         
         res.json({
           success: true,
           message: `${mergeType.toUpperCase()} merge completed successfully`,
           output: stdout,
-          outputDir: path.join(outputDir, outputName),
+          outputDir: outputPath,
           version: versionStr,
           manifest: manifest,
         });
