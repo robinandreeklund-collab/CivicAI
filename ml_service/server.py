@@ -89,6 +89,237 @@ FORCE_SVENSKA_TRIGGERS = load_force_swedish()
 # END FORCE-SVENSKA CONFIGURATION
 # =============================================================================
 
+
+# =============================================================================
+# TAVILY WEB SEARCH CONFIGURATION - Dashboard-controlled real-time search
+# =============================================================================
+# Tavily triggers and blacklist are loaded from config/tavily_triggers.json
+# Triggers activate web search, blacklist prevents search for identity questions
+
+TAVILY_CONFIG_FILE = Path(__file__).parent.parent / "config" / "tavily_triggers.json"
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+
+def load_tavily_config() -> tuple:
+    """
+    Load Tavily triggers and blacklist from config file.
+    
+    Returns tuple of (triggers, blacklist). If file doesn't exist or is invalid,
+    returns default lists.
+    """
+    if TAVILY_CONFIG_FILE.exists():
+        try:
+            data = json.loads(TAVILY_CONFIG_FILE.read_text(encoding="utf-8"))
+            triggers = data.get("triggers", [])
+            blacklist = data.get("blacklist", [])
+            if isinstance(triggers, list) and isinstance(blacklist, list):
+                return (
+                    [t.strip().lower() for t in triggers if isinstance(t, str) and t.strip()],
+                    [b.strip().lower() for b in blacklist if isinstance(b, str) and b.strip()]
+                )
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+    
+    # Default triggers and blacklist if file doesn't exist or is invalid
+    return (
+        [
+            "vad säger", "aktuell", "senaste", "2025", "2026", "hände", "blir det",
+            "lag", "regel", "kostar", "händer", "ny", "nya", "ändrats", "ändring",
+            "vad gäller", "vad är det senaste", "vad hände med"
+        ],
+        [
+            "vem är du", "vad heter du", "berätta om dig", "vad tycker du",
+            "vad känner du", "älskar du", "hatar du"
+        ]
+    )
+
+# Load Tavily config at startup - can be updated via API
+TAVILY_TRIGGERS, TAVILY_BLACKLIST = load_tavily_config()
+
+# =============================================================================
+# END TAVILY CONFIGURATION
+# =============================================================================
+
+
+# =============================================================================
+# TIME, DATE & WEATHER FUNCTIONS - Always-aware context injection
+# =============================================================================
+
+def inject_time_context() -> str:
+    """
+    Get current time and date in Swedish format.
+    
+    Returns a formatted string like: "Idag är det Fredag den 28 november 2025. Klockan är 23:15 (svensk tid)."
+    """
+    import locale
+    try:
+        # Try to set Swedish locale for proper day/month names
+        locale.setlocale(locale.LC_TIME, 'sv_SE.UTF-8')
+    except locale.Error:
+        pass  # Fall back to default locale
+    
+    now = datetime.now()
+    
+    # Swedish day and month names as fallback
+    days_sv = ["Måndag", "Tisdag", "Onsdag", "Torsdag", "Fredag", "Lördag", "Söndag"]
+    months_sv = ["januari", "februari", "mars", "april", "maj", "juni", 
+                 "juli", "augusti", "september", "oktober", "november", "december"]
+    
+    day_name = days_sv[now.weekday()]
+    month_name = months_sv[now.month - 1]
+    time_str = now.strftime("%H:%M")
+    
+    return f"Idag är det {day_name} den {now.day} {month_name} {now.year}. Klockan är {time_str} (svensk tid)."
+
+
+def get_weather() -> Optional[str]:
+    """
+    Get weather forecast from SMHI for Stockholm.
+    
+    Returns a formatted weather string or None if API fails.
+    """
+    import requests
+    
+    try:
+        # SMHI Open Data API - Stockholm coordinates (lat: 59.33, lon: 18.07)
+        url = "https://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point/lon/18.07/lat/59.33/data.json"
+        r = requests.get(url, timeout=8)
+        
+        if r.status_code != 200:
+            return None
+            
+        data = r.json()
+        
+        # Get tomorrow's forecast (index 1 in timeSeries)
+        if "timeSeries" not in data or len(data["timeSeries"]) < 2:
+            return None
+            
+        forecast = data["timeSeries"][1]["parameters"]
+        
+        # Find temperature (t) and precipitation category (pcat)
+        temp = None
+        rain = None
+        for param in forecast:
+            if param["name"] == "t":
+                temp = param["values"][0]
+            elif param["name"] == "pcat":
+                rain = int(param["values"][0])
+        
+        if temp is None:
+            return None
+            
+        # Precipitation category descriptions
+        rain_texts = [
+            "ingen nederbörd",
+            "snö",
+            "snö och regn", 
+            "regn",
+            "duggregn",
+            "fryst duggregn",
+            "fryst regn"
+        ]
+        rain_text = rain_texts[rain] if rain is not None and 0 <= rain < len(rain_texts) else "okänd nederbörd"
+        
+        return f"Imorgon i Stockholm blir det ca {temp}°C och {rain_text}."
+        
+    except Exception:
+        return None
+
+
+def tavily_search(query: str) -> Optional[dict]:
+    """
+    Perform a Tavily web search for real-time information.
+    
+    Args:
+        query: The search query
+        
+    Returns:
+        Search results dict or None if API key not set or search fails
+    """
+    import requests
+    
+    if not TAVILY_API_KEY:
+        return None
+        
+    try:
+        r = requests.post(
+            "https://api.tavily.com/search",
+            json={
+                "api_key": TAVILY_API_KEY,
+                "query": query,
+                "search_depth": "advanced",
+                "include_answer": True,
+                "max_results": 4
+            },
+            timeout=10
+        )
+        return r.json() if r.status_code == 200 else None
+    except Exception:
+        return None
+
+
+def format_tavily_sources(data: Optional[dict]) -> str:
+    """
+    Format Tavily search results as source links.
+    
+    Args:
+        data: Tavily search response dict
+        
+    Returns:
+        Formatted sources string with markdown links
+    """
+    if not data or "results" not in data:
+        return ""
+        
+    sources = "\n**Källor:**\n"
+    for i, result in enumerate(data["results"][:4], 1):
+        title = result.get("title", "Källa")
+        url = result.get("url", "#")
+        # Truncate long titles
+        if len(title) > 70:
+            title = title[:67] + "..."
+        sources += f"{i}. [{title}]({url})\n"
+        
+    return sources.strip()
+
+
+def check_tavily_trigger(user_message: str) -> bool:
+    """
+    Check if user message should trigger Tavily search.
+    
+    Args:
+        user_message: The user's input message
+        
+    Returns:
+        True if should trigger search, False otherwise
+    """
+    msg_lower = user_message.lower()
+    
+    # Check if any trigger matches AND no blacklist matches
+    has_trigger = any(trigger in msg_lower for trigger in TAVILY_TRIGGERS)
+    is_blacklisted = any(blacklist in msg_lower for blacklist in TAVILY_BLACKLIST)
+    
+    return has_trigger and not is_blacklisted
+
+
+def check_weather_trigger(user_message: str) -> bool:
+    """
+    Check if user message is asking about weather.
+    
+    Args:
+        user_message: The user's input message
+        
+    Returns:
+        True if weather-related question, False otherwise
+    """
+    weather_keywords = ["vädret", "regnar", "soligt", "imorgon", "väder", "temperatur", "grader"]
+    msg_lower = user_message.lower()
+    return any(keyword in msg_lower for keyword in weather_keywords)
+
+# =============================================================================
+# END TIME, DATE & WEATHER FUNCTIONS
+# =============================================================================
+
+
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description='OneSeek ML Inference Service')
 parser.add_argument('--auto-devices', action='store_true', 
@@ -1457,6 +1688,96 @@ def apply_force_svenska(messages: list) -> list:
 # =============================================================================
 
 
+# =============================================================================
+# TAVILY WEB SEARCH API - Real-time dashboard control for search triggers
+# =============================================================================
+# These endpoints allow admins to manage the Tavily web search feature which
+# fetches real-time information when trigger words are detected in user input.
+
+# Create Tavily triggers router
+tavily_router = APIRouter(prefix="/api/tavily-triggers", tags=["Tavily Search"])
+
+
+@tavily_router.get("")
+async def get_tavily_triggers():
+    """
+    Get current Tavily triggers and blacklist.
+    
+    Returns the list of trigger words that activate web search,
+    and blacklist words that prevent search (e.g., identity questions).
+    """
+    return {
+        "triggers": TAVILY_TRIGGERS,
+        "blacklist": TAVILY_BLACKLIST,
+        "trigger_count": len(TAVILY_TRIGGERS),
+        "blacklist_count": len(TAVILY_BLACKLIST),
+        "api_key_set": bool(TAVILY_API_KEY)
+    }
+
+
+@tavily_router.post("")
+async def save_tavily_triggers(request: dict):
+    """
+    Save Tavily triggers and blacklist.
+    
+    Updates the trigger and blacklist lists in real-time. Changes take effect
+    immediately without requiring a server restart.
+    
+    Request body:
+    - triggers: string - Comma-separated list of triggers
+    - blacklist: string - Comma-separated list of blacklist words
+    """
+    global TAVILY_TRIGGERS, TAVILY_BLACKLIST
+    
+    # Parse triggers from comma-separated string or list
+    raw_triggers = request.get("triggers", "")
+    if isinstance(raw_triggers, str):
+        triggers = [t.strip().lower() for t in raw_triggers.split(",") if t.strip()]
+    elif isinstance(raw_triggers, list):
+        triggers = [t.strip().lower() for t in raw_triggers if isinstance(t, str) and t.strip()]
+    else:
+        triggers = []
+    
+    # Parse blacklist from comma-separated string or list
+    raw_blacklist = request.get("blacklist", "")
+    if isinstance(raw_blacklist, str):
+        blacklist = [b.strip().lower() for b in raw_blacklist.split(",") if b.strip()]
+    elif isinstance(raw_blacklist, list):
+        blacklist = [b.strip().lower() for b in raw_blacklist if isinstance(b, str) and b.strip()]
+    else:
+        blacklist = []
+    
+    # Save to file
+    data = {"triggers": triggers, "blacklist": blacklist}
+    try:
+        TAVILY_CONFIG_FILE.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2),
+            encoding="utf-8"
+        )
+    except Exception as e:
+        logger.error(f"Failed to save Tavily triggers: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save triggers: {str(e)}")
+    
+    # Update in-memory lists immediately
+    TAVILY_TRIGGERS = triggers
+    TAVILY_BLACKLIST = blacklist
+    
+    logger.info(f"Tavily triggers updated: {len(triggers)} triggers, {len(blacklist)} blacklist")
+    
+    return {
+        "status": "saved",
+        "trigger_count": len(triggers),
+        "blacklist_count": len(blacklist),
+        "triggers": triggers,
+        "blacklist": blacklist
+    }
+
+
+# =============================================================================
+# END TAVILY API
+# =============================================================================
+
+
 def find_base_model_path():
     """Find a valid base model path for OneSeek-7B-Zero
     
@@ -2307,6 +2628,9 @@ app.include_router(simple_prompt_router)
 # Register Force-Svenska router (real-time dashboard control)
 app.include_router(force_svenska_router)
 
+# Register Tavily router (real-time search control)
+app.include_router(tavily_router)
+
 @app.get("/")
 async def root():
     """Health check and service information"""
@@ -2350,26 +2674,73 @@ async def infer(request: Request, inference_request: InferenceRequest):
     This is the recommended endpoint for all inference requests.
     System prompt is automatically injected from the active prompt in Admin Dashboard.
     
-    Force-Svenska: If the user's message contains Swedish trigger words (configured
-    via Admin Dashboard), a Swedish-only instruction is prepended to ensure the
-    model responds in Swedish.
+    Features:
+    - Force-Svenska: Swedish-only responses when Swedish triggers detected
+    - Time & Date: Always aware of current time (injected into every request)
+    - Weather: SMHI weather data for Stockholm when weather-related questions
+    - Tavily Search: Real-time web search for current events/facts
     """
     start_time = time.time()
     
     # Check for Force-Svenska triggers
     force_svenska_active = check_force_svenska(inference_request.text)
     
+    # === 1. ALWAYS: Inject time & date context ===
+    time_context = inject_time_context()
+    
+    # === 2. Check for weather question ===
+    weather_context = None
+    if check_weather_trigger(inference_request.text):
+        weather_data = get_weather()
+        if weather_data:
+            weather_context = weather_data
+            logger.info("🌤️ Väderdata hämtad från SMHI")
+    
+    # === 3. Check for Tavily search trigger ===
+    tavily_context = None
+    tavily_sources = ""
+    if check_tavily_trigger(inference_request.text):
+        logger.info(f"🔍 [TAVILY] Hämtar realtidsdata: {inference_request.text[:60]}...")
+        search_result = tavily_search(inference_request.text)
+        if search_result and search_result.get("answer"):
+            tavily_context = search_result["answer"]
+            tavily_sources = format_tavily_sources(search_result)
+            logger.info("✓ Tavily-svar mottaget")
+    
     # Format input with system prompt - ensures model always knows its identity
     full_input = format_inference_input(inference_request.text)
     
+    # Build enhanced context prefix
+    context_parts = []
+    
+    # Always add time context
+    context_parts.append(f"[Aktuell tid] {time_context}")
+    
+    # Add weather if available
+    if weather_context:
+        context_parts.append(f"[Väder] {weather_context}")
+    
+    # Add Tavily search results if available
+    if tavily_context:
+        context_parts.append(f"[Aktuell fakta] {tavily_context}")
+        if tavily_sources:
+            context_parts.append(tavily_sources)
+    
     # If Force-Svenska is active, prepend Swedish instruction
     if force_svenska_active:
-        swedish_prefix = "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu.\n\n"
-        full_input = swedish_prefix + full_input
+        context_parts.insert(0, "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu.")
         logger.info("🇸🇪 Force-Svenska aktiverat – svarar på svenska")
+    
+    # Combine all context
+    if context_parts:
+        context_prefix = "\n".join(context_parts) + "\n\n"
+        full_input = context_prefix + full_input
     
     logger.debug("Injecting system prompt into inference request")
     logger.debug(f"Force-Svenska: {'ACTIVE' if force_svenska_active else 'inactive'}")
+    logger.debug(f"Time context: {time_context[:50]}...")
+    logger.debug(f"Weather: {'YES' if weather_context else 'no'}")
+    logger.debug(f"Tavily: {'YES' if tavily_context else 'no'}")
     
     try:
         # Determine if we're using certified model or fallback
@@ -2467,9 +2838,11 @@ async def oneseek_inference(request: InferenceRequest):
     System prompt is automatically injected from the active prompt in Admin Dashboard.
     The model always knows who it is - the prompt follows with every request.
     
-    Force-Svenska: If the user's message contains Swedish trigger words (configured
-    via Admin Dashboard), a Swedish-only instruction is prepended to ensure the
-    model responds in Swedish.
+    Features:
+    - Force-Svenska: Swedish-only responses when Swedish triggers detected
+    - Time & Date: Always aware of current time (injected into every request)
+    - Weather: SMHI weather data for Stockholm when weather-related questions
+    - Tavily Search: Real-time web search for current events/facts
     """
     import time
     start_time = time.time()
@@ -2477,20 +2850,65 @@ async def oneseek_inference(request: InferenceRequest):
     # Check for Force-Svenska triggers
     force_svenska_active = check_force_svenska(request.text)
     
+    # === 1. ALWAYS: Inject time & date context ===
+    time_context = inject_time_context()
+    
+    # === 2. Check for weather question ===
+    weather_context = None
+    if check_weather_trigger(request.text):
+        weather_data = get_weather()
+        if weather_data:
+            weather_context = weather_data
+            logger.info("🌤️ Väderdata hämtad från SMHI")
+    
+    # === 3. Check for Tavily search trigger ===
+    tavily_context = None
+    tavily_sources = ""
+    if check_tavily_trigger(request.text):
+        logger.info(f"🔍 [TAVILY] Hämtar realtidsdata: {request.text[:60]}...")
+        search_result = tavily_search(request.text)
+        if search_result and search_result.get("answer"):
+            tavily_context = search_result["answer"]
+            tavily_sources = format_tavily_sources(search_result)
+            logger.info("✓ Tavily-svar mottaget")
+    
     # Format input with system prompt - ensures model always knows its identity
     full_input = format_inference_input(request.text)
     
+    # Build enhanced context prefix
+    context_parts = []
+    
+    # Always add time context
+    context_parts.append(f"[Aktuell tid] {time_context}")
+    
+    # Add weather if available
+    if weather_context:
+        context_parts.append(f"[Väder] {weather_context}")
+    
+    # Add Tavily search results if available
+    if tavily_context:
+        context_parts.append(f"[Aktuell fakta] {tavily_context}")
+        if tavily_sources:
+            context_parts.append(tavily_sources)
+    
     # If Force-Svenska is active, prepend Swedish instruction
     if force_svenska_active:
-        swedish_prefix = "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu.\n\n"
-        full_input = swedish_prefix + full_input
+        context_parts.insert(0, "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu.")
         logger.info("🇸🇪 Force-Svenska aktiverat – svarar på svenska")
+    
+    # Combine all context
+    if context_parts:
+        context_prefix = "\n".join(context_parts) + "\n\n"
+        full_input = context_prefix + full_input
     
     # === DEBUG: Log inference start ===
     logger.debug("=" * 60)
     logger.debug("=== ONESEEK INFERENCE START ===")
     logger.debug("→ System prompt injected")
+    logger.debug(f"→ Time context: {time_context[:50]}...")
     logger.debug(f"→ Force-Svenska: {'ACTIVE' if force_svenska_active else 'inactive'}")
+    logger.debug(f"→ Weather: {'YES' if weather_context else 'no'}")
+    logger.debug(f"→ Tavily: {'YES' if tavily_context else 'no'}")
     logger.debug(f"→ Input text: {request.text[:100]}..." if len(request.text) > 100 else f"→ Input text: {request.text}")
     logger.debug(f"→ Max length: {request.max_length}")
     logger.debug(f"→ Temperature: {request.temperature}")
