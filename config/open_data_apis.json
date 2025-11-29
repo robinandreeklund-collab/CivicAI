@@ -188,6 +188,42 @@
       "enabled": true,
       "triggers": ["migration", "asyl", "uppehållstillstånd", "visum", "medborgarskap", "migrationsverket", "invandring"],
       "fallback_message": "Kunde inte hämta migrationsdata. Försök igen senare."
+    },
+    {
+      "id": "arbetsformedlingen",
+      "name": "Arbetsförmedlingen",
+      "description": "Arbetsmarknadsstatistik, lediga jobb, arbetslöshet, branscher",
+      "base_url": "https://api.arbetsformedlingen.se",
+      "enabled": true,
+      "triggers": ["lediga jobb", "arbetslöshet", "arbetsmarknad", "jobb", "anställning", "arbetsförmedlingen", "rekrytering", "bransch"],
+      "fallback_message": "Kunde inte hämta arbetsmarknadsdata. Försök igen senare."
+    },
+    {
+      "id": "uhr",
+      "name": "UHR (Universitets- och högskolerådet)",
+      "description": "Antagningsstatistik, universitet, program, sökande",
+      "base_url": "https://api.uhr.se",
+      "enabled": true,
+      "triggers": ["antagning", "universitet", "högskola", "söka till", "uhr", "program", "utbildning", "studier", "lunds universitet", "kth", "chalmers"],
+      "fallback_message": "Kunde inte hämta antagningsstatistik. Försök igen senare."
+    },
+    {
+      "id": "csn",
+      "name": "CSN",
+      "description": "Studiemedel, bidrag, lån, studerande",
+      "base_url": "https://api.csn.se",
+      "enabled": true,
+      "triggers": ["studiemedel", "csn", "studiebidrag", "studielån", "studiepengar", "csn-lån"],
+      "fallback_message": "Kunde inte hämta CSN-data. Försök igen senare."
+    },
+    {
+      "id": "skolverket",
+      "name": "Skolverket (Susa-navet)",
+      "description": "Utbildningsstatistik, skolor, läroplan, betyg",
+      "base_url": "https://api.skolverket.se",
+      "enabled": true,
+      "triggers": ["skola", "skolverket", "utbildning", "läroplan", "betyg", "gymnasie", "grundskola", "förskola", "susa-navet"],
+      "fallback_message": "Kunde inte hämta skoldata. Försök igen senare."
     }
   ]
 }

@@ -40,7 +40,7 @@
 | Årstid | Aktuell årstid | Systemklocka | ❌ Nej |
 | Väder | Svensk väderprognos | SMHI | ❌ Nej |
 | Nyheter | Senaste nyheterna | RSS-feeds | ❌ Nej |
-| Öppna Data | 21 svenska myndighets-APIs | Diverse | ❌ Nej |
+| Öppna Data | 25 svenska myndighets-APIs | Diverse | ❌ Nej |
 
 ---
 
@@ -505,7 +505,7 @@ feedparser>=6.0.0
 
 ### 7. Svenska Öppna Data APIs
 
-**Syfte**: Tillgång till 21 svenska myndighets-APIs utan API-nycklar.
+**Syfte**: Tillgång till 25 svenska myndighets-APIs utan API-nycklar.
 
 #### Tillgängliga APIs
 
@@ -532,6 +532,10 @@ feedparser>=6.0.0
 | `vetenskapsradet` | Vetenskapsrådet | Forskning, vetenskapliga projekt | vetenskapsrådet, forskning, vetenskap |
 | `forsakringskassan` | Försäkringskassan | Socialförsäkring, bidrag | sjukpenning, föräldrapenning, barnbidrag |
 | `migrationsverket` | Migrationsverket | Migration, asyl, visum | migration, asyl, uppehållstillstånd |
+| `arbetsformedlingen` | Arbetsförmedlingen | Arbetsmarknad, lediga jobb | lediga jobb, arbetslöshet, arbetsmarknad |
+| `uhr` | UHR | Antagningsstatistik, universitet | antagning, universitet, högskola |
+| `csn` | CSN | Studiemedel, bidrag, lån | studiemedel, csn, studiebidrag |
+| `skolverket` | Skolverket (Susa-navet) | Utbildningsstatistik, skolor | skola, skolverket, läroplan, betyg |
 
 #### Dataflöde
 
