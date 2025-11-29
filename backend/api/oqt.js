@@ -18,7 +18,8 @@ import {
   saveOQTMetrics, 
   saveOQTTrainingEvent,
   saveOQTProvenance,
-  getLatestOQTMetrics
+  getLatestOQTMetrics,
+  getOQTQueries
 } from '../services/oqtFirebaseService.js';
 import {
   addQueryToLedger,
@@ -686,6 +687,42 @@ router.get('/metrics', rateLimiter, (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to get metrics'
+    });
+  }
+});
+
+/**
+ * GET /api/oqt/queries
+ * Get query history from Firebase
+ * Query params: limit (default 50)
+ */
+router.get('/queries', rateLimiter, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 50;
+    const result = await getOQTQueries({ limit });
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        queries: result.queries,
+        count: result.count,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      res.json({
+        success: true,
+        queries: [],
+        count: 0,
+        message: 'No queries found or Firebase unavailable',
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    console.error('Get queries error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get queries',
+      message: error.message
     });
   }
 });

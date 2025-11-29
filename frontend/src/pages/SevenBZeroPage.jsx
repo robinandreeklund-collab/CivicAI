@@ -8,9 +8,68 @@ import { Link } from 'react-router-dom';
  * - Character cards via /api/chat/characters API
  * - Real-time response timing
  * - Model version from /api/oqt/status
- * - Firebase history integration (future)
- * - Ledger integration (future)
+ * - Firebase history integration
+ * - Ledger integration
  */
+
+// Emoji mapping for text emoticons
+const emojiMap = {
+  '*smiling*': '😊',
+  '*smile*': '😊',
+  '*happy*': '😊',
+  '*laughing*': '😂',
+  '*laugh*': '😂',
+  '*lol*': '😂',
+  '*sad*': '😢',
+  '*crying*': '😢',
+  '*cry*': '😢',
+  '*love*': '❤️',
+  '*heart*': '❤️',
+  '*wink*': '😉',
+  '*thinking*': '🤔',
+  '*think*': '🤔',
+  '*cool*': '😎',
+  '*surprised*': '😮',
+  '*shock*': '😮',
+  '*angry*': '😠',
+  '*mad*': '😠',
+  '*thumbsup*': '👍',
+  '*thumbs up*': '👍',
+  '*thumbsdown*': '👎',
+  '*thumbs down*': '👎',
+  '*clap*': '👏',
+  '*fire*': '🔥',
+  '*star*': '⭐',
+  '*sparkles*': '✨',
+  '*check*': '✅',
+  '*x*': '❌',
+  '*question*': '❓',
+  '*exclamation*': '❗',
+  '*wave*': '👋',
+  '*pray*': '🙏',
+  '*muscle*': '💪',
+  '*brain*': '🧠',
+  '*lightbulb*': '💡',
+  '*rocket*': '🚀',
+  '*party*': '🎉',
+  '*eyes*': '👀',
+  '*sleep*': '😴',
+  '*sick*': '🤒',
+  '*hug*': '🤗',
+  '*shrug*': '🤷',
+  '*facepalm*': '🤦',
+};
+
+// Convert text emoticons to emojis
+const convertEmojis = (text) => {
+  if (!text) return text;
+  let result = text;
+  Object.entries(emojiMap).forEach(([pattern, emoji]) => {
+    result = result.replace(new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), emoji);
+  });
+  return result;
+};
+
 export default function SevenBZeroPage() {
   // Core state
   const [modelStatus, setModelStatus] = useState(null);
@@ -70,17 +129,69 @@ export default function SevenBZeroPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Scroll to a specific message
+  // Scroll to a specific message - improved version with highlight
   const scrollToMessage = (messageId) => {
     const element = messageRefs.current[messageId];
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Add highlight effect
+      element.classList.add('ring-2', 'ring-white/30', 'rounded-lg');
+      setTimeout(() => {
+        element.classList.remove('ring-2', 'ring-white/30', 'rounded-lg');
+      }, 2000);
     }
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Load query history from Firebase on mount
+  useEffect(() => {
+    const loadQueryHistory = async () => {
+      try {
+        const response = await fetch('/api/oqt/queries?limit=20');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.queries && data.queries.length > 0) {
+            // Convert Firebase queries to message format
+            const historyMessages = [];
+            data.queries.reverse().forEach((query) => {
+              // Add user message
+              historyMessages.push({
+                id: `history-user-${query.queryId || query.id}`,
+                type: 'user',
+                text: query.question,
+                timestamp: query.createdAt?._seconds 
+                  ? new Date(query.createdAt._seconds * 1000).toISOString()
+                  : new Date().toISOString(),
+                fromHistory: true,
+              });
+              // Add AI response
+              if (query.response) {
+                historyMessages.push({
+                  id: `history-ai-${query.queryId || query.id}`,
+                  type: 'ai',
+                  text: query.response,
+                  timestamp: query.createdAt?._seconds 
+                    ? new Date(query.createdAt._seconds * 1000).toISOString()
+                    : new Date().toISOString(),
+                  confidence: query.confidence,
+                  fromHistory: true,
+                });
+              }
+            });
+            setMessages(historyMessages);
+            console.log(`[7B-Zero] Loaded ${data.queries.length} queries from history`);
+          }
+        }
+      } catch (err) {
+        console.error('Error loading query history:', err);
+      }
+    };
+
+    loadQueryHistory();
+  }, []);
 
   // Fetch model status from backend
   useEffect(() => {
@@ -601,7 +712,7 @@ export default function SevenBZeroPage() {
                             ? 'bg-white border border-[#e0e0e0] shadow-lg' 
                             : 'bg-[#0a0a0a] border border-[#1a1a1a]'
                         }`}>
-                          <p className={`text-[13px] font-medium leading-relaxed ${whiteMode ? 'text-[#333]' : 'text-[#d0d0d0]'}`}>{msg.text}</p>
+                          <p className={`text-[13px] font-medium leading-relaxed ${whiteMode ? 'text-[#333]' : 'text-[#d0d0d0]'}`}>{convertEmojis(msg.text)}</p>
                           <p className={`text-[9px] mt-2 tracking-wide ${whiteMode ? 'text-[#999]' : 'text-[#555]'}`}>
                             {formatDate(msg.timestamp)} {formatTime(msg.timestamp)}
                           </p>
@@ -670,7 +781,7 @@ export default function SevenBZeroPage() {
                 <svg className={`w-4 h-4 flex-shrink-0 ${whiteMode ? 'text-[#aaa]' : 'text-[#444]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                <span className="text-sm truncate font-light">{msg.text}</span>
+                <span className="text-sm truncate font-light">{convertEmojis(msg.text)}</span>
               </button>
             ))}
           </div>
@@ -744,7 +855,7 @@ export default function SevenBZeroPage() {
                 <p className={`text-[18px] font-light text-right leading-relaxed max-w-md tracking-tight ${
                   whiteMode ? 'text-[#555]' : 'text-[#888]'
                 }`}>
-                  {msg.text}
+                  {convertEmojis(msg.text)}
                 </p>
               ) : (
                 <div className="max-w-lg">
@@ -800,7 +911,7 @@ export default function SevenBZeroPage() {
                         ? 'text-red-400' 
                         : (whiteMode ? 'text-[#333]' : 'text-[#c0c0c0]')
                     }`}>
-                      {msg.isTyping ? currentTypingText : msg.text}
+                      {convertEmojis(msg.isTyping ? currentTypingText : msg.text)}
                       {msg.isTyping && currentTypingText && (
                         <span className={`cursor-blink inline-block w-[2px] h-[20px] ml-1 -mb-[3px] ${
                           whiteMode ? 'bg-[#333]' : 'bg-white'
