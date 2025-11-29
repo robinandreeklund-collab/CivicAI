@@ -248,6 +248,37 @@ export default function IntegrationsManagement() {
     }
   };
 
+  // Save API triggers
+  const handleSaveApiTriggers = async (apiId, triggers) => {
+    setOpenDataSaving(true);
+    try {
+      let response;
+      try {
+        response = await fetch(`http://localhost:5000/api/open-data/${apiId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ triggers })
+        });
+      } catch {
+        response = await fetch(`/api/open-data/${apiId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ triggers })
+        });
+      }
+      if (response.ok) {
+        setSuccess(`Triggers sparade för ${apiId}!`);
+      } else {
+        throw new Error('Failed to save triggers');
+      }
+    } catch (err) {
+      console.error('Error saving API triggers:', err);
+      setError('Kunde inte spara triggers');
+    } finally {
+      setOpenDataSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -414,7 +445,7 @@ SR Ekot:https://api.sr.se/api/rss/program/83`}
               📊 Svenska Öppna Data APIs
             </h3>
             <p className="text-[#666] font-mono text-xs mt-1">
-              Publika svenska API:er - 100% gratis, inga nycklar. Klicka för att aktivera/avaktivera.
+              Publika svenska API:er - 100% gratis, inga nycklar. Redigera triggers för varje API.
             </p>
           </div>
           <span className="px-3 py-1 text-xs bg-purple-500/20 text-purple-300 rounded font-mono">
@@ -423,40 +454,69 @@ SR Ekot:https://api.sr.se/api/rss/program/83`}
         </div>
         
         {openDataApis.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="space-y-4">
             {openDataApis.map((api, idx) => (
-              <button
+              <div
                 key={idx}
-                onClick={() => handleToggleOpenDataApi(api.id, api.enabled)}
-                disabled={openDataSaving}
-                className={`p-4 rounded border transition-colors text-left ${
+                className={`p-4 rounded border transition-colors ${
                   api.enabled
-                    ? 'bg-purple-500/10 border-purple-500/30 hover:bg-purple-500/20'
-                    : 'bg-[#0a0a0a] border-[#2a2a2a] hover:bg-[#1a1a1a] opacity-60'
+                    ? 'bg-purple-500/10 border-purple-500/30'
+                    : 'bg-[#0a0a0a] border-[#2a2a2a] opacity-60'
                 }`}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[#eee] font-mono text-sm font-medium">
-                    {api.name}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => handleToggleOpenDataApi(api.id, api.enabled)}
+                      disabled={openDataSaving}
+                      className={`w-12 h-6 rounded-full transition-colors relative ${
+                        api.enabled ? 'bg-green-600' : 'bg-gray-600'
+                      }`}
+                    >
+                      <span className={`absolute w-5 h-5 rounded-full bg-white top-0.5 transition-transform ${
+                        api.enabled ? 'translate-x-6' : 'translate-x-0.5'
+                      }`} />
+                    </button>
+                    <span className="text-[#eee] font-mono text-sm font-medium">
+                      {api.name}
+                    </span>
+                  </div>
+                  <span className={`px-2 py-0.5 text-xs rounded font-mono ${
+                    api.enabled ? 'bg-green-500/20 text-green-300' : 'bg-gray-500/20 text-gray-400'
+                  }`}>
+                    {api.enabled ? 'Aktiv' : 'Inaktiv'}
                   </span>
-                  <span className={`w-3 h-3 rounded-full ${api.enabled ? 'bg-green-500' : 'bg-gray-500'}`} />
                 </div>
-                <p className="text-[#666] font-mono text-xs mb-2">
+                
+                <p className="text-[#666] font-mono text-xs mb-3">
                   {api.description}
                 </p>
-                <div className="flex flex-wrap gap-1">
-                  {(api.triggers || []).slice(0, 4).map((trigger, tidx) => (
-                    <span key={tidx} className="px-1.5 py-0.5 text-[10px] bg-[#1a1a1a] text-[#888] rounded font-mono">
-                      {trigger}
-                    </span>
-                  ))}
-                  {(api.triggers || []).length > 4 && (
-                    <span className="px-1.5 py-0.5 text-[10px] bg-[#1a1a1a] text-[#666] rounded font-mono">
-                      +{api.triggers.length - 4}
-                    </span>
-                  )}
+                
+                <div className="space-y-2">
+                  <label className="text-[#888] font-mono text-xs">Triggers (komma-separerade):</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={(api.triggers || []).join(', ')}
+                      onChange={(e) => {
+                        const newTriggers = e.target.value.split(',').map(t => t.trim()).filter(t => t);
+                        const updatedApis = [...openDataApis];
+                        updatedApis[idx] = { ...api, triggers: newTriggers };
+                        setOpenDataApis(updatedApis);
+                      }}
+                      className="flex-1 bg-[#0a0a0a] border border-[#2a2a2a] text-[#eee] font-mono text-xs p-2 rounded focus:outline-none focus:border-purple-500/50"
+                      placeholder="trigger1, trigger2, trigger3..."
+                    />
+                    <button
+                      onClick={() => handleSaveApiTriggers(api.id, api.triggers)}
+                      disabled={openDataSaving}
+                      className="px-4 py-2 bg-purple-600 text-white text-xs font-mono hover:bg-purple-700 transition-colors rounded disabled:opacity-50"
+                    >
+                      Spara
+                    </button>
+                  </div>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         ) : (
@@ -475,6 +535,9 @@ SR Ekot:https://api.sr.se/api/rss/program/83`}
             <li>• <span className="text-cyan-300">SMHI</span> - Väderdata för alla svenska städer</li>
             <li>• <span className="text-cyan-300">Trafikverket</span> - Trafikflöde, olyckor, kollektivtrafik</li>
           </ul>
+          <p className="text-[#555] font-mono text-xs mt-2">
+            📌 Alla svar inkluderar nu klickbara källänkar under svaret.
+          </p>
         </div>
       </div>
 

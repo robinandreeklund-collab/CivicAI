@@ -369,13 +369,13 @@ def check_open_data_trigger(user_message: str) -> Optional[dict]:
 
 def fetch_scb_data(query: str) -> Optional[str]:
     """
-    Fetch population/statistics data from SCB (Statistics Sweden).
+    Fetch population/statistics data from SCB (Statistics Sweden) with source links.
     
     Args:
         query: Search query
         
     Returns:
-        Formatted data string or None if failed
+        Formatted data string with HTML links or None if failed
     """
     try:
         # SCB provides various endpoints - we'll use a general info response
@@ -388,7 +388,11 @@ def fetch_scb_data(query: str) -> Optional[str]:
             if isinstance(data, list):
                 categories = [item.get("text", "") for item in data[:5] if item.get("text")]
                 if categories:
-                    return f"SCB erbjuder statistik om: {', '.join(categories)}. Mer info på scb.se."
+                    result = f"SCB erbjuder statistik om: {', '.join(categories)}."
+                    result += "\n\n**Källor:**\n"
+                    result += '1. <a href="https://www.scb.se">SCB – Statistiska Centralbyrån</a>\n'
+                    result += '2. <a href="https://www.scb.se/hitta-statistik/">SCB – Hitta statistik</a>'
+                    return result
         return None
     except Exception:
         return None
@@ -396,10 +400,10 @@ def fetch_scb_data(query: str) -> Optional[str]:
 
 def fetch_krisinformation() -> Optional[str]:
     """
-    Fetch current crisis alerts from Krisinformation.se.
+    Fetch current crisis alerts from Krisinformation.se with proper source links.
     
     Returns:
-        Formatted crisis info or None if failed
+        Formatted crisis info with HTML links or None if failed
     """
     try:
         url = "https://api.krisinformation.se/v3/news"
@@ -411,25 +415,30 @@ def fetch_krisinformation() -> Optional[str]:
             if items:
                 latest = items[:3]  # Top 3 latest
                 alerts = []
-                for item in latest:
+                source_links = []
+                for i, item in enumerate(latest, 1):
                     title = item.get("Headline", item.get("title", "Okänd händelse"))
+                    link = item.get("Link", item.get("link", "https://www.krisinformation.se"))
                     alerts.append(f"• {title}")
+                    source_links.append(f'{i}. <a href="{link}">Krisinformation.se – {title[:50]}{"..." if len(title) > 50 else ""}</a>')
                 if alerts:
-                    return "**Aktuell krisinformation:**\n" + "\n".join(alerts)
-        return "Inga aktiva krislarm just nu."
+                    result = "**Aktuell krisinformation:**\n" + "\n".join(alerts)
+                    result += "\n\n**Källor:**\n" + "\n".join(source_links)
+                    return result
+        return "Inga aktiva krislarm just nu.\n\n**Källor:**\n1. <a href=\"https://www.krisinformation.se\">Krisinformation.se</a>"
     except Exception:
         return None
 
 
 def fetch_riksdagen_data(query: str) -> Optional[str]:
     """
-    Fetch parliament data from Riksdagen.
+    Fetch parliament data from Riksdagen with proper source links.
     
     Args:
         query: Search query
         
     Returns:
-        Formatted parliament data or None if failed
+        Formatted parliament data with HTML links or None if failed
     """
     try:
         # Search for documents/debates
@@ -441,13 +450,20 @@ def fetch_riksdagen_data(query: str) -> Optional[str]:
             if docs:
                 latest = docs[:3]  # Top 3 results
                 results = []
-                for doc in latest:
+                source_links = []
+                for i, doc in enumerate(latest, 1):
                     title = doc.get("titel", "Okänt dokument")
                     doc_type = doc.get("typ", "dokument")
                     datum = doc.get("datum", "")
+                    doc_id = doc.get("id", "")
+                    doc_link = f"https://www.riksdagen.se/sv/dokument-lagar/dokument/{doc_type}/{doc_id}" if doc_id else "https://www.riksdagen.se"
                     results.append(f"• {title} ({doc_type}, {datum})")
+                    short_title = title[:50] + "..." if len(title) > 50 else title
+                    source_links.append(f'{i}. <a href="{doc_link}">Riksdagen.se – {short_title}</a>')
                 if results:
-                    return "**Från Riksdagen:**\n" + "\n".join(results)
+                    result = "**Från Riksdagen:**\n" + "\n".join(results)
+                    result += "\n\n**Källor:**\n" + "\n".join(source_links)
+                    return result
         return None
     except Exception:
         return None
@@ -455,7 +471,7 @@ def fetch_riksdagen_data(query: str) -> Optional[str]:
 
 def fetch_trafikverket_data(query: str) -> Optional[str]:
     """
-    Fetch traffic information from Trafikverket.
+    Fetch traffic information from Trafikverket with source links.
     
     Note: Trafikverket requires authentication for full API access.
     This provides basic info and redirects to their service.
@@ -464,22 +480,26 @@ def fetch_trafikverket_data(query: str) -> Optional[str]:
         query: Search query
         
     Returns:
-        Traffic info string
+        Traffic info string with HTML source links
     """
     # Trafikverket's full API requires authentication
     # Return a helpful message with link to their service
-    return "Trafikinformation finns på trafiken.nu. För E4, E6, E18 och E20 - kolla trafikverket.se för aktuell info om olyckor och köer."
+    result = "Trafikinformation för E4, E6, E18 och E20 – se aktuella olyckor och köer på trafiken.nu."
+    result += "\n\n**Källor:**\n"
+    result += '1. <a href="https://trafiken.nu">Trafiken.nu – Trafikinformation i realtid</a>\n'
+    result += '2. <a href="https://www.trafikverket.se/trafikinformation/">Trafikverket – Trafikinformation</a>'
+    return result
 
 
 def fetch_open_data_search(query: str) -> Optional[str]:
     """
-    Search Swedish Open Data Portal (dataportal.se).
+    Search Swedish Open Data Portal (dataportal.se) with source links.
     
     Args:
         query: Search query
         
     Returns:
-        Search results or None if failed
+        Search results with HTML links or None if failed
     """
     try:
         url = f"https://www.dataportal.se/api/3/action/package_search?q={query}&rows=3"
@@ -489,12 +509,19 @@ def fetch_open_data_search(query: str) -> Optional[str]:
             results = data.get("result", {}).get("results", [])
             if results:
                 datasets = []
-                for item in results:
+                source_links = []
+                for i, item in enumerate(results, 1):
                     title = item.get("title", "Okänd dataset")
                     org = item.get("organization", {}).get("title", "")
+                    item_id = item.get("name", item.get("id", ""))
+                    link = f"https://www.dataportal.se/datasets/{item_id}" if item_id else "https://www.dataportal.se"
                     datasets.append(f"• {title}" + (f" ({org})" if org else ""))
+                    short_title = title[:50] + "..." if len(title) > 50 else title
+                    source_links.append(f'{i}. <a href="{link}">Dataportal.se – {short_title}</a>')
                 if datasets:
-                    return "**Öppna data som matchar:**\n" + "\n".join(datasets)
+                    result = "**Öppna data som matchar:**\n" + "\n".join(datasets)
+                    result += "\n\n**Källor:**\n" + "\n".join(source_links)
+                    return result
         return None
     except Exception:
         return None
@@ -502,14 +529,14 @@ def fetch_open_data_search(query: str) -> Optional[str]:
 
 def fetch_open_data(api: dict, query: str) -> Optional[str]:
     """
-    Fetch data from the specified Open Data API.
+    Fetch data from the specified Open Data API with proper source links.
     
     Args:
         api: API configuration dict
         query: User's search query
         
     Returns:
-        Formatted data string or fallback message
+        Formatted data string with HTML source links or fallback message
     """
     api_id = api.get("id", "")
     fallback = api.get("fallback_message", "Kunde inte hämta data.")
@@ -527,13 +554,21 @@ def fetch_open_data(api: dict, query: str) -> Optional[str]:
     elif api_id == "opendata":
         result = fetch_open_data_search(query)
     elif api_id == "naturvardsverket":
-        result = "Miljödata finns på naturvardsverket.se. Luftkvalitetsindex uppdateras varje timme."
+        result = "Miljödata och luftkvalitetsindex uppdateras varje timme."
+        result += '\n\n**Källor:**\n1. <a href="https://www.naturvardsverket.se">Naturvårdsverket</a>\n'
+        result += '2. <a href="https://www.naturvardsverket.se/data-och-statistik/luft/">Naturvårdsverket – Luftkvalitet</a>'
     elif api_id == "boverket":
-        result = "Information om bygglov och energideklarationer finns på boverket.se."
+        result = "Information om bygglov och energideklarationer."
+        result += '\n\n**Källor:**\n1. <a href="https://www.boverket.se">Boverket</a>\n'
+        result += '2. <a href="https://www.boverket.se/sv/byggande/energideklaration/">Boverket – Energideklarationer</a>'
     elif api_id == "slu":
-        result = "Skogsdata från Riksskogstaxeringen finns på slu.se/riksskogstaxeringen."
+        result = "Skogsdata från Riksskogstaxeringen."
+        result += '\n\n**Källor:**\n1. <a href="https://www.slu.se/riksskogstaxeringen">SLU Riksskogstaxeringen</a>\n'
+        result += '2. <a href="https://www.slu.se/centrumbildningar-och-projekt/riksskogstaxeringen/statistik-om-skog/">SLU – Skogsstatistik</a>'
     elif api_id == "digg":
-        result = "DIGG erbjuder info om digital förvaltning på digg.se."
+        result = "DIGG erbjuder info om digital förvaltning."
+        result += '\n\n**Källor:**\n1. <a href="https://www.digg.se">DIGG – Myndigheten för digital förvaltning</a>\n'
+        result += '2. <a href="https://www.digg.se/kunskap-och-stod/oppna-data">DIGG – Öppna data</a>'
     
     return result if result else fallback
 
@@ -656,7 +691,10 @@ def get_weather(city: str = "stockholm") -> Optional[str]:
         
         # Capitalize city name for display
         city_display = city_lower.capitalize()
-        return f"I {city_display} blir det imorgon ca {temp}°C och {rain_text}."
+        result = f"I {city_display} blir det imorgon ca {temp}°C och {rain_text}."
+        result += '\n\n**Källor:**\n'
+        result += f'1. <a href="https://www.smhi.se/vader/prognoser/ortsprognoser/q/{city_display}">SMHI – Väderprognos {city_display}</a>'
+        return result
         
     except Exception:
         return None
@@ -697,20 +735,32 @@ def get_latest_news() -> list:
 
 def format_news_for_context(news: list) -> str:
     """
-    Format news items as a context string for the model.
+    Format news items as a context string for the model with proper HTML source links.
     
     Args:
         news: List of news items from get_latest_news()
         
     Returns:
-        Formatted string with news titles and links
+        Formatted string with news titles and clickable HTML links
     """
     if not news:
         return ""
     
     news_text = "**Senaste nyheterna:**\n"
     for i, item in enumerate(news, 1):
-        news_text += f"{i}. [{item['title']}]({item['link']}) ({item['source']})\n"
+        title = item.get('title', 'Okänd nyhet')
+        link = item.get('link', '#')
+        source = item.get('source', 'Okänd källa')
+        news_text += f"{i}. <a href=\"{link}\">{title}</a> ({source})\n"
+    
+    news_text += "\n**Källor:**\n"
+    for i, item in enumerate(news, 1):
+        title = item.get('title', 'Källa')[:60]
+        if len(title) > 60:
+            title = title[:57] + "..."
+        link = item.get('link', '#')
+        source = item.get('source', '')
+        news_text += f"{i}. <a href=\"{link}\">{source} – {title}</a>\n"
     
     return news_text.strip()
 
@@ -786,25 +836,25 @@ def tavily_search(query: str) -> Optional[dict]:
 
 def format_tavily_sources(data: Optional[dict]) -> str:
     """
-    Format Tavily search results as source links.
+    Format Tavily search results as HTML source links.
     
     Args:
         data: Tavily search response dict
         
     Returns:
-        Formatted sources string with markdown links
+        Formatted sources string with HTML anchor links
     """
     if not data or "results" not in data:
         return ""
         
-    sources = "\n**Källor:**\n"
+    sources = "\n\n**Källor:**\n"
     for i, result in enumerate(data["results"][:4], 1):
         title = result.get("title", "Källa")
         url = result.get("url", "#")
         # Truncate long titles
         if len(title) > 70:
             title = title[:67] + "..."
-        sources += f"{i}. [{title}]({url})\n"
+        sources += f'{i}. <a href="{url}">{title}</a>\n'
         
     return sources.strip()
 
