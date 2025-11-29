@@ -40,7 +40,7 @@
 | Årstid | Aktuell årstid | Systemklocka | ❌ Nej |
 | Väder | Svensk väderprognos | SMHI | ❌ Nej |
 | Nyheter | Senaste nyheterna | RSS-feeds | ❌ Nej |
-| Öppna Data | 9 svenska myndighets-APIs | Diverse | ❌ Nej |
+| Öppna Data | 13 svenska myndighets-APIs | Diverse | ❌ Nej |
 
 ---
 
@@ -505,7 +505,7 @@ feedparser>=6.0.0
 
 ### 7. Svenska Öppna Data APIs
 
-**Syfte**: Tillgång till 9 svenska myndighets-APIs utan API-nycklar.
+**Syfte**: Tillgång till 13 svenska myndighets-APIs utan API-nycklar.
 
 #### Tillgängliga APIs
 
@@ -520,6 +520,10 @@ feedparser>=6.0.0
 | `opendata` | Opendata.se | Sök i alla svenska öppna data | öppen data, dataportal |
 | `digg` | DIGG | Offentliga register | digg, myndighet |
 | `krisinformation` | Krisinformation.se | Krislarm, VMA | kris, vma, varning |
+| `skatteverket` | Skatteverket | Skatte- och deklarationsstatistik | skatt, inkomst, moms, snittinkomst |
+| `energimyndigheten` | Energimyndigheten | Energistatistik, elpriser | elpris, energi, vad kostar elen, se3 |
+| `socialstyrelsen` | Socialstyrelsen | Hälsostatistik, vårdköer | vård, vårdkö, sjukvård, vaccination |
+| `lantmateriet` | Lantmäteriet | Geodata, fastigheter, kartor | fastighet, karta, tomt, geodata |
 
 #### Dataflöde
 

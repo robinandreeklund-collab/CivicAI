@@ -80,6 +80,42 @@
       "enabled": true,
       "triggers": ["kris", "krislarm", "vma", "beredskap", "varning", "nödläge"],
       "fallback_message": "Kunde inte hämta krisinformation. Försök igen senare."
+    },
+    {
+      "id": "skatteverket",
+      "name": "Skatteverket",
+      "description": "Skatte- och deklarationsstatistik, inkomster, moms",
+      "base_url": "https://api.skatteverket.se",
+      "enabled": true,
+      "triggers": ["skatt", "inkomst", "moms", "deklaration", "snittinkomst", "skatteverket", "inkomststatistik"],
+      "fallback_message": "Kunde inte hämta data från Skatteverket. Försök igen senare."
+    },
+    {
+      "id": "energimyndigheten",
+      "name": "Energimyndigheten",
+      "description": "Energistatistik, elpriser, förbrukning, elområden",
+      "base_url": "https://api.energimyndigheten.se",
+      "enabled": true,
+      "triggers": ["elpris", "energi", "elförbrukning", "elkostnad", "vad kostar elen", "elområde", "se1", "se2", "se3", "se4"],
+      "fallback_message": "Kunde inte hämta energidata. Försök igen senare."
+    },
+    {
+      "id": "socialstyrelsen",
+      "name": "Socialstyrelsen",
+      "description": "Hälsostatistik, vårdköer, vaccinationer, vård",
+      "base_url": "https://api.socialstyrelsen.se",
+      "enabled": true,
+      "triggers": ["vård", "vårdkö", "sjukvård", "vaccination", "hälsa", "socialstyrelsen", "dödsorsak"],
+      "fallback_message": "Kunde inte hämta vårddata. Försök igen senare."
+    },
+    {
+      "id": "lantmateriet",
+      "name": "Lantmäteriet",
+      "description": "Geodata, fastigheter, kartor, koordinater",
+      "base_url": "https://api.lantmateriet.se",
+      "enabled": true,
+      "triggers": ["fastighet", "lantmäteriet", "karta", "koordinat", "geodata", "tomt", "markägare"],
+      "fallback_message": "Kunde inte hämta fastighetsdata. Försök igen senare."
     }
   ]
 }
