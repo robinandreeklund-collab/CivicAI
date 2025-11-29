@@ -205,6 +205,13 @@ export default function SevenBZeroPage() {
     scrollToBottom();
   }, [messages]);
 
+  // Auto-scroll while AI is typing (for long responses)
+  useEffect(() => {
+    if (currentTypingText && isTyping) {
+      scrollToBottom();
+    }
+  }, [currentTypingText, isTyping]);
+
   // Load query history from Firebase on mount
   useEffect(() => {
     const loadQueryHistory = async () => {
