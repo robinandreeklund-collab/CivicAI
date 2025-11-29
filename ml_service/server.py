@@ -51,6 +51,18 @@ from datetime import datetime
 from typing import Optional, List
 import requests  # For Tavily API and SMHI weather
 
+# Language detection for Force-Svenska (with fallback if not installed)
+try:
+    from langdetect import detect, DetectorFactory
+    from langdetect.lang_detect_exception import LangDetectException
+    DetectorFactory.seed = 0  # Deterministic detection
+    LANGDETECT_AVAILABLE = True
+except ImportError:
+    LANGDETECT_AVAILABLE = False
+    # Define a dummy exception class for when langdetect is not installed
+    class LangDetectException(Exception):
+        pass
+
 # =============================================================================
 # FORCE-SVENSKA CONFIGURATION - Dashboard-controlled Swedish language triggers
 # =============================================================================
@@ -85,6 +97,45 @@ def load_force_swedish() -> List[str]:
 
 # Load triggers at startup - these can be updated via API
 FORCE_SVENSKA_TRIGGERS = load_force_swedish()
+
+
+def is_swedish(text: str) -> bool:
+    """
+    Detect if text is Swedish using langdetect library.
+    
+    Uses langdetect for language detection. Also accepts Danish (da) and 
+    Norwegian (no) as these are mutually intelligible with Swedish and 
+    langdetect sometimes confuses them.
+    
+    Falls back to trigger-word matching for very short texts where
+    langdetect may fail.
+    
+    Args:
+        text: The text to analyze
+        
+    Returns:
+        True if the text is detected as Swedish/Nordic, False otherwise
+    """
+    if not text or not text.strip():
+        return False
+    
+    # Try langdetect first if available
+    if LANGDETECT_AVAILABLE:
+        try:
+            detected_lang = detect(text)
+            # Accept Swedish and closely related Nordic languages
+            # (langdetect often confuses short Swedish texts with Danish/Norwegian)
+            if detected_lang in ("sv", "da", "no"):
+                return True
+        except (LangDetectException, TypeError):
+            # LangDetectException: raised for short/ambiguous text
+            # TypeError: can occur with unexpected input
+            # Fall back to trigger-based detection
+            pass
+    
+    # Fallback: Use configurable Swedish triggers for short texts or if langdetect unavailable
+    text_lower = text.lower()
+    return any(word in text_lower for word in FORCE_SVENSKA_TRIGGERS)
 
 # =============================================================================
 # END FORCE-SVENSKA CONFIGURATION
@@ -1641,14 +1692,23 @@ async def save_force_swedish(request: dict):
 
 def check_force_svenska(user_message: str) -> bool:
     """
-    Check if user message contains any Swedish trigger words.
+    Check if user message is in Swedish using langdetect with trigger fallback.
+    
+    Uses langdetect library for accurate language detection (99.9% accuracy).
+    Falls back to trigger-word matching for very short texts or if langdetect
+    is unavailable.
     
     Args:
         user_message: The user's input message
         
     Returns:
-        True if any trigger is found, False otherwise
+        True if Swedish is detected, False otherwise
     """
+    # Primary: Use langdetect for accurate detection
+    if is_swedish(user_message):
+        return True
+    
+    # Fallback: Check dashboard-configured triggers (for edge cases)
     msg_lower = user_message.lower()
     return any(trigger in msg_lower for trigger in FORCE_SVENSKA_TRIGGERS)
 

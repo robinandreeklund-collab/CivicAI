@@ -159,6 +159,47 @@ class TestForceSvenskaDetection:
 
 
 @requires_torch
+class TestIsSwedishLangDetect:
+    """Test Swedish language detection using langdetect"""
+    
+    def test_is_swedish_detects_swedish_text(self):
+        """Test that Swedish sentences are detected"""
+        from server import is_swedish, LANGDETECT_AVAILABLE
+        
+        # Only test if langdetect is available
+        if LANGDETECT_AVAILABLE:
+            # Longer Swedish sentences should be detected accurately
+            assert is_swedish("Hej, hur mår du idag?") == True
+            assert is_swedish("Vad gör du just nu?") == True
+            assert is_swedish("Jag tycker om att läsa böcker") == True
+    
+    def test_is_swedish_rejects_english_text(self):
+        """Test that English sentences are not detected as Swedish"""
+        from server import is_swedish, LANGDETECT_AVAILABLE
+        
+        if LANGDETECT_AVAILABLE:
+            assert is_swedish("Hello, how are you today?") == False
+            assert is_swedish("What is the weather like?") == False
+            assert is_swedish("I like to read books") == False
+    
+    def test_is_swedish_fallback_for_short_text(self):
+        """Test that fallback works for very short texts"""
+        from server import is_swedish
+        
+        # Short texts may fail langdetect but fallback to triggers
+        assert is_swedish("hej") == True
+        assert is_swedish("tack") == True
+        assert is_swedish("vad") == True
+    
+    def test_is_swedish_handles_empty_input(self):
+        """Test that empty input returns False"""
+        from server import is_swedish
+        
+        assert is_swedish("") == False
+        assert is_swedish("   ") == False
+
+
+@requires_torch
 class TestForceSvenskaApply:
     """Test applying Force-Svenska to messages"""
     
