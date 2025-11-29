@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import ConsensusDebateCard from '../components/ConsensusDebateCard';
 import NLPProcessingLoader from '../components/NLPProcessingLoader';
@@ -16,6 +16,14 @@ import { triggerMicroTrainingAsync } from '../utils/microTraining';
  * - Centered view selector (Översikt | Modeller | Pipeline | Debatt)
  * - 4 view modes with real API integration
  * - OneSeek.AI grayscale brand identity
+ * 
+ * Question Processing Flow:
+ * 1. User submits question → stored in Firebase via /api/firebase/questions
+ * 2. Firebase Functions should trigger and process via /api/query
+ * 3. Results are saved to Firestore and received via real-time listener
+ * 4. FALLBACK: If Firebase Functions don't respond within 15 seconds,
+ *    the frontend calls /api/query directly to ensure the question is processed
+ *    (This handles cases where Firebase Functions aren't deployed or configured)
  */
 
 // Debug flag - set via URL parameter: ?debug=true
@@ -61,6 +69,9 @@ const generateBlockHash = (blockId) => {
   return hash;
 };
 
+// Timeout for Firebase processing fallback (in milliseconds)
+const FIREBASE_PROCESSING_TIMEOUT = 15000; // 15 seconds
+
 export default function ChatV2Page() {
   const location = useLocation();
   const [messages, setMessages] = useState([]);
@@ -79,9 +90,15 @@ export default function ChatV2Page() {
   // Firebase Firestore integration - Track current question's document ID
   const [firebaseDocId, setFirebaseDocId] = useState(null);
   
+  // Track if direct API fallback is being used
+  const [usingDirectApi, setUsingDirectApi] = useState(false);
+  
   // Prevent duplicate submissions in React StrictMode (development)
   // Use location.state?.initialQuestion as the key to track what we've submitted
   const hasSubmittedInitialQuestion = useRef(null);
+  
+  // Track if we've already attempted direct API fallback for current question
+  const hasAttemptedDirectApi = useRef(null);
 
   // Listen to Firestore document in real-time
   const { data: firestoreData, loading: firestoreLoading, error: firestoreError } = useFirestoreDocument(
@@ -91,6 +108,87 @@ export default function ChatV2Page() {
 
   // Get latest AI message for display
   const latestAiMessage = messages.filter(m => m.type === 'ai').slice(-1)[0];
+
+  /**
+   * Fallback: Call /api/query directly when Firebase Functions don't respond
+   * This processes the question through the backend ML pipeline directly
+   * and updates Firebase with the results
+   */
+  const processQuestionDirectly = useCallback(async (userQuestion, docId) => {
+    console.log('[ChatV2] 🔄 Attempting direct API processing as fallback...');
+    setUsingDirectApi(true);
+    
+    try {
+      const queryResponse = await fetch('/api/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: userQuestion,
+          firebaseDocId: docId
+        })
+      });
+      
+      if (!queryResponse.ok) {
+        throw new Error(`API query failed with status ${queryResponse.status}`);
+      }
+      
+      const queryData = await queryResponse.json();
+      console.log('[ChatV2] ✅ Direct API processing completed successfully');
+      
+      // The backend /api/query will update Firebase with the results
+      // The Firestore listener will pick up the changes and display them
+      // However, we can also process the response directly for immediate display
+      
+      if (queryData.responses && queryData.responses.length > 0) {
+        // Create AI message from direct response
+        const aiMessage = {
+          type: 'ai',
+          question: queryData.question,
+          firebaseDocId: docId,
+          responses: queryData.responses.map(r => ({
+            agent: r.agent,
+            response: r.response,
+            metadata: r.metadata || {},
+            analysis: r.analysis || {},
+            enhancedAnalysis: r.enhancedAnalysis || null,
+            pipelineAnalysis: r.pipelineAnalysis || null
+          })),
+          modelSynthesis: queryData.modelSynthesis || null,
+          factCheckComparison: queryData.factCheckComparison || null,
+          changeDetection: queryData.changeDetection || queryData.change_detection || null,
+          bertSummary: queryData.synthesizedSummary || null,
+          bertMetadata: queryData.synthesizedSummaryMetadata || null,
+          metaReview: queryData.metaReview || null,
+          pipelineData: queryData.responses?.[0]?.pipelineAnalysis || {},
+          timestamp: new Date()
+        };
+        
+        // Initialize selectedModel with first response's agent name
+        if (aiMessage.responses && aiMessage.responses.length > 0) {
+          setSelectedModel(aiMessage.responses[0].agent);
+        }
+        
+        // Update messages with the AI response
+        setMessages(prev => {
+          const userMsg = prev.find(m => m.type === 'user');
+          return userMsg ? [userMsg, aiMessage] : [aiMessage];
+        });
+        
+        setIsLoading(false);
+        setUsingDirectApi(false);
+        setViewMode('overview');
+        
+        console.log('[ChatV2] ✅ AI response displayed from direct API');
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('[ChatV2] ❌ Direct API processing failed:', error);
+      setUsingDirectApi(false);
+      throw error;
+    }
+  }, [setUsingDirectApi, setSelectedModel, setMessages, setIsLoading, setViewMode]);
 
   // Handle initial question from LandingPage navigation
   useEffect(() => {
@@ -161,7 +259,79 @@ export default function ChatV2Page() {
       // Clear the location state to prevent re-submission on refresh
       window.history.replaceState({}, document.title);
     }
-  }, [location.state?.initialQuestion]); // Only re-run if the actual question changes
+  }, [location.state?.initialQuestion, user?.userId]); // Only re-run if the actual question changes or user changes
+
+  /**
+   * Helper function to determine if we should trigger fallback processing
+   * @param {Object|null} firestoreData - Current Firestore data
+   * @returns {boolean} True if fallback should be triggered
+   */
+  const shouldTriggerFallback = (data) => {
+    // No data at all - definitely trigger fallback
+    if (!data) return true;
+    
+    // Status is still 'received' - Firebase Functions haven't started processing
+    if (data.status === 'received') return true;
+    
+    // Status is 'processing' but no raw responses yet - still waiting for data
+    if (data.status === 'processing' && 
+        (!data.raw_responses || data.raw_responses.length === 0)) {
+      return true;
+    }
+    
+    // Status is 'completed' or 'ledger_verified' or has data - don't trigger fallback
+    return false;
+  };
+
+  /**
+   * Timeout-based fallback: If Firebase Functions don't process the question
+   * within FIREBASE_PROCESSING_TIMEOUT, call the backend API directly
+   */
+  useEffect(() => {
+    // Only activate fallback when:
+    // 1. We have a firebaseDocId (question was stored)
+    // 2. We are loading (waiting for response)
+    // 3. We haven't already attempted direct API for this question
+    if (!firebaseDocId || !isLoading || hasAttemptedDirectApi.current === firebaseDocId) {
+      return;
+    }
+    
+    // Get the current question from messages
+    const userMessage = messages.find(m => m.type === 'user');
+    if (!userMessage) return;
+    
+    console.log('[ChatV2] ⏱️ Starting Firebase processing timeout...');
+    
+    const timeoutId = setTimeout(async () => {
+      // Check if we're still waiting (no completed data yet)
+      // The Firestore hook might have updated firestoreData by now
+      const needsFallback = shouldTriggerFallback(firestoreData);
+      
+      if (needsFallback && isLoading && hasAttemptedDirectApi.current !== firebaseDocId) {
+        console.log('[ChatV2] ⚠️ Firebase Functions timeout - falling back to direct API');
+        hasAttemptedDirectApi.current = firebaseDocId;
+        
+        try {
+          await processQuestionDirectly(userMessage.content, firebaseDocId);
+        } catch (error) {
+          console.error('[ChatV2] ❌ Fallback processing failed:', error);
+          const errorMessage = {
+            type: 'error',
+            content: 'Det gick inte att bearbeta frågan. Vänligen försök igen.',
+            timestamp: new Date().toISOString(),
+          };
+          setMessages(prev => [...prev, errorMessage]);
+          setIsLoading(false);
+        }
+      }
+    }, FIREBASE_PROCESSING_TIMEOUT);
+    
+    // Cleanup timeout if component unmounts or dependencies change
+    return () => {
+      console.log('[ChatV2] ⏱️ Clearing Firebase processing timeout');
+      clearTimeout(timeoutId);
+    };
+  }, [firebaseDocId, isLoading, messages, firestoreData, processQuestionDirectly]);
 
   // Effect to handle Firestore data updates
   useEffect(() => {
@@ -537,8 +707,9 @@ export default function ChatV2Page() {
           setFirebaseDocId(docId);
           
           // Firebase Functions will trigger and process the question
-          // We'll receive updates via the Firestore listener in the useEffect above
-          // NO direct /api/query call - all data comes from Firestore!
+          // We'll receive updates via the Firestore listener
+          // If Firebase Functions don't respond within FIREBASE_PROCESSING_TIMEOUT,
+          // the timeout effect will call /api/query directly as a fallback
         } else {
           throw new Error('Failed to store question in Firebase');
         }
@@ -563,8 +734,15 @@ export default function ChatV2Page() {
     // Show loader when loading
     if (isLoading) {
       return (
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center flex-col">
           <NLPProcessingLoader />
+          {usingDirectApi && (
+            <div className="mt-4 text-center">
+              <p className="text-[#888] text-sm">
+                Använder direkt API-bearbetning...
+              </p>
+            </div>
+          )}
         </div>
       );
     }
