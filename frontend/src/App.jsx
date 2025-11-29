@@ -22,6 +22,28 @@ import ApiDocumentationPage from './pages/ApiDocumentationPage';
 import LedgerPage from './pages/LedgerPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import DemoIndex from './designDemos';
+import OQIDemo1 from './pages/OQIDemo1';
+import OQIDemo2 from './pages/OQIDemo2';
+import OQIDemo3 from './pages/OQIDemo3';
+import OQIDemo4 from './pages/OQIDemo4';
+import OQIDemo5 from './pages/OQIDemo5';
+import OQIDemo6 from './pages/OQIDemo6';
+import OQIDemo7 from './pages/OQIDemo7';
+import OQIDemo8 from './pages/OQIDemo8';
+import OQIDemo9 from './pages/OQIDemo9';
+import OQIDemo10 from './pages/OQIDemo10';
+import OQIDemo10v1 from './pages/OQIDemo10v1';
+import OQIDemo10v2 from './pages/OQIDemo10v2';
+import OQIDemo10v3 from './pages/OQIDemo10v3';
+import OQIDemo10v4 from './pages/OQIDemo10v4';
+import OQIDemo10v5 from './pages/OQIDemo10v5';
+import OQIDemo10v6 from './pages/OQIDemo10v6';
+import OQIDemo10v7 from './pages/OQIDemo10v7';
+import OQIDemo10v8 from './pages/OQIDemo10v8';
+import OQIDemo10v9 from './pages/OQIDemo10v9';
+import OQIDemo10v10 from './pages/OQIDemo10v10';
+import OQIDemosIndex from './pages/OQIDemosIndex';
+import SevenBZeroPage from './pages/SevenBZeroPage';
 
 /**
  * Main OneSeek.AI Application
@@ -135,6 +157,28 @@ function AppContent() {
           <Route path="/ledger" element={<LedgerPage />} />
           <Route path="/design-demos" element={<DemoIndex />} />
           <Route path="/chat-v2" element={<ChatV2Page />} />
+          <Route path="/oqi-demo-1" element={<OQIDemo1 />} />
+          <Route path="/oqi-demo-2" element={<OQIDemo2 />} />
+          <Route path="/oqi-demo-3" element={<OQIDemo3 />} />
+          <Route path="/oqi-demo-4" element={<OQIDemo4 />} />
+          <Route path="/oqi-demo-5" element={<OQIDemo5 />} />
+          <Route path="/oqi-demo-6" element={<OQIDemo6 />} />
+          <Route path="/oqi-demo-7" element={<OQIDemo7 />} />
+          <Route path="/oqi-demo-8" element={<OQIDemo8 />} />
+          <Route path="/oqi-demo-9" element={<OQIDemo9 />} />
+          <Route path="/oqi-demo-10" element={<OQIDemo10 />} />
+          <Route path="/oqi-demo-10-v1" element={<OQIDemo10v1 />} />
+          <Route path="/oqi-demo-10-v2" element={<OQIDemo10v2 />} />
+          <Route path="/oqi-demo-10-v3" element={<OQIDemo10v3 />} />
+          <Route path="/oqi-demo-10-v4" element={<OQIDemo10v4 />} />
+          <Route path="/oqi-demo-10-v5" element={<OQIDemo10v5 />} />
+          <Route path="/oqi-demo-10-v6" element={<OQIDemo10v6 />} />
+          <Route path="/oqi-demo-10-v7" element={<OQIDemo10v7 />} />
+          <Route path="/oqi-demo-10-v8" element={<OQIDemo10v8 />} />
+          <Route path="/oqi-demo-10-v9" element={<OQIDemo10v9 />} />
+          <Route path="/oqi-demo-10-v10" element={<OQIDemo10v10 />} />
+          <Route path="/oqi-demos" element={<OQIDemosIndex />} />
+          <Route path="/7B-Zero" element={<SevenBZeroPage />} />
         </Routes>
       </div>
     </div>
