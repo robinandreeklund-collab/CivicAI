@@ -24,8 +24,9 @@
       "description": "Luftkvalitet, miljödata",
       "base_url": "https://api.naturvardsverket.se",
       "enabled": true,
-      "triggers": ["luftkvalitet", "miljö", "utsläpp", "naturvård", "föroreningar"],
-      "fallback_message": "Kunde inte hämta miljödata. Försök igen senare."
+      "triggers": ["luftkvalitet", "miljö", "utsläpp", "naturvård", "föroreningar", "luftkvalitet i"],
+      "fallback_message": "Kunde inte hämta miljödata. Försök igen senare.",
+      "supports_city": true
     },
     {
       "id": "boverket",
@@ -33,8 +34,9 @@
       "description": "Bygglov, energideklarationer",
       "base_url": "https://api.boverket.se",
       "enabled": true,
-      "triggers": ["bygglov", "energideklaration", "boverket", "byggregler"],
-      "fallback_message": "Kunde inte hämta data från Boverket. Försök igen senare."
+      "triggers": ["bygglov", "energideklaration", "boverket", "byggregler", "energideklaration i"],
+      "fallback_message": "Kunde inte hämta data från Boverket. Försök igen senare.",
+      "supports_city": true
     },
     {
       "id": "riksdagen",
@@ -51,8 +53,9 @@
       "description": "Skogsdata, virkesförråd",
       "base_url": "https://www.slu.se/riksskogstaxeringen",
       "enabled": true,
-      "triggers": ["skog", "virkesförråd", "skogsdata", "riksskogstaxering"],
-      "fallback_message": "Kunde inte hämta skogsdata. Försök igen senare."
+      "triggers": ["skog", "virkesförråd", "skogsdata", "riksskogstaxering", "skog i"],
+      "fallback_message": "Kunde inte hämta skogsdata. Försök igen senare.",
+      "supports_region": true
     },
     {
       "id": "opendata",
@@ -97,7 +100,8 @@
       "base_url": "https://api.energimyndigheten.se",
       "enabled": true,
       "triggers": ["elpris", "energi", "elförbrukning", "elkostnad", "vad kostar elen", "elområde", "se1", "se2", "se3", "se4"],
-      "fallback_message": "Kunde inte hämta energidata. Försök igen senare."
+      "fallback_message": "Kunde inte hämta energidata. Försök igen senare.",
+      "supports_elomrade": true
     },
     {
       "id": "socialstyrelsen",
@@ -105,8 +109,9 @@
       "description": "Hälsostatistik, vårdköer, vaccinationer, vård",
       "base_url": "https://api.socialstyrelsen.se",
       "enabled": true,
-      "triggers": ["vård", "vårdkö", "sjukvård", "vaccination", "hälsa", "socialstyrelsen", "dödsorsak"],
-      "fallback_message": "Kunde inte hämta vårddata. Försök igen senare."
+      "triggers": ["vård", "vårdkö", "sjukvård", "vaccination", "hälsa", "socialstyrelsen", "dödsorsak", "vårdkö i"],
+      "fallback_message": "Kunde inte hämta vårddata. Försök igen senare.",
+      "supports_region": true
     },
     {
       "id": "lantmateriet",
@@ -114,8 +119,9 @@
       "description": "Geodata, fastigheter, kartor, koordinater",
       "base_url": "https://api.lantmateriet.se",
       "enabled": true,
-      "triggers": ["fastighet", "lantmäteriet", "karta", "koordinat", "geodata", "tomt", "markägare"],
-      "fallback_message": "Kunde inte hämta fastighetsdata. Försök igen senare."
+      "triggers": ["fastighet", "lantmäteriet", "karta", "koordinat", "geodata", "tomt", "markägare", "fastighet i"],
+      "fallback_message": "Kunde inte hämta fastighetsdata. Försök igen senare.",
+      "supports_city": true
     },
     {
       "id": "folkhalsomyndigheten",
@@ -124,7 +130,8 @@
       "base_url": "https://api.folkhalsomyndigheten.se",
       "enabled": true,
       "triggers": ["folkhälsa", "epidemi", "smitta", "smittspridning", "influensa", "covid", "pandemi", "folkhälsomyndigheten"],
-      "fallback_message": "Kunde inte hämta folkhälsodata. Försök igen senare."
+      "fallback_message": "Kunde inte hämta folkhälsodata. Försök igen senare.",
+      "supports_region": true
     },
     {
       "id": "trafikverket_vag",
@@ -142,7 +149,8 @@
       "base_url": "https://api.ei.se",
       "enabled": true,
       "triggers": ["nätavgift", "elnät", "elmarknad", "energimarknad", "nätpris", "ei", "energimarknadsinspektionen"],
-      "fallback_message": "Kunde inte hämta elmarknadsdata. Försök igen senare."
+      "fallback_message": "Kunde inte hämta elmarknadsdata. Försök igen senare.",
+      "supports_elomrade": true
     },
     {
       "id": "vinnova",
@@ -213,8 +221,9 @@
       "description": "Studiemedel, bidrag, lån, studerande",
       "base_url": "https://api.csn.se",
       "enabled": true,
-      "triggers": ["studiemedel", "csn", "studiebidrag", "studielån", "studiepengar", "csn-lån"],
-      "fallback_message": "Kunde inte hämta CSN-data. Försök igen senare."
+      "triggers": ["studiemedel", "csn", "studiebidrag", "studielån", "studiepengar", "csn-lån", "studiemedel i"],
+      "fallback_message": "Kunde inte hämta CSN-data. Försök igen senare.",
+      "supports_region": true
     },
     {
       "id": "skolverket",
@@ -223,7 +232,8 @@
       "base_url": "https://api.skolverket.se",
       "enabled": true,
       "triggers": ["skola", "skolverket", "utbildning", "läroplan", "betyg", "gymnasie", "grundskola", "förskola", "susa-navet", "hur många skolor", "antal skolor", "skolenheter", "skolor i"],
-      "fallback_message": "Kunde inte hämta skoldata. Försök igen senare."
+      "fallback_message": "Kunde inte hämta skoldata. Försök igen senare.",
+      "supports_city": true
     },
     {
       "id": "skolverket_syllabus",

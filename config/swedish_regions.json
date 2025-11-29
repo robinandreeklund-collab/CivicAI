@@ -1,0 +1,30 @@
+{
+  "regions": {
+    "blekinge": "Blekinge",
+    "dalarna": "Dalarna",
+    "gotland": "Gotland",
+    "gävleborg": "Gävleborg",
+    "halland": "Halland",
+    "jämtland": "Jämtland Härjedalen",
+    "jämtland härjedalen": "Jämtland Härjedalen",
+    "jönköping": "Jönköpings län",
+    "jönköpings län": "Jönköpings län",
+    "kalmar": "Kalmar län",
+    "kalmar län": "Kalmar län",
+    "kronoberg": "Kronoberg",
+    "norrbotten": "Norrbotten",
+    "skåne": "Skåne",
+    "stockholm": "Stockholm",
+    "sörmland": "Sörmland",
+    "södermanland": "Sörmland",
+    "uppsala": "Uppsala",
+    "värmland": "Värmland",
+    "västerbotten": "Västerbotten",
+    "västernorrland": "Västernorrland",
+    "västmanland": "Västmanland",
+    "örebro": "Örebro län",
+    "örebro län": "Örebro län",
+    "östergötland": "Östergötland",
+    "västra götaland": "Västra Götaland"
+  }
+}

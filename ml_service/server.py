@@ -903,6 +903,161 @@ def check_tavily_trigger(user_message: str) -> bool:
     
     return has_trigger and not is_blacklisted
 
+
+# =============================================================================
+# REGIONS & ELOMRADEN CONFIGURATION - For location-based API queries
+# =============================================================================
+
+REGIONS_CONFIG_FILE = Path(__file__).parent.parent / "config" / "swedish_regions.json"
+ELOMRADEN_CONFIG_FILE = Path(__file__).parent.parent / "config" / "swedish_elomraden.json"
+
+
+def load_swedish_regions() -> dict:
+    """Load Swedish regions from config file."""
+    if REGIONS_CONFIG_FILE.exists():
+        try:
+            data = json.loads(REGIONS_CONFIG_FILE.read_text(encoding="utf-8"))
+            return data.get("regions", {})
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+    return {}
+
+
+def load_elomraden() -> dict:
+    """Load Swedish electricity areas (SE1-SE4) from config file."""
+    if ELOMRADEN_CONFIG_FILE.exists():
+        try:
+            data = json.loads(ELOMRADEN_CONFIG_FILE.read_text(encoding="utf-8"))
+            return data.get("elomraden", {})
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+    return {
+        "se1": {"name": "SE1 - Luleå", "description": "Norra Sverige"},
+        "se2": {"name": "SE2 - Sundsvall", "description": "Norra Mellansverige"},
+        "se3": {"name": "SE3 - Stockholm", "description": "Södra Mellansverige"},
+        "se4": {"name": "SE4 - Malmö", "description": "Södra Sverige"}
+    }
+
+
+# Load regions and elomraden at startup
+SWEDISH_REGIONS = load_swedish_regions()
+ELOMRADEN = load_elomraden()
+
+
+def check_region_in_query(query: str) -> Optional[str]:
+    """Check if query mentions a Swedish region and return it."""
+    query_lower = query.lower()
+    for region_key, region_name in SWEDISH_REGIONS.items():
+        if region_key in query_lower:
+            return region_name
+    return None
+
+
+def check_elomrade_in_query(query: str) -> Optional[str]:
+    """Check if query mentions a Swedish electricity area (SE1-SE4)."""
+    query_lower = query.lower()
+    for el_key, el_data in ELOMRADEN.items():
+        if el_key in query_lower:
+            return el_data.get("name", el_key.upper())
+    return None
+
+
+def build_sources_section(
+    weather_context: Optional[str] = None,
+    weather_city: Optional[str] = None,
+    news_context: Optional[str] = None,
+    open_data_context: Optional[str] = None,
+    triggered_api: Optional[dict] = None,
+    tavily_sources: str = ""
+) -> str:
+    """
+    Build a formatted sources section for the response.
+    
+    Returns Markdown-formatted sources with clickable links.
+    Sources are displayed in a Wikipedia-style format.
+    """
+    sources = []
+    
+    # Weather source (SMHI)
+    if weather_context and weather_city:
+        city_display = weather_city.capitalize()
+        sources.append(
+            f'[SMHI – Väderprognos {city_display}](https://www.smhi.se/vader/prognoser/ortsprognoser/q/{city_display})'
+        )
+    
+    # News sources (RSS feeds - parsed from news_context if available)
+    # News links are already in the news_context, skip duplicate
+    
+    # Open Data API sources
+    if triggered_api and open_data_context:
+        api_id = triggered_api.get("id", "")
+        api_name = triggered_api.get("name", "Okänd källa")
+        
+        # Map API IDs to source URLs
+        api_sources = {
+            "scb": ("SCB – Statistiska Centralbyrån", "https://www.scb.se"),
+            "krisinformation": ("Krisinformation.se", "https://www.krisinformation.se"),
+            "riksdagen": ("Riksdagen.se", "https://www.riksdagen.se"),
+            "trafikverket": ("Trafikverket", "https://www.trafikverket.se"),
+            "naturvardsverket": ("Naturvårdsverket", "https://www.naturvardsverket.se"),
+            "boverket": ("Boverket", "https://www.boverket.se"),
+            "slu": ("SLU Riksskogstaxeringen", "https://www.slu.se/riksskogstaxeringen"),
+            "opendata": ("Dataportal.se – Sveriges öppna data", "https://www.dataportal.se"),
+            "digg": ("DIGG – Myndigheten för digital förvaltning", "https://www.digg.se"),
+            "skatteverket": ("Skatteverket", "https://www.skatteverket.se"),
+            "energimyndigheten": ("Energimyndigheten", "https://www.energimyndigheten.se"),
+            "socialstyrelsen": ("Socialstyrelsen", "https://www.socialstyrelsen.se"),
+            "lantmateriet": ("Lantmäteriet", "https://www.lantmateriet.se"),
+            "folkhalsomyndigheten": ("Folkhälsomyndigheten", "https://www.folkhalsomyndigheten.se"),
+            "trafikverket_vag": ("Trafikverket Väg & Järnväg", "https://www.trafikverket.se/trafikinformation/"),
+            "energimarknadsinspektionen": ("Energimarknadsinspektionen", "https://www.ei.se"),
+            "vinnova": ("Vinnova", "https://www.vinnova.se"),
+            "formas": ("Formas", "https://www.formas.se"),
+            "vetenskapsradet": ("Vetenskapsrådet", "https://www.vr.se"),
+            "forsakringskassan": ("Försäkringskassan", "https://www.forsakringskassan.se"),
+            "migrationsverket": ("Migrationsverket", "https://www.migrationsverket.se"),
+            "arbetsformedlingen": ("Arbetsförmedlingen", "https://www.arbetsformedlingen.se"),
+            "uhr": ("UHR – Universitets- och högskolerådet", "https://www.uhr.se"),
+            "csn": ("CSN – Centrala studiestödsnämnden", "https://www.csn.se"),
+            "skolverket": ("Skolverket", "https://www.skolverket.se"),
+            "skolverket_syllabus": ("Skolverket – Kursplaner", "https://www.skolverket.se/undervisning/gymnasieskolan/laroplan-program-och-amnen-i-gymnasieskolan"),
+            "visitsweden": ("Visit Sweden", "https://www.visitsweden.se"),
+            "bolagsverket": ("Bolagsverket", "https://www.bolagsverket.se"),
+            "konkurrensverket": ("Konkurrensverket", "https://www.kkv.se"),
+            "konsumentverket": ("Konsumentverket", "https://www.konsumentverket.se"),
+        }
+        
+        if api_id in api_sources:
+            name, url = api_sources[api_id]
+            sources.append(f'[{name}]({url})')
+        else:
+            sources.append(f'[{api_name}](#)')
+    
+    # Tavily sources (already formatted with HTML, convert to Markdown)
+    if tavily_sources:
+        # Tavily sources are already formatted, extract them
+        import re
+        # Match <a href="url">title</a> pattern
+        tavily_links = re.findall(r'<a href="([^"]+)">([^<]+)</a>', tavily_sources)
+        for url, title in tavily_links:
+            sources.append(f'[{title}]({url})')
+    
+    if not sources:
+        return ""
+    
+    # Format as Wikipedia-style sources section
+    result = "---\n**Källor:**\n"
+    for i, source in enumerate(sources, 1):
+        result += f"{i}. {source}\n"
+    
+    return result.strip()
+
+
+# =============================================================================
+# END REGIONS & ELOMRADEN CONFIGURATION
+# =============================================================================
+
+
 # =============================================================================
 # END TIME, DATE & WEATHER FUNCTIONS
 # =============================================================================
@@ -3735,6 +3890,20 @@ async def infer(request: Request, inference_request: InferenceRequest):
             
             # Clean response using utility function
             response_text = clean_inference_response(response_text, full_input, inference_request.text)
+            
+            # === APPEND SOURCES to response ===
+            # Collect all sources from triggered APIs/services
+            sources_section = build_sources_section(
+                weather_context=weather_context,
+                weather_city=weather_city,
+                news_context=news_context,
+                open_data_context=open_data_context,
+                triggered_api=triggered_api,
+                tavily_sources=tavily_sources
+            )
+            
+            if sources_section:
+                response_text = response_text.rstrip() + "\n\n" + sources_section
             
             latency_ms = (time.time() - start_time) * 1000
             
