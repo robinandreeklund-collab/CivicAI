@@ -67,6 +67,7 @@ export default function SystemPromptManagement() {
   const [tavilyBlacklistInput, setTavilyBlacklistInput] = useState('');
   const [tavilySaving, setTavilySaving] = useState(false);
   const [tavilyApiKeySet, setTavilyApiKeySet] = useState(false);
+  const [tavilyApiKeyInput, setTavilyApiKeyInput] = useState('');
 
   // Fetch prompts on mount
   useEffect(() => {
@@ -211,24 +212,28 @@ export default function SystemPromptManagement() {
   const handleSaveTavilyTriggers = async () => {
     setTavilySaving(true);
     try {
+      const requestBody = { 
+        triggers: tavilyTriggersInput,
+        blacklist: tavilyBlacklistInput 
+      };
+      
+      // Only include API key if user entered one
+      if (tavilyApiKeyInput && tavilyApiKeyInput.trim()) {
+        requestBody.api_key = tavilyApiKeyInput.trim();
+      }
+      
       let response;
       try {
         response = await fetch('http://localhost:5000/api/tavily-triggers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            triggers: tavilyTriggersInput,
-            blacklist: tavilyBlacklistInput 
-          })
+          body: JSON.stringify(requestBody)
         });
       } catch {
         response = await fetch('/api/tavily-triggers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            triggers: tavilyTriggersInput,
-            blacklist: tavilyBlacklistInput 
-          })
+          body: JSON.stringify(requestBody)
         });
       }
 
@@ -236,7 +241,10 @@ export default function SystemPromptManagement() {
         const data = await response.json();
         setTavilyTriggers(data.triggers || []);
         setTavilyBlacklist(data.blacklist || []);
-        setSuccess(`Tavily uppdaterad! ${data.trigger_count} triggers, ${data.blacklist_count} blacklist.`);
+        setTavilyApiKeySet(data.api_key_set || false);
+        setTavilyApiKeyInput(''); // Clear input after save
+        const apiKeyMsg = data.api_key_updated ? ' API-nyckel uppdaterad!' : '';
+        setSuccess(`Tavily uppdaterad! ${data.trigger_count} triggers, ${data.blacklist_count} blacklist.${apiKeyMsg}`);
       } else {
         throw new Error('Failed to save triggers');
       }
@@ -726,7 +734,7 @@ export default function SystemPromptManagement() {
             </h3>
             <p className="text-[#666] font-mono text-xs mt-1">
               Hämtar realtidsfakta från webben när trigger-ord hittas. Blacklist förhindrar sökning 
-              för identitetsfrågor. Kräver TAVILY_API_KEY i miljövariabler.
+              för identitetsfrågor. API-nyckel kan sättas nedan eller via TAVILY_API_KEY miljövariabel.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -741,6 +749,21 @@ export default function SystemPromptManagement() {
               {tavilyTriggers.length} triggers
             </span>
           </div>
+        </div>
+        
+        {/* API Key Input */}
+        <div className="mb-4">
+          <label className="block text-[#888] font-mono text-sm mb-2">🔑 Tavily API Key (lämna tomt för att behålla befintlig)</label>
+          <input
+            type="password"
+            value={tavilyApiKeyInput}
+            onChange={(e) => setTavilyApiKeyInput(e.target.value)}
+            className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#eee] font-mono text-sm p-3 rounded focus:outline-none focus:border-green-500/50"
+            placeholder={tavilyApiKeySet ? "••••••••••••••••••••••••" : "tvly-xxxxxxxxxxxxxxxx"}
+          />
+          <p className="text-[#555] font-mono text-xs mt-1">
+            Hämta din API-nyckel från <a href="https://tavily.com" target="_blank" rel="noopener noreferrer" className="text-green-400 hover:underline">tavily.com</a>
+          </p>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -776,6 +799,7 @@ export default function SystemPromptManagement() {
             onClick={() => {
               setTavilyTriggersInput(tavilyTriggers.join(', '));
               setTavilyBlacklistInput(tavilyBlacklist.join(', '));
+              setTavilyApiKeyInput('');
             }}
             className="px-4 py-2 border border-[#2a2a2a] text-[#888] text-sm font-mono hover:bg-[#1a1a1a] transition-colors rounded"
           >

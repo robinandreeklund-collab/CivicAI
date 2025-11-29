@@ -126,6 +126,8 @@ def is_swedish(text: str) -> bool:
     if not text or not text.strip():
         return False
     
+    text_preview = text[:50] + "..." if len(text) > 50 else text
+    
     # Try langdetect first if available
     if LANGDETECT_AVAILABLE:
         try:
@@ -133,16 +135,27 @@ def is_swedish(text: str) -> bool:
             # Accept Swedish and closely related Nordic languages
             # (langdetect often confuses short Swedish texts with Danish/Norwegian)
             if detected_lang in ("sv", "da", "no"):
+                print(f"[FORCE-SVENSKA] ✅ langdetect: '{text_preview}' → {detected_lang} (Swedish/Nordic)")
                 return True
-        except (LangDetectException, TypeError):
+            else:
+                print(f"[FORCE-SVENSKA] ❌ langdetect: '{text_preview}' → {detected_lang} (Not Swedish)")
+        except (LangDetectException, TypeError) as e:
             # LangDetectException: raised for short/ambiguous text
             # TypeError: can occur with unexpected input
             # Fall back to trigger-based detection
-            pass
+            print(f"[FORCE-SVENSKA] ⚠️ langdetect failed: '{text_preview}' → {type(e).__name__}, using trigger fallback")
+    else:
+        print(f"[FORCE-SVENSKA] ⚠️ langdetect NOT AVAILABLE, using trigger fallback for: '{text_preview}'")
     
     # Fallback: Use configurable Swedish triggers for short texts or if langdetect unavailable
     text_lower = text.lower()
-    return any(word in text_lower for word in FORCE_SVENSKA_TRIGGERS)
+    trigger_match = any(word in text_lower for word in FORCE_SVENSKA_TRIGGERS)
+    if trigger_match:
+        matched_triggers = [t for t in FORCE_SVENSKA_TRIGGERS if t in text_lower]
+        print(f"[FORCE-SVENSKA] ✅ trigger fallback: '{text_preview}' → matched: {matched_triggers[:3]}")
+    else:
+        print(f"[FORCE-SVENSKA] ❌ trigger fallback: '{text_preview}' → no match")
+    return trigger_match
 
 # =============================================================================
 # END FORCE-SVENSKA CONFIGURATION
@@ -154,22 +167,35 @@ def is_swedish(text: str) -> bool:
 # =============================================================================
 # Tavily triggers and blacklist are loaded from config/tavily_triggers.json
 # Triggers activate web search, blacklist prevents search for identity questions
+# API key can be set via environment variable OR dashboard
 
 TAVILY_CONFIG_FILE = Path(__file__).parent.parent / "config" / "tavily_triggers.json"
+# API key: first check env var, then check config file
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
 def load_tavily_config() -> tuple:
     """
-    Load Tavily triggers and blacklist from config file.
+    Load Tavily triggers, blacklist, and optionally API key from config file.
     
     Returns tuple of (triggers, blacklist). If file doesn't exist or is invalid,
     returns default lists.
+    
+    Also updates TAVILY_API_KEY global if api_key is set in config file.
     """
+    global TAVILY_API_KEY
+    
     if TAVILY_CONFIG_FILE.exists():
         try:
             data = json.loads(TAVILY_CONFIG_FILE.read_text(encoding="utf-8"))
             triggers = data.get("triggers", [])
             blacklist = data.get("blacklist", [])
+            
+            # Load API key from config if not set via environment
+            config_api_key = data.get("api_key", "")
+            if config_api_key and not os.getenv("TAVILY_API_KEY"):
+                TAVILY_API_KEY = config_api_key
+                print(f"[TAVILY] API key loaded from config file")
+            
             if isinstance(triggers, list) and isinstance(blacklist, list):
                 return (
                     [t.strip().lower() for t in triggers if isinstance(t, str) and t.strip()],
@@ -2289,7 +2315,7 @@ async def get_tavily_triggers():
 @tavily_router.post("")
 async def save_tavily_triggers(request: dict):
     """
-    Save Tavily triggers and blacklist.
+    Save Tavily triggers, blacklist, and optionally API key.
     
     Updates the trigger and blacklist lists in real-time. Changes take effect
     immediately without requiring a server restart.
@@ -2297,8 +2323,9 @@ async def save_tavily_triggers(request: dict):
     Request body:
     - triggers: string - Comma-separated list of triggers
     - blacklist: string - Comma-separated list of blacklist words
+    - api_key: string (optional) - Tavily API key
     """
-    global TAVILY_TRIGGERS, TAVILY_BLACKLIST
+    global TAVILY_TRIGGERS, TAVILY_BLACKLIST, TAVILY_API_KEY
     
     # Parse triggers from comma-separated string or list
     raw_triggers = request.get("triggers", "")
@@ -2318,8 +2345,28 @@ async def save_tavily_triggers(request: dict):
     else:
         blacklist = []
     
+    # Handle API key - only update if provided and not empty
+    api_key = request.get("api_key", "")
+    api_key_updated = False
+    
     # Save to file
     data = {"triggers": triggers, "blacklist": blacklist}
+    
+    # Include API key in config if provided (or preserve existing)
+    if api_key and api_key.strip():
+        data["api_key"] = api_key.strip()
+        TAVILY_API_KEY = api_key.strip()
+        api_key_updated = True
+        print(f"[TAVILY] API key updated from dashboard")
+    elif TAVILY_CONFIG_FILE.exists():
+        # Preserve existing API key from config file if not updating
+        try:
+            existing_data = json.loads(TAVILY_CONFIG_FILE.read_text(encoding="utf-8"))
+            if existing_data.get("api_key"):
+                data["api_key"] = existing_data["api_key"]
+        except:
+            pass
+    
     try:
         TAVILY_CONFIG_FILE.write_text(
             json.dumps(data, ensure_ascii=False, indent=2),
@@ -2333,14 +2380,16 @@ async def save_tavily_triggers(request: dict):
     TAVILY_TRIGGERS = triggers
     TAVILY_BLACKLIST = blacklist
     
-    logger.info(f"Tavily triggers updated: {len(triggers)} triggers, {len(blacklist)} blacklist")
+    logger.info(f"Tavily triggers updated: {len(triggers)} triggers, {len(blacklist)} blacklist, api_key_updated={api_key_updated}")
     
     return {
         "status": "saved",
         "trigger_count": len(triggers),
         "blacklist_count": len(blacklist),
         "triggers": triggers,
-        "blacklist": blacklist
+        "blacklist": blacklist,
+        "api_key_set": bool(TAVILY_API_KEY),
+        "api_key_updated": api_key_updated
     }
 
 
