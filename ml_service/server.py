@@ -49,6 +49,7 @@ import json
 import uuid
 from datetime import datetime
 from typing import Optional, List
+import requests  # For Tavily API and SMHI weather
 
 # =============================================================================
 # FORCE-SVENSKA CONFIGURATION - Dashboard-controlled Swedish language triggers
@@ -144,6 +145,12 @@ TAVILY_TRIGGERS, TAVILY_BLACKLIST = load_tavily_config()
 # TIME, DATE & WEATHER FUNCTIONS - Always-aware context injection
 # =============================================================================
 
+# SMHI API URL for Stockholm weather forecast (lat: 59.33, lon: 18.07)
+SMHI_API_URL = "https://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point/lon/18.07/lat/59.33/data.json"
+
+# Weather trigger keywords (Swedish)
+WEATHER_KEYWORDS = ["vädret", "regnar", "soligt", "imorgon", "väder", "temperatur", "grader"]
+
 def inject_time_context() -> str:
     """
     Get current time and date in Swedish format.
@@ -177,12 +184,8 @@ def get_weather() -> Optional[str]:
     
     Returns a formatted weather string or None if API fails.
     """
-    import requests
-    
     try:
-        # SMHI Open Data API - Stockholm coordinates (lat: 59.33, lon: 18.07)
-        url = "https://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point/lon/18.07/lat/59.33/data.json"
-        r = requests.get(url, timeout=8)
+        r = requests.get(SMHI_API_URL, timeout=8)
         
         if r.status_code != 200:
             return None
@@ -235,8 +238,6 @@ def tavily_search(query: str) -> Optional[dict]:
     Returns:
         Search results dict or None if API key not set or search fails
     """
-    import requests
-    
     if not TAVILY_API_KEY:
         return None
         
@@ -311,9 +312,8 @@ def check_weather_trigger(user_message: str) -> bool:
     Returns:
         True if weather-related question, False otherwise
     """
-    weather_keywords = ["vädret", "regnar", "soligt", "imorgon", "väder", "temperatur", "grader"]
     msg_lower = user_message.lower()
-    return any(keyword in msg_lower for keyword in weather_keywords)
+    return any(keyword in msg_lower for keyword in WEATHER_KEYWORDS)
 
 # =============================================================================
 # END TIME, DATE & WEATHER FUNCTIONS

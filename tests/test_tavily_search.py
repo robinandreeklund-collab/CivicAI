@@ -14,6 +14,7 @@ from unittest.mock import patch, MagicMock
 import json
 import tempfile
 import shutil
+from datetime import datetime
 
 # Add ml_service to path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'ml_service'))
@@ -164,8 +165,9 @@ class TestTimeContextInjection:
         assert "Klockan är" in result
         assert "(svensk tid)" in result
         
-        # Should have year
-        assert "202" in result  # Year 2020s
+        # Should have current year
+        current_year = str(datetime.now().year)
+        assert current_year in result
     
     def test_inject_time_context_returns_string(self):
         """Test that time context returns a non-empty string"""
@@ -272,8 +274,14 @@ class TestFormatTavilySources:
         }
         
         result = format_tavily_sources(mock_data)
-        # Should be truncated to 70 chars
-        assert len(result.split("\n")[1].split("]")[0]) <= 100
+        # Title should be truncated - extract title from markdown link format [title](url)
+        # The format is "1. [truncated_title](url)"
+        lines = result.split("\n")
+        if len(lines) > 1:
+            # Get the title between [ and ]
+            title_part = lines[1].split("[")[1].split("]")[0] if "[" in lines[1] else ""
+            # Title should be <= 70 chars (or 67 + "..." = 70)
+            assert len(title_part) <= 70
 
 
 # Tests that don't require torch - these will run in CI
