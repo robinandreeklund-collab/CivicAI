@@ -1,0 +1,8 @@
+{
+  "feeds": [
+    {"name": "SVT Nyheter", "url": "https://www.svt.se/nyheter/rss.xml"},
+    {"name": "SVT Inrikes", "url": "https://www.svt.se/nyheter/inrikes/rss.xml"},
+    {"name": "Omni", "url": "https://omni.se/rss"},
+    {"name": "SR Ekot", "url": "https://api.sr.se/api/rss/program/83"}
+  ]
+}

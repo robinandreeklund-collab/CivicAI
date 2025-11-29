@@ -1,0 +1,14 @@
+{
+  "cities": {
+    "stockholm": {"lon": 18.07, "lat": 59.33},
+    "göteborg": {"lon": 11.97, "lat": 57.71},
+    "malmö": {"lon": 13.00, "lat": 55.61},
+    "uppsala": {"lon": 17.64, "lat": 59.86},
+    "luleå": {"lon": 22.16, "lat": 65.58},
+    "västerås": {"lon": 16.54, "lat": 59.61},
+    "örebro": {"lon": 15.21, "lat": 59.27},
+    "linköping": {"lon": 15.62, "lat": 58.41},
+    "helsingborg": {"lon": 12.69, "lat": 56.05},
+    "jönköping": {"lon": 14.16, "lat": 57.78}
+  }
+}

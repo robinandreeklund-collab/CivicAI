@@ -51,6 +51,13 @@ from datetime import datetime
 from typing import Optional, List
 import requests  # For Tavily API and SMHI weather
 
+# RSS feed parsing for news feature
+try:
+    import feedparser
+    FEEDPARSER_AVAILABLE = True
+except ImportError:
+    FEEDPARSER_AVAILABLE = False
+
 # Language detection for Force-Svenska (with fallback if not installed)
 try:
     from langdetect import detect, DetectorFactory
@@ -193,14 +200,113 @@ TAVILY_TRIGGERS, TAVILY_BLACKLIST = load_tavily_config()
 
 
 # =============================================================================
+# SWEDISH CITIES CONFIGURATION - Dashboard-controlled city list for weather
+# =============================================================================
+# Cities are loaded from config/swedish_cities.json and can be updated in
+# real-time via the Admin Dashboard without server restart.
+
+CITIES_CONFIG_FILE = Path(__file__).parent.parent / "config" / "swedish_cities.json"
+
+def load_swedish_cities() -> dict:
+    """
+    Load Swedish cities from config file for weather lookups.
+    
+    Returns dict of city names to coordinates. If file doesn't exist or is invalid,
+    returns default city list.
+    """
+    if CITIES_CONFIG_FILE.exists():
+        try:
+            data = json.loads(CITIES_CONFIG_FILE.read_text(encoding="utf-8"))
+            cities = data.get("cities", {})
+            if isinstance(cities, dict):
+                return {k.lower(): v for k, v in cities.items() if isinstance(v, dict)}
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+    
+    # Default cities if file doesn't exist or is invalid
+    return {
+        "stockholm": {"lon": 18.07, "lat": 59.33},
+        "göteborg": {"lon": 11.97, "lat": 57.71},
+        "malmö": {"lon": 13.00, "lat": 55.61},
+        "uppsala": {"lon": 17.64, "lat": 59.86},
+        "luleå": {"lon": 22.16, "lat": 65.58}
+    }
+
+# Load cities at startup - can be updated via API
+SWEDISH_CITIES = load_swedish_cities()
+
+# =============================================================================
+# END SWEDISH CITIES CONFIGURATION
+# =============================================================================
+
+
+# =============================================================================
+# RSS FEEDS CONFIGURATION - Dashboard-controlled news feeds
+# =============================================================================
+# RSS feeds are loaded from config/rss_feeds.json and can be updated in
+# real-time via the Admin Dashboard without server restart.
+
+RSS_FEEDS_FILE = Path(__file__).parent.parent / "config" / "rss_feeds.json"
+
+def load_rss_feeds() -> list:
+    """
+    Load RSS feeds from config file for news lookups.
+    
+    Returns list of feed dicts with name and url. If file doesn't exist or is invalid,
+    returns default feeds.
+    """
+    if RSS_FEEDS_FILE.exists():
+        try:
+            data = json.loads(RSS_FEEDS_FILE.read_text(encoding="utf-8"))
+            feeds = data.get("feeds", [])
+            if isinstance(feeds, list):
+                return [f for f in feeds if isinstance(f, dict) and "url" in f]
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+    
+    # Default feeds if file doesn't exist or is invalid
+    return [
+        {"name": "SVT Nyheter", "url": "https://www.svt.se/nyheter/rss.xml"},
+        {"name": "SVT Inrikes", "url": "https://www.svt.se/nyheter/inrikes/rss.xml"},
+        {"name": "Omni", "url": "https://omni.se/rss"},
+        {"name": "SR Ekot", "url": "https://api.sr.se/api/rss/program/83"}
+    ]
+
+# Load RSS feeds at startup - can be updated via API
+RSS_FEEDS = load_rss_feeds()
+
+# =============================================================================
+# END RSS FEEDS CONFIGURATION
+# =============================================================================
+
+
+# =============================================================================
 # TIME, DATE & WEATHER FUNCTIONS - Always-aware context injection
 # =============================================================================
 
-# SMHI API URL for Stockholm weather forecast (lat: 59.33, lon: 18.07)
-SMHI_API_URL = "https://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point/lon/18.07/lat/59.33/data.json"
-
 # Weather trigger keywords (Swedish)
-WEATHER_KEYWORDS = ["vädret", "regnar", "soligt", "imorgon", "väder", "temperatur", "grader"]
+WEATHER_KEYWORDS = ["vädret", "regnar", "soligt", "imorgon", "väder", "temperatur", "grader", "regn", "snö", "sol"]
+
+# News trigger keywords (Swedish)
+NEWS_KEYWORDS = ["senaste nyheterna", "vad hände idag", "nyheter", "vad är det senaste", "aktuella nyheter"]
+
+
+def get_current_season() -> str:
+    """
+    Get the current season in Swedish.
+    
+    Returns a formatted string like: "Vi är mitt i vintern just nu."
+    """
+    month = datetime.now().month
+    seasons = {
+        12: "vintern", 1: "vintern", 2: "vintern",
+        3: "våren", 4: "våren", 5: "våren",
+        6: "sommaren", 7: "sommaren", 8: "sommaren",
+        9: "hösten", 10: "hösten", 11: "hösten"
+    }
+    season = seasons.get(month, "året")
+    return f"Vi är mitt i {season} just nu."
+
 
 def inject_time_context() -> str:
     """
@@ -229,14 +335,26 @@ def inject_time_context() -> str:
     return f"Idag är det {day_name} den {now.day} {month_name} {now.year}. Klockan är {time_str} (svensk tid)."
 
 
-def get_weather() -> Optional[str]:
+def get_weather(city: str = "stockholm") -> Optional[str]:
     """
-    Get weather forecast from SMHI for Stockholm.
+    Get weather forecast from SMHI for a Swedish city.
     
-    Returns a formatted weather string or None if API fails.
+    Args:
+        city: Name of the Swedish city (must be in SWEDISH_CITIES config)
+    
+    Returns a formatted weather string or None if API fails or city not found.
     """
+    city_lower = city.lower()
+    coords = SWEDISH_CITIES.get(city_lower)
+    
+    if not coords:
+        # Fall back to Stockholm if city not found
+        coords = SWEDISH_CITIES.get("stockholm", {"lon": 18.07, "lat": 59.33})
+        city_lower = "stockholm"
+    
     try:
-        r = requests.get(SMHI_API_URL, timeout=8)
+        url = f"https://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point/lon/{coords['lon']}/lat/{coords['lat']}/data.json"
+        r = requests.get(url, timeout=8)
         
         if r.status_code != 200:
             return None
@@ -273,10 +391,104 @@ def get_weather() -> Optional[str]:
         ]
         rain_text = rain_texts[rain] if rain is not None and 0 <= rain < len(rain_texts) else "okänd nederbörd"
         
-        return f"Imorgon i Stockholm blir det ca {temp}°C och {rain_text}."
+        # Capitalize city name for display
+        city_display = city_lower.capitalize()
+        return f"I {city_display} blir det imorgon ca {temp}°C och {rain_text}."
         
     except Exception:
         return None
+
+
+def get_latest_news() -> list:
+    """
+    Get latest news from configured RSS feeds.
+    
+    Returns list of news items with title, summary, link, and source.
+    Returns empty list if feedparser is not available or all feeds fail.
+    """
+    if not FEEDPARSER_AVAILABLE:
+        return []
+    
+    all_entries = []
+    for feed in RSS_FEEDS:
+        try:
+            d = feedparser.parse(feed.get("url", ""))
+            for entry in d.entries[:2]:  # 2 latest per feed
+                summary = entry.get("summary", "")
+                if len(summary) > 200:
+                    summary = summary[:200] + "..."
+                all_entries.append({
+                    "title": entry.get("title", "Ingen titel"),
+                    "summary": summary,
+                    "link": entry.get("link", "#"),
+                    "source": feed.get("name", "Okänd källa"),
+                    "published": entry.get("published", "")
+                })
+        except Exception:
+            pass
+    
+    # Sort by publication time (newest first)
+    all_entries.sort(key=lambda x: x.get("published", ""), reverse=True)
+    return all_entries[:5]  # Top 5 news
+
+
+def format_news_for_context(news: list) -> str:
+    """
+    Format news items as a context string for the model.
+    
+    Args:
+        news: List of news items from get_latest_news()
+        
+    Returns:
+        Formatted string with news titles and links
+    """
+    if not news:
+        return ""
+    
+    news_text = "**Senaste nyheterna:**\n"
+    for i, item in enumerate(news, 1):
+        news_text += f"{i}. [{item['title']}]({item['link']}) ({item['source']})\n"
+    
+    return news_text.strip()
+
+
+def check_weather_city(user_message: str) -> Optional[str]:
+    """
+    Check if user message asks about weather for a specific city.
+    
+    Args:
+        user_message: The user's input message
+        
+    Returns:
+        City name if found, None otherwise
+    """
+    msg_lower = user_message.lower()
+    
+    # Check for weather keywords first
+    if not any(keyword in msg_lower for keyword in WEATHER_KEYWORDS):
+        return None
+    
+    # Check for city names
+    for city in SWEDISH_CITIES.keys():
+        if city in msg_lower:
+            return city
+    
+    # Default to Stockholm if weather question but no specific city
+    return "stockholm"
+
+
+def check_news_trigger(user_message: str) -> bool:
+    """
+    Check if user message asks about news.
+    
+    Args:
+        user_message: The user's input message
+        
+    Returns:
+        True if news-related question, False otherwise
+    """
+    msg_lower = user_message.lower()
+    return any(keyword in msg_lower for keyword in NEWS_KEYWORDS)
 
 
 def tavily_search(query: str) -> Optional[dict]:
@@ -351,20 +563,6 @@ def check_tavily_trigger(user_message: str) -> bool:
     is_blacklisted = any(blacklist in msg_lower for blacklist in TAVILY_BLACKLIST)
     
     return has_trigger and not is_blacklisted
-
-
-def check_weather_trigger(user_message: str) -> bool:
-    """
-    Check if user message is asking about weather.
-    
-    Args:
-        user_message: The user's input message
-        
-    Returns:
-        True if weather-related question, False otherwise
-    """
-    msg_lower = user_message.lower()
-    return any(keyword in msg_lower for keyword in WEATHER_KEYWORDS)
 
 # =============================================================================
 # END TIME, DATE & WEATHER FUNCTIONS
@@ -1838,6 +2036,152 @@ async def save_tavily_triggers(request: dict):
 # =============================================================================
 
 
+# =============================================================================
+# SWEDISH CITIES API - Dashboard-controlled city list for weather
+# =============================================================================
+# These endpoints allow admins to manage the list of Swedish cities available
+# for weather lookups. Cities can be added/removed without server restart.
+
+cities_router = APIRouter(prefix="/api/swedish-cities", tags=["Swedish Cities"])
+
+
+@cities_router.get("")
+async def get_swedish_cities():
+    """
+    Get current Swedish cities configuration.
+    
+    Returns the list of cities available for weather lookups.
+    """
+    return {
+        "cities": SWEDISH_CITIES,
+        "count": len(SWEDISH_CITIES)
+    }
+
+
+@cities_router.post("")
+async def save_swedish_cities(request: dict):
+    """
+    Save Swedish cities configuration.
+    
+    Updates the cities list in real-time. Changes take effect immediately
+    without requiring a server restart.
+    
+    Request body:
+    - cities: dict - Dictionary of city names to coordinates
+    """
+    global SWEDISH_CITIES
+    
+    cities = request.get("cities", {})
+    
+    # Validate and normalize city data
+    valid_cities = {}
+    for name, coords in cities.items():
+        if isinstance(coords, dict) and "lon" in coords and "lat" in coords:
+            valid_cities[name.lower()] = coords
+    
+    # Save to file
+    data = {"cities": valid_cities}
+    try:
+        CITIES_CONFIG_FILE.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2),
+            encoding="utf-8"
+        )
+    except Exception as e:
+        logger.error(f"Failed to save Swedish cities: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save cities: {str(e)}")
+    
+    # Update in-memory
+    SWEDISH_CITIES = valid_cities
+    
+    logger.info(f"Swedish cities updated: {len(valid_cities)} cities saved")
+    
+    return {
+        "status": "saved",
+        "count": len(valid_cities),
+        "cities": valid_cities
+    }
+
+
+# =============================================================================
+# END SWEDISH CITIES API
+# =============================================================================
+
+
+# =============================================================================
+# RSS FEEDS API - Dashboard-controlled news feeds
+# =============================================================================
+# These endpoints allow admins to manage the list of RSS feeds for news.
+# Feeds can be added/removed without server restart.
+
+rss_router = APIRouter(prefix="/api/rss-feeds", tags=["RSS Feeds"])
+
+
+@rss_router.get("")
+async def get_rss_feeds():
+    """
+    Get current RSS feeds configuration.
+    
+    Returns the list of RSS feeds configured for news lookups.
+    """
+    return {
+        "feeds": RSS_FEEDS,
+        "count": len(RSS_FEEDS),
+        "feedparser_available": FEEDPARSER_AVAILABLE
+    }
+
+
+@rss_router.post("")
+async def save_rss_feeds(request: dict):
+    """
+    Save RSS feeds configuration.
+    
+    Updates the feeds list in real-time. Changes take effect immediately
+    without requiring a server restart.
+    
+    Request body:
+    - feeds: list - List of feed objects with 'name' and 'url'
+    """
+    global RSS_FEEDS
+    
+    feeds = request.get("feeds", [])
+    
+    # Validate feed data
+    valid_feeds = []
+    for feed in feeds:
+        if isinstance(feed, dict) and "url" in feed:
+            valid_feeds.append({
+                "name": feed.get("name", "Okänd källa"),
+                "url": feed["url"]
+            })
+    
+    # Save to file
+    data = {"feeds": valid_feeds}
+    try:
+        RSS_FEEDS_FILE.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2),
+            encoding="utf-8"
+        )
+    except Exception as e:
+        logger.error(f"Failed to save RSS feeds: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save feeds: {str(e)}")
+    
+    # Update in-memory
+    RSS_FEEDS = valid_feeds
+    
+    logger.info(f"RSS feeds updated: {len(valid_feeds)} feeds saved")
+    
+    return {
+        "status": "saved",
+        "count": len(valid_feeds),
+        "feeds": valid_feeds
+    }
+
+
+# =============================================================================
+# END RSS FEEDS API
+# =============================================================================
+
+
 def find_base_model_path():
     """Find a valid base model path for OneSeek-7B-Zero
     
@@ -2691,6 +3035,12 @@ app.include_router(force_svenska_router)
 # Register Tavily router (real-time search control)
 app.include_router(tavily_router)
 
+# Register Swedish Cities router (weather city selection)
+app.include_router(cities_router)
+
+# Register RSS Feeds router (news sources)
+app.include_router(rss_router)
+
 @app.get("/")
 async def root():
     """Health check and service information"""
@@ -2737,7 +3087,9 @@ async def infer(request: Request, inference_request: InferenceRequest):
     Features:
     - Force-Svenska: Swedish-only responses when Swedish triggers detected
     - Time & Date: Always aware of current time (injected into every request)
-    - Weather: SMHI weather data for Stockholm when weather-related questions
+    - Season: Always aware of current season
+    - Weather: SMHI weather data for any Swedish city when weather-related questions
+    - News: Latest news from RSS feeds when news-related questions
     - Tavily Search: Real-time web search for current events/facts
     """
     start_time = time.time()
@@ -2745,18 +3097,29 @@ async def infer(request: Request, inference_request: InferenceRequest):
     # Check for Force-Svenska triggers
     force_svenska_active = check_force_svenska(inference_request.text)
     
-    # === 1. ALWAYS: Inject time & date context ===
+    # === 1. ALWAYS: Inject time, date & season context ===
     time_context = inject_time_context()
+    season_context = get_current_season()
     
-    # === 2. Check for weather question ===
+    # === 2. Check for weather question (with city detection) ===
     weather_context = None
-    if check_weather_trigger(inference_request.text):
-        weather_data = get_weather()
+    weather_city = check_weather_city(inference_request.text)
+    if weather_city:
+        weather_data = get_weather(weather_city)
         if weather_data:
             weather_context = weather_data
-            logger.info("🌤️ Väderdata hämtad från SMHI")
+            logger.info(f"🌤️ Väderdata hämtad för {weather_city}")
     
-    # === 3. Check for Tavily search trigger ===
+    # === 3. Check for news question ===
+    news_context = None
+    if check_news_trigger(inference_request.text):
+        logger.info("📰 Hämtar senaste nyheterna...")
+        news = get_latest_news()
+        if news:
+            news_context = format_news_for_context(news)
+            logger.info(f"✓ {len(news)} nyheter hämtade")
+    
+    # === 4. Check for Tavily search trigger ===
     tavily_context = None
     tavily_sources = ""
     if check_tavily_trigger(inference_request.text):
@@ -2773,12 +3136,16 @@ async def infer(request: Request, inference_request: InferenceRequest):
     # Build enhanced context prefix
     context_parts = []
     
-    # Always add time context
-    context_parts.append(f"[Aktuell tid] {time_context}")
+    # Always add time and season context
+    context_parts.append(f"[Aktuell tid] {time_context} {season_context}")
     
     # Add weather if available
     if weather_context:
         context_parts.append(f"[Väder] {weather_context}")
+    
+    # Add news if available
+    if news_context:
+        context_parts.append(f"[Nyheter] {news_context}")
     
     # Add Tavily search results if available
     if tavily_context:
@@ -2799,7 +3166,9 @@ async def infer(request: Request, inference_request: InferenceRequest):
     logger.debug("Injecting system prompt into inference request")
     logger.debug(f"Force-Svenska: {'ACTIVE' if force_svenska_active else 'inactive'}")
     logger.debug(f"Time context: {time_context[:50]}...")
-    logger.debug(f"Weather: {'YES' if weather_context else 'no'}")
+    logger.debug(f"Season: {season_context}")
+    logger.debug(f"Weather: {weather_city if weather_context else 'no'}")
+    logger.debug(f"News: {'YES' if news_context else 'no'}")
     logger.debug(f"Tavily: {'YES' if tavily_context else 'no'}")
     
     try:
@@ -2901,7 +3270,9 @@ async def oneseek_inference(request: InferenceRequest):
     Features:
     - Force-Svenska: Swedish-only responses when Swedish triggers detected
     - Time & Date: Always aware of current time (injected into every request)
-    - Weather: SMHI weather data for Stockholm when weather-related questions
+    - Season: Always aware of current season
+    - Weather: SMHI weather data for any Swedish city when weather-related questions
+    - News: Latest news from RSS feeds when news-related questions
     - Tavily Search: Real-time web search for current events/facts
     """
     import time
@@ -2910,18 +3281,29 @@ async def oneseek_inference(request: InferenceRequest):
     # Check for Force-Svenska triggers
     force_svenska_active = check_force_svenska(request.text)
     
-    # === 1. ALWAYS: Inject time & date context ===
+    # === 1. ALWAYS: Inject time, date & season context ===
     time_context = inject_time_context()
+    season_context = get_current_season()
     
-    # === 2. Check for weather question ===
+    # === 2. Check for weather question (with city detection) ===
     weather_context = None
-    if check_weather_trigger(request.text):
-        weather_data = get_weather()
+    weather_city = check_weather_city(request.text)
+    if weather_city:
+        weather_data = get_weather(weather_city)
         if weather_data:
             weather_context = weather_data
-            logger.info("🌤️ Väderdata hämtad från SMHI")
+            logger.info(f"🌤️ Väderdata hämtad för {weather_city}")
     
-    # === 3. Check for Tavily search trigger ===
+    # === 3. Check for news question ===
+    news_context = None
+    if check_news_trigger(request.text):
+        logger.info("📰 Hämtar senaste nyheterna...")
+        news = get_latest_news()
+        if news:
+            news_context = format_news_for_context(news)
+            logger.info(f"✓ {len(news)} nyheter hämtade")
+    
+    # === 4. Check for Tavily search trigger ===
     tavily_context = None
     tavily_sources = ""
     if check_tavily_trigger(request.text):
@@ -2938,12 +3320,16 @@ async def oneseek_inference(request: InferenceRequest):
     # Build enhanced context prefix
     context_parts = []
     
-    # Always add time context
-    context_parts.append(f"[Aktuell tid] {time_context}")
+    # Always add time and season context
+    context_parts.append(f"[Aktuell tid] {time_context} {season_context}")
     
     # Add weather if available
     if weather_context:
         context_parts.append(f"[Väder] {weather_context}")
+    
+    # Add news if available
+    if news_context:
+        context_parts.append(f"[Nyheter] {news_context}")
     
     # Add Tavily search results if available
     if tavily_context:
@@ -2966,8 +3352,10 @@ async def oneseek_inference(request: InferenceRequest):
     logger.debug("=== ONESEEK INFERENCE START ===")
     logger.debug("→ System prompt injected")
     logger.debug(f"→ Time context: {time_context[:50]}...")
+    logger.debug(f"→ Season: {season_context}")
     logger.debug(f"→ Force-Svenska: {'ACTIVE' if force_svenska_active else 'inactive'}")
-    logger.debug(f"→ Weather: {'YES' if weather_context else 'no'}")
+    logger.debug(f"→ Weather: {weather_city if weather_context else 'no'}")
+    logger.debug(f"→ News: {'YES' if news_context else 'no'}")
     logger.debug(f"→ Tavily: {'YES' if tavily_context else 'no'}")
     logger.debug(f"→ Input text: {request.text[:100]}..." if len(request.text) > 100 else f"→ Input text: {request.text}")
     logger.debug(f"→ Max length: {request.max_length}")
