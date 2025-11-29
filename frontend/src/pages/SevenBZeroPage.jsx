@@ -53,6 +53,7 @@ export default function SevenBZeroPage() {
   const dnaScrollRef = useRef(null);
   const chatScrollRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const messageRefs = useRef({});
 
   // Metrics (will be updated from real data)
   const [metrics, setMetrics] = useState({ 
@@ -67,6 +68,14 @@ export default function SevenBZeroPage() {
   // Scroll to bottom when new messages arrive
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Scroll to a specific message
+  const scrollToMessage = (messageId) => {
+    const element = messageRefs.current[messageId];
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   };
 
   useEffect(() => {
@@ -201,6 +210,7 @@ export default function SevenBZeroPage() {
     const currentQuestion = messageInput;
     setMessageInput('');
     setResponseStartTime(Date.now());
+    setCurrentTypingText(''); // Clear previous typing text
     
     // Add placeholder AI message
     const aiMessageId = Date.now() + 1;
@@ -395,6 +405,18 @@ export default function SevenBZeroPage() {
           0%, 50% { opacity: 1; }
           51%, 100% { opacity: 0; }
         }
+        @keyframes loadingPulse {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 0.8; }
+        }
+        @keyframes loadingDot {
+          0%, 80%, 100% { transform: scale(0); opacity: 0.5; }
+          40% { transform: scale(1); opacity: 1; }
+        }
+        .loading-pulse { animation: loadingPulse 1.5s ease-in-out infinite; }
+        .loading-dot-1 { animation: loadingDot 1.4s ease-in-out infinite; }
+        .loading-dot-2 { animation: loadingDot 1.4s ease-in-out infinite 0.2s; }
+        .loading-dot-3 { animation: loadingDot 1.4s ease-in-out infinite 0.4s; }
         @keyframes tooltipAppear {
           from { opacity: 0; transform: translateX(-6px); }
           to { opacity: 1; transform: translateX(0); }
@@ -560,6 +582,7 @@ export default function SevenBZeroPage() {
                       style={{ marginTop: idx === 0 ? 0 : `${getTickSpacing(idx)}px` }}
                       onMouseEnter={() => setHoveredTick(msg.id)}
                       onMouseLeave={() => setHoveredTick(null)}
+                      onClick={() => scrollToMessage(msg.id)}
                     >
                       <div 
                         className={`h-px transition-all duration-200 ${
@@ -581,6 +604,9 @@ export default function SevenBZeroPage() {
                           <p className={`text-[13px] font-medium leading-relaxed ${whiteMode ? 'text-[#333]' : 'text-[#d0d0d0]'}`}>{msg.text}</p>
                           <p className={`text-[9px] mt-2 tracking-wide ${whiteMode ? 'text-[#999]' : 'text-[#555]'}`}>
                             {formatDate(msg.timestamp)} {formatTime(msg.timestamp)}
+                          </p>
+                          <p className={`text-[9px] mt-1 italic ${whiteMode ? 'text-[#aaa]' : 'text-[#444]'}`}>
+                            Klicka för att gå till frågan
                           </p>
                         </div>
                       )}
@@ -702,7 +728,8 @@ export default function SevenBZeroPage() {
           {/* Messages */}
           {messages.map((msg, idx) => (
             <div 
-              key={msg.id} 
+              key={msg.id}
+              ref={(el) => messageRefs.current[msg.id] = el}
               className={`elegant-fade ${msg.type === 'user' ? 'flex flex-col items-end' : 'flex flex-col items-start'}`}
               style={{ animationDelay: `${idx * 0.05}s` }}
             >
@@ -753,19 +780,34 @@ export default function SevenBZeroPage() {
                     )}
                   </div>
                   
-                  {/* Response text */}
-                  <p className={`text-[18px] font-light leading-[1.9] tracking-tight ${
-                    msg.error 
-                      ? 'text-red-400' 
-                      : (whiteMode ? 'text-[#333]' : 'text-[#c0c0c0]')
-                  }`}>
-                    {msg.isTyping ? currentTypingText : msg.text}
-                    {msg.isTyping && (
-                      <span className={`cursor-blink inline-block w-[2px] h-[20px] ml-1 -mb-[3px] ${
-                        whiteMode ? 'bg-[#333]' : 'bg-white'
-                      }`} />
-                    )}
-                  </p>
+                  {/* Response text or Loading animation */}
+                  {msg.isTyping && !currentTypingText ? (
+                    <div className="flex items-center gap-4 py-4">
+                      <div className={`text-[14px] font-light tracking-wide loading-pulse ${
+                        whiteMode ? 'text-[#666]' : 'text-[#666]'
+                      }`}>
+                        Tänker
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className={`w-2 h-2 rounded-full loading-dot-1 ${whiteMode ? 'bg-[#333]' : 'bg-white'}`} />
+                        <span className={`w-2 h-2 rounded-full loading-dot-2 ${whiteMode ? 'bg-[#333]' : 'bg-white'}`} />
+                        <span className={`w-2 h-2 rounded-full loading-dot-3 ${whiteMode ? 'bg-[#333]' : 'bg-white'}`} />
+                      </div>
+                    </div>
+                  ) : (
+                    <p className={`text-[18px] font-light leading-[1.9] tracking-tight ${
+                      msg.error 
+                        ? 'text-red-400' 
+                        : (whiteMode ? 'text-[#333]' : 'text-[#c0c0c0]')
+                    }`}>
+                      {msg.isTyping ? currentTypingText : msg.text}
+                      {msg.isTyping && currentTypingText && (
+                        <span className={`cursor-blink inline-block w-[2px] h-[20px] ml-1 -mb-[3px] ${
+                          whiteMode ? 'bg-[#333]' : 'bg-white'
+                        }`} />
+                      )}
+                    </p>
+                  )}
                   
                   {/* Confidence indicator */}
                   {msg.confidence && !msg.isTyping && (
@@ -837,7 +879,7 @@ export default function SevenBZeroPage() {
       )}
 
       {/* ===== INPUT AREA ===== */}
-      <div className={`fixed inset-x-0 bottom-0 z-40 transition-all duration-500 ${showUI ? 'opacity-100' : 'opacity-0'}`} style={{ right: sidebarExpanded ? '280px' : '4px' }}>
+      <div className="fixed inset-x-0 bottom-0 z-40 transition-all duration-500" style={{ right: sidebarExpanded ? '280px' : '4px' }}>
         <div className={`px-24 pb-10 pt-6 ${
           whiteMode 
             ? 'bg-gradient-to-t from-[#fafafa] via-[#fafafa]/98 to-transparent' 
