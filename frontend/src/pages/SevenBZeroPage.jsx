@@ -146,7 +146,7 @@ export default function SevenBZeroPage() {
   // Character/Persona state
   const [selectedPersona, setSelectedPersona] = useState('oneseek-medveten');
   const [characterData, setCharacterData] = useState(null);
-  const [availablePersonas, setAvailablePersonas] = useState([
+  const [availablePersonas] = useState([
     { id: 'oneseek-medveten', name: 'Medveten', icon: '🧠' },
     { id: 'oneseek-expert', name: 'Expert', icon: '👔' },
     { id: 'oneseek-filosofisk', name: 'Filosofisk', icon: '🎭' },
