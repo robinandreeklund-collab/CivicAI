@@ -318,14 +318,14 @@ export default function SevenBZeroPage() {
         console.error('Error loading character data:', error);
         // Use fallback character data
         setCharacterData({
-          name: availablePersonas.find(p => p.id === selectedPersona)?.name || 'OneSeek',
+          name: AVAILABLE_PERSONAS.find(p => p.id === selectedPersona)?.name || 'OneSeek',
           description: 'Sveriges första kontinuerliga civic-AI',
         });
       }
     };
 
     loadCharacterData();
-  }, [selectedPersona, availablePersonas]);
+  }, [selectedPersona]);
 
   // Response time counter
   useEffect(() => {
