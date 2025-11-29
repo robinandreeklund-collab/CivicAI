@@ -639,12 +639,19 @@ Alla konfigurationsfiler finns i `config/`-mappen:
 
 ## Admin Dashboard
 
+### Flikar
+
+Admin Dashboard har nu två separata flikar för inställningar:
+
+1. **System Prompts** - Hantera system prompts, Force-Svenska och Tavily triggers
+2. **🔌 Integrations** - Hantera externa API-integrationer (Städer, RSS, Öppna Data)
+
 ### Komponenter
 
+#### System Prompts Tab
 **Fil**: `frontend/src/components/admin/SystemPromptManagement.jsx`
 
-Dashboard-sektioner:
-
+Sektioner:
 1. **🇸🇪 Force-Svenska Triggers** (Blå)
    - Textarea för kommaseparerade trigger-ord
    - Spara-knapp med realtidsaktivering
@@ -653,15 +660,21 @@ Dashboard-sektioner:
    - Två textareas: triggers och blacklist
    - API-nyckel status
 
-3. **🌤️ Svenska Städer (Väder)** (Cyan)
-   - Lista över konfigurerade städer
-   - Möjlighet att lägga till/ta bort
+#### Integrations Tab
+**Fil**: `frontend/src/components/admin/IntegrationsManagement.jsx`
 
-4. **📰 RSS Nyhetsfeeds** (Orange)
-   - Lista över konfigurerade feeds
-   - Möjlighet att lägga till/ta bort
+Sektioner:
+1. **🌤️ Svenska Städer (Väder)** (Cyan)
+   - Redigera städer med koordinater
+   - Format: `stadnamn:lat,lon`
+   - Spara-knapp
 
-5. **📊 Svenska Öppna Data APIs** (Lila)
+2. **📰 RSS Nyhetsfeeds** (Orange)
+   - Redigera RSS-feeds
+   - Format: `namn:url`
+   - Spara-knapp
+
+3. **📊 Svenska Öppna Data APIs** (Lila)
    - Grid med 9 API-kort
    - Klicka för att aktivera/avaktivera
    - Grön prick = aktiv

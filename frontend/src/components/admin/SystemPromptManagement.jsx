@@ -68,29 +68,12 @@ export default function SystemPromptManagement() {
   const [tavilySaving, setTavilySaving] = useState(false);
   const [tavilyApiKeySet, setTavilyApiKeySet] = useState(false);
 
-  // Swedish Cities state (weather)
-  const [swedishCities, setSwedishCities] = useState({});
-  // eslint-disable-next-line no-unused-vars
-  const [citiesSaving, setCitiesSaving] = useState(false);
-
-  // RSS Feeds state
-  const [rssFeeds, setRssFeeds] = useState([]);
-  // eslint-disable-next-line no-unused-vars
-  const [rssSaving, setRssSaving] = useState(false);
-
-  // Open Data APIs state
-  const [openDataApis, setOpenDataApis] = useState([]);
-  const [openDataSaving, setOpenDataSaving] = useState(false);
-
   // Fetch prompts on mount
   useEffect(() => {
     fetchPrompts();
     fetchAvailableCharacters();
     fetchForceSwedish();
     fetchTavilyTriggers();
-    fetchSwedishCities();
-    fetchRssFeeds();
-    fetchOpenDataApis();
   }, []);
 
   // Clear messages after 5 seconds
@@ -262,90 +245,6 @@ export default function SystemPromptManagement() {
       setError('Kunde inte spara Tavily triggers');
     } finally {
       setTavilySaving(false);
-    }
-  };
-
-  // Fetch Swedish Cities
-  const fetchSwedishCities = async () => {
-    try {
-      let response;
-      try {
-        response = await fetch('http://localhost:5000/api/swedish-cities');
-      } catch {
-        response = await fetch('/api/swedish-cities');
-      }
-      if (response.ok) {
-        const data = await response.json();
-        setSwedishCities(data.cities || {});
-      }
-    } catch (err) {
-      console.error('Error fetching Swedish cities:', err);
-    }
-  };
-
-  // Fetch RSS Feeds
-  const fetchRssFeeds = async () => {
-    try {
-      let response;
-      try {
-        response = await fetch('http://localhost:5000/api/rss-feeds');
-      } catch {
-        response = await fetch('/api/rss-feeds');
-      }
-      if (response.ok) {
-        const data = await response.json();
-        setRssFeeds(data.feeds || []);
-      }
-    } catch (err) {
-      console.error('Error fetching RSS feeds:', err);
-    }
-  };
-
-  // Fetch Open Data APIs
-  const fetchOpenDataApis = async () => {
-    try {
-      let response;
-      try {
-        response = await fetch('http://localhost:5000/api/open-data');
-      } catch {
-        response = await fetch('/api/open-data');
-      }
-      if (response.ok) {
-        const data = await response.json();
-        setOpenDataApis(data.apis || []);
-      }
-    } catch (err) {
-      console.error('Error fetching Open Data APIs:', err);
-    }
-  };
-
-  // Toggle Open Data API enabled status
-  const handleToggleOpenDataApi = async (apiId, enabled) => {
-    setOpenDataSaving(true);
-    try {
-      let response;
-      try {
-        response = await fetch(`http://localhost:5000/api/open-data/${apiId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled: !enabled })
-        });
-      } catch {
-        response = await fetch(`/api/open-data/${apiId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled: !enabled })
-        });
-      }
-      if (response.ok) {
-        fetchOpenDataApis();
-        setSuccess(`API ${enabled ? 'avaktiverad' : 'aktiverad'}!`);
-      }
-    } catch (err) {
-      console.error('Error toggling Open Data API:', err);
-      setError('Kunde inte ändra API-status');
-    } finally {
-      setOpenDataSaving(false);
     }
   };
 
@@ -898,125 +797,11 @@ export default function SystemPromptManagement() {
         </div>
       </div>
 
-      {/* Swedish Cities Section */}
-      <div className="border border-cyan-500/30 bg-cyan-500/5 p-6 rounded">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-[#eee] font-mono text-base flex items-center gap-2">
-              🌤️ Svenska Städer (Väder)
-            </h3>
-            <p className="text-[#666] font-mono text-xs mt-1">
-              SMHI väderdata för svenska städer. Väder hämtas automatiskt när stad nämns i frågan.
-            </p>
-          </div>
-          <span className="px-3 py-1 text-xs bg-cyan-500/20 text-cyan-300 rounded font-mono">
-            {Object.keys(swedishCities).length} städer
-          </span>
-        </div>
-        
-        {Object.keys(swedishCities).length > 0 && (
-          <div className="p-3 bg-[#0a0a0a] border border-[#1a1a1a] rounded">
-            <p className="text-[#666] font-mono text-xs mb-2">Konfigurerade städer:</p>
-            <div className="flex flex-wrap gap-1">
-              {Object.keys(swedishCities).slice(0, 15).map((city, idx) => (
-                <span key={idx} className="px-2 py-0.5 text-xs bg-cyan-500/10 text-cyan-300 rounded font-mono capitalize">
-                  {city}
-                </span>
-              ))}
-              {Object.keys(swedishCities).length > 15 && (
-                <span className="px-2 py-0.5 text-xs bg-[#1a1a1a] text-[#666] rounded font-mono">
-                  +{Object.keys(swedishCities).length - 15} fler
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* RSS Feeds Section */}
-      <div className="border border-orange-500/30 bg-orange-500/5 p-6 rounded">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-[#eee] font-mono text-base flex items-center gap-2">
-              📰 RSS Nyhetsfeeds
-            </h3>
-            <p className="text-[#666] font-mono text-xs mt-1">
-              Hämtar senaste nyheter från konfigurerade RSS-feeds. Aktiveras vid nyhetsfrågor.
-            </p>
-          </div>
-          <span className="px-3 py-1 text-xs bg-orange-500/20 text-orange-300 rounded font-mono">
-            {rssFeeds.length} feeds
-          </span>
-        </div>
-        
-        {rssFeeds.length > 0 && (
-          <div className="p-3 bg-[#0a0a0a] border border-[#1a1a1a] rounded">
-            <p className="text-[#666] font-mono text-xs mb-2">Konfigurerade feeds:</p>
-            <div className="flex flex-wrap gap-1">
-              {rssFeeds.map((feed, idx) => (
-                <span key={idx} className="px-2 py-0.5 text-xs bg-orange-500/10 text-orange-300 rounded font-mono">
-                  {feed.name || feed.url}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Swedish Open Data APIs Section */}
-      <div className="border border-purple-500/30 bg-purple-500/5 p-6 rounded">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-[#eee] font-mono text-base flex items-center gap-2">
-              📊 Svenska Öppna Data APIs
-            </h3>
-            <p className="text-[#666] font-mono text-xs mt-1">
-              Publika svenska API:er - 100% gratis, inga nycklar. Klicka för att aktivera/avaktivera.
-            </p>
-          </div>
-          <span className="px-3 py-1 text-xs bg-purple-500/20 text-purple-300 rounded font-mono">
-            {openDataApis.filter(api => api.enabled).length}/{openDataApis.length} aktiva
-          </span>
-        </div>
-        
-        {openDataApis.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {openDataApis.map((api, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleToggleOpenDataApi(api.id, api.enabled)}
-                disabled={openDataSaving}
-                className={`p-3 rounded border transition-colors text-left ${
-                  api.enabled
-                    ? 'bg-purple-500/10 border-purple-500/30 hover:bg-purple-500/20'
-                    : 'bg-[#0a0a0a] border-[#2a2a2a] hover:bg-[#1a1a1a] opacity-60'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[#eee] font-mono text-sm font-medium">
-                    {api.name}
-                  </span>
-                  <span className={`w-2 h-2 rounded-full ${api.enabled ? 'bg-green-500' : 'bg-gray-500'}`} />
-                </div>
-                <p className="text-[#666] font-mono text-xs">
-                  {api.description}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {(api.triggers || []).slice(0, 3).map((trigger, tidx) => (
-                    <span key={tidx} className="px-1.5 py-0.5 text-[10px] bg-[#1a1a1a] text-[#888] rounded font-mono">
-                      {trigger}
-                    </span>
-                  ))}
-                  {(api.triggers || []).length > 3 && (
-                    <span className="px-1.5 py-0.5 text-[10px] bg-[#1a1a1a] text-[#666] rounded font-mono">
-                      +{api.triggers.length - 3}
-                    </span>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
+      {/* Link to Integrations Tab */}
+      <div className="border border-purple-500/30 bg-purple-500/5 p-4 rounded">
+        <p className="text-purple-300 font-mono text-sm">
+          🔌 Hantera externa API-integrationer (Städer, RSS, Öppna Data) i fliken <strong>Integrations</strong> ovan.
+        </p>
       </div>
 
       {/* Create/Edit Form */}
