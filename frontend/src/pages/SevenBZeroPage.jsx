@@ -1072,7 +1072,7 @@ export default function SevenBZeroPage() {
         <div className={`px-24 pb-10 pt-6 ${
           whiteMode 
             ? 'bg-gradient-to-t from-[#fafafa] via-[#fafafa]/98 to-transparent' 
-            : 'bg-gradient-to-t from-black via-black/98 to-transparent'
+            : 'bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/98 to-transparent'
         }`}>
           <div className="max-w-2xl mx-auto">
             
