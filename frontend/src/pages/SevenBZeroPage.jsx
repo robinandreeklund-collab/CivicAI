@@ -110,12 +110,18 @@ const emojiMap = {
   '*down*': '👇',
 };
 
-// Convert text emoticons to emojis
+// Pre-compile regex patterns for emoji conversion
+const emojiPatterns = Object.entries(emojiMap).map(([pattern, emoji]) => ({
+  regex: new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'),
+  emoji
+}));
+
+// Convert text emoticons to emojis using pre-compiled regexes
 const convertEmojis = (text) => {
   if (!text) return text;
   let result = text;
-  Object.entries(emojiMap).forEach(([pattern, emoji]) => {
-    result = result.replace(new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), emoji);
+  emojiPatterns.forEach(({ regex, emoji }) => {
+    result = result.replace(regex, emoji);
   });
   return result;
 };
