@@ -973,20 +973,25 @@ def build_sources_section(
     """
     Build a formatted sources section for the response.
     
-    Returns Markdown-formatted sources with clickable links.
-    Sources are displayed in a Wikipedia-style format.
+    Returns properly formatted sources with clickable links.
+    Uses HTML for reliable rendering in chat UI.
     """
     sources = []
     
     # Weather source (SMHI)
     if weather_context and weather_city:
         city_display = weather_city.capitalize()
-        sources.append(
-            f'[SMHI – Väderprognos {city_display}](https://www.smhi.se/vader/prognoser/ortsprognoser/q/{city_display})'
-        )
+        sources.append({
+            "name": f"SMHI – Väderprognos {city_display}",
+            "url": f"https://www.smhi.se/vader/prognoser/ortsprognoser/q/{city_display}"
+        })
     
-    # News sources (RSS feeds - parsed from news_context if available)
-    # News links are already in the news_context, skip duplicate
+    # News sources (RSS feeds - extract from news_context if available)
+    if news_context and "SVT" in news_context:
+        sources.append({
+            "name": "SVT Nyheter",
+            "url": "https://www.svt.se/nyheter/"
+        })
     
     # Open Data API sources
     if triggered_api and open_data_context:
@@ -1029,28 +1034,33 @@ def build_sources_section(
         
         if api_id in api_sources:
             name, url = api_sources[api_id]
-            sources.append(f'[{name}]({url})')
+            sources.append({"name": name, "url": url})
         else:
-            sources.append(f'[{api_name}](#)')
+            sources.append({"name": api_name, "url": "#"})
     
-    # Tavily sources (already formatted with HTML, convert to Markdown)
+    # Tavily sources (already formatted with HTML, extract)
     if tavily_sources:
-        # Tavily sources are already formatted, extract them
         import re
         # Match <a href="url">title</a> pattern
         tavily_links = re.findall(r'<a href="([^"]+)">([^<]+)</a>', tavily_sources)
         for url, title in tavily_links:
-            sources.append(f'[{title}]({url})')
+            sources.append({"name": title, "url": url})
     
     if not sources:
         return ""
     
-    # Format as Wikipedia-style sources section
-    result = "---\n**Källor:**\n"
+    # Format as clean HTML for proper rendering in chat UI
+    # Using <br> for line breaks and proper spacing
+    result = "\n\n<hr style='margin: 16px 0; border: none; border-top: 1px solid #ccc;'>\n"
+    result += "<div style='font-size: 0.9em; color: #666;'>\n"
+    result += "<strong>Källor:</strong><br>\n"
     for i, source in enumerate(sources, 1):
-        result += f"{i}. {source}\n"
+        name = source["name"]
+        url = source["url"]
+        result += f'{i}. <a href="{url}" target="_blank" style="color: #0066cc;">{name}</a><br>\n'
+    result += "</div>"
     
-    return result.strip()
+    return result
 
 
 # =============================================================================
