@@ -171,7 +171,7 @@ export default function SevenBZeroPage() {
   const messageRefs = useRef({});
 
   // Metrics (will be updated from real data)
-  const [metrics, setMetrics] = useState({ 
+  const [metrics] = useState({ 
     fidelity: 95.2, 
     consensus: 99.7, 
     accuracy: 99 
