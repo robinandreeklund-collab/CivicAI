@@ -293,7 +293,7 @@ export default function SevenBZeroPage() {
         id: i + 1,
         block: `Block ${100 + i}`,
         time: time.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }),
-        hash: `0x${Math.random().toString(16).substr(2, 8)}`,
+        hash: `0x${Math.random().toString(16).slice(2, 10)}`,
         status: i < 19 ? 'verified' : 'pending',
         action: i === 19 ? 'Current block' : ['System event', 'Query logged', 'Microtrain', 'Consensus', 'Verification'][Math.floor(Math.random() * 5)],
       });
