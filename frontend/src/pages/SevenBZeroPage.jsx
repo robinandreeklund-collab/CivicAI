@@ -556,7 +556,7 @@ export default function SevenBZeroPage() {
       className={`min-h-screen font-sans relative overflow-hidden transition-all duration-700 ${
         whiteMode 
           ? 'bg-[#fafafa] text-[#111]' 
-          : 'bg-[#000] text-white'
+          : 'bg-[#0a0a0a] text-white'
       } ${quantumMode ? 'opacity-50' : ''}`}
     >
       <style>{`
@@ -741,7 +741,7 @@ export default function SevenBZeroPage() {
         <div className="flex flex-col items-start max-h-[70vh] overflow-y-auto pr-2" style={{ scrollbarWidth: 'none' }}>
           {messages.length > 0 && (
             <>
-              <div className={`text-[8px] mb-3 sticky top-0 ${whiteMode ? 'text-[#ccc] bg-[#fafafa]' : 'text-[#333] bg-black'}`}>↑</div>
+              <div className={`text-[8px] mb-3 sticky top-0 ${whiteMode ? 'text-[#ccc] bg-[#fafafa]' : 'text-[#333] bg-[#0a0a0a]'}`}>↑</div>
               
               <div className="relative">
                 <div className={`absolute left-0 top-0 bottom-0 w-px bg-gradient-to-b ${
@@ -792,7 +792,7 @@ export default function SevenBZeroPage() {
                 })}
               </div>
               
-              <div className={`text-[8px] mt-3 sticky bottom-0 ${whiteMode ? 'text-[#ccc] bg-[#fafafa]' : 'text-[#333] bg-black'}`}>↓</div>
+              <div className={`text-[8px] mt-3 sticky bottom-0 ${whiteMode ? 'text-[#ccc] bg-[#fafafa]' : 'text-[#333] bg-[#0a0a0a]'}`}>↓</div>
             </>
           )}
         </div>
