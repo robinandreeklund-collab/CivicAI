@@ -444,7 +444,7 @@ export default function SevenBZeroPage() {
             id: prev.length + 1,
             block: `Block ${100 + prev.length}`,
             time: new Date().toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }),
-            hash: `0x${Math.random().toString(16).substr(2, 8)}`,
+            hash: `0x${Math.random().toString(16).slice(2, 10)}`,
             status: 'pending',
             action: 'Query: ' + currentQuestion.substring(0, 20) + '...',
           };
