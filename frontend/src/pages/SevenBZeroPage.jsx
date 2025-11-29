@@ -20,12 +20,17 @@ const emojiMap = {
   '*laughing*': '😂',
   '*laugh*': '😂',
   '*lol*': '😂',
+  '*chuckles*': '😄',
+  '*chuckle*': '😄',
+  '*giggles*': '🤭',
+  '*giggle*': '🤭',
+  '*winks*': '😉',
+  '*wink*': '😉',
   '*sad*': '😢',
   '*crying*': '😢',
   '*cry*': '😢',
   '*love*': '❤️',
   '*heart*': '❤️',
-  '*wink*': '😉',
   '*thinking*': '🤔',
   '*think*': '🤔',
   '*cool*': '😎',
@@ -58,6 +63,51 @@ const emojiMap = {
   '*hug*': '🤗',
   '*shrug*': '🤷',
   '*facepalm*': '🤦',
+  '*grin*': '😁',
+  '*smirk*': '😏',
+  '*blush*': '😊',
+  '*nervous*': '😅',
+  '*sweat*': '😅',
+  '*relieved*': '😌',
+  '*confused*': '😕',
+  '*worried*': '😟',
+  '*scared*': '😨',
+  '*scream*': '😱',
+  '*dizzy*': '😵',
+  '*mindblown*': '🤯',
+  '*nerd*': '🤓',
+  '*clown*': '🤡',
+  '*devil*': '😈',
+  '*angel*': '😇',
+  '*kiss*': '😘',
+  '*tongue*': '😛',
+  '*crazy*': '🤪',
+  '*money*': '🤑',
+  '*silence*': '🤫',
+  '*whisper*': '🤫',
+  '*secret*': '🤫',
+  '*yawn*': '🥱',
+  '*hot*': '🥵',
+  '*cold*': '🥶',
+  '*puke*': '🤮',
+  '*mask*': '😷',
+  '*robot*': '🤖',
+  '*alien*': '👽',
+  '*ghost*': '👻',
+  '*skull*': '💀',
+  '*poop*': '💩',
+  '*100*': '💯',
+  '*ok*': '👌',
+  '*victory*': '✌️',
+  '*peace*': '✌️',
+  '*cross*': '🤞',
+  '*fingers crossed*': '🤞',
+  '*punch*': '👊',
+  '*fist*': '✊',
+  '*left*': '👈',
+  '*right*': '👉',
+  '*up*': '👆',
+  '*down*': '👇',
 };
 
 // Convert text emoticons to emojis
@@ -131,15 +181,24 @@ export default function SevenBZeroPage() {
 
   // Scroll to a specific message - improved version with highlight
   const scrollToMessage = (messageId) => {
-    const element = messageRefs.current[messageId];
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Add highlight effect
-      element.classList.add('ring-2', 'ring-white/30', 'rounded-lg');
-      setTimeout(() => {
-        element.classList.remove('ring-2', 'ring-white/30', 'rounded-lg');
-      }, 2000);
-    }
+    // Small delay to ensure refs are set
+    setTimeout(() => {
+      const element = messageRefs.current[messageId];
+      console.log('[7B-Zero] Scrolling to message:', messageId, 'Element found:', !!element);
+      if (element) {
+        // First set opacity to full
+        element.style.opacity = '1';
+        // Scroll into view
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Add highlight effect
+        element.style.boxShadow = '0 0 0 2px rgba(255, 255, 255, 0.3)';
+        element.style.borderRadius = '8px';
+        element.style.transition = 'box-shadow 0.3s ease, opacity 0.3s ease';
+        setTimeout(() => {
+          element.style.boxShadow = 'none';
+        }, 2000);
+      }
+    }, 100);
   };
 
   useEffect(() => {
@@ -837,18 +896,29 @@ export default function SevenBZeroPage() {
           )}
 
           {/* Messages */}
-          {messages.map((msg, idx) => (
+          {messages.map((msg, idx) => {
+            // Calculate opacity based on position - newer messages are more visible
+            const totalMessages = messages.length;
+            const distanceFromEnd = totalMessages - 1 - idx;
+            const opacityValue = distanceFromEnd > 6 ? 0.4 : distanceFromEnd > 3 ? 0.6 : distanceFromEnd > 1 ? 0.8 : 1;
+            const isRecent = distanceFromEnd <= 1;
+            
+            return (
             <div 
               key={msg.id}
-              ref={(el) => messageRefs.current[msg.id] = el}
-              className={`elegant-fade ${msg.type === 'user' ? 'flex flex-col items-end' : 'flex flex-col items-start'}`}
-              style={{ animationDelay: `${idx * 0.05}s` }}
+              ref={(el) => { if (el) messageRefs.current[msg.id] = el; }}
+              className={`elegant-fade transition-opacity duration-500 ${msg.type === 'user' ? 'flex flex-col items-end' : 'flex flex-col items-start'} ${isRecent ? '' : 'hover:opacity-100'}`}
+              style={{ 
+                animationDelay: `${idx * 0.05}s`,
+                opacity: opacityValue,
+              }}
             >
               {/* Timestamp */}
               <p className={`text-[10px] mb-2 tracking-wide uppercase ${
                 whiteMode ? 'text-[#bbb]' : 'text-[#3a3a3a]'
               }`}>
                 {formatDate(msg.timestamp)} · {formatTime(msg.timestamp)}
+                {msg.fromHistory && <span className="ml-2">(historik)</span>}
               </p>
               
               {msg.type === 'user' ? (
@@ -929,7 +999,8 @@ export default function SevenBZeroPage() {
                 </div>
               )}
             </div>
-          ))}
+          );
+          })}
           
           <div ref={messagesEndRef} />
         </div>
