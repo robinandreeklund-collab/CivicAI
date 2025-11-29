@@ -50,6 +50,45 @@ import uuid
 from datetime import datetime
 from typing import Optional, List
 
+# =============================================================================
+# FORCE-SVENSKA CONFIGURATION - Dashboard-controlled Swedish language triggers
+# =============================================================================
+# Triggers are loaded from config/force_swedish.json and can be updated in 
+# real-time via the Admin Dashboard without server restart.
+
+FORCE_SVENSKA_FILE = Path(__file__).parent.parent / "config" / "force_swedish.json"
+# Ensure config directory exists
+FORCE_SVENSKA_FILE.parent.mkdir(exist_ok=True)
+
+def load_force_swedish() -> List[str]:
+    """
+    Load Force-Svenska triggers from config file.
+    
+    Returns list of trigger words/phrases. If file doesn't exist or is invalid,
+    returns a default list of Swedish triggers.
+    """
+    if FORCE_SVENSKA_FILE.exists():
+        try:
+            data = json.loads(FORCE_SVENSKA_FILE.read_text(encoding="utf-8"))
+            triggers = data.get("triggers", [])
+            if isinstance(triggers, list):
+                return [t.strip().lower() for t in triggers if isinstance(t, str) and t.strip()]
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+    
+    # Default triggers if file doesn't exist or is invalid
+    return [
+        "hej", "vad", "vem", "hur", "varför", "när", "kan du", "är du",
+        "vad heter du", "vad gör du", "god morgon", "god kväll", "tack", "snälla"
+    ]
+
+# Load triggers at startup - these can be updated via API
+FORCE_SVENSKA_TRIGGERS = load_force_swedish()
+
+# =============================================================================
+# END FORCE-SVENSKA CONFIGURATION
+# =============================================================================
+
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description='OneSeek ML Inference Service')
 parser.add_argument('--auto-devices', action='store_true', 
@@ -1294,6 +1333,130 @@ async def get_current_prompt():
 # =============================================================================
 
 
+# =============================================================================
+# FORCE-SVENSKA API - Real-time dashboard control for Swedish language triggers
+# =============================================================================
+# These endpoints allow admins to manage the Force-Svenska feature which ensures
+# the model responds in Swedish when Swedish triggers are detected in user input.
+
+# Create Force-Svenska router
+force_svenska_router = APIRouter(prefix="/api/force-swedish", tags=["Force-Svenska"])
+
+
+@force_svenska_router.get("")
+async def get_force_swedish():
+    """
+    Get current Force-Svenska triggers.
+    
+    Returns the list of trigger words/phrases that activate Swedish-only responses.
+    These triggers are checked against user input (case-insensitive).
+    """
+    return {
+        "triggers": FORCE_SVENSKA_TRIGGERS,
+        "count": len(FORCE_SVENSKA_TRIGGERS),
+        "file_path": str(FORCE_SVENSKA_FILE)
+    }
+
+
+@force_svenska_router.post("")
+async def save_force_swedish(request: dict):
+    """
+    Save Force-Svenska triggers.
+    
+    Updates the trigger list in real-time. Changes take effect immediately
+    without requiring a server restart.
+    
+    Request body:
+    - triggers: string - Comma-separated list of triggers (e.g., "hej, vad, vem, hur")
+    
+    Example:
+    {
+        "triggers": "hej, vad, vem, hur, varför, när, kan du, är du"
+    }
+    """
+    global FORCE_SVENSKA_TRIGGERS
+    
+    # Parse triggers from comma-separated string
+    raw_triggers = request.get("triggers", "")
+    if isinstance(raw_triggers, str):
+        triggers = [t.strip().lower() for t in raw_triggers.split(",") if t.strip()]
+    elif isinstance(raw_triggers, list):
+        triggers = [t.strip().lower() for t in raw_triggers if isinstance(t, str) and t.strip()]
+    else:
+        triggers = []
+    
+    # Save to file
+    data = {"triggers": triggers}
+    try:
+        FORCE_SVENSKA_FILE.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), 
+            encoding="utf-8"
+        )
+    except Exception as e:
+        logger.error(f"Failed to save Force-Svenska triggers: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save triggers: {str(e)}")
+    
+    # Update in-memory list immediately
+    FORCE_SVENSKA_TRIGGERS = triggers
+    
+    logger.info(f"Force-Svenska triggers updated: {len(triggers)} triggers saved")
+    
+    return {
+        "status": "saved",
+        "count": len(triggers),
+        "triggers": triggers
+    }
+
+
+def check_force_svenska(user_message: str) -> bool:
+    """
+    Check if user message contains any Swedish trigger words.
+    
+    Args:
+        user_message: The user's input message
+        
+    Returns:
+        True if any trigger is found, False otherwise
+    """
+    msg_lower = user_message.lower()
+    return any(trigger in msg_lower for trigger in FORCE_SVENSKA_TRIGGERS)
+
+
+def apply_force_svenska(messages: list) -> list:
+    """
+    Apply Force-Svenska system message to the conversation.
+    
+    If the user's last message contains a Swedish trigger, prepends a system
+    message instructing the model to respond only in Swedish.
+    
+    Args:
+        messages: List of conversation messages
+        
+    Returns:
+        Modified messages list with Swedish instruction if applicable
+    """
+    if not messages:
+        return messages
+    
+    # Check the last user message
+    last_msg = messages[-1].get("content", "")
+    
+    if check_force_svenska(last_msg):
+        # Prepend Swedish-only instruction
+        swedish_instruction = {
+            "role": "system", 
+            "content": "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu."
+        }
+        return [swedish_instruction] + messages
+    
+    return messages
+
+
+# =============================================================================
+# END FORCE-SVENSKA API
+# =============================================================================
+
+
 def find_base_model_path():
     """Find a valid base model path for OneSeek-7B-Zero
     
@@ -2141,6 +2304,9 @@ app.include_router(system_prompts_router, prefix="/api")
 # Register Simple System Prompt router (for dashboard integration)
 app.include_router(simple_prompt_router)
 
+# Register Force-Svenska router (real-time dashboard control)
+app.include_router(force_svenska_router)
+
 @app.get("/")
 async def root():
     """Health check and service information"""
@@ -2183,13 +2349,27 @@ async def infer(request: Request, inference_request: InferenceRequest):
     Routes to DNA v2 certified models with fallback to base models.
     This is the recommended endpoint for all inference requests.
     System prompt is automatically injected from the active prompt in Admin Dashboard.
+    
+    Force-Svenska: If the user's message contains Swedish trigger words (configured
+    via Admin Dashboard), a Swedish-only instruction is prepended to ensure the
+    model responds in Swedish.
     """
     start_time = time.time()
+    
+    # Check for Force-Svenska triggers
+    force_svenska_active = check_force_svenska(inference_request.text)
     
     # Format input with system prompt - ensures model always knows its identity
     full_input = format_inference_input(inference_request.text)
     
+    # If Force-Svenska is active, prepend Swedish instruction
+    if force_svenska_active:
+        swedish_prefix = "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu.\n\n"
+        full_input = swedish_prefix + full_input
+        logger.info("🇸🇪 Force-Svenska aktiverat – svarar på svenska")
+    
     logger.debug("Injecting system prompt into inference request")
+    logger.debug(f"Force-Svenska: {'ACTIVE' if force_svenska_active else 'inactive'}")
     
     try:
         # Determine if we're using certified model or fallback
@@ -2286,17 +2466,31 @@ async def oneseek_inference(request: InferenceRequest):
     
     System prompt is automatically injected from the active prompt in Admin Dashboard.
     The model always knows who it is - the prompt follows with every request.
+    
+    Force-Svenska: If the user's message contains Swedish trigger words (configured
+    via Admin Dashboard), a Swedish-only instruction is prepended to ensure the
+    model responds in Swedish.
     """
     import time
     start_time = time.time()
     
+    # Check for Force-Svenska triggers
+    force_svenska_active = check_force_svenska(request.text)
+    
     # Format input with system prompt - ensures model always knows its identity
     full_input = format_inference_input(request.text)
+    
+    # If Force-Svenska is active, prepend Swedish instruction
+    if force_svenska_active:
+        swedish_prefix = "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu.\n\n"
+        full_input = swedish_prefix + full_input
+        logger.info("🇸🇪 Force-Svenska aktiverat – svarar på svenska")
     
     # === DEBUG: Log inference start ===
     logger.debug("=" * 60)
     logger.debug("=== ONESEEK INFERENCE START ===")
     logger.debug("→ System prompt injected")
+    logger.debug(f"→ Force-Svenska: {'ACTIVE' if force_svenska_active else 'inactive'}")
     logger.debug(f"→ Input text: {request.text[:100]}..." if len(request.text) > 100 else f"→ Input text: {request.text}")
     logger.debug(f"→ Max length: {request.max_length}")
     logger.debug(f"→ Temperature: {request.temperature}")

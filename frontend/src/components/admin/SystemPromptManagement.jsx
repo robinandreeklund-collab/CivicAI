@@ -13,11 +13,13 @@ import { useState, useEffect } from 'react';
  * - No server restart required - changes take effect immediately
  * - Real-time chat testing
  * - Import character cards as prompts
+ * - Force-Svenska triggers management (NEW)
  * 
  * How it works:
  * - Prompts are stored in datasets/system_prompts/ as JSON files
  * - The active prompt is read on every inference request
  * - Format: "[System Prompt]\n\nUser: [input]\n\nAssistant:"
+ * - Force-Svenska: When trigger words are detected, model responds in Swedish only
  */
 export default function SystemPromptManagement() {
   const [prompts, setPrompts] = useState([]);
@@ -49,10 +51,16 @@ export default function SystemPromptManagement() {
   const [availableCharacters, setAvailableCharacters] = useState([]);
   const [showImportModal, setShowImportModal] = useState(false);
 
+  // Force-Svenska state
+  const [forceTriggers, setForceTriggers] = useState([]);
+  const [forceTriggersInput, setForceTriggersInput] = useState('');
+  const [forceSaving, setForceSaving] = useState(false);
+
   // Fetch prompts on mount
   useEffect(() => {
     fetchPrompts();
     fetchAvailableCharacters();
+    fetchForceSwedish();
   }, []);
 
   // Clear messages after 5 seconds
@@ -107,6 +115,59 @@ export default function SystemPromptManagement() {
       }
     } catch (err) {
       console.error('Error fetching characters:', err);
+    }
+  };
+
+  const fetchForceSwedish = async () => {
+    try {
+      let response;
+      try {
+        response = await fetch('http://localhost:5000/api/force-swedish');
+      } catch {
+        response = await fetch('/api/force-swedish');
+      }
+      
+      if (response.ok) {
+        const data = await response.json();
+        const triggers = data.triggers || [];
+        setForceTriggers(triggers);
+        setForceTriggersInput(triggers.join(', '));
+      }
+    } catch (err) {
+      console.error('Error fetching Force-Svenska triggers:', err);
+    }
+  };
+
+  const handleSaveForceSwedish = async () => {
+    setForceSaving(true);
+    try {
+      let response;
+      try {
+        response = await fetch('http://localhost:5000/api/force-swedish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ triggers: forceTriggersInput })
+        });
+      } catch {
+        response = await fetch('/api/force-swedish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ triggers: forceTriggersInput })
+        });
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        setForceTriggers(data.triggers || []);
+        setSuccess(`Force-Svenska uppdaterad! ${data.count} triggers sparade.`);
+      } else {
+        throw new Error('Failed to save triggers');
+      }
+    } catch (err) {
+      console.error('Error saving Force-Svenska triggers:', err);
+      setError('Kunde inte spara Force-Svenska triggers');
+    } finally {
+      setForceSaving(false);
     }
   };
 
@@ -513,6 +574,71 @@ export default function SystemPromptManagement() {
           </div>
         </div>
       )}
+
+      {/* Force-Svenska Triggers Section */}
+      <div className="border border-blue-500/30 bg-blue-500/5 p-6 rounded">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-[#eee] font-mono text-base flex items-center gap-2">
+              🇸🇪 Force-Svenska Triggers
+            </h3>
+            <p className="text-[#666] font-mono text-xs mt-1">
+              När ett trigger-ord hittas i användarens meddelande svarar OneSeek alltid på svenska.
+              Ändra listan och klicka Spara – ingen omstart behövs!
+            </p>
+          </div>
+          <span className="px-3 py-1 text-xs bg-blue-500/20 text-blue-300 rounded font-mono">
+            {forceTriggers.length} triggers
+          </span>
+        </div>
+        
+        <textarea
+          value={forceTriggersInput}
+          onChange={(e) => setForceTriggersInput(e.target.value)}
+          className="w-full h-32 bg-[#0a0a0a] border border-[#2a2a2a] text-[#eee] font-mono text-sm p-3 rounded focus:outline-none focus:border-blue-500/50 resize-y"
+          placeholder="hej, vad, vem, hur, varför, när, kan du, är du, vill du, ska vi, tack, snälla..."
+        />
+        <p className="text-[#555] font-mono text-xs mt-2 mb-3">
+          Skriv triggers separerade med komma. Exempel: &quot;hej, vad gör du, tjena, läget&quot;
+        </p>
+        
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSaveForceSwedish}
+            disabled={forceSaving}
+            className="px-6 py-2 bg-blue-600 text-white text-sm font-mono hover:bg-blue-700 transition-colors disabled:opacity-50 rounded"
+          >
+            {forceSaving ? 'Sparar...' : '💾 Spara & Aktivera direkt'}
+          </button>
+          <button
+            onClick={() => {
+              setForceTriggersInput(forceTriggers.join(', '));
+            }}
+            className="px-4 py-2 border border-[#2a2a2a] text-[#888] text-sm font-mono hover:bg-[#1a1a1a] transition-colors rounded"
+          >
+            Återställ
+          </button>
+        </div>
+        
+        {/* Preview of current triggers */}
+        {forceTriggers.length > 0 && (
+          <div className="mt-4 p-3 bg-[#0a0a0a] border border-[#1a1a1a] rounded">
+            <p className="text-[#666] font-mono text-xs mb-2">Aktiva triggers:</p>
+            <div className="flex flex-wrap gap-1">
+              {forceTriggers.slice(0, 20).map((trigger, idx) => (
+                <span key={idx} className="px-2 py-0.5 text-xs bg-blue-500/10 text-blue-300 rounded font-mono">
+                  {trigger}
+                </span>
+              ))}
+              {forceTriggers.length > 20 && (
+                <span className="px-2 py-0.5 text-xs bg-[#1a1a1a] text-[#666] rounded font-mono">
+                  +{forceTriggers.length - 20} fler
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Create/Edit Form */}
       {(isCreating || isEditing) && (
