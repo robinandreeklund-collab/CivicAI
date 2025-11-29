@@ -1,0 +1,85 @@
+{
+  "apis": [
+    {
+      "id": "scb",
+      "name": "SCB Statistik",
+      "description": "Befolkning, ekonomi, statistik från Statistiska centralbyrån",
+      "base_url": "https://api.scb.se/OV0104/v1/doris/sv/ssd",
+      "enabled": true,
+      "triggers": ["befolkning", "statistik", "invånare", "ekonomi", "scb"],
+      "fallback_message": "Kunde inte hämta data från SCB. Försök igen senare."
+    },
+    {
+      "id": "trafikverket",
+      "name": "Trafikanalys",
+      "description": "Trafikflöde, olyckor, kollektivtrafik",
+      "base_url": "https://api.trafikinfo.trafikverket.se/v2/data.json",
+      "enabled": true,
+      "triggers": ["trafik", "trafikinfo", "olycka", "kollektivtrafik", "väg", "e4", "e6", "e18", "e20"],
+      "fallback_message": "Kunde inte hämta trafikdata. Försök igen senare."
+    },
+    {
+      "id": "naturvardsverket",
+      "name": "Naturvårdsverket",
+      "description": "Luftkvalitet, miljödata",
+      "base_url": "https://api.naturvardsverket.se",
+      "enabled": true,
+      "triggers": ["luftkvalitet", "miljö", "utsläpp", "naturvård", "föroreningar"],
+      "fallback_message": "Kunde inte hämta miljödata. Försök igen senare."
+    },
+    {
+      "id": "boverket",
+      "name": "Boverket",
+      "description": "Bygglov, energideklarationer",
+      "base_url": "https://api.boverket.se",
+      "enabled": true,
+      "triggers": ["bygglov", "energideklaration", "boverket", "byggregler"],
+      "fallback_message": "Kunde inte hämta data från Boverket. Försök igen senare."
+    },
+    {
+      "id": "riksdagen",
+      "name": "Riksdagen",
+      "description": "Voteringar, lagförslag, debatter",
+      "base_url": "https://data.riksdagen.se/api",
+      "enabled": true,
+      "triggers": ["riksdagen", "röstade", "votering", "lagförslag", "debatt", "proposition", "motion"],
+      "fallback_message": "Kunde inte hämta riksdagsdata. Försök igen senare."
+    },
+    {
+      "id": "slu",
+      "name": "SLU Riksskogstaxeringen",
+      "description": "Skogsdata, virkesförråd",
+      "base_url": "https://www.slu.se/riksskogstaxeringen",
+      "enabled": true,
+      "triggers": ["skog", "virkesförråd", "skogsdata", "riksskogstaxering"],
+      "fallback_message": "Kunde inte hämta skogsdata. Försök igen senare."
+    },
+    {
+      "id": "opendata",
+      "name": "Opendata.se",
+      "description": "Sök i alla svenska öppna data",
+      "base_url": "https://www.dataportal.se/api/3/action",
+      "enabled": true,
+      "triggers": ["öppen data", "opendata", "dataportal"],
+      "fallback_message": "Kunde inte söka i öppen data. Försök igen senare."
+    },
+    {
+      "id": "digg",
+      "name": "DIGG",
+      "description": "Offentliga register",
+      "base_url": "https://www.digg.se/api",
+      "enabled": true,
+      "triggers": ["digg", "myndighet", "offentlig förvaltning"],
+      "fallback_message": "Kunde inte hämta data från DIGG. Försök igen senare."
+    },
+    {
+      "id": "krisinformation",
+      "name": "Krisinformation.se",
+      "description": "Krislarm, VMA, beredskap",
+      "base_url": "https://api.krisinformation.se/v3",
+      "enabled": true,
+      "triggers": ["kris", "krislarm", "vma", "beredskap", "varning", "nödläge"],
+      "fallback_message": "Kunde inte hämta krisinformation. Försök igen senare."
+    }
+  ]
+}

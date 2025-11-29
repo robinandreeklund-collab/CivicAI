@@ -281,6 +281,269 @@ RSS_FEEDS = load_rss_feeds()
 
 
 # =============================================================================
+# SWEDISH OPEN DATA APIs - Dashboard-controlled public data sources
+# =============================================================================
+# Open Data APIs are loaded from config/open_data_apis.json and can be updated
+# in real-time via the Admin Dashboard without server restart.
+# All APIs are 100% open - no API keys required.
+
+OPEN_DATA_CONFIG_FILE = Path(__file__).parent.parent / "config" / "open_data_apis.json"
+
+# Default APIs if file doesn't exist
+DEFAULT_OPEN_DATA_APIS = [
+    {
+        "id": "scb",
+        "name": "SCB Statistik",
+        "description": "Befolkning, ekonomi, statistik",
+        "base_url": "https://api.scb.se/OV0104/v1/doris/sv/ssd",
+        "enabled": True,
+        "triggers": ["befolkning", "statistik", "invånare", "ekonomi", "scb"],
+        "fallback_message": "Kunde inte hämta data från SCB."
+    },
+    {
+        "id": "krisinformation",
+        "name": "Krisinformation.se",
+        "description": "Krislarm, VMA, beredskap",
+        "base_url": "https://api.krisinformation.se/v3",
+        "enabled": True,
+        "triggers": ["kris", "krislarm", "vma", "beredskap", "varning"],
+        "fallback_message": "Kunde inte hämta krisinformation."
+    },
+    {
+        "id": "riksdagen",
+        "name": "Riksdagen",
+        "description": "Voteringar, lagförslag, debatter",
+        "base_url": "https://data.riksdagen.se/api",
+        "enabled": True,
+        "triggers": ["riksdagen", "röstade", "votering", "lagförslag"],
+        "fallback_message": "Kunde inte hämta riksdagsdata."
+    }
+]
+
+
+def load_open_data_apis() -> list:
+    """
+    Load Open Data APIs configuration from config file.
+    
+    Returns list of API configs. If file doesn't exist or is invalid,
+    returns default API list.
+    """
+    if OPEN_DATA_CONFIG_FILE.exists():
+        try:
+            data = json.loads(OPEN_DATA_CONFIG_FILE.read_text(encoding="utf-8"))
+            apis = data.get("apis", [])
+            if isinstance(apis, list):
+                return apis
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+    
+    return DEFAULT_OPEN_DATA_APIS
+
+
+# Load Open Data APIs at startup - can be updated via API
+OPEN_DATA_APIS = load_open_data_apis()
+
+
+def check_open_data_trigger(user_message: str) -> Optional[dict]:
+    """
+    Check if user message triggers any Open Data API.
+    
+    Args:
+        user_message: The user's input message
+        
+    Returns:
+        API config dict if triggered, None otherwise
+    """
+    msg_lower = user_message.lower()
+    
+    for api in OPEN_DATA_APIS:
+        if not api.get("enabled", True):
+            continue
+        
+        triggers = api.get("triggers", [])
+        if any(trigger in msg_lower for trigger in triggers):
+            return api
+    
+    return None
+
+
+def fetch_scb_data(query: str) -> Optional[str]:
+    """
+    Fetch population/statistics data from SCB (Statistics Sweden).
+    
+    Args:
+        query: Search query
+        
+    Returns:
+        Formatted data string or None if failed
+    """
+    try:
+        # SCB provides various endpoints - we'll use a general info response
+        # For actual implementation, specific endpoints would be called based on query
+        url = "https://api.scb.se/OV0104/v1/doris/sv/ssd"
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            # Return available statistics categories
+            if isinstance(data, list):
+                categories = [item.get("text", "") for item in data[:5] if item.get("text")]
+                if categories:
+                    return f"SCB erbjuder statistik om: {', '.join(categories)}. Mer info på scb.se."
+        return None
+    except Exception:
+        return None
+
+
+def fetch_krisinformation() -> Optional[str]:
+    """
+    Fetch current crisis alerts from Krisinformation.se.
+    
+    Returns:
+        Formatted crisis info or None if failed
+    """
+    try:
+        url = "https://api.krisinformation.se/v3/news"
+        headers = {"Accept": "application/json"}
+        r = requests.get(url, headers=headers, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            items = data if isinstance(data, list) else data.get("items", [])
+            if items:
+                latest = items[:3]  # Top 3 latest
+                alerts = []
+                for item in latest:
+                    title = item.get("Headline", item.get("title", "Okänd händelse"))
+                    alerts.append(f"• {title}")
+                if alerts:
+                    return "**Aktuell krisinformation:**\n" + "\n".join(alerts)
+        return "Inga aktiva krislarm just nu."
+    except Exception:
+        return None
+
+
+def fetch_riksdagen_data(query: str) -> Optional[str]:
+    """
+    Fetch parliament data from Riksdagen.
+    
+    Args:
+        query: Search query
+        
+    Returns:
+        Formatted parliament data or None if failed
+    """
+    try:
+        # Search for documents/debates
+        url = f"https://data.riksdagen.se/dokumentlista/?sok={query}&utformat=json&sort=datum&sortorder=desc&a=s"
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            docs = data.get("dokumentlista", {}).get("dokument", [])
+            if docs:
+                latest = docs[:3]  # Top 3 results
+                results = []
+                for doc in latest:
+                    title = doc.get("titel", "Okänt dokument")
+                    doc_type = doc.get("typ", "dokument")
+                    datum = doc.get("datum", "")
+                    results.append(f"• {title} ({doc_type}, {datum})")
+                if results:
+                    return "**Från Riksdagen:**\n" + "\n".join(results)
+        return None
+    except Exception:
+        return None
+
+
+def fetch_trafikverket_data(query: str) -> Optional[str]:
+    """
+    Fetch traffic information from Trafikverket.
+    
+    Note: Trafikverket requires authentication for full API access.
+    This provides basic info and redirects to their service.
+    
+    Args:
+        query: Search query
+        
+    Returns:
+        Traffic info string
+    """
+    # Trafikverket's full API requires authentication
+    # Return a helpful message with link to their service
+    return "Trafikinformation finns på trafiken.nu. För E4, E6, E18 och E20 - kolla trafikverket.se för aktuell info om olyckor och köer."
+
+
+def fetch_open_data_search(query: str) -> Optional[str]:
+    """
+    Search Swedish Open Data Portal (dataportal.se).
+    
+    Args:
+        query: Search query
+        
+    Returns:
+        Search results or None if failed
+    """
+    try:
+        url = f"https://www.dataportal.se/api/3/action/package_search?q={query}&rows=3"
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            results = data.get("result", {}).get("results", [])
+            if results:
+                datasets = []
+                for item in results:
+                    title = item.get("title", "Okänd dataset")
+                    org = item.get("organization", {}).get("title", "")
+                    datasets.append(f"• {title}" + (f" ({org})" if org else ""))
+                if datasets:
+                    return "**Öppna data som matchar:**\n" + "\n".join(datasets)
+        return None
+    except Exception:
+        return None
+
+
+def fetch_open_data(api: dict, query: str) -> Optional[str]:
+    """
+    Fetch data from the specified Open Data API.
+    
+    Args:
+        api: API configuration dict
+        query: User's search query
+        
+    Returns:
+        Formatted data string or fallback message
+    """
+    api_id = api.get("id", "")
+    fallback = api.get("fallback_message", "Kunde inte hämta data.")
+    
+    result = None
+    
+    if api_id == "scb":
+        result = fetch_scb_data(query)
+    elif api_id == "krisinformation":
+        result = fetch_krisinformation()
+    elif api_id == "riksdagen":
+        result = fetch_riksdagen_data(query)
+    elif api_id == "trafikverket":
+        result = fetch_trafikverket_data(query)
+    elif api_id == "opendata":
+        result = fetch_open_data_search(query)
+    elif api_id == "naturvardsverket":
+        result = "Miljödata finns på naturvardsverket.se. Luftkvalitetsindex uppdateras varje timme."
+    elif api_id == "boverket":
+        result = "Information om bygglov och energideklarationer finns på boverket.se."
+    elif api_id == "slu":
+        result = "Skogsdata från Riksskogstaxeringen finns på slu.se/riksskogstaxeringen."
+    elif api_id == "digg":
+        result = "DIGG erbjuder info om digital förvaltning på digg.se."
+    
+    return result if result else fallback
+
+
+# =============================================================================
+# END OPEN DATA APIs CONFIGURATION
+# =============================================================================
+
+
+# =============================================================================
 # TIME, DATE & WEATHER FUNCTIONS - Always-aware context injection
 # =============================================================================
 
@@ -2182,6 +2445,139 @@ async def save_rss_feeds(request: dict):
 # =============================================================================
 
 
+# =============================================================================
+# OPEN DATA APIs API - Dashboard-controlled Swedish public data sources
+# =============================================================================
+# These endpoints allow admins to manage the list of Open Data APIs.
+# APIs can be enabled/disabled and triggers can be modified without server restart.
+
+open_data_router = APIRouter(prefix="/api/open-data", tags=["Open Data APIs"])
+
+
+@open_data_router.get("")
+async def get_open_data_apis():
+    """
+    Get current Open Data APIs configuration.
+    
+    Returns the list of configured Open Data APIs with their triggers and status.
+    """
+    return {
+        "apis": OPEN_DATA_APIS,
+        "count": len(OPEN_DATA_APIS),
+        "enabled_count": len([a for a in OPEN_DATA_APIS if a.get("enabled", True)])
+    }
+
+
+@open_data_router.post("")
+async def save_open_data_apis(request: dict):
+    """
+    Save Open Data APIs configuration.
+    
+    Updates the APIs list in real-time. Changes take effect immediately
+    without requiring a server restart.
+    
+    Request body:
+    - apis: list - List of API config objects with id, name, triggers, enabled, etc.
+    """
+    global OPEN_DATA_APIS
+    
+    apis = request.get("apis", [])
+    
+    # Validate API data
+    valid_apis = []
+    for api in apis:
+        if isinstance(api, dict) and "id" in api:
+            valid_apis.append({
+                "id": api.get("id"),
+                "name": api.get("name", api.get("id")),
+                "description": api.get("description", ""),
+                "base_url": api.get("base_url", ""),
+                "enabled": api.get("enabled", True),
+                "triggers": api.get("triggers", []),
+                "fallback_message": api.get("fallback_message", "Kunde inte hämta data.")
+            })
+    
+    # Save to file
+    data = {"apis": valid_apis}
+    try:
+        OPEN_DATA_CONFIG_FILE.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2),
+            encoding="utf-8"
+        )
+    except Exception as e:
+        logger.error(f"Failed to save Open Data APIs: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save APIs: {str(e)}")
+    
+    # Update in-memory
+    OPEN_DATA_APIS = valid_apis
+    
+    logger.info(f"Open Data APIs updated: {len(valid_apis)} APIs saved")
+    
+    return {
+        "status": "saved",
+        "count": len(valid_apis),
+        "enabled_count": len([a for a in valid_apis if a.get("enabled", True)]),
+        "apis": valid_apis
+    }
+
+
+@open_data_router.get("/{api_id}")
+async def get_open_data_api(api_id: str):
+    """
+    Get a specific Open Data API configuration.
+    
+    Args:
+        api_id: The API identifier
+    """
+    for api in OPEN_DATA_APIS:
+        if api.get("id") == api_id:
+            return api
+    
+    raise HTTPException(status_code=404, detail=f"API '{api_id}' not found")
+
+
+@open_data_router.patch("/{api_id}")
+async def update_open_data_api(api_id: str, request: dict):
+    """
+    Update a specific Open Data API configuration.
+    
+    Args:
+        api_id: The API identifier
+        request: Partial API config to update
+    """
+    global OPEN_DATA_APIS
+    
+    for i, api in enumerate(OPEN_DATA_APIS):
+        if api.get("id") == api_id:
+            # Update fields
+            if "enabled" in request:
+                OPEN_DATA_APIS[i]["enabled"] = request["enabled"]
+            if "triggers" in request:
+                OPEN_DATA_APIS[i]["triggers"] = request["triggers"]
+            if "fallback_message" in request:
+                OPEN_DATA_APIS[i]["fallback_message"] = request["fallback_message"]
+            
+            # Save to file
+            data = {"apis": OPEN_DATA_APIS}
+            try:
+                OPEN_DATA_CONFIG_FILE.write_text(
+                    json.dumps(data, ensure_ascii=False, indent=2),
+                    encoding="utf-8"
+                )
+            except Exception as e:
+                logger.error(f"Failed to save Open Data APIs: {e}")
+                raise HTTPException(status_code=500, detail=f"Failed to save API: {str(e)}")
+            
+            return OPEN_DATA_APIS[i]
+    
+    raise HTTPException(status_code=404, detail=f"API '{api_id}' not found")
+
+
+# =============================================================================
+# END OPEN DATA APIs API
+# =============================================================================
+
+
 def find_base_model_path():
     """Find a valid base model path for OneSeek-7B-Zero
     
@@ -3041,6 +3437,9 @@ app.include_router(cities_router)
 # Register RSS Feeds router (news sources)
 app.include_router(rss_router)
 
+# Register Open Data APIs router (Swedish public data)
+app.include_router(open_data_router)
+
 @app.get("/")
 async def root():
     """Health check and service information"""
@@ -3119,7 +3518,17 @@ async def infer(request: Request, inference_request: InferenceRequest):
             news_context = format_news_for_context(news)
             logger.info(f"✓ {len(news)} nyheter hämtade")
     
-    # === 4. Check for Tavily search trigger ===
+    # === 4. Check for Open Data API triggers ===
+    open_data_context = None
+    triggered_api = check_open_data_trigger(inference_request.text)
+    if triggered_api:
+        logger.info(f"📊 [OPEN DATA] Hämtar från {triggered_api.get('name')}...")
+        open_data_result = fetch_open_data(triggered_api, inference_request.text)
+        if open_data_result:
+            open_data_context = open_data_result
+            logger.info(f"✓ Data från {triggered_api.get('name')} mottagen")
+    
+    # === 5. Check for Tavily search trigger ===
     tavily_context = None
     tavily_sources = ""
     if check_tavily_trigger(inference_request.text):
@@ -3146,6 +3555,10 @@ async def infer(request: Request, inference_request: InferenceRequest):
     # Add news if available
     if news_context:
         context_parts.append(f"[Nyheter] {news_context}")
+    
+    # Add Open Data if available
+    if open_data_context:
+        context_parts.append(f"[Öppen data] {open_data_context}")
     
     # Add Tavily search results if available
     if tavily_context:
@@ -3303,7 +3716,17 @@ async def oneseek_inference(request: InferenceRequest):
             news_context = format_news_for_context(news)
             logger.info(f"✓ {len(news)} nyheter hämtade")
     
-    # === 4. Check for Tavily search trigger ===
+    # === 4. Check for Open Data API triggers ===
+    open_data_context = None
+    triggered_api = check_open_data_trigger(request.text)
+    if triggered_api:
+        logger.info(f"📊 [OPEN DATA] Hämtar från {triggered_api.get('name')}...")
+        open_data_result = fetch_open_data(triggered_api, request.text)
+        if open_data_result:
+            open_data_context = open_data_result
+            logger.info(f"✓ Data från {triggered_api.get('name')} mottagen")
+    
+    # === 5. Check for Tavily search trigger ===
     tavily_context = None
     tavily_sources = ""
     if check_tavily_trigger(request.text):
@@ -3330,6 +3753,10 @@ async def oneseek_inference(request: InferenceRequest):
     # Add news if available
     if news_context:
         context_parts.append(f"[Nyheter] {news_context}")
+    
+    # Add Open Data if available
+    if open_data_context:
+        context_parts.append(f"[Öppen data] {open_data_context}")
     
     # Add Tavily search results if available
     if tavily_context:
