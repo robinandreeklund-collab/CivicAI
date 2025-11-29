@@ -224,6 +224,51 @@
       "enabled": true,
       "triggers": ["skola", "skolverket", "utbildning", "läroplan", "betyg", "gymnasie", "grundskola", "förskola", "susa-navet", "hur många skolor", "antal skolor", "skolenheter", "skolor i"],
       "fallback_message": "Kunde inte hämta skoldata. Försök igen senare."
+    },
+    {
+      "id": "skolverket_syllabus",
+      "name": "Skolverket Syllabus API",
+      "description": "Läroplaner, kursplaner, ämnesplaner för gymnasie- och vuxenutbildning",
+      "base_url": "https://api.skolverket.se/syllabus/v1",
+      "enabled": true,
+      "triggers": ["kursplan", "läroplan", "ämnesplan", "kursplan för", "läroplaner", "kurs svenska", "kurs matematik", "kurs engelska", "gymnasiekurs"],
+      "fallback_message": "Kunde inte hämta kursplansdata. Försök igen senare."
+    },
+    {
+      "id": "visitsweden",
+      "name": "Visit Sweden (Turism & Hotell)",
+      "description": "Hotell- och boendedata, tillgänglighet, priser, turistinformation",
+      "base_url": "https://api.visitsweden.com",
+      "enabled": true,
+      "triggers": ["hotell", "boende", "turism", "turistinfo", "övernattning", "semesterboende", "hotell i", "bo i"],
+      "fallback_message": "Kunde inte hämta turistdata. Försök igen senare."
+    },
+    {
+      "id": "bolagsverket",
+      "name": "Bolagsverket",
+      "description": "Företagsregister, bolagsinformation, styrelse, ekonomi",
+      "base_url": "https://api.bolagsverket.se/v1",
+      "enabled": true,
+      "triggers": ["bolag", "företag", "styrelse", "organisationsnummer", "bolagsverket", "aktiebolag", "vem äger", "företagsinfo"],
+      "fallback_message": "Kunde inte hämta företagsdata. Försök igen senare."
+    },
+    {
+      "id": "konkurrensverket",
+      "name": "Konkurrensverket",
+      "description": "Konkurrensbeslut, upphandlingar, marknadsinformation",
+      "base_url": "https://api.kkv.se",
+      "enabled": true,
+      "triggers": ["upphandling", "konkurrens", "kkv", "offentlig upphandling", "marknad", "konkurrensverket"],
+      "fallback_message": "Kunde inte hämta konkurrensdata. Försök igen senare."
+    },
+    {
+      "id": "konsumentverket",
+      "name": "Konsumentverket",
+      "description": "Konsumentdata, reklamationer, priser, konsumenträttigheter",
+      "base_url": "https://api.konsumentverket.se",
+      "enabled": true,
+      "triggers": ["konsument", "reklamation", "konsumenträtt", "reklamationsrätt", "konsumentverket", "ångerrätt"],
+      "fallback_message": "Kunde inte hämta konsumentdata. Försök igen senare."
     }
   ]
 }

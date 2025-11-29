@@ -40,7 +40,7 @@
 | Årstid | Aktuell årstid | Systemklocka | ❌ Nej |
 | Väder | Svensk väderprognos | SMHI | ❌ Nej |
 | Nyheter | Senaste nyheterna | RSS-feeds | ❌ Nej |
-| Öppna Data | 25 svenska myndighets-APIs | Diverse | ❌ Nej |
+| Öppna Data | 30 svenska myndighets-APIs | Diverse | ❌ Nej |
 
 ---
 
@@ -505,7 +505,7 @@ feedparser>=6.0.0
 
 ### 7. Svenska Öppna Data APIs
 
-**Syfte**: Tillgång till 25 svenska myndighets-APIs utan API-nycklar.
+**Syfte**: Tillgång till 30 svenska myndighets-APIs utan API-nycklar.
 
 #### Tillgängliga APIs
 
@@ -536,6 +536,11 @@ feedparser>=6.0.0
 | `uhr` | UHR | Antagningsstatistik, universitet | antagning, universitet, högskola |
 | `csn` | CSN | Studiemedel, bidrag, lån | studiemedel, csn, studiebidrag |
 | `skolverket` | Skolverket (Susa-navet & Skolenhetsregistret) | Utbildningsstatistik, skolor, skolenheter per kommun | skola, skolverket, läroplan, betyg, hur många skolor, skolor i |
+| `skolverket_syllabus` | Skolverket Syllabus API | Läroplaner, kursplaner, ämnesplaner | kursplan, läroplan, ämnesplan, kurs svenska, gymnasiekurs |
+| `visitsweden` | Visit Sweden (Turism & Hotell) | Hotell, boende, turisminfo | hotell, boende, turism, övernattning, hotell i |
+| `bolagsverket` | Bolagsverket | Företagsregister, bolagsinformation | bolag, företag, styrelse, organisationsnummer, vem äger |
+| `konkurrensverket` | Konkurrensverket | Konkurrensbeslut, upphandlingar | upphandling, konkurrens, offentlig upphandling |
+| `konsumentverket` | Konsumentverket | Konsumentdata, reklamationer | konsument, reklamation, ångerrätt, konsumenträtt |
 
 #### Dataflöde
 
