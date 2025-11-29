@@ -3344,12 +3344,15 @@ async def dual_model_inference(text: str, max_length: int = 512, temperature: fl
         inputs = tokenizer(prompt, return_tensors="pt", padding=True)
         inputs = sync_inputs_to_model_device(inputs, model)
         
+        # Use max_new_tokens instead of max_length to avoid input length issues
+        max_new = min(max_length, 512)
+        
         # Generate with explicit attention_mask
         with torch.no_grad():
             outputs = model.generate(
                 input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
                 attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
-                max_length=max_length,
+                max_new_tokens=max_new,
                 temperature=temperature,
                 top_p=top_p,
                 do_sample=True,
@@ -3712,12 +3715,15 @@ async def infer(request: Request, inference_request: InferenceRequest):
             inputs = tokenizer(full_input, return_tensors="pt", padding=True)
             inputs = sync_inputs_to_model_device(inputs, model)
             
+            # Use max_new_tokens instead of max_length to avoid input length issues
+            max_new = min(inference_request.max_length, 512)
+            
             # Generate with explicit attention_mask
             with torch.no_grad():
                 outputs = model.generate(
                     input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
                     attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
-                    max_length=inference_request.max_length,
+                    max_new_tokens=max_new,
                     temperature=inference_request.temperature,
                     top_p=inference_request.top_p,
                     do_sample=True,
@@ -3799,30 +3805,47 @@ async def oneseek_inference(request: InferenceRequest):
     
     # === 2. Check for weather question (with city detection) ===
     weather_context = None
+    weather_sources = ""
     weather_city = check_weather_city(request.text)
     if weather_city:
         weather_data = get_weather(weather_city)
         if weather_data:
             weather_context = weather_data
+            weather_sources = f"\n\n**Källor:**\n1. [SMHI – Väderprognos {weather_city.capitalize()}](https://www.smhi.se)"
             logger.info(f"🌤️ Väderdata hämtad för {weather_city}")
     
     # === 3. Check for news question ===
     news_context = None
+    news_sources = ""
     if check_news_trigger(request.text):
         logger.info("📰 Hämtar senaste nyheterna...")
         news = get_latest_news()
         if news:
             news_context = format_news_for_context(news)
+            # Build news sources
+            news_source_list = []
+            for i, item in enumerate(news[:3], 1):
+                title = item.get('title', 'Artikel')[:40]
+                link = item.get('link', 'https://www.svt.se')
+                source = item.get('source', 'Nyheter')
+                news_source_list.append(f"{i}. [{source} – {title}]({link})")
+            if news_source_list:
+                news_sources = "\n\n**Källor:**\n" + "\n".join(news_source_list)
             logger.info(f"✓ {len(news)} nyheter hämtade")
     
     # === 4. Check for Open Data API triggers ===
     open_data_context = None
+    open_data_sources = ""
     triggered_api = check_open_data_trigger(request.text)
     if triggered_api:
         logger.info(f"📊 [OPEN DATA] Hämtar från {triggered_api.get('name')}...")
         open_data_result = fetch_open_data(triggered_api, request.text)
         if open_data_result:
             open_data_context = open_data_result
+            # Build source link for Open Data API
+            api_name = triggered_api.get('name', 'Öppen Data')
+            api_url = triggered_api.get('url', 'https://www.dataportal.se')
+            open_data_sources = f"\n\n**Källor:**\n1. [{api_name}]({api_url})"
             logger.info(f"✓ Data från {triggered_api.get('name')} mottagen")
     
     # === 5. Check for Tavily search trigger ===
@@ -3957,10 +3980,14 @@ async def oneseek_inference(request: InferenceRequest):
             
             with torch.no_grad():
                 try:
+                    # Use max_new_tokens instead of max_length to avoid input length issues
+                    input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
+                    max_new = min(request.max_length, 512)  # Generate up to 512 new tokens
+                    
                     outputs = model.generate(
                         input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
                         attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
-                        max_length=request.max_length,
+                        max_new_tokens=max_new,
                         temperature=request.temperature,
                         top_p=request.top_p,
                         do_sample=True,
@@ -3987,6 +4014,19 @@ async def oneseek_inference(request: InferenceRequest):
             
             # Clean response using utility function
             response_text = clean_inference_response(response_text, full_input, request.text)
+            
+            # === APPEND SOURCES TO RESPONSE ===
+            # Only add sources if they don't already exist in response
+            if "**Källor:**" not in response_text:
+                # Prioritize sources in order of specificity
+                if open_data_sources:
+                    response_text += open_data_sources
+                elif weather_sources:
+                    response_text += weather_sources
+                elif news_sources:
+                    response_text += news_sources
+                elif tavily_sources:
+                    response_text += tavily_sources
             
             latency_ms = (time.time() - start_time) * 1000
             
