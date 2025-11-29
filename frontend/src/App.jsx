@@ -21,6 +21,7 @@ import DashboardPage from './pages/DashboardPage';
 import ApiDocumentationPage from './pages/ApiDocumentationPage';
 import LedgerPage from './pages/LedgerPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import SevenBZeroPage from './pages/SevenBZeroPage';
 import DemoIndex from './designDemos';
 
 /**
@@ -135,6 +136,7 @@ function AppContent() {
           <Route path="/ledger" element={<LedgerPage />} />
           <Route path="/design-demos" element={<DemoIndex />} />
           <Route path="/chat-v2" element={<ChatV2Page />} />
+          <Route path="/7b-zero" element={<SevenBZeroPage />} />
         </Routes>
       </div>
     </div>
