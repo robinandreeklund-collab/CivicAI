@@ -32,15 +32,34 @@
 
 ### Huvudfunktioner
 
-| Tjänst | Beskrivning | Datakälla | API-nyckel |
-|--------|-------------|-----------|------------|
-| Force-Svenska | Tvingar svenska svar | langdetect + triggers | ❌ Nej |
-| Tavily Search | Realtidsfakta från webben | Tavily API | ✅ Ja |
-| Tid & Datum | Aktuell svensk tid | Systemklocka | ❌ Nej |
-| Årstid | Aktuell årstid | Systemklocka | ❌ Nej |
-| Väder | Svensk väderprognos | SMHI | ❌ Nej |
-| Nyheter | Senaste nyheterna | RSS-feeds | ❌ Nej |
-| Öppna Data | 30 svenska myndighets-APIs | Diverse | ❌ Nej |
+| Tjänst | Beskrivning | Datakälla | API-nyckel | Endpoint |
+|--------|-------------|-----------|------------|----------|
+| Force-Svenska | Tvingar svenska svar | langdetect + triggers | ❌ Nej | `/api/force-swedish` |
+| Tavily Search | Realtidsfakta från webben | Tavily API | ✅ Ja | `/api/tavily-triggers` |
+| Tid & Datum | Aktuell svensk tid | Systemklocka | ❌ Nej | Auto-injiceras |
+| Årstid | Aktuell årstid | Systemklocka | ❌ Nej | Auto-injiceras |
+| Väder | Svensk väderprognos | SMHI | ❌ Nej | `/api/swedish-cities` |
+| Nyheter | Senaste nyheterna | RSS-feeds | ❌ Nej | `/api/rss-feeds` |
+| Öppna Data | 30 svenska myndighets-APIs | Diverse | ❌ Nej | `/api/open-data` |
+
+### City-baserade triggers
+
+Flera API:er stöder stadsbaserade frågor genom att kombinera trigger-ord med städer från `config/swedish_cities.json`:
+
+| API | Trigger-mönster | Exempel |
+|-----|-----------------|---------|
+| **Visit Sweden (Hotell)** | `hotell + [stad]` | "hotell i Stockholm", "boende i Göteborg" |
+| **Skolverket** | `skolor i + [stad]` | "hur många skolor i Malmö", "antal skolor i Uppsala" |
+| **Arbetsförmedlingen** | `lediga jobb i + [stad]` | "lediga jobb i Luleå", "jobb i Göteborg" |
+| **Väder (SMHI)** | `väder + [stad]` | "vädret i Malmö", "temperatur i Uppsala" |
+| **SCB** | `befolkning i + [stad]` | "befolkning i Stockholm", "invånare i Göteborg" |
+| **Socialstyrelsen** | `vårdkö i + [stad]` | "vårdköer i Stockholm", "sjukvård i Malmö" |
+
+**Tillgängliga städer (default)**:
+```
+stockholm, göteborg, malmö, uppsala, luleå, västerås, 
+örebro, linköping, helsingborg, jönköping
+```
 
 ---
 
@@ -507,40 +526,72 @@ feedparser>=6.0.0
 
 **Syfte**: Tillgång till 30 svenska myndighets-APIs utan API-nycklar.
 
-#### Tillgängliga APIs
+**Inference Endpoint**: `POST /infer` eller `POST /inference/oneseek`
 
-| ID | Namn | Beskrivning | Triggers |
-|----|------|-------------|----------|
-| `scb` | SCB Statistik | Befolkning, ekonomi, statistik | befolkning, statistik, invånare, ekonomi |
-| `trafikverket` | Trafikanalys | Trafikflöde, olyckor | trafik, e4, e6, e18, e20 |
-| `naturvardsverket` | Naturvårdsverket | Luftkvalitet, miljödata | luftkvalitet, miljö, utsläpp |
-| `boverket` | Boverket | Bygglov, energideklarationer | bygglov, energideklaration |
-| `riksdagen` | Riksdagen | Voteringar, lagförslag, debatter | riksdagen, votering, lagförslag |
-| `slu` | SLU | Skogsdata, virkesförråd | skog, virkesförråd |
-| `opendata` | Opendata.se | Sök i alla svenska öppna data | öppen data, dataportal |
-| `digg` | DIGG | Offentliga register | digg, myndighet |
-| `krisinformation` | Krisinformation.se | Krislarm, VMA | kris, vma, varning |
-| `skatteverket` | Skatteverket | Skatte- och deklarationsstatistik | skatt, inkomst, moms, snittinkomst |
-| `energimyndigheten` | Energimyndigheten | Energistatistik, elpriser | elpris, energi, vad kostar elen, se3 |
-| `socialstyrelsen` | Socialstyrelsen | Hälsostatistik, vårdköer | vård, vårdkö, sjukvård, vaccination |
-| `lantmateriet` | Lantmäteriet | Geodata, fastigheter, kartor | fastighet, karta, tomt, geodata |
-| `folkhalsomyndigheten` | Folkhälsomyndigheten | Hälsodata, epidemi, smittspridning | folkhälsa, epidemi, smitta, covid |
-| `trafikverket_vag` | Trafikverket Väg & Järnväg | Vägarbeten, järnvägsdata | vägarbete, järnväg, tågförseningar |
-| `energimarknadsinspektionen` | Energimarknadsinspektionen | Elmarknad, nätpriser | nätavgift, elnät, elmarknad |
-| `vinnova` | Vinnova | Innovation, forskning, bidrag | innovation, vinnova, startup |
-| `formas` | Formas | Forskning, hållbarhet | formas, hållbarhetsforskning |
-| `vetenskapsradet` | Vetenskapsrådet | Forskning, vetenskapliga projekt | vetenskapsrådet, forskning, vetenskap |
-| `forsakringskassan` | Försäkringskassan | Socialförsäkring, bidrag | sjukpenning, föräldrapenning, barnbidrag |
-| `migrationsverket` | Migrationsverket | Migration, asyl, visum | migration, asyl, uppehållstillstånd |
-| `arbetsformedlingen` | Arbetsförmedlingen | Arbetsmarknad, lediga jobb | lediga jobb, arbetslöshet, arbetsmarknad |
-| `uhr` | UHR | Antagningsstatistik, universitet | antagning, universitet, högskola |
-| `csn` | CSN | Studiemedel, bidrag, lån | studiemedel, csn, studiebidrag |
-| `skolverket` | Skolverket (Susa-navet & Skolenhetsregistret) | Utbildningsstatistik, skolor, skolenheter per kommun | skola, skolverket, läroplan, betyg, hur många skolor, skolor i |
-| `skolverket_syllabus` | Skolverket Syllabus API | Läroplaner, kursplaner, ämnesplaner | kursplan, läroplan, ämnesplan, kurs svenska, gymnasiekurs |
-| `visitsweden` | Visit Sweden (Turism & Hotell) | Hotell, boende, turisminfo | hotell, boende, turism, övernattning, hotell i |
-| `bolagsverket` | Bolagsverket | Företagsregister, bolagsinformation | bolag, företag, styrelse, organisationsnummer, vem äger |
-| `konkurrensverket` | Konkurrensverket | Konkurrensbeslut, upphandlingar | upphandling, konkurrens, offentlig upphandling |
-| `konsumentverket` | Konsumentverket | Konsumentdata, reklamationer | konsument, reklamation, ångerrätt, konsumenträtt |
+**Dashboard Endpoint**: `GET/POST/PATCH /api/open-data`
+
+#### City-baserade triggers
+
+Flera API:er stöder stadsbaserade frågor. Kombinera trigger med städer från `config/swedish_cities.json`:
+
+| API | Trigger-mönster | Exempel |
+|-----|-----------------|---------|
+| Visit Sweden | `hotell + [stad]` | "hotell i Stockholm", "boende i Malmö" |
+| Skolverket | `skolor i + [stad]` | "hur många skolor i Uppsala" |
+| Arbetsförmedlingen | `lediga jobb i + [stad]` | "lediga jobb i Göteborg" |
+| SCB | `befolkning i + [stad]` | "befolkning i Luleå" |
+| Socialstyrelsen | `vårdkö i + [stad]` | "vårdköer i Stockholm" |
+
+#### Tillgängliga APIs (30 st)
+
+| # | ID | Namn | Triggers (exempel) | Stöd för städer |
+|---|-----|------|-------------------|-----------------|
+| 1 | `scb` | SCB Statistik | befolkning, statistik, invånare | ✅ `i [stad]` |
+| 2 | `trafikverket` | Trafikanalys | trafik, e4, e6, olycka | ❌ |
+| 3 | `naturvardsverket` | Naturvårdsverket | luftkvalitet, miljö, utsläpp | ❌ |
+| 4 | `boverket` | Boverket | bygglov, energideklaration | ❌ |
+| 5 | `riksdagen` | Riksdagen | riksdagen, röstade, votering | ❌ |
+| 6 | `slu` | SLU | skog, virkesförråd | ❌ |
+| 7 | `opendata` | Opendata.se | öppen data, dataportal | ❌ |
+| 8 | `digg` | DIGG | digg, myndighet | ❌ |
+| 9 | `krisinformation` | Krisinformation.se | kris, vma, varning | ❌ |
+| 10 | `skatteverket` | Skatteverket | skatt, inkomst, moms | ✅ `i [stad]` |
+| 11 | `energimyndigheten` | Energimyndigheten | elpris, energi, vad kostar elen | ❌ |
+| 12 | `socialstyrelsen` | Socialstyrelsen | vård, vårdkö, sjukvård | ✅ `i [stad]` |
+| 13 | `lantmateriet` | Lantmäteriet | fastighet, karta, tomt | ❌ |
+| 14 | `folkhalsomyndigheten` | Folkhälsomyndigheten | folkhälsa, covid, pandemi | ❌ |
+| 15 | `trafikverket_vag` | Trafikverket Väg/Järnväg | järnväg, tågförseningar | ❌ |
+| 16 | `energimarknadsinspektionen` | Energimarknadsinspektionen | elnät, nätavgift | ❌ |
+| 17 | `vinnova` | Vinnova | vinnova, innovation, startup | ❌ |
+| 18 | `formas` | Formas | formas, miljöforskning | ❌ |
+| 19 | `vetenskapsradet` | Vetenskapsrådet | vetenskapsrådet, forskning | ❌ |
+| 20 | `forsakringskassan` | Försäkringskassan | sjukpenning, föräldrapenning | ❌ |
+| 21 | `migrationsverket` | Migrationsverket | migration, asyl | ❌ |
+| 22 | `arbetsformedlingen` | Arbetsförmedlingen | lediga jobb, arbetslöshet | ✅ `i [stad]` |
+| 23 | `uhr` | UHR | antagning, universitet | ❌ |
+| 24 | `csn` | CSN | studiemedel, csn | ❌ |
+| 25 | `skolverket` | Skolverket Skolenhetsregistret | hur många skolor, skolor i | ✅ `i [stad]` |
+| 26 | `skolverket_syllabus` | Skolverket Syllabus | kursplan, läroplan | ❌ |
+| 27 | `visitsweden` | Visit Sweden (Hotell) | hotell, boende, hotell i | ✅ `i [stad]` |
+| 28 | `bolagsverket` | Bolagsverket | bolag, företag, vem äger | ❌ |
+| 29 | `konkurrensverket` | Konkurrensverket | upphandling, konkurrens | ❌ |
+| 30 | `konsumentverket` | Konsumentverket | konsument, reklamation | ❌ |
+
+#### Exempel på frågor
+
+**Grundläggande:**
+```
+"Vad röstade riksdagen om igår?" → riksdagen API → voteringsdata + källänk
+"Finns det några aktiva krislarm?" → krisinformation API → VMA-data + källänk
+"Hur mycket kostar elen i SE3?" → energimyndigheten API → elpris + källänk
+```
+
+**Med stadstrigger:**
+```
+"Hur många skolor finns i Stockholm?" → skolverket API → skolenhetsdata för Stockholm
+"Finns det hotell i Malmö?" → visitsweden API → hotellinfo för Malmö
+"Vilka lediga jobb finns i Göteborg?" → arbetsförmedlingen API → lediga jobb för Göteborg
+```
 
 #### Dataflöde
 
@@ -839,6 +890,12 @@ curl -X POST http://localhost:5000/infer \
 ---
 
 ## Changelog
+
+### v1.1.0 (2025-11-29)
+- Utökade från 9 till **30 Svenska Öppna Data APIs**
+- **City-baserade triggers** (hotell i [stad], skolor i [stad], lediga jobb i [stad])
+- Ny dokumentation med trigger-exempel och endpoints
+- Nya APIs: Skatteverket, Energimyndigheten, Socialstyrelsen, Lantmäteriet, Folkhälsomyndigheten, Trafikverket Väg/Järnväg, Energimarknadsinspektionen, Vinnova, Formas, Vetenskapsrådet, Försäkringskassan, Migrationsverket, Arbetsförmedlingen, UHR, CSN, Skolverket Syllabus, Visit Sweden, Bolagsverket, Konkurrensverket, Konsumentverket
 
 ### v1.0.0 (2025-11-29)
 - Initial release av OneSeek Real-Time Suite
