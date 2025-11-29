@@ -413,6 +413,9 @@ export default function SevenBZeroPage() {
         }),
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
       const data = await response.json();
       const responseEndTime = Date.now();
       const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
