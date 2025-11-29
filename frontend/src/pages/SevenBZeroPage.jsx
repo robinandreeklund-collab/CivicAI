@@ -12,6 +12,19 @@ import { Link } from 'react-router-dom';
  * - Ledger integration
  */
 
+// Available personas (constant - doesn't change)
+const AVAILABLE_PERSONAS = [
+  { id: 'oneseek-medveten', name: 'Medveten', icon: '🧠' },
+  { id: 'oneseek-expert', name: 'Expert', icon: '👔' },
+  { id: 'oneseek-filosofisk', name: 'Filosofisk', icon: '🎭' },
+  { id: 'oneseek-arlig', name: 'Ärlig', icon: '💎' },
+  { id: 'oneseek-faktabaserad', name: 'Faktabaserad', icon: '📊' },
+];
+
+// Message ID counter for unique IDs
+let messageIdCounter = 0;
+const generateMessageId = () => `msg-${Date.now()}-${++messageIdCounter}`;
+
 // Emoji mapping for text emoticons
 const emojiMap = {
   '*smiling*': '😊',
@@ -146,13 +159,6 @@ export default function SevenBZeroPage() {
   // Character/Persona state
   const [selectedPersona, setSelectedPersona] = useState('oneseek-medveten');
   const [characterData, setCharacterData] = useState(null);
-  const [availablePersonas] = useState([
-    { id: 'oneseek-medveten', name: 'Medveten', icon: '🧠' },
-    { id: 'oneseek-expert', name: 'Expert', icon: '👔' },
-    { id: 'oneseek-filosofisk', name: 'Filosofisk', icon: '🎭' },
-    { id: 'oneseek-arlig', name: 'Ärlig', icon: '💎' },
-    { id: 'oneseek-faktabaserad', name: 'Faktabaserad', icon: '📊' },
-  ]);
   
   // UI state
   const [hoveredTick, setHoveredTick] = useState(null);
@@ -161,6 +167,7 @@ export default function SevenBZeroPage() {
   const [microtrainingQueue, setMicrotrainingQueue] = useState(0);
   const [microtrainingActive, setMicrotrainingActive] = useState(false);
   const [showDebatePanel, setShowDebatePanel] = useState(false);
+  const [highlightedMessage, setHighlightedMessage] = useState(null);
   
   // Refs
   const containerRef = useRef(null);
@@ -169,12 +176,12 @@ export default function SevenBZeroPage() {
   const messagesEndRef = useRef(null);
   const messageRefs = useRef({});
 
-  // Metrics (will be updated from real data)
-  const [metrics] = useState({ 
+  // Metrics (static for now)
+  const metrics = { 
     fidelity: 95.2, 
     consensus: 99.7, 
     accuracy: 99 
-  });
+  };
 
   // DNA chain - will be populated from ledger
   const [dnaChain, setDnaChain] = useState([]);
@@ -184,24 +191,16 @@ export default function SevenBZeroPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Scroll to a specific message - improved version with highlight
+  // Scroll to a specific message - using React state for highlight
   const scrollToMessage = (messageId) => {
     // Small delay to ensure refs are set
     setTimeout(() => {
       const element = messageRefs.current[messageId];
-      console.log('[7B-Zero] Scrolling to message:', messageId, 'Element found:', !!element);
       if (element) {
-        // First set opacity to full
-        element.style.opacity = '1';
-        // Scroll into view
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        // Add highlight effect
-        element.style.boxShadow = '0 0 0 2px rgba(255, 255, 255, 0.3)';
-        element.style.borderRadius = '8px';
-        element.style.transition = 'box-shadow 0.3s ease, opacity 0.3s ease';
-        setTimeout(() => {
-          element.style.boxShadow = 'none';
-        }, 2000);
+        // Use React state for highlight effect
+        setHighlightedMessage(messageId);
+        setTimeout(() => setHighlightedMessage(null), 2000);
       }
     }, 100);
   };
@@ -371,8 +370,6 @@ export default function SevenBZeroPage() {
         ));
       }
     }, 20);
-    
-    return () => clearInterval(timer);
   };
 
   // Handle message submission
@@ -382,7 +379,7 @@ export default function SevenBZeroPage() {
     if (!messageInput.trim() || isTyping) return;
 
     const userMessage = {
-      id: Date.now(),
+      id: generateMessageId(),
       type: 'user',
       text: messageInput,
       timestamp: new Date().toISOString(),
@@ -395,7 +392,7 @@ export default function SevenBZeroPage() {
     setCurrentTypingText(''); // Clear previous typing text
     
     // Add placeholder AI message
-    const aiMessageId = Date.now() + 1;
+    const aiMessageId = generateMessageId();
     const aiMessage = {
       id: aiMessageId,
       type: 'ai',
@@ -493,6 +490,9 @@ export default function SevenBZeroPage() {
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e) => {
+      // Ignore shortcuts when typing in input fields
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      
       if (e.key.toLowerCase() === 'q') setQuantumMode(p => !p);
       if (e.key.toLowerCase() === 'f') setFocusMode(p => !p);
       if (e.key.toLowerCase() === 'w') setWhiteMode(p => !p);
@@ -833,6 +833,7 @@ export default function SevenBZeroPage() {
           <div className="px-4 pb-4">
             <button 
               onClick={() => setMessages([])}
+              aria-label="Starta ny sökning"
               className={`w-full py-3 px-4 rounded-full text-sm font-light flex items-center justify-center gap-2 transition-all duration-300 border ${
                 whiteMode 
                   ? 'bg-[#333] text-white border-[#333] hover:bg-[#222]' 
@@ -917,15 +918,16 @@ export default function SevenBZeroPage() {
             const distanceFromEnd = totalMessages - 1 - idx;
             const opacityValue = distanceFromEnd > 6 ? 0.4 : distanceFromEnd > 3 ? 0.6 : distanceFromEnd > 1 ? 0.8 : 1;
             const isRecent = distanceFromEnd <= 1;
+            const isHighlighted = highlightedMessage === msg.id;
             
             return (
             <div 
               key={msg.id}
               ref={(el) => { if (el) messageRefs.current[msg.id] = el; }}
-              className={`elegant-fade transition-opacity duration-500 ${msg.type === 'user' ? 'flex flex-col items-end' : 'flex flex-col items-start'} ${isRecent ? '' : 'hover:opacity-100'}`}
+              className={`elegant-fade transition-all duration-500 ${msg.type === 'user' ? 'flex flex-col items-end' : 'flex flex-col items-start'} ${isRecent ? '' : 'hover:opacity-100'} ${isHighlighted ? 'ring-2 ring-white/30 rounded-lg' : ''}`}
               style={{ 
                 animationDelay: `${idx * 0.05}s`,
-                opacity: opacityValue,
+                opacity: isHighlighted ? 1 : opacityValue,
               }}
             >
               {/* Timestamp */}
@@ -962,9 +964,9 @@ export default function SevenBZeroPage() {
                     {!msg.isTyping && !msg.error && (
                       <button 
                         onClick={() => {
-                          setSelectedDebateMessage(msg);
                           setShowDebatePanel(true);
                         }}
+                        aria-label="Visa konsensus-debatt för detta svar"
                         className={`ml-2 px-2 py-0.5 rounded text-[9px] border transition-all ${
                           whiteMode 
                             ? 'border-[#ddd] hover:border-[#999] hover:bg-[#f5f5f5]' 
@@ -1023,14 +1025,22 @@ export default function SevenBZeroPage() {
 
       {/* ===== DEBATE PANEL (Modal) ===== */}
       {showDebatePanel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowDebatePanel(false)}>
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" 
+          onClick={() => setShowDebatePanel(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="debate-panel-title"
+        >
           <div 
             className={`rounded-xl p-6 max-w-md w-full mx-4 ${
               whiteMode ? 'bg-white shadow-xl' : 'bg-[#0a0a0a] border border-[#1a1a1a]'
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className={`text-[14px] font-medium tracking-wide uppercase mb-4 ${
+            <h3 
+              id="debate-panel-title"
+              className={`text-[14px] font-medium tracking-wide uppercase mb-4 ${
               whiteMode ? 'text-[#333]' : 'text-white'
             }`}>
               Konsensus-debatt
@@ -1038,6 +1048,13 @@ export default function SevenBZeroPage() {
             <p className={`text-[12px] mb-4 ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
               Så här nådde vi {metrics.consensus}% konsensus:
             </p>
+            
+            {/* Coming soon notice */}
+            <div className={`text-[10px] uppercase tracking-wide mb-3 px-2 py-1 rounded inline-block ${
+              whiteMode ? 'bg-amber-100 text-amber-700' : 'bg-amber-900/30 text-amber-400'
+            }`}>
+              🔜 Kommer snart - mockdata visas
+            </div>
             
             <div className="space-y-3">
               {[
@@ -1063,6 +1080,7 @@ export default function SevenBZeroPage() {
             
             <button 
               onClick={() => setShowDebatePanel(false)}
+              aria-label="Stäng konsensus-debatt"
               className={`w-full mt-4 py-2 rounded-lg text-[12px] transition-colors ${
                 whiteMode 
                   ? 'bg-[#333] text-white hover:bg-[#222]' 
@@ -1085,11 +1103,15 @@ export default function SevenBZeroPage() {
           <div className="max-w-2xl mx-auto">
             
             {/* Character/Persona Selection */}
-            <div className="flex justify-center gap-8 mb-6">
-              {availablePersonas.map((persona) => (
+            <div className="flex justify-center gap-8 mb-6" role="radiogroup" aria-label="Välj AI-persona">
+              {AVAILABLE_PERSONAS.map((persona) => (
                 <button
                   key={persona.id}
                   onClick={() => setSelectedPersona(persona.id)}
+                  aria-label={`Välj ${persona.name} persona`}
+                  aria-pressed={selectedPersona === persona.id}
+                  role="radio"
+                  aria-checked={selectedPersona === persona.id}
                   className={`text-[11px] tracking-[0.12em] transition-all duration-300 ${
                     selectedPersona === persona.id 
                       ? (whiteMode ? 'text-[#333]' : 'text-white')
@@ -1103,12 +1125,15 @@ export default function SevenBZeroPage() {
 
             {/* Input Field */}
             <form onSubmit={handleSubmit} className="relative">
+              <label htmlFor="chat-input" className="sr-only">Ställ en fråga</label>
               <input
+                id="chat-input"
                 type="text"
                 value={messageInput}
                 onChange={(e) => setMessageInput(e.target.value)}
                 placeholder={`Ställ en fråga till ${characterData?.name || 'OneSeek'}...`}
                 disabled={isTyping}
+                aria-label={`Ställ en fråga till ${characterData?.name || 'OneSeek'}`}
                 className={`w-full rounded-xl px-6 py-5 text-[16px] placeholder-opacity-60 focus:outline-none transition-all duration-300 font-light tracking-wide disabled:opacity-50 ${
                   whiteMode 
                     ? 'bg-white border border-[#e0e0e0] focus:border-[#999] focus:shadow-[0_0_0_3px_rgba(0,0,0,0.05)] text-[#333] placeholder-[#999]' 
@@ -1120,6 +1145,7 @@ export default function SevenBZeroPage() {
               <button 
                 type="submit"
                 disabled={isTyping || !messageInput.trim()}
+                aria-label="Skicka fråga"
                 className={`absolute right-3 top-1/2 -translate-y-1/2 transition-all duration-300 ${
                   messageInput && !isTyping
                     ? 'opacity-100 scale-100' 

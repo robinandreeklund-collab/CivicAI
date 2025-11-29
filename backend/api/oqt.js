@@ -694,7 +694,7 @@ router.get('/metrics', rateLimiter, (req, res) => {
 /**
  * GET /api/oqt/queries
  * Get query history from Firebase
- * Query params: limit (default 50)
+ * Query params: limit (default 50, max 100)
  */
 router.get('/queries', rateLimiter, async (req, res) => {
   try {
