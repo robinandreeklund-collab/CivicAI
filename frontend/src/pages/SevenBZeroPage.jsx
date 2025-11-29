@@ -1101,10 +1101,10 @@ export default function SevenBZeroPage() {
                 onChange={(e) => setMessageInput(e.target.value)}
                 placeholder={`Ställ en fråga till ${characterData?.name || 'OneSeek'}...`}
                 disabled={isTyping}
-                className={`w-full bg-transparent border-b py-4 text-[16px] placeholder-opacity-50 focus:outline-none transition-colors font-light tracking-wide disabled:opacity-50 ${
+                className={`w-full rounded-xl px-6 py-5 text-[16px] placeholder-opacity-60 focus:outline-none transition-all duration-300 font-light tracking-wide disabled:opacity-50 ${
                   whiteMode 
-                    ? 'border-[#ddd] focus:border-[#aaa] text-[#333] placeholder-[#ccc]' 
-                    : 'border-[#1a1a1a] focus:border-[#333] text-white placeholder-[#333]'
+                    ? 'bg-white border border-[#e0e0e0] focus:border-[#999] focus:shadow-[0_0_0_3px_rgba(0,0,0,0.05)] text-[#333] placeholder-[#999]' 
+                    : 'bg-[#151515] border border-[#2a2a2a] focus:border-[#444] focus:shadow-[0_0_0_3px_rgba(255,255,255,0.05)] text-white placeholder-[#555]'
                 }`}
               />
               
@@ -1112,18 +1112,18 @@ export default function SevenBZeroPage() {
               <button 
                 type="submit"
                 disabled={isTyping || !messageInput.trim()}
-                className={`absolute right-0 bottom-4 transition-all duration-400 ${
+                className={`absolute right-3 top-1/2 -translate-y-1/2 transition-all duration-300 ${
                   messageInput && !isTyping
                     ? 'opacity-100 scale-100' 
                     : 'opacity-0 scale-90 pointer-events-none'
                 }`}
               >
-                <div className={`w-8 h-8 rounded-full border flex items-center justify-center transition-all ${
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
                   whiteMode 
-                    ? 'border-[#ccc] hover:border-[#888] hover:bg-black/5' 
-                    : 'border-[#333] hover:border-[#555] hover:bg-white/5'
+                    ? 'bg-[#333] hover:bg-[#222] text-white' 
+                    : 'bg-white hover:bg-[#e7e7e7] text-[#0a0a0a]'
                 }`}>
-                  <span className={`text-[10px] ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>→</span>
+                  <span className="text-[14px] font-medium">→</span>
                 </div>
               </button>
             </form>
