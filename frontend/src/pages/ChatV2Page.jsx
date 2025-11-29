@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import ConsensusDebateCard from '../components/ConsensusDebateCard';
 import NLPProcessingLoader from '../components/NLPProcessingLoader';
@@ -114,7 +114,7 @@ export default function ChatV2Page() {
    * This processes the question through the backend ML pipeline directly
    * and updates Firebase with the results
    */
-  const processQuestionDirectly = async (userQuestion, docId) => {
+  const processQuestionDirectly = useCallback(async (userQuestion, docId) => {
     console.log('[ChatV2] 🔄 Attempting direct API processing as fallback...');
     setUsingDirectApi(true);
     
@@ -155,11 +155,11 @@ export default function ChatV2Page() {
           })),
           modelSynthesis: queryData.modelSynthesis || null,
           factCheckComparison: queryData.factCheckComparison || null,
-          changeDetection: queryData.change_detection || null,
+          changeDetection: queryData.changeDetection || queryData.change_detection || null,
           bertSummary: queryData.synthesizedSummary || null,
           bertMetadata: queryData.synthesizedSummaryMetadata || null,
           metaReview: queryData.metaReview || null,
-          pipelineData: queryData.responses[0]?.pipelineAnalysis || {},
+          pipelineData: queryData.responses?.[0]?.pipelineAnalysis || {},
           timestamp: new Date()
         };
         
@@ -188,7 +188,7 @@ export default function ChatV2Page() {
       setUsingDirectApi(false);
       throw error;
     }
-  };
+  }, [setUsingDirectApi, setSelectedModel, setMessages, setIsLoading, setViewMode]);
 
   // Handle initial question from LandingPage navigation
   useEffect(() => {
@@ -262,6 +262,28 @@ export default function ChatV2Page() {
   }, [location.state?.initialQuestion, user?.userId]); // Only re-run if the actual question changes or user changes
 
   /**
+   * Helper function to determine if we should trigger fallback processing
+   * @param {Object|null} firestoreData - Current Firestore data
+   * @returns {boolean} True if fallback should be triggered
+   */
+  const shouldTriggerFallback = (data) => {
+    // No data at all - definitely trigger fallback
+    if (!data) return true;
+    
+    // Status is still 'received' - Firebase Functions haven't started processing
+    if (data.status === 'received') return true;
+    
+    // Status is 'processing' but no raw responses yet - still waiting for data
+    if (data.status === 'processing' && 
+        (!data.raw_responses || data.raw_responses.length === 0)) {
+      return true;
+    }
+    
+    // Status is 'completed' or 'ledger_verified' or has data - don't trigger fallback
+    return false;
+  };
+
+  /**
    * Timeout-based fallback: If Firebase Functions don't process the question
    * within FIREBASE_PROCESSING_TIMEOUT, call the backend API directly
    */
@@ -270,7 +292,6 @@ export default function ChatV2Page() {
     // 1. We have a firebaseDocId (question was stored)
     // 2. We are loading (waiting for response)
     // 3. We haven't already attempted direct API for this question
-    // 4. Firestore data exists and status is still 'received' or 'processing' without data
     if (!firebaseDocId || !isLoading || hasAttemptedDirectApi.current === firebaseDocId) {
       return;
     }
@@ -284,12 +305,9 @@ export default function ChatV2Page() {
     const timeoutId = setTimeout(async () => {
       // Check if we're still waiting (no completed data yet)
       // The Firestore hook might have updated firestoreData by now
-      const hasNoData = !firestoreData || 
-                        firestoreData.status === 'received' || 
-                        (firestoreData.status === 'processing' && 
-                         (!firestoreData.raw_responses || firestoreData.raw_responses.length === 0));
+      const needsFallback = shouldTriggerFallback(firestoreData);
       
-      if (hasNoData && isLoading && hasAttemptedDirectApi.current !== firebaseDocId) {
+      if (needsFallback && isLoading && hasAttemptedDirectApi.current !== firebaseDocId) {
         console.log('[ChatV2] ⚠️ Firebase Functions timeout - falling back to direct API');
         hasAttemptedDirectApi.current = firebaseDocId;
         
@@ -313,9 +331,7 @@ export default function ChatV2Page() {
       console.log('[ChatV2] ⏱️ Clearing Firebase processing timeout');
       clearTimeout(timeoutId);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firebaseDocId, isLoading, messages, firestoreData]);
-  // Note: processQuestionDirectly is intentionally not in deps as it's a stable reference
+  }, [firebaseDocId, isLoading, messages, firestoreData, processQuestionDirectly]);
 
   // Effect to handle Firestore data updates
   useEffect(() => {
