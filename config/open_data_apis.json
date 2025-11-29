@@ -116,6 +116,78 @@
       "enabled": true,
       "triggers": ["fastighet", "lantmäteriet", "karta", "koordinat", "geodata", "tomt", "markägare"],
       "fallback_message": "Kunde inte hämta fastighetsdata. Försök igen senare."
+    },
+    {
+      "id": "folkhalsomyndigheten",
+      "name": "Folkhälsomyndigheten",
+      "description": "Hälsodata, epidemi, smittspridning, folkhälsa",
+      "base_url": "https://api.folkhalsomyndigheten.se",
+      "enabled": true,
+      "triggers": ["folkhälsa", "epidemi", "smitta", "smittspridning", "influensa", "covid", "pandemi", "folkhälsomyndigheten"],
+      "fallback_message": "Kunde inte hämta folkhälsodata. Försök igen senare."
+    },
+    {
+      "id": "trafikverket_vag",
+      "name": "Trafikverket Väg & Järnväg",
+      "description": "Vägarbeten, järnvägsdata, infrastruktur",
+      "base_url": "https://api.trafikinfo.trafikverket.se/v2",
+      "enabled": true,
+      "triggers": ["vägarbete", "järnväg", "tågförseningar", "broar", "tunnlar", "infrastruktur", "vägverket"],
+      "fallback_message": "Kunde inte hämta väg/järnvägsdata. Försök igen senare."
+    },
+    {
+      "id": "energimarknadsinspektionen",
+      "name": "Energimarknadsinspektionen",
+      "description": "Elmarknad, nätpriser, energireglering",
+      "base_url": "https://api.ei.se",
+      "enabled": true,
+      "triggers": ["nätavgift", "elnät", "elmarknad", "energimarknad", "nätpris", "ei", "energimarknadsinspektionen"],
+      "fallback_message": "Kunde inte hämta elmarknadsdata. Försök igen senare."
+    },
+    {
+      "id": "vinnova",
+      "name": "Vinnova",
+      "description": "Innovation, forskning, bidrag, projekt",
+      "base_url": "https://api.vinnova.se",
+      "enabled": true,
+      "triggers": ["innovation", "vinnova", "forskningsbidrag", "innovationsprojekt", "startup", "teknikutveckling"],
+      "fallback_message": "Kunde inte hämta innovationsdata. Försök igen senare."
+    },
+    {
+      "id": "formas",
+      "name": "Formas",
+      "description": "Forskning, hållbarhet, miljöforskning",
+      "base_url": "https://api.formas.se",
+      "enabled": true,
+      "triggers": ["formas", "hållbarhetsforskning", "miljöforskning", "klimatforskning", "forskningsanslag"],
+      "fallback_message": "Kunde inte hämta forskningsdata från Formas. Försök igen senare."
+    },
+    {
+      "id": "vetenskapsradet",
+      "name": "Vetenskapsrådet",
+      "description": "Forskning, vetenskapliga projekt, akademi",
+      "base_url": "https://api.vr.se",
+      "enabled": true,
+      "triggers": ["vetenskapsrådet", "forskning", "vetenskap", "akademisk forskning", "forskningsprojekt", "vr"],
+      "fallback_message": "Kunde inte hämta forskningsdata från Vetenskapsrådet. Försök igen senare."
+    },
+    {
+      "id": "forsakringskassan",
+      "name": "Försäkringskassan",
+      "description": "Socialförsäkring, sjukpenning, föräldrapenning, bidrag",
+      "base_url": "https://api.forsakringskassan.se",
+      "enabled": true,
+      "triggers": ["försäkringskassan", "sjukpenning", "föräldrapenning", "barnbidrag", "bostadsbidrag", "socialförsäkring", "a-kassa"],
+      "fallback_message": "Kunde inte hämta socialförsäkringsdata. Försök igen senare."
+    },
+    {
+      "id": "migrationsverket",
+      "name": "Migrationsverket",
+      "description": "Migration, asyl, uppehållstillstånd, visum",
+      "base_url": "https://api.migrationsverket.se",
+      "enabled": true,
+      "triggers": ["migration", "asyl", "uppehållstillstånd", "visum", "medborgarskap", "migrationsverket", "invandring"],
+      "fallback_message": "Kunde inte hämta migrationsdata. Försök igen senare."
     }
   ]
 }

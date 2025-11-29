@@ -40,7 +40,7 @@
 | Årstid | Aktuell årstid | Systemklocka | ❌ Nej |
 | Väder | Svensk väderprognos | SMHI | ❌ Nej |
 | Nyheter | Senaste nyheterna | RSS-feeds | ❌ Nej |
-| Öppna Data | 13 svenska myndighets-APIs | Diverse | ❌ Nej |
+| Öppna Data | 21 svenska myndighets-APIs | Diverse | ❌ Nej |
 
 ---
 
@@ -505,7 +505,7 @@ feedparser>=6.0.0
 
 ### 7. Svenska Öppna Data APIs
 
-**Syfte**: Tillgång till 13 svenska myndighets-APIs utan API-nycklar.
+**Syfte**: Tillgång till 21 svenska myndighets-APIs utan API-nycklar.
 
 #### Tillgängliga APIs
 
@@ -524,6 +524,14 @@ feedparser>=6.0.0
 | `energimyndigheten` | Energimyndigheten | Energistatistik, elpriser | elpris, energi, vad kostar elen, se3 |
 | `socialstyrelsen` | Socialstyrelsen | Hälsostatistik, vårdköer | vård, vårdkö, sjukvård, vaccination |
 | `lantmateriet` | Lantmäteriet | Geodata, fastigheter, kartor | fastighet, karta, tomt, geodata |
+| `folkhalsomyndigheten` | Folkhälsomyndigheten | Hälsodata, epidemi, smittspridning | folkhälsa, epidemi, smitta, covid |
+| `trafikverket_vag` | Trafikverket Väg & Järnväg | Vägarbeten, järnvägsdata | vägarbete, järnväg, tågförseningar |
+| `energimarknadsinspektionen` | Energimarknadsinspektionen | Elmarknad, nätpriser | nätavgift, elnät, elmarknad |
+| `vinnova` | Vinnova | Innovation, forskning, bidrag | innovation, vinnova, startup |
+| `formas` | Formas | Forskning, hållbarhet | formas, hållbarhetsforskning |
+| `vetenskapsradet` | Vetenskapsrådet | Forskning, vetenskapliga projekt | vetenskapsrådet, forskning, vetenskap |
+| `forsakringskassan` | Försäkringskassan | Socialförsäkring, bidrag | sjukpenning, föräldrapenning, barnbidrag |
+| `migrationsverket` | Migrationsverket | Migration, asyl, visum | migration, asyl, uppehållstillstånd |
 
 #### Dataflöde
 
