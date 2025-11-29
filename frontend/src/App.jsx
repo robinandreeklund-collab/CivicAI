@@ -43,6 +43,7 @@ import OQIDemo10v8 from './pages/OQIDemo10v8';
 import OQIDemo10v9 from './pages/OQIDemo10v9';
 import OQIDemo10v10 from './pages/OQIDemo10v10';
 import OQIDemosIndex from './pages/OQIDemosIndex';
+import SevenBZeroPage from './pages/SevenBZeroPage';
 
 /**
  * Main OneSeek.AI Application
@@ -177,6 +178,7 @@ function AppContent() {
           <Route path="/oqi-demo-10-v9" element={<OQIDemo10v9 />} />
           <Route path="/oqi-demo-10-v10" element={<OQIDemo10v10 />} />
           <Route path="/oqi-demos" element={<OQIDemosIndex />} />
+          <Route path="/7B-Zero" element={<SevenBZeroPage />} />
         </Routes>
       </div>
     </div>
