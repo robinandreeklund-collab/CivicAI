@@ -535,7 +535,7 @@ feedparser>=6.0.0
 | `arbetsformedlingen` | Arbetsförmedlingen | Arbetsmarknad, lediga jobb | lediga jobb, arbetslöshet, arbetsmarknad |
 | `uhr` | UHR | Antagningsstatistik, universitet | antagning, universitet, högskola |
 | `csn` | CSN | Studiemedel, bidrag, lån | studiemedel, csn, studiebidrag |
-| `skolverket` | Skolverket (Susa-navet) | Utbildningsstatistik, skolor | skola, skolverket, läroplan, betyg |
+| `skolverket` | Skolverket (Susa-navet & Skolenhetsregistret) | Utbildningsstatistik, skolor, skolenheter per kommun | skola, skolverket, läroplan, betyg, hur många skolor, skolor i |
 
 #### Dataflöde
 

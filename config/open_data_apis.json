@@ -218,11 +218,11 @@
     },
     {
       "id": "skolverket",
-      "name": "Skolverket (Susa-navet)",
-      "description": "Utbildningsstatistik, skolor, läroplan, betyg",
+      "name": "Skolverket (Susa-navet & Skolenhetsregistret)",
+      "description": "Utbildningsstatistik, skolor, läroplan, betyg, skolenheter per kommun",
       "base_url": "https://api.skolverket.se",
       "enabled": true,
-      "triggers": ["skola", "skolverket", "utbildning", "läroplan", "betyg", "gymnasie", "grundskola", "förskola", "susa-navet"],
+      "triggers": ["skola", "skolverket", "utbildning", "läroplan", "betyg", "gymnasie", "grundskola", "förskola", "susa-navet", "hur många skolor", "antal skolor", "skolenheter", "skolor i"],
       "fallback_message": "Kunde inte hämta skoldata. Försök igen senare."
     }
   ]
