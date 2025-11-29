@@ -161,7 +161,6 @@ export default function SevenBZeroPage() {
   const [microtrainingQueue, setMicrotrainingQueue] = useState(0);
   const [microtrainingActive, setMicrotrainingActive] = useState(false);
   const [showDebatePanel, setShowDebatePanel] = useState(false);
-  const [selectedDebateMessage, setSelectedDebateMessage] = useState(null);
   
   // Refs
   const containerRef = useRef(null);
