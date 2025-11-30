@@ -5037,11 +5037,51 @@ async def oneseek_inference(request: InferenceRequest):
             tavily_sources = format_tavily_sources(search_result)
             logger.info("✓ Tavily-svar mottaget")
     
+    # === 6. ONESEEK Δ+: Get conversation memory/context ===
+    memory_context = None
+    topic_hash = None
+    intent_data = None
+    previous_messages = []
+    if MEMORY_MANAGER_AVAILABLE and INTENT_ENGINE_AVAILABLE:
+        try:
+            # Detect intent and entity from user's question
+            intent_data = detect_intent_and_city(request.text) if detect_intent_and_city else None
+            
+            if intent_data:
+                intent_name = intent_data.get("intent", "general")
+                entity = intent_data.get("entity", "")
+                
+                # Generate topic hash for this conversation
+                topic_hash = generate_topic_hash(intent_name, entity) if generate_topic_hash else None
+                
+                if topic_hash and get_topic_context:
+                    # Get previous messages in this topic (6-10 messages for context)
+                    previous_messages = get_topic_context(topic_hash, limit=8)
+                    
+                    if previous_messages:
+                        # Format previous conversation as context
+                        memory_parts = []
+                        for msg in previous_messages[-8:]:  # Last 8 messages
+                            role = "Användare" if msg.get("role") == "user" else "OneSeek"
+                            content = msg.get("content", "")[:200]  # Truncate long messages
+                            memory_parts.append(f"{role}: {content}")
+                        
+                        if memory_parts:
+                            memory_context = "\n".join(memory_parts)
+                            logger.info(f"🧠 [MEMORY] Hämtade {len(previous_messages)} tidigare meddelanden för topic {topic_hash[:8]}...")
+        except Exception as e:
+            logger.debug(f"Memory context retrieval failed: {e}")
+    
     # Format input with system prompt - ensures model always knows its identity
     full_input = format_inference_input(request.text)
     
     # Build enhanced context prefix
     context_parts = []
+    
+    # ONESEEK Δ+: Add memory system prompt if we have conversation history
+    if memory_context:
+        context_parts.append("Du är mitt i ett samtal. Kom ihåg vad ni pratade om senast. Svara naturligt och kort.")
+        context_parts.append(f"[Tidigare i samtalet]\n{memory_context}")
     
     # Always add time and season context
     context_parts.append(f"[Aktuell tid] {time_context} {season_context}")
@@ -5074,6 +5114,24 @@ async def oneseek_inference(request: InferenceRequest):
         context_prefix = "\n".join(context_parts) + "\n\n"
         full_input = context_prefix + full_input
     
+    # === ONESEEK Δ+ DEBUG: Log detailed inference info to terminal ===
+    memory_count = len(previous_messages) if previous_messages else 0
+    log_inference_debug(
+        text=request.text,
+        intent_data=intent_data,
+        topic_hash=topic_hash,
+        memory_count=memory_count,
+        typo_corrected=False,  # Will be set when typo checker is integrated
+        confidence_score=None,  # Will be calculated post-inference
+        cache_hit=False,  # Will be set when cache is checked
+        delta_hash=None,  # Will be set post-inference
+        tavily_used=tavily_context is not None,
+        weather_city=weather_city if weather_context else None,
+        news_used=news_context is not None,
+        open_data_api=triggered_api.get("name") if triggered_api else None,
+        force_svenska=force_svenska_active
+    )
+    
     # === DEBUG: Log inference start ===
     logger.debug("=" * 60)
     logger.debug("=== ONESEEK INFERENCE START ===")
@@ -5100,6 +5158,30 @@ async def oneseek_inference(request: InferenceRequest):
                 temperature=request.temperature,
                 top_p=request.top_p
             )
+            
+            # === ONESEEK Δ+: Save to memory for dual-model mode ===
+            if MEMORY_MANAGER_AVAILABLE and topic_hash and save_message_with_memory:
+                try:
+                    intent_name = intent_data.get("intent", "general") if intent_data else "general"
+                    entity = intent_data.get("entity", "") if intent_data else ""
+                    save_message_with_memory(
+                        user_id="anonymous",
+                        question=request.text,
+                        answer=result['response'],
+                        topic_hash=topic_hash,
+                        intent=intent_name,
+                        entity=entity
+                    )
+                    logger.debug(f"🧠 [MEMORY] Sparade svar till topic {topic_hash[:8]}...")
+                except Exception as e:
+                    logger.debug(f"Failed to save to memory: {e}")
+            
+            # === ONESEEK Δ+ DEBUG: Log completion summary ===
+            if topic_hash:
+                print(f"\n  ✅ INFERENCE COMPLETE ({result['latency_ms']:.0f}ms)")
+                print(f"  💾 Saved to Memory: topic {topic_hash[:16]}...")
+                print(f"  📝 Response length: {len(result['response'])} chars")
+                print("-" * 60 + "\n")
             
             return InferenceResponse(
                 response=result['response'],
@@ -5208,11 +5290,35 @@ async def oneseek_inference(request: InferenceRequest):
             
             latency_ms = (time.time() - start_time) * 1000
             
+            # === ONESEEK Δ+: Save to memory ===
+            if MEMORY_MANAGER_AVAILABLE and topic_hash and save_message_with_memory:
+                try:
+                    intent_name = intent_data.get("intent", "general") if intent_data else "general"
+                    entity = intent_data.get("entity", "") if intent_data else ""
+                    save_message_with_memory(
+                        user_id="anonymous",
+                        question=request.text,
+                        answer=response_text,
+                        topic_hash=topic_hash,
+                        intent=intent_name,
+                        entity=entity
+                    )
+                    logger.debug(f"🧠 [MEMORY] Sparade svar till topic {topic_hash[:8]}...")
+                except Exception as e:
+                    logger.debug(f"Failed to save to memory: {e}")
+            
             # === DEBUG: Log response summary ===
             logger.debug(f"→ Response length: {len(response_text)} chars")
             logger.debug(f"→ Response preview: {response_text[:100]}..." if len(response_text) > 100 else f"→ Response: {response_text}")
             logger.info(f"=== ONESEEK INFERENCE COMPLETE ({latency_ms:.0f}ms) ===")
             logger.info("=" * 60)
+            
+            # === ONESEEK Δ+ DEBUG: Log completion summary ===
+            if topic_hash:
+                print(f"\n  ✅ INFERENCE COMPLETE ({latency_ms:.0f}ms)")
+                print(f"  💾 Saved to Memory: topic {topic_hash[:16]}...")
+                print(f"  📝 Response length: {len(response_text)} chars")
+                print("-" * 60 + "\n")
             
             return InferenceResponse(
                 response=response_text,
