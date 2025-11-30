@@ -672,16 +672,111 @@ Redigera `ml_service/source_weights.json`:
 }
 ```
 
-## Väder-cache Cron
+## Väder-cache – Automatisk Uppdatering
 
-Sätt upp cron för 15-minutersuppdatering:
+### 🖥️ Windows 11 – Task Scheduler
+
+Windows använder **Task Scheduler** istället för crontab. Så här sätter du upp 15-minutersuppdatering:
+
+#### Alternativ 1: PowerShell-kommando (enklast)
+
+```powershell
+# Skapa schemalagd uppgift som kör var 15:e minut
+$action = New-ScheduledTaskAction -Execute 'C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\python.exe' -Argument 'C:\Users\robin\Documents\GitHub\CivicAI\cache\weather_cache.py'
+$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 15) -RepetitionDuration (New-TimeSpan -Days 365)
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+Register-ScheduledTask -TaskName "CivicAI_WeatherCache" -Action $action -Trigger $trigger -Settings $settings -Description "ONESEEK Δ+ Weather Cache Update"
+```
+
+#### Alternativ 2: Task Scheduler GUI
+
+1. **Öppna Task Scheduler:**
+   - Tryck `Win + R`
+   - Skriv `taskschd.msc`
+   - Tryck Enter
+
+2. **Skapa ny uppgift:**
+   - Högerklicka på "Task Scheduler Library"
+   - Välj "Create Task..."
+
+3. **General-fliken:**
+   - Namn: `CivicAI_WeatherCache`
+   - Beskrivning: `ONESEEK Δ+ Weather Cache Update var 15:e minut`
+   - Välj "Run whether user is logged on or not"
+   - Kryssa i "Run with highest privileges"
+
+4. **Triggers-fliken:**
+   - Klicka "New..."
+   - Begin the task: "On a schedule"
+   - Settings: "One time"
+   - Start: välj aktuell tid
+   - Kryssa i "Repeat task every:" och välj `15 minutes`
+   - For a duration of: "Indefinitely"
+   - Klicka "OK"
+
+5. **Actions-fliken:**
+   - Klicka "New..."
+   - Action: "Start a program"
+   - Program/script: 
+     ```
+     C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\python.exe
+     ```
+   - Add arguments:
+     ```
+     C:\Users\robin\Documents\GitHub\CivicAI\cache\weather_cache.py
+     ```
+   - Start in:
+     ```
+     C:\Users\robin\Documents\GitHub\CivicAI
+     ```
+   - Klicka "OK"
+
+6. **Conditions-fliken:**
+   - Avmarkera "Start only if computer is on AC power"
+
+7. **Settings-fliken:**
+   - Kryssa i "Allow task to be run on demand"
+   - Kryssa i "If the running task does not end when requested, force it to stop"
+   - Klicka "OK"
+
+#### Verifiera att det fungerar
+
+```powershell
+# Kör manuellt för att testa
+& "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\python.exe" "C:\Users\robin\Documents\GitHub\CivicAI\cache\weather_cache.py"
+
+# Kontrollera Task Scheduler status
+Get-ScheduledTask -TaskName "CivicAI_WeatherCache" | Get-ScheduledTaskInfo
+
+# Kör uppgiften manuellt
+Start-ScheduledTask -TaskName "CivicAI_WeatherCache"
+
+# Ta bort uppgiften (om du vill)
+Unregister-ScheduledTask -TaskName "CivicAI_WeatherCache" -Confirm:$false
+```
+
+### 🐧 Linux/macOS – Crontab
 
 ```bash
 # Redigera crontab
 crontab -e
 
-# Lägg till:
-*/15 * * * * python /path/to/CivicAI/cache/weather_cache.py
+# Lägg till (byt ut /path/to till din faktiska sökväg):
+*/15 * * * * /home/user/CivicAI/venv/bin/python /home/user/CivicAI/cache/weather_cache.py >> /home/user/CivicAI/logs/weather_cache.log 2>&1
+
+# macOS-specifik (om python3):
+*/15 * * * * /usr/local/bin/python3 /Users/user/CivicAI/cache/weather_cache.py >> /Users/user/CivicAI/logs/weather_cache.log 2>&1
+```
+
+#### Verifiera crontab
+
+```bash
+# Lista aktiva cron-jobb
+crontab -l
+
+# Kontrollera cron-logg
+tail -f /var/log/cron  # Linux
+tail -f /var/log/system.log | grep CRON  # macOS
 ```
 
 ## Flöde – från stavfel till perfekt svar
@@ -722,6 +817,382 @@ crontab -e
 - **Frontend**: React 18 + Vite
 - **Cache**: Hash-baserad med 7-dagars TTL
 - **API:er**: 31 svenska realtids-API:er
+
+---
+
+## 🔥 Firebase-integration – Komplett Datakedja
+
+### Befintliga Collections (OQT)
+
+CivicAI använder redan dessa Firebase-collections som fungerar:
+
+| Collection | Beskrivning | Δ+ Integration |
+|------------|-------------|----------------|
+| `oqt_queries` | Alla användarfrågor + AI-svar | Utökas med `topic_hash`, `intent`, `entity` |
+| `oqt_training_events` | Träningshändelser | Kopplas till `gold_examples` |
+| `oqt_ledger` | Blockchain-ledger för transparens | Utökas med `response_hash` från Δ+ |
+| `oqt_provenance` | Källspårning | Kopplas till `source_weights` |
+| `oqt_metrics` | Prestandamätningar | Utökas med Δ+ module metrics |
+
+### Nya Collections (Δ+)
+
+| Collection | Beskrivning | Koppling |
+|------------|-------------|----------|
+| `delta_topics` | Topic-metadata | Refererar `oqt_queries` via `topic_hash` |
+| `delta_messages` | Topic-grupperade meddelanden | Kopior från `oqt_queries` med topic |
+| `delta_typo_pairs` | Stavfelspar | Träningsdata för typo-checker |
+| `delta_gold_examples` | Granskad träningsdata | Admin-godkänd från `oqt_queries` |
+| `delta_intent_rules` | Admin-styrda intent-regler | Backup av `intent_rules.json` |
+| `delta_source_weights` | Källviktning | Backup av `source_weights.json` |
+
+---
+
+### 📊 Dataflödesschema – Komplett Kedja
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                           ONESEEK Δ+ DATAFLÖDE                                      │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+                    ┌──────────────────┐
+                    │  ANVÄNDARE       │
+                    │  "Hur många bor  │
+                    │   i Hjo?"        │
+                    └────────┬─────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│  1️⃣ TYPO CHECKER (frontend/chat/typo_hybrid.js)                                    │
+│  ────────────────────────────────────────────────────────────────────────────────  │
+│  • Typo.js + SAOL kontrollerar stavning                                            │
+│  • Om stavfel: "Menar du invånare?" → sparas till delta_typo_pairs                │
+│                                                                                    │
+│  Firebase: delta_typo_pairs ← {original: "invåndare", corrected: "invånare"}      │
+└────────────────────────────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│  2️⃣ INTENT ENGINE (ml_service/intent_engine.py)                                    │
+│  ────────────────────────────────────────────────────────────────────────────────  │
+│  • Läser: intent_rules.json (backup i delta_intent_rules)                         │
+│  • Output: intent="befolkning", entity="Hjo", confidence=0.92                     │
+│                                                                                    │
+│  Firebase: delta_intent_rules ← intent_rules.json (admin-synkad)                  │
+└────────────────────────────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│  3️⃣ TOPIC HASH GENERATOR (ml_service/memory_manager.py)                            │
+│  ────────────────────────────────────────────────────────────────────────────────  │
+│  • Input: intent="befolkning", entity="Hjo"                                        │
+│  • Output: topic_hash = sha256("befolkning:hjo")[:16] = "a3f7d2e1"                │
+│                                                                                    │
+│  Firebase: delta_topics ← {topic_hash, intent, entity, label, message_count}      │
+└────────────────────────────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│  4️⃣ MEMORY CONTEXT (ml_service/memory_manager.py)                                  │
+│  ────────────────────────────────────────────────────────────────────────────────  │
+│  • Hämtar: senaste 8 meddelanden med samma topic_hash                             │
+│  • Kontext byggs för AI:n                                                          │
+│                                                                                    │
+│  Firebase READ: delta_messages.where(topic_hash == "a3f7d2e1").limit(8)           │
+└────────────────────────────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│  5️⃣ CACHE CHECK (ml_service/cache_manager.py)                                      │
+│  ────────────────────────────────────────────────────────────────────────────────  │
+│  • Semantic hash: sha256(intent + entity + normalized_query)                      │
+│  • Om cache HIT → returnera direkt (spar API-anrop)                               │
+│  • Om cache MISS → fortsätt till API                                              │
+│                                                                                    │
+│  Lokal: cache/response_cache.json (7-dagars TTL)                                  │
+└────────────────────────────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│  6️⃣ API ROUTING (ml_service/server.py)                                             │
+│  ────────────────────────────────────────────────────────────────────────────────  │
+│  • Intent Engine väljer API baserat på intent:                                     │
+│    - befolkning → SCB Population API                                               │
+│    - väder → SMHI/Weather Cache                                                    │
+│    - allmänt → Tavily Search (language="sv")                                      │
+│                                                                                    │
+│  Firebase: oqt_provenance ← {queryId, sources: ["SCB"], timestamp}                │
+└────────────────────────────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│  7️⃣ CONFIDENCE CALCULATOR (ml_service/calculate_confidence.py)                     │
+│  ────────────────────────────────────────────────────────────────────────────────  │
+│  • Läser: source_weights.json (backup i delta_source_weights)                     │
+│  • Beräknar: confidence = base_weight * freshness_decay * source_count_bonus      │
+│  • Output: confidence=0.94, sources=[{name: "SCB", weight: 0.98}]                 │
+│                                                                                    │
+│  Firebase: delta_source_weights ← source_weights.json (admin-synkad)              │
+└────────────────────────────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│  8️⃣ DELTA COMPARE (ml_service/delta_compare.py)                                    │
+│  ────────────────────────────────────────────────────────────────────────────────  │
+│  • Jämför med tidigare svar på samma topic                                         │
+│  • Om ändring: delta_info = {change: "+125 personer", percentage: "+1.3%"}        │
+│  • Genererar: response_hash = sha256(response + timestamp)                        │
+│                                                                                    │
+│  Firebase: oqt_ledger ← {blockNumber, response_hash, delta_info}                  │
+└────────────────────────────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│  9️⃣ SPARA RESULTAT (ml_service/server.py)                                          │
+│  ────────────────────────────────────────────────────────────────────────────────  │
+│                                                                                    │
+│  Firebase WRITES:                                                                  │
+│                                                                                    │
+│  📦 oqt_queries ← {                                                               │
+│       question: "Hur många bor i Hjo?",                                           │
+│       response: "Hjo kommun har 9 512 invånare...",                              │
+│       intent: "befolkning",                                                        │
+│       entity: "Hjo",                                                               │
+│       topic_hash: "a3f7d2e1",                          ← NYT FÄLT                 │
+│       confidence: 0.94,                                                            │
+│       sources: ["SCB"],                                                            │
+│       response_hash: "b4c5d6e7...",                    ← NYT FÄLT                 │
+│       delta_info: {change: "+125", prev_value: "9387"},← NYT FÄLT                 │
+│       createdAt: timestamp                                                         │
+│  }                                                                                 │
+│                                                                                    │
+│  📦 delta_messages ← {                                                            │
+│       topic_hash: "a3f7d2e1",                                                     │
+│       user_id_hash: "anon123",                                                    │
+│       question: "Hur många bor i Hjo?",                                           │
+│       answer: "Hjo kommun har 9 512 invånare...",                                │
+│       intent: "befolkning",                                                        │
+│       entity: "Hjo",                                                               │
+│       timestamp: timestamp                                                         │
+│  }                                                                                 │
+│                                                                                    │
+│  📦 delta_topics ← (UPSERT) {                                                     │
+│       topic_hash: "a3f7d2e1",                                                     │
+│       intent: "befolkning",                                                        │
+│       entity: "Hjo",                                                               │
+│       label: "Befolkning i Hjo",                                                  │
+│       message_count: INCREMENT(1),                                                 │
+│       updated_at: timestamp                                                        │
+│  }                                                                                 │
+│                                                                                    │
+│  📦 oqt_ledger ← {                                                                │
+│       blockNumber: NEXT_BLOCK,                                                     │
+│       event_type: "query_response",                                               │
+│       response_hash: "b4c5d6e7...",                                              │
+│       previous_hash: "a1b2c3d4...",                                              │
+│       data: {query_id: "...", confidence: 0.94},                                  │
+│       timestamp: timestamp                                                         │
+│  }                                                                                 │
+└────────────────────────────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│  🔟 RETURNERA TILL ANVÄNDARE                                                       │
+│  ────────────────────────────────────────────────────────────────────────────────  │
+│                                                                                    │
+│  {                                                                                 │
+│    "response": "Hjo kommun har 9 512 invånare (2024)...",                        │
+│    "confidence": 0.94,                                                             │
+│    "sources": ["SCB"],                                                             │
+│    "delta": "+125 personer sedan juni (+1.3%)",                                   │
+│    "response_hash": "b4c5d6e7f8a9b0c1...",                                       │
+│    "topic_hash": "a3f7d2e1"                                                       │
+│  }                                                                                 │
+└────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 📱 Admin-flöde (Gold Editor)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                           ADMIN GOLD EDITOR FLÖDE                                   │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│  oqt_queries     │     │  Admin Dashboard │     │delta_gold_examples│
+│  (alla frågor)   │────▶│  Gold Editor     │────▶│  (godkänd data)   │
+└──────────────────┘     └──────────────────┘     └──────────────────┘
+        │                         │                        │
+        │                         ▼                        │
+        │                 ┌──────────────────┐             │
+        │                 │  Admin granskar: │             │
+        │                 │  ✓ Bra exempel   │             │
+        │                 │  ✗ Skräp/engelska│             │
+        │                 │  ★ Godkänn       │             │
+        │                 └──────────────────┘             │
+        │                                                  │
+        ▼                                                  ▼
+┌──────────────────┐                             ┌──────────────────┐
+│oqt_training_events│◀────────────────────────────│  Träning startas │
+│ (event_type:     │                             │  med godkänd data│
+│  "gold_approved")│                             └──────────────────┘
+└──────────────────┘
+```
+
+---
+
+### 🔧 Firebase Collection Schema (Uppdaterad)
+
+#### `oqt_queries` (UTÖKAD)
+
+```javascript
+{
+  // Befintliga fält
+  question: string,
+  response: string,
+  model_version: string,
+  createdAt: timestamp,
+  updatedAt: timestamp,
+  
+  // NYA Δ+ FÄLT
+  topic_hash: string,      // 16-char hash för topic-gruppering
+  intent: string,          // Detekterad intent (befolkning, väder, etc.)
+  entity: string,          // Detekterad entitet (Hjo, Stockholm, etc.)
+  confidence: number,      // Förtroende v2 score (0-1)
+  response_hash: string,   // Blockchain-hash för verifiering
+  delta_info: {            // Δ-jämförelse info
+    change: string,        // "+125 personer"
+    prev_value: string,    // "9387"
+    percentage: string     // "+1.3%"
+  },
+  sources: array,          // ["SCB", "SMHI"]
+  typo_corrections: array  // [{original: "invåndare", corrected: "invånare"}]
+}
+```
+
+#### `delta_topics` (NY)
+
+```javascript
+{
+  topic_hash: string,      // Primärnyckel
+  intent: string,
+  entity: string,
+  label: string,           // "Befolkning i Hjo"
+  message_count: number,
+  created_at: timestamp,
+  updated_at: timestamp
+}
+```
+
+#### `delta_messages` (NY)
+
+```javascript
+{
+  topic_hash: string,      // Referens till delta_topics
+  user_id_hash: string,    // Anonymiserad användare
+  question: string,
+  answer: string,
+  intent: string,
+  entity: string,
+  confidence: number,
+  sources: array,
+  response_hash: string,
+  timestamp: timestamp
+}
+```
+
+#### `delta_typo_pairs` (NY)
+
+```javascript
+{
+  original: string,        // "invåndare"
+  corrected: string,       // "invånare"
+  context: string,         // Omgivande text
+  user_accepted: boolean,  // Användaren accepterade korrigeringen
+  status: string,          // "pending" | "approved" | "rejected"
+  approved_by: string,     // Admin user ID
+  approved_at: timestamp,
+  created_at: timestamp
+}
+```
+
+#### `delta_gold_examples` (NY)
+
+```javascript
+{
+  query_id: string,        // Referens till oqt_queries
+  question: string,
+  answer: string,
+  intent: string,
+  entity: string,
+  confidence: number,
+  sources: array,
+  status: string,          // "pending" | "approved" | "rejected"
+  approved_by: string,
+  approved_at: timestamp,
+  created_at: timestamp
+}
+```
+
+---
+
+### 🔄 Synkronisering med lokala filer
+
+ONESEEK Δ+ använder lokala JSON-filer som primär källa men synkroniserar med Firebase:
+
+| Lokal fil | Firebase Collection | Synk-riktning |
+|-----------|---------------------|---------------|
+| `intent_rules.json` | `delta_intent_rules` | Lokal → Firebase (vid ändring) |
+| `source_weights.json` | `delta_source_weights` | Lokal → Firebase (vid ändring) |
+| `datasets/typo_pairs_swedish.jsonl` | `delta_typo_pairs` | Båda riktningar |
+| `cache/weather.json` | - | Endast lokal (15-min cache) |
+| `memory/YYYY-MM.jsonl` | `delta_messages` | Lokal → Firebase (backup) |
+
+---
+
+### 📡 API för Firebase-operationer
+
+```bash
+# Synka intent_rules till Firebase
+POST /api/ml/firebase/sync-intents
+
+# Synka source_weights till Firebase
+POST /api/ml/firebase/sync-sources
+
+# Hämta topic-historik från Firebase
+GET /api/ml/firebase/topics?user_id_hash=abc123
+
+# Hämta meddelanden för topic
+GET /api/ml/firebase/messages?topic_hash=a3f7d2e1&limit=20
+
+# Migrera befintlig data till topic-struktur
+POST /api/ml/firebase/migrate-topics
+```
+
+---
+
+### 🧪 Testa Firebase-integration
+
+```bash
+# 1. Kontrollera att Firebase är konfigurerad
+curl http://localhost:5000/api/health
+
+# 2. Ställ en fråga och verifiera att data sparas
+curl -X POST http://localhost:5000/infer \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hur många bor i Hjo?"}'
+
+# 3. Kontrollera i Firebase Console:
+# - oqt_queries → ny post med topic_hash
+# - delta_topics → ny/uppdaterad topic
+# - delta_messages → nytt meddelande
+
+# 4. Hämta topic-historik
+curl "http://localhost:5000/api/ml/firebase/messages?topic_hash=<hash>"
+```
+
+---
 
 ## Support
 

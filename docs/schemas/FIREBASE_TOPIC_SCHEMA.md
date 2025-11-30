@@ -2,7 +2,63 @@
 
 ## Overview
 
-This document describes the Firebase Firestore schema for ONESEEK Δ+ topic-based conversation memory system.
+This document describes the Firebase Firestore schema for ONESEEK Δ+ topic-based conversation memory system and how it integrates with the existing OQT collections.
+
+## Integration med befintliga OQT Collections
+
+ONESEEK Δ+ utökar de befintliga OQT-collections utan att bryta bakåtkompatibilitet:
+
+| Befintlig Collection | Δ+ Tillägg | Beskrivning |
+|---------------------|------------|-------------|
+| `oqt_queries` | `topic_hash`, `intent`, `entity`, `response_hash`, `delta_info` | Nya fält för topic-gruppering och Δ-jämförelse |
+| `oqt_training_events` | `gold_approved` event type | Koppling till gold examples |
+| `oqt_ledger` | `response_hash` i block data | Blockchain-verifiering per svar |
+| `oqt_provenance` | Oförändrad | Källspårning funkar redan |
+| `oqt_metrics` | Δ+ module metrics | Prestandamätning för nya moduler |
+
+## Dataflöde
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Användare     │────▶│  Intent Engine  │────▶│  Topic Hash     │
+│   "Hur många    │     │  intent:befolkn │     │  sha256(...)    │
+│   bor i Hjo?"   │     │  entity: Hjo    │     │  → "a3f7d2e1"   │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+                                                        │
+        ┌───────────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Firebase Collections                                           │
+│  ─────────────────────────────────────────────────────────────  │
+│                                                                 │
+│  📦 oqt_queries ← {                                            │
+│       ...befintliga fält,                                       │
+│       topic_hash: "a3f7d2e1",        ← NYT                     │
+│       intent: "befolkning",           ← NYT                     │
+│       entity: "Hjo",                  ← NYT                     │
+│       response_hash: "b4c5d6e7...",   ← NYT                    │
+│       delta_info: {...}               ← NYT                     │
+│  }                                                              │
+│                                                                 │
+│  📦 delta_topics ← {                                           │
+│       topic_hash: "a3f7d2e1",                                  │
+│       label: "Befolkning i Hjo",                               │
+│       message_count: 5                                          │
+│  }                                                              │
+│                                                                 │
+│  📦 delta_messages ← {                                         │
+│       topic_hash: "a3f7d2e1",                                  │
+│       question: "...",                                          │
+│       answer: "..."                                             │
+│  }                                                              │
+│                                                                 │
+│  📦 oqt_ledger ← {                                             │
+│       blockNumber: 123,                                         │
+│       response_hash: "b4c5d6e7..."    ← KOPPLAT                │
+│  }                                                              │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ## Collections
 
