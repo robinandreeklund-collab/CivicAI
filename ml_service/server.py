@@ -163,6 +163,116 @@ except ImportError:
 # END ONESEEK Δ+ MODULE IMPORTS
 # =============================================================================
 
+
+def log_delta_plus_status():
+    """
+    ONESEEK Δ+ DEBUG: Log status of all Δ+ modules at startup.
+    Shows which modules are available and ready.
+    """
+    print("\n" + "=" * 70)
+    print("🔷 ONESEEK Δ+ MODULE STATUS")
+    print("=" * 70)
+    
+    modules = [
+        ("Intent Engine", INTENT_ENGINE_AVAILABLE, "Semantic intent + entity detection"),
+        ("Memory Manager", MEMORY_MANAGER_AVAILABLE, "Topic-grouped conversation history"),
+        ("Typo Checker", TYPO_CHECKER_AVAILABLE, "Double spell-check (Typo.js + Hunspell)"),
+        ("Stavfel Dataset", STAVFEL_DATASET_AVAILABLE, "Typo pairs for self-learning"),
+        ("Confidence Calculator", CONFIDENCE_CALC_AVAILABLE, "Förtroende v2 with source weights"),
+        ("Delta Compare", DELTA_COMPARE_AVAILABLE, "Semantic Δ-comparison + blockchain hash"),
+        ("Cache Manager", CACHE_MANAGER_AVAILABLE, "7-day TTL hash-based cache"),
+    ]
+    
+    for name, available, description in modules:
+        status = "✅ READY" if available else "❌ NOT LOADED"
+        print(f"  {status}  {name:<22} - {description}")
+    
+    print("-" * 70)
+    print("  📝 Tavily Swedish Mode: language='sv' (100% svenska svar)")
+    print("  🧠 Memory Context: 8 messages per topic")
+    print("  🔗 Blockchain Hash: SHA256 per response")
+    print("=" * 70 + "\n")
+
+
+def log_inference_debug(
+    text: str,
+    intent_data: dict = None,
+    topic_hash: str = None,
+    memory_count: int = 0,
+    typo_corrected: bool = False,
+    confidence_score: float = None,
+    cache_hit: bool = False,
+    delta_hash: str = None,
+    tavily_used: bool = False,
+    weather_city: str = None,
+    news_used: bool = False,
+    open_data_api: str = None,
+    force_svenska: bool = False
+):
+    """
+    ONESEEK Δ+ DEBUG: Log detailed inference debug info to terminal.
+    Shows exactly which Δ+ features are being used for each request.
+    """
+    print("\n" + "-" * 60)
+    print("🔷 ONESEEK Δ+ INFERENCE DEBUG")
+    print("-" * 60)
+    print(f"  📝 Input: {text[:80]}{'...' if len(text) > 80 else ''}")
+    print(f"  🇸🇪 Force-Svenska: {'✅ ACTIVE' if force_svenska else '❌ inactive'}")
+    
+    # Intent Engine
+    if intent_data:
+        intent_name = intent_data.get("intent", "general")
+        entity = intent_data.get("entity", "")
+        confidence = intent_data.get("confidence", 0)
+        print(f"  🎯 Intent Engine: ✅ {intent_name} (conf: {confidence:.2f})")
+        if entity:
+            print(f"     └─ Entity: {entity}")
+    else:
+        print(f"  🎯 Intent Engine: ❌ not used")
+    
+    # Topic Hash & Memory
+    if topic_hash:
+        print(f"  🏷️  Topic Hash: {topic_hash[:16]}...")
+        if memory_count > 0:
+            print(f"  🧠 Memory Context: ✅ {memory_count} previous messages loaded")
+        else:
+            print(f"  🧠 Memory Context: ❌ no previous messages")
+    else:
+        print(f"  🏷️  Topic Hash: ❌ not generated")
+    
+    # Typo Checker
+    if typo_corrected:
+        print(f"  ✏️  Typo Checker: ✅ corrections applied")
+    else:
+        print(f"  ✏️  Typo Checker: ❌ no corrections needed")
+    
+    # Confidence Score
+    if confidence_score is not None:
+        print(f"  📊 Confidence v2: ✅ score={confidence_score:.2f}")
+    else:
+        print(f"  📊 Confidence v2: ❌ not calculated")
+    
+    # Cache
+    if cache_hit:
+        print(f"  💾 Cache: ✅ HIT (using cached response)")
+    else:
+        print(f"  💾 Cache: ❌ MISS (fresh response)")
+    
+    # Delta Hash
+    if delta_hash:
+        print(f"  🔗 Blockchain Hash: ✅ {delta_hash[:16]}...")
+    else:
+        print(f"  🔗 Blockchain Hash: ❌ not generated")
+    
+    # External APIs
+    print(f"  🔍 Tavily Search: {'✅ used' if tavily_used else '❌ not triggered'}")
+    print(f"  🌤️  Weather (SMHI): {'✅ ' + weather_city if weather_city else '❌ not triggered'}")
+    print(f"  📰 News (RSS): {'✅ fetched' if news_used else '❌ not triggered'}")
+    print(f"  📊 Open Data API: {'✅ ' + open_data_api if open_data_api else '❌ not triggered'}")
+    
+    print("-" * 60 + "\n")
+
+
 # RSS feed parsing for news feature
 try:
     import feedparser
@@ -3903,6 +4013,9 @@ async def lifespan(app: FastAPI):
     logger.info(f"Active system prompt: {prompt_preview}")
     logger.info("")
     
+    # === ONESEEK Δ+ DEBUG: Log module status at startup ===
+    log_delta_plus_status()
+    
     yield
     
     # Shutdown (cleanup if needed)
@@ -4675,14 +4788,23 @@ async def infer(request: Request, inference_request: InferenceRequest):
         context_prefix = "\n".join(context_parts) + "\n\n"
         full_input = context_prefix + full_input
     
-    logger.debug("Injecting system prompt into inference request")
-    logger.debug(f"Force-Svenska: {'ACTIVE' if force_svenska_active else 'inactive'}")
-    logger.debug(f"Time context: {time_context[:50]}...")
-    logger.debug(f"Season: {season_context}")
-    logger.debug(f"Weather: {weather_city if weather_context else 'no'}")
-    logger.debug(f"News: {'YES' if news_context else 'no'}")
-    logger.debug(f"Tavily: {'YES' if tavily_context else 'no'}")
-    logger.debug(f"Memory: {'YES (' + topic_hash[:8] + ')' if memory_context else 'no'}")
+    # === ONESEEK Δ+ DEBUG: Log detailed inference info to terminal ===
+    memory_count = len(previous_messages) if 'previous_messages' in dir() and previous_messages else 0
+    log_inference_debug(
+        text=inference_request.text,
+        intent_data=intent_data,
+        topic_hash=topic_hash,
+        memory_count=memory_count,
+        typo_corrected=False,  # Will be set when typo checker is integrated
+        confidence_score=None,  # Will be calculated post-inference
+        cache_hit=False,  # Will be set when cache is checked
+        delta_hash=None,  # Will be set post-inference
+        tavily_used=tavily_context is not None,
+        weather_city=weather_city if weather_context else None,
+        news_used=news_context is not None,
+        open_data_api=triggered_api.get("name") if triggered_api else None,
+        force_svenska=force_svenska_active
+    )
     
     try:
         # Determine if we're using certified model or fallback
@@ -4776,6 +4898,25 @@ async def infer(request: Request, inference_request: InferenceRequest):
                     logger.debug(f"🧠 [MEMORY] Sparade svar till topic {topic_hash[:8]}...")
                 except Exception as e:
                     logger.debug(f"Memory save failed: {e}")
+            
+            # === ONESEEK Δ+: Create blockchain hash for response ===
+            response_hash = None
+            if DELTA_COMPARE_AVAILABLE and create_response_hash:
+                try:
+                    response_hash = create_response_hash(
+                        query=inference_request.text,
+                        response=response_text
+                    )
+                except Exception as e:
+                    logger.debug(f"Hash creation failed: {e}")
+            
+            # === ONESEEK Δ+ DEBUG: Log completion info ===
+            print(f"\n  ✅ INFERENCE COMPLETE ({latency_ms:.0f}ms)")
+            if response_hash:
+                print(f"  🔗 Response Hash: {response_hash[:32]}...")
+            if topic_hash:
+                print(f"  💾 Saved to Memory: topic {topic_hash[:16]}...")
+            print(f"  📝 Response length: {len(response_text)} chars\n")
             
             return InferenceResponse(
                 response=response_text,
