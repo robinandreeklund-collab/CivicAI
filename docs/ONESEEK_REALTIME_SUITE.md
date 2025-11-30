@@ -530,9 +530,11 @@ feedparser>=6.0.0
 
 **Dashboard Endpoint**: `GET/POST/PATCH /api/open-data`
 
-#### City-baserade triggers
+#### Platsbaserade triggers
 
-Flera API:er stöder stadsbaserade frågor. Kombinera trigger med städer från `config/swedish_cities.json`:
+OneSeek stöder tre typer av platsbaserade frågor:
+
+**1. Städer** (`config/swedish_cities.json`) - 150+ svenska städer med koordinater
 
 | API | Trigger-mönster | Exempel |
 |-----|-----------------|---------|
@@ -540,42 +542,76 @@ Flera API:er stöder stadsbaserade frågor. Kombinera trigger med städer från 
 | Skolverket | `skolor i + [stad]` | "hur många skolor i Uppsala" |
 | Arbetsförmedlingen | `lediga jobb i + [stad]` | "lediga jobb i Göteborg" |
 | SCB | `befolkning i + [stad]` | "befolkning i Luleå" |
-| Socialstyrelsen | `vårdkö i + [stad]` | "vårdköer i Stockholm" |
+| Naturvårdsverket | `luftkvalitet i + [stad]` | "luftkvalitet i Göteborg" |
+| Boverket | `energideklaration i + [stad]` | "energideklaration i Malmö" |
+| Lantmäteriet | `fastighet i + [stad]` | "fastighet i Uppsala" |
+
+**2. Regioner** (`config/swedish_regions.json`) - 21 svenska regioner
+
+| API | Trigger-mönster | Exempel |
+|-----|-----------------|---------|
+| SLU Riksskogstaxeringen | `skog i + [region]` | "skog i Norrbotten" |
+| Socialstyrelsen | `vårdkö i + [region]` | "vårdköer i Stockholm" |
+| Folkhälsomyndigheten | `hälsa i + [region]` | "covid i Skåne" |
+| CSN | `studiemedel i + [region]` | "studiemedel i Västra Götaland" |
+
+**Tillgängliga regioner:**
+```
+Blekinge, Dalarna, Gotland, Gävleborg, Halland, Jämtland Härjedalen,
+Jönköpings län, Kalmar län, Kronoberg, Norrbotten, Skåne, Stockholm,
+Sörmland, Uppsala, Värmland, Västerbotten, Västernorrland, Västmanland,
+Örebro län, Östergötland, Västra Götaland
+```
+
+**3. Elområden** (`config/swedish_elomraden.json`) - SE1-SE4
+
+| API | Trigger-mönster | Exempel |
+|-----|-----------------|---------|
+| Energimyndigheten | `elpris i + [elområde]` | "elpris i SE3", "vad kostar elen i SE4" |
+| Energimarknadsinspektionen | `nätavgift i + [elområde]` | "nätavgift SE1" |
+
+**Tillgängliga elområden:**
+```
+SE1 (Luleå) - Norra Sverige
+SE2 (Sundsvall) - Norra Mellansverige  
+SE3 (Stockholm) - Södra Mellansverige
+SE4 (Malmö) - Södra Sverige
+```
 
 #### Tillgängliga APIs (30 st)
 
-| # | ID | Namn | Triggers (exempel) | Stöd för städer |
-|---|-----|------|-------------------|-----------------|
-| 1 | `scb` | SCB Statistik | befolkning, statistik, invånare | ✅ `i [stad]` |
-| 2 | `trafikverket` | Trafikanalys | trafik, e4, e6, olycka | ❌ |
-| 3 | `naturvardsverket` | Naturvårdsverket | luftkvalitet, miljö, utsläpp | ❌ |
-| 4 | `boverket` | Boverket | bygglov, energideklaration | ❌ |
-| 5 | `riksdagen` | Riksdagen | riksdagen, röstade, votering | ❌ |
-| 6 | `slu` | SLU | skog, virkesförråd | ❌ |
-| 7 | `opendata` | Opendata.se | öppen data, dataportal | ❌ |
-| 8 | `digg` | DIGG | digg, myndighet | ❌ |
-| 9 | `krisinformation` | Krisinformation.se | kris, vma, varning | ❌ |
-| 10 | `skatteverket` | Skatteverket | skatt, inkomst, moms | ✅ `i [stad]` |
-| 11 | `energimyndigheten` | Energimyndigheten | elpris, energi, vad kostar elen | ❌ |
-| 12 | `socialstyrelsen` | Socialstyrelsen | vård, vårdkö, sjukvård | ✅ `i [stad]` |
-| 13 | `lantmateriet` | Lantmäteriet | fastighet, karta, tomt | ❌ |
-| 14 | `folkhalsomyndigheten` | Folkhälsomyndigheten | folkhälsa, covid, pandemi | ❌ |
-| 15 | `trafikverket_vag` | Trafikverket Väg/Järnväg | järnväg, tågförseningar | ❌ |
-| 16 | `energimarknadsinspektionen` | Energimarknadsinspektionen | elnät, nätavgift | ❌ |
-| 17 | `vinnova` | Vinnova | vinnova, innovation, startup | ❌ |
-| 18 | `formas` | Formas | formas, miljöforskning | ❌ |
-| 19 | `vetenskapsradet` | Vetenskapsrådet | vetenskapsrådet, forskning | ❌ |
-| 20 | `forsakringskassan` | Försäkringskassan | sjukpenning, föräldrapenning | ❌ |
-| 21 | `migrationsverket` | Migrationsverket | migration, asyl | ❌ |
-| 22 | `arbetsformedlingen` | Arbetsförmedlingen | lediga jobb, arbetslöshet | ✅ `i [stad]` |
-| 23 | `uhr` | UHR | antagning, universitet | ❌ |
-| 24 | `csn` | CSN | studiemedel, csn | ❌ |
-| 25 | `skolverket` | Skolverket Skolenhetsregistret | hur många skolor, skolor i | ✅ `i [stad]` |
-| 26 | `skolverket_syllabus` | Skolverket Syllabus | kursplan, läroplan | ❌ |
-| 27 | `visitsweden` | Visit Sweden (Hotell) | hotell, boende, hotell i | ✅ `i [stad]` |
-| 28 | `bolagsverket` | Bolagsverket | bolag, företag, vem äger | ❌ |
-| 29 | `konkurrensverket` | Konkurrensverket | upphandling, konkurrens | ❌ |
-| 30 | `konsumentverket` | Konsumentverket | konsument, reklamation | ❌ |
+| # | ID | Namn | Triggers (exempel) | Stad | Region | Elområde |
+|---|-----|------|-------------------|------|--------|----------|
+| 1 | `scb` | SCB Statistik | befolkning, statistik, invånare | ✅ | | |
+| 2 | `trafikverket` | Trafikanalys | trafik, e4, e6, olycka | | | |
+| 3 | `naturvardsverket` | Naturvårdsverket | luftkvalitet, miljö, utsläpp | ✅ | | |
+| 4 | `boverket` | Boverket | bygglov, energideklaration | ✅ | | |
+| 5 | `riksdagen` | Riksdagen | riksdagen, röstade, votering | | | |
+| 6 | `slu` | SLU Riksskogstaxeringen | skog, virkesförråd | | ✅ | |
+| 7 | `opendata` | Opendata.se | öppen data, dataportal | | | |
+| 8 | `digg` | DIGG | digg, myndighet | | | |
+| 9 | `krisinformation` | Krisinformation.se | kris, vma, varning | | | |
+| 10 | `skatteverket` | Skatteverket | skatt, inkomst, moms | ✅ | | |
+| 11 | `energimyndigheten` | Energimyndigheten | elpris, energi, vad kostar elen | | | ✅ |
+| 12 | `socialstyrelsen` | Socialstyrelsen | vård, vårdkö, sjukvård | | ✅ | |
+| 13 | `lantmateriet` | Lantmäteriet | fastighet, karta, tomt | ✅ | | |
+| 14 | `folkhalsomyndigheten` | Folkhälsomyndigheten | folkhälsa, covid, pandemi | | ✅ | |
+| 15 | `trafikverket_vag` | Trafikverket Väg/Järnväg | järnväg, tågförseningar | | | |
+| 16 | `energimarknadsinspektionen` | Energimarknadsinspektionen | elnät, nätavgift | | | ✅ |
+| 17 | `vinnova` | Vinnova | vinnova, innovation, startup | | | |
+| 18 | `formas` | Formas | formas, miljöforskning | | | |
+| 19 | `vetenskapsradet` | Vetenskapsrådet | vetenskapsrådet, forskning | | | |
+| 20 | `forsakringskassan` | Försäkringskassan | sjukpenning, föräldrapenning | | | |
+| 21 | `migrationsverket` | Migrationsverket | migration, asyl | | | |
+| 22 | `arbetsformedlingen` | Arbetsförmedlingen | lediga jobb, arbetslöshet | ✅ | | |
+| 23 | `uhr` | UHR | antagning, universitet | | | |
+| 24 | `csn` | CSN | studiemedel, csn | | ✅ | |
+| 25 | `skolverket` | Skolverket Skolenhetsregistret | hur många skolor, skolor i | ✅ | | |
+| 26 | `skolverket_syllabus` | Skolverket Syllabus | kursplan, läroplan | | | |
+| 27 | `visitsweden` | Visit Sweden (Hotell) | hotell, boende, hotell i | ✅ | | |
+| 28 | `bolagsverket` | Bolagsverket | bolag, företag, vem äger | | | |
+| 29 | `konkurrensverket` | Konkurrensverket | upphandling, konkurrens | | | |
+| 30 | `konsumentverket` | Konsumentverket | konsument, reklamation | | | |
 
 #### Exempel på frågor
 
@@ -681,8 +717,10 @@ Alla konfigurationsfiler finns i `config/`-mappen:
 | Fil | Innehåll | Uppdateras av |
 |-----|----------|---------------|
 | `force_swedish.json` | Svenska trigger-ord | Admin Dashboard |
-| `tavily_triggers.json` | Sök-triggers och blacklist | Admin Dashboard |
-| `swedish_cities.json` | Städer med koordinater | Admin Dashboard |
+| `tavily_triggers.json` | Sök-triggers, blacklist och API-nyckel | Admin Dashboard |
+| `swedish_cities.json` | 150+ städer med koordinater | Admin Dashboard |
+| `swedish_regions.json` | 21 svenska regioner | Admin Dashboard |
+| `swedish_elomraden.json` | SE1-SE4 elområden | Admin Dashboard |
 | `rss_feeds.json` | RSS-feeds för nyheter | Admin Dashboard |
 | `open_data_apis.json` | Öppna Data API-konfiguration | Admin Dashboard |
 
@@ -890,6 +928,27 @@ curl -X POST http://localhost:5000/infer \
 ---
 
 ## Changelog
+
+### v1.2.0 (2025-11-30)
+- **Region-baserade triggers** (`config/swedish_regions.json`) med 21 svenska regioner
+- **Elområden-support** (`config/swedish_elomraden.json`) för SE1-SE4 energifrågor
+- **Förbättrad källformatering** - HTML med styling för bättre rendering i chat UI
+- **150+ svenska städer** i `config/swedish_cities.json`
+- **Nya stad-triggers** för Naturvårdsverket, Boverket, Lantmäteriet
+- **Debug-loggning** för langdetect i backend terminal
+- **Tavily API-nyckel** kan nu konfigureras från Admin Dashboard
+- **Fix max_length fel** - Använder nu `max_new_tokens` istället
+
+#### Källformatering (nytt)
+Alla externa datakällor inkluderar nu snyggt formaterade HTML-källor:
+
+```html
+<hr style='margin: 16px 0; border: none; border-top: 1px solid #ccc;'>
+<div style='font-size: 0.9em; color: #666;'>
+<strong>Källor:</strong><br>
+1. <a href="https://www.scb.se" target="_blank" style="color: #0066cc;">SCB – Statistiska Centralbyrån</a><br>
+</div>
+```
 
 ### v1.1.0 (2025-11-29)
 - Utökade från 9 till **30 Svenska Öppna Data APIs**
