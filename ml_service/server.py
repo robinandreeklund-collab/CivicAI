@@ -54,18 +54,48 @@ import requests  # For Tavily API and SMHI weather
 # =============================================================================
 # ONESEEK Δ+ MODULE IMPORTS
 # =============================================================================
-# Intent Engine, Typo Checker, Confidence Calculator, Delta Compare, Cache Manager
+# Intent Engine, Typo Checker, Confidence Calculator, Delta Compare, Cache Manager, Memory Manager
 try:
-    from .intent_engine import get_intent_engine, process_user_input
+    from .intent_engine import get_intent_engine, process_user_input, generate_topic_hash, detect_intent_and_city
     INTENT_ENGINE_AVAILABLE = True
 except ImportError:
     try:
-        from intent_engine import get_intent_engine, process_user_input
+        from intent_engine import get_intent_engine, process_user_input, generate_topic_hash, detect_intent_and_city
         INTENT_ENGINE_AVAILABLE = True
     except ImportError:
         INTENT_ENGINE_AVAILABLE = False
         get_intent_engine = None
         process_user_input = None
+        generate_topic_hash = None
+        detect_intent_and_city = None
+
+# Memory Manager for topic-based conversation history
+try:
+    from .memory_manager import (
+        save_message_with_memory, 
+        get_topic_context, 
+        get_user_topics,
+        get_topic_label,
+        group_messages_by_topic
+    )
+    MEMORY_MANAGER_AVAILABLE = True
+except ImportError:
+    try:
+        from memory_manager import (
+            save_message_with_memory, 
+            get_topic_context, 
+            get_user_topics,
+            get_topic_label,
+            group_messages_by_topic
+        )
+        MEMORY_MANAGER_AVAILABLE = True
+    except ImportError:
+        MEMORY_MANAGER_AVAILABLE = False
+        save_message_with_memory = None
+        get_topic_context = None
+        get_user_topics = None
+        get_topic_label = None
+        group_messages_by_topic = None
 
 try:
     from .typo_double_check import get_typo_checker, check_spelling
@@ -4228,9 +4258,139 @@ async def delta_plus_status():
         "confidence_calculator": CONFIDENCE_CALC_AVAILABLE,
         "delta_compare": DELTA_COMPARE_AVAILABLE,
         "cache_manager": CACHE_MANAGER_AVAILABLE,
+        "memory_manager": MEMORY_MANAGER_AVAILABLE,
         "version": "Δ+",
         "tavily_swedish": True
     }
+
+
+# =============================================================================
+# ONESEEK Δ+ MEMORY MANAGER API ENDPOINTS
+# Topic-gruppering + Semantisk historik
+# =============================================================================
+
+@app.post("/api/ml/memory/save")
+async def save_to_memory(request: dict):
+    """Save a message with topic hash to memory."""
+    if not MEMORY_MANAGER_AVAILABLE:
+        return {"error": "Memory Manager not available"}
+    
+    try:
+        user_id = request.get("user_id", "anonymous")
+        question = request.get("question", "")
+        answer = request.get("answer", "")
+        intent = request.get("intent", "general")
+        entity = request.get("entity", "")
+        metadata = request.get("metadata", {})
+        
+        # Generate topic hash
+        topic_hash = generate_topic_hash(intent, entity) if generate_topic_hash else ""
+        
+        success = save_message_with_memory(
+            user_id=user_id,
+            question=question,
+            answer=answer,
+            topic_hash=topic_hash,
+            intent=intent,
+            entity=entity,
+            metadata=metadata
+        )
+        
+        return {
+            "success": success,
+            "topic_hash": topic_hash,
+            "topic_label": get_topic_label(intent, entity) if get_topic_label else ""
+        }
+        
+    except Exception as e:
+        logging.error(f"Memory save error: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/api/ml/memory/context/{topic_hash}")
+async def get_memory_context(topic_hash: str, limit: int = 10):
+    """Get conversation context for a topic."""
+    if not MEMORY_MANAGER_AVAILABLE:
+        return {"error": "Memory Manager not available", "messages": []}
+    
+    try:
+        messages = get_topic_context(topic_hash, limit=limit)
+        return {
+            "topic_hash": topic_hash,
+            "messages": messages,
+            "count": len(messages)
+        }
+        
+    except Exception as e:
+        logging.error(f"Memory context error: {e}")
+        return {"error": str(e), "messages": []}
+
+
+@app.get("/api/ml/memory/topics/{user_id}")
+async def get_user_memory_topics(user_id: str, limit: int = 20):
+    """Get all topics for a user (anonymized)."""
+    if not MEMORY_MANAGER_AVAILABLE:
+        return {"error": "Memory Manager not available", "topics": []}
+    
+    try:
+        topics = get_user_topics(user_id, limit=limit)
+        
+        # Add labels to topics
+        for topic in topics:
+            topic["label"] = get_topic_label(
+                topic.get("intent", "general"),
+                topic.get("entity", "")
+            ) if get_topic_label else ""
+        
+        return {
+            "user_id_anonymized": True,
+            "topics": topics,
+            "count": len(topics)
+        }
+        
+    except Exception as e:
+        logging.error(f"Memory topics error: {e}")
+        return {"error": str(e), "topics": []}
+
+
+@app.post("/api/ml/memory/detect-topic")
+async def detect_topic(request: dict):
+    """Detect intent and entity from text, generate topic hash."""
+    if not INTENT_ENGINE_AVAILABLE:
+        return {"error": "Intent Engine not available"}
+    
+    try:
+        text = request.get("text", "")
+        
+        # Detect intent and entity
+        intent_data = detect_intent_and_city(text) if detect_intent_and_city else {
+            "intent": "general",
+            "entity": "",
+            "confidence": 0.5
+        }
+        
+        # Generate topic hash
+        topic_hash = generate_topic_hash(
+            intent_data.get("intent", "general"),
+            intent_data.get("entity", "")
+        ) if generate_topic_hash else ""
+        
+        return {
+            "text": text,
+            "intent": intent_data.get("intent", "general"),
+            "entity": intent_data.get("entity", ""),
+            "confidence": intent_data.get("confidence", 0.5),
+            "topic_hash": topic_hash,
+            "topic_label": get_topic_label(
+                intent_data.get("intent", "general"),
+                intent_data.get("entity", "")
+            ) if get_topic_label else ""
+        }
+        
+    except Exception as e:
+        logging.error(f"Topic detection error: {e}")
+        return {"error": str(e)}
+
 
 # =============================================================================
 # END ONESEEK Δ+ API ENDPOINTS
@@ -4335,11 +4495,50 @@ async def infer(request: Request, inference_request: InferenceRequest):
             tavily_sources = format_tavily_sources(search_result)
             logger.info("✓ Tavily-svar mottaget")
     
+    # === 6. ONESEEK Δ+: Get conversation memory/context ===
+    memory_context = None
+    topic_hash = None
+    intent_data = None
+    if MEMORY_MANAGER_AVAILABLE and INTENT_ENGINE_AVAILABLE:
+        try:
+            # Detect intent and entity from user's question
+            intent_data = detect_intent_and_city(inference_request.text) if detect_intent_and_city else None
+            
+            if intent_data:
+                intent_name = intent_data.get("intent", "general")
+                entity = intent_data.get("entity", "")
+                
+                # Generate topic hash for this conversation
+                topic_hash = generate_topic_hash(intent_name, entity) if generate_topic_hash else None
+                
+                if topic_hash and get_topic_context:
+                    # Get previous messages in this topic (6-10 messages for context)
+                    previous_messages = get_topic_context(topic_hash, limit=8)
+                    
+                    if previous_messages:
+                        # Format previous conversation as context
+                        memory_parts = []
+                        for msg in previous_messages[-8:]:  # Last 8 messages
+                            role = "Användare" if msg.get("role") == "user" else "OneSeek"
+                            content = msg.get("content", "")[:200]  # Truncate long messages
+                            memory_parts.append(f"{role}: {content}")
+                        
+                        if memory_parts:
+                            memory_context = "\n".join(memory_parts)
+                            logger.info(f"🧠 [MEMORY] Hämtade {len(previous_messages)} tidigare meddelanden för topic {topic_hash[:8]}...")
+        except Exception as e:
+            logger.debug(f"Memory context retrieval failed: {e}")
+    
     # Format input with system prompt - ensures model always knows its identity
     full_input = format_inference_input(inference_request.text)
     
     # Build enhanced context prefix
     context_parts = []
+    
+    # ONESEEK Δ+: Add memory system prompt if we have conversation history
+    if memory_context:
+        context_parts.append("Du är mitt i ett samtal. Kom ihåg vad ni pratade om senast. Svara naturligt och kort.")
+        context_parts.append(f"[Tidigare i samtalet]\n{memory_context}")
     
     # Always add time and season context
     context_parts.append(f"[Aktuell tid] {time_context} {season_context}")
@@ -4379,6 +4578,7 @@ async def infer(request: Request, inference_request: InferenceRequest):
     logger.debug(f"Weather: {weather_city if weather_context else 'no'}")
     logger.debug(f"News: {'YES' if news_context else 'no'}")
     logger.debug(f"Tavily: {'YES' if tavily_context else 'no'}")
+    logger.debug(f"Memory: {'YES (' + topic_hash[:8] + ')' if memory_context else 'no'}")
     
     try:
         # Determine if we're using certified model or fallback
@@ -4447,6 +4647,31 @@ async def infer(request: Request, inference_request: InferenceRequest):
             latency_ms = (time.time() - start_time) * 1000
             
             model_name = "OneSeek DNA v2 Certified" if is_certified else "OneSeek (base model fallback)"
+            
+            # === ONESEEK Δ+: Save to memory for future context ===
+            if MEMORY_MANAGER_AVAILABLE and topic_hash and save_message_with_memory:
+                try:
+                    intent_name = intent_data.get("intent", "general") if intent_data else "general"
+                    entity = intent_data.get("entity", "") if intent_data else ""
+                    
+                    save_message_with_memory(
+                        user_id="anonymous",  # Anonymized
+                        question=inference_request.text,
+                        answer=response_text,
+                        topic_hash=topic_hash,
+                        intent=intent_name,
+                        entity=entity,
+                        metadata={
+                            "model": model_name,
+                            "latency_ms": latency_ms,
+                            "has_weather": weather_context is not None,
+                            "has_news": news_context is not None,
+                            "has_tavily": tavily_context is not None
+                        }
+                    )
+                    logger.debug(f"🧠 [MEMORY] Sparade svar till topic {topic_hash[:8]}...")
+                except Exception as e:
+                    logger.debug(f"Memory save failed: {e}")
             
             return InferenceResponse(
                 response=response_text,

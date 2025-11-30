@@ -20,6 +20,50 @@ ONESEEK Δ+ är en **självläkande, semantisk, transparent och mänsklig** AI s
 | 10 | **Admin Intent Editor** | Lägg till/redigera intents utan kod | ✅ Live |
 | 11 | **Stavfel sparas** | Bygger världens bästa svenska stavfels-dataset | ✅ Live |
 | 12 | **Cache med hash + 7-dagars TTL** | Svar på 0.2 sek | ✅ Live |
+| 13 | **Topic-gruppering + Minne** | AI:n minns konversationer och grupperar efter ämne | ✅ Live |
+| 14 | **Semantisk historik** | Samma fråga med olika formuleringar = samma tråd | ✅ Live |
+
+## Topic-gruppering och Minne
+
+ONESEEK Δ+ har ett avancerat minnesystem som:
+- **Minns vad ni pratade om** – även "gör det", "det där" fungerar
+- **Grupperar historik efter ämne** – t.ex. "Befolkning i Hjo", "Hotell i Göteborg"
+- **Samma fråga med olika formuleringar hamnar i samma tråd**
+- **100% anonymt** – ingen persondata sparas
+
+### Flöde
+
+```
+1. Användare: "Hur många invånare i Hjo?"
+2. Intent Engine: intent=befolkning, entity=Hjo
+3. Topic hash: sha256("befolkning:hjo")[:16]
+4. Sparas i memory med topic_hash
+
+5. Senare: "Hur många bor i Hjo?"
+6. Same intent + entity = samma topic_hash!
+7. AI får alla tidigare meddelanden som kontext
+8. Svarar: "Sedan sist har befolkningen ökat med 12 personer..."
+```
+
+### Historik-vy
+
+```
+📚 Dina ämnen
+
+👥 Befolkning i Hjo (5 meddelanden)
+├─ Hur många bor i Hjo?
+├─ OneSeek: 9 512 personer
+├─ Invånare i Hjo kommun?
+├─ OneSeek: Samma som ovan – men nu med Skatteverket-data
+└─ Har det ökat sedan juni?
+   → OneSeek: Ja, +125 personer (+1.3%)
+
+🏨 Hotell i Göteborg (8 meddelanden)
+├─ Finns bra hotell i Göteborg?
+├─ OneSeek: Ja, här är tre...
+└─ Vad kostar Avalon?
+   → OneSeek: Från 1 450 kr
+```
 
 ## Installation
 
@@ -104,7 +148,11 @@ CivicAI/
 │   ├── source_weights.json           # Admin-styrd källviktning
 │   ├── calculate_confidence.py       # Förtroende v2-algoritm
 │   ├── delta_compare.py              # Semantisk Δ-jämförelse
-│   └── cache_manager.py              # Hash-baserad cache, 7-dagars TTL
+│   ├── cache_manager.py              # Hash-baserad cache, 7-dagars TTL
+│   └── memory_manager.py             # Topic-gruppering + semantisk historik
+│
+├── memory/                           # Lokal minneslagring (JSONL-filer)
+│   └── YYYY-MM.jsonl                 # Månadsvisa minnesfiler
 │
 ├── public/
 │   └── dictionaries/
@@ -117,11 +165,16 @@ CivicAI/
 │       ├── IntentEditor.jsx          # Admin: Redigera intents
 │       ├── GoldEditor.jsx            # Admin: Granska gold-dataset
 │       ├── GoldQueue.jsx             # Admin: Visa gold-kö
-│       └── SourceWeights.jsx         # Admin: Justera källviktning
+│       ├── SourceWeights.jsx         # Admin: Justera källviktning
+│       └── TopicHistory.jsx          # Topic-grupperad historik
 │
 ├── frontend/
 │   └── chat/
 │       └── typo_hybrid.js            # Hybrid-autocorrect
+│
+├── docs/
+│   └── schemas/
+│       └── FIREBASE_TOPIC_SCHEMA.md  # Firebase databasschema
 │
 └── datasets/
     └── typo_pairs_swedish.jsonl      # Svenska stavfelspar
@@ -157,6 +210,12 @@ CivicAI/
 ### Weather API
 - `GET /api/ml/weather/cache` - All väderdata
 - `GET /api/ml/weather/{city}` - Väder för stad
+
+### Memory API (Topic-gruppering)
+- `POST /api/ml/memory/save` - Spara meddelande med topic_hash
+- `GET /api/ml/memory/context/{topic_hash}` - Hämta konversationskontext för topic
+- `GET /api/ml/memory/topics/{user_id}` - Hämta alla topics för användare
+- `POST /api/ml/memory/detect-topic` - Detektera intent och entity, generera topic_hash
 
 ### Status API
 - `GET /api/ml/delta-plus/status` - ONESEEK Δ+ modulstatus

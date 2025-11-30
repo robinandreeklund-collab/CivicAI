@@ -11,6 +11,7 @@ Funktionalitet:
 Author: ONESEEK Team
 """
 
+import hashlib
 import json
 import re
 from datetime import datetime
@@ -496,6 +497,50 @@ def process_user_input(text: str) -> Dict[str, Any]:
     return engine.process(text)
 
 
+def generate_topic_hash(intent: str, entity: str = "") -> str:
+    """
+    ONESEEK Δ+: Generera en topic_hash baserat på intent och entity.
+    Samma intent + entity → samma hash → samma tråd.
+    
+    Args:
+        intent: Intent-namn (t.ex. "befolkning", "väder")
+        entity: Entity-text (t.ex. "Hjo", "Stockholm")
+        
+    Returns:
+        16-teckens SHA-256 hash
+    """
+    key = f"{intent.lower()}:{entity.lower().strip() if entity else 'general'}"
+    return hashlib.sha256(key.encode()).hexdigest()[:16]
+
+
+def detect_intent_and_city(text: str) -> Dict[str, Any]:
+    """
+    ONESEEK Δ+: Bekväm funktion för att detektera intent och huvudentitet.
+    
+    Args:
+        text: Användarinput
+        
+    Returns:
+        Dict med intent, entity, confidence
+    """
+    result = process_user_input(text)
+    
+    # Extrahera huvudentitet (GPE eller LOC)
+    entity = ""
+    entities = result.get("entities", [])
+    for ent in entities:
+        if isinstance(ent, dict) and ent.get("label") in ["GPE", "LOC"]:
+            entity = ent.get("text", "")
+            break
+    
+    return {
+        "intent": result.get("intent", {}).get("name", "general"),
+        "entity": entity,
+        "confidence": result.get("intent", {}).get("confidence", 0.5),
+        "all_entities": entities
+    }
+
+
 if __name__ == "__main__":
     # Test
     engine = IntentEngine()
@@ -517,6 +562,16 @@ if __name__ == "__main__":
         print(f"\nQuery: {query}")
         print(f"Intent: {result['intent']['name']} ({result['intent']['confidence']:.2f})")
         print(f"Entities: {result['entities']}")
+        
+    # Test topic hash
+    print("\n" + "=" * 60)
+    print("Topic Hash Test")
+    print("=" * 60)
+    
+    hash1 = generate_topic_hash("befolkning", "Hjo")
+    hash2 = generate_topic_hash("befolkning", "hjo")
+    print(f"befolkning:Hjo = {hash1}")
+    print(f"befolkning:hjo = {hash2} (same: {hash1 == hash2})")
     
     print("\n" + "=" * 60)
     print("Engine Stats:")
