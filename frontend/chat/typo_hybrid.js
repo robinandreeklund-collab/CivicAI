@@ -177,6 +177,63 @@
     }
 
     /**
+     * ONESEEK Δ+ Alignment: Generera autocorrect-svar med AI-personlighet
+     * Istället för mekanisk korrigering, svara som en vänlig AI
+     * 
+     * @param {string} original - Det felstavade ordet
+     * @param {string} suggestion - Föreslagen korrigering
+     * @returns {string} Personligt svar med korrigeringsförslag
+     */
+    getAutocorrectResponse(original, suggestion) {
+      const responses = [
+        `Menade du "${suggestion}"? 😊`,
+        `Tänkte du på "${suggestion}"?`,
+        `Jag gissar att du menade "${suggestion}" – stämmer det?`,
+        `Kanske "${suggestion}"? 🤔`,
+        `Är det "${suggestion}" du söker?`
+      ];
+      
+      // Välj svar baserat på ordets längd för variation
+      const index = original.length % responses.length;
+      return responses[index];
+    }
+
+    /**
+     * ONESEEK Δ+ Alignment: Hämta korrigering med AI-personlighet
+     * Returnerar ett objekt med både korrigering och vänligt svar
+     * 
+     * @param {string} word - Ordet att kontrollera
+     * @returns {Object|null} Objekt med korrigering och svar, eller null om inget stavfel
+     */
+    getCorrectionWithPersonality(word) {
+      const wordLower = word.toLowerCase();
+      const correction = COMMON_TYPOS[wordLower];
+      
+      if (correction) {
+        return {
+          original: word,
+          correction: correction,
+          response: this.getAutocorrectResponse(word, correction),
+          confidence: 0.95
+        };
+      }
+      
+      // Försök hitta liknande ord
+      const suggestions = findSimilarWords(word, 2, 3);
+      if (suggestions.length > 0) {
+        return {
+          original: word,
+          correction: suggestions[0],
+          alternatives: suggestions.slice(1),
+          response: this.getAutocorrectResponse(word, suggestions[0]),
+          confidence: 0.7
+        };
+      }
+      
+      return null;
+    }
+
+    /**
      * Kontrollera text (klient-side)
      */
     checkText(text) {

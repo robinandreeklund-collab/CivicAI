@@ -58,6 +58,21 @@ class DeltaCompare:
         self.intent_engine = get_intent_engine() if get_intent_engine else None
         self.history = {}  # Cache för historik
     
+    def compute_semantic_hash(self, intent: str, entity: str = "") -> str:
+        """
+        ONESEEK Δ+ Alignment: Beräkna semantisk hash baserat på intent + entity.
+        Samma fråga med olika formuleringar får samma hash.
+        
+        Args:
+            intent: Intent-namn (t.ex. "befolkning", "väder")
+            entity: Entity-text (t.ex. "Stockholm", "Hjo")
+            
+        Returns:
+            16-teckens SHA-256 hash
+        """
+        key = f"{intent.lower()}:{entity.lower().strip() if entity else 'general'}"
+        return hashlib.sha256(key.encode('utf-8')).hexdigest()[:16]
+    
     def compute_hash(self, data: Any) -> str:
         """
         Beräkna SHA-256 hash för data.
@@ -427,6 +442,55 @@ def create_response_hash(query: str, response: str) -> str:
     dc = get_delta_compare()
     data = {"query": query, "response": response}
     return dc.compute_hash(data)
+
+
+def compute_semantic_hash(intent: str, entity: str = "") -> str:
+    """
+    ONESEEK Δ+ Alignment: Bekväm funktion för semantisk hash.
+    Samma intent + entity → samma hash → samma topic-tråd.
+    
+    Args:
+        intent: Intent-namn (t.ex. "befolkning", "väder")
+        entity: Entity-text (t.ex. "Stockholm", "Hjo")
+        
+    Returns:
+        16-teckens SHA-256 hash
+    """
+    dc = get_delta_compare()
+    return dc.compute_semantic_hash(intent, entity)
+
+
+def compare_by_semantic_hash(
+    current_intent: str,
+    current_entity: str,
+    previous_intent: str,
+    previous_entity: str
+) -> Dict[str, Any]:
+    """
+    ONESEEK Δ+ Alignment: Jämför två frågor via semantisk hash.
+    Returnerar om de borde hamna i samma topic-tråd.
+    
+    Args:
+        current_intent: Aktuell intent
+        current_entity: Aktuell entity
+        previous_intent: Tidigare intent
+        previous_entity: Tidigare entity
+        
+    Returns:
+        Dict med match-info
+    """
+    dc = get_delta_compare()
+    
+    current_hash = dc.compute_semantic_hash(current_intent, current_entity)
+    previous_hash = dc.compute_semantic_hash(previous_intent, previous_entity)
+    
+    return {
+        "same_topic": current_hash == previous_hash,
+        "current_hash": current_hash,
+        "previous_hash": previous_hash,
+        "intent_match": current_intent.lower() == previous_intent.lower(),
+        "entity_match": current_entity.lower().strip() == previous_entity.lower().strip()
+    }
 
 
 if __name__ == "__main__":

@@ -352,6 +352,59 @@ class IntentEngine:
             "engine_version": self.rules.get("metadata", {}).get("version", "1.0.0")
         }
     
+    def get_autocorrect_response(self, original: str, suggestion: str) -> str:
+        """
+        ONESEEK Δ+ Alignment: Generera autocorrect-svar med AI-personlighet.
+        Använder vänlig ton istället för mekanisk korrigering.
+        
+        Args:
+            original: Det felstavade ordet
+            suggestion: Föreslagna korrigeringen
+            
+        Returns:
+            Personligt svar med korrigeringsförslag
+        """
+        # Olika personlighetsformat för autocorrect
+        responses = [
+            f"Menade du \"{suggestion}\"? 😊",
+            f"Tänkte du på \"{suggestion}\"?",
+            f"Jag gissar att du menade \"{suggestion}\" – stämmer det?",
+            f"Kanske \"{suggestion}\"? 🤔",
+        ]
+        
+        # Enkel rotation baserad på längden av originalet
+        index = len(original) % len(responses)
+        return responses[index]
+    
+    def get_autocorrect_with_context(self, original: str, suggestions: List[str], context: str = "") -> Dict[str, Any]:
+        """
+        ONESEEK Δ+ Alignment: Hämta autocorrect-förslag med full kontext.
+        
+        Args:
+            original: Felstavat ord
+            suggestions: Lista med förslag
+            context: Kontextmening
+            
+        Returns:
+            Dict med förslag och personligt svar
+        """
+        if not suggestions:
+            return {
+                "has_suggestion": False,
+                "original": original,
+                "response": None
+            }
+        
+        best = suggestions[0]
+        return {
+            "has_suggestion": True,
+            "original": original,
+            "suggestion": best,
+            "alternatives": suggestions[1:],
+            "response": self.get_autocorrect_response(original, best),
+            "context": context
+        }
+    
     def get_intent_for_api(self, intent_name: str) -> Optional[Dict[str, Any]]:
         """
         Hämta API-konfiguration för en intent.

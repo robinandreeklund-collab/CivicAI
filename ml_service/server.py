@@ -109,6 +109,19 @@ except ImportError:
         get_typo_checker = None
         check_spelling = None
 
+# ONESEEK Δ+ Alignment: Stavfel Dataset Manager
+try:
+    from .stavfel_dataset import get_stavfel_dataset, save_typo_pair
+    STAVFEL_DATASET_AVAILABLE = True
+except ImportError:
+    try:
+        from stavfel_dataset import get_stavfel_dataset, save_typo_pair
+        STAVFEL_DATASET_AVAILABLE = True
+    except ImportError:
+        STAVFEL_DATASET_AVAILABLE = False
+        get_stavfel_dataset = None
+        save_typo_pair = None
+
 try:
     from .calculate_confidence import get_confidence_calculator, calculate_confidence
     CONFIDENCE_CALC_AVAILABLE = True
@@ -4049,6 +4062,96 @@ async def log_typo(request: Request):
     
     return {"status": "logged" if success else "failed"}
 
+# =============================================================================
+# ONESEEK Δ+ STAVFEL DATASET API (PR93 Alignment)
+# =============================================================================
+
+@app.get("/api/ml/stavfel")
+async def get_stavfel(filter: str = "pending", limit: int = 100):
+    """Get stavfel pairs with filter (admin API)."""
+    if not STAVFEL_DATASET_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Stavfel Dataset not available")
+    
+    dataset = get_stavfel_dataset()
+    
+    if filter == "pending":
+        pairs = dataset.get_pending_review(limit=limit)
+    elif filter == "approved":
+        pairs = dataset.get_approved(limit=limit)
+    else:
+        pairs = dataset.get_all_pairs(limit=limit)
+    
+    stats = dataset.get_stats()
+    
+    return {"pairs": pairs, "stats": stats}
+
+@app.post("/api/ml/stavfel/approve")
+async def approve_stavfel(request: Request):
+    """Approve a stavfel pair for training (admin API)."""
+    if not STAVFEL_DATASET_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Stavfel Dataset not available")
+    
+    data = await request.json()
+    dataset = get_stavfel_dataset()
+    
+    success = dataset.approve_pair(
+        original=data.get("original", ""),
+        corrected=data.get("corrected", "")
+    )
+    
+    if success:
+        return {"status": "approved"}
+    raise HTTPException(status_code=404, detail="Pair not found")
+
+@app.post("/api/ml/stavfel/reject")
+async def reject_stavfel(request: Request):
+    """Reject (delete) a stavfel pair (admin API)."""
+    if not STAVFEL_DATASET_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Stavfel Dataset not available")
+    
+    data = await request.json()
+    dataset = get_stavfel_dataset()
+    
+    success = dataset.reject_pair(
+        original=data.get("original", ""),
+        corrected=data.get("corrected", "")
+    )
+    
+    if success:
+        return {"status": "rejected"}
+    raise HTTPException(status_code=404, detail="Pair not found")
+
+@app.post("/api/ml/stavfel/export")
+async def export_stavfel(request: Request):
+    """Export approved stavfel pairs for training (admin API)."""
+    if not STAVFEL_DATASET_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Stavfel Dataset not available")
+    
+    data = await request.json()
+    dataset = get_stavfel_dataset()
+    
+    format_type = data.get("format", "jsonl")
+    
+    try:
+        file_path = dataset.export_for_training(format=format_type)
+        approved = dataset.get_approved(limit=100000)
+        return {"status": "exported", "file_path": file_path, "count": len(approved)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/ml/stavfel/stats")
+async def get_stavfel_stats():
+    """Get stavfel dataset statistics (admin API)."""
+    if not STAVFEL_DATASET_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Stavfel Dataset not available")
+    
+    dataset = get_stavfel_dataset()
+    return dataset.get_stats()
+
+# =============================================================================
+# END STAVFEL DATASET API
+# =============================================================================
+
 # Confidence Calculator API
 @app.get("/api/ml/sources")
 async def get_sources():
@@ -4255,6 +4358,7 @@ async def delta_plus_status():
     return {
         "intent_engine": INTENT_ENGINE_AVAILABLE,
         "typo_checker": TYPO_CHECKER_AVAILABLE,
+        "stavfel_dataset": STAVFEL_DATASET_AVAILABLE,
         "confidence_calculator": CONFIDENCE_CALC_AVAILABLE,
         "delta_compare": DELTA_COMPARE_AVAILABLE,
         "cache_manager": CACHE_MANAGER_AVAILABLE,

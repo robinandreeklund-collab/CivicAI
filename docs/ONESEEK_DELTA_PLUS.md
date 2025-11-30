@@ -4,6 +4,29 @@
 
 ONESEEK Δ+ är en **självläkande, semantisk, transparent och mänsklig** AI som förstår svenska – på riktigt. Byggd på 31 svenska realtids-API:er, admin-styrd Intent Engine och världens mest avancerade träningsloop.
 
+## PR93 Alignment Summary
+
+Denna PR implementerar fullständig ONESEEK Δ+ funktionalitet enligt specifikationen:
+
+| Komponent | Fil | Status |
+|-----------|-----|--------|
+| Intent Engine | `ml_service/intent_engine.py` | ✅ Komplett |
+| Typo Double Check | `ml_service/typo_double_check.py` | ✅ Komplett |
+| Stavfel Dataset | `ml_service/stavfel_dataset.py` | ✅ Komplett |
+| Confidence v2 | `ml_service/calculate_confidence.py` | ✅ Komplett |
+| Delta Compare | `ml_service/delta_compare.py` | ✅ Komplett |
+| Cache Manager | `ml_service/cache_manager.py` | ✅ Komplett |
+| Memory Manager | `ml_service/memory_manager.py` | ✅ Komplett |
+| Weather Cache | `cache/weather_cache.py` | ✅ Komplett |
+| Tavily Search | `ml_service/tavily_search.py` | ✅ Komplett |
+| Firebase Migration | `migration/firebase_migrate.py` | ✅ Komplett |
+| Admin: Intent Editor | `admin/integration/IntentEditor.jsx` | ✅ Komplett |
+| Admin: Gold Editor | `admin/integration/GoldEditor.jsx` | ✅ Komplett |
+| Admin: Stavfel Editor | `admin/integration/StavfelEditor.jsx` | ✅ Komplett |
+| Admin: Source Weights | `admin/integration/SourceWeights.jsx` | ✅ Komplett |
+| Admin: Topic History | `admin/integration/TopicHistory.jsx` | ✅ Komplett |
+| Frontend: Typo Hybrid | `frontend/chat/typo_hybrid.js` | ✅ Komplett |
+
 ## Kärnfunktioner
 
 | # | Funktion | Beskrivning | Status |
@@ -18,10 +41,11 @@ ONESEEK Δ+ är en **självläkande, semantisk, transparent och mänsklig** AI s
 | 8 | **Tavily 100% svenska** | `language="sv"` – inga engelska svar längre | ✅ Live |
 | 9 | **Gold Editor** | Granska → ta bort skräp → "Träna nu" | ✅ Live |
 | 10 | **Admin Intent Editor** | Lägg till/redigera intents utan kod | ✅ Live |
-| 11 | **Stavfel sparas** | Bygger världens bästa svenska stavfels-dataset | ✅ Live |
+| 11 | **Stavfel sparas + Admin Editor** | Granska och godkänn stavfelspar för träning | ✅ Live |
 | 12 | **Cache med hash + 7-dagars TTL** | Svar på 0.2 sek | ✅ Live |
 | 13 | **Topic-gruppering + Minne** | AI:n minns konversationer och grupperar efter ämne | ✅ Live |
 | 14 | **Semantisk historik** | Samma fråga med olika formuleringar = samma tråd | ✅ Live |
+| 15 | **Firebase Migration** | Migrera gammal struktur till topic-gruppering | ✅ Live |
 
 ## Topic-gruppering och Minne
 
@@ -193,6 +217,13 @@ CivicAI/
 - `POST /api/ml/typo` - Kontrollera stavning
 - `POST /api/ml/typo/log` - Logga stavfel för träning
 
+### Stavfel Dataset API (PR93 Alignment)
+- `GET /api/ml/stavfel` - Hämta stavfelspar (filter: pending/approved/all)
+- `POST /api/ml/stavfel/approve` - Godkänn par för träning
+- `POST /api/ml/stavfel/reject` - Ta bort felaktigt par
+- `POST /api/ml/stavfel/export` - Exportera för träning (jsonl/csv/json)
+- `GET /api/ml/stavfel/stats` - Statistik över dataset
+
 ### Confidence API
 - `GET /api/ml/sources` - Hämta källviktning
 - `PUT /api/ml/sources/{id}` - Uppdatera källvikt
@@ -219,6 +250,21 @@ CivicAI/
 
 ### Status API
 - `GET /api/ml/delta-plus/status` - ONESEEK Δ+ modulstatus
+
+## Firebase Migration
+
+För att migrera befintlig Firebase-data till topic-struktur:
+
+```bash
+# Simulera migrering (dry-run)
+python migration/firebase_migrate.py --dry-run
+
+# Kör faktisk migrering
+python migration/firebase_migrate.py --execute
+
+# Specificera collections
+python migration/firebase_migrate.py --execute --old-collection messages --new-collection memory
+```
 
 ## Konfigurera Intent-regler
 
