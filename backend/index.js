@@ -148,7 +148,7 @@ app.get('/api/inference/status', async (req, res) => {
 });
 
 // ONESEEK Δ+ Inference Proxy - Proxies to ML service AND saves Δ+ data to Firebase
-import { saveOQTQuery, saveOQTProvenance } from './services/oqtFirebaseService.js';
+import { saveOQTQuery, saveOQTProvenance, saveDeltaTopic, saveDeltaMessage } from './services/oqtFirebaseService.js';
 import { addQueryToLedger } from './services/oqtLedgerService.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -207,7 +207,30 @@ app.post('/api/inference/oneseek', async (req, res) => {
     };
     
     // Save to Firebase (async, don't wait)
-    saveOQTQuery(queryData).catch(err => console.error('[Δ+ Firebase] Save error:', err));
+    saveOQTQuery(queryData).catch(err => console.error('[Δ+ Firebase] Save query error:', err));
+    
+    // Save to NEW Δ+ collections
+    // 1. Save/update delta_topics collection
+    if (deltaPlus.topic_hash) {
+      saveDeltaTopic({
+        topic_hash: deltaPlus.topic_hash,
+        intent: deltaPlus.intent || 'general',
+        entity: deltaPlus.entity || '',
+        label: `${deltaPlus.intent || 'General'}${deltaPlus.entity ? ' i ' + deltaPlus.entity : ''}`
+      }).catch(err => console.error('[Δ+ Firebase] Save topic error:', err));
+    }
+    
+    // 2. Save to delta_messages collection
+    saveDeltaMessage({
+      topic_hash: deltaPlus.topic_hash || 'unknown',
+      question: text,
+      answer: mlResponse.response,
+      intent: deltaPlus.intent || 'general',
+      entity: deltaPlus.entity || '',
+      sources: mlResponse.sources || [],
+      confidence: deltaPlus.intent_confidence || null,
+      response_hash: deltaPlus.response_hash || null
+    }).catch(err => console.error('[Δ+ Firebase] Save message error:', err));
     
     // Add to ledger (async)
     addQueryToLedger(queryId, text, 'OneSeek-Δ+').catch(err => console.error('[Δ+ Ledger] Error:', err));
