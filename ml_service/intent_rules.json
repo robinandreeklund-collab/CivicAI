@@ -1,0 +1,134 @@
+{
+  "intents": {
+    "befolkning": {
+      "triggers": ["befolkning", "invånare", "hur många bor", "invånarantal", "population", "antal människor"],
+      "entities": ["LOC", "GPE"],
+      "priority": 1,
+      "api": "scb",
+      "response_template": "Enligt SCB bor det {count} invånare i {location}."
+    },
+    "väder": {
+      "triggers": ["väder", "vädret", "temperatur", "regnar", "snöar", "soligt", "grader", "prognos", "sol", "regn", "snö", "molnigt"],
+      "entities": ["LOC", "GPE", "DATE"],
+      "priority": 1,
+      "api": "smhi",
+      "response_template": "I {location} blir det {temperature}°C och {precipitation}."
+    },
+    "nyheter": {
+      "triggers": ["nyheter", "senaste nytt", "vad hände", "aktuellt", "händelser", "senaste nyheterna", "dagens nyheter"],
+      "entities": ["DATE", "ORG", "EVENT"],
+      "priority": 2,
+      "api": "rss",
+      "response_template": "Senaste nyheterna: {headlines}"
+    },
+    "politik": {
+      "triggers": ["riksdag", "regering", "minister", "parti", "rösta", "val", "politik", "votering", "motion", "proposition"],
+      "entities": ["PERSON", "ORG", "GPE"],
+      "priority": 2,
+      "api": "riksdagen",
+      "response_template": "Från riksdagen: {result}"
+    },
+    "statistik": {
+      "triggers": ["statistik", "scb", "procent", "andel", "antal", "ökning", "minskning", "siffror", "data"],
+      "entities": ["LOC", "DATE", "PERCENT"],
+      "priority": 2,
+      "api": "scb",
+      "response_template": "Enligt SCB: {result}"
+    },
+    "kris": {
+      "triggers": ["kris", "krislarm", "vma", "varning", "nödläge", "beredskap", "viktigt meddelande"],
+      "entities": ["LOC", "EVENT", "DATE"],
+      "priority": 0,
+      "api": "krisinformation",
+      "response_template": "⚠️ Krisinformation: {alert}"
+    },
+    "trafik": {
+      "triggers": ["trafik", "trafikinfo", "olycka", "kö", "väg", "e4", "e6", "e18", "e20", "motorväg", "tåg", "förseningar"],
+      "entities": ["LOC", "FAC"],
+      "priority": 2,
+      "api": "trafikverket",
+      "response_template": "Trafikläget: {result}"
+    },
+    "hälsa": {
+      "triggers": ["hälsa", "sjukvård", "vårdcentral", "sjukhus", "läkare", "vaccination", "covid", "influensa"],
+      "entities": ["LOC", "ORG"],
+      "priority": 2,
+      "api": "socialstyrelsen",
+      "response_template": "Hälsoinformation: {result}"
+    },
+    "identitet": {
+      "triggers": ["vem är du", "vad heter du", "vad är du", "berätta om dig", "oneseek", "vad kan du göra"],
+      "entities": [],
+      "priority": 0,
+      "api": null,
+      "response_template": null,
+      "blacklist": true
+    },
+    "skola": {
+      "triggers": ["skola", "utbildning", "gymnasium", "universitet", "betyg", "läroplan", "skolverket"],
+      "entities": ["LOC", "ORG"],
+      "priority": 2,
+      "api": "skolverket",
+      "response_template": "Från Skolverket: {result}"
+    },
+    "miljö": {
+      "triggers": ["miljö", "klimat", "luftkvalitet", "utsläpp", "naturvårdsverket", "biologisk mångfald"],
+      "entities": ["LOC", "ORG"],
+      "priority": 2,
+      "api": "naturvardsverket",
+      "response_template": "Miljödata: {result}"
+    },
+    "ekonomi": {
+      "triggers": ["ekonomi", "ränta", "riksbanken", "inflation", "bnp", "arbetslöshet", "löner"],
+      "entities": ["ORG", "DATE", "MONEY"],
+      "priority": 2,
+      "api": "scb",
+      "response_template": "Ekonomisk data: {result}"
+    },
+    "ord": {
+      "triggers": ["vad betyder", "synonym", "ordbok", "saol", "ord", "definition", "förklara ordet"],
+      "entities": ["WORD"],
+      "priority": 2,
+      "api": "saol",
+      "response_template": "{word}: {definition}"
+    }
+  },
+  "entity_patterns": {
+    "swedish_cities": [
+      "stockholm", "göteborg", "malmö", "uppsala", "linköping",
+      "västerås", "örebro", "helsingborg", "norrköping", "jönköping",
+      "lund", "umeå", "gävle", "borås", "eskilstuna",
+      "södertälje", "karlstad", "täby", "växjö", "halmstad",
+      "sundsvall", "luleå", "trollhättan", "östersund", "borlänge",
+      "falun", "kalmar", "kristianstad", "skövde", "karlskrona"
+    ],
+    "date_patterns": [
+      "\\d{4}-\\d{2}-\\d{2}",
+      "idag",
+      "imorgon",
+      "igår",
+      "nästa vecka",
+      "förra veckan",
+      "i måndags",
+      "i tisdags",
+      "i onsdags",
+      "i torsdags",
+      "i fredags"
+    ],
+    "numbers": [
+      "\\d+",
+      "\\d+[,.]\\d+"
+    ]
+  },
+  "confidence_thresholds": {
+    "high": 0.8,
+    "medium": 0.6,
+    "low": 0.4
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "language": "sv",
+    "last_updated": null,
+    "description": "Intent-regler för ONESEEK Δ+ admin-styrbar Intent Engine"
+  }
+}

@@ -1,0 +1,161 @@
+{
+  "sources": {
+    "smhi": {
+      "name": "SMHI",
+      "description": "Sveriges meteorologiska och hydrologiska institut",
+      "weight": 0.95,
+      "reliability": "official",
+      "data_types": ["weather", "climate"],
+      "url": "https://www.smhi.se"
+    },
+    "scb": {
+      "name": "SCB - Statistiska Centralbyrån",
+      "description": "Sveriges officiella statistikmyndighet",
+      "weight": 0.98,
+      "reliability": "official",
+      "data_types": ["population", "economy", "statistics"],
+      "url": "https://www.scb.se"
+    },
+    "riksdagen": {
+      "name": "Riksdagen",
+      "description": "Sveriges riksdag - officiell parlamentsdata",
+      "weight": 0.98,
+      "reliability": "official",
+      "data_types": ["politics", "voting", "legislation"],
+      "url": "https://www.riksdagen.se"
+    },
+    "krisinformation": {
+      "name": "Krisinformation.se",
+      "description": "Samhällets informationskanal vid kriser",
+      "weight": 0.99,
+      "reliability": "official",
+      "data_types": ["crisis", "emergency", "alerts"],
+      "url": "https://www.krisinformation.se"
+    },
+    "trafikverket": {
+      "name": "Trafikverket",
+      "description": "Sveriges trafikmyndighet",
+      "weight": 0.95,
+      "reliability": "official",
+      "data_types": ["traffic", "roads", "railways"],
+      "url": "https://www.trafikverket.se"
+    },
+    "skolverket": {
+      "name": "Skolverket",
+      "description": "Sveriges utbildningsmyndighet",
+      "weight": 0.95,
+      "reliability": "official",
+      "data_types": ["education", "schools", "curriculum"],
+      "url": "https://www.skolverket.se"
+    },
+    "socialstyrelsen": {
+      "name": "Socialstyrelsen",
+      "description": "Myndigheten för hälso- och sjukvård",
+      "weight": 0.95,
+      "reliability": "official",
+      "data_types": ["health", "social_services"],
+      "url": "https://www.socialstyrelsen.se"
+    },
+    "naturvardsverket": {
+      "name": "Naturvårdsverket",
+      "description": "Sveriges miljömyndighet",
+      "weight": 0.95,
+      "reliability": "official",
+      "data_types": ["environment", "climate", "nature"],
+      "url": "https://www.naturvardsverket.se"
+    },
+    "saol": {
+      "name": "SAOL - Svenska Akademiens Ordlista",
+      "description": "Officiell svensk ordbok",
+      "weight": 0.98,
+      "reliability": "official",
+      "data_types": ["language", "words", "definitions"],
+      "url": "https://svenska.se"
+    },
+    "svt": {
+      "name": "SVT Nyheter",
+      "description": "Sveriges Television - public service nyheter",
+      "weight": 0.85,
+      "reliability": "high",
+      "data_types": ["news"],
+      "url": "https://www.svt.se"
+    },
+    "sr": {
+      "name": "Sveriges Radio",
+      "description": "Public service radio",
+      "weight": 0.85,
+      "reliability": "high",
+      "data_types": ["news", "radio"],
+      "url": "https://sverigesradio.se"
+    },
+    "tavily": {
+      "name": "Tavily Search",
+      "description": "AI-powered web search",
+      "weight": 0.70,
+      "reliability": "medium",
+      "data_types": ["web_search", "general"],
+      "url": "https://tavily.com"
+    },
+    "wikipedia": {
+      "name": "Wikipedia Svenska",
+      "description": "Svenskspråkig Wikipedia",
+      "weight": 0.65,
+      "reliability": "medium",
+      "data_types": ["encyclopedia", "general"],
+      "url": "https://sv.wikipedia.org"
+    }
+  },
+  "reliability_levels": {
+    "official": {
+      "description": "Officiell svensk myndighet",
+      "base_weight": 0.95,
+      "trust_factor": 1.0
+    },
+    "high": {
+      "description": "Public service eller etablerad källa",
+      "base_weight": 0.85,
+      "trust_factor": 0.9
+    },
+    "medium": {
+      "description": "Verifierad men icke-officiell källa",
+      "base_weight": 0.70,
+      "trust_factor": 0.75
+    },
+    "low": {
+      "description": "Okänd eller overifierad källa",
+      "base_weight": 0.40,
+      "trust_factor": 0.5
+    }
+  },
+  "data_type_weights": {
+    "weather": 1.0,
+    "population": 1.0,
+    "statistics": 1.0,
+    "politics": 0.95,
+    "crisis": 1.0,
+    "traffic": 0.95,
+    "education": 0.95,
+    "health": 0.95,
+    "environment": 0.95,
+    "language": 0.98,
+    "news": 0.80,
+    "web_search": 0.65,
+    "encyclopedia": 0.70,
+    "general": 0.60
+  },
+  "confidence_calculation": {
+    "formula": "source_weight * reliability_trust * data_type_weight * freshness_factor",
+    "freshness_decay": {
+      "hours_0_1": 1.0,
+      "hours_1_6": 0.95,
+      "hours_6_24": 0.85,
+      "days_1_7": 0.70,
+      "days_7_plus": 0.50
+    }
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "last_updated": null,
+    "description": "Källviktning för ONESEEK Δ+ Förtroende v2"
+  }
+}

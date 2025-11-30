@@ -51,6 +51,75 @@ from datetime import datetime
 from typing import Optional, List
 import requests  # For Tavily API and SMHI weather
 
+# =============================================================================
+# ONESEEK Δ+ MODULE IMPORTS
+# =============================================================================
+# Intent Engine, Typo Checker, Confidence Calculator, Delta Compare, Cache Manager
+try:
+    from .intent_engine import get_intent_engine, process_user_input
+    INTENT_ENGINE_AVAILABLE = True
+except ImportError:
+    try:
+        from intent_engine import get_intent_engine, process_user_input
+        INTENT_ENGINE_AVAILABLE = True
+    except ImportError:
+        INTENT_ENGINE_AVAILABLE = False
+        get_intent_engine = None
+        process_user_input = None
+
+try:
+    from .typo_double_check import get_typo_checker, check_spelling
+    TYPO_CHECKER_AVAILABLE = True
+except ImportError:
+    try:
+        from typo_double_check import get_typo_checker, check_spelling
+        TYPO_CHECKER_AVAILABLE = True
+    except ImportError:
+        TYPO_CHECKER_AVAILABLE = False
+        get_typo_checker = None
+        check_spelling = None
+
+try:
+    from .calculate_confidence import get_confidence_calculator, calculate_confidence
+    CONFIDENCE_CALC_AVAILABLE = True
+except ImportError:
+    try:
+        from calculate_confidence import get_confidence_calculator, calculate_confidence
+        CONFIDENCE_CALC_AVAILABLE = True
+    except ImportError:
+        CONFIDENCE_CALC_AVAILABLE = False
+        get_confidence_calculator = None
+        calculate_confidence = None
+
+try:
+    from .delta_compare import get_delta_compare, create_response_hash
+    DELTA_COMPARE_AVAILABLE = True
+except ImportError:
+    try:
+        from delta_compare import get_delta_compare, create_response_hash
+        DELTA_COMPARE_AVAILABLE = True
+    except ImportError:
+        DELTA_COMPARE_AVAILABLE = False
+        get_delta_compare = None
+        create_response_hash = None
+
+try:
+    from .cache_manager import get_cache_manager, cache_get, cache_set
+    CACHE_MANAGER_AVAILABLE = True
+except ImportError:
+    try:
+        from cache_manager import get_cache_manager, cache_get, cache_set
+        CACHE_MANAGER_AVAILABLE = True
+    except ImportError:
+        CACHE_MANAGER_AVAILABLE = False
+        get_cache_manager = None
+        cache_get = None
+        cache_set = None
+
+# =============================================================================
+# END ONESEEK Δ+ MODULE IMPORTS
+# =============================================================================
+
 # RSS feed parsing for news feature
 try:
     import feedparser
@@ -908,7 +977,11 @@ def tavily_search(query: str) -> Optional[dict]:
                 "query": query,
                 "search_depth": "advanced",
                 "include_answer": True,
-                "max_results": 4
+                "max_results": 4,
+                "include_domains": [],
+                "exclude_domains": [],
+                # ONESEEK Δ+: Force Swedish language responses
+                "language": "sv"
             },
             timeout=10
         )
@@ -3763,6 +3836,332 @@ app.include_router(rss_router)
 
 # Register Open Data APIs router (Swedish public data)
 app.include_router(open_data_router)
+
+# =============================================================================
+# ONESEEK Δ+ API ENDPOINTS
+# =============================================================================
+
+# Intent Engine API
+@app.get("/api/ml/intents")
+async def get_intents():
+    """Get all intent rules (admin API)."""
+    if not INTENT_ENGINE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Intent Engine not available")
+    
+    engine = get_intent_engine()
+    return {"intents": engine.rules.get("intents", {})}
+
+@app.post("/api/ml/intents")
+async def create_intent(request: Request):
+    """Create a new intent (admin API)."""
+    if not INTENT_ENGINE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Intent Engine not available")
+    
+    data = await request.json()
+    engine = get_intent_engine()
+    
+    success = engine.add_intent(
+        name=data.get("name"),
+        triggers=data.get("triggers", []),
+        priority=data.get("priority", 5)
+    )
+    
+    if success:
+        return {"status": "created", "name": data.get("name")}
+    raise HTTPException(status_code=400, detail="Failed to create intent")
+
+@app.put("/api/ml/intents/{name}")
+async def update_intent(name: str, request: Request):
+    """Update an intent (admin API)."""
+    if not INTENT_ENGINE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Intent Engine not available")
+    
+    data = await request.json()
+    engine = get_intent_engine()
+    
+    success = engine.update_intent(
+        name=name,
+        triggers=data.get("triggers"),
+        priority=data.get("priority")
+    )
+    
+    if success:
+        return {"status": "updated", "name": name}
+    raise HTTPException(status_code=404, detail="Intent not found")
+
+@app.delete("/api/ml/intents/{name}")
+async def delete_intent(name: str):
+    """Delete an intent (admin API)."""
+    if not INTENT_ENGINE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Intent Engine not available")
+    
+    engine = get_intent_engine()
+    success = engine.delete_intent(name)
+    
+    if success:
+        return {"status": "deleted", "name": name}
+    raise HTTPException(status_code=404, detail="Intent not found")
+
+@app.post("/api/ml/intent/process")
+async def process_intent(request: Request):
+    """Process user input through Intent Engine."""
+    if not INTENT_ENGINE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Intent Engine not available")
+    
+    data = await request.json()
+    text = data.get("text", "")
+    
+    result = process_user_input(text)
+    return result
+
+# Typo Checker API
+@app.post("/api/ml/typo")
+async def check_typo(request: Request):
+    """Check spelling in text."""
+    if not TYPO_CHECKER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Typo Checker not available")
+    
+    data = await request.json()
+    text = data.get("text", "")
+    auto_correct = data.get("auto_correct", False)
+    
+    result = check_spelling(text, auto_correct=auto_correct)
+    return result
+
+@app.post("/api/ml/typo/log")
+async def log_typo(request: Request):
+    """Log a typo for training data."""
+    if not TYPO_CHECKER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Typo Checker not available")
+    
+    data = await request.json()
+    checker = get_typo_checker()
+    
+    success = checker.logger.log_typo(
+        original=data.get("original", ""),
+        corrected=data.get("corrected", ""),
+        context=data.get("context", ""),
+        source="api"
+    )
+    
+    return {"status": "logged" if success else "failed"}
+
+# Confidence Calculator API
+@app.get("/api/ml/sources")
+async def get_sources():
+    """Get all source weights (admin API)."""
+    if not CONFIDENCE_CALC_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Confidence Calculator not available")
+    
+    calc = get_confidence_calculator()
+    return {"sources": calc.config.get("sources", {})}
+
+@app.put("/api/ml/sources/{source_id}")
+async def update_source(source_id: str, request: Request):
+    """Update source weight (admin API)."""
+    if not CONFIDENCE_CALC_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Confidence Calculator not available")
+    
+    data = await request.json()
+    calc = get_confidence_calculator()
+    
+    success = calc.update_source_weight(source_id, data.get("weight", 0.5))
+    
+    if success:
+        return {"status": "updated", "source_id": source_id}
+    raise HTTPException(status_code=404, detail="Source not found")
+
+@app.post("/api/ml/sources")
+async def create_source(request: Request):
+    """Create a new source (admin API)."""
+    if not CONFIDENCE_CALC_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Confidence Calculator not available")
+    
+    data = await request.json()
+    calc = get_confidence_calculator()
+    
+    success = calc.add_source(
+        source_id=data.get("id"),
+        name=data.get("name"),
+        weight=data.get("weight", 0.7),
+        reliability=data.get("reliability", "medium")
+    )
+    
+    if success:
+        return {"status": "created", "source_id": data.get("id")}
+    raise HTTPException(status_code=400, detail="Failed to create source")
+
+@app.delete("/api/ml/sources/{source_id}")
+async def delete_source_endpoint(source_id: str):
+    """Delete a source (admin API)."""
+    if not CONFIDENCE_CALC_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Confidence Calculator not available")
+    
+    calc = get_confidence_calculator()
+    
+    if source_id in calc.config.get("sources", {}):
+        del calc.config["sources"][source_id]
+        calc._save_config()
+        return {"status": "deleted", "source_id": source_id}
+    raise HTTPException(status_code=404, detail="Source not found")
+
+@app.post("/api/ml/confidence")
+async def calculate_confidence_endpoint(request: Request):
+    """Calculate confidence for a source."""
+    if not CONFIDENCE_CALC_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Confidence Calculator not available")
+    
+    data = await request.json()
+    result = calculate_confidence(
+        source_id=data.get("source_id", "unknown"),
+        data_type=data.get("data_type", "general")
+    )
+    
+    return {
+        "score": result.score,
+        "level": result.level,
+        "explanation": result.explanation
+    }
+
+# Delta Compare API
+@app.post("/api/ml/delta/compare")
+async def delta_compare_endpoint(request: Request):
+    """Compare two results for semantic delta."""
+    if not DELTA_COMPARE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Delta Compare not available")
+    
+    data = await request.json()
+    dc = get_delta_compare()
+    
+    result = dc.compare(
+        current=data.get("current", {}),
+        previous=data.get("previous", {})
+    )
+    
+    return {
+        "similarity_score": result.similarity_score,
+        "intent_match": result.intent_match,
+        "entity_overlap": result.entity_overlap,
+        "delta_type": result.delta_type,
+        "changes": result.changes,
+        "hash_current": result.hash_current,
+        "hash_previous": result.hash_previous
+    }
+
+@app.post("/api/ml/delta/hash")
+async def create_hash_endpoint(request: Request):
+    """Create blockchain hash for response."""
+    if not DELTA_COMPARE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Delta Compare not available")
+    
+    data = await request.json()
+    response_hash = create_response_hash(
+        query=data.get("query", ""),
+        response=data.get("response", "")
+    )
+    
+    return {"hash": response_hash}
+
+# Cache Manager API
+@app.get("/api/ml/cache/stats")
+async def cache_stats():
+    """Get cache statistics."""
+    if not CACHE_MANAGER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Cache Manager not available")
+    
+    cm = get_cache_manager()
+    return cm.get_stats()
+
+@app.post("/api/ml/cache/cleanup")
+async def cache_cleanup():
+    """Clean up expired cache entries."""
+    if not CACHE_MANAGER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Cache Manager not available")
+    
+    cm = get_cache_manager()
+    removed = cm.cleanup_expired()
+    
+    return {"removed": removed}
+
+@app.delete("/api/ml/cache")
+async def cache_clear():
+    """Clear all cache."""
+    if not CACHE_MANAGER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Cache Manager not available")
+    
+    cm = get_cache_manager()
+    removed = cm.clear()
+    
+    return {"removed": removed}
+
+# Gold Standard API (placeholder)
+@app.get("/api/ml/gold")
+async def get_gold_items():
+    """Get all Gold Standard items."""
+    # Placeholder - would be stored in database
+    return {"items": []}
+
+@app.get("/api/ml/gold/queue")
+async def get_gold_queue(status: str = "pending"):
+    """Get Gold Standard queue."""
+    # Placeholder - would be stored in database
+    return {"items": []}
+
+# Weather Cache API
+@app.get("/api/ml/weather/cache")
+async def get_weather_cache():
+    """Get cached weather data."""
+    cache_file = Path(__file__).parent.parent / "cache" / "weather.json"
+    
+    if cache_file.exists():
+        try:
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return data
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to read cache: {e}")
+    
+    return {"municipalities": {}, "updated_at": None}
+
+@app.get("/api/ml/weather/{city}")
+async def get_cached_weather(city: str):
+    """Get cached weather for a specific city."""
+    cache_file = Path(__file__).parent.parent / "cache" / "weather.json"
+    
+    if cache_file.exists():
+        try:
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            municipalities = data.get("municipalities", {})
+            city_data = municipalities.get(city.lower())
+            
+            if city_data:
+                return city_data
+            
+            raise HTTPException(status_code=404, detail=f"City '{city}' not in cache")
+        except json.JSONDecodeError as e:
+            raise HTTPException(status_code=500, detail=f"Invalid cache data: {e}")
+    
+    raise HTTPException(status_code=404, detail="Weather cache not found")
+
+# ONESEEK Δ+ Status API
+@app.get("/api/ml/delta-plus/status")
+async def delta_plus_status():
+    """Get ONESEEK Δ+ module status."""
+    return {
+        "intent_engine": INTENT_ENGINE_AVAILABLE,
+        "typo_checker": TYPO_CHECKER_AVAILABLE,
+        "confidence_calculator": CONFIDENCE_CALC_AVAILABLE,
+        "delta_compare": DELTA_COMPARE_AVAILABLE,
+        "cache_manager": CACHE_MANAGER_AVAILABLE,
+        "version": "Δ+",
+        "tavily_swedish": True
+    }
+
+# =============================================================================
+# END ONESEEK Δ+ API ENDPOINTS
+# =============================================================================
 
 @app.get("/")
 async def root():
