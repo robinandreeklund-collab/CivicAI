@@ -4,6 +4,202 @@
 
 ONESEEK Δ+ är en **självläkande, semantisk, transparent och mänsklig** AI som förstår svenska – på riktigt. Byggd på 31 svenska realtids-API:er, admin-styrd Intent Engine och världens mest avancerade träningsloop.
 
+---
+
+## 🔷 KOMPLETT ADMIN GUIDE + TESTNING
+
+### Var hittar jag Δ+ funktionerna?
+
+**URL:** `http://localhost:5173/admin` (eller din frontends port)
+
+**Navigering:**
+1. Gå till **Admin Dashboard**
+2. Klicka på fliken **🔌 Integrations**
+3. Expandera **🔷 ONESEEK Δ+ Admin** sektionen
+
+### Δ+ Admin-flikar
+
+| Flik | Beskrivning | Vad kan du göra? |
+|------|-------------|------------------|
+| 🎯 **Intent Engine** | Hantera intent-regler | Lägg till/redigera intents, triggers, prioriteter |
+| 🏅 **Gold Editor** | Granska träningsdata | Ta bort skräp, godkänn för träning |
+| ⚖️ **Källviktning** | Förtroende v2 | Justera vikt per källa (SCB +15, Aftonbladet -20) |
+| ✏️ **Stavfel** | Stavfelspar | Granska och godkänn för självlärande |
+| 📚 **Topics** | Topic History | Se topic-grupperad konversationshistorik |
+
+---
+
+## ✅ TESTNINGS-CHECKLISTA
+
+Använd denna checklista för att verifiera att alla Δ+ funktioner fungerar.
+
+### Backend-test (Terminal)
+
+```bash
+# 1. Starta ML-server med debug
+# Windows:
+& "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\python.exe" "C:\Users\robin\Documents\GitHub\CivicAI\ml_service\server.py" --load-in-8bit --auto-devices --listen --api
+
+# Du ska se:
+# ======================================================================
+# 🔷 ONESEEK Δ+ MODULE STATUS
+# ======================================================================
+#   ✅ READY  Intent Engine          - Semantic intent + entity detection
+#   ✅ READY  Memory Manager         - Topic-grouped conversation history
+#   ...
+```
+
+**[ ] Backend startar utan fel**
+**[ ] Δ+ MODULE STATUS visar alla ✅ READY**
+
+### Frontend-test
+
+```bash
+# 2. Starta frontend
+cd C:\Users\robin\Documents\GitHub\CivicAI\frontend
+npm run dev
+```
+
+**[ ] Frontend startar på http://localhost:5173**
+
+### Admin Dashboard-test
+
+1. **[ ] Gå till `/admin`**
+2. **[ ] Klicka på "🔌 Integrations"**
+3. **[ ] Se "🔷 ONESEEK Δ+ Admin" sektionen**
+4. **[ ] Expandera Δ+ Admin (klicka på rubriken)**
+
+### Intent Engine-test
+
+1. **[ ] Klicka på "🎯 Intent Engine" fliken**
+2. **[ ] Intent-lista laddas (befolkning, väder, etc.)**
+3. **[ ] Testa redigera en intent**
+4. **[ ] Spara → Toast visar "Sparat!"**
+
+### Gold Editor-test
+
+1. **[ ] Klicka på "🏅 Gold Editor" fliken**
+2. **[ ] Gold-dataset laddas**
+3. **[ ] Testa godkänn/radera ett exempel**
+
+### Källviktning-test
+
+1. **[ ] Klicka på "⚖️ Källviktning" fliken**
+2. **[ ] Källor visas (SCB, SMHI, etc.)**
+3. **[ ] Testa ändra vikt för en källa**
+4. **[ ] Spara → Förtroende v2 uppdateras**
+
+### Stavfel Editor-test
+
+1. **[ ] Klicka på "✏️ Stavfel" fliken**
+2. **[ ] Stavfelspar laddas**
+3. **[ ] Testa godkänn ett par**
+4. **[ ] Exportera till JSONL**
+
+### Topic History-test
+
+1. **[ ] Klicka på "📚 Topics" fliken**
+2. **[ ] Topic-träd laddas**
+3. **[ ] Se topic-gruppering (befolkning:hjo, etc.)**
+
+### Chat-test (Inference)
+
+```bash
+# 3. Testa i chatten
+# Gå till http://localhost:5173/chat
+
+# Skriv: "Hur många bor i Hjo?"
+# Du ska se i backend-terminal:
+# ------------------------------------------------------------
+# 🔷 ONESEEK Δ+ INFERENCE DEBUG
+# ------------------------------------------------------------
+#   📝 Input: Hur många bor i Hjo?
+#   🇸🇪 Force-Svenska: ✅ ACTIVE
+#   🎯 Intent Engine: ✅ befolkning (conf: 0.85)
+#      └─ Entity: Hjo
+#   ...
+```
+
+**[ ] Intent Engine triggas korrekt**
+**[ ] Force-Svenska är ACTIVE**
+**[ ] Topic hash genereras**
+
+### Hybrid-Autocorrect test
+
+```bash
+# 4. Testa stavfel i chatten
+# Skriv: "Hur många invåndare har Hjo?"
+# Ska få förslag: "Menar du invånare?"
+```
+
+**[ ] Typo-checker föreslår korrigering**
+**[ ] Stavfelspar sparas till dataset**
+
+---
+
+## 🔧 API-ENDPOINTS FÖR TESTNING
+
+Testa API:erna direkt med curl eller Postman:
+
+### Intent Engine API
+
+```bash
+# Hämta alla intents
+curl http://localhost:5000/api/ml/intents
+
+# Processa text
+curl -X POST http://localhost:5000/api/ml/intent/process \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hur många bor i Stockholm?"}'
+```
+
+**[ ] `/api/ml/intents` returnerar JSON med intents**
+**[ ] `/api/ml/intent/process` detekterar intent + entity**
+
+### Stavfel API
+
+```bash
+# Hämta stavfelspar
+curl http://localhost:5000/api/ml/stavfel
+
+# Hämta statistik
+curl http://localhost:5000/api/ml/stavfel/stats
+```
+
+**[ ] `/api/ml/stavfel` returnerar stavfelspar**
+**[ ] `/api/ml/stavfel/stats` visar count**
+
+### Källviktning API
+
+```bash
+# Hämta källor
+curl http://localhost:5000/api/ml/sources
+```
+
+**[ ] `/api/ml/sources` returnerar sources med weight**
+
+### Memory API
+
+```bash
+# Testa topic-detektion
+curl -X POST http://localhost:5000/api/ml/memory/detect-topic \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hur är vädret i Göteborg?"}'
+```
+
+**[ ] `/api/ml/memory/detect-topic` returnerar topic_hash**
+
+### Δ+ Status API
+
+```bash
+# Modulstatus
+curl http://localhost:5000/api/ml/delta-plus/status
+```
+
+**[ ] `/api/ml/delta-plus/status` visar alla moduler**
+
+---
+
 ## PR93 Alignment Summary
 
 Denna PR implementerar fullständig ONESEEK Δ+ funktionalitet enligt specifikationen:
