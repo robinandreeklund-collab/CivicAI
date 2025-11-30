@@ -305,6 +305,9 @@ const styles = {
     maxWidth: '1000px',
     margin: '0 auto',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    backgroundColor: '#1e293b',
+    borderRadius: '8px',
+    color: 'white',
   },
   header: {
     marginBottom: '24px',
@@ -313,10 +316,11 @@ const styles = {
     margin: '0 0 8px 0',
     fontSize: '24px',
     fontWeight: '600',
+    color: 'white',
   },
   subtitle: {
     margin: 0,
-    color: '#666',
+    color: '#94a3b8',
     fontSize: '14px',
   },
   statsContainer: {
@@ -326,7 +330,7 @@ const styles = {
     marginBottom: '24px',
   },
   statCard: {
-    background: '#f8f9fa',
+    background: '#334155',
     borderRadius: '8px',
     padding: '16px',
     textAlign: 'center',
@@ -337,11 +341,11 @@ const styles = {
   statNumber: {
     fontSize: '28px',
     fontWeight: '700',
-    color: '#333',
+    color: 'white',
   },
   statLabel: {
     fontSize: '12px',
-    color: '#666',
+    color: '#94a3b8',
     textTransform: 'uppercase',
     letterSpacing: '0.5px',
   },
@@ -361,13 +365,16 @@ const styles = {
   filterLabel: {
     fontSize: '14px',
     fontWeight: '500',
+    color: 'white',
   },
   select: {
     padding: '8px 12px',
     borderRadius: '6px',
-    border: '1px solid #ddd',
+    border: '1px solid #475569',
     fontSize: '14px',
     cursor: 'pointer',
+    backgroundColor: '#334155',
+    color: 'white',
   },
   buttonGroup: {
     display: 'flex',
@@ -395,7 +402,7 @@ const styles = {
   },
   refreshButton: {
     padding: '8px 16px',
-    background: '#6c757d',
+    background: '#64748b',
     color: 'white',
     border: 'none',
     borderRadius: '6px',
@@ -403,8 +410,8 @@ const styles = {
     fontSize: '14px',
   },
   error: {
-    background: '#f8d7da',
-    color: '#721c24',
+    background: '#450a0a',
+    color: '#fca5a5',
     padding: '12px 16px',
     borderRadius: '8px',
     marginBottom: '16px',
@@ -412,13 +419,13 @@ const styles = {
   loading: {
     textAlign: 'center',
     padding: '40px',
-    color: '#666',
+    color: '#94a3b8',
     fontSize: '16px',
   },
   empty: {
     textAlign: 'center',
     padding: '40px',
-    color: '#999',
+    color: '#64748b',
     fontSize: '14px',
   },
   pairsList: {
@@ -427,8 +434,8 @@ const styles = {
     gap: '12px',
   },
   pairCard: {
-    background: 'white',
-    border: '1px solid #e0e0e0',
+    background: '#334155',
+    border: '1px solid #475569',
     borderRadius: '8px',
     borderLeft: '4px solid',
     padding: '16px',
@@ -450,27 +457,27 @@ const styles = {
     fontFamily: 'monospace',
     fontSize: '16px',
     fontWeight: '600',
-    color: '#dc3545',
-    background: '#fff5f5',
+    color: '#f87171',
+    background: '#450a0a',
     padding: '4px 8px',
     borderRadius: '4px',
   },
   arrow: {
-    color: '#666',
+    color: '#94a3b8',
     fontSize: '16px',
   },
   correctedWord: {
     fontFamily: 'monospace',
     fontSize: '16px',
     fontWeight: '600',
-    color: '#28a745',
-    background: '#f0fff0',
+    color: '#4ade80',
+    background: '#052e16',
     padding: '4px 8px',
     borderRadius: '4px',
   },
   context: {
     fontSize: '13px',
-    color: '#666',
+    color: '#94a3b8',
     fontStyle: 'italic',
     marginBottom: '8px',
     maxWidth: '500px',
@@ -482,18 +489,20 @@ const styles = {
     display: 'flex',
     gap: '12px',
     fontSize: '11px',
-    color: '#999',
+    color: '#64748b',
   },
   source: {
-    background: '#f0f0f0',
+    background: '#475569',
     padding: '2px 6px',
     borderRadius: '4px',
+    color: '#94a3b8',
   },
   confidence: {
     fontWeight: '500',
+    color: '#94a3b8',
   },
   timestamp: {
-    color: '#aaa',
+    color: '#64748b',
   },
   pairActions: {
     display: 'flex',

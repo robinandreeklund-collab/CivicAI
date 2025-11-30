@@ -155,9 +155,9 @@ export default function IntentEditor() {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
+    <div className="bg-slate-800 rounded-lg shadow-lg p-6 text-white">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">
+        <h2 className="text-2xl font-bold text-white">
           🎯 Intent Editor
         </h2>
         <button
@@ -181,8 +181,8 @@ export default function IntentEditor() {
       )}
 
       {/* Skapa ny intent */}
-      <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-        <h3 className="text-lg font-semibold text-gray-700 mb-3">
+      <div className="mb-6 p-4 bg-slate-700 rounded-lg">
+        <h3 className="text-lg font-semibold text-white mb-3">
           ➕ Skapa ny intent
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -191,20 +191,20 @@ export default function IntentEditor() {
             placeholder="Intent-namn"
             value={newIntent.name}
             onChange={(e) => setNewIntent({ ...newIntent, name: e.target.value })}
-            className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+            className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-slate-600 text-white border-slate-500 placeholder-slate-400"
           />
           <input
             type="text"
             placeholder="Triggers (kommaseparerade)"
             value={newIntent.triggers}
             onChange={(e) => setNewIntent({ ...newIntent, triggers: e.target.value })}
-            className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 md:col-span-2"
+            className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 md:col-span-2 bg-slate-600 text-white border-slate-500 placeholder-slate-400"
           />
           <div className="flex gap-2">
             <select
               value={newIntent.priority}
               onChange={(e) => setNewIntent({ ...newIntent, priority: e.target.value })}
-              className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+              className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-slate-600 text-white border-slate-500"
             >
               {[0, 1, 2, 3, 4, 5].map(p => (
                 <option key={p} value={p}>Prio {p}</option>
@@ -226,13 +226,13 @@ export default function IntentEditor() {
           <div
             key={name}
             className={`p-4 border rounded-lg transition ${
-              selectedIntent === name ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'
+              selectedIntent === name ? 'border-indigo-500 bg-indigo-900' : 'border-slate-600 hover:border-slate-500 bg-slate-700'
             }`}
           >
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <h4 className="text-lg font-semibold text-gray-800">
+                  <h4 className="text-lg font-semibold text-white">
                     {name}
                   </h4>
                   <PriorityBadge priority={config.priority || 5} />
@@ -241,24 +241,24 @@ export default function IntentEditor() {
                 {selectedIntent === name && editMode ? (
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-sm text-gray-600 mb-1">
+                      <label className="block text-sm text-slate-300 mb-1">
                         Triggers (kommaseparerade)
                       </label>
                       <input
                         type="text"
-                        defaultValue={(config.triggers || []).join(', ')}
+                        defaultValue={(config.triggers || config.keywords || []).join(', ')}
                         id={`triggers-${name}`}
-                        className="w-full px-3 py-2 border rounded-lg"
+                        className="w-full px-3 py-2 border rounded-lg bg-slate-600 text-white border-slate-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm text-gray-600 mb-1">
+                      <label className="block text-sm text-slate-300 mb-1">
                         Prioritet (0 = högst)
                       </label>
                       <select
                         defaultValue={config.priority || 5}
                         id={`priority-${name}`}
-                        className="px-3 py-2 border rounded-lg"
+                        className="px-3 py-2 border rounded-lg bg-slate-600 text-white border-slate-500"
                       >
                         {[0, 1, 2, 3, 4, 5].map(p => (
                           <option key={p} value={p}>Prioritet {p}</option>
@@ -286,13 +286,13 @@ export default function IntentEditor() {
                   </div>
                 ) : (
                   <div>
-                    <p className="text-gray-600 text-sm">
+                    <p className="text-slate-300 text-sm">
                       <span className="font-medium">Triggers:</span>{' '}
-                      {(config.triggers || []).slice(0, 5).join(', ')}
-                      {(config.triggers || []).length > 5 && ` +${config.triggers.length - 5} till...`}
+                      {(config.triggers || config.keywords || []).slice(0, 5).join(', ')}
+                      {(config.triggers || config.keywords || []).length > 5 && ` +${(config.triggers || config.keywords).length - 5} till...`}
                     </p>
                     {config.entities && config.entities.length > 0 && (
-                      <p className="text-gray-500 text-xs mt-1">
+                      <p className="text-slate-400 text-xs mt-1">
                         Entities: {config.entities.join(', ')}
                       </p>
                     )}
@@ -304,14 +304,14 @@ export default function IntentEditor() {
                 <div className="flex gap-2 ml-4">
                   <button
                     onClick={() => { setSelectedIntent(name); setEditMode(true); }}
-                    className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                    className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-indigo-900 rounded-lg transition"
                     title="Redigera"
                   >
                     ✏️
                   </button>
                   <button
                     onClick={() => deleteIntent(name)}
-                    className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                    className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-900 rounded-lg transition"
                     title="Ta bort"
                   >
                     🗑️
@@ -324,17 +324,17 @@ export default function IntentEditor() {
       </div>
 
       {Object.keys(intents).length === 0 && (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-slate-400">
           <p>Inga intents definierade</p>
           <p className="text-sm mt-1">Skapa din första intent ovan</p>
         </div>
       )}
 
       {/* Statistik */}
-      <div className="mt-6 pt-4 border-t">
-        <p className="text-sm text-gray-500">
+      <div className="mt-6 pt-4 border-t border-slate-600">
+        <p className="text-sm text-slate-400">
           Totalt: {Object.keys(intents).length} intents |{' '}
-          {Object.values(intents).reduce((sum, i) => sum + (i.triggers?.length || 0), 0)} triggers
+          {Object.values(intents).reduce((sum, i) => sum + (i.triggers?.length || i.keywords?.length || 0), 0)} triggers
         </p>
       </div>
     </div>

@@ -191,9 +191,9 @@ export default function SourceWeights() {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
+    <div className="bg-slate-800 rounded-lg shadow-lg p-6 text-white">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">
+        <h2 className="text-2xl font-bold text-white">
           ⚖️ Källviktning
         </h2>
         <div className="flex gap-2">
