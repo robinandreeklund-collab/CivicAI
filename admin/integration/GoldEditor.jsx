@@ -10,7 +10,25 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 
-const API_BASE = '/api/ml';
+// Helper to try multiple endpoints (proxy and direct)
+const fetchWithFallback = async (path, options = {}) => {
+  const endpoints = [
+    `/api/ml${path}`,                    // Vite proxy
+    `http://localhost:5000/api/ml${path}` // Direct ML service
+  ];
+  
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, options);
+      if (response.ok) {
+        return response;
+      }
+    } catch (err) {
+      console.log(`Failed to fetch from ${endpoint}:`, err.message);
+    }
+  }
+  throw new Error('All endpoints failed');
+};
 
 /**
  * GoldEditor Component
@@ -46,11 +64,7 @@ export default function GoldEditor() {
   const fetchGoldItems = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/gold`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+      const response = await fetchWithFallback('/gold');
       
       const data = await response.json();
       setGoldItems(data.items || []);
@@ -75,7 +89,7 @@ export default function GoldEditor() {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/gold`, {
+      const response = await fetchWithFallback('/gold', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -85,10 +99,6 @@ export default function GoldEditor() {
           created_at: new Date().toISOString()
         })
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
 
       await fetchGoldItems();
       setNewGold({
@@ -107,15 +117,11 @@ export default function GoldEditor() {
   // Uppdatera Gold-svar
   const updateGoldItem = async (id, updates) => {
     try {
-      const response = await fetch(`${API_BASE}/gold/${id}`, {
+      const response = await fetchWithFallback(`/gold/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
 
       await fetchGoldItems();
       setSelectedItem(null);
@@ -131,13 +137,9 @@ export default function GoldEditor() {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/gold/${id}`, {
+      const response = await fetchWithFallback(`/gold/${id}`, {
         method: 'DELETE'
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
 
       await fetchGoldItems();
     } catch (err) {

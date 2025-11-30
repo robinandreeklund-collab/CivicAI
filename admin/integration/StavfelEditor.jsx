@@ -11,7 +11,25 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 
-const API_BASE = '/api/ml';
+// Helper to try multiple endpoints (proxy and direct)
+const fetchWithFallback = async (path, options = {}) => {
+  const endpoints = [
+    `/api/ml${path}`,                    // Vite proxy
+    `http://localhost:5000/api/ml${path}` // Direct ML service
+  ];
+  
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, options);
+      if (response.ok) {
+        return response;
+      }
+    } catch (err) {
+      console.log(`Failed to fetch from ${endpoint}:`, err.message);
+    }
+  }
+  throw new Error('All endpoints failed');
+};
 
 // Statusfärger
 const STATUS_COLORS = {
@@ -32,8 +50,7 @@ const StavfelEditor = () => {
   const fetchPairs = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/stavfel?filter=${filter}&limit=100`);
-      if (!response.ok) throw new Error('Kunde inte hämta data');
+      const response = await fetchWithFallback(`/stavfel?filter=${filter}&limit=100`);
       const data = await response.json();
       setPairs(data.pairs || []);
       setStats(data.stats || null);
@@ -53,13 +70,11 @@ const StavfelEditor = () => {
   // Godkänn ett par
   const approvePair = async (original, corrected) => {
     try {
-      const response = await fetch(`${API_BASE}/stavfel/approve`, {
+      const response = await fetchWithFallback('/stavfel/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ original, corrected })
       });
-      
-      if (!response.ok) throw new Error('Kunde inte godkänna');
       
       // Uppdatera lokalt
       setPairs(prev => prev.map(p => 
@@ -77,13 +92,11 @@ const StavfelEditor = () => {
     if (!window.confirm(`Ta bort "${original}" → "${corrected}"?`)) return;
     
     try {
-      const response = await fetch(`${API_BASE}/stavfel/reject`, {
+      const response = await fetchWithFallback('/stavfel/reject', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ original, corrected })
       });
-      
-      if (!response.ok) throw new Error('Kunde inte ta bort');
       
       // Ta bort lokalt
       setPairs(prev => prev.filter(p => 
@@ -98,13 +111,11 @@ const StavfelEditor = () => {
   const exportForTraining = async () => {
     setExporting(true);
     try {
-      const response = await fetch(`${API_BASE}/stavfel/export`, {
+      const response = await fetchWithFallback('/stavfel/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ format: 'jsonl' })
       });
-      
-      if (!response.ok) throw new Error('Export misslyckades');
       
       const data = await response.json();
       alert(`Export klar: ${data.file_path}\n${data.count} par exporterade.`);

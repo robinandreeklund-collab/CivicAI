@@ -10,7 +10,25 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 
-const API_BASE = '/api/ml';
+// Helper to try multiple endpoints (proxy and direct)
+const fetchWithFallback = async (path, options = {}) => {
+  const endpoints = [
+    `/api/ml${path}`,                    // Vite proxy
+    `http://localhost:5000/api/ml${path}` // Direct ML service
+  ];
+  
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, options);
+      if (response.ok) {
+        return response;
+      }
+    } catch (err) {
+      console.log(`Failed to fetch from ${endpoint}:`, err.message);
+    }
+  }
+  throw new Error('All endpoints failed');
+};
 
 /**
  * SourceWeights Component
@@ -42,11 +60,7 @@ export default function SourceWeights() {
   const fetchSources = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/sources`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+      const response = await fetchWithFallback('/sources');
       
       const data = await response.json();
       setSources(data.sources || {});
@@ -66,15 +80,11 @@ export default function SourceWeights() {
   // Uppdatera källa
   const updateSource = async (id, updates) => {
     try {
-      const response = await fetch(`${API_BASE}/sources/${id}`, {
+      const response = await fetchWithFallback(`/sources/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
 
       await fetchSources();
       setEditingSource(null);
@@ -91,15 +101,11 @@ export default function SourceWeights() {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/sources`, {
+      const response = await fetchWithFallback('/sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newSource)
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
 
       await fetchSources();
       setNewSource({
@@ -122,13 +128,9 @@ export default function SourceWeights() {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/sources/${id}`, {
+      const response = await fetchWithFallback(`/sources/${id}`, {
         method: 'DELETE'
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
 
       await fetchSources();
     } catch (err) {

@@ -10,7 +10,25 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 
-const API_BASE = '/api/ml';
+// Helper to try multiple endpoints (proxy and direct)
+const fetchWithFallback = async (path, options = {}) => {
+  const endpoints = [
+    `/api/ml${path}`,                    // Vite proxy
+    `http://localhost:5000/api/ml${path}` // Direct ML service
+  ];
+  
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, options);
+      if (response.ok) {
+        return response;
+      }
+    } catch (err) {
+      console.log(`Failed to fetch from ${endpoint}:`, err.message);
+    }
+  }
+  throw new Error('All endpoints failed');
+};
 
 /**
  * IntentEditor Component
@@ -28,11 +46,7 @@ export default function IntentEditor() {
   const fetchIntents = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/intents`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+      const response = await fetchWithFallback('/intents');
       
       const data = await response.json();
       setIntents(data.intents || {});
@@ -52,7 +66,7 @@ export default function IntentEditor() {
   // Uppdatera en intent
   const updateIntent = async (name, triggers, priority) => {
     try {
-      const response = await fetch(`${API_BASE}/intents/${name}`, {
+      const response = await fetchWithFallback(`/intents/${name}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -60,10 +74,6 @@ export default function IntentEditor() {
           priority: parseInt(priority, 10)
         })
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
 
       await fetchIntents();
       setEditMode(false);
@@ -81,7 +91,7 @@ export default function IntentEditor() {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/intents`, {
+      const response = await fetchWithFallback('/intents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -90,10 +100,6 @@ export default function IntentEditor() {
           priority: parseInt(newIntent.priority, 10)
         })
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
 
       await fetchIntents();
       setNewIntent({ name: '', triggers: '', priority: 5 });
@@ -109,13 +115,9 @@ export default function IntentEditor() {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/intents/${name}`, {
+      const response = await fetchWithFallback(`/intents/${name}`, {
         method: 'DELETE'
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
 
       await fetchIntents();
     } catch (err) {

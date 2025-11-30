@@ -11,8 +11,25 @@
 
 import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
 
-// API base URL
-const API_BASE = '/api/ml';
+// Helper to try multiple endpoints (proxy and direct)
+const fetchWithFallback = async (path, options = {}) => {
+  const endpoints = [
+    `/api/ml${path}`,                    // Vite proxy
+    `http://localhost:5000/api/ml${path}` // Direct ML service
+  ];
+  
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, options);
+      if (response.ok) {
+        return response;
+      }
+    } catch (err) {
+      console.log(`Failed to fetch from ${endpoint}:`, err.message);
+    }
+  }
+  throw new Error('All endpoints failed');
+};
 
 // Create context before usage (React best practice)
 const TopicContext = createContext(null);
@@ -31,7 +48,7 @@ export default function TopicHistory({ userId = 'anonymous', onSelectTopic }) {
   const fetchTopics = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/memory/topics/${userId}?limit=20`);
+      const response = await fetchWithFallback(`/memory/topics/${userId}?limit=20`);
       const data = await response.json();
       
       if (data.error) {
@@ -49,7 +66,7 @@ export default function TopicHistory({ userId = 'anonymous', onSelectTopic }) {
   // Hämta meddelanden för en topic
   const fetchTopicMessages = useCallback(async (topicHash) => {
     try {
-      const response = await fetch(`${API_BASE}/memory/context/${topicHash}?limit=20`);
+      const response = await fetchWithFallback(`/memory/context/${topicHash}?limit=20`);
       const data = await response.json();
       
       if (data.error) {

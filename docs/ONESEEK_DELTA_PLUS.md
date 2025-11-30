@@ -60,7 +60,10 @@ cd C:\Users\robin\Documents\GitHub\CivicAI\frontend
 npm run dev
 ```
 
-**[ ] Frontend startar på http://localhost:5173**
+**[ ] Frontend startar på http://localhost:3000** (Obs: kan vara 5173 om 3000 är upptagen)
+
+> **OBS:** Frontend-porten konfigureras i `frontend/vite.config.js`. 
+> Standardport är **3000** men kan variera. Titta på terminalutskriften när frontend startar.
 
 ### Admin Dashboard-test
 
@@ -102,11 +105,62 @@ npm run dev
 2. **[ ] Topic-träd laddas**
 3. **[ ] Se topic-gruppering (befolkning:hjo, etc.)**
 
+---
+
+## ❌ FELSÖKNING: HTTP 404 för Admin-flikar
+
+Om du ser "HTTP 404" eller "Kunde inte ladda" fel i Admin-panelen:
+
+### Problem: Vite proxy-inställningar
+
+Admin-komponenterna använder `/api/ml/*` endpoints som måste proxyas till ML-servern (port 5000).
+
+**Lösning 1: Verifiera att ML-servern körs**
+
+```powershell
+# ML-servern MÅSTE köras på port 5000
+# Kontrollera att den kör:
+curl http://localhost:5000/api/ml/intents
+# Eller i PowerShell:
+Invoke-WebRequest -Uri "http://localhost:5000/api/ml/intents"
+```
+
+**Lösning 2: Starta om frontend efter Vite-config ändring**
+
+```bash
+# Stoppa frontend (Ctrl+C)
+# Starta om:
+npm run dev
+```
+
+**Lösning 3: Kontrollera vite.config.js**
+
+```javascript
+// frontend/vite.config.js ska ha:
+export default defineConfig({
+  server: {
+    port: 3000,
+    proxy: {
+      '/api/ml': {
+        target: 'http://localhost:5000',  // ML Service
+        changeOrigin: true,
+      },
+      '/api': {
+        target: 'http://localhost:3001',  // Backend
+        changeOrigin: true,
+      },
+    },
+  },
+});
+```
+
+---
+
 ### Chat-test (Inference)
 
 ```bash
 # 3. Testa i chatten
-# Gå till http://localhost:5173/chat
+# Gå till http://localhost:3000/chat (eller 5173)
 
 # Skriv: "Hur många bor i Hjo?"
 # Du ska se i backend-terminal:
