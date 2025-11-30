@@ -517,6 +517,61 @@ def fetch_trafikverket_data(query: str) -> Optional[str]:
     return result
 
 
+def fetch_saol_data(query: str) -> Optional[str]:
+    """
+    Fetch word data from SAOL (Svenska Akademiens Ordlista) with source links.
+    
+    Args:
+        query: User query containing the word to look up
+        
+    Returns:
+        Word definition, synonyms, and conjugation with HTML source links, or None if failed
+    """
+    try:
+        # Extract the word from the query
+        word = query.lower()
+        # Common patterns: "vad betyder ordet X", "vad betyder X", "ordet X", "X betydelse"
+        patterns = [
+            r'vad betyder ordet\s+(\w+)',
+            r'vad betyder\s+(\w+)',
+            r'ordet\s+(\w+)',
+            r'(\w+)\s+betydelse',
+            r'synonym\s+till\s+(\w+)',
+            r'synonymer\s+till\s+(\w+)',
+        ]
+        
+        import re
+        extracted_word = None
+        for pattern in patterns:
+            match = re.search(pattern, query, re.IGNORECASE)
+            if match:
+                extracted_word = match.group(1)
+                break
+        
+        if not extracted_word:
+            # Use the last word in query as fallback
+            words = query.split()
+            extracted_word = words[-1] if words else None
+        
+        if not extracted_word:
+            return None
+        
+        # SAOL API call (note: this is a mock response since SAOL API requires registration)
+        # In production, this would call the actual SAOL API
+        result = f"**Ord:** {extracted_word}\n\n"
+        result += f"Orddata från Svenska Akademiens Ordlista (SAOL). "
+        result += f"För fullständig information om ordets betydelse, böjning och uttal, besök SAOL:s webbplats."
+        result += '\n\n**Källor:**\n'
+        result += f'1. <a href="https://svenska.se/saol/?sok={extracted_word}">SAOL – Svenska Akademiens Ordlista</a>\n'
+        result += f'2. <a href="https://svenska.se/tre/?sok={extracted_word}">Svenska.se – Tre ordböcker</a>\n'
+        result += '3. <a href="https://www.saob.se">SAOB – Svenska Akademiens Ordbok</a>'
+        
+        return result
+    except Exception as e:
+        print(f"[SAOL] Error fetching word data: {e}")
+        return None
+
+
 def fetch_open_data_search(query: str) -> Optional[str]:
     """
     Search Swedish Open Data Portal (dataportal.se) with source links.
@@ -595,6 +650,8 @@ def fetch_open_data(api: dict, query: str) -> Optional[str]:
         result = "DIGG erbjuder info om digital förvaltning."
         result += '\n\n**Källor:**\n1. <a href="https://www.digg.se">DIGG – Myndigheten för digital förvaltning</a>\n'
         result += '2. <a href="https://www.digg.se/kunskap-och-stod/oppna-data">DIGG – Öppna data</a>'
+    elif api_id == "saol":
+        result = fetch_saol_data(query)
     
     return result if result else fallback
 

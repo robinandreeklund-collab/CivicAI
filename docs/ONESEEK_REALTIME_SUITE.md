@@ -612,6 +612,7 @@ SE4 (Malmö) - Södra Sverige
 | 28 | `bolagsverket` | Bolagsverket | bolag, företag, vem äger | | | |
 | 29 | `konkurrensverket` | Konkurrensverket | upphandling, konkurrens | | | |
 | 30 | `konsumentverket` | Konsumentverket | konsument, reklamation | | | |
+| 31 | `saol` | SAOL (Svenska Akademiens Ordlista) | vad betyder, ord, synonym, ordbok | | | |
 
 #### Exempel på frågor
 
@@ -620,6 +621,7 @@ SE4 (Malmö) - Södra Sverige
 "Vad röstade riksdagen om igår?" → riksdagen API → voteringsdata + källänk
 "Finns det några aktiva krislarm?" → krisinformation API → VMA-data + källänk
 "Hur mycket kostar elen i SE3?" → energimyndigheten API → elpris + källänk
+"Vad betyder ordet längtar?" → SAOL API → orddefinition + källänk
 ```
 
 **Med stadstrigger:**

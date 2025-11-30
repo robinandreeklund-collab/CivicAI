@@ -279,6 +279,15 @@
       "enabled": true,
       "triggers": ["konsument", "reklamation", "konsumenträtt", "reklamationsrätt", "konsumentverket", "ångerrätt"],
       "fallback_message": "Kunde inte hämta konsumentdata. Försök igen senare."
+    },
+    {
+      "id": "saol",
+      "name": "SAOL (Svenska Akademiens Ordlista)",
+      "description": "Lexikon för svenska ord - betydelse, böjning, uttal, synonymer",
+      "base_url": "https://api.saob.se/saol/v1",
+      "enabled": true,
+      "triggers": ["vad betyder", "ord", "svenska ord", "ordlista", "betydelse", "synonym", "böjning", "saol", "definition", "ordbok"],
+      "fallback_message": "Kunde inte hämta orddata från SAOL. Försök igen senare."
     }
   ]
 }
