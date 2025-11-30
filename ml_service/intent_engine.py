@@ -449,9 +449,15 @@ class IntentEngine:
         intents = self.rules.get("intents", {})
         patterns = self.rules.get("entity_patterns", {})
         
+        # Support both 'keywords' (new format) and 'triggers' (legacy)
+        total_keywords = sum(
+            len(i.get("keywords", i.get("triggers", []))) 
+            for i in intents.values()
+        )
+        
         return {
             "total_intents": len(intents),
-            "total_triggers": sum(len(i.get("triggers", [])) for i in intents.values()),
+            "total_keywords": total_keywords,
             "entity_patterns": len(patterns),
             "spacy_available": self.nlp is not None,
             "spacy_model": self.nlp.meta.get("name") if self.nlp else None,

@@ -1047,8 +1047,14 @@ def check_tavily_trigger(user_message: str) -> bool:
             # If we have a valid intent with good confidence, use that
             if intent_name != "general" and confidence > 0.5:
                 api = intent_config.get("api")
-                # Intent Engine found a match - trigger appropriate API
-                return api is not None and api != "tavily"  # Let specific API handle it
+                # Intent Engine found a specific API match
+                # Return False for Tavily if Intent Engine handles it with specific API
+                # Return True for Tavily if no specific API (fallback to web search)
+                if api and api not in ["tavily", None]:
+                    # Specific API will handle this - don't trigger Tavily
+                    return False
+                # No specific API or uses Tavily - allow Tavily search
+                return True
                 
         except Exception as e:
             logging.debug(f"Intent Engine check failed, falling back to triggers: {e}")
