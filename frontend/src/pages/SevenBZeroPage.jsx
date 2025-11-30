@@ -407,16 +407,44 @@ export default function SevenBZeroPage() {
     setIsTyping(true);
 
     try {
-      const response = await fetch('/api/oqt/query', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          question: currentQuestion,
-          persona: selectedPersona,
-        }),
-      });
+      // Use ONESEEK Δ+ inference endpoint (saves to Firebase with topic_hash, intent, etc.)
+      let response;
+      let useOQTFallback = false;
+      
+      try {
+        response = await fetch('/api/inference/oneseek', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: currentQuestion,
+            max_length: 512,
+            temperature: 0.7,
+            top_p: 0.9
+          }),
+        });
+        
+        if (!response.ok) {
+          useOQTFallback = true;
+        }
+      } catch {
+        useOQTFallback = true;
+      }
+      
+      // Fallback to OQT endpoint if Δ+ fails
+      if (useOQTFallback) {
+        response = await fetch('/api/oqt/query', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            question: currentQuestion,
+            persona: selectedPersona,
+          }),
+        });
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -425,22 +453,31 @@ export default function SevenBZeroPage() {
       const responseEndTime = Date.now();
       const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
 
-      if (data.success) {
+      // Handle both Δ+ endpoint (response) and OQT endpoint (data.success/data.response) formats
+      const responseText = data.response || data.text;
+      const isSuccess = data.success !== false && responseText;
+      
+      if (isSuccess) {
         // Update message with response data and animate typing
         setMessages(prev => prev.map(msg => 
           msg.id === aiMessageId 
             ? { 
                 ...msg, 
                 responseTime: finalResponseTime,
-                confidence: data.confidence,
-                version: data.version,
+                confidence: data.confidence || data.delta_plus?.intent_confidence || 0.85,
+                version: data.version || 'OneSeek-Δ+',
                 provenance: data.provenance,
+                // ONESEEK Δ+ metadata
+                deltaPlus: data.delta_plus || null,
+                topicHash: data.delta_plus?.topic_hash || null,
+                intent: data.delta_plus?.intent || null,
+                entity: data.delta_plus?.entity || null,
               }
             : msg
         ));
         
         // Start typing animation
-        animateTyping(data.response, aiMessageId);
+        animateTyping(responseText, aiMessageId);
         
         // Update microtraining status
         setMicrotrainingQueue(prev => prev + 1);

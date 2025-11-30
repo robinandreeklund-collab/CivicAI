@@ -2056,6 +2056,8 @@ class InferenceResponse(BaseModel):
     model: str
     tokens: int
     latency_ms: float
+    # ONESEEK Δ+ fields (optional - for Firebase integration)
+    delta_plus: Optional[dict] = None  # Contains topic_hash, intent, entity, response_hash
     
 class ErrorResponse(BaseModel):
     """Error response model"""
@@ -5183,11 +5185,30 @@ async def oneseek_inference(request: InferenceRequest):
                 print(f"  📝 Response length: {len(result['response'])} chars")
                 print("-" * 60 + "\n")
             
+            # Build Δ+ data for Firebase integration
+            delta_plus_data = None
+            if topic_hash or intent_data:
+                response_hash = None
+                if DELTA_COMPARE_AVAILABLE and create_response_hash:
+                    try:
+                        response_hash = create_response_hash(result['response'])
+                    except:
+                        pass
+                delta_plus_data = {
+                    "topic_hash": topic_hash,
+                    "intent": intent_data.get("intent", "general") if intent_data else "general",
+                    "entity": intent_data.get("entity", "") if intent_data else "",
+                    "intent_confidence": intent_data.get("confidence", 0.5) if intent_data else 0.5,
+                    "response_hash": response_hash,
+                    "memory_messages_used": len(previous_messages) if previous_messages else 0
+                }
+            
             return InferenceResponse(
                 response=result['response'],
                 model=result['model'],
                 tokens=result['tokens'],
-                latency_ms=result['latency_ms']
+                latency_ms=result['latency_ms'],
+                delta_plus=delta_plus_data
             )
         else:
             # Single-model fallback
@@ -5320,11 +5341,30 @@ async def oneseek_inference(request: InferenceRequest):
                 print(f"  📝 Response length: {len(response_text)} chars")
                 print("-" * 60 + "\n")
             
+            # Build Δ+ data for Firebase integration
+            delta_plus_data = None
+            if topic_hash or intent_data:
+                response_hash = None
+                if DELTA_COMPARE_AVAILABLE and create_response_hash:
+                    try:
+                        response_hash = create_response_hash(response_text)
+                    except:
+                        pass
+                delta_plus_data = {
+                    "topic_hash": topic_hash,
+                    "intent": intent_data.get("intent", "general") if intent_data else "general",
+                    "entity": intent_data.get("entity", "") if intent_data else "",
+                    "intent_confidence": intent_data.get("confidence", 0.5) if intent_data else 0.5,
+                    "response_hash": response_hash,
+                    "memory_messages_used": len(previous_messages) if previous_messages else 0
+                }
+            
             return InferenceResponse(
                 response=response_text,
                 model="OneSeek-7B-Zero.v1.1",
                 tokens=len(outputs[0]),
-                latency_ms=latency_ms
+                latency_ms=latency_ms,
+                delta_plus=delta_plus_data
             )
         
     except Exception as e:

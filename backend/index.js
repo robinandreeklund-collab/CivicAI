@@ -147,6 +147,103 @@ app.get('/api/inference/status', async (req, res) => {
   }
 });
 
+// ONESEEK Δ+ Inference Proxy - Proxies to ML service AND saves Δ+ data to Firebase
+import { saveOQTQuery, saveOQTProvenance } from './services/oqtFirebaseService.js';
+import { addQueryToLedger } from './services/oqtLedgerService.js';
+import { v4 as uuidv4 } from 'uuid';
+
+app.post('/api/inference/oneseek', async (req, res) => {
+  try {
+    const { text, max_length, temperature, top_p } = req.body;
+    
+    if (!text || typeof text !== 'string') {
+      return res.status(400).json({
+        error: 'Text is required and must be a string'
+      });
+    }
+    
+    // Call ML service
+    const response = await axios.post(`${ML_SERVICE_URL}/inference/oneseek`, {
+      text,
+      max_length: max_length || 512,
+      temperature: temperature || 0.7,
+      top_p: top_p || 0.9
+    }, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 120000 // 2 minute timeout
+    });
+    
+    const mlResponse = response.data;
+    
+    // Save Δ+ data to Firebase
+    const queryId = uuidv4();
+    const deltaPlus = mlResponse.delta_plus || {};
+    
+    const queryData = {
+      queryId,
+      question: text,
+      response: mlResponse.response,
+      model: mlResponse.model || 'OneSeek-7B-Zero.v1.1',
+      metadata: {
+        tokens: mlResponse.tokens,
+        latency_ms: mlResponse.latency_ms,
+        temperature: temperature || 0.7
+      },
+      // ONESEEK Δ+ fields
+      topic_hash: deltaPlus.topic_hash || null,
+      intent: deltaPlus.intent || 'general',
+      entity: deltaPlus.entity || '',
+      intent_confidence: deltaPlus.intent_confidence || 0.5,
+      response_hash: deltaPlus.response_hash || null,
+      memory_messages_used: deltaPlus.memory_messages_used || 0,
+      delta_info: {
+        version: 'Δ+1.0',
+        features_used: {
+          intent_engine: !!deltaPlus.intent,
+          memory_context: (deltaPlus.memory_messages_used || 0) > 0,
+          topic_grouping: !!deltaPlus.topic_hash
+        }
+      }
+    };
+    
+    // Save to Firebase (async, don't wait)
+    saveOQTQuery(queryData).catch(err => console.error('[Δ+ Firebase] Save error:', err));
+    
+    // Add to ledger (async)
+    addQueryToLedger(queryId, text, 'OneSeek-Δ+').catch(err => console.error('[Δ+ Ledger] Error:', err));
+    
+    // Return response with queryId
+    res.json({
+      ...mlResponse,
+      queryId,
+      stored: true
+    });
+    
+  } catch (error) {
+    console.error('OneSeek Δ+ proxy error:', error.message);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ECONNRESET') {
+      return res.status(503).json({
+        error: 'ML Service Unavailable',
+        detail: 'The inference service is not running. Please start ml_service/server.py',
+        service_url: ML_SERVICE_URL,
+      });
+    }
+    
+    if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
+      return res.status(504).json({
+        error: 'ML Service Timeout',
+        detail: 'Inference took too long. Try again or reduce max_length.',
+      });
+    }
+    
+    res.status(error.response?.status || 500).json({
+      error: 'Inference failed',
+      detail: error.response?.data?.detail || error.message,
+    });
+  }
+});
+
 
 // Health check endpoint with service status
 app.get('/api/health', async (req, res) => {

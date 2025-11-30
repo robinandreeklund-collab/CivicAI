@@ -252,6 +252,52 @@ curl http://localhost:5000/api/ml/delta-plus/status
 
 **[ ] `/api/ml/delta-plus/status` visar alla moduler**
 
+### 🔥 Firebase Integration Endpoint (BACKEND PROXY)
+
+**VIKTIGT:** För att Δ+ data (topic_hash, intent, entity) ska sparas till Firebase, 
+använd backend-proxyn istället för att anropa ML-service direkt!
+
+```bash
+# RÄTT: Använd backend proxy (sparar till Firebase)
+curl -X POST http://localhost:3001/api/inference/oneseek \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hur många bor i Hjo?", "max_length": 512, "temperature": 0.7}'
+
+# INTE REKOMMENDERAT: Direkt till ML-service (sparar INTE till Firebase)
+curl -X POST http://localhost:5000/inference/oneseek \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hur många bor i Hjo?", "max_length": 512}'
+```
+
+**Backend-proxyn (`/api/inference/oneseek`):**
+- ✅ Anropar ML-service för inference
+- ✅ Sparar automatiskt till Firebase med Δ+ fält
+- ✅ Lägger till i `oqt_ledger` för blockchain-verifiering
+- ✅ Returnerar `queryId` och `stored: true`
+
+**Response-format:**
+```json
+{
+  "response": "Hjo kommun har cirka 9 500 invånare...",
+  "model": "OneSeek-7B-Zero.v1.1",
+  "tokens": 156,
+  "latency_ms": 3245.8,
+  "delta_plus": {
+    "topic_hash": "a3f7d2e1b9c4f8a6",
+    "intent": "befolkning",
+    "entity": "Hjo",
+    "intent_confidence": 0.85,
+    "response_hash": "sha256:abc123...",
+    "memory_messages_used": 3
+  },
+  "queryId": "uuid-here",
+  "stored": true
+}
+```
+
+**[ ] `POST /api/inference/oneseek` sparar till Firebase med Δ+ fält**
+**[ ] Firebase visar `topic_hash`, `intent`, `entity` i `oqt_queries`**
+
 ---
 
 ## PR93 Alignment Summary
