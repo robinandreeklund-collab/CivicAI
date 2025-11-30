@@ -90,53 +90,72 @@ class IntentEngine:
         return self._get_default_rules()
     
     def _get_default_rules(self) -> Dict[str, Any]:
-        """Returnera default intent-regler."""
+        """Returnera default intent-regler med keywords-format (ONESEEK Δ+)."""
         return {
             "intents": {
                 "befolkning": {
-                    "triggers": ["befolkning", "invånare", "hur många bor", "invånarantal", "population"],
+                    "keywords": ["befolkning", "invånare", "hur många bor", "invånarantal", "population", "folkmängd"],
                     "entities": ["LOC", "GPE"],
+                    "api": "scb_population",
+                    "weight": 1.0,
                     "priority": 1
                 },
                 "väder": {
-                    "triggers": ["väder", "vädret", "temperatur", "regnar", "snöar", "soligt", "grader", "prognos"],
+                    "keywords": ["väder", "vädret", "temperatur", "regnar", "snöar", "soligt", "grader", "prognos", "blir det"],
                     "entities": ["LOC", "GPE", "DATE"],
+                    "api": "weather_cache",
+                    "weight": 0.95,
                     "priority": 1
                 },
                 "nyheter": {
-                    "triggers": ["nyheter", "senaste nytt", "vad hände", "aktuellt", "händelser"],
+                    "keywords": ["nyheter", "senaste nytt", "vad hände", "aktuellt", "händelser"],
                     "entities": ["DATE", "ORG", "EVENT"],
+                    "api": "rss_feeds",
+                    "weight": 0.9,
                     "priority": 2
                 },
                 "politik": {
-                    "triggers": ["riksdag", "regering", "minister", "parti", "rösta", "val", "politik"],
+                    "keywords": ["riksdag", "regering", "minister", "parti", "rösta", "val", "politik"],
                     "entities": ["PERSON", "ORG", "GPE"],
+                    "api": "riksdagen",
+                    "weight": 0.95,
                     "priority": 2
                 },
                 "statistik": {
-                    "triggers": ["statistik", "scb", "procent", "andel", "antal", "ökning", "minskning"],
+                    "keywords": ["statistik", "scb", "procent", "andel", "antal", "ökning", "minskning"],
                     "entities": ["LOC", "DATE", "PERCENT"],
+                    "api": "scb_statistics",
+                    "weight": 0.95,
                     "priority": 2
                 },
                 "kris": {
-                    "triggers": ["kris", "krislarm", "vma", "varning", "nödläge", "beredskap"],
+                    "keywords": ["kris", "krislarm", "vma", "varning", "nödläge", "beredskap"],
                     "entities": ["LOC", "EVENT", "DATE"],
+                    "api": "krisinformation",
+                    "weight": 1.0,
                     "priority": 0  # Highest priority
                 },
                 "trafik": {
-                    "triggers": ["trafik", "trafikinfo", "olycka", "kö", "väg", "e4", "e6", "motorväg"],
+                    "keywords": ["trafik", "trafikinfo", "olycka", "kö", "väg", "e4", "e6", "motorväg"],
                     "entities": ["LOC", "FAC"],
+                    "api": "trafikverket",
+                    "weight": 0.9,
                     "priority": 2
                 },
                 "hälsa": {
-                    "triggers": ["hälsa", "sjukvård", "vårdcentral", "sjukhus", "läkare", "vaccination"],
+                    "keywords": ["hälsa", "sjukvård", "vårdcentral", "sjukhus", "läkare", "vaccination"],
                     "entities": ["LOC", "ORG"],
+                    "api": "1177",
+                    "weight": 0.95,
                     "priority": 2
                 },
                 "identitet": {
-                    "triggers": ["vem är du", "vad heter du", "vad är du", "berätta om dig", "oneseek"],
+                    "keywords": ["vem är du", "vad heter du", "vad är du", "berätta om dig", "oneseek"],
                     "entities": [],
-                    "priority": 0
+                    "api": None,
+                    "weight": 1.0,
+                    "priority": 0,
+                    "blacklist": True
                 }
             },
             "entity_patterns": {
@@ -151,9 +170,10 @@ class IntentEngine:
                 ]
             },
             "metadata": {
-                "version": "1.0.0",
+                "version": "2.0.0",
                 "language": "sv",
-                "last_updated": None
+                "last_updated": None,
+                "description": "ONESEEK Δ+ Intent Engine - ersätter gamla triggers"
             }
         }
     
@@ -261,28 +281,30 @@ class IntentEngine:
         
         best_intent = None
         best_score = 0.0
-        best_triggers = []
+        best_keywords = []
         
         for intent_name, intent_config in intents.items():
-            triggers = intent_config.get("triggers", [])
+            # Support both 'keywords' (new format) and 'triggers' (legacy)
+            keywords = intent_config.get("keywords", intent_config.get("triggers", []))
             priority = intent_config.get("priority", 5)
+            weight = intent_config.get("weight", 1.0)
             
-            # Räkna matchande triggers
-            matched_triggers = []
-            for trigger in triggers:
-                if trigger in text_lower:
-                    matched_triggers.append(trigger)
+            # Räkna matchande keywords
+            matched_keywords = []
+            for keyword in keywords:
+                if keyword in text_lower:
+                    matched_keywords.append(keyword)
             
-            if matched_triggers:
-                # Score baserat på antal träffar och prioritet
-                match_score = len(matched_triggers) / len(triggers)
+            if matched_keywords:
+                # Score baserat på antal träffar, prioritet och vikt
+                match_score = len(matched_keywords) / len(keywords)
                 priority_bonus = (10 - priority) / 10  # Högre prioritet = högre bonus
-                score = match_score * 0.7 + priority_bonus * 0.3
+                score = (match_score * 0.6 + priority_bonus * 0.2) * weight
                 
                 if score > best_score:
                     best_score = score
                     best_intent = intent_name
-                    best_triggers = matched_triggers
+                    best_keywords = matched_keywords
         
         # Extrahera entiteter
         entities = self.extract_entities(text)
@@ -296,7 +318,7 @@ class IntentEngine:
             return Intent(
                 name=best_intent,
                 confidence=min(best_score, 0.99),
-                triggers=best_triggers,
+                triggers=best_keywords,
                 entities=entity_dict
             )
         

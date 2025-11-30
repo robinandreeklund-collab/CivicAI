@@ -1,95 +1,108 @@
 {
   "intents": {
     "befolkning": {
-      "triggers": ["befolkning", "invånare", "hur många bor", "invånarantal", "population", "antal människor"],
+      "keywords": ["befolkning", "invånare", "hur många bor", "invånarantal", "population", "antal människor", "folkmängd"],
       "entities": ["LOC", "GPE"],
+      "api": "scb_population",
+      "weight": 1.0,
       "priority": 1,
-      "api": "scb",
       "response_template": "Enligt SCB bor det {count} invånare i {location}."
     },
     "väder": {
-      "triggers": ["väder", "vädret", "temperatur", "regnar", "snöar", "soligt", "grader", "prognos", "sol", "regn", "snö", "molnigt"],
+      "keywords": ["väder", "vädret", "temperatur", "regnar", "snöar", "soligt", "grader", "prognos", "sol", "regn", "snö", "molnigt", "blir det"],
       "entities": ["LOC", "GPE", "DATE"],
+      "api": "weather_cache",
+      "weight": 0.95,
       "priority": 1,
-      "api": "smhi",
       "response_template": "I {location} blir det {temperature}°C och {precipitation}."
     },
     "nyheter": {
-      "triggers": ["nyheter", "senaste nytt", "vad hände", "aktuellt", "händelser", "senaste nyheterna", "dagens nyheter"],
+      "keywords": ["nyheter", "senaste nytt", "vad hände", "aktuellt", "händelser", "senaste nyheterna", "dagens nyheter"],
       "entities": ["DATE", "ORG", "EVENT"],
+      "api": "rss_feeds",
+      "weight": 0.9,
       "priority": 2,
-      "api": "rss",
       "response_template": "Senaste nyheterna: {headlines}"
     },
     "politik": {
-      "triggers": ["riksdag", "regering", "minister", "parti", "rösta", "val", "politik", "votering", "motion", "proposition"],
+      "keywords": ["riksdag", "regering", "minister", "parti", "rösta", "val", "politik", "votering", "motion", "proposition"],
       "entities": ["PERSON", "ORG", "GPE"],
-      "priority": 2,
       "api": "riksdagen",
+      "weight": 0.95,
+      "priority": 2,
       "response_template": "Från riksdagen: {result}"
     },
     "statistik": {
-      "triggers": ["statistik", "scb", "procent", "andel", "antal", "ökning", "minskning", "siffror", "data"],
+      "keywords": ["statistik", "scb", "procent", "andel", "antal", "ökning", "minskning", "siffror", "data"],
       "entities": ["LOC", "DATE", "PERCENT"],
+      "api": "scb_statistics",
+      "weight": 0.95,
       "priority": 2,
-      "api": "scb",
       "response_template": "Enligt SCB: {result}"
     },
     "kris": {
-      "triggers": ["kris", "krislarm", "vma", "varning", "nödläge", "beredskap", "viktigt meddelande"],
+      "keywords": ["kris", "krislarm", "vma", "varning", "nödläge", "beredskap", "viktigt meddelande"],
       "entities": ["LOC", "EVENT", "DATE"],
-      "priority": 0,
       "api": "krisinformation",
+      "weight": 1.0,
+      "priority": 0,
       "response_template": "⚠️ Krisinformation: {alert}"
     },
     "trafik": {
-      "triggers": ["trafik", "trafikinfo", "olycka", "kö", "väg", "e4", "e6", "e18", "e20", "motorväg", "tåg", "förseningar"],
+      "keywords": ["trafik", "trafikinfo", "olycka", "kö", "väg", "e4", "e6", "e18", "e20", "motorväg", "tåg", "förseningar"],
       "entities": ["LOC", "FAC"],
-      "priority": 2,
       "api": "trafikverket",
+      "weight": 0.9,
+      "priority": 2,
       "response_template": "Trafikläget: {result}"
     },
     "hälsa": {
-      "triggers": ["hälsa", "sjukvård", "vårdcentral", "sjukhus", "läkare", "vaccination", "covid", "influensa"],
+      "keywords": ["hälsa", "sjukvård", "vårdcentral", "sjukhus", "läkare", "vaccination", "covid", "influensa"],
       "entities": ["LOC", "ORG"],
+      "api": "1177",
+      "weight": 0.95,
       "priority": 2,
-      "api": "socialstyrelsen",
       "response_template": "Hälsoinformation: {result}"
     },
     "identitet": {
-      "triggers": ["vem är du", "vad heter du", "vad är du", "berätta om dig", "oneseek", "vad kan du göra"],
+      "keywords": ["vem är du", "vad heter du", "vad är du", "berätta om dig", "oneseek", "vad kan du göra"],
       "entities": [],
-      "priority": 0,
       "api": null,
-      "response_template": null,
-      "blacklist": true
+      "weight": 1.0,
+      "priority": 0,
+      "blacklist": true,
+      "response_template": null
     },
     "skola": {
-      "triggers": ["skola", "utbildning", "gymnasium", "universitet", "betyg", "läroplan", "skolverket"],
+      "keywords": ["skola", "utbildning", "gymnasium", "universitet", "betyg", "läroplan", "skolverket"],
       "entities": ["LOC", "ORG"],
-      "priority": 2,
       "api": "skolverket",
+      "weight": 0.9,
+      "priority": 2,
       "response_template": "Från Skolverket: {result}"
     },
     "miljö": {
-      "triggers": ["miljö", "klimat", "luftkvalitet", "utsläpp", "naturvårdsverket", "biologisk mångfald"],
+      "keywords": ["miljö", "klimat", "luftkvalitet", "utsläpp", "naturvårdsverket", "biologisk mångfald"],
       "entities": ["LOC", "ORG"],
-      "priority": 2,
       "api": "naturvardsverket",
+      "weight": 0.9,
+      "priority": 2,
       "response_template": "Miljödata: {result}"
     },
     "ekonomi": {
-      "triggers": ["ekonomi", "ränta", "riksbanken", "inflation", "bnp", "arbetslöshet", "löner"],
+      "keywords": ["ekonomi", "ränta", "riksbanken", "inflation", "bnp", "arbetslöshet", "löner"],
       "entities": ["ORG", "DATE", "MONEY"],
+      "api": "scb_economy",
+      "weight": 0.95,
       "priority": 2,
-      "api": "scb",
       "response_template": "Ekonomisk data: {result}"
     },
     "ord": {
-      "triggers": ["vad betyder", "synonym", "ordbok", "saol", "ord", "definition", "förklara ordet"],
+      "keywords": ["vad betyder", "synonym", "ordbok", "saol", "ord", "definition", "förklara ordet"],
       "entities": ["WORD"],
-      "priority": 2,
       "api": "saol",
+      "weight": 0.85,
+      "priority": 2,
       "response_template": "{word}: {definition}"
     }
   },
@@ -126,9 +139,9 @@
     "low": 0.4
   },
   "metadata": {
-    "version": "1.0.0",
+    "version": "2.0.0",
     "language": "sv",
     "last_updated": null,
-    "description": "Intent-regler för ONESEEK Δ+ admin-styrbar Intent Engine"
+    "description": "Intent-regler för ONESEEK Δ+ admin-styrbar Intent Engine. Ersätter gamla trigger-system."
   }
 }

@@ -1018,6 +1018,7 @@ def format_tavily_sources(data: Optional[dict]) -> str:
 def check_tavily_trigger(user_message: str) -> bool:
     """
     Check if user message should trigger Tavily search.
+    ONESEEK Δ+: Uses Intent Engine first, falls back to legacy triggers.
     
     Args:
         user_message: The user's input message
@@ -1027,11 +1028,77 @@ def check_tavily_trigger(user_message: str) -> bool:
     """
     msg_lower = user_message.lower()
     
-    # Check if any trigger matches AND no blacklist matches
+    # ONESEEK Δ+: First check via Intent Engine if available
+    if INTENT_ENGINE_AVAILABLE and get_intent_engine:
+        try:
+            engine = get_intent_engine()
+            result = engine.process(user_message)
+            intent = result.get("intent", {})
+            intent_name = intent.get("name", "general")
+            confidence = intent.get("confidence", 0)
+            
+            # Check if intent has an API configured (not blacklisted)
+            intent_config = engine.rules.get("intents", {}).get(intent_name, {})
+            is_blacklisted = intent_config.get("blacklist", False)
+            
+            if is_blacklisted:
+                return False
+            
+            # If we have a valid intent with good confidence, use that
+            if intent_name != "general" and confidence > 0.5:
+                api = intent_config.get("api")
+                # Intent Engine found a match - trigger appropriate API
+                return api is not None and api != "tavily"  # Let specific API handle it
+                
+        except Exception as e:
+            logging.debug(f"Intent Engine check failed, falling back to triggers: {e}")
+    
+    # Legacy fallback: Check if any trigger matches AND no blacklist matches
     has_trigger = any(trigger in msg_lower for trigger in TAVILY_TRIGGERS)
     is_blacklisted = any(blacklist in msg_lower for blacklist in TAVILY_BLACKLIST)
     
     return has_trigger and not is_blacklisted
+
+
+def get_intent_based_api(user_message: str) -> Optional[dict]:
+    """
+    ONESEEK Δ+: Get the appropriate API to call based on Intent Engine.
+    
+    Args:
+        user_message: The user's input message
+        
+    Returns:
+        Dict with intent, api, entities or None
+    """
+    if not INTENT_ENGINE_AVAILABLE or not get_intent_engine:
+        return None
+    
+    try:
+        engine = get_intent_engine()
+        result = engine.process(user_message)
+        intent = result.get("intent", {})
+        intent_name = intent.get("name", "general")
+        confidence = intent.get("confidence", 0)
+        
+        if intent_name == "general" or confidence < 0.4:
+            return None
+        
+        intent_config = engine.rules.get("intents", {}).get(intent_name, {})
+        
+        if intent_config.get("blacklist", False):
+            return None
+        
+        return {
+            "intent": intent_name,
+            "api": intent_config.get("api"),
+            "entities": result.get("entities", []),
+            "confidence": confidence,
+            "response_template": intent_config.get("response_template")
+        }
+        
+    except Exception as e:
+        logging.debug(f"Intent-based API lookup failed: {e}")
+        return None
 
 
 # =============================================================================

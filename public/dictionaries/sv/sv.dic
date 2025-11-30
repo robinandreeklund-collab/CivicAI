@@ -1,0 +1,32 @@
+# Swedish Hunspell Dictionary for ONESEEK Δ+
+# 
+# This is a reference file. Full SAOL dictionary is available from:
+# https://extensions.libreoffice.org/en/extensions/show/swedish-spelling-dictionary-den-stora-svenska-ordlistan
+#
+# Installation:
+# 1. Download Swedish dictionary from LibreOffice extensions
+# 2. Extract sv_SE.dic and sv_SE.aff files
+# 3. Rename to sv.dic and sv.aff
+# 4. Place in this directory
+#
+# Common Swedish words (sample):
+och
+i
+att
+det
+som
+en
+på
+är
+av
+för
+med
+till
+den
+har
+de
+inte
+om
+ett
+men
+var
