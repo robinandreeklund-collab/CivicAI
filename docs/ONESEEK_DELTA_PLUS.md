@@ -121,15 +121,31 @@ python -m venv venv
 
 ### Steg 2: Installera Python-beroenden i venv
 
+**Alternativ A: Med venv aktiverat**
 ```powershell
-# Med venv aktiverat, installera requirements
-pip install -r ..\..\ml_service\requirements.txt
+# Aktivera venv först (från backend\python_services)
+.\venv\Scripts\Activate.ps1
+
+# Installera requirements (använd absolut sökväg)
+pip install -r "C:\Users\robin\Documents\GitHub\CivicAI\ml_service\requirements.txt"
 
 # Installera spaCy svenska modellen (stor, rekommenderas)
 python -m spacy download sv_core_news_lg
 
 # Alternativt mindre modell (snabbare men mindre träffsäker):
 python -m spacy download sv_core_news_sm
+```
+
+**Alternativ B: Utan att aktivera venv (rekommenderas)**
+```powershell
+# Installera requirements med fullständig sökväg till pip
+& "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\pip.exe" install -r "C:\Users\robin\Documents\GitHub\CivicAI\ml_service\requirements.txt"
+
+# Installera spaCy svenska modellen
+& "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\python.exe" -m spacy download sv_core_news_lg
+
+# Alternativt mindre modell:
+& "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\python.exe" -m spacy download sv_core_news_sm
 ```
 
 ### Steg 3: Starta ML-servern
@@ -282,14 +298,32 @@ npm run dev
 & "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\python.exe" --version
 ```
 
+**Problem: "requirements file not found"**
+```powershell
+# Använd ALLTID absolut sökväg till requirements.txt
+& "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\pip.exe" install -r "C:\Users\robin\Documents\GitHub\CivicAI\ml_service\requirements.txt"
+```
+
 **Problem: ModuleNotFoundError**
 ```powershell
-# Kontrollera att du kör rätt Python
-& "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\pip.exe" install -r ml_service\requirements.txt
+# Kontrollera att du installerat i rätt venv
+& "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\pip.exe" list
+
+# Installera om requirements
+& "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\pip.exe" install -r "C:\Users\robin\Documents\GitHub\CivicAI\ml_service\requirements.txt"
 ```
 
 **Problem: spaCy-modell saknas**
 ```powershell
+& "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\python.exe" -m spacy download sv_core_news_lg
+```
+
+**Problem: spaCy ModuleNotFoundError**
+```powershell
+# Installera spaCy först
+& "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\pip.exe" install spacy
+
+# Sedan ladda modellen
 & "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\python.exe" -m spacy download sv_core_news_lg
 ```
 
