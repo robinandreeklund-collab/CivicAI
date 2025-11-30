@@ -1,0 +1,30 @@
+{"original": "stockhlom", "corrected": "stockholm", "context": "Hur är vädret i stockhlom?", "source": "seed_data"}
+{"original": "stokholm", "corrected": "stockholm", "context": "Befolkningen i stokholm", "source": "seed_data"}
+{"original": "götborg", "corrected": "göteborg", "context": "Vad händer i götborg?", "source": "seed_data"}
+{"original": "malmø", "corrected": "malmö", "context": "Hur många bor i malmø?", "source": "seed_data"}
+{"original": "uppsal", "corrected": "uppsala", "context": "Vädret i uppsal imorgon", "source": "seed_data"}
+{"original": "väddret", "corrected": "vädret", "context": "Hur är väddret idag?", "source": "seed_data"}
+{"original": "beflkning", "corrected": "befolkning", "context": "Sveriges beflkning", "source": "seed_data"}
+{"original": "nhyeter", "corrected": "nyheter", "context": "Senaste nhyeter", "source": "seed_data"}
+{"original": "temprratur", "corrected": "temperatur", "context": "Vilken temprratur är det?", "source": "seed_data"}
+{"original": "invnare", "corrected": "invånare", "context": "Antal invnare i Sverige", "source": "seed_data"}
+{"original": "igar", "corrected": "igår", "context": "Vad hände igar?", "source": "seed_data"}
+{"original": "imorrn", "corrected": "imorgon", "context": "Vädret imorrn", "source": "seed_data"}
+{"original": "imorron", "corrected": "imorgon", "context": "Väder imorron", "source": "seed_data"}
+{"original": "jga", "corrected": "jag", "context": "Jga vill veta mer", "source": "seed_data"}
+{"original": "dne", "corrected": "den", "context": "Vad betyder dne?", "source": "seed_data"}
+{"original": "ochc", "corrected": "och", "context": "Du ochc jag", "source": "seed_data"}
+{"original": "regnar", "corrected": "regnar", "context": "Korrekt ord - regnar", "source": "seed_data"}
+{"original": "snöar", "corrected": "snöar", "context": "Korrekt ord - snöar", "source": "seed_data"}
+{"original": "riksdagn", "corrected": "riksdagen", "context": "Vad röstade riksdagn om?", "source": "seed_data"}
+{"original": "regeringn", "corrected": "regeringen", "context": "Vad sa regeringn?", "source": "seed_data"}
+{"original": "svreige", "corrected": "sverige", "context": "Information om svreige", "source": "seed_data"}
+{"original": "svergie", "corrected": "sverige", "context": "Nyheter från svergie", "source": "seed_data"}
+{"original": "kummun", "corrected": "kommun", "context": "Min kummun", "source": "seed_data"}
+{"original": "kommun", "corrected": "kommun", "context": "Korrekt - min kommun", "source": "seed_data"}
+{"original": "skola", "corrected": "skola", "context": "Korrekt - min skola", "source": "seed_data"}
+{"original": "hälso", "corrected": "hälsa", "context": "Min hälso", "source": "seed_data"}
+{"original": "ekonomie", "corrected": "ekonomi", "context": "Sveriges ekonomie", "source": "seed_data"}
+{"original": "trafik", "corrected": "trafik", "context": "Korrekt - trafikinfo", "source": "seed_data"}
+{"original": "trafiken", "corrected": "trafiken", "context": "Korrekt - hur är trafiken?", "source": "seed_data"}
+{"original": "krisinformaton", "corrected": "krisinformation", "context": "Senaste krisinformaton", "source": "seed_data"}

@@ -1,0 +1,29 @@
+# Swedish Hunspell Affix file for ONESEEK Δ+
+#
+# This is a reference file. Full SAOL affix rules are available from:
+# https://extensions.libreoffice.org/en/extensions/show/swedish-spelling-dictionary-den-stora-svenska-ordlistan
+#
+# Installation:
+# 1. Download Swedish dictionary from LibreOffice extensions
+# 2. Extract sv_SE.dic and sv_SE.aff files
+# 3. Rename to sv.dic and sv.aff
+# 4. Place in this directory
+
+SET UTF-8
+TRY esianrtolcdugmphbyfvkwzåäöxjqESIANRTOLCDUGMPHBYFVKWZÅÄÖXJQ
+
+# Swedish specific characters
+WORDCHARS åäöÅÄÖ-
+
+# Sample affix rules (full version has thousands)
+# Noun plural suffixes
+SFX A Y 2
+SFX A 0 r .
+SFX A 0 rna .
+
+# Verb conjugation
+SFX B Y 4
+SFX B a ar a
+SFX B a ade a
+SFX B a at a
+SFX B a as a

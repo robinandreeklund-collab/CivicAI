@@ -1,5 +1,6 @@
 # ML Service Requirements for OneSeek Inference Server
 # DNA v2 Certified Model Support
+# ONESEEK Δ+ Enhanced Features
 
 # Core FastAPI and server
 fastapi>=0.104.0
@@ -31,3 +32,15 @@ langdetect>=1.0.9
 
 # RSS feed parsing for news feature
 feedparser>=6.0.0
+
+# =============================================================================
+# ONESEEK Δ+ DEPENDENCIES
+# =============================================================================
+
+# spaCy for Intent Engine (Swedish NLP)
+# Install with: python -m spacy download sv_core_news_lg
+spacy>=3.5.0
+
+# Optional: Swedish spaCy model (install separately)
+# python -m spacy download sv_core_news_lg
+# OR for smaller model: python -m spacy download sv_core_news_sm

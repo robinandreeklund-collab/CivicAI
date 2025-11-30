@@ -1,0 +1,147 @@
+{
+  "intents": {
+    "befolkning": {
+      "keywords": ["befolkning", "invånare", "hur många bor", "invånarantal", "population", "antal människor", "folkmängd"],
+      "entities": ["LOC", "GPE"],
+      "api": "scb_population",
+      "weight": 1.0,
+      "priority": 1,
+      "response_template": "Enligt SCB bor det {count} invånare i {location}."
+    },
+    "väder": {
+      "keywords": ["väder", "vädret", "temperatur", "regnar", "snöar", "soligt", "grader", "prognos", "sol", "regn", "snö", "molnigt", "blir det"],
+      "entities": ["LOC", "GPE", "DATE"],
+      "api": "weather_cache",
+      "weight": 0.95,
+      "priority": 1,
+      "response_template": "I {location} blir det {temperature}°C och {precipitation}."
+    },
+    "nyheter": {
+      "keywords": ["nyheter", "senaste nytt", "vad hände", "aktuellt", "händelser", "senaste nyheterna", "dagens nyheter"],
+      "entities": ["DATE", "ORG", "EVENT"],
+      "api": "rss_feeds",
+      "weight": 0.9,
+      "priority": 2,
+      "response_template": "Senaste nyheterna: {headlines}"
+    },
+    "politik": {
+      "keywords": ["riksdag", "regering", "minister", "parti", "rösta", "val", "politik", "votering", "motion", "proposition"],
+      "entities": ["PERSON", "ORG", "GPE"],
+      "api": "riksdagen",
+      "weight": 0.95,
+      "priority": 2,
+      "response_template": "Från riksdagen: {result}"
+    },
+    "statistik": {
+      "keywords": ["statistik", "scb", "procent", "andel", "antal", "ökning", "minskning", "siffror", "data"],
+      "entities": ["LOC", "DATE", "PERCENT"],
+      "api": "scb_statistics",
+      "weight": 0.95,
+      "priority": 2,
+      "response_template": "Enligt SCB: {result}"
+    },
+    "kris": {
+      "keywords": ["kris", "krislarm", "vma", "varning", "nödläge", "beredskap", "viktigt meddelande"],
+      "entities": ["LOC", "EVENT", "DATE"],
+      "api": "krisinformation",
+      "weight": 1.0,
+      "priority": 0,
+      "response_template": "⚠️ Krisinformation: {alert}"
+    },
+    "trafik": {
+      "keywords": ["trafik", "trafikinfo", "olycka", "kö", "väg", "e4", "e6", "e18", "e20", "motorväg", "tåg", "förseningar"],
+      "entities": ["LOC", "FAC"],
+      "api": "trafikverket",
+      "weight": 0.9,
+      "priority": 2,
+      "response_template": "Trafikläget: {result}"
+    },
+    "hälsa": {
+      "keywords": ["hälsa", "sjukvård", "vårdcentral", "sjukhus", "läkare", "vaccination", "covid", "influensa"],
+      "entities": ["LOC", "ORG"],
+      "api": "1177",
+      "weight": 0.95,
+      "priority": 2,
+      "response_template": "Hälsoinformation: {result}"
+    },
+    "identitet": {
+      "keywords": ["vem är du", "vad heter du", "vad är du", "berätta om dig", "oneseek", "vad kan du göra"],
+      "entities": [],
+      "api": null,
+      "weight": 1.0,
+      "priority": 0,
+      "blacklist": true,
+      "response_template": null
+    },
+    "skola": {
+      "keywords": ["skola", "utbildning", "gymnasium", "universitet", "betyg", "läroplan", "skolverket"],
+      "entities": ["LOC", "ORG"],
+      "api": "skolverket",
+      "weight": 0.9,
+      "priority": 2,
+      "response_template": "Från Skolverket: {result}"
+    },
+    "miljö": {
+      "keywords": ["miljö", "klimat", "luftkvalitet", "utsläpp", "naturvårdsverket", "biologisk mångfald"],
+      "entities": ["LOC", "ORG"],
+      "api": "naturvardsverket",
+      "weight": 0.9,
+      "priority": 2,
+      "response_template": "Miljödata: {result}"
+    },
+    "ekonomi": {
+      "keywords": ["ekonomi", "ränta", "riksbanken", "inflation", "bnp", "arbetslöshet", "löner"],
+      "entities": ["ORG", "DATE", "MONEY"],
+      "api": "scb_economy",
+      "weight": 0.95,
+      "priority": 2,
+      "response_template": "Ekonomisk data: {result}"
+    },
+    "ord": {
+      "keywords": ["vad betyder", "synonym", "ordbok", "saol", "ord", "definition", "förklara ordet"],
+      "entities": ["WORD"],
+      "api": "saol",
+      "weight": 0.85,
+      "priority": 2,
+      "response_template": "{word}: {definition}"
+    }
+  },
+  "entity_patterns": {
+    "swedish_cities": [
+      "stockholm", "göteborg", "malmö", "uppsala", "linköping",
+      "västerås", "örebro", "helsingborg", "norrköping", "jönköping",
+      "lund", "umeå", "gävle", "borås", "eskilstuna",
+      "södertälje", "karlstad", "täby", "växjö", "halmstad",
+      "sundsvall", "luleå", "trollhättan", "östersund", "borlänge",
+      "falun", "kalmar", "kristianstad", "skövde", "karlskrona"
+    ],
+    "date_patterns": [
+      "\\d{4}-\\d{2}-\\d{2}",
+      "idag",
+      "imorgon",
+      "igår",
+      "nästa vecka",
+      "förra veckan",
+      "i måndags",
+      "i tisdags",
+      "i onsdags",
+      "i torsdags",
+      "i fredags"
+    ],
+    "numbers": [
+      "\\d+",
+      "\\d+[,.]\\d+"
+    ]
+  },
+  "confidence_thresholds": {
+    "high": 0.8,
+    "medium": 0.6,
+    "low": 0.4
+  },
+  "metadata": {
+    "version": "2.0.0",
+    "language": "sv",
+    "last_updated": null,
+    "description": "Intent-regler för ONESEEK Δ+ admin-styrbar Intent Engine. Ersätter gamla trigger-system."
+  }
+}

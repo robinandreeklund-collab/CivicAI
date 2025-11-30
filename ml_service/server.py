@@ -51,6 +51,228 @@ from datetime import datetime
 from typing import Optional, List
 import requests  # For Tavily API and SMHI weather
 
+# =============================================================================
+# ONESEEK Δ+ MODULE IMPORTS
+# =============================================================================
+# Intent Engine, Typo Checker, Confidence Calculator, Delta Compare, Cache Manager, Memory Manager
+try:
+    from .intent_engine import get_intent_engine, process_user_input, generate_topic_hash, detect_intent_and_city
+    INTENT_ENGINE_AVAILABLE = True
+except ImportError:
+    try:
+        from intent_engine import get_intent_engine, process_user_input, generate_topic_hash, detect_intent_and_city
+        INTENT_ENGINE_AVAILABLE = True
+    except ImportError:
+        INTENT_ENGINE_AVAILABLE = False
+        get_intent_engine = None
+        process_user_input = None
+        generate_topic_hash = None
+        detect_intent_and_city = None
+
+# Memory Manager for topic-based conversation history
+try:
+    from .memory_manager import (
+        save_message_with_memory, 
+        get_topic_context, 
+        get_user_topics,
+        get_topic_label,
+        group_messages_by_topic
+    )
+    MEMORY_MANAGER_AVAILABLE = True
+except ImportError:
+    try:
+        from memory_manager import (
+            save_message_with_memory, 
+            get_topic_context, 
+            get_user_topics,
+            get_topic_label,
+            group_messages_by_topic
+        )
+        MEMORY_MANAGER_AVAILABLE = True
+    except ImportError:
+        MEMORY_MANAGER_AVAILABLE = False
+        save_message_with_memory = None
+        get_topic_context = None
+        get_user_topics = None
+        get_topic_label = None
+        group_messages_by_topic = None
+
+try:
+    from .typo_double_check import get_typo_checker, check_spelling
+    TYPO_CHECKER_AVAILABLE = True
+except ImportError:
+    try:
+        from typo_double_check import get_typo_checker, check_spelling
+        TYPO_CHECKER_AVAILABLE = True
+    except ImportError:
+        TYPO_CHECKER_AVAILABLE = False
+        get_typo_checker = None
+        check_spelling = None
+
+# ONESEEK Δ+ Alignment: Stavfel Dataset Manager
+try:
+    from .stavfel_dataset import get_stavfel_dataset, save_typo_pair
+    STAVFEL_DATASET_AVAILABLE = True
+except ImportError:
+    try:
+        from stavfel_dataset import get_stavfel_dataset, save_typo_pair
+        STAVFEL_DATASET_AVAILABLE = True
+    except ImportError:
+        STAVFEL_DATASET_AVAILABLE = False
+        get_stavfel_dataset = None
+        save_typo_pair = None
+
+try:
+    from .calculate_confidence import get_confidence_calculator, calculate_confidence
+    CONFIDENCE_CALC_AVAILABLE = True
+except ImportError:
+    try:
+        from calculate_confidence import get_confidence_calculator, calculate_confidence
+        CONFIDENCE_CALC_AVAILABLE = True
+    except ImportError:
+        CONFIDENCE_CALC_AVAILABLE = False
+        get_confidence_calculator = None
+        calculate_confidence = None
+
+try:
+    from .delta_compare import get_delta_compare, create_response_hash
+    DELTA_COMPARE_AVAILABLE = True
+except ImportError:
+    try:
+        from delta_compare import get_delta_compare, create_response_hash
+        DELTA_COMPARE_AVAILABLE = True
+    except ImportError:
+        DELTA_COMPARE_AVAILABLE = False
+        get_delta_compare = None
+        create_response_hash = None
+
+try:
+    from .cache_manager import get_cache_manager, cache_get, cache_set
+    CACHE_MANAGER_AVAILABLE = True
+except ImportError:
+    try:
+        from cache_manager import get_cache_manager, cache_get, cache_set
+        CACHE_MANAGER_AVAILABLE = True
+    except ImportError:
+        CACHE_MANAGER_AVAILABLE = False
+        get_cache_manager = None
+        cache_get = None
+        cache_set = None
+
+# =============================================================================
+# END ONESEEK Δ+ MODULE IMPORTS
+# =============================================================================
+
+
+def log_delta_plus_status():
+    """
+    ONESEEK Δ+ DEBUG: Log status of all Δ+ modules at startup.
+    Shows which modules are available and ready.
+    """
+    print("\n" + "=" * 70)
+    print("🔷 ONESEEK Δ+ MODULE STATUS")
+    print("=" * 70)
+    
+    modules = [
+        ("Intent Engine", INTENT_ENGINE_AVAILABLE, "Semantic intent + entity detection"),
+        ("Memory Manager", MEMORY_MANAGER_AVAILABLE, "Topic-grouped conversation history"),
+        ("Typo Checker", TYPO_CHECKER_AVAILABLE, "Double spell-check (Typo.js + Hunspell)"),
+        ("Stavfel Dataset", STAVFEL_DATASET_AVAILABLE, "Typo pairs for self-learning"),
+        ("Confidence Calculator", CONFIDENCE_CALC_AVAILABLE, "Förtroende v2 with source weights"),
+        ("Delta Compare", DELTA_COMPARE_AVAILABLE, "Semantic Δ-comparison + blockchain hash"),
+        ("Cache Manager", CACHE_MANAGER_AVAILABLE, "7-day TTL hash-based cache"),
+    ]
+    
+    for name, available, description in modules:
+        status = "✅ READY" if available else "❌ NOT LOADED"
+        print(f"  {status}  {name:<22} - {description}")
+    
+    print("-" * 70)
+    print("  📝 Tavily Swedish Mode: language='sv' (100% svenska svar)")
+    print("  🧠 Memory Context: 8 messages per topic")
+    print("  🔗 Blockchain Hash: SHA256 per response")
+    print("=" * 70 + "\n")
+
+
+def log_inference_debug(
+    text: str,
+    intent_data: dict = None,
+    topic_hash: str = None,
+    memory_count: int = 0,
+    typo_corrected: bool = False,
+    confidence_score: float = None,
+    cache_hit: bool = False,
+    delta_hash: str = None,
+    tavily_used: bool = False,
+    weather_city: str = None,
+    news_used: bool = False,
+    open_data_api: str = None,
+    force_svenska: bool = False
+):
+    """
+    ONESEEK Δ+ DEBUG: Log detailed inference debug info to terminal.
+    Shows exactly which Δ+ features are being used for each request.
+    """
+    print("\n" + "-" * 60)
+    print("🔷 ONESEEK Δ+ INFERENCE DEBUG")
+    print("-" * 60)
+    print(f"  📝 Input: {text[:80]}{'...' if len(text) > 80 else ''}")
+    print(f"  🇸🇪 Force-Svenska: {'✅ ACTIVE' if force_svenska else '❌ inactive'}")
+    
+    # Intent Engine
+    if intent_data:
+        intent_name = intent_data.get("intent", "general")
+        entity = intent_data.get("entity", "")
+        confidence = intent_data.get("confidence", 0)
+        print(f"  🎯 Intent Engine: ✅ {intent_name} (conf: {confidence:.2f})")
+        if entity:
+            print(f"     └─ Entity: {entity}")
+    else:
+        print(f"  🎯 Intent Engine: ❌ not used")
+    
+    # Topic Hash & Memory
+    if topic_hash:
+        print(f"  🏷️  Topic Hash: {topic_hash[:16]}...")
+        if memory_count > 0:
+            print(f"  🧠 Memory Context: ✅ {memory_count} previous messages loaded")
+        else:
+            print(f"  🧠 Memory Context: ❌ no previous messages")
+    else:
+        print(f"  🏷️  Topic Hash: ❌ not generated")
+    
+    # Typo Checker
+    if typo_corrected:
+        print(f"  ✏️  Typo Checker: ✅ corrections applied")
+    else:
+        print(f"  ✏️  Typo Checker: ❌ no corrections needed")
+    
+    # Confidence Score
+    if confidence_score is not None:
+        print(f"  📊 Confidence v2: ✅ score={confidence_score:.2f}")
+    else:
+        print(f"  📊 Confidence v2: ❌ not calculated")
+    
+    # Cache
+    if cache_hit:
+        print(f"  💾 Cache: ✅ HIT (using cached response)")
+    else:
+        print(f"  💾 Cache: ❌ MISS (fresh response)")
+    
+    # Delta Hash
+    if delta_hash:
+        print(f"  🔗 Blockchain Hash: ✅ {delta_hash[:16]}...")
+    else:
+        print(f"  🔗 Blockchain Hash: ❌ not generated")
+    
+    # External APIs
+    print(f"  🔍 Tavily Search: {'✅ used' if tavily_used else '❌ not triggered'}")
+    print(f"  🌤️  Weather (SMHI): {'✅ ' + weather_city if weather_city else '❌ not triggered'}")
+    print(f"  📰 News (RSS): {'✅ fetched' if news_used else '❌ not triggered'}")
+    print(f"  📊 Open Data API: {'✅ ' + open_data_api if open_data_api else '❌ not triggered'}")
+    
+    print("-" * 60 + "\n")
+
+
 # RSS feed parsing for news feature
 try:
     import feedparser
@@ -908,7 +1130,11 @@ def tavily_search(query: str) -> Optional[dict]:
                 "query": query,
                 "search_depth": "advanced",
                 "include_answer": True,
-                "max_results": 4
+                "max_results": 4,
+                "include_domains": [],
+                "exclude_domains": [],
+                # ONESEEK Δ+: Force Swedish language responses
+                "language": "sv"
             },
             timeout=10
         )
@@ -945,6 +1171,7 @@ def format_tavily_sources(data: Optional[dict]) -> str:
 def check_tavily_trigger(user_message: str) -> bool:
     """
     Check if user message should trigger Tavily search.
+    ONESEEK Δ+: Uses Intent Engine first, falls back to legacy triggers.
     
     Args:
         user_message: The user's input message
@@ -954,11 +1181,83 @@ def check_tavily_trigger(user_message: str) -> bool:
     """
     msg_lower = user_message.lower()
     
-    # Check if any trigger matches AND no blacklist matches
+    # ONESEEK Δ+: First check via Intent Engine if available
+    if INTENT_ENGINE_AVAILABLE and get_intent_engine:
+        try:
+            engine = get_intent_engine()
+            result = engine.process(user_message)
+            intent = result.get("intent", {})
+            intent_name = intent.get("name", "general")
+            confidence = intent.get("confidence", 0)
+            
+            # Check if intent has an API configured (not blacklisted)
+            intent_config = engine.rules.get("intents", {}).get(intent_name, {})
+            is_blacklisted = intent_config.get("blacklist", False)
+            
+            if is_blacklisted:
+                return False
+            
+            # If we have a valid intent with good confidence, use that
+            if intent_name != "general" and confidence > 0.5:
+                api = intent_config.get("api")
+                # Intent Engine found a specific API match
+                # Return False for Tavily if Intent Engine handles it with specific API
+                # Return True for Tavily if no specific API (fallback to web search)
+                if api and api not in ["tavily", None]:
+                    # Specific API will handle this - don't trigger Tavily
+                    return False
+                # No specific API or uses Tavily - allow Tavily search
+                return True
+                
+        except Exception as e:
+            logging.debug(f"Intent Engine check failed, falling back to triggers: {e}")
+    
+    # Legacy fallback: Check if any trigger matches AND no blacklist matches
     has_trigger = any(trigger in msg_lower for trigger in TAVILY_TRIGGERS)
     is_blacklisted = any(blacklist in msg_lower for blacklist in TAVILY_BLACKLIST)
     
     return has_trigger and not is_blacklisted
+
+
+def get_intent_based_api(user_message: str) -> Optional[dict]:
+    """
+    ONESEEK Δ+: Get the appropriate API to call based on Intent Engine.
+    
+    Args:
+        user_message: The user's input message
+        
+    Returns:
+        Dict with intent, api, entities or None
+    """
+    if not INTENT_ENGINE_AVAILABLE or not get_intent_engine:
+        return None
+    
+    try:
+        engine = get_intent_engine()
+        result = engine.process(user_message)
+        intent = result.get("intent", {})
+        intent_name = intent.get("name", "general")
+        confidence = intent.get("confidence", 0)
+        
+        if intent_name == "general" or confidence < 0.4:
+            return None
+        
+        intent_config = engine.rules.get("intents", {}).get(intent_name, {})
+        
+        if intent_config.get("blacklist", False):
+            return None
+        
+        return {
+            "intent": intent_name,
+            "api": intent_config.get("api"),
+            "entities": result.get("entities", []),
+            "confidence": confidence,
+            "response_template": intent_config.get("response_template")
+        }
+        
+    except Exception as e:
+        logging.debug(f"Intent-based API lookup failed: {e}")
+        return None
 
 
 # =============================================================================
@@ -3714,6 +4013,9 @@ async def lifespan(app: FastAPI):
     logger.info(f"Active system prompt: {prompt_preview}")
     logger.info("")
     
+    # === ONESEEK Δ+ DEBUG: Log module status at startup ===
+    log_delta_plus_status()
+    
     yield
     
     # Shutdown (cleanup if needed)
@@ -3763,6 +4065,553 @@ app.include_router(rss_router)
 
 # Register Open Data APIs router (Swedish public data)
 app.include_router(open_data_router)
+
+# =============================================================================
+# ONESEEK Δ+ API ENDPOINTS
+# =============================================================================
+
+# Intent Engine API
+@app.get("/api/ml/intents")
+async def get_intents():
+    """Get all intent rules (admin API)."""
+    if not INTENT_ENGINE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Intent Engine not available")
+    
+    engine = get_intent_engine()
+    return {"intents": engine.rules.get("intents", {})}
+
+@app.post("/api/ml/intents")
+async def create_intent(request: Request):
+    """Create a new intent (admin API)."""
+    if not INTENT_ENGINE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Intent Engine not available")
+    
+    data = await request.json()
+    engine = get_intent_engine()
+    
+    success = engine.add_intent(
+        name=data.get("name"),
+        triggers=data.get("triggers", []),
+        priority=data.get("priority", 5)
+    )
+    
+    if success:
+        return {"status": "created", "name": data.get("name")}
+    raise HTTPException(status_code=400, detail="Failed to create intent")
+
+@app.put("/api/ml/intents/{name}")
+async def update_intent(name: str, request: Request):
+    """Update an intent (admin API)."""
+    if not INTENT_ENGINE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Intent Engine not available")
+    
+    data = await request.json()
+    engine = get_intent_engine()
+    
+    success = engine.update_intent(
+        name=name,
+        triggers=data.get("triggers"),
+        priority=data.get("priority")
+    )
+    
+    if success:
+        return {"status": "updated", "name": name}
+    raise HTTPException(status_code=404, detail="Intent not found")
+
+@app.delete("/api/ml/intents/{name}")
+async def delete_intent(name: str):
+    """Delete an intent (admin API)."""
+    if not INTENT_ENGINE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Intent Engine not available")
+    
+    engine = get_intent_engine()
+    success = engine.delete_intent(name)
+    
+    if success:
+        return {"status": "deleted", "name": name}
+    raise HTTPException(status_code=404, detail="Intent not found")
+
+@app.post("/api/ml/intent/process")
+async def process_intent(request: Request):
+    """Process user input through Intent Engine."""
+    if not INTENT_ENGINE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Intent Engine not available")
+    
+    data = await request.json()
+    text = data.get("text", "")
+    
+    result = process_user_input(text)
+    return result
+
+# Typo Checker API
+@app.post("/api/ml/typo")
+async def check_typo(request: Request):
+    """Check spelling in text."""
+    if not TYPO_CHECKER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Typo Checker not available")
+    
+    data = await request.json()
+    text = data.get("text", "")
+    auto_correct = data.get("auto_correct", False)
+    
+    result = check_spelling(text, auto_correct=auto_correct)
+    return result
+
+@app.post("/api/ml/typo/log")
+async def log_typo(request: Request):
+    """Log a typo for training data."""
+    if not TYPO_CHECKER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Typo Checker not available")
+    
+    data = await request.json()
+    checker = get_typo_checker()
+    
+    success = checker.logger.log_typo(
+        original=data.get("original", ""),
+        corrected=data.get("corrected", ""),
+        context=data.get("context", ""),
+        source="api"
+    )
+    
+    return {"status": "logged" if success else "failed"}
+
+# =============================================================================
+# ONESEEK Δ+ STAVFEL DATASET API (PR93 Alignment)
+# =============================================================================
+
+@app.get("/api/ml/stavfel")
+async def get_stavfel(filter: str = "pending", limit: int = 100):
+    """Get stavfel pairs with filter (admin API)."""
+    if not STAVFEL_DATASET_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Stavfel Dataset not available")
+    
+    dataset = get_stavfel_dataset()
+    
+    if filter == "pending":
+        pairs = dataset.get_pending_review(limit=limit)
+    elif filter == "approved":
+        pairs = dataset.get_approved(limit=limit)
+    else:
+        pairs = dataset.get_all_pairs(limit=limit)
+    
+    stats = dataset.get_stats()
+    
+    return {"pairs": pairs, "stats": stats}
+
+@app.post("/api/ml/stavfel/approve")
+async def approve_stavfel(request: Request):
+    """Approve a stavfel pair for training (admin API)."""
+    if not STAVFEL_DATASET_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Stavfel Dataset not available")
+    
+    data = await request.json()
+    dataset = get_stavfel_dataset()
+    
+    success = dataset.approve_pair(
+        original=data.get("original", ""),
+        corrected=data.get("corrected", "")
+    )
+    
+    if success:
+        return {"status": "approved"}
+    raise HTTPException(status_code=404, detail="Pair not found")
+
+@app.post("/api/ml/stavfel/reject")
+async def reject_stavfel(request: Request):
+    """Reject (delete) a stavfel pair (admin API)."""
+    if not STAVFEL_DATASET_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Stavfel Dataset not available")
+    
+    data = await request.json()
+    dataset = get_stavfel_dataset()
+    
+    success = dataset.reject_pair(
+        original=data.get("original", ""),
+        corrected=data.get("corrected", "")
+    )
+    
+    if success:
+        return {"status": "rejected"}
+    raise HTTPException(status_code=404, detail="Pair not found")
+
+@app.post("/api/ml/stavfel/export")
+async def export_stavfel(request: Request):
+    """Export approved stavfel pairs for training (admin API)."""
+    if not STAVFEL_DATASET_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Stavfel Dataset not available")
+    
+    data = await request.json()
+    dataset = get_stavfel_dataset()
+    
+    format_type = data.get("format", "jsonl")
+    
+    try:
+        file_path = dataset.export_for_training(format=format_type)
+        approved = dataset.get_approved(limit=100000)
+        return {"status": "exported", "file_path": file_path, "count": len(approved)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/ml/stavfel/stats")
+async def get_stavfel_stats():
+    """Get stavfel dataset statistics (admin API)."""
+    if not STAVFEL_DATASET_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Stavfel Dataset not available")
+    
+    dataset = get_stavfel_dataset()
+    return dataset.get_stats()
+
+# =============================================================================
+# END STAVFEL DATASET API
+# =============================================================================
+
+# Confidence Calculator API
+@app.get("/api/ml/sources")
+async def get_sources():
+    """Get all source weights (admin API)."""
+    if not CONFIDENCE_CALC_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Confidence Calculator not available")
+    
+    calc = get_confidence_calculator()
+    return {"sources": calc.config.get("sources", {})}
+
+@app.put("/api/ml/sources/{source_id}")
+async def update_source(source_id: str, request: Request):
+    """Update source weight (admin API)."""
+    if not CONFIDENCE_CALC_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Confidence Calculator not available")
+    
+    data = await request.json()
+    calc = get_confidence_calculator()
+    
+    success = calc.update_source_weight(source_id, data.get("weight", 0.5))
+    
+    if success:
+        return {"status": "updated", "source_id": source_id}
+    raise HTTPException(status_code=404, detail="Source not found")
+
+@app.post("/api/ml/sources")
+async def create_source(request: Request):
+    """Create a new source (admin API)."""
+    if not CONFIDENCE_CALC_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Confidence Calculator not available")
+    
+    data = await request.json()
+    calc = get_confidence_calculator()
+    
+    success = calc.add_source(
+        source_id=data.get("id"),
+        name=data.get("name"),
+        weight=data.get("weight", 0.7),
+        reliability=data.get("reliability", "medium")
+    )
+    
+    if success:
+        return {"status": "created", "source_id": data.get("id")}
+    raise HTTPException(status_code=400, detail="Failed to create source")
+
+@app.delete("/api/ml/sources/{source_id}")
+async def delete_source_endpoint(source_id: str):
+    """Delete a source (admin API)."""
+    if not CONFIDENCE_CALC_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Confidence Calculator not available")
+    
+    calc = get_confidence_calculator()
+    
+    if source_id in calc.config.get("sources", {}):
+        del calc.config["sources"][source_id]
+        calc._save_config()
+        return {"status": "deleted", "source_id": source_id}
+    raise HTTPException(status_code=404, detail="Source not found")
+
+@app.post("/api/ml/confidence")
+async def calculate_confidence_endpoint(request: Request):
+    """Calculate confidence for a source."""
+    if not CONFIDENCE_CALC_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Confidence Calculator not available")
+    
+    data = await request.json()
+    result = calculate_confidence(
+        source_id=data.get("source_id", "unknown"),
+        data_type=data.get("data_type", "general")
+    )
+    
+    return {
+        "score": result.score,
+        "level": result.level,
+        "explanation": result.explanation
+    }
+
+# Delta Compare API
+@app.post("/api/ml/delta/compare")
+async def delta_compare_endpoint(request: Request):
+    """Compare two results for semantic delta."""
+    if not DELTA_COMPARE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Delta Compare not available")
+    
+    data = await request.json()
+    dc = get_delta_compare()
+    
+    result = dc.compare(
+        current=data.get("current", {}),
+        previous=data.get("previous", {})
+    )
+    
+    return {
+        "similarity_score": result.similarity_score,
+        "intent_match": result.intent_match,
+        "entity_overlap": result.entity_overlap,
+        "delta_type": result.delta_type,
+        "changes": result.changes,
+        "hash_current": result.hash_current,
+        "hash_previous": result.hash_previous
+    }
+
+@app.post("/api/ml/delta/hash")
+async def create_hash_endpoint(request: Request):
+    """Create blockchain hash for response."""
+    if not DELTA_COMPARE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Delta Compare not available")
+    
+    data = await request.json()
+    response_hash = create_response_hash(
+        query=data.get("query", ""),
+        response=data.get("response", "")
+    )
+    
+    return {"hash": response_hash}
+
+# Cache Manager API
+@app.get("/api/ml/cache/stats")
+async def cache_stats():
+    """Get cache statistics."""
+    if not CACHE_MANAGER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Cache Manager not available")
+    
+    cm = get_cache_manager()
+    return cm.get_stats()
+
+@app.post("/api/ml/cache/cleanup")
+async def cache_cleanup():
+    """Clean up expired cache entries."""
+    if not CACHE_MANAGER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Cache Manager not available")
+    
+    cm = get_cache_manager()
+    removed = cm.cleanup_expired()
+    
+    return {"removed": removed}
+
+@app.delete("/api/ml/cache")
+async def cache_clear():
+    """Clear all cache."""
+    if not CACHE_MANAGER_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Cache Manager not available")
+    
+    cm = get_cache_manager()
+    removed = cm.clear()
+    
+    return {"removed": removed}
+
+# Gold Standard API (placeholder)
+@app.get("/api/ml/gold")
+async def get_gold_items():
+    """Get all Gold Standard items."""
+    # Placeholder - would be stored in database
+    return {"items": []}
+
+@app.get("/api/ml/gold/queue")
+async def get_gold_queue(status: str = "pending"):
+    """Get Gold Standard queue."""
+    # Placeholder - would be stored in database
+    return {"items": []}
+
+# Weather Cache API
+@app.get("/api/ml/weather/cache")
+async def get_weather_cache():
+    """Get cached weather data."""
+    cache_file = Path(__file__).parent.parent / "cache" / "weather.json"
+    
+    if cache_file.exists():
+        try:
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return data
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to read cache: {e}")
+    
+    return {"municipalities": {}, "updated_at": None}
+
+@app.get("/api/ml/weather/{city}")
+async def get_cached_weather(city: str):
+    """Get cached weather for a specific city."""
+    cache_file = Path(__file__).parent.parent / "cache" / "weather.json"
+    
+    if cache_file.exists():
+        try:
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            municipalities = data.get("municipalities", {})
+            city_data = municipalities.get(city.lower())
+            
+            if city_data:
+                return city_data
+            
+            raise HTTPException(status_code=404, detail=f"City '{city}' not in cache")
+        except json.JSONDecodeError as e:
+            raise HTTPException(status_code=500, detail=f"Invalid cache data: {e}")
+    
+    raise HTTPException(status_code=404, detail="Weather cache not found")
+
+# ONESEEK Δ+ Status API
+@app.get("/api/ml/delta-plus/status")
+async def delta_plus_status():
+    """Get ONESEEK Δ+ module status."""
+    return {
+        "intent_engine": INTENT_ENGINE_AVAILABLE,
+        "typo_checker": TYPO_CHECKER_AVAILABLE,
+        "stavfel_dataset": STAVFEL_DATASET_AVAILABLE,
+        "confidence_calculator": CONFIDENCE_CALC_AVAILABLE,
+        "delta_compare": DELTA_COMPARE_AVAILABLE,
+        "cache_manager": CACHE_MANAGER_AVAILABLE,
+        "memory_manager": MEMORY_MANAGER_AVAILABLE,
+        "version": "Δ+",
+        "tavily_swedish": True
+    }
+
+
+# =============================================================================
+# ONESEEK Δ+ MEMORY MANAGER API ENDPOINTS
+# Topic-gruppering + Semantisk historik
+# =============================================================================
+
+@app.post("/api/ml/memory/save")
+async def save_to_memory(request: dict):
+    """Save a message with topic hash to memory."""
+    if not MEMORY_MANAGER_AVAILABLE:
+        return {"error": "Memory Manager not available"}
+    
+    try:
+        user_id = request.get("user_id", "anonymous")
+        question = request.get("question", "")
+        answer = request.get("answer", "")
+        intent = request.get("intent", "general")
+        entity = request.get("entity", "")
+        metadata = request.get("metadata", {})
+        
+        # Generate topic hash
+        topic_hash = generate_topic_hash(intent, entity) if generate_topic_hash else ""
+        
+        success = save_message_with_memory(
+            user_id=user_id,
+            question=question,
+            answer=answer,
+            topic_hash=topic_hash,
+            intent=intent,
+            entity=entity,
+            metadata=metadata
+        )
+        
+        return {
+            "success": success,
+            "topic_hash": topic_hash,
+            "topic_label": get_topic_label(intent, entity) if get_topic_label else ""
+        }
+        
+    except Exception as e:
+        logging.error(f"Memory save error: {e}")
+        return {"error": str(e)}
+
+
+@app.get("/api/ml/memory/context/{topic_hash}")
+async def get_memory_context(topic_hash: str, limit: int = 10):
+    """Get conversation context for a topic."""
+    if not MEMORY_MANAGER_AVAILABLE:
+        return {"error": "Memory Manager not available", "messages": []}
+    
+    try:
+        messages = get_topic_context(topic_hash, limit=limit)
+        return {
+            "topic_hash": topic_hash,
+            "messages": messages,
+            "count": len(messages)
+        }
+        
+    except Exception as e:
+        logging.error(f"Memory context error: {e}")
+        return {"error": str(e), "messages": []}
+
+
+@app.get("/api/ml/memory/topics/{user_id}")
+async def get_user_memory_topics(user_id: str, limit: int = 20):
+    """Get all topics for a user (anonymized)."""
+    if not MEMORY_MANAGER_AVAILABLE:
+        return {"error": "Memory Manager not available", "topics": []}
+    
+    try:
+        topics = get_user_topics(user_id, limit=limit)
+        
+        # Add labels to topics
+        for topic in topics:
+            topic["label"] = get_topic_label(
+                topic.get("intent", "general"),
+                topic.get("entity", "")
+            ) if get_topic_label else ""
+        
+        return {
+            "user_id_anonymized": True,
+            "topics": topics,
+            "count": len(topics)
+        }
+        
+    except Exception as e:
+        logging.error(f"Memory topics error: {e}")
+        return {"error": str(e), "topics": []}
+
+
+@app.post("/api/ml/memory/detect-topic")
+async def detect_topic(request: dict):
+    """Detect intent and entity from text, generate topic hash."""
+    if not INTENT_ENGINE_AVAILABLE:
+        return {"error": "Intent Engine not available"}
+    
+    try:
+        text = request.get("text", "")
+        
+        # Detect intent and entity
+        intent_data = detect_intent_and_city(text) if detect_intent_and_city else {
+            "intent": "general",
+            "entity": "",
+            "confidence": 0.5
+        }
+        
+        # Generate topic hash
+        topic_hash = generate_topic_hash(
+            intent_data.get("intent", "general"),
+            intent_data.get("entity", "")
+        ) if generate_topic_hash else ""
+        
+        return {
+            "text": text,
+            "intent": intent_data.get("intent", "general"),
+            "entity": intent_data.get("entity", ""),
+            "confidence": intent_data.get("confidence", 0.5),
+            "topic_hash": topic_hash,
+            "topic_label": get_topic_label(
+                intent_data.get("intent", "general"),
+                intent_data.get("entity", "")
+            ) if get_topic_label else ""
+        }
+        
+    except Exception as e:
+        logging.error(f"Topic detection error: {e}")
+        return {"error": str(e)}
+
+
+# =============================================================================
+# END ONESEEK Δ+ API ENDPOINTS
+# =============================================================================
 
 @app.get("/")
 async def root():
@@ -3863,11 +4712,50 @@ async def infer(request: Request, inference_request: InferenceRequest):
             tavily_sources = format_tavily_sources(search_result)
             logger.info("✓ Tavily-svar mottaget")
     
+    # === 6. ONESEEK Δ+: Get conversation memory/context ===
+    memory_context = None
+    topic_hash = None
+    intent_data = None
+    if MEMORY_MANAGER_AVAILABLE and INTENT_ENGINE_AVAILABLE:
+        try:
+            # Detect intent and entity from user's question
+            intent_data = detect_intent_and_city(inference_request.text) if detect_intent_and_city else None
+            
+            if intent_data:
+                intent_name = intent_data.get("intent", "general")
+                entity = intent_data.get("entity", "")
+                
+                # Generate topic hash for this conversation
+                topic_hash = generate_topic_hash(intent_name, entity) if generate_topic_hash else None
+                
+                if topic_hash and get_topic_context:
+                    # Get previous messages in this topic (6-10 messages for context)
+                    previous_messages = get_topic_context(topic_hash, limit=8)
+                    
+                    if previous_messages:
+                        # Format previous conversation as context
+                        memory_parts = []
+                        for msg in previous_messages[-8:]:  # Last 8 messages
+                            role = "Användare" if msg.get("role") == "user" else "OneSeek"
+                            content = msg.get("content", "")[:200]  # Truncate long messages
+                            memory_parts.append(f"{role}: {content}")
+                        
+                        if memory_parts:
+                            memory_context = "\n".join(memory_parts)
+                            logger.info(f"🧠 [MEMORY] Hämtade {len(previous_messages)} tidigare meddelanden för topic {topic_hash[:8]}...")
+        except Exception as e:
+            logger.debug(f"Memory context retrieval failed: {e}")
+    
     # Format input with system prompt - ensures model always knows its identity
     full_input = format_inference_input(inference_request.text)
     
     # Build enhanced context prefix
     context_parts = []
+    
+    # ONESEEK Δ+: Add memory system prompt if we have conversation history
+    if memory_context:
+        context_parts.append("Du är mitt i ett samtal. Kom ihåg vad ni pratade om senast. Svara naturligt och kort.")
+        context_parts.append(f"[Tidigare i samtalet]\n{memory_context}")
     
     # Always add time and season context
     context_parts.append(f"[Aktuell tid] {time_context} {season_context}")
@@ -3900,13 +4788,23 @@ async def infer(request: Request, inference_request: InferenceRequest):
         context_prefix = "\n".join(context_parts) + "\n\n"
         full_input = context_prefix + full_input
     
-    logger.debug("Injecting system prompt into inference request")
-    logger.debug(f"Force-Svenska: {'ACTIVE' if force_svenska_active else 'inactive'}")
-    logger.debug(f"Time context: {time_context[:50]}...")
-    logger.debug(f"Season: {season_context}")
-    logger.debug(f"Weather: {weather_city if weather_context else 'no'}")
-    logger.debug(f"News: {'YES' if news_context else 'no'}")
-    logger.debug(f"Tavily: {'YES' if tavily_context else 'no'}")
+    # === ONESEEK Δ+ DEBUG: Log detailed inference info to terminal ===
+    memory_count = len(previous_messages) if 'previous_messages' in dir() and previous_messages else 0
+    log_inference_debug(
+        text=inference_request.text,
+        intent_data=intent_data,
+        topic_hash=topic_hash,
+        memory_count=memory_count,
+        typo_corrected=False,  # Will be set when typo checker is integrated
+        confidence_score=None,  # Will be calculated post-inference
+        cache_hit=False,  # Will be set when cache is checked
+        delta_hash=None,  # Will be set post-inference
+        tavily_used=tavily_context is not None,
+        weather_city=weather_city if weather_context else None,
+        news_used=news_context is not None,
+        open_data_api=triggered_api.get("name") if triggered_api else None,
+        force_svenska=force_svenska_active
+    )
     
     try:
         # Determine if we're using certified model or fallback
@@ -3975,6 +4873,50 @@ async def infer(request: Request, inference_request: InferenceRequest):
             latency_ms = (time.time() - start_time) * 1000
             
             model_name = "OneSeek DNA v2 Certified" if is_certified else "OneSeek (base model fallback)"
+            
+            # === ONESEEK Δ+: Save to memory for future context ===
+            if MEMORY_MANAGER_AVAILABLE and topic_hash and save_message_with_memory:
+                try:
+                    intent_name = intent_data.get("intent", "general") if intent_data else "general"
+                    entity = intent_data.get("entity", "") if intent_data else ""
+                    
+                    save_message_with_memory(
+                        user_id="anonymous",  # Anonymized
+                        question=inference_request.text,
+                        answer=response_text,
+                        topic_hash=topic_hash,
+                        intent=intent_name,
+                        entity=entity,
+                        metadata={
+                            "model": model_name,
+                            "latency_ms": latency_ms,
+                            "has_weather": weather_context is not None,
+                            "has_news": news_context is not None,
+                            "has_tavily": tavily_context is not None
+                        }
+                    )
+                    logger.debug(f"🧠 [MEMORY] Sparade svar till topic {topic_hash[:8]}...")
+                except Exception as e:
+                    logger.debug(f"Memory save failed: {e}")
+            
+            # === ONESEEK Δ+: Create blockchain hash for response ===
+            response_hash = None
+            if DELTA_COMPARE_AVAILABLE and create_response_hash:
+                try:
+                    response_hash = create_response_hash(
+                        query=inference_request.text,
+                        response=response_text
+                    )
+                except Exception as e:
+                    logger.debug(f"Hash creation failed: {e}")
+            
+            # === ONESEEK Δ+ DEBUG: Log completion info ===
+            print(f"\n  ✅ INFERENCE COMPLETE ({latency_ms:.0f}ms)")
+            if response_hash:
+                print(f"  🔗 Response Hash: {response_hash[:32]}...")
+            if topic_hash:
+                print(f"  💾 Saved to Memory: topic {topic_hash[:16]}...")
+            print(f"  📝 Response length: {len(response_text)} chars\n")
             
             return InferenceResponse(
                 response=response_text,
