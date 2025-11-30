@@ -238,9 +238,9 @@
         const correction = this.getCorrection(cleanWord);
         
         if (correction) {
-          // Behåll versaler
+          // Behåll versaler - check if first character is uppercase letter
           let finalCorrection = correction;
-          if (cleanWord[0] === cleanWord[0].toUpperCase()) {
+          if (cleanWord[0] && /[A-ZÅÄÖ]/.test(cleanWord[0])) {
             finalCorrection = correction.charAt(0).toUpperCase() + correction.slice(1);
           }
           corrected += finalCorrection + punctuation;

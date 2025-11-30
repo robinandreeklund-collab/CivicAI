@@ -14,6 +14,7 @@ Author: ONESEEK Team
 import json
 import os
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, asdict
@@ -150,7 +151,6 @@ class TypoLogger:
     
     def _get_timestamp(self) -> str:
         """Hämta aktuell tidsstämpel."""
-        from datetime import datetime
         return datetime.now().isoformat()
     
     def get_logged_typos(self, limit: int = 100) -> List[Dict[str, Any]]:

@@ -13,6 +13,7 @@ Author: ONESEEK Team
 
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, asdict
@@ -145,8 +146,8 @@ class IntentEngine:
                 ],
                 "date_patterns": [
                     r"\d{4}-\d{2}-\d{2}",
-                    r"idag", r"imorgon", r"igår",
-                    r"nästa vecka", r"förra veckan"
+                    "idag", "imorgon", "igår",
+                    "nästa vecka", "förra veckan"
                 ]
             },
             "metadata": {
@@ -408,7 +409,6 @@ class IntentEngine:
     def _save_rules(self) -> bool:
         """Spara regler till fil."""
         try:
-            from datetime import datetime
             self.rules["metadata"]["last_updated"] = datetime.now().isoformat()
             
             with open(self.rules_file, 'w', encoding='utf-8') as f:
