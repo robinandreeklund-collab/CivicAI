@@ -97,25 +97,113 @@ ONESEEK Δ+ har ett avancerat minnesystem som:
 - Node.js 18+
 - npm eller yarn
 
-### Backend-installation
+---
+
+## 🖥️ Windows-installation (med venv)
+
+**Rekommenderat:** Kör alltid Python-beroenden i en virtuell miljö (venv) för att undvika konflikter.
+
+### Steg 1: Skapa virtuell miljö
+
+```powershell
+# Navigera till projektet
+cd C:\Users\robin\Documents\GitHub\CivicAI
+
+# Skapa venv i backend/python_services
+cd backend\python_services
+python -m venv venv
+
+# Aktivera venv
+.\venv\Scripts\Activate.ps1
+
+# Du ser nu (venv) i terminalen
+```
+
+### Steg 2: Installera Python-beroenden i venv
+
+```powershell
+# Med venv aktiverat, installera requirements
+pip install -r ..\..\ml_service\requirements.txt
+
+# Installera spaCy svenska modellen (stor, rekommenderas)
+python -m spacy download sv_core_news_lg
+
+# Alternativt mindre modell (snabbare men mindre träffsäker):
+python -m spacy download sv_core_news_sm
+```
+
+### Steg 3: Starta ML-servern
+
+**Alternativ A: Med venv aktiverat**
+```powershell
+# Aktivera venv först
+cd C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services
+.\venv\Scripts\Activate.ps1
+
+# Kör servern
+python ..\..\ml_service\server.py --load-in-8bit --auto-devices --listen --api
+```
+
+**Alternativ B: Direkt utan aktivering (en rad)**
+```powershell
+& "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\python.exe" "C:\Users\robin\Documents\GitHub\CivicAI\ml_service\server.py" --load-in-8bit --auto-devices --listen --api
+```
+
+### Steg 4: Verifiera installation
+
+```powershell
+# Testa att spaCy fungerar
+& "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\python.exe" -c "import spacy; nlp = spacy.load('sv_core_news_lg'); print('✅ spaCy fungerar!')"
+
+# Kontrollera installerade paket
+& "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\pip.exe" list
+```
+
+---
+
+## 🐧 Linux/macOS-installation (med venv)
+
+### Steg 1: Skapa virtuell miljö
 
 ```bash
-# Klona repot
-git clone https://github.com/robinandreeklund-collab/CivicAI.git
-cd CivicAI
+# Navigera till projektet
+cd ~/CivicAI
 
-# Installera Python-beroenden
-cd ml_service
-pip install -r requirements.txt
+# Skapa venv
+python3 -m venv venv
+
+# Aktivera venv
+source venv/bin/activate
+
+# Du ser nu (venv) i terminalen
+```
+
+### Steg 2: Installera Python-beroenden
+
+```bash
+# Med venv aktiverat
+pip install -r ml_service/requirements.txt
 
 # Installera spaCy svenska modellen
 python -m spacy download sv_core_news_lg
 
-# Alternativt för mindre modell:
+# Alternativt mindre modell:
 python -m spacy download sv_core_news_sm
 ```
 
-### Frontend-installation
+### Steg 3: Starta ML-servern
+
+```bash
+# Med venv aktiverat
+python ml_service/server.py --load-in-8bit --auto-devices --listen --api
+
+# Eller direkt:
+./venv/bin/python ml_service/server.py --load-in-8bit --auto-devices --listen --api
+```
+
+---
+
+## Frontend-installation
 
 ```bash
 # Från projektets rot
@@ -126,7 +214,9 @@ npm install
 npm run build
 ```
 
-### Miljövariabler
+---
+
+## Miljövariabler
 
 Skapa `.env`-fil i projektets rot:
 
@@ -144,16 +234,63 @@ PORT=8000
 HOST=0.0.0.0
 ```
 
-### Starta servern
+---
+
+## Starta hela stacken
+
+### Windows (PowerShell)
+
+```powershell
+# Terminal 1: ML-server
+& "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\python.exe" "C:\Users\robin\Documents\GitHub\CivicAI\ml_service\server.py" --load-in-8bit --auto-devices --listen --api
+
+# Terminal 2: Frontend
+cd C:\Users\robin\Documents\GitHub\CivicAI\frontend
+npm run dev
+```
+
+### Linux/macOS
 
 ```bash
-# Starta ML-server
-cd ml_service
-python server.py
+# Terminal 1: ML-server
+source venv/bin/activate
+python ml_service/server.py --load-in-8bit --auto-devices --listen --api
 
-# I ett annat terminalfönster, starta frontend
+# Terminal 2: Frontend
 cd frontend
 npm run dev
+```
+
+---
+
+## Server-flaggor
+
+| Flagga | Beskrivning |
+|--------|-------------|
+| `--load-in-8bit` | Ladda modell i 8-bit för lägre minnesanvändning |
+| `--auto-devices` | Automatisk enhetsallokering (GPU/CPU) |
+| `--listen` | Lyssna på alla nätverksinterface |
+| `--api` | Aktivera REST API endpoints |
+
+---
+
+## Felsökning venv
+
+**Problem: "python" hittas inte i venv**
+```powershell
+# Använd fullständig sökväg
+& "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\python.exe" --version
+```
+
+**Problem: ModuleNotFoundError**
+```powershell
+# Kontrollera att du kör rätt Python
+& "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\pip.exe" install -r ml_service\requirements.txt
+```
+
+**Problem: spaCy-modell saknas**
+```powershell
+& "C:\Users\robin\Documents\GitHub\CivicAI\backend\python_services\venv\Scripts\python.exe" -m spacy download sv_core_news_lg
 ```
 
 ## Filstruktur
