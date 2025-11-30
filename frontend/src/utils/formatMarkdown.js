@@ -42,3 +42,72 @@ export function formatMarkdown(text) {
   
   return formatted;
 }
+
+/**
+ * Format AI response text for clean display in chat UI
+ * Handles common issues like run-on text, missing line breaks, and source formatting
+ */
+export function formatAIResponse(rawText) {
+  if (!rawText) return '';
+  
+  let text = rawText;
+  
+  // Remove unwanted markers like *Swedish* or *Svarar på svenska*
+  text = text.replace(/\*Swedish\*/gi, '');
+  text = text.replace(/\*Svarar på svenska\*/gi, '');
+  text = text.replace(/\*svarar på svenska\*/gi, '');
+  
+  // Add line break before numbered lists (1. 2. 3. etc.)
+  text = text.replace(/(\S)\s+(\d+\.)\s/g, '$1\n\n$2 ');
+  
+  // Add line break before bullet points
+  text = text.replace(/(\S)\s+([-•])\s/g, '$1\n\n$2 ');
+  
+  // Add line break before "Källor:" section  
+  text = text.replace(/(\S)\s*(Källor:|Källor\s*:)/gi, '$1\n\n---\n\n**Källor:**');
+  text = text.replace(/\*\*Källor:\*\*/gi, '\n\n---\n\n**📚 Källor:**');
+  
+  // Format HTML <a> tags in sources to markdown-style for clean display
+  text = text.replace(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/gi, '[$2]($1)');
+  
+  // Add line break before common section headers
+  text = text.replace(/(\S)\s+(Sammanfattning:|Bakgrund:|Resultat:|Slutsats:)/gi, '$1\n\n**$2**');
+  
+  // Fix run-on sentences after periods followed by capital letters
+  text = text.replace(/\.([A-ZÅÄÖ])/g, '.\n\n$1');
+  
+  // Add spacing around dashes used as separators
+  text = text.replace(/(\S)\s*---\s*(\S)/g, '$1\n\n---\n\n$2');
+  
+  // Clean up excessive whitespace while preserving intentional breaks
+  text = text.replace(/[ \t]+/g, ' ');
+  text = text.replace(/\n{4,}/g, '\n\n\n');
+  
+  // Trim whitespace
+  text = text.trim();
+  
+  return text;
+}
+
+/**
+ * Format sources section for clean HTML display
+ * Creates styled HTML for source citations
+ */
+export function formatSourcesHTML(sources) {
+  if (!sources || !Array.isArray(sources) || sources.length === 0) {
+    return '';
+  }
+  
+  let html = '<hr style="border-color: #333; margin: 16px 0;">';
+  html += '<div style="font-size: 0.85em; color: #888; margin-top: 12px;">';
+  html += '<strong style="color: #aaa;">📚 Källor:</strong><br><br>';
+  
+  sources.forEach((source, idx) => {
+    const name = source.name || source.title || `Källa ${idx + 1}`;
+    const url = source.url || source.link || '#';
+    html += `${idx + 1}. <a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #4a9eff; text-decoration: none;">${name}</a><br>`;
+  });
+  
+  html += '</div>';
+  return html;
+}

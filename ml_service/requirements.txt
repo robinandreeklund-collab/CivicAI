@@ -25,3 +25,9 @@ peft>=0.6.0
 
 # Utilities
 python-dotenv>=1.0.0
+
+# Language detection for Force-Svenska (Swedish response forcing)
+langdetect>=1.0.9
+
+# RSS feed parsing for news feature
+feedparser>=6.0.0

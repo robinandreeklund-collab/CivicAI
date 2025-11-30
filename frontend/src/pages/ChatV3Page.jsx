@@ -6,6 +6,7 @@ import ChangeDetectionPanel from '../components/ChangeDetectionPanel';
 import ReplayTimeline from '../components/ReplayTimeline';
 import { useFirestoreDocument } from '../hooks/useFirestoreDocument';
 import { useAuth } from '../contexts/AuthContext';
+import { formatMarkdown, formatAIResponse } from '../utils/formatMarkdown';
 
 /**
  * ChatV2Page Component - Concept 31 Design
@@ -17,14 +18,12 @@ import { useAuth } from '../contexts/AuthContext';
  * - OneSeek.AI grayscale brand identity
  */
 
-// Helper function to format text with markdown-like formatting
+// Helper function to format text with markdown-like formatting and AI cleanup
 const formatTextWithMarkdown = (text) => {
   if (!text) return '';
-  return text
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold text
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')  // Italic text
-    .replace(/\n/g, '<br/>')  // Line breaks
-    .replace(/^- (.+)$/gm, '<div class="ml-4">• $1</div>');  // List items
+  // First clean up AI response, then apply markdown formatting
+  const cleanedText = formatAIResponse(text);
+  return formatMarkdown(cleanedText);
 };
 
 export default function ChatV2Page() {

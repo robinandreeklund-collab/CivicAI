@@ -10,6 +10,7 @@ import AutonomyControl from '../components/admin/AutonomyControl';
 import GoldenCheckpoint from '../components/admin/GoldenCheckpoint';
 import UserVoting from '../components/admin/UserVoting';
 import SystemPromptManagement from '../components/admin/SystemPromptManagement';
+import IntegrationsManagement from '../components/admin/IntegrationsManagement';
 import '../styles/admin-theme.css';
 
 /**
@@ -63,6 +64,7 @@ export default function AdminDashboardPage() {
     { id: 'training', label: 'Training' },
     { id: 'models', label: 'Models' },
     { id: 'prompts', label: 'System Prompts' },
+    { id: 'integrations', label: '🔌 Integrations' },
     { id: 'verification', label: 'Verification' },
     { id: 'autonomy', label: 'Autonomy' },
     { id: 'checkpoint', label: 'Golden Checkpoint' },
@@ -122,6 +124,7 @@ export default function AdminDashboardPage() {
           {selectedTab === 'training' && <TrainingControl />}
           {selectedTab === 'models' && <ModelManagement />}
           {selectedTab === 'prompts' && <SystemPromptManagement />}
+          {selectedTab === 'integrations' && <IntegrationsManagement />}
           {selectedTab === 'verification' && <VerificationTab />}
           {selectedTab === 'autonomy' && <AutonomyControl />}
           {selectedTab === 'checkpoint' && <GoldenCheckpoint />}

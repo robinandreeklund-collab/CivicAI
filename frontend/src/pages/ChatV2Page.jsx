@@ -7,6 +7,7 @@ import ReplayTimeline from '../components/ReplayTimeline';
 import { useFirestoreDocument } from '../hooks/useFirestoreDocument';
 import { useAuth } from '../contexts/AuthContext';
 import { triggerMicroTrainingAsync } from '../utils/microTraining';
+import { formatMarkdown, formatAIResponse } from '../utils/formatMarkdown';
 
 /**
  * ChatV2Page Component - Concept 31 Design
@@ -29,7 +30,7 @@ import { triggerMicroTrainingAsync } from '../utils/microTraining';
 // Debug flag - set via URL parameter: ?debug=true
 const DEBUG_MODE = new URLSearchParams(window.location.search).get('debug') === 'true';
 
-// Helper function to format text with markdown-like formatting
+// Helper function to format text with markdown-like formatting and AI cleanup
 const formatTextWithMarkdown = (text) => {
   if (!text) return '';
   
@@ -52,11 +53,11 @@ const formatTextWithMarkdown = (text) => {
     console.warn('[ChatV2] Failed to fix encoding:', e);
   }
   
-  return fixedText
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold text
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')  // Italic text
-    .replace(/\n/g, '<br/>')  // Line breaks
-    .replace(/^- (.+)$/gm, '<div class="ml-4">• $1</div>');  // List items
+  // Clean up AI response (remove *Swedish*, add line breaks, etc.)
+  const cleanedText = formatAIResponse(fixedText);
+  
+  // Apply markdown formatting
+  return formatMarkdown(cleanedText);
 };
 
 // Helper function to generate block hash (mock implementation for display)

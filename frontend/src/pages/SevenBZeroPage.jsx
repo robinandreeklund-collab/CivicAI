@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { formatAIResponse } from '../utils/formatMarkdown';
 
 /**
  * 7B-Zero Page - Integrated OQI Interface
@@ -351,21 +352,23 @@ export default function SevenBZeroPage() {
 
   // Typing animation for AI responses
   const animateTyping = (fullText, messageId) => {
+    // Format the AI response before displaying
+    const formattedText = formatAIResponse(fullText);
     let i = 0;
     setIsTyping(true);
     setCurrentTypingText('');
     
     const timer = setInterval(() => {
-      if (i < fullText.length) {
-        setCurrentTypingText(fullText.slice(0, ++i));
+      if (i < formattedText.length) {
+        setCurrentTypingText(formattedText.slice(0, ++i));
       } else {
         setIsTyping(false);
         clearInterval(timer);
         
-        // Update the message with full text
+        // Update the message with full formatted text
         setMessages(prev => prev.map(msg => 
           msg.id === messageId 
-            ? { ...msg, text: fullText, isTyping: false }
+            ? { ...msg, text: formattedText, isTyping: false }
             : msg
         ));
       }
@@ -993,18 +996,20 @@ export default function SevenBZeroPage() {
                       </div>
                     </div>
                   ) : (
-                    <p className={`text-[18px] font-light leading-[1.9] tracking-tight ${
+                    <div className={`text-[18px] font-light leading-[1.9] tracking-tight ${
                       msg.error 
                         ? 'text-red-400' 
                         : (whiteMode ? 'text-[#333]' : 'text-[#c0c0c0]')
-                    }`}>
-                      {convertEmojis(msg.isTyping ? currentTypingText : msg.text)}
-                      {msg.isTyping && currentTypingText && (
-                        <span className={`cursor-blink inline-block w-[2px] h-[20px] ml-1 -mb-[3px] ${
-                          whiteMode ? 'bg-[#333]' : 'bg-white'
-                        }`} />
-                      )}
-                    </p>
+                    }`}
+                      dangerouslySetInnerHTML={{ 
+                        __html: convertEmojis(msg.isTyping ? currentTypingText : msg.text)
+                          .replace(/\n\n/g, '</p><p class="mt-4">')
+                          .replace(/\n/g, '<br/>')
+                          .replace(/\*\*([^*]+)\*\*/g, '<strong class="font-semibold">$1</strong>')
+                          .replace(/---/g, '<hr class="my-4 border-t border-gray-600"/>')
+                          .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">$1</a>')
+                      }}
+                    />
                   )}
                   
                   {/* Confidence indicator */}

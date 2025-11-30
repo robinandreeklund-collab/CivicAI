@@ -49,6 +49,1086 @@ import json
 import uuid
 from datetime import datetime
 from typing import Optional, List
+import requests  # For Tavily API and SMHI weather
+
+# RSS feed parsing for news feature
+try:
+    import feedparser
+    FEEDPARSER_AVAILABLE = True
+except ImportError:
+    FEEDPARSER_AVAILABLE = False
+
+# Language detection for Force-Svenska (with fallback if not installed)
+try:
+    from langdetect import detect, DetectorFactory
+    from langdetect.lang_detect_exception import LangDetectException
+    DetectorFactory.seed = 0  # Deterministic detection
+    LANGDETECT_AVAILABLE = True
+except ImportError:
+    LANGDETECT_AVAILABLE = False
+    # Define a dummy exception class for when langdetect is not installed
+    class LangDetectException(Exception):
+        pass
+
+# =============================================================================
+# FORCE-SVENSKA CONFIGURATION - Dashboard-controlled Swedish language triggers
+# =============================================================================
+# Triggers are loaded from config/force_swedish.json and can be updated in 
+# real-time via the Admin Dashboard without server restart.
+
+FORCE_SVENSKA_FILE = Path(__file__).parent.parent / "config" / "force_swedish.json"
+# Ensure config directory exists
+FORCE_SVENSKA_FILE.parent.mkdir(exist_ok=True)
+
+def load_force_swedish() -> List[str]:
+    """
+    Load Force-Svenska triggers from config file.
+    
+    Returns list of trigger words/phrases. If file doesn't exist or is invalid,
+    returns a default list of Swedish triggers.
+    """
+    if FORCE_SVENSKA_FILE.exists():
+        try:
+            data = json.loads(FORCE_SVENSKA_FILE.read_text(encoding="utf-8"))
+            triggers = data.get("triggers", [])
+            if isinstance(triggers, list):
+                return [t.strip().lower() for t in triggers if isinstance(t, str) and t.strip()]
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+    
+    # Default triggers if file doesn't exist or is invalid
+    return [
+        "hej", "vad", "vem", "hur", "varför", "när", "kan du", "är du",
+        "vad heter du", "vad gör du", "god morgon", "god kväll", "tack", "snälla"
+    ]
+
+# Load triggers at startup - these can be updated via API
+FORCE_SVENSKA_TRIGGERS = load_force_swedish()
+
+
+def is_swedish(text: str) -> bool:
+    """
+    Detect if text is Swedish using langdetect library.
+    
+    Uses langdetect for language detection. Also accepts Danish (da) and 
+    Norwegian (no) as these are mutually intelligible with Swedish and 
+    langdetect sometimes confuses them.
+    
+    Falls back to trigger-word matching for very short texts where
+    langdetect may fail.
+    
+    Args:
+        text: The text to analyze
+        
+    Returns:
+        True if the text is detected as Swedish/Nordic, False otherwise
+    """
+    if not text or not text.strip():
+        return False
+    
+    text_preview = text[:50] + "..." if len(text) > 50 else text
+    
+    # Try langdetect first if available
+    if LANGDETECT_AVAILABLE:
+        try:
+            detected_lang = detect(text)
+            # Accept Swedish and closely related Nordic languages
+            # (langdetect often confuses short Swedish texts with Danish/Norwegian)
+            if detected_lang in ("sv", "da", "no"):
+                print(f"[FORCE-SVENSKA] ✅ langdetect: '{text_preview}' → {detected_lang} (Swedish/Nordic)")
+                return True
+            else:
+                print(f"[FORCE-SVENSKA] ❌ langdetect: '{text_preview}' → {detected_lang} (Not Swedish)")
+        except (LangDetectException, TypeError) as e:
+            # LangDetectException: raised for short/ambiguous text
+            # TypeError: can occur with unexpected input
+            # Fall back to trigger-based detection
+            print(f"[FORCE-SVENSKA] ⚠️ langdetect failed: '{text_preview}' → {type(e).__name__}, using trigger fallback")
+    else:
+        print(f"[FORCE-SVENSKA] ⚠️ langdetect NOT AVAILABLE, using trigger fallback for: '{text_preview}'")
+    
+    # Fallback: Use configurable Swedish triggers for short texts or if langdetect unavailable
+    text_lower = text.lower()
+    trigger_match = any(word in text_lower for word in FORCE_SVENSKA_TRIGGERS)
+    if trigger_match:
+        matched_triggers = [t for t in FORCE_SVENSKA_TRIGGERS if t in text_lower]
+        print(f"[FORCE-SVENSKA] ✅ trigger fallback: '{text_preview}' → matched: {matched_triggers[:3]}")
+    else:
+        print(f"[FORCE-SVENSKA] ❌ trigger fallback: '{text_preview}' → no match")
+    return trigger_match
+
+# =============================================================================
+# END FORCE-SVENSKA CONFIGURATION
+# =============================================================================
+
+
+# =============================================================================
+# TAVILY WEB SEARCH CONFIGURATION - Dashboard-controlled real-time search
+# =============================================================================
+# Tavily triggers and blacklist are loaded from config/tavily_triggers.json
+# Triggers activate web search, blacklist prevents search for identity questions
+# API key can be set via environment variable OR dashboard
+
+TAVILY_CONFIG_FILE = Path(__file__).parent.parent / "config" / "tavily_triggers.json"
+# API key: first check env var, then check config file
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+
+def load_tavily_config() -> tuple:
+    """
+    Load Tavily triggers, blacklist, and optionally API key from config file.
+    
+    Returns tuple of (triggers, blacklist). If file doesn't exist or is invalid,
+    returns default lists.
+    
+    Also updates TAVILY_API_KEY global if api_key is set in config file.
+    """
+    global TAVILY_API_KEY
+    
+    if TAVILY_CONFIG_FILE.exists():
+        try:
+            data = json.loads(TAVILY_CONFIG_FILE.read_text(encoding="utf-8"))
+            triggers = data.get("triggers", [])
+            blacklist = data.get("blacklist", [])
+            
+            # Load API key from config if not set via environment
+            config_api_key = data.get("api_key", "")
+            if config_api_key and not os.getenv("TAVILY_API_KEY"):
+                TAVILY_API_KEY = config_api_key
+                print(f"[TAVILY] API key loaded from config file")
+            
+            if isinstance(triggers, list) and isinstance(blacklist, list):
+                return (
+                    [t.strip().lower() for t in triggers if isinstance(t, str) and t.strip()],
+                    [b.strip().lower() for b in blacklist if isinstance(b, str) and b.strip()]
+                )
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+    
+    # Default triggers and blacklist if file doesn't exist or is invalid
+    return (
+        [
+            "vad säger", "aktuell", "senaste", "2025", "2026", "hände", "blir det",
+            "lag", "regel", "kostar", "händer", "ny", "nya", "ändrats", "ändring",
+            "vad gäller", "vad är det senaste", "vad hände med"
+        ],
+        [
+            "vem är du", "vad heter du", "berätta om dig", "vad tycker du",
+            "vad känner du", "älskar du", "hatar du"
+        ]
+    )
+
+# Load Tavily config at startup - can be updated via API
+TAVILY_TRIGGERS, TAVILY_BLACKLIST = load_tavily_config()
+
+# =============================================================================
+# END TAVILY CONFIGURATION
+# =============================================================================
+
+
+# =============================================================================
+# SWEDISH CITIES CONFIGURATION - Dashboard-controlled city list for weather
+# =============================================================================
+# Cities are loaded from config/swedish_cities.json and can be updated in
+# real-time via the Admin Dashboard without server restart.
+
+CITIES_CONFIG_FILE = Path(__file__).parent.parent / "config" / "swedish_cities.json"
+
+def load_swedish_cities() -> dict:
+    """
+    Load Swedish cities from config file for weather lookups.
+    
+    Returns dict of city names to coordinates. If file doesn't exist or is invalid,
+    returns default city list.
+    """
+    if CITIES_CONFIG_FILE.exists():
+        try:
+            data = json.loads(CITIES_CONFIG_FILE.read_text(encoding="utf-8"))
+            cities = data.get("cities", {})
+            if isinstance(cities, dict):
+                return {k.lower(): v for k, v in cities.items() if isinstance(v, dict)}
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+    
+    # Default cities if file doesn't exist or is invalid
+    return {
+        "stockholm": {"lon": 18.07, "lat": 59.33},
+        "göteborg": {"lon": 11.97, "lat": 57.71},
+        "malmö": {"lon": 13.00, "lat": 55.61},
+        "uppsala": {"lon": 17.64, "lat": 59.86},
+        "luleå": {"lon": 22.16, "lat": 65.58}
+    }
+
+# Load cities at startup - can be updated via API
+SWEDISH_CITIES = load_swedish_cities()
+
+# =============================================================================
+# END SWEDISH CITIES CONFIGURATION
+# =============================================================================
+
+
+# =============================================================================
+# RSS FEEDS CONFIGURATION - Dashboard-controlled news feeds
+# =============================================================================
+# RSS feeds are loaded from config/rss_feeds.json and can be updated in
+# real-time via the Admin Dashboard without server restart.
+
+RSS_FEEDS_FILE = Path(__file__).parent.parent / "config" / "rss_feeds.json"
+
+def load_rss_feeds() -> list:
+    """
+    Load RSS feeds from config file for news lookups.
+    
+    Returns list of feed dicts with name and url. If file doesn't exist or is invalid,
+    returns default feeds.
+    """
+    if RSS_FEEDS_FILE.exists():
+        try:
+            data = json.loads(RSS_FEEDS_FILE.read_text(encoding="utf-8"))
+            feeds = data.get("feeds", [])
+            if isinstance(feeds, list):
+                return [f for f in feeds if isinstance(f, dict) and "url" in f]
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+    
+    # Default feeds if file doesn't exist or is invalid
+    return [
+        {"name": "SVT Nyheter", "url": "https://www.svt.se/nyheter/rss.xml"},
+        {"name": "SVT Inrikes", "url": "https://www.svt.se/nyheter/inrikes/rss.xml"},
+        {"name": "Omni", "url": "https://omni.se/rss"},
+        {"name": "SR Ekot", "url": "https://api.sr.se/api/rss/program/83"}
+    ]
+
+# Load RSS feeds at startup - can be updated via API
+RSS_FEEDS = load_rss_feeds()
+
+# =============================================================================
+# END RSS FEEDS CONFIGURATION
+# =============================================================================
+
+
+# =============================================================================
+# SWEDISH OPEN DATA APIs - Dashboard-controlled public data sources
+# =============================================================================
+# Open Data APIs are loaded from config/open_data_apis.json and can be updated
+# in real-time via the Admin Dashboard without server restart.
+# All APIs are 100% open - no API keys required.
+
+OPEN_DATA_CONFIG_FILE = Path(__file__).parent.parent / "config" / "open_data_apis.json"
+
+# Default APIs if file doesn't exist
+DEFAULT_OPEN_DATA_APIS = [
+    {
+        "id": "scb",
+        "name": "SCB Statistik",
+        "description": "Befolkning, ekonomi, statistik",
+        "base_url": "https://api.scb.se/OV0104/v1/doris/sv/ssd",
+        "enabled": True,
+        "triggers": ["befolkning", "statistik", "invånare", "ekonomi", "scb"],
+        "fallback_message": "Kunde inte hämta data från SCB."
+    },
+    {
+        "id": "krisinformation",
+        "name": "Krisinformation.se",
+        "description": "Krislarm, VMA, beredskap",
+        "base_url": "https://api.krisinformation.se/v3",
+        "enabled": True,
+        "triggers": ["kris", "krislarm", "vma", "beredskap", "varning"],
+        "fallback_message": "Kunde inte hämta krisinformation."
+    },
+    {
+        "id": "riksdagen",
+        "name": "Riksdagen",
+        "description": "Voteringar, lagförslag, debatter",
+        "base_url": "https://data.riksdagen.se/api",
+        "enabled": True,
+        "triggers": ["riksdagen", "röstade", "votering", "lagförslag"],
+        "fallback_message": "Kunde inte hämta riksdagsdata."
+    }
+]
+
+
+def load_open_data_apis() -> list:
+    """
+    Load Open Data APIs configuration from config file.
+    
+    Returns list of API configs. If file doesn't exist or is invalid,
+    returns default API list.
+    """
+    if OPEN_DATA_CONFIG_FILE.exists():
+        try:
+            data = json.loads(OPEN_DATA_CONFIG_FILE.read_text(encoding="utf-8"))
+            apis = data.get("apis", [])
+            if isinstance(apis, list):
+                return apis
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+    
+    return DEFAULT_OPEN_DATA_APIS
+
+
+# Load Open Data APIs at startup - can be updated via API
+OPEN_DATA_APIS = load_open_data_apis()
+
+
+def check_open_data_trigger(user_message: str) -> Optional[dict]:
+    """
+    Check if user message triggers any Open Data API.
+    
+    Args:
+        user_message: The user's input message
+        
+    Returns:
+        API config dict if triggered, None otherwise
+    """
+    msg_lower = user_message.lower()
+    
+    for api in OPEN_DATA_APIS:
+        if not api.get("enabled", True):
+            continue
+        
+        triggers = api.get("triggers", [])
+        if any(trigger in msg_lower for trigger in triggers):
+            return api
+    
+    return None
+
+
+def fetch_scb_data(query: str) -> Optional[str]:
+    """
+    Fetch population/statistics data from SCB (Statistics Sweden) with source links.
+    
+    Args:
+        query: Search query
+        
+    Returns:
+        Formatted data string with HTML links or None if failed
+    """
+    try:
+        # SCB provides various endpoints - we'll use a general info response
+        # For actual implementation, specific endpoints would be called based on query
+        url = "https://api.scb.se/OV0104/v1/doris/sv/ssd"
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            # Return available statistics categories
+            if isinstance(data, list):
+                categories = [item.get("text", "") for item in data[:5] if item.get("text")]
+                if categories:
+                    result = f"SCB erbjuder statistik om: {', '.join(categories)}."
+                    result += "\n\n**Källor:**\n"
+                    result += '1. <a href="https://www.scb.se">SCB – Statistiska Centralbyrån</a>\n'
+                    result += '2. <a href="https://www.scb.se/hitta-statistik/">SCB – Hitta statistik</a>'
+                    return result
+        return None
+    except Exception:
+        return None
+
+
+def fetch_krisinformation() -> Optional[str]:
+    """
+    Fetch current crisis alerts from Krisinformation.se with proper source links.
+    
+    Returns:
+        Formatted crisis info with HTML links or None if failed
+    """
+    try:
+        url = "https://api.krisinformation.se/v3/news"
+        headers = {"Accept": "application/json"}
+        r = requests.get(url, headers=headers, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            items = data if isinstance(data, list) else data.get("items", [])
+            if items:
+                latest = items[:3]  # Top 3 latest
+                alerts = []
+                source_links = []
+                for i, item in enumerate(latest, 1):
+                    title = item.get("Headline", item.get("title", "Okänd händelse"))
+                    link = item.get("Link", item.get("link", "https://www.krisinformation.se"))
+                    alerts.append(f"• {title}")
+                    source_links.append(f'{i}. <a href="{link}">Krisinformation.se – {title[:50]}{"..." if len(title) > 50 else ""}</a>')
+                if alerts:
+                    result = "**Aktuell krisinformation:**\n" + "\n".join(alerts)
+                    result += "\n\n**Källor:**\n" + "\n".join(source_links)
+                    return result
+        return "Inga aktiva krislarm just nu.\n\n**Källor:**\n1. <a href=\"https://www.krisinformation.se\">Krisinformation.se</a>"
+    except Exception:
+        return None
+
+
+def fetch_riksdagen_data(query: str) -> Optional[str]:
+    """
+    Fetch parliament data from Riksdagen with proper source links.
+    
+    Args:
+        query: Search query
+        
+    Returns:
+        Formatted parliament data with HTML links or None if failed
+    """
+    try:
+        # Search for documents/debates
+        url = f"https://data.riksdagen.se/dokumentlista/?sok={query}&utformat=json&sort=datum&sortorder=desc&a=s"
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            docs = data.get("dokumentlista", {}).get("dokument", [])
+            if docs:
+                latest = docs[:3]  # Top 3 results
+                results = []
+                source_links = []
+                for i, doc in enumerate(latest, 1):
+                    title = doc.get("titel", "Okänt dokument")
+                    doc_type = doc.get("typ", "dokument")
+                    datum = doc.get("datum", "")
+                    doc_id = doc.get("id", "")
+                    doc_link = f"https://www.riksdagen.se/sv/dokument-lagar/dokument/{doc_type}/{doc_id}" if doc_id else "https://www.riksdagen.se"
+                    results.append(f"• {title} ({doc_type}, {datum})")
+                    short_title = title[:50] + "..." if len(title) > 50 else title
+                    source_links.append(f'{i}. <a href="{doc_link}">Riksdagen.se – {short_title}</a>')
+                if results:
+                    result = "**Från Riksdagen:**\n" + "\n".join(results)
+                    result += "\n\n**Källor:**\n" + "\n".join(source_links)
+                    return result
+        return None
+    except Exception:
+        return None
+
+
+def fetch_trafikverket_data(query: str) -> Optional[str]:
+    """
+    Fetch traffic information from Trafikverket with source links.
+    
+    Note: Trafikverket requires authentication for full API access.
+    This provides basic info and redirects to their service.
+    
+    Args:
+        query: Search query
+        
+    Returns:
+        Traffic info string with HTML source links
+    """
+    # Trafikverket's full API requires authentication
+    # Return a helpful message with link to their service
+    result = "Trafikinformation för E4, E6, E18 och E20 – se aktuella olyckor och köer på trafiken.nu."
+    result += "\n\n**Källor:**\n"
+    result += '1. <a href="https://trafiken.nu">Trafiken.nu – Trafikinformation i realtid</a>\n'
+    result += '2. <a href="https://www.trafikverket.se/trafikinformation/">Trafikverket – Trafikinformation</a>'
+    return result
+
+
+def fetch_saol_data(query: str) -> Optional[str]:
+    """
+    Fetch word data from SAOL (Svenska Akademiens Ordlista) with source links.
+    
+    Args:
+        query: User query containing the word to look up
+        
+    Returns:
+        Word definition, synonyms, and conjugation with HTML source links, or None if failed
+    """
+    try:
+        # Extract the word from the query
+        word = query.lower()
+        # Common patterns: "vad betyder ordet X", "vad betyder X", "ordet X", "X betydelse"
+        patterns = [
+            r'vad betyder ordet\s+(\w+)',
+            r'vad betyder\s+(\w+)',
+            r'ordet\s+(\w+)',
+            r'(\w+)\s+betydelse',
+            r'synonym\s+till\s+(\w+)',
+            r'synonymer\s+till\s+(\w+)',
+        ]
+        
+        import re
+        extracted_word = None
+        for pattern in patterns:
+            match = re.search(pattern, query, re.IGNORECASE)
+            if match:
+                extracted_word = match.group(1)
+                break
+        
+        if not extracted_word:
+            # Use the last word in query as fallback
+            words = query.split()
+            extracted_word = words[-1] if words else None
+        
+        if not extracted_word:
+            return None
+        
+        # SAOL API call (note: this is a mock response since SAOL API requires registration)
+        # In production, this would call the actual SAOL API
+        result = f"**Ord:** {extracted_word}\n\n"
+        result += f"Orddata från Svenska Akademiens Ordlista (SAOL). "
+        result += f"För fullständig information om ordets betydelse, böjning och uttal, besök SAOL:s webbplats."
+        result += '\n\n**Källor:**\n'
+        result += f'1. <a href="https://svenska.se/saol/?sok={extracted_word}">SAOL – Svenska Akademiens Ordlista</a>\n'
+        result += f'2. <a href="https://svenska.se/tre/?sok={extracted_word}">Svenska.se – Tre ordböcker</a>\n'
+        result += '3. <a href="https://www.saob.se">SAOB – Svenska Akademiens Ordbok</a>'
+        
+        return result
+    except Exception as e:
+        print(f"[SAOL] Error fetching word data: {e}")
+        return None
+
+
+def fetch_open_data_search(query: str) -> Optional[str]:
+    """
+    Search Swedish Open Data Portal (dataportal.se) with source links.
+    
+    Args:
+        query: Search query
+        
+    Returns:
+        Search results with HTML links or None if failed
+    """
+    try:
+        url = f"https://www.dataportal.se/api/3/action/package_search?q={query}&rows=3"
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            results = data.get("result", {}).get("results", [])
+            if results:
+                datasets = []
+                source_links = []
+                for i, item in enumerate(results, 1):
+                    title = item.get("title", "Okänd dataset")
+                    org = item.get("organization", {}).get("title", "")
+                    item_id = item.get("name", item.get("id", ""))
+                    link = f"https://www.dataportal.se/datasets/{item_id}" if item_id else "https://www.dataportal.se"
+                    datasets.append(f"• {title}" + (f" ({org})" if org else ""))
+                    short_title = title[:50] + "..." if len(title) > 50 else title
+                    source_links.append(f'{i}. <a href="{link}">Dataportal.se – {short_title}</a>')
+                if datasets:
+                    result = "**Öppna data som matchar:**\n" + "\n".join(datasets)
+                    result += "\n\n**Källor:**\n" + "\n".join(source_links)
+                    return result
+        return None
+    except Exception:
+        return None
+
+
+def fetch_open_data(api: dict, query: str) -> Optional[str]:
+    """
+    Fetch data from the specified Open Data API with proper source links.
+    
+    Args:
+        api: API configuration dict
+        query: User's search query
+        
+    Returns:
+        Formatted data string with HTML source links or fallback message
+    """
+    api_id = api.get("id", "")
+    fallback = api.get("fallback_message", "Kunde inte hämta data.")
+    
+    result = None
+    
+    if api_id == "scb":
+        result = fetch_scb_data(query)
+    elif api_id == "krisinformation":
+        result = fetch_krisinformation()
+    elif api_id == "riksdagen":
+        result = fetch_riksdagen_data(query)
+    elif api_id == "trafikverket":
+        result = fetch_trafikverket_data(query)
+    elif api_id == "opendata":
+        result = fetch_open_data_search(query)
+    elif api_id == "naturvardsverket":
+        result = "Miljödata och luftkvalitetsindex uppdateras varje timme."
+        result += '\n\n**Källor:**\n1. <a href="https://www.naturvardsverket.se">Naturvårdsverket</a>\n'
+        result += '2. <a href="https://www.naturvardsverket.se/data-och-statistik/luft/">Naturvårdsverket – Luftkvalitet</a>'
+    elif api_id == "boverket":
+        result = "Information om bygglov och energideklarationer."
+        result += '\n\n**Källor:**\n1. <a href="https://www.boverket.se">Boverket</a>\n'
+        result += '2. <a href="https://www.boverket.se/sv/byggande/energideklaration/">Boverket – Energideklarationer</a>'
+    elif api_id == "slu":
+        result = "Skogsdata från Riksskogstaxeringen."
+        result += '\n\n**Källor:**\n1. <a href="https://www.slu.se/riksskogstaxeringen">SLU Riksskogstaxeringen</a>\n'
+        result += '2. <a href="https://www.slu.se/centrumbildningar-och-projekt/riksskogstaxeringen/statistik-om-skog/">SLU – Skogsstatistik</a>'
+    elif api_id == "digg":
+        result = "DIGG erbjuder info om digital förvaltning."
+        result += '\n\n**Källor:**\n1. <a href="https://www.digg.se">DIGG – Myndigheten för digital förvaltning</a>\n'
+        result += '2. <a href="https://www.digg.se/kunskap-och-stod/oppna-data">DIGG – Öppna data</a>'
+    elif api_id == "saol":
+        result = fetch_saol_data(query)
+    
+    return result if result else fallback
+
+
+# =============================================================================
+# END OPEN DATA APIs CONFIGURATION
+# =============================================================================
+
+
+# =============================================================================
+# TIME, DATE & WEATHER FUNCTIONS - Always-aware context injection
+# =============================================================================
+
+# Weather trigger keywords (Swedish)
+WEATHER_KEYWORDS = ["vädret", "regnar", "soligt", "imorgon", "väder", "temperatur", "grader", "regn", "snö", "sol"]
+
+# News trigger keywords (Swedish)
+NEWS_KEYWORDS = ["senaste nyheterna", "vad hände idag", "nyheter", "vad är det senaste", "aktuella nyheter"]
+
+
+def get_current_season() -> str:
+    """
+    Get the current season in Swedish.
+    
+    Returns a formatted string like: "Vi är mitt i vintern just nu."
+    """
+    month = datetime.now().month
+    seasons = {
+        12: "vintern", 1: "vintern", 2: "vintern",
+        3: "våren", 4: "våren", 5: "våren",
+        6: "sommaren", 7: "sommaren", 8: "sommaren",
+        9: "hösten", 10: "hösten", 11: "hösten"
+    }
+    season = seasons.get(month, "året")
+    return f"Vi är mitt i {season} just nu."
+
+
+def inject_time_context() -> str:
+    """
+    Get current time and date in Swedish format.
+    
+    Returns a formatted string like: "Idag är det Fredag den 28 november 2025. Klockan är 23:15 (svensk tid)."
+    """
+    import locale
+    try:
+        # Try to set Swedish locale for proper day/month names
+        locale.setlocale(locale.LC_TIME, 'sv_SE.UTF-8')
+    except locale.Error:
+        pass  # Fall back to default locale
+    
+    now = datetime.now()
+    
+    # Swedish day and month names as fallback
+    days_sv = ["Måndag", "Tisdag", "Onsdag", "Torsdag", "Fredag", "Lördag", "Söndag"]
+    months_sv = ["januari", "februari", "mars", "april", "maj", "juni", 
+                 "juli", "augusti", "september", "oktober", "november", "december"]
+    
+    day_name = days_sv[now.weekday()]
+    month_name = months_sv[now.month - 1]
+    time_str = now.strftime("%H:%M")
+    
+    return f"Idag är det {day_name} den {now.day} {month_name} {now.year}. Klockan är {time_str} (svensk tid)."
+
+
+def get_weather(city: str = "stockholm") -> Optional[str]:
+    """
+    Get weather forecast from SMHI for a Swedish city.
+    
+    Args:
+        city: Name of the Swedish city (must be in SWEDISH_CITIES config)
+    
+    Returns a formatted weather string or None if API fails or city not found.
+    """
+    city_lower = city.lower()
+    coords = SWEDISH_CITIES.get(city_lower)
+    
+    if not coords:
+        # Fall back to Stockholm if city not found
+        coords = SWEDISH_CITIES.get("stockholm", {"lon": 18.07, "lat": 59.33})
+        city_lower = "stockholm"
+    
+    try:
+        url = f"https://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point/lon/{coords['lon']}/lat/{coords['lat']}/data.json"
+        r = requests.get(url, timeout=8)
+        
+        if r.status_code != 200:
+            return None
+            
+        data = r.json()
+        
+        # Get tomorrow's forecast (index 1 in timeSeries)
+        if "timeSeries" not in data or len(data["timeSeries"]) < 2:
+            return None
+            
+        forecast = data["timeSeries"][1]["parameters"]
+        
+        # Find temperature (t) and precipitation category (pcat)
+        temp = None
+        rain = None
+        for param in forecast:
+            if param["name"] == "t":
+                temp = param["values"][0]
+            elif param["name"] == "pcat":
+                rain = int(param["values"][0])
+        
+        if temp is None:
+            return None
+            
+        # Precipitation category descriptions
+        rain_texts = [
+            "ingen nederbörd",
+            "snö",
+            "snö och regn", 
+            "regn",
+            "duggregn",
+            "fryst duggregn",
+            "fryst regn"
+        ]
+        rain_text = rain_texts[rain] if rain is not None and 0 <= rain < len(rain_texts) else "okänd nederbörd"
+        
+        # Capitalize city name for display
+        city_display = city_lower.capitalize()
+        result = f"I {city_display} blir det imorgon ca {temp}°C och {rain_text}."
+        result += '\n\n**Källor:**\n'
+        result += f'1. <a href="https://www.smhi.se/vader/prognoser/ortsprognoser/q/{city_display}">SMHI – Väderprognos {city_display}</a>'
+        return result
+        
+    except Exception:
+        return None
+
+
+def get_latest_news() -> list:
+    """
+    Get latest news from configured RSS feeds.
+    
+    Returns list of news items with title, summary, link, and source.
+    Returns empty list if feedparser is not available or all feeds fail.
+    """
+    if not FEEDPARSER_AVAILABLE:
+        return []
+    
+    all_entries = []
+    for feed in RSS_FEEDS:
+        try:
+            d = feedparser.parse(feed.get("url", ""))
+            for entry in d.entries[:2]:  # 2 latest per feed
+                summary = entry.get("summary", "")
+                if len(summary) > 200:
+                    summary = summary[:200] + "..."
+                all_entries.append({
+                    "title": entry.get("title", "Ingen titel"),
+                    "summary": summary,
+                    "link": entry.get("link", "#"),
+                    "source": feed.get("name", "Okänd källa"),
+                    "published": entry.get("published", "")
+                })
+        except Exception:
+            pass
+    
+    # Sort by publication time (newest first)
+    all_entries.sort(key=lambda x: x.get("published", ""), reverse=True)
+    return all_entries[:5]  # Top 5 news
+
+
+def format_news_for_context(news: list) -> str:
+    """
+    Format news items as a context string for the model with proper HTML source links.
+    
+    Args:
+        news: List of news items from get_latest_news()
+        
+    Returns:
+        Formatted string with news titles and clickable HTML links
+    """
+    if not news:
+        return ""
+    
+    news_text = "**Senaste nyheterna:**\n"
+    for i, item in enumerate(news, 1):
+        title = item.get('title', 'Okänd nyhet')
+        link = item.get('link', '#')
+        source = item.get('source', 'Okänd källa')
+        news_text += f"{i}. <a href=\"{link}\">{title}</a> ({source})\n"
+    
+    news_text += "\n**Källor:**\n"
+    for i, item in enumerate(news, 1):
+        title = item.get('title', 'Källa')[:60]
+        if len(title) > 60:
+            title = title[:57] + "..."
+        link = item.get('link', '#')
+        source = item.get('source', '')
+        news_text += f"{i}. <a href=\"{link}\">{source} – {title}</a>\n"
+    
+    return news_text.strip()
+
+
+def check_weather_city(user_message: str) -> Optional[str]:
+    """
+    Check if user message asks about weather for a specific city.
+    
+    Args:
+        user_message: The user's input message
+        
+    Returns:
+        City name if found, None otherwise
+    """
+    msg_lower = user_message.lower()
+    
+    # Check for weather keywords first
+    if not any(keyword in msg_lower for keyword in WEATHER_KEYWORDS):
+        return None
+    
+    # Check for city names
+    for city in SWEDISH_CITIES.keys():
+        if city in msg_lower:
+            return city
+    
+    # Default to Stockholm if weather question but no specific city
+    return "stockholm"
+
+
+def check_news_trigger(user_message: str) -> bool:
+    """
+    Check if user message asks about news.
+    
+    Args:
+        user_message: The user's input message
+        
+    Returns:
+        True if news-related question, False otherwise
+    """
+    msg_lower = user_message.lower()
+    return any(keyword in msg_lower for keyword in NEWS_KEYWORDS)
+
+
+def tavily_search(query: str) -> Optional[dict]:
+    """
+    Perform a Tavily web search for real-time information.
+    
+    Args:
+        query: The search query
+        
+    Returns:
+        Search results dict or None if API key not set or search fails
+    """
+    if not TAVILY_API_KEY:
+        return None
+        
+    try:
+        r = requests.post(
+            "https://api.tavily.com/search",
+            json={
+                "api_key": TAVILY_API_KEY,
+                "query": query,
+                "search_depth": "advanced",
+                "include_answer": True,
+                "max_results": 4
+            },
+            timeout=10
+        )
+        return r.json() if r.status_code == 200 else None
+    except Exception:
+        return None
+
+
+def format_tavily_sources(data: Optional[dict]) -> str:
+    """
+    Format Tavily search results as HTML source links.
+    
+    Args:
+        data: Tavily search response dict
+        
+    Returns:
+        Formatted sources string with HTML anchor links
+    """
+    if not data or "results" not in data:
+        return ""
+        
+    sources = "\n\n**Källor:**\n"
+    for i, result in enumerate(data["results"][:4], 1):
+        title = result.get("title", "Källa")
+        url = result.get("url", "#")
+        # Truncate long titles
+        if len(title) > 70:
+            title = title[:67] + "..."
+        sources += f'{i}. <a href="{url}">{title}</a>\n'
+        
+    return sources.strip()
+
+
+def check_tavily_trigger(user_message: str) -> bool:
+    """
+    Check if user message should trigger Tavily search.
+    
+    Args:
+        user_message: The user's input message
+        
+    Returns:
+        True if should trigger search, False otherwise
+    """
+    msg_lower = user_message.lower()
+    
+    # Check if any trigger matches AND no blacklist matches
+    has_trigger = any(trigger in msg_lower for trigger in TAVILY_TRIGGERS)
+    is_blacklisted = any(blacklist in msg_lower for blacklist in TAVILY_BLACKLIST)
+    
+    return has_trigger and not is_blacklisted
+
+
+# =============================================================================
+# REGIONS & ELOMRADEN CONFIGURATION - For location-based API queries
+# =============================================================================
+
+REGIONS_CONFIG_FILE = Path(__file__).parent.parent / "config" / "swedish_regions.json"
+ELOMRADEN_CONFIG_FILE = Path(__file__).parent.parent / "config" / "swedish_elomraden.json"
+
+
+def load_swedish_regions() -> dict:
+    """Load Swedish regions from config file."""
+    if REGIONS_CONFIG_FILE.exists():
+        try:
+            data = json.loads(REGIONS_CONFIG_FILE.read_text(encoding="utf-8"))
+            return data.get("regions", {})
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+    return {}
+
+
+def load_elomraden() -> dict:
+    """Load Swedish electricity areas (SE1-SE4) from config file."""
+    if ELOMRADEN_CONFIG_FILE.exists():
+        try:
+            data = json.loads(ELOMRADEN_CONFIG_FILE.read_text(encoding="utf-8"))
+            return data.get("elomraden", {})
+        except (json.JSONDecodeError, KeyError, TypeError):
+            pass
+    return {
+        "se1": {"name": "SE1 - Luleå", "description": "Norra Sverige"},
+        "se2": {"name": "SE2 - Sundsvall", "description": "Norra Mellansverige"},
+        "se3": {"name": "SE3 - Stockholm", "description": "Södra Mellansverige"},
+        "se4": {"name": "SE4 - Malmö", "description": "Södra Sverige"}
+    }
+
+
+# Load regions and elomraden at startup
+SWEDISH_REGIONS = load_swedish_regions()
+ELOMRADEN = load_elomraden()
+
+
+def check_region_in_query(query: str) -> Optional[str]:
+    """Check if query mentions a Swedish region and return it."""
+    query_lower = query.lower()
+    for region_key, region_name in SWEDISH_REGIONS.items():
+        if region_key in query_lower:
+            return region_name
+    return None
+
+
+def check_elomrade_in_query(query: str) -> Optional[str]:
+    """Check if query mentions a Swedish electricity area (SE1-SE4)."""
+    query_lower = query.lower()
+    for el_key, el_data in ELOMRADEN.items():
+        if el_key in query_lower:
+            return el_data.get("name", el_key.upper())
+    return None
+
+
+def build_sources_section(
+    weather_context: Optional[str] = None,
+    weather_city: Optional[str] = None,
+    news_context: Optional[str] = None,
+    open_data_context: Optional[str] = None,
+    triggered_api: Optional[dict] = None,
+    tavily_sources: str = ""
+) -> str:
+    """
+    Build a formatted sources section for the response.
+    
+    Returns properly formatted sources with clickable links.
+    Uses HTML for reliable rendering in chat UI.
+    """
+    sources = []
+    
+    # Weather source (SMHI)
+    if weather_context and weather_city:
+        city_display = weather_city.capitalize()
+        sources.append({
+            "name": f"SMHI – Väderprognos {city_display}",
+            "url": f"https://www.smhi.se/vader/prognoser/ortsprognoser/q/{city_display}"
+        })
+    
+    # News sources (RSS feeds - extract from news_context if available)
+    if news_context and "SVT" in news_context:
+        sources.append({
+            "name": "SVT Nyheter",
+            "url": "https://www.svt.se/nyheter/"
+        })
+    
+    # Open Data API sources
+    if triggered_api and open_data_context:
+        api_id = triggered_api.get("id", "")
+        api_name = triggered_api.get("name", "Okänd källa")
+        
+        # Map API IDs to source URLs
+        api_sources = {
+            "scb": ("SCB – Statistiska Centralbyrån", "https://www.scb.se"),
+            "krisinformation": ("Krisinformation.se", "https://www.krisinformation.se"),
+            "riksdagen": ("Riksdagen.se", "https://www.riksdagen.se"),
+            "trafikverket": ("Trafikverket", "https://www.trafikverket.se"),
+            "naturvardsverket": ("Naturvårdsverket", "https://www.naturvardsverket.se"),
+            "boverket": ("Boverket", "https://www.boverket.se"),
+            "slu": ("SLU Riksskogstaxeringen", "https://www.slu.se/riksskogstaxeringen"),
+            "opendata": ("Dataportal.se – Sveriges öppna data", "https://www.dataportal.se"),
+            "digg": ("DIGG – Myndigheten för digital förvaltning", "https://www.digg.se"),
+            "skatteverket": ("Skatteverket", "https://www.skatteverket.se"),
+            "energimyndigheten": ("Energimyndigheten", "https://www.energimyndigheten.se"),
+            "socialstyrelsen": ("Socialstyrelsen", "https://www.socialstyrelsen.se"),
+            "lantmateriet": ("Lantmäteriet", "https://www.lantmateriet.se"),
+            "folkhalsomyndigheten": ("Folkhälsomyndigheten", "https://www.folkhalsomyndigheten.se"),
+            "trafikverket_vag": ("Trafikverket Väg & Järnväg", "https://www.trafikverket.se/trafikinformation/"),
+            "energimarknadsinspektionen": ("Energimarknadsinspektionen", "https://www.ei.se"),
+            "vinnova": ("Vinnova", "https://www.vinnova.se"),
+            "formas": ("Formas", "https://www.formas.se"),
+            "vetenskapsradet": ("Vetenskapsrådet", "https://www.vr.se"),
+            "forsakringskassan": ("Försäkringskassan", "https://www.forsakringskassan.se"),
+            "migrationsverket": ("Migrationsverket", "https://www.migrationsverket.se"),
+            "arbetsformedlingen": ("Arbetsförmedlingen", "https://www.arbetsformedlingen.se"),
+            "uhr": ("UHR – Universitets- och högskolerådet", "https://www.uhr.se"),
+            "csn": ("CSN – Centrala studiestödsnämnden", "https://www.csn.se"),
+            "skolverket": ("Skolverket", "https://www.skolverket.se"),
+            "skolverket_syllabus": ("Skolverket – Kursplaner", "https://www.skolverket.se/undervisning/gymnasieskolan/laroplan-program-och-amnen-i-gymnasieskolan"),
+            "visitsweden": ("Visit Sweden", "https://www.visitsweden.se"),
+            "bolagsverket": ("Bolagsverket", "https://www.bolagsverket.se"),
+            "konkurrensverket": ("Konkurrensverket", "https://www.kkv.se"),
+            "konsumentverket": ("Konsumentverket", "https://www.konsumentverket.se"),
+        }
+        
+        if api_id in api_sources:
+            name, url = api_sources[api_id]
+            sources.append({"name": name, "url": url})
+        else:
+            sources.append({"name": api_name, "url": "#"})
+    
+    # Tavily sources (already formatted with HTML, extract)
+    if tavily_sources:
+        import re
+        # Match <a href="url">title</a> pattern
+        tavily_links = re.findall(r'<a href="([^"]+)">([^<]+)</a>', tavily_sources)
+        for url, title in tavily_links:
+            sources.append({"name": title, "url": url})
+    
+    if not sources:
+        return ""
+    
+    # Format as clean HTML for proper rendering in chat UI
+    # Using <br> for line breaks and proper spacing
+    result = "\n\n<hr style='margin: 16px 0; border: none; border-top: 1px solid #ccc;'>\n"
+    result += "<div style='font-size: 0.9em; color: #666;'>\n"
+    result += "<strong>Källor:</strong><br>\n"
+    for i, source in enumerate(sources, 1):
+        name = source["name"]
+        url = source["url"]
+        result += f'{i}. <a href="{url}" target="_blank" style="color: #0066cc;">{name}</a><br>\n'
+    result += "</div>"
+    
+    return result
+
+
+# =============================================================================
+# END REGIONS & ELOMRADEN CONFIGURATION
+# =============================================================================
+
+
+# =============================================================================
+# END TIME, DATE & WEATHER FUNCTIONS
+# =============================================================================
+
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description='OneSeek ML Inference Service')
@@ -1294,6 +2374,531 @@ async def get_current_prompt():
 # =============================================================================
 
 
+# =============================================================================
+# FORCE-SVENSKA API - Real-time dashboard control for Swedish language triggers
+# =============================================================================
+# These endpoints allow admins to manage the Force-Svenska feature which ensures
+# the model responds in Swedish when Swedish triggers are detected in user input.
+
+# Create Force-Svenska router
+force_svenska_router = APIRouter(prefix="/api/force-swedish", tags=["Force-Svenska"])
+
+
+@force_svenska_router.get("")
+async def get_force_swedish():
+    """
+    Get current Force-Svenska triggers.
+    
+    Returns the list of trigger words/phrases that activate Swedish-only responses.
+    These triggers are checked against user input (case-insensitive).
+    """
+    return {
+        "triggers": FORCE_SVENSKA_TRIGGERS,
+        "count": len(FORCE_SVENSKA_TRIGGERS),
+        "file_path": str(FORCE_SVENSKA_FILE)
+    }
+
+
+@force_svenska_router.post("")
+async def save_force_swedish(request: dict):
+    """
+    Save Force-Svenska triggers.
+    
+    Updates the trigger list in real-time. Changes take effect immediately
+    without requiring a server restart.
+    
+    Request body:
+    - triggers: string - Comma-separated list of triggers (e.g., "hej, vad, vem, hur")
+    
+    Example:
+    {
+        "triggers": "hej, vad, vem, hur, varför, när, kan du, är du"
+    }
+    """
+    global FORCE_SVENSKA_TRIGGERS
+    
+    # Parse triggers from comma-separated string
+    raw_triggers = request.get("triggers", "")
+    if isinstance(raw_triggers, str):
+        triggers = [t.strip().lower() for t in raw_triggers.split(",") if t.strip()]
+    elif isinstance(raw_triggers, list):
+        triggers = [t.strip().lower() for t in raw_triggers if isinstance(t, str) and t.strip()]
+    else:
+        triggers = []
+    
+    # Save to file
+    data = {"triggers": triggers}
+    try:
+        FORCE_SVENSKA_FILE.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), 
+            encoding="utf-8"
+        )
+    except Exception as e:
+        logger.error(f"Failed to save Force-Svenska triggers: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save triggers: {str(e)}")
+    
+    # Update in-memory list immediately
+    FORCE_SVENSKA_TRIGGERS = triggers
+    
+    logger.info(f"Force-Svenska triggers updated: {len(triggers)} triggers saved")
+    
+    return {
+        "status": "saved",
+        "count": len(triggers),
+        "triggers": triggers
+    }
+
+
+def check_force_svenska(user_message: str) -> bool:
+    """
+    Check if user message is in Swedish using langdetect with trigger fallback.
+    
+    Uses langdetect library for accurate language detection (99.9% accuracy).
+    Falls back to trigger-word matching for very short texts or if langdetect
+    is unavailable.
+    
+    Args:
+        user_message: The user's input message
+        
+    Returns:
+        True if Swedish is detected, False otherwise
+    """
+    # Primary: Use langdetect for accurate detection
+    if is_swedish(user_message):
+        return True
+    
+    # Fallback: Check dashboard-configured triggers (for edge cases)
+    msg_lower = user_message.lower()
+    return any(trigger in msg_lower for trigger in FORCE_SVENSKA_TRIGGERS)
+
+
+def apply_force_svenska(messages: list) -> list:
+    """
+    Apply Force-Svenska system message to the conversation.
+    
+    If the user's last message contains a Swedish trigger, prepends a system
+    message instructing the model to respond only in Swedish.
+    
+    Args:
+        messages: List of conversation messages
+        
+    Returns:
+        Modified messages list with Swedish instruction if applicable
+    """
+    if not messages:
+        return messages
+    
+    # Check the last user message
+    last_msg = messages[-1].get("content", "")
+    
+    if check_force_svenska(last_msg):
+        # Prepend Swedish-only instruction
+        swedish_instruction = {
+            "role": "system", 
+            "content": "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu."
+        }
+        return [swedish_instruction] + messages
+    
+    return messages
+
+
+# =============================================================================
+# END FORCE-SVENSKA API
+# =============================================================================
+
+
+# =============================================================================
+# TAVILY WEB SEARCH API - Real-time dashboard control for search triggers
+# =============================================================================
+# These endpoints allow admins to manage the Tavily web search feature which
+# fetches real-time information when trigger words are detected in user input.
+
+# Create Tavily triggers router
+tavily_router = APIRouter(prefix="/api/tavily-triggers", tags=["Tavily Search"])
+
+
+@tavily_router.get("")
+async def get_tavily_triggers():
+    """
+    Get current Tavily triggers and blacklist.
+    
+    Returns the list of trigger words that activate web search,
+    and blacklist words that prevent search (e.g., identity questions).
+    """
+    return {
+        "triggers": TAVILY_TRIGGERS,
+        "blacklist": TAVILY_BLACKLIST,
+        "trigger_count": len(TAVILY_TRIGGERS),
+        "blacklist_count": len(TAVILY_BLACKLIST),
+        "api_key_set": bool(TAVILY_API_KEY)
+    }
+
+
+@tavily_router.post("")
+async def save_tavily_triggers(request: dict):
+    """
+    Save Tavily triggers, blacklist, and optionally API key.
+    
+    Updates the trigger and blacklist lists in real-time. Changes take effect
+    immediately without requiring a server restart.
+    
+    Request body:
+    - triggers: string - Comma-separated list of triggers
+    - blacklist: string - Comma-separated list of blacklist words
+    - api_key: string (optional) - Tavily API key
+    """
+    global TAVILY_TRIGGERS, TAVILY_BLACKLIST, TAVILY_API_KEY
+    
+    # Parse triggers from comma-separated string or list
+    raw_triggers = request.get("triggers", "")
+    if isinstance(raw_triggers, str):
+        triggers = [t.strip().lower() for t in raw_triggers.split(",") if t.strip()]
+    elif isinstance(raw_triggers, list):
+        triggers = [t.strip().lower() for t in raw_triggers if isinstance(t, str) and t.strip()]
+    else:
+        triggers = []
+    
+    # Parse blacklist from comma-separated string or list
+    raw_blacklist = request.get("blacklist", "")
+    if isinstance(raw_blacklist, str):
+        blacklist = [b.strip().lower() for b in raw_blacklist.split(",") if b.strip()]
+    elif isinstance(raw_blacklist, list):
+        blacklist = [b.strip().lower() for b in raw_blacklist if isinstance(b, str) and b.strip()]
+    else:
+        blacklist = []
+    
+    # Handle API key - only update if provided and not empty
+    api_key = request.get("api_key", "")
+    api_key_updated = False
+    
+    # Save to file
+    data = {"triggers": triggers, "blacklist": blacklist}
+    
+    # Include API key in config if provided (or preserve existing)
+    if api_key and api_key.strip():
+        data["api_key"] = api_key.strip()
+        TAVILY_API_KEY = api_key.strip()
+        api_key_updated = True
+        print(f"[TAVILY] API key updated from dashboard")
+    elif TAVILY_CONFIG_FILE.exists():
+        # Preserve existing API key from config file if not updating
+        try:
+            existing_data = json.loads(TAVILY_CONFIG_FILE.read_text(encoding="utf-8"))
+            if existing_data.get("api_key"):
+                data["api_key"] = existing_data["api_key"]
+        except:
+            pass
+    
+    try:
+        TAVILY_CONFIG_FILE.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2),
+            encoding="utf-8"
+        )
+    except Exception as e:
+        logger.error(f"Failed to save Tavily triggers: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save triggers: {str(e)}")
+    
+    # Update in-memory lists immediately
+    TAVILY_TRIGGERS = triggers
+    TAVILY_BLACKLIST = blacklist
+    
+    logger.info(f"Tavily triggers updated: {len(triggers)} triggers, {len(blacklist)} blacklist, api_key_updated={api_key_updated}")
+    
+    return {
+        "status": "saved",
+        "trigger_count": len(triggers),
+        "blacklist_count": len(blacklist),
+        "triggers": triggers,
+        "blacklist": blacklist,
+        "api_key_set": bool(TAVILY_API_KEY),
+        "api_key_updated": api_key_updated
+    }
+
+
+# =============================================================================
+# END TAVILY API
+# =============================================================================
+
+
+# =============================================================================
+# SWEDISH CITIES API - Dashboard-controlled city list for weather
+# =============================================================================
+# These endpoints allow admins to manage the list of Swedish cities available
+# for weather lookups. Cities can be added/removed without server restart.
+
+cities_router = APIRouter(prefix="/api/swedish-cities", tags=["Swedish Cities"])
+
+
+@cities_router.get("")
+async def get_swedish_cities():
+    """
+    Get current Swedish cities configuration.
+    
+    Returns the list of cities available for weather lookups.
+    """
+    return {
+        "cities": SWEDISH_CITIES,
+        "count": len(SWEDISH_CITIES)
+    }
+
+
+@cities_router.post("")
+async def save_swedish_cities(request: dict):
+    """
+    Save Swedish cities configuration.
+    
+    Updates the cities list in real-time. Changes take effect immediately
+    without requiring a server restart.
+    
+    Request body:
+    - cities: dict - Dictionary of city names to coordinates
+    """
+    global SWEDISH_CITIES
+    
+    cities = request.get("cities", {})
+    
+    # Validate and normalize city data
+    valid_cities = {}
+    for name, coords in cities.items():
+        if isinstance(coords, dict) and "lon" in coords and "lat" in coords:
+            valid_cities[name.lower()] = coords
+    
+    # Save to file
+    data = {"cities": valid_cities}
+    try:
+        CITIES_CONFIG_FILE.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2),
+            encoding="utf-8"
+        )
+    except Exception as e:
+        logger.error(f"Failed to save Swedish cities: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save cities: {str(e)}")
+    
+    # Update in-memory
+    SWEDISH_CITIES = valid_cities
+    
+    logger.info(f"Swedish cities updated: {len(valid_cities)} cities saved")
+    
+    return {
+        "status": "saved",
+        "count": len(valid_cities),
+        "cities": valid_cities
+    }
+
+
+# =============================================================================
+# END SWEDISH CITIES API
+# =============================================================================
+
+
+# =============================================================================
+# RSS FEEDS API - Dashboard-controlled news feeds
+# =============================================================================
+# These endpoints allow admins to manage the list of RSS feeds for news.
+# Feeds can be added/removed without server restart.
+
+rss_router = APIRouter(prefix="/api/rss-feeds", tags=["RSS Feeds"])
+
+
+@rss_router.get("")
+async def get_rss_feeds():
+    """
+    Get current RSS feeds configuration.
+    
+    Returns the list of RSS feeds configured for news lookups.
+    """
+    return {
+        "feeds": RSS_FEEDS,
+        "count": len(RSS_FEEDS),
+        "feedparser_available": FEEDPARSER_AVAILABLE
+    }
+
+
+@rss_router.post("")
+async def save_rss_feeds(request: dict):
+    """
+    Save RSS feeds configuration.
+    
+    Updates the feeds list in real-time. Changes take effect immediately
+    without requiring a server restart.
+    
+    Request body:
+    - feeds: list - List of feed objects with 'name' and 'url'
+    """
+    global RSS_FEEDS
+    
+    feeds = request.get("feeds", [])
+    
+    # Validate feed data
+    valid_feeds = []
+    for feed in feeds:
+        if isinstance(feed, dict) and "url" in feed:
+            valid_feeds.append({
+                "name": feed.get("name", "Okänd källa"),
+                "url": feed["url"]
+            })
+    
+    # Save to file
+    data = {"feeds": valid_feeds}
+    try:
+        RSS_FEEDS_FILE.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2),
+            encoding="utf-8"
+        )
+    except Exception as e:
+        logger.error(f"Failed to save RSS feeds: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save feeds: {str(e)}")
+    
+    # Update in-memory
+    RSS_FEEDS = valid_feeds
+    
+    logger.info(f"RSS feeds updated: {len(valid_feeds)} feeds saved")
+    
+    return {
+        "status": "saved",
+        "count": len(valid_feeds),
+        "feeds": valid_feeds
+    }
+
+
+# =============================================================================
+# END RSS FEEDS API
+# =============================================================================
+
+
+# =============================================================================
+# OPEN DATA APIs API - Dashboard-controlled Swedish public data sources
+# =============================================================================
+# These endpoints allow admins to manage the list of Open Data APIs.
+# APIs can be enabled/disabled and triggers can be modified without server restart.
+
+open_data_router = APIRouter(prefix="/api/open-data", tags=["Open Data APIs"])
+
+
+@open_data_router.get("")
+async def get_open_data_apis():
+    """
+    Get current Open Data APIs configuration.
+    
+    Returns the list of configured Open Data APIs with their triggers and status.
+    """
+    return {
+        "apis": OPEN_DATA_APIS,
+        "count": len(OPEN_DATA_APIS),
+        "enabled_count": len([a for a in OPEN_DATA_APIS if a.get("enabled", True)])
+    }
+
+
+@open_data_router.post("")
+async def save_open_data_apis(request: dict):
+    """
+    Save Open Data APIs configuration.
+    
+    Updates the APIs list in real-time. Changes take effect immediately
+    without requiring a server restart.
+    
+    Request body:
+    - apis: list - List of API config objects with id, name, triggers, enabled, etc.
+    """
+    global OPEN_DATA_APIS
+    
+    apis = request.get("apis", [])
+    
+    # Validate API data
+    valid_apis = []
+    for api in apis:
+        if isinstance(api, dict) and "id" in api:
+            valid_apis.append({
+                "id": api.get("id"),
+                "name": api.get("name", api.get("id")),
+                "description": api.get("description", ""),
+                "base_url": api.get("base_url", ""),
+                "enabled": api.get("enabled", True),
+                "triggers": api.get("triggers", []),
+                "fallback_message": api.get("fallback_message", "Kunde inte hämta data.")
+            })
+    
+    # Save to file
+    data = {"apis": valid_apis}
+    try:
+        OPEN_DATA_CONFIG_FILE.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2),
+            encoding="utf-8"
+        )
+    except Exception as e:
+        logger.error(f"Failed to save Open Data APIs: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save APIs: {str(e)}")
+    
+    # Update in-memory
+    OPEN_DATA_APIS = valid_apis
+    
+    logger.info(f"Open Data APIs updated: {len(valid_apis)} APIs saved")
+    
+    return {
+        "status": "saved",
+        "count": len(valid_apis),
+        "enabled_count": len([a for a in valid_apis if a.get("enabled", True)]),
+        "apis": valid_apis
+    }
+
+
+@open_data_router.get("/{api_id}")
+async def get_open_data_api(api_id: str):
+    """
+    Get a specific Open Data API configuration.
+    
+    Args:
+        api_id: The API identifier
+    """
+    for api in OPEN_DATA_APIS:
+        if api.get("id") == api_id:
+            return api
+    
+    raise HTTPException(status_code=404, detail=f"API '{api_id}' not found")
+
+
+@open_data_router.patch("/{api_id}")
+async def update_open_data_api(api_id: str, request: dict):
+    """
+    Update a specific Open Data API configuration.
+    
+    Args:
+        api_id: The API identifier
+        request: Partial API config to update
+    """
+    global OPEN_DATA_APIS
+    
+    for i, api in enumerate(OPEN_DATA_APIS):
+        if api.get("id") == api_id:
+            # Update fields
+            if "enabled" in request:
+                OPEN_DATA_APIS[i]["enabled"] = request["enabled"]
+            if "triggers" in request:
+                OPEN_DATA_APIS[i]["triggers"] = request["triggers"]
+            if "fallback_message" in request:
+                OPEN_DATA_APIS[i]["fallback_message"] = request["fallback_message"]
+            
+            # Save to file
+            data = {"apis": OPEN_DATA_APIS}
+            try:
+                OPEN_DATA_CONFIG_FILE.write_text(
+                    json.dumps(data, ensure_ascii=False, indent=2),
+                    encoding="utf-8"
+                )
+            except Exception as e:
+                logger.error(f"Failed to save Open Data APIs: {e}")
+                raise HTTPException(status_code=500, detail=f"Failed to save API: {str(e)}")
+            
+            return OPEN_DATA_APIS[i]
+    
+    raise HTTPException(status_code=404, detail=f"API '{api_id}' not found")
+
+
+# =============================================================================
+# END OPEN DATA APIs API
+# =============================================================================
+
+
 def find_base_model_path():
     """Find a valid base model path for OneSeek-7B-Zero
     
@@ -1961,12 +3566,15 @@ async def dual_model_inference(text: str, max_length: int = 512, temperature: fl
         inputs = tokenizer(prompt, return_tensors="pt", padding=True)
         inputs = sync_inputs_to_model_device(inputs, model)
         
+        # Use max_new_tokens instead of max_length to avoid input length issues
+        max_new = min(max_length, 512)
+        
         # Generate with explicit attention_mask
         with torch.no_grad():
             outputs = model.generate(
                 input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
                 attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
-                max_length=max_length,
+                max_new_tokens=max_new,
                 temperature=temperature,
                 top_p=top_p,
                 do_sample=True,
@@ -2141,6 +3749,21 @@ app.include_router(system_prompts_router, prefix="/api")
 # Register Simple System Prompt router (for dashboard integration)
 app.include_router(simple_prompt_router)
 
+# Register Force-Svenska router (real-time dashboard control)
+app.include_router(force_svenska_router)
+
+# Register Tavily router (real-time search control)
+app.include_router(tavily_router)
+
+# Register Swedish Cities router (weather city selection)
+app.include_router(cities_router)
+
+# Register RSS Feeds router (news sources)
+app.include_router(rss_router)
+
+# Register Open Data APIs router (Swedish public data)
+app.include_router(open_data_router)
+
 @app.get("/")
 async def root():
     """Health check and service information"""
@@ -2183,13 +3806,107 @@ async def infer(request: Request, inference_request: InferenceRequest):
     Routes to DNA v2 certified models with fallback to base models.
     This is the recommended endpoint for all inference requests.
     System prompt is automatically injected from the active prompt in Admin Dashboard.
+    
+    Features:
+    - Force-Svenska: Swedish-only responses when Swedish triggers detected
+    - Time & Date: Always aware of current time (injected into every request)
+    - Season: Always aware of current season
+    - Weather: SMHI weather data for any Swedish city when weather-related questions
+    - News: Latest news from RSS feeds when news-related questions
+    - Tavily Search: Real-time web search for current events/facts
     """
     start_time = time.time()
+    
+    # Check for Force-Svenska triggers
+    force_svenska_active = check_force_svenska(inference_request.text)
+    
+    # === 1. ALWAYS: Inject time, date & season context ===
+    time_context = inject_time_context()
+    season_context = get_current_season()
+    
+    # === 2. Check for weather question (with city detection) ===
+    weather_context = None
+    weather_city = check_weather_city(inference_request.text)
+    if weather_city:
+        weather_data = get_weather(weather_city)
+        if weather_data:
+            weather_context = weather_data
+            logger.info(f"🌤️ Väderdata hämtad för {weather_city}")
+    
+    # === 3. Check for news question ===
+    news_context = None
+    if check_news_trigger(inference_request.text):
+        logger.info("📰 Hämtar senaste nyheterna...")
+        news = get_latest_news()
+        if news:
+            news_context = format_news_for_context(news)
+            logger.info(f"✓ {len(news)} nyheter hämtade")
+    
+    # === 4. Check for Open Data API triggers ===
+    open_data_context = None
+    triggered_api = check_open_data_trigger(inference_request.text)
+    if triggered_api:
+        logger.info(f"📊 [OPEN DATA] Hämtar från {triggered_api.get('name')}...")
+        open_data_result = fetch_open_data(triggered_api, inference_request.text)
+        if open_data_result:
+            open_data_context = open_data_result
+            logger.info(f"✓ Data från {triggered_api.get('name')} mottagen")
+    
+    # === 5. Check for Tavily search trigger ===
+    tavily_context = None
+    tavily_sources = ""
+    if check_tavily_trigger(inference_request.text):
+        logger.info(f"🔍 [TAVILY] Hämtar realtidsdata: {inference_request.text[:60]}...")
+        search_result = tavily_search(inference_request.text)
+        if search_result and search_result.get("answer"):
+            tavily_context = search_result["answer"]
+            tavily_sources = format_tavily_sources(search_result)
+            logger.info("✓ Tavily-svar mottaget")
     
     # Format input with system prompt - ensures model always knows its identity
     full_input = format_inference_input(inference_request.text)
     
+    # Build enhanced context prefix
+    context_parts = []
+    
+    # Always add time and season context
+    context_parts.append(f"[Aktuell tid] {time_context} {season_context}")
+    
+    # Add weather if available
+    if weather_context:
+        context_parts.append(f"[Väder] {weather_context}")
+    
+    # Add news if available
+    if news_context:
+        context_parts.append(f"[Nyheter] {news_context}")
+    
+    # Add Open Data if available
+    if open_data_context:
+        context_parts.append(f"[Öppen data] {open_data_context}")
+    
+    # Add Tavily search results if available
+    if tavily_context:
+        context_parts.append(f"[Aktuell fakta] {tavily_context}")
+        if tavily_sources:
+            context_parts.append(tavily_sources)
+    
+    # If Force-Svenska is active, prepend Swedish instruction
+    if force_svenska_active:
+        context_parts.insert(0, "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu.")
+        logger.info("🇸🇪 Force-Svenska aktiverat – svarar på svenska")
+    
+    # Combine all context
+    if context_parts:
+        context_prefix = "\n".join(context_parts) + "\n\n"
+        full_input = context_prefix + full_input
+    
     logger.debug("Injecting system prompt into inference request")
+    logger.debug(f"Force-Svenska: {'ACTIVE' if force_svenska_active else 'inactive'}")
+    logger.debug(f"Time context: {time_context[:50]}...")
+    logger.debug(f"Season: {season_context}")
+    logger.debug(f"Weather: {weather_city if weather_context else 'no'}")
+    logger.debug(f"News: {'YES' if news_context else 'no'}")
+    logger.debug(f"Tavily: {'YES' if tavily_context else 'no'}")
     
     try:
         # Determine if we're using certified model or fallback
@@ -2220,12 +3937,15 @@ async def infer(request: Request, inference_request: InferenceRequest):
             inputs = tokenizer(full_input, return_tensors="pt", padding=True)
             inputs = sync_inputs_to_model_device(inputs, model)
             
+            # Use max_new_tokens instead of max_length to avoid input length issues
+            max_new = min(inference_request.max_length, 512)
+            
             # Generate with explicit attention_mask
             with torch.no_grad():
                 outputs = model.generate(
                     input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
                     attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
-                    max_length=inference_request.max_length,
+                    max_new_tokens=max_new,
                     temperature=inference_request.temperature,
                     top_p=inference_request.top_p,
                     do_sample=True,
@@ -2237,6 +3957,20 @@ async def infer(request: Request, inference_request: InferenceRequest):
             
             # Clean response using utility function
             response_text = clean_inference_response(response_text, full_input, inference_request.text)
+            
+            # === APPEND SOURCES to response ===
+            # Collect all sources from triggered APIs/services
+            sources_section = build_sources_section(
+                weather_context=weather_context,
+                weather_city=weather_city,
+                news_context=news_context,
+                open_data_context=open_data_context,
+                triggered_api=triggered_api,
+                tavily_sources=tavily_sources
+            )
+            
+            if sources_section:
+                response_text = response_text.rstrip() + "\n\n" + sources_section
             
             latency_ms = (time.time() - start_time) * 1000
             
@@ -2286,17 +4020,128 @@ async def oneseek_inference(request: InferenceRequest):
     
     System prompt is automatically injected from the active prompt in Admin Dashboard.
     The model always knows who it is - the prompt follows with every request.
+    
+    Features:
+    - Force-Svenska: Swedish-only responses when Swedish triggers detected
+    - Time & Date: Always aware of current time (injected into every request)
+    - Season: Always aware of current season
+    - Weather: SMHI weather data for any Swedish city when weather-related questions
+    - News: Latest news from RSS feeds when news-related questions
+    - Tavily Search: Real-time web search for current events/facts
     """
     import time
     start_time = time.time()
     
+    # Check for Force-Svenska triggers
+    force_svenska_active = check_force_svenska(request.text)
+    
+    # === 1. ALWAYS: Inject time, date & season context ===
+    time_context = inject_time_context()
+    season_context = get_current_season()
+    
+    # === 2. Check for weather question (with city detection) ===
+    weather_context = None
+    weather_sources = ""
+    weather_city = check_weather_city(request.text)
+    if weather_city:
+        weather_data = get_weather(weather_city)
+        if weather_data:
+            weather_context = weather_data
+            weather_sources = f"\n\n**Källor:**\n1. [SMHI – Väderprognos {weather_city.capitalize()}](https://www.smhi.se)"
+            logger.info(f"🌤️ Väderdata hämtad för {weather_city}")
+    
+    # === 3. Check for news question ===
+    news_context = None
+    news_sources = ""
+    if check_news_trigger(request.text):
+        logger.info("📰 Hämtar senaste nyheterna...")
+        news = get_latest_news()
+        if news:
+            news_context = format_news_for_context(news)
+            # Build news sources
+            news_source_list = []
+            for i, item in enumerate(news[:3], 1):
+                title = item.get('title', 'Artikel')[:40]
+                link = item.get('link', 'https://www.svt.se')
+                source = item.get('source', 'Nyheter')
+                news_source_list.append(f"{i}. [{source} – {title}]({link})")
+            if news_source_list:
+                news_sources = "\n\n**Källor:**\n" + "\n".join(news_source_list)
+            logger.info(f"✓ {len(news)} nyheter hämtade")
+    
+    # === 4. Check for Open Data API triggers ===
+    open_data_context = None
+    open_data_sources = ""
+    triggered_api = check_open_data_trigger(request.text)
+    if triggered_api:
+        logger.info(f"📊 [OPEN DATA] Hämtar från {triggered_api.get('name')}...")
+        open_data_result = fetch_open_data(triggered_api, request.text)
+        if open_data_result:
+            open_data_context = open_data_result
+            # Build source link for Open Data API
+            api_name = triggered_api.get('name', 'Öppen Data')
+            api_url = triggered_api.get('url', 'https://www.dataportal.se')
+            open_data_sources = f"\n\n**Källor:**\n1. [{api_name}]({api_url})"
+            logger.info(f"✓ Data från {triggered_api.get('name')} mottagen")
+    
+    # === 5. Check for Tavily search trigger ===
+    tavily_context = None
+    tavily_sources = ""
+    if check_tavily_trigger(request.text):
+        logger.info(f"🔍 [TAVILY] Hämtar realtidsdata: {request.text[:60]}...")
+        search_result = tavily_search(request.text)
+        if search_result and search_result.get("answer"):
+            tavily_context = search_result["answer"]
+            tavily_sources = format_tavily_sources(search_result)
+            logger.info("✓ Tavily-svar mottaget")
+    
     # Format input with system prompt - ensures model always knows its identity
     full_input = format_inference_input(request.text)
+    
+    # Build enhanced context prefix
+    context_parts = []
+    
+    # Always add time and season context
+    context_parts.append(f"[Aktuell tid] {time_context} {season_context}")
+    
+    # Add weather if available
+    if weather_context:
+        context_parts.append(f"[Väder] {weather_context}")
+    
+    # Add news if available
+    if news_context:
+        context_parts.append(f"[Nyheter] {news_context}")
+    
+    # Add Open Data if available
+    if open_data_context:
+        context_parts.append(f"[Öppen data] {open_data_context}")
+    
+    # Add Tavily search results if available
+    if tavily_context:
+        context_parts.append(f"[Aktuell fakta] {tavily_context}")
+        if tavily_sources:
+            context_parts.append(tavily_sources)
+    
+    # If Force-Svenska is active, prepend Swedish instruction
+    if force_svenska_active:
+        context_parts.insert(0, "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu.")
+        logger.info("🇸🇪 Force-Svenska aktiverat – svarar på svenska")
+    
+    # Combine all context
+    if context_parts:
+        context_prefix = "\n".join(context_parts) + "\n\n"
+        full_input = context_prefix + full_input
     
     # === DEBUG: Log inference start ===
     logger.debug("=" * 60)
     logger.debug("=== ONESEEK INFERENCE START ===")
     logger.debug("→ System prompt injected")
+    logger.debug(f"→ Time context: {time_context[:50]}...")
+    logger.debug(f"→ Season: {season_context}")
+    logger.debug(f"→ Force-Svenska: {'ACTIVE' if force_svenska_active else 'inactive'}")
+    logger.debug(f"→ Weather: {weather_city if weather_context else 'no'}")
+    logger.debug(f"→ News: {'YES' if news_context else 'no'}")
+    logger.debug(f"→ Tavily: {'YES' if tavily_context else 'no'}")
     logger.debug(f"→ Input text: {request.text[:100]}..." if len(request.text) > 100 else f"→ Input text: {request.text}")
     logger.debug(f"→ Max length: {request.max_length}")
     logger.debug(f"→ Temperature: {request.temperature}")
@@ -2371,10 +4216,14 @@ async def oneseek_inference(request: InferenceRequest):
             
             with torch.no_grad():
                 try:
+                    # Use max_new_tokens instead of max_length to avoid input length issues
+                    input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
+                    max_new = min(request.max_length, 512)  # Generate up to 512 new tokens
+                    
                     outputs = model.generate(
                         input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
                         attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
-                        max_length=request.max_length,
+                        max_new_tokens=max_new,
                         temperature=request.temperature,
                         top_p=request.top_p,
                         do_sample=True,
@@ -2401,6 +4250,19 @@ async def oneseek_inference(request: InferenceRequest):
             
             # Clean response using utility function
             response_text = clean_inference_response(response_text, full_input, request.text)
+            
+            # === APPEND SOURCES TO RESPONSE ===
+            # Only add sources if they don't already exist in response
+            if "**Källor:**" not in response_text:
+                # Prioritize sources in order of specificity
+                if open_data_sources:
+                    response_text += open_data_sources
+                elif weather_sources:
+                    response_text += weather_sources
+                elif news_sources:
+                    response_text += news_sources
+                elif tavily_sources:
+                    response_text += tavily_sources
             
             latency_ms = (time.time() - start_time) * 1000
             

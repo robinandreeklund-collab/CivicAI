@@ -1,0 +1,20 @@
+{
+  "elomraden": {
+    "se1": {
+      "name": "SE1 - Luleå",
+      "description": "Norra Sverige (Norrbotten, norra Västerbotten)"
+    },
+    "se2": {
+      "name": "SE2 - Sundsvall", 
+      "description": "Norra Mellansverige (södra Västerbotten, Jämtland, Västernorrland, Gävleborg)"
+    },
+    "se3": {
+      "name": "SE3 - Stockholm",
+      "description": "Södra Mellansverige (Stockholm, Mälardalen, Östergötland, etc.)"
+    },
+    "se4": {
+      "name": "SE4 - Malmö",
+      "description": "Södra Sverige (Skåne, Blekinge, delar av Småland)"
+    }
+  }
+}

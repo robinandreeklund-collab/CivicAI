@@ -13,11 +13,17 @@ import { useState, useEffect } from 'react';
  * - No server restart required - changes take effect immediately
  * - Real-time chat testing
  * - Import character cards as prompts
+ * - Force-Svenska triggers management
+ * - Tavily Web Search triggers management (real-time facts)
+ * - Time & Date awareness (always injected)
+ * - Weather integration (SMHI)
  * 
  * How it works:
  * - Prompts are stored in datasets/system_prompts/ as JSON files
  * - The active prompt is read on every inference request
  * - Format: "[System Prompt]\n\nUser: [input]\n\nAssistant:"
+ * - Force-Svenska: When trigger words are detected, model responds in Swedish only
+ * - Tavily: When triggers detected, fetches real-time info from web
  */
 export default function SystemPromptManagement() {
   const [prompts, setPrompts] = useState([]);
@@ -49,10 +55,26 @@ export default function SystemPromptManagement() {
   const [availableCharacters, setAvailableCharacters] = useState([]);
   const [showImportModal, setShowImportModal] = useState(false);
 
+  // Force-Svenska state
+  const [forceTriggers, setForceTriggers] = useState([]);
+  const [forceTriggersInput, setForceTriggersInput] = useState('');
+  const [forceSaving, setForceSaving] = useState(false);
+
+  // Tavily Web Search state
+  const [tavilyTriggers, setTavilyTriggers] = useState([]);
+  const [tavilyTriggersInput, setTavilyTriggersInput] = useState('');
+  const [tavilyBlacklist, setTavilyBlacklist] = useState([]);
+  const [tavilyBlacklistInput, setTavilyBlacklistInput] = useState('');
+  const [tavilySaving, setTavilySaving] = useState(false);
+  const [tavilyApiKeySet, setTavilyApiKeySet] = useState(false);
+  const [tavilyApiKeyInput, setTavilyApiKeyInput] = useState('');
+
   // Fetch prompts on mount
   useEffect(() => {
     fetchPrompts();
     fetchAvailableCharacters();
+    fetchForceSwedish();
+    fetchTavilyTriggers();
   }, []);
 
   // Clear messages after 5 seconds
@@ -107,6 +129,130 @@ export default function SystemPromptManagement() {
       }
     } catch (err) {
       console.error('Error fetching characters:', err);
+    }
+  };
+
+  const fetchForceSwedish = async () => {
+    try {
+      let response;
+      try {
+        response = await fetch('http://localhost:5000/api/force-swedish');
+      } catch {
+        response = await fetch('/api/force-swedish');
+      }
+      
+      if (response.ok) {
+        const data = await response.json();
+        const triggers = data.triggers || [];
+        setForceTriggers(triggers);
+        setForceTriggersInput(triggers.join(', '));
+      }
+    } catch (err) {
+      console.error('Error fetching Force-Svenska triggers:', err);
+    }
+  };
+
+  const handleSaveForceSwedish = async () => {
+    setForceSaving(true);
+    try {
+      let response;
+      try {
+        response = await fetch('http://localhost:5000/api/force-swedish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ triggers: forceTriggersInput })
+        });
+      } catch {
+        response = await fetch('/api/force-swedish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ triggers: forceTriggersInput })
+        });
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        setForceTriggers(data.triggers || []);
+        setSuccess(`Force-Svenska uppdaterad! ${data.count} triggers sparade.`);
+      } else {
+        throw new Error('Failed to save triggers');
+      }
+    } catch (err) {
+      console.error('Error saving Force-Svenska triggers:', err);
+      setError('Kunde inte spara Force-Svenska triggers');
+    } finally {
+      setForceSaving(false);
+    }
+  };
+
+  const fetchTavilyTriggers = async () => {
+    try {
+      let response;
+      try {
+        response = await fetch('http://localhost:5000/api/tavily-triggers');
+      } catch {
+        response = await fetch('/api/tavily-triggers');
+      }
+      
+      if (response.ok) {
+        const data = await response.json();
+        const triggers = data.triggers || [];
+        const blacklist = data.blacklist || [];
+        setTavilyTriggers(triggers);
+        setTavilyTriggersInput(triggers.join(', '));
+        setTavilyBlacklist(blacklist);
+        setTavilyBlacklistInput(blacklist.join(', '));
+        setTavilyApiKeySet(data.api_key_set || false);
+      }
+    } catch (err) {
+      console.error('Error fetching Tavily triggers:', err);
+    }
+  };
+
+  const handleSaveTavilyTriggers = async () => {
+    setTavilySaving(true);
+    try {
+      const requestBody = { 
+        triggers: tavilyTriggersInput,
+        blacklist: tavilyBlacklistInput 
+      };
+      
+      // Only include API key if user entered one
+      if (tavilyApiKeyInput && tavilyApiKeyInput.trim()) {
+        requestBody.api_key = tavilyApiKeyInput.trim();
+      }
+      
+      let response;
+      try {
+        response = await fetch('http://localhost:5000/api/tavily-triggers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+      } catch {
+        response = await fetch('/api/tavily-triggers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        setTavilyTriggers(data.triggers || []);
+        setTavilyBlacklist(data.blacklist || []);
+        setTavilyApiKeySet(data.api_key_set || false);
+        setTavilyApiKeyInput(''); // Clear input after save
+        const apiKeyMsg = data.api_key_updated ? ' API-nyckel uppdaterad!' : '';
+        setSuccess(`Tavily uppdaterad! ${data.trigger_count} triggers, ${data.blacklist_count} blacklist.${apiKeyMsg}`);
+      } else {
+        throw new Error('Failed to save triggers');
+      }
+    } catch (err) {
+      console.error('Error saving Tavily triggers:', err);
+      setError('Kunde inte spara Tavily triggers');
+    } finally {
+      setTavilySaving(false);
     }
   };
 
@@ -513,6 +659,174 @@ export default function SystemPromptManagement() {
           </div>
         </div>
       )}
+
+      {/* Force-Svenska Triggers Section */}
+      <div className="border border-blue-500/30 bg-blue-500/5 p-6 rounded">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-[#eee] font-mono text-base flex items-center gap-2">
+              🇸🇪 Force-Svenska Triggers
+            </h3>
+            <p className="text-[#666] font-mono text-xs mt-1">
+              När ett trigger-ord hittas i användarens meddelande svarar OneSeek alltid på svenska.
+              Ändra listan och klicka Spara – ingen omstart behövs!
+            </p>
+          </div>
+          <span className="px-3 py-1 text-xs bg-blue-500/20 text-blue-300 rounded font-mono">
+            {forceTriggers.length} triggers
+          </span>
+        </div>
+        
+        <textarea
+          value={forceTriggersInput}
+          onChange={(e) => setForceTriggersInput(e.target.value)}
+          className="w-full h-32 bg-[#0a0a0a] border border-[#2a2a2a] text-[#eee] font-mono text-sm p-3 rounded focus:outline-none focus:border-blue-500/50 resize-y"
+          placeholder="hej, vad, vem, hur, varför, när, kan du, är du, vill du, ska vi, tack, snälla..."
+        />
+        <p className="text-[#555] font-mono text-xs mt-2 mb-3">
+          Skriv triggers separerade med komma. Exempel: &quot;hej, vad gör du, tjena, läget&quot;
+        </p>
+        
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSaveForceSwedish}
+            disabled={forceSaving}
+            className="px-6 py-2 bg-blue-600 text-white text-sm font-mono hover:bg-blue-700 transition-colors disabled:opacity-50 rounded"
+          >
+            {forceSaving ? 'Sparar...' : '💾 Spara & Aktivera direkt'}
+          </button>
+          <button
+            onClick={() => {
+              setForceTriggersInput(forceTriggers.join(', '));
+            }}
+            className="px-4 py-2 border border-[#2a2a2a] text-[#888] text-sm font-mono hover:bg-[#1a1a1a] transition-colors rounded"
+          >
+            Återställ
+          </button>
+        </div>
+        
+        {/* Preview of current triggers */}
+        {forceTriggers.length > 0 && (
+          <div className="mt-4 p-3 bg-[#0a0a0a] border border-[#1a1a1a] rounded">
+            <p className="text-[#666] font-mono text-xs mb-2">Aktiva triggers:</p>
+            <div className="flex flex-wrap gap-1">
+              {forceTriggers.slice(0, 20).map((trigger, idx) => (
+                <span key={idx} className="px-2 py-0.5 text-xs bg-blue-500/10 text-blue-300 rounded font-mono">
+                  {trigger}
+                </span>
+              ))}
+              {forceTriggers.length > 20 && (
+                <span className="px-2 py-0.5 text-xs bg-[#1a1a1a] text-[#666] rounded font-mono">
+                  +{forceTriggers.length - 20} fler
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Tavily Web Search Triggers Section */}
+      <div className="border border-green-500/30 bg-green-500/5 p-6 rounded">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-[#eee] font-mono text-base flex items-center gap-2">
+              🔍 Tavily Web Search Triggers
+            </h3>
+            <p className="text-[#666] font-mono text-xs mt-1">
+              Hämtar realtidsfakta från webben när trigger-ord hittas. Blacklist förhindrar sökning 
+              för identitetsfrågor. API-nyckel kan sättas nedan eller via TAVILY_API_KEY miljövariabel.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`px-3 py-1 text-xs rounded font-mono ${
+              tavilyApiKeySet 
+                ? 'bg-green-500/20 text-green-300' 
+                : 'bg-red-500/20 text-red-300'
+            }`}>
+              API Key: {tavilyApiKeySet ? '✓ SET' : '✗ NOT SET'}
+            </span>
+            <span className="px-3 py-1 text-xs bg-green-500/20 text-green-300 rounded font-mono">
+              {tavilyTriggers.length} triggers
+            </span>
+          </div>
+        </div>
+        
+        {/* API Key Input */}
+        <div className="mb-4">
+          <label className="block text-[#888] font-mono text-sm mb-2">🔑 Tavily API Key (lämna tomt för att behålla befintlig)</label>
+          <input
+            type="password"
+            value={tavilyApiKeyInput}
+            onChange={(e) => setTavilyApiKeyInput(e.target.value)}
+            className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#eee] font-mono text-sm p-3 rounded focus:outline-none focus:border-green-500/50"
+            placeholder={tavilyApiKeySet ? "••••••••••••••••••••••••" : "tvly-xxxxxxxxxxxxxxxx"}
+          />
+          <p className="text-[#555] font-mono text-xs mt-1">
+            Hämta din API-nyckel från <a href="https://tavily.com" target="_blank" rel="noopener noreferrer" className="text-green-400 hover:underline">tavily.com</a>
+          </p>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="block text-[#888] font-mono text-sm mb-2">Triggers (aktiverar sökning)</label>
+            <textarea
+              value={tavilyTriggersInput}
+              onChange={(e) => setTavilyTriggersInput(e.target.value)}
+              className="w-full h-24 bg-[#0a0a0a] border border-[#2a2a2a] text-[#eee] font-mono text-sm p-3 rounded focus:outline-none focus:border-green-500/50 resize-y"
+              placeholder="vad säger, aktuell, senaste, 2025, hände, ny lag..."
+            />
+          </div>
+          <div>
+            <label className="block text-[#888] font-mono text-sm mb-2">Blacklist (förhindrar sökning)</label>
+            <textarea
+              value={tavilyBlacklistInput}
+              onChange={(e) => setTavilyBlacklistInput(e.target.value)}
+              className="w-full h-24 bg-[#0a0a0a] border border-[#2a2a2a] text-[#eee] font-mono text-sm p-3 rounded focus:outline-none focus:border-red-500/50 resize-y"
+              placeholder="vem är du, vad heter du, berätta om dig..."
+            />
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSaveTavilyTriggers}
+            disabled={tavilySaving}
+            className="px-6 py-2 bg-green-600 text-white text-sm font-mono hover:bg-green-700 transition-colors disabled:opacity-50 rounded"
+          >
+            {tavilySaving ? 'Sparar...' : '💾 Spara Tavily-inställningar'}
+          </button>
+          <button
+            onClick={() => {
+              setTavilyTriggersInput(tavilyTriggers.join(', '));
+              setTavilyBlacklistInput(tavilyBlacklist.join(', '));
+              setTavilyApiKeyInput('');
+            }}
+            className="px-4 py-2 border border-[#2a2a2a] text-[#888] text-sm font-mono hover:bg-[#1a1a1a] transition-colors rounded"
+          >
+            Återställ
+          </button>
+        </div>
+        
+        {/* Info about always-on features */}
+        <div className="mt-4 p-3 bg-[#0a0a0a] border border-[#1a1a1a] rounded">
+          <p className="text-[#666] font-mono text-xs mb-2">🕐 Alltid aktivt:</p>
+          <div className="flex flex-wrap gap-2">
+            <span className="px-2 py-0.5 text-xs bg-purple-500/10 text-purple-300 rounded font-mono">
+              📅 Tid & Datum (injiceras alltid)
+            </span>
+            <span className="px-2 py-0.5 text-xs bg-cyan-500/10 text-cyan-300 rounded font-mono">
+              🌤️ Väder (SMHI) vid väderfrågor
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Link to Integrations Tab */}
+      <div className="border border-purple-500/30 bg-purple-500/5 p-4 rounded">
+        <p className="text-purple-300 font-mono text-sm">
+          🔌 Hantera externa API-integrationer (Städer, RSS, Öppna Data) i fliken <strong>Integrations</strong> ovan.
+        </p>
+      </div>
 
       {/* Create/Edit Form */}
       {(isCreating || isEditing) && (

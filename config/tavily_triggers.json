@@ -1,0 +1,11 @@
+{
+  "triggers": [
+    "vad säger", "aktuell", "senaste", "2025", "2026", "hände", "blir det",
+    "lag", "regel", "kostar", "händer", "ny", "nya", "ändrats", "ändring",
+    "vad gäller", "vad är det senaste", "vad hände med"
+  ],
+  "blacklist": [
+    "vem är du", "vad heter du", "berätta om dig", "vad tycker du",
+    "vad känner du", "älskar du", "hatar du"
+  ]
+}
