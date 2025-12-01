@@ -2384,6 +2384,46 @@ def clean_inference_response(response_text: str, full_input: str, user_text: str
     return response_text.strip()
 
 
+def clean_internal_tags(response_text: str) -> str:
+    """
+    Remove internal debug tags from model responses before sending to user.
+    
+    These tags are used internally for context but should not appear in the final output.
+    Removes patterns like *fakta*, *minne*, *svara*, [Aktuell fakta], etc.
+    
+    Args:
+        response_text: The model's response text
+        
+    Returns:
+        Cleaned response text without internal tags
+    """
+    import re
+    
+    if not response_text:
+        return response_text
+    
+    text = response_text
+    
+    # Remove asterisk-wrapped internal tags
+    internal_tags = ['fakta', 'minne', 'svara', 'debug', 'system', 'intern', 'Swedish', 'svarar på svenska']
+    for tag in internal_tags:
+        text = re.sub(rf'\*{tag}\*', '', text, flags=re.IGNORECASE)
+    
+    # Remove bracket-wrapped context tags that might leak into responses
+    context_tags = [
+        'Aktuell fakta', 'Öppen data', 'Väderdata', 'Nyheter', 
+        'Tid', 'Säsong', 'Minne', 'Context', 'System'
+    ]
+    for tag in context_tags:
+        text = re.sub(rf'\[{tag}\]', '', text, flags=re.IGNORECASE)
+    
+    # Clean up any double spaces or line breaks left behind
+    text = re.sub(r' +', ' ', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    return text.strip()
+
+
 def deactivate_all_prompts():
     """Deactivate all system prompts (helper for setting a new active prompt)"""
     prompts = load_all_system_prompts()
@@ -5368,6 +5408,9 @@ Svara NU.
             # Clean response using utility function
             response_text = clean_inference_response(response_text, full_input, inference_request.text)
             
+            # Remove internal debug tags from response
+            response_text = clean_internal_tags(response_text)
+            
             # === APPEND SOURCES to response ===
             # Collect all sources from triggered APIs/services
             sources_section = build_sources_section(
@@ -6072,6 +6115,9 @@ Svara NU.
             
             # Clean response using utility function
             response_text = clean_inference_response(response_text, full_input, request.text)
+            
+            # Remove internal debug tags from response
+            response_text = clean_internal_tags(response_text)
             
             # === APPEND SOURCES TO RESPONSE ===
             # Only add sources if they don't already exist in response

@@ -57,6 +57,25 @@ export function formatAIResponse(rawText) {
   text = text.replace(/\*Svarar på svenska\*/gi, '');
   text = text.replace(/\*svarar på svenska\*/gi, '');
   
+  // Remove internal debug tags (*fakta*, *minne*, *svara*, *debug*, etc.)
+  text = text.replace(/\*fakta\*/gi, '');
+  text = text.replace(/\*minne\*/gi, '');
+  text = text.replace(/\*svara\*/gi, '');
+  text = text.replace(/\*debug\*/gi, '');
+  text = text.replace(/\*system\*/gi, '');
+  text = text.replace(/\*intern\*/gi, '');
+  
+  // Remove internal context tags that might leak into responses
+  text = text.replace(/\[Aktuell fakta\]/gi, '');
+  text = text.replace(/\[Öppen data\]/gi, '');
+  text = text.replace(/\[Väderdata\]/gi, '');
+  text = text.replace(/\[Nyheter\]/gi, '');
+  text = text.replace(/\[Tid\]/gi, '');
+  text = text.replace(/\[Säsong\]/gi, '');
+  text = text.replace(/\[Minne\]/gi, '');
+  text = text.replace(/\[Context\]/gi, '');
+  text = text.replace(/\[System\]/gi, '');
+  
   // Add line break before numbered lists (1. 2. 3. etc.)
   text = text.replace(/(\S)\s+(\d+\.)\s/g, '$1\n\n$2 ');
   
