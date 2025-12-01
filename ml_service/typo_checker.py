@@ -9,6 +9,7 @@ Funktionalitet:
 - Lokal ordlista som fallback om servern är nere
 - AI-personlig prompt för korrigeringsförslag
 - Loggar stavfel till dataset för träning
+- Vitlista för svenska städer och regioner
 
 Author: ONESEEK Team
 """
@@ -50,6 +51,20 @@ except ImportError:
         lt_check_text = None
         lt_is_available = None
         lt_get_status = None
+
+# Importera svensk platsvitlista
+try:
+    from .swedish_places_whitelist import WHITELIST as SWEDISH_WHITELIST, is_whitelisted, get_whitelist_stats
+    WHITELIST_AVAILABLE = True
+except ImportError:
+    try:
+        from swedish_places_whitelist import WHITELIST as SWEDISH_WHITELIST, is_whitelisted, get_whitelist_stats
+        WHITELIST_AVAILABLE = True
+    except ImportError:
+        WHITELIST_AVAILABLE = False
+        SWEDISH_WHITELIST = set()
+        is_whitelisted = lambda x: False
+        get_whitelist_stats = lambda: {"total_entries": 0, "places": 0, "common_words": 0}
 
 
 @dataclass
@@ -161,17 +176,19 @@ class TypoChecker:
     Hybrid stavningskontroll för ONESEEK Δ+.
     
     Prioritetsordning:
-    1. LanguageTool (om tillgänglig) - kontextmedveten
-    2. Lokal ordlista - snabb fallback
-    3. Fuzzy matching - sista utväg
+    1. Vitlista för svenska städer/regioner (ALDRIG korrigeras)
+    2. LanguageTool (om tillgänglig) - kontextmedveten
+    3. Lokal ordlista - snabb fallback
+    4. Fuzzy matching - sista utväg
     """
     
-    # Absolut whitelist - dessa ord ska ALDRIG korrigeras
-    WHITELIST = {
+    # Använd den globala vitlistan från swedish_places_whitelist.py
+    # som innehåller ALLA svenska städer och regioner
+    WHITELIST = SWEDISH_WHITELIST if WHITELIST_AVAILABLE else {
         "bor", "i", "och", "att", "det", "med", "på", "för", "av", "en", "ett",
         "är", "var", "har", "hur", "vad", "när", "var", "vem", "den", "de", "du",
         "han", "hon", "vi", "ni", "jag", "sig", "sin", "som", "om", "till", "kan",
-        "hjo", "tibro", "skara", "mariestad",  # Svenska orter
+        "hjo", "tibro", "skara", "mariestad",  # Svenska orter (fallback)
     }
     
     # Vanliga svenska stavfel
@@ -192,6 +209,13 @@ class TypoChecker:
         self.logger = TypoLogger()
         self._languagetool_checked = False
         self._languagetool_available = False
+        
+        # Logga vitlistestatus
+        if WHITELIST_AVAILABLE:
+            stats = get_whitelist_stats()
+            print(f"✅ [WHITELIST] Loaded {stats['places']} Swedish places + {stats['common_words']} common words")
+        else:
+            print(f"⚠️ [WHITELIST] Using fallback whitelist ({len(self.WHITELIST)} entries)")
     
     def _check_languagetool(self) -> bool:
         """Kontrollera om LanguageTool är tillgänglig."""
@@ -243,6 +267,32 @@ class TypoChecker:
                     corrected = lt_result.get("corrected", text)
                     is_correct = lt_result.get("is_correct", True)
                     matches = lt_result.get("matches", [])
+                    
+                    # VIKTIGT: Filtrera bort vitlistade ord (svenska städer/regioner)
+                    filtered_matches = []
+                    for m in matches:
+                        original_word = text[m['offset']:m['offset']+m['length']]
+                        if is_whitelisted(original_word):
+                            print(f"   🏙️ [WHITELIST] Skipping '{original_word}' (Swedish place)")
+                        else:
+                            filtered_matches.append(m)
+                    
+                    matches = filtered_matches
+                    is_correct = len(matches) == 0
+                    
+                    # Bygg korrigerad text utan vitlistade ord
+                    if matches:
+                        corrected = text
+                        offset_adjustment = 0
+                        for m in sorted(matches, key=lambda x: x['offset']):
+                            if m['replacements']:
+                                start = m['offset'] + offset_adjustment
+                                end = start + m['length']
+                                replacement = m['replacements'][0]
+                                corrected = corrected[:start] + replacement + corrected[end:]
+                                offset_adjustment += len(replacement) - m['length']
+                    else:
+                        corrected = text
                     
                     print(f"✅ [LANGUAGETOOL] Result: {'No errors' if is_correct else f'{len(matches)} corrections'}")
                     if matches:
@@ -348,8 +398,8 @@ class TypoChecker:
         """Kontrollera stavning av ett enskilt ord."""
         word_lower = word.lower()
         
-        # Whitelist
-        if word_lower in self.WHITELIST:
+        # Whitelist - använd den globala funktionen för full vitlistekontroll
+        if is_whitelisted(word):
             return SpellingResult(
                 original=word,
                 corrected=word,
@@ -438,13 +488,18 @@ class TypoChecker:
             except Exception:
                 lt_status = {"status": "error"}
         
+        # Hämta vitlistestatistik
+        whitelist_stats = get_whitelist_stats() if WHITELIST_AVAILABLE else {"total_entries": len(self.WHITELIST), "places": 0, "common_words": 0}
+        
         return {
             "languagetool_available": self._check_languagetool(),
             "languagetool_status": lt_status,
             "fallback_ready": True,
             "dictionary_words": len(self.dictionary.words),
             "common_typos": len(self.COMMON_TYPOS),
-            "whitelist_words": len(self.WHITELIST)
+            "whitelist_words": whitelist_stats.get("total_entries", len(self.WHITELIST)),
+            "whitelist_places": whitelist_stats.get("places", 0),
+            "whitelist_available": WHITELIST_AVAILABLE
         }
 
 
