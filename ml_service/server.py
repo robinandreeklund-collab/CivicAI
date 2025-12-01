@@ -957,22 +957,78 @@ def inject_time_context() -> str:
 
 def get_weather(city: str = "stockholm") -> Optional[str]:
     """
-    Get weather forecast from SMHI for a Swedish city.
+    Get weather forecast from pre-cached weather data (updated every 15 min).
+    
+    Uses /cache/weather.json which is updated by weather_cache.py cron job.
+    Falls back to live SMHI API if cache is missing or stale (>30 min old).
     
     Args:
-        city: Name of the Swedish city (must be in SWEDISH_CITIES config)
+        city: Name of the Swedish city
     
-    Returns a formatted weather string or None if API fails or city not found.
+    Returns a formatted weather string or None if not available.
     """
     city_lower = city.lower()
+    city_display = city_lower.capitalize()
+    
+    # === 1. Try to use pre-cached weather data (15 min updates) ===
+    cache_file = Path(__file__).parent.parent / "cache" / "weather.json"
+    if cache_file.exists():
+        try:
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                cache_data = json.load(f)
+            
+            # Check cache age (should be <30 min for weather data)
+            updated_at_str = cache_data.get("updated_at", "")
+            if updated_at_str:
+                from datetime import timezone
+                try:
+                    # Parse ISO format timestamp
+                    if updated_at_str.endswith('+00:00'):
+                        updated_at = datetime.fromisoformat(updated_at_str.replace('+00:00', ''))
+                        updated_at = updated_at.replace(tzinfo=timezone.utc)
+                    else:
+                        updated_at = datetime.fromisoformat(updated_at_str)
+                    
+                    now = datetime.now(timezone.utc)
+                    cache_age_minutes = (now - updated_at).total_seconds() / 60
+                    
+                    # If cache is fresh (<30 min), use it
+                    if cache_age_minutes < 30:
+                        municipalities = cache_data.get("municipalities", {})
+                        city_data = municipalities.get(city_lower)
+                        
+                        if city_data and "weather" in city_data:
+                            weather = city_data["weather"]
+                            temp = weather.get("temperature", "?")
+                            rain_text = weather.get("precipitation_text", "okänd nederbörd")
+                            
+                            logger.info(f"🌤️ [CACHE] Använder cachad väderdata för {city_display} (uppdaterad {cache_age_minutes:.0f} min sedan)")
+                            
+                            result = f"I {city_display} är det just nu ca {temp}°C och {rain_text}."
+                            result += '\n\n**Källor:**\n'
+                            result += f'1. <a href="https://www.smhi.se/vader/prognoser/ortsprognoser/q/{city_display}">SMHI – Väderprognos {city_display}</a>'
+                            result += f'\n\n_Väderdata uppdateras var 15:e minut._'
+                            return result
+                        else:
+                            logger.debug(f"🌤️ [CACHE] Stad '{city_lower}' finns inte i väder-cachen")
+                    else:
+                        logger.debug(f"🌤️ [CACHE] Väder-cachen är för gammal ({cache_age_minutes:.0f} min)")
+                except Exception as e:
+                    logger.debug(f"🌤️ [CACHE] Kunde inte parsa cache-tidsstämpel: {e}")
+        except Exception as e:
+            logger.debug(f"🌤️ [CACHE] Kunde inte läsa väder-cache: {e}")
+    
+    # === 2. Fall back to live SMHI API ===
     coords = SWEDISH_CITIES.get(city_lower)
     
     if not coords:
         # Fall back to Stockholm if city not found
         coords = SWEDISH_CITIES.get("stockholm", {"lon": 18.07, "lat": 59.33})
         city_lower = "stockholm"
+        city_display = "Stockholm"
     
     try:
+        logger.info(f"🌤️ [LIVE] Hämtar väder från SMHI API för {city_display}...")
         url = f"https://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point/lon/{coords['lon']}/lat/{coords['lat']}/data.json"
         r = requests.get(url, timeout=8)
         
@@ -1011,8 +1067,6 @@ def get_weather(city: str = "stockholm") -> Optional[str]:
         ]
         rain_text = rain_texts[rain] if rain is not None and 0 <= rain < len(rain_texts) else "okänd nederbörd"
         
-        # Capitalize city name for display
-        city_display = city_lower.capitalize()
         result = f"I {city_display} blir det imorgon ca {temp}°C och {rain_text}."
         result += '\n\n**Källor:**\n'
         result += f'1. <a href="https://www.smhi.se/vader/prognoser/ortsprognoser/q/{city_display}">SMHI – Väderprognos {city_display}</a>'
