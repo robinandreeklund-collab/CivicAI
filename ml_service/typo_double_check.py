@@ -63,15 +63,37 @@ class SwedishDictionary:
         
         # Lägg till vanliga svenska ord som fallback
         common_words = {
-            # Vanliga ord
+            # Vanliga ord (KRITISKA - dessa ska ALDRIG korrigeras)
             "och", "i", "att", "det", "som", "en", "på", "är", "av", "för",
             "med", "till", "den", "har", "de", "inte", "om", "ett", "men", "var",
             "jag", "du", "han", "hon", "vi", "ni", "kan", "ska", "vill", "måste",
             "hej", "tack", "ja", "nej", "vad", "hur", "när", "var", "vem", "varför",
+            "många", "mycket", "några", "alla", "denna", "detta", "dessa",
+            "min", "din", "sin", "hans", "hennes", "deras", "våra", "era",
+            "bor", "finns", "ligger", "står", "sitter", "heter", "kallas",
+            "idag", "igår", "imorgon", "nu", "då", "sedan", "före", "efter",
+            "inne", "ute", "uppe", "nere", "hemma", "borta", "hit", "dit",
             
             # Frågeord och prepositioner
             "vädret", "väder", "befolkning", "invånare", "nyheter", "aktuellt",
+            "befolkningen", "invånarna", "kommunen", "staden", "orten",
+            
+            # Svenska orter och städer (KRITISKA - dessa ska ALDRIG korrigeras)
             "stockholm", "göteborg", "malmö", "uppsala", "linköping",
+            "västerås", "örebro", "helsingborg", "jönköping", "norrköping",
+            "lund", "umeå", "gävle", "borås", "eskilstuna", "södertälje",
+            "karlstad", "växjö", "halmstad", "sundsvall", "trollhättan",
+            "kalmar", "falun", "skellefteå", "karlskrona", "kristianstad",
+            "lidköping", "skövde", "uddevalla", "nyköping", "motala",
+            "visby", "kiruna", "luleå", "östersund", "varberg", "piteå",
+            # Mindre orter
+            "hjo", "tibro", "skara", "mariestad", "tidaholm", "karlsborg",
+            "falköping", "mullsjö", "habo", "vaggeryd", "gnosjö",
+            "tranås", "aneby", "eksjö", "nässjö", "vetlanda", "sävsjö",
+            "hultsfred", "vimmerby", "västervik", "oskarshamn",
+            "arvika", "hagfors", "sunne", "torsby", "filipstad",
+            "mora", "orsa", "rättvik", "leksand", "borlänge", "ludvika",
+            "avesta", "hedemora", "säter", "smedjebacken",
             
             # Månader och dagar
             "januari", "februari", "mars", "april", "maj", "juni",
@@ -81,6 +103,8 @@ class SwedishDictionary:
             # Vanliga verb
             "är", "var", "vara", "har", "hade", "ha", "gör", "gjorde", "göra",
             "kommer", "kom", "komma", "går", "gick", "gå", "ser", "såg", "se",
+            "vet", "visste", "veta", "tror", "trodde", "tro", "tycker", "tyckte",
+            "vill", "ville", "vilja", "behöver", "behövde", "behöva",
             
             # Adjektiv
             "stor", "liten", "ny", "gammal", "bra", "dålig", "fin", "ful",
@@ -98,8 +122,12 @@ class SwedishDictionary:
         """Hitta liknande ord som förslag."""
         word_lower = word.lower()
         
+        # Öka cutoff till 0.85 för att minska falska positiver
+        # Korta ord (<=4 tecken) kräver ännu högre likhet (0.9) 
+        cutoff = 0.9 if len(word_lower) <= 4 else 0.85
+        
         # Använd difflib för att hitta närmaste matchningar
-        matches = get_close_matches(word_lower, self.words, n=max_suggestions, cutoff=0.6)
+        matches = get_close_matches(word_lower, self.words, n=max_suggestions, cutoff=cutoff)
         return matches
 
 
@@ -236,7 +264,18 @@ class TypoDoubleCheck:
         """
         word_lower = word.lower()
         
-        # 1. Kontrollera om det är ett känt stavfel
+        # 0. Skippa mycket korta ord (<=2 tecken) - för osäkra
+        if len(word) <= 2:
+            return SpellingResult(
+                original=word,
+                corrected=word,
+                is_correct=True,
+                suggestions=[],
+                confidence=1.0,
+                method="too_short"
+            )
+        
+        # 1. Kontrollera om det är ett känt stavfel (hög precision)
         if word_lower in self.common_typos:
             corrected = self.common_typos[word_lower]
             return SpellingResult(
@@ -259,7 +298,30 @@ class TypoDoubleCheck:
                 method="dictionary"
             )
         
-        # 3. Hitta förslag via fuzzy matching
+        # 3. Ord som börjar med versal och inte finns i ordlistan
+        #    antas vara egennamn (namn, städer, etc.) - skippa fuzzy matching
+        if word[0].isupper():
+            return SpellingResult(
+                original=word,
+                corrected=word,
+                is_correct=True,  # Antar korrekt (egennamn)
+                suggestions=[],
+                confidence=0.8,
+                method="proper_noun"
+            )
+        
+        # 4. Hitta förslag via fuzzy matching (endast för längre ord med hög likhet)
+        #    Skippa fuzzy för korta ord (<=4 tecken) - för osäkert
+        if len(word) <= 4:
+            return SpellingResult(
+                original=word,
+                corrected=word,
+                is_correct=True,
+                suggestions=[],
+                confidence=0.7,
+                method="short_unknown"
+            )
+        
         suggestions = self.dictionary.suggest(word_lower)
         
         if suggestions:
@@ -267,16 +329,18 @@ class TypoDoubleCheck:
             # Beräkna likhet
             similarity = SequenceMatcher(None, word_lower, best_suggestion).ratio()
             
-            return SpellingResult(
-                original=word,
-                corrected=best_suggestion,
-                is_correct=False,
-                suggestions=suggestions,
-                confidence=similarity,
-                method="fuzzy"
-            )
+            # Kräv minst 85% likhet för att föreslå korrigering
+            if similarity >= 0.85:
+                return SpellingResult(
+                    original=word,
+                    corrected=best_suggestion,
+                    is_correct=False,
+                    suggestions=suggestions,
+                    confidence=similarity,
+                    method="fuzzy"
+                )
         
-        # 4. Okänt ord - kan vara namn eller term
+        # 5. Okänt ord - kan vara namn eller term
         return SpellingResult(
             original=word,
             corrected=word,

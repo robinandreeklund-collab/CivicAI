@@ -2039,6 +2039,7 @@ class InferenceRequest(BaseModel):
     max_length: int = Field(default=512, ge=1, le=2048, description="Maximum generation length")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Sampling temperature")
     top_p: float = Field(default=0.9, ge=0.0, le=1.0, description="Nucleus sampling parameter")
+    skip_typo_check: bool = Field(default=False, description="Skip typo checking (used when sending corrected text)")
     
     @field_validator('text')
     @classmethod
@@ -4676,7 +4677,10 @@ async def infer(request: Request, inference_request: InferenceRequest):
     original_text = inference_request.text
     corrected_text = inference_request.text
     
-    if TYPO_CHECKER_AVAILABLE and check_spelling:
+    # Skip typo check if explicitly requested (e.g., when sending corrected text)
+    skip_typo = getattr(inference_request, 'skip_typo_check', False)
+    
+    if TYPO_CHECKER_AVAILABLE and check_spelling and not skip_typo:
         try:
             typo_result = check_spelling(inference_request.text, auto_correct=True)
             if not typo_result.get("is_correct", True):
@@ -4687,7 +4691,7 @@ async def infer(request: Request, inference_request: InferenceRequest):
                         "confidence": wr.get("confidence", 0)
                     }
                     for wr in typo_result.get("word_results", [])
-                    if not wr.get("is_correct", True) and wr.get("confidence", 0) > 0.6
+                    if not wr.get("is_correct", True) and wr.get("confidence", 0) > 0.85
                 ]
                 
                 if typo_suggestions:
@@ -5092,7 +5096,7 @@ async def oneseek_inference(request: InferenceRequest):
                         "confidence": wr.get("confidence", 0)
                     }
                     for wr in typo_result.get("word_results", [])
-                    if not wr.get("is_correct", True) and wr.get("confidence", 0) > 0.6
+                    if not wr.get("is_correct", True) and wr.get("confidence", 0) > 0.85
                 ]
                 
                 if typo_suggestions:

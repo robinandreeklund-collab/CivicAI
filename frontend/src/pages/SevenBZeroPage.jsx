@@ -263,22 +263,77 @@ export default function SevenBZeroPage() {
   };
 
   // === ONESEEK Δ+ TYPO CORRECTION BUTTON HANDLERS ===
-  // Accept typo correction from AI response - resend corrected question
+  // Accept typo correction from AI response - send corrected question directly
   const acceptTypoCorrection = async (messageId, correctedText) => {
     // Remove the typo message
     setMessages(prev => prev.filter(msg => msg.id !== messageId));
     
-    // Send the corrected question
-    setMessageInput(correctedText);
+    // Add user message with corrected text
+    const userMessage = {
+      id: generateMessageId(),
+      type: 'user',
+      text: correctedText,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, userMessage]);
     
-    // Trigger submit after a short delay to update input
-    setTimeout(() => {
-      const form = document.querySelector('form');
-      if (form) {
-        const event = new Event('submit', { bubbles: true, cancelable: true });
-        form.dispatchEvent(event);
+    // Add placeholder AI message
+    const aiMessageId = generateMessageId();
+    const aiMessage = {
+      id: aiMessageId,
+      type: 'ai',
+      text: '',
+      isTyping: true,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, aiMessage]);
+    setIsTyping(true);
+    setResponseStartTime(Date.now());
+    
+    try {
+      // Send with skip_typo_check=true to avoid re-checking
+      const response = await fetch('/api/inference/oneseek', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: correctedText,
+          max_length: 512,
+          temperature: 0.7,
+          top_p: 0.9,
+          skip_typo_check: true,  // IMPORTANT: Skip typo check for corrected text
+        }),
+      });
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const data = await response.json();
+      const responseEndTime = Date.now();
+      const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
+      const responseText = data.response || data.text;
+      
+      if (responseText) {
+        setMessages(prev => prev.map(msg => 
+          msg.id === aiMessageId 
+            ? { 
+                ...msg, 
+                responseTime: finalResponseTime,
+                confidence: data.confidence || data.delta_plus?.intent_confidence || 0.85,
+                version: data.version || 'OneSeek-Δ+',
+                deltaPlus: data.delta_plus || null,
+              }
+            : msg
+        ));
+        animateTyping(responseText, aiMessageId);
+      } else {
+        throw new Error('No response text');
       }
-    }, 100);
+    } catch (err) {
+      console.error('Query error:', err);
+      setMessages(prev => prev.map(msg => 
+        msg.id === aiMessageId ? { ...msg, text: 'Ett fel uppstod.', error: true, isTyping: false } : msg
+      ));
+      setIsTyping(false);
+    }
   };
 
   // Reject typo correction - send original question as-is
@@ -310,26 +365,41 @@ export default function SevenBZeroPage() {
     setIsTyping(true);
     
     try {
-      // Use OQT endpoint directly (no typo check)
-      const response = await fetch('/api/oqt/query', {
+      // Send with skip_typo_check=true to send original without re-checking
+      const response = await fetch('/api/inference/oneseek', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          question: originalText,
-          persona: selectedPersona,
+          text: originalText,
+          max_length: 512,
+          temperature: 0.7,
+          top_p: 0.9,
+          skip_typo_check: true,  // IMPORTANT: Skip typo check - user chose original
         }),
       });
       
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       
       const data = await response.json();
+      const responseEndTime = Date.now();
+      const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
       const responseText = data.response || data.text;
       
       if (responseText) {
         setMessages(prev => prev.map(msg => 
-          msg.id === aiMessageId ? { ...msg, responseTime: '0.0' } : msg
+          msg.id === aiMessageId 
+            ? { 
+                ...msg, 
+                responseTime: finalResponseTime,
+                confidence: data.confidence || data.delta_plus?.intent_confidence || 0.85,
+                version: data.version || 'OneSeek-Δ+',
+                deltaPlus: data.delta_plus || null,
+              }
+            : msg
         ));
         animateTyping(responseText, aiMessageId);
+      } else {
+        throw new Error('No response text');
       }
     } catch (err) {
       console.error('Query error:', err);
