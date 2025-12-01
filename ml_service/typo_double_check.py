@@ -597,19 +597,74 @@ def get_typo_checker() -> TypoDoubleCheck:
     return _typo_checker
 
 
-def check_spelling(text: str, auto_correct: bool = False) -> Dict[str, Any]:
+def check_spelling(text: str, auto_correct: bool = False, debug: bool = True) -> Dict[str, Any]:
     """
     Bekväm funktion för stavningskontroll.
     
     Args:
         text: Texten att kontrollera
         auto_correct: Om True, returnera korrigerad text
+        debug: Om True, visa detaljerad debug-info
         
     Returns:
         Resultat med korrigeringar
     """
     checker = get_typo_checker()
-    return checker.check_text(text, auto_correct=auto_correct)
+    result = checker.check_text(text, auto_correct=auto_correct)
+    
+    # Detaljerad debug-loggning
+    if debug:
+        word_results = result.get("word_results", [])
+        method_counts = {}
+        checked_words = []
+        
+        for wr in word_results:
+            if wr.get("original") and wr["original"].strip():
+                method = wr.get("method", "unknown")
+                method_counts[method] = method_counts.get(method, 0) + 1
+                
+                # Samla ord som faktiskt kontrollerades
+                checked_words.append({
+                    "word": wr["original"],
+                    "method": method,
+                    "is_correct": wr.get("is_correct", True),
+                    "corrected": wr.get("corrected", wr["original"]),
+                    "confidence": wr.get("confidence", 0)
+                })
+        
+        # Skriv ut debug info
+        print(f"\n  ✏️  TYPO CHECKER DEBUG")
+        print(f"     └─ Input: \"{text[:60]}{'...' if len(text) > 60 else ''}\"")
+        print(f"     └─ Words checked: {len(checked_words)}")
+        print(f"     └─ Errors found: {result.get('errors_found', 0)}")
+        print(f"     └─ Methods used:")
+        for method, count in sorted(method_counts.items()):
+            emoji = {
+                "whitelist": "🔒",
+                "swedish_city": "🏙️",
+                "swedish_region": "🗺️",
+                "too_short": "📏",
+                "common_typo": "❌",
+                "dictionary": "📖",
+                "proper_noun": "👤",
+                "short_unknown": "❓",
+                "fuzzy": "🔍",
+                "unknown": "❓",
+                "context_safe": "✅"
+            }.get(method, "•")
+            print(f"        {emoji} {method}: {count} ord")
+        
+        # Visa detaljerna för varje ord
+        print(f"     └─ Word details:")
+        for cw in checked_words:
+            if not cw["is_correct"]:
+                print(f"        ❌ '{cw['word']}' → '{cw['corrected']}' ({cw['method']}, conf: {cw['confidence']:.2f})")
+            elif cw["method"] in ["whitelist", "swedish_city", "swedish_region", "context_safe"]:
+                print(f"        🔒 '{cw['word']}' (protected by {cw['method']})")
+        
+        print()
+    
+    return result
 
 
 if __name__ == "__main__":
