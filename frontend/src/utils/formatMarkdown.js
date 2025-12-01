@@ -1,11 +1,34 @@
 /**
  * Simple markdown formatter for AI responses
- * Handles bold, italics, lists, and line breaks
+ * Handles bold, italics, lists, code blocks, and line breaks
  */
 export function formatMarkdown(text) {
   if (!text) return '';
   
   let formatted = text;
+  
+  // === CODE BLOCKS: Handle ```language ... ``` first (before other formatting) ===
+  // Match code blocks with optional language specifier
+  formatted = formatted.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, language, code) => {
+    const lang = language || 'code';
+    const escapedCode = code
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .trim();
+    
+    return `<div class="code-block-container my-4 rounded-lg overflow-hidden border border-gray-700">
+      <div class="code-header flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
+        <span class="text-xs font-mono text-gray-400 uppercase">${lang}</span>
+        <button class="copy-code-btn text-xs text-gray-400 hover:text-white transition-colors" onclick="navigator.clipboard.writeText(this.closest('.code-block-container').querySelector('code').textContent).then(() => { this.textContent = 'Kopierat!'; setTimeout(() => this.textContent = 'Kopiera', 2000); })">Kopiera</button>
+      </div>
+      <pre class="p-4 bg-gray-900 overflow-x-auto"><code class="text-sm font-mono text-gray-200 whitespace-pre">${escapedCode}</code></pre>
+    </div>`;
+  });
+  
+  // === INLINE CODE: Handle `code` ===
+  formatted = formatted.replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 mx-0.5 rounded bg-gray-800 text-pink-400 font-mono text-sm">$1</code>');
   
   // Convert **bold** to <strong>
   formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-white">$1</strong>');
@@ -22,7 +45,7 @@ export function formatMarkdown(text) {
   // Convert # headers to h1
   formatted = formatted.replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold text-white mt-6 mb-4">$1</h1>');
   
-  // Convert bullet lists (- item or * item)
+  // Convert bullet lists (- item or * item) - but not inside code blocks
   formatted = formatted.replace(/^[\-\*] (.+)$/gm, '<li class="ml-4 my-1">$1</li>');
   
   // Wrap consecutive <li> in <ul>
@@ -33,11 +56,11 @@ export function formatMarkdown(text) {
   // Convert numbered lists (1. item, 2. item)
   formatted = formatted.replace(/^\d+\.\s(.+)$/gm, '<li class="ml-4 my-1">$1</li>');
   
-  // Convert double line breaks to paragraphs
+  // Convert double line breaks to paragraphs (but not inside code blocks)
   formatted = formatted.replace(/\n\n+/g, '</p><p class="my-3">');
   formatted = '<p class="my-3">' + formatted + '</p>';
   
-  // Single line breaks to <br>
+  // Single line breaks to <br> (but not inside code blocks)
   formatted = formatted.replace(/\n/g, '<br class="my-1"/>');
   
   return formatted;
@@ -46,11 +69,20 @@ export function formatMarkdown(text) {
 /**
  * Format AI response text for clean display in chat UI
  * Handles common issues like run-on text, missing line breaks, and source formatting
+ * Preserves code blocks during formatting
  */
 export function formatAIResponse(rawText) {
   if (!rawText) return '';
   
   let text = rawText;
+  
+  // === PRESERVE CODE BLOCKS: Extract and protect them from formatting ===
+  const codeBlocks = [];
+  text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
+    const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
+    codeBlocks.push({ lang, code, original: match });
+    return placeholder;
+  });
   
   // Remove unwanted markers like *Swedish* or *Svarar på svenska*
   text = text.replace(/\*Swedish\*/gi, '');
@@ -103,6 +135,11 @@ export function formatAIResponse(rawText) {
   // Clean up excessive whitespace while preserving intentional breaks
   text = text.replace(/[ \t]+/g, ' ');
   text = text.replace(/\n{4,}/g, '\n\n\n');
+  
+  // === RESTORE CODE BLOCKS ===
+  codeBlocks.forEach((block, index) => {
+    text = text.replace(`__CODE_BLOCK_${index}__`, block.original);
+  });
   
   // Trim whitespace
   text = text.trim();

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { formatAIResponse } from '../utils/formatMarkdown';
+import { formatAIResponse, formatMarkdown } from '../utils/formatMarkdown';
 
 /**
  * 7B-Zero Page - Integrated OQI Interface
@@ -1301,12 +1301,7 @@ export default function SevenBZeroPage() {
                         : (whiteMode ? 'text-[#333]' : 'text-[#c0c0c0]')
                     }`}
                       dangerouslySetInnerHTML={{ 
-                        __html: convertEmojis(msg.isTyping ? currentTypingText : msg.text)
-                          .replace(/\n\n/g, '</p><p class="mt-4">')
-                          .replace(/\n/g, '<br/>')
-                          .replace(/\*\*([^*]+)\*\*/g, '<strong class="font-semibold">$1</strong>')
-                          .replace(/---/g, '<hr class="my-4 border-t border-gray-600"/>')
-                          .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">$1</a>')
+                        __html: formatMarkdown(convertEmojis(msg.isTyping ? currentTypingText : msg.text))
                       }}
                     />
                   )}
