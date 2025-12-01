@@ -1,5 +1,15 @@
 {
   "intents": {
+    "hotell": {
+      "keywords": ["hotell", "boende", "logi", "rum", "övernattning", "overnattning", "camping", "lyxcamping", "vandrarhem", "hostel", "b&b", "bed and breakfast", "stugor", "stuga", "boka rum", "boka hotell", "billiga hotell", "hotellrum", "hotell i", "boende i", "logi i"],
+      "entities": ["LOC", "GPE"],
+      "api": "booking",
+      "weight": 1.5,
+      "priority": 1,
+      "min_confidence": 0.7,
+      "force_api": true,
+      "response_template": "Hotell i {location}: {result}"
+    },
     "befolkning": {
       "keywords": ["hur många", "invånare", "invanare", "folkmängd", "folkmaengd", "folkmaengden", "antal människor", "antal manniskor", "befolkning", "bor i", "bor det i", "invånarantal", "population", "hur många bor", "hur manga", "personer bor", "antal invanare"],
       "entities": ["LOC", "GPE"],
@@ -21,7 +31,7 @@
       "response_template": "I {location} blir det {temperature}°C och {precipitation}."
     },
     "nyheter": {
-      "keywords": ["nyheter", "senaste nytt", "vad hände", "vad hande", "aktuellt", "händelser", "handelser", "senaste nyheterna", "dagens nyheter", "dagsnyheter"],
+      "keywords": ["nyheter", "senaste nytt", "vad hände", "vad hande", "vad har hänt", "vad har hant", "vad har handt", "aktuellt", "händelser", "handelser", "senaste nyheterna", "dagens nyheter", "dagsnyheter", "nyheter om", "senaste handelserna", "breaking news", "lokala nyheter"],
       "entities": ["DATE", "ORG", "EVENT"],
       "api": "rss_feeds",
       "weight": 1.0,
@@ -41,7 +51,7 @@
       "response_template": "Från riksdagen: {result}"
     },
     "statistik": {
-      "keywords": ["statistik", "scb", "procent", "andel", "antal", "ökning", "okning", "minskning", "siffror", "data", "undersökning", "undersokning"],
+      "keywords": ["statistik", "scb", "procent", "andel", "ökning", "okning", "minskning", "siffror", "data", "undersökning", "undersokning", "befolkningsstatistik", "brottstatistik", "fodelsestatistik", "dodsfall", "sjukfranvaro", "invandring statistik", "statistik over", "skolstatistik", "byggstatistik", "bostadspriser", "inkomststatistik", "arbetsloshet statistik", "elforbrukning"],
       "entities": ["LOC", "DATE", "PERCENT"],
       "api": "scb_statistics",
       "weight": 0.95,
@@ -50,17 +60,17 @@
       "response_template": "Enligt SCB: {result}"
     },
     "kris": {
-      "keywords": ["kris", "krislarm", "vma", "varning", "nödläge", "nodlage", "beredskap", "viktigt meddelande", "krisinformation"],
+      "keywords": ["kris", "krislarm", "vma", "varning", "nödläge", "nodlage", "beredskap", "viktigt meddelande", "krisinformation", "brand", "skogsbrand", "översvämning", "oversvamning", "bombhot", "stromavbrott", "kärnkraftslarm", "karnkraftslarm", "larm", "kemikalieolycka", "farligt avfall", "stormvarning", "msb", "kris i", "krisinformation.se", "4h-larm", "evakuering", "vattenkris", "krisberedskap"],
       "entities": ["LOC", "EVENT", "DATE"],
       "api": "krisinformation",
-      "weight": 1.2,
+      "weight": 1.5,
       "priority": 0,
-      "min_confidence": 0.8,
+      "min_confidence": 0.7,
       "force_api": true,
       "response_template": "⚠️ Krisinformation: {alert}"
     },
     "trafik": {
-      "keywords": ["trafik", "trafikinfo", "olycka", "kö", "ko", "väg", "vag", "e4", "e6", "e18", "e20", "motorväg", "motorvag", "tåg", "tag", "förseningar", "forseningar", "trafikläge", "trafiklage", "trafikverket"],
+      "keywords": ["trafik", "trafikinfo", "kö", "ko", "väg", "vag", "e4", "e6", "e18", "e20", "motorväg", "motorvag", "tåg", "tag", "förseningar", "forseningar", "trafikläge", "trafiklage", "trafikverket", "vägarbete", "vagarbete", "trafikstockning", "rusningstrafik"],
       "entities": ["LOC", "FAC"],
       "api": "trafikverket",
       "weight": 1.0,
