@@ -283,6 +283,7 @@ class IntentEngine:
         best_intent = None
         best_score = 0.0
         best_keywords = []
+        best_config = None
         
         for intent_name, intent_config in intents.items():
             # Support both 'keywords' (new format) and 'triggers' (legacy)
@@ -302,10 +303,16 @@ class IntentEngine:
                 priority_bonus = (10 - priority) / 10  # Högre prioritet = högre bonus
                 score = (match_score * 0.6 + priority_bonus * 0.2) * weight
                 
+                # ONESEEK Δ+ FIX: Om force_api är satt, använd min_confidence som minsta confidence
+                if intent_config.get("force_api", False):
+                    min_conf = intent_config.get("min_confidence", 0.8)
+                    score = max(score, min_conf)
+                
                 if score > best_score:
                     best_score = score
                     best_intent = intent_name
                     best_keywords = matched_keywords
+                    best_config = intent_config
         
         # Extrahera entiteter
         entities = self.extract_entities(text)
@@ -316,9 +323,14 @@ class IntentEngine:
             entity_dict[ent.label].append(ent.to_dict())
         
         if best_intent:
+            # Final confidence calculation - ensure force_api intents get high confidence
+            final_confidence = best_score
+            if best_config and best_config.get("force_api", False):
+                final_confidence = max(final_confidence, best_config.get("min_confidence", 0.8))
+            
             return Intent(
                 name=best_intent,
-                confidence=min(best_score, 0.99),
+                confidence=min(final_confidence, 0.99),
                 triggers=best_keywords,
                 entities=entity_dict
             )

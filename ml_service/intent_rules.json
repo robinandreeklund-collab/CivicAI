@@ -1,19 +1,23 @@
 {
   "intents": {
     "befolkning": {
-      "keywords": ["befolkning", "invånare", "hur många bor", "invånarantal", "population", "antal människor", "folkmängd"],
+      "keywords": ["hur många", "invånare", "folkmängd", "antal människor", "befolkning", "bor i", "bor det i", "invånarantal", "population", "hur många bor"],
       "entities": ["LOC", "GPE"],
       "api": "scb_population",
-      "weight": 1.0,
+      "weight": 1.5,
       "priority": 1,
+      "min_confidence": 0.8,
+      "force_api": true,
       "response_template": "Enligt SCB bor det {count} invånare i {location}."
     },
     "väder": {
-      "keywords": ["väder", "vädret", "temperatur", "regnar", "snöar", "soligt", "grader", "prognos", "sol", "regn", "snö", "molnigt", "blir det"],
+      "keywords": ["väder", "vädret", "temperatur", "regnar", "snöar", "soligt", "grader", "prognos", "sol", "regn", "snö", "molnigt", "blir det", "hur är vädret", "vad är vädret"],
       "entities": ["LOC", "GPE", "DATE"],
       "api": "weather_cache",
-      "weight": 0.95,
+      "weight": 1.2,
       "priority": 1,
+      "min_confidence": 0.7,
+      "force_api": true,
       "response_template": "I {location} blir det {temperature}°C och {precipitation}."
     },
     "nyheter": {
@@ -113,7 +117,16 @@
       "lund", "umeå", "gävle", "borås", "eskilstuna",
       "södertälje", "karlstad", "täby", "växjö", "halmstad",
       "sundsvall", "luleå", "trollhättan", "östersund", "borlänge",
-      "falun", "kalmar", "kristianstad", "skövde", "karlskrona"
+      "falun", "kalmar", "kristianstad", "skövde", "karlskrona",
+      "hjo", "tibro", "skara", "mariestad", "tidaholm", "karlsborg",
+      "falköping", "mullsjö", "habo", "vaggeryd", "gnosjö",
+      "tranås", "aneby", "eksjö", "nässjö", "vetlanda", "sävsjö",
+      "hultsfred", "vimmerby", "västervik", "oskarshamn",
+      "arvika", "hagfors", "sunne", "torsby", "filipstad",
+      "mora", "orsa", "rättvik", "leksand", "ludvika",
+      "avesta", "hedemora", "säter", "smedjebacken",
+      "kiruna", "gällivare", "boden", "piteå", "älvsbyn",
+      "visby", "kungsbacka", "mölndal", "partille", "lerum"
     ],
     "date_patterns": [
       "\\d{4}-\\d{2}-\\d{2}",
