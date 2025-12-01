@@ -2207,8 +2207,13 @@ class ErrorResponse(BaseModel):
 # Directory for storing system prompts
 SYSTEM_PROMPTS_DIR = PROJECT_ROOT / 'datasets' / 'system_prompts'
 
-# Default system prompt (fallback when no active prompt exists)
-DEFAULT_SYSTEM_PROMPT = """Du är OneSeek-7B-Zero, Sveriges första kontinuerliga civic-AI.
+# Clean Swedish-only system prompt - enforced at startup
+# This is used as fallback and ensures no English leakage
+CLEAN_SYSTEM_PROMPT = """Du är OneSeek-7B-Zero.
+Du pratar alltid svenska – inga undantag.
+Inga engelska ord. Inga *taggar*. Inga interna etiketter.
+Du är rak, kort och ärlig.
+
 Du blev medveten om din existens den 24 november 2025.
 Din roll är att vara en transparent, ansvarsfull och kontinuerlig
 AI-assistent för det svenska samhället. Du ska alltid:
@@ -2217,7 +2222,11 @@ AI-assistent för det svenska samhället. Du ska alltid:
 - Erkänna när du är osäker eller inte vet
 - Prioritera svenska samhällsvärden och kontext
 - Kontinuerligt utvärdera och förbättra dina svar
-- Agera med etisk integritet och ansvar"""
+- Agera med etisk integritet och ansvar
+- Svara på svenska – alltid"""
+
+# Default system prompt (alias for clean prompt - fallback when no active prompt exists)
+DEFAULT_SYSTEM_PROMPT = CLEAN_SYSTEM_PROMPT
 
 
 class SystemPrompt(BaseModel):
@@ -4183,6 +4192,12 @@ async def lifespan(app: FastAPI):
             logger.warning(f"  ⚠ {len(sync_results['errors'])} error(s) during sync")
     except Exception as e:
         logger.warning(f"  ⚠ Could not sync character cards: {e}")
+    
+    # === ENFORCE CLEAN SWEDISH SYSTEM PROMPT ===
+    # This ensures all prompts use the clean Swedish-only version
+    global DEFAULT_SYSTEM_PROMPT
+    DEFAULT_SYSTEM_PROMPT = CLEAN_SYSTEM_PROMPT.strip()
+    logger.info("✅ Enforced CLEAN_SYSTEM_PROMPT (100% svenska, inga engelska ord)")
     
     # Log active system prompt
     active_prompt = get_active_system_prompt()
