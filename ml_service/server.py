@@ -545,7 +545,8 @@ DEFAULT_OPEN_DATA_APIS = [
         "description": "Befolkning, ekonomi, statistik",
         "base_url": "https://api.scb.se/OV0104/v1/doris/sv/ssd",
         "enabled": True,
-        "triggers": ["befolkning", "statistik", "invånare", "ekonomi", "scb"],
+        # Added "bor i", "hur många" and related phrases for population queries
+        "triggers": ["befolkning", "statistik", "invånare", "ekonomi", "scb", "bor i", "hur många", "folkmängd", "antal människor", "personer bor"],
         "fallback_message": "Kunde inte hämta data från SCB."
     },
     {
@@ -4816,8 +4817,35 @@ Svara på svenska. Max 1-2 meningar."""
             logger.info(f"✓ {len(news)} nyheter hämtade")
     
     # === 4. Check for Open Data API triggers ===
+    # ONESEEK Δ+: First try keyword triggers, then fall back to Intent Engine
     open_data_context = None
     triggered_api = check_open_data_trigger(inference_request.text)
+    
+    # If no keyword match, use Intent Engine to detect API
+    if not triggered_api and INTENT_ENGINE_AVAILABLE:
+        try:
+            intent_api_data = get_intent_based_api(inference_request.text)
+            if intent_api_data and intent_api_data.get("api"):
+                api_name = intent_api_data.get("api", "")
+                intent_confidence = intent_api_data.get("confidence", 0)
+                # Only trigger if confidence is high enough (0.6+)
+                if intent_confidence >= 0.6:
+                    # Map intent API name to Open Data API
+                    for api in OPEN_DATA_APIS:
+                        if api.get("id") == api_name or api_name in api.get("id", ""):
+                            triggered_api = api
+                            logger.info(f"🎯 [INTENT→API] Intent '{intent_api_data.get('intent')}' (conf: {intent_confidence:.2f}) → {api.get('name')}")
+                            break
+                    # Special case: befolkning intent → SCB
+                    if not triggered_api and intent_api_data.get("intent") in ["befolkning", "population", "invånare"]:
+                        for api in OPEN_DATA_APIS:
+                            if api.get("id") == "scb":
+                                triggered_api = api
+                                logger.info(f"🎯 [INTENT→SCB] Intent '{intent_api_data.get('intent')}' (conf: {intent_confidence:.2f}) → SCB")
+                                break
+        except Exception as e:
+            logger.debug(f"Intent-based API lookup failed: {e}")
+    
     if triggered_api:
         logger.info(f"📊 [OPEN DATA] Hämtar från {triggered_api.get('name')}...")
         open_data_result = fetch_open_data(triggered_api, inference_request.text)
@@ -5252,9 +5280,36 @@ Svara på svenska. Max 1-2 meningar."""
             logger.info(f"✓ {len(news)} nyheter hämtade")
     
     # === 4. Check for Open Data API triggers ===
+    # ONESEEK Δ+: First try keyword triggers, then fall back to Intent Engine
     open_data_context = None
     open_data_sources = ""
     triggered_api = check_open_data_trigger(request.text)
+    
+    # If no keyword match, use Intent Engine to detect API
+    if not triggered_api and INTENT_ENGINE_AVAILABLE:
+        try:
+            intent_api_data = get_intent_based_api(request.text)
+            if intent_api_data and intent_api_data.get("api"):
+                api_name = intent_api_data.get("api", "")
+                intent_confidence = intent_api_data.get("confidence", 0)
+                # Only trigger if confidence is high enough (0.6+)
+                if intent_confidence >= 0.6:
+                    # Map intent API name to Open Data API
+                    for api in OPEN_DATA_APIS:
+                        if api.get("id") == api_name or api_name in api.get("id", ""):
+                            triggered_api = api
+                            logger.info(f"🎯 [INTENT→API] Intent '{intent_api_data.get('intent')}' (conf: {intent_confidence:.2f}) → {api.get('name')}")
+                            break
+                    # Special case: befolkning intent → SCB
+                    if not triggered_api and intent_api_data.get("intent") in ["befolkning", "population", "invånare"]:
+                        for api in OPEN_DATA_APIS:
+                            if api.get("id") == "scb":
+                                triggered_api = api
+                                logger.info(f"🎯 [INTENT→SCB] Intent '{intent_api_data.get('intent')}' (conf: {intent_confidence:.2f}) → SCB")
+                                break
+        except Exception as e:
+            logger.debug(f"Intent-based API lookup failed: {e}")
+    
     if triggered_api:
         logger.info(f"📊 [OPEN DATA] Hämtar från {triggered_api.get('name')}...")
         open_data_result = fetch_open_data(triggered_api, request.text)

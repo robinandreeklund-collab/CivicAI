@@ -205,6 +205,7 @@ class Intent:
     confidence: float
     triggers: List[str]
     entities: Dict[str, Any]
+    api: Optional[str] = None  # API to call for this intent
     
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -527,7 +528,8 @@ class IntentEngine:
                 name=best_intent,
                 confidence=min(final_confidence, 0.99),
                 triggers=best_keywords,
-                entities=entity_dict
+                entities=entity_dict,
+                api=best_config.get("api") if best_config else None
             )
         
         # Fallback: generell fråga
@@ -535,7 +537,8 @@ class IntentEngine:
             name="general",
             confidence=0.5,
             triggers=[],
-            entities=entity_dict
+            entities=entity_dict,
+            api=None
         )
     
     def process(self, text: str) -> Dict[str, Any]:
@@ -781,7 +784,7 @@ def detect_intent_and_city(text: str) -> Dict[str, Any]:
         text: Användarinput
         
     Returns:
-        Dict med intent, entity, confidence
+        Dict med intent, entity, confidence, api
     """
     result = process_user_input(text)
     
@@ -793,10 +796,15 @@ def detect_intent_and_city(text: str) -> Dict[str, Any]:
             entity = ent.get("text", "")
             break
     
+    # Get the API associated with this intent
+    intent_name = result.get("intent", {}).get("name", "general")
+    api = result.get("intent", {}).get("api")
+    
     return {
-        "intent": result.get("intent", {}).get("name", "general"),
+        "intent": intent_name,
         "entity": entity,
         "confidence": result.get("intent", {}).get("confidence", 0.5),
+        "api": api,
         "all_entities": entities
     }
 
