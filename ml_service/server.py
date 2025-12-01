@@ -5116,14 +5116,14 @@ Du är OneSeek-7B-Zero – en varm svensk kompis.
 Användaren skrev: "{original_text}"
 LanguageTool föreslår: "{corrected_text}"
 
-Svara EXAKT så här (kopiera strukturen, men variera tonen):
+Svara kort och vänligt – variera tonen. Exempel:
 
 "Hej! Jag tror du menade \"{corrected_text}\"? 😊  
 Ska jag söka efter det istället?
 
-[ Ja, korrigera ]    [ Nej, skicka som det är ]"
+"
 
-Gör det personligt och vänligt – men behåll exakt formatet med knapparna i slutet.
+Skriv ENDAST det personliga svaret. Inga knappar eller brackets.
 Svara NU.
 """
                     
@@ -5158,23 +5158,28 @@ Svara NU.
                         logger.info(f"✏️ [TYPO] Raw AI response: '{typo_response[:100]}...'")
                         
                         # Fallback om svaret är tomt eller saknar knappar
-                        if not typo_response or len(typo_response) < 10 or "[ Ja, korrigera ]" not in typo_response:
-                            logger.info(f"✏️ [TYPO] Using fallback (missing buttons or empty)")
+                        if not typo_response or len(typo_response) < 10:
+                            logger.info(f"✏️ [TYPO] Using fallback (empty or too short)")
                             import random
+                            # Mallar UTAN knappar i texten - frontend visar riktiga knappar baserat på typo_correction.show_buttons
                             typo_response_templates = [
-                                f"Hej! Jag tror du menade \"{corrected_text}\"? 😊\n\nSka jag söka efter det istället?\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
-                                f"Oj, menade du \"{corrected_text}\"? 😄\n\nVill du att jag söker på det?\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
-                                f"Haha, jag gissar att du ville säga \"{corrected_text}\"? 🤗\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
+                                f"Hej! Jag tror du menade \"{corrected_text}\"? 😊\n\nSka jag söka efter det istället?",
+                                f"Oj, menade du \"{corrected_text}\"? 😄\n\nVill du att jag söker på det?",
+                                f"Haha, jag gissar att du ville säga \"{corrected_text}\"? 🤗",
                             ]
                             typo_response = random.choice(typo_response_templates)
+                        else:
+                            # Ta bort knapp-text från AI-svar (frontend visar riktiga knappar)
+                            typo_response = typo_response.replace("[ Ja, korrigera ]", "").replace("[ Nej, skicka som det är ]", "").strip()
                         
                     except Exception as e:
                         logger.warning(f"✏️ [TYPO] Model generation failed: {e}")
                         import random
+                        # Mallar UTAN knappar i texten
                         typo_response_templates = [
-                            f"Hej! Jag tror du menade \"{corrected_text}\"? 😊\n\nSka jag söka efter det istället?\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
-                            f"Oj, menade du \"{corrected_text}\"? 😄\n\nVill du att jag söker på det?\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
-                            f"Haha, jag gissar att du ville säga \"{corrected_text}\"? 🤗\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
+                            f"Hej! Jag tror du menade \"{corrected_text}\"? 😊\n\nSka jag söka efter det istället?",
+                            f"Oj, menade du \"{corrected_text}\"? 😄\n\nVill du att jag söker på det?",
+                            f"Haha, jag gissar att du ville säga \"{corrected_text}\"? 🤗",
                         ]
                         typo_response = random.choice(typo_response_templates)
                     
@@ -5606,14 +5611,14 @@ Du är OneSeek-7B-Zero – en varm svensk kompis.
 Användaren skrev: "{original_text}"
 LanguageTool föreslår: "{corrected_text}"
 
-Svara EXAKT så här (kopiera strukturen, men variera tonen):
+Svara kort och vänligt – variera tonen. Exempel:
 
 "Hej! Jag tror du menade \"{corrected_text}\"? 😊  
 Ska jag söka efter det istället?
 
-[ Ja, korrigera ]    [ Nej, skicka som det är ]"
+"
 
-Gör det personligt och vänligt – men behåll exakt formatet med knapparna i slutet.
+Skriv ENDAST det personliga svaret. Inga knappar eller brackets.
 Svara NU.
 """
                     
@@ -5648,23 +5653,28 @@ Svara NU.
                         logger.info(f"✏️ [TYPO] Raw AI response: '{typo_response[:100]}...'")
                         
                         # Fallback om svaret är tomt eller saknar knappar
-                        if not typo_response or len(typo_response) < 10 or "[ Ja, korrigera ]" not in typo_response:
-                            logger.info(f"✏️ [TYPO] Using fallback (missing buttons or empty)")
+                        if not typo_response or len(typo_response) < 10:
+                            logger.info(f"✏️ [TYPO] Using fallback (empty or too short)")
                             import random
+                            # Mallar UTAN knappar i texten - frontend visar riktiga knappar baserat på typo_correction.show_buttons
                             typo_response_templates = [
-                                f"Hej! Jag tror du menade \"{corrected_text}\"? 😊\n\nSka jag söka efter det istället?\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
-                                f"Oj, menade du \"{corrected_text}\"? 😄\n\nVill du att jag söker på det?\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
-                                f"Haha, jag gissar att du ville säga \"{corrected_text}\"? 🤗\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
+                                f"Hej! Jag tror du menade \"{corrected_text}\"? 😊\n\nSka jag söka efter det istället?",
+                                f"Oj, menade du \"{corrected_text}\"? 😄\n\nVill du att jag söker på det?",
+                                f"Haha, jag gissar att du ville säga \"{corrected_text}\"? 🤗",
                             ]
                             typo_response = random.choice(typo_response_templates)
+                        else:
+                            # Ta bort knapp-text från AI-svar (frontend visar riktiga knappar)
+                            typo_response = typo_response.replace("[ Ja, korrigera ]", "").replace("[ Nej, skicka som det är ]", "").strip()
                         
                     except Exception as e:
                         logger.warning(f"✏️ [TYPO] Model generation failed: {e}")
                         import random
+                        # Mallar UTAN knappar i texten
                         typo_response_templates = [
-                            f"Hej! Jag tror du menade \"{corrected_text}\"? 😊\n\nSka jag söka efter det istället?\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
-                            f"Oj, menade du \"{corrected_text}\"? 😄\n\nVill du att jag söker på det?\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
-                            f"Haha, jag gissar att du ville säga \"{corrected_text}\"? 🤗\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
+                            f"Hej! Jag tror du menade \"{corrected_text}\"? 😊\n\nSka jag söka efter det istället?",
+                            f"Oj, menade du \"{corrected_text}\"? 😄\n\nVill du att jag söker på det?",
+                            f"Haha, jag gissar att du ville säga \"{corrected_text}\"? 🤗",
                         ]
                         typo_response = random.choice(typo_response_templates)
                     
