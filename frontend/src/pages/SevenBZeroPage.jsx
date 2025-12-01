@@ -249,7 +249,7 @@ export default function SevenBZeroPage() {
     }, 500);
   };
 
-  // Accept typo suggestion
+  // Accept typo suggestion (inline)
   const acceptTypoSuggestion = () => {
     if (typoSuggestion) {
       setMessageInput(typoSuggestion.correctedText);
@@ -257,9 +257,87 @@ export default function SevenBZeroPage() {
     }
   };
 
-  // Dismiss typo suggestion
+  // Dismiss typo suggestion (inline)
   const dismissTypoSuggestion = () => {
     setTypoSuggestion(null);
+  };
+
+  // === ONESEEK Δ+ TYPO CORRECTION BUTTON HANDLERS ===
+  // Accept typo correction from AI response - resend corrected question
+  const acceptTypoCorrection = async (messageId, correctedText) => {
+    // Remove the typo message
+    setMessages(prev => prev.filter(msg => msg.id !== messageId));
+    
+    // Send the corrected question
+    setMessageInput(correctedText);
+    
+    // Trigger submit after a short delay to update input
+    setTimeout(() => {
+      const form = document.querySelector('form');
+      if (form) {
+        const event = new Event('submit', { bubbles: true, cancelable: true });
+        form.dispatchEvent(event);
+      }
+    }, 100);
+  };
+
+  // Reject typo correction - send original question as-is
+  const sendOriginalQuestion = async (messageId, originalText) => {
+    // Remove the typo message
+    setMessages(prev => prev.filter(msg => msg.id !== messageId));
+    
+    // Send the original question by calling the API directly (skipping typo check)
+    const userMessage = {
+      id: generateMessageId(),
+      type: 'user',
+      text: originalText,
+      timestamp: new Date().toISOString(),
+    };
+    
+    setMessages(prev => [...prev, userMessage]);
+    setResponseStartTime(Date.now());
+    
+    // Add placeholder AI message
+    const aiMessageId = generateMessageId();
+    const aiMessage = {
+      id: aiMessageId,
+      type: 'ai',
+      text: '',
+      isTyping: true,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, aiMessage]);
+    setIsTyping(true);
+    
+    try {
+      // Use OQT endpoint directly (no typo check)
+      const response = await fetch('/api/oqt/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: originalText,
+          persona: selectedPersona,
+        }),
+      });
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const data = await response.json();
+      const responseText = data.response || data.text;
+      
+      if (responseText) {
+        setMessages(prev => prev.map(msg => 
+          msg.id === aiMessageId ? { ...msg, responseTime: '0.0' } : msg
+        ));
+        animateTyping(responseText, aiMessageId);
+      }
+    } catch (err) {
+      console.error('Query error:', err);
+      setMessages(prev => prev.map(msg => 
+        msg.id === aiMessageId ? { ...msg, text: 'Ett fel uppstod.', error: true, isTyping: false } : msg
+      ));
+      setIsTyping(false);
+    }
   };
 
   // Metrics (static for now)
@@ -537,6 +615,29 @@ export default function SevenBZeroPage() {
       const data = await response.json();
       const responseEndTime = Date.now();
       const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
+
+      // === ONESEEK Δ+ TYPO CORRECTION HANDLING ===
+      // If typo was detected, show AI's personalized response with correction buttons
+      if (data.typo_correction?.detected && data.typo_correction?.show_buttons) {
+        const typoData = data.typo_correction;
+        
+        // Update message with typo response and correction buttons
+        setMessages(prev => prev.map(msg => 
+          msg.id === aiMessageId 
+            ? { 
+                ...msg, 
+                text: data.response,
+                isTyping: false,
+                responseTime: finalResponseTime,
+                // Store typo correction data
+                typoCorrection: typoData,
+                showTypoButtons: true,
+              }
+            : msg
+        ));
+        setIsTyping(false);
+        return; // Exit early - wait for user to click button
+      }
 
       // Handle both Δ+ endpoint (response) and OQT endpoint (data.success/data.response) formats
       const responseText = data.response || data.text;
@@ -1132,6 +1233,32 @@ export default function SevenBZeroPage() {
                           .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">$1</a>')
                       }}
                     />
+                  )}
+                  
+                  {/* ONESEEK Δ+ Typo Correction Buttons */}
+                  {msg.showTypoButtons && msg.typoCorrection && (
+                    <div className={`mt-4 flex gap-3 ${whiteMode ? '' : ''}`}>
+                      <button
+                        onClick={() => acceptTypoCorrection(msg.id, msg.typoCorrection.corrected)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                          whiteMode
+                            ? 'bg-green-600 text-white hover:bg-green-700'
+                            : 'bg-green-600 text-white hover:bg-green-500'
+                        }`}
+                      >
+                        Ja, korrigera ✓
+                      </button>
+                      <button
+                        onClick={() => sendOriginalQuestion(msg.id, msg.typoCorrection.original)}
+                        className={`px-4 py-2 rounded-lg text-sm transition-all duration-200 ${
+                          whiteMode
+                            ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        }`}
+                      >
+                        Nej, skicka som det är
+                      </button>
+                    </div>
                   )}
                   
                   {/* Confidence indicator */}

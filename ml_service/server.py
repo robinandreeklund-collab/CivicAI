@@ -2058,6 +2058,8 @@ class InferenceResponse(BaseModel):
     latency_ms: float
     # ONESEEK Δ+ fields (optional - for Firebase integration)
     delta_plus: Optional[dict] = None  # Contains topic_hash, intent, entity, response_hash
+    # ONESEEK Δ+ Typo correction (optional - when typos detected)
+    typo_correction: Optional[dict] = None  # Contains detected, original, corrected, suggestions, show_buttons
     
 class ErrorResponse(BaseModel):
     """Error response model"""
@@ -4672,10 +4674,11 @@ async def infer(request: Request, inference_request: InferenceRequest):
     typo_corrected = False
     typo_suggestions = []
     original_text = inference_request.text
+    corrected_text = inference_request.text
     
     if TYPO_CHECKER_AVAILABLE and check_spelling:
         try:
-            typo_result = check_spelling(inference_request.text, auto_correct=False)
+            typo_result = check_spelling(inference_request.text, auto_correct=True)
             if not typo_result.get("is_correct", True):
                 typo_suggestions = [
                     {
@@ -4689,9 +4692,78 @@ async def infer(request: Request, inference_request: InferenceRequest):
                 
                 if typo_suggestions:
                     typo_corrected = True
+                    corrected_text = typo_result.get("corrected", inference_request.text)
+                    
                     # Log the corrections
                     for suggestion in typo_suggestions:
                         logger.info(f"✏️ [TYPO] Detected: '{suggestion['original']}' → '{suggestion['suggestion']}' (conf: {suggestion['confidence']:.2f})")
+                    
+                    # === ONESEEK Δ+ TYPO RESPONSE MODE ===
+                    # Let the AI generate a personalized response asking about the typo
+                    typo_corrections_str = ", ".join([f"'{s['original']}' → '{s['suggestion']}'" for s in typo_suggestions])
+                    
+                    typo_system_prompt = f"""Du är OneSeek, en vänlig svensk AI-kompis. 
+Användaren skrev: "{original_text}"
+Det verkar finnas stavfel. Korrigeringsförslag: {typo_corrections_str}
+Den korrekta frågan är troligen: "{corrected_text}"
+
+Svara KORT och personligt – som en svensk kompis som vänligt påpekar felet.
+Använd gärna emojis. Var inte för formell.
+Svara BARA med en kort fråga om användaren vill korrigera.
+
+Exempel på bra svar:
+- "Haha, menar du '{corrected_text}'? 😄"
+- "Oj, tror du menade '{corrected_text}'? 😊"  
+- "Kanske '{corrected_text}'? 🤔"
+
+Svara på svenska. Max 1-2 meningar."""
+
+                    # Generate AI response for typo correction
+                    try:
+                        model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
+                        typo_input = f"{typo_system_prompt}\n\nSvara nu:"
+                        inputs = tokenizer(typo_input, return_tensors="pt", padding=True)
+                        inputs = sync_inputs_to_model_device(inputs, model)
+                        
+                        with torch.no_grad():
+                            outputs = model.generate(
+                                input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
+                                attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
+                                max_new_tokens=100,
+                                temperature=0.8,
+                                top_p=0.9,
+                                do_sample=True,
+                                pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
+                            )
+                        
+                        typo_response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+                        # Clean up response - remove the prompt
+                        if "Svara nu:" in typo_response:
+                            typo_response = typo_response.split("Svara nu:")[-1].strip()
+                        
+                        # If response is empty or too long, use fallback
+                        if not typo_response or len(typo_response) > 200:
+                            typo_response = f"Oj, menar du \"{corrected_text}\"? 😊"
+                        
+                        logger.info(f"✏️ [TYPO RESPONSE] {typo_response}")
+                        
+                        # Return typo correction response with buttons
+                        return InferenceResponse(
+                            response=typo_response,
+                            model="OneSeek-7B-Zero.v1.1 (typo-assist)",
+                            tokens=len(outputs[0]),
+                            latency_ms=int((time.time() - start_time) * 1000),
+                            typo_correction={
+                                "detected": True,
+                                "original": original_text,
+                                "corrected": corrected_text,
+                                "suggestions": typo_suggestions,
+                                "show_buttons": True
+                            }
+                        )
+                    except Exception as e:
+                        logger.warning(f"Typo response generation failed: {e}")
+                        # Continue with normal inference if typo response fails
         except Exception as e:
             logger.debug(f"Typo check failed: {e}")
     
@@ -5007,10 +5079,11 @@ async def oneseek_inference(request: InferenceRequest):
     typo_corrected = False
     typo_suggestions = []
     original_text = request.text
+    corrected_text = request.text
     
     if TYPO_CHECKER_AVAILABLE and check_spelling:
         try:
-            typo_result = check_spelling(request.text, auto_correct=False)
+            typo_result = check_spelling(request.text, auto_correct=True)
             if not typo_result.get("is_correct", True):
                 typo_suggestions = [
                     {
@@ -5024,9 +5097,78 @@ async def oneseek_inference(request: InferenceRequest):
                 
                 if typo_suggestions:
                     typo_corrected = True
+                    corrected_text = typo_result.get("corrected", request.text)
+                    
                     # Log the corrections
                     for suggestion in typo_suggestions:
                         logger.info(f"✏️ [TYPO] Detected: '{suggestion['original']}' → '{suggestion['suggestion']}' (conf: {suggestion['confidence']:.2f})")
+                    
+                    # === ONESEEK Δ+ TYPO RESPONSE MODE ===
+                    # Let the AI generate a personalized response asking about the typo
+                    typo_corrections_str = ", ".join([f"'{s['original']}' → '{s['suggestion']}'" for s in typo_suggestions])
+                    
+                    typo_system_prompt = f"""Du är OneSeek, en vänlig svensk AI-kompis. 
+Användaren skrev: "{original_text}"
+Det verkar finnas stavfel. Korrigeringsförslag: {typo_corrections_str}
+Den korrekta frågan är troligen: "{corrected_text}"
+
+Svara KORT och personligt – som en svensk kompis som vänligt påpekar felet.
+Använd gärna emojis. Var inte för formell.
+Svara BARA med en kort fråga om användaren vill korrigera.
+
+Exempel på bra svar:
+- "Haha, menar du '{corrected_text}'? 😄"
+- "Oj, tror du menade '{corrected_text}'? 😊"  
+- "Kanske '{corrected_text}'? 🤔"
+
+Svara på svenska. Max 1-2 meningar."""
+
+                    # Generate AI response for typo correction
+                    try:
+                        model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
+                        typo_input = f"{typo_system_prompt}\n\nSvara nu:"
+                        inputs = tokenizer(typo_input, return_tensors="pt", padding=True)
+                        inputs = sync_inputs_to_model_device(inputs, model)
+                        
+                        with torch.no_grad():
+                            outputs = model.generate(
+                                input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
+                                attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
+                                max_new_tokens=100,
+                                temperature=0.8,
+                                top_p=0.9,
+                                do_sample=True,
+                                pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
+                            )
+                        
+                        typo_response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+                        # Clean up response - remove the prompt
+                        if "Svara nu:" in typo_response:
+                            typo_response = typo_response.split("Svara nu:")[-1].strip()
+                        
+                        # If response is empty or too long, use fallback
+                        if not typo_response or len(typo_response) > 200:
+                            typo_response = f"Oj, menar du \"{corrected_text}\"? 😊"
+                        
+                        logger.info(f"✏️ [TYPO RESPONSE] {typo_response}")
+                        
+                        # Return typo correction response with buttons
+                        return {
+                            "response": typo_response,
+                            "model": "OneSeek-7B-Zero.v1.1 (typo-assist)",
+                            "tokens": len(outputs[0]),
+                            "latency_ms": int((time.time() - start_time) * 1000),
+                            "typo_correction": {
+                                "detected": True,
+                                "original": original_text,
+                                "corrected": corrected_text,
+                                "suggestions": typo_suggestions,
+                                "show_buttons": True
+                            }
+                        }
+                    except Exception as e:
+                        logger.warning(f"Typo response generation failed: {e}")
+                        # Continue with normal inference if typo response fails
         except Exception as e:
             logger.debug(f"Typo check failed: {e}")
     
