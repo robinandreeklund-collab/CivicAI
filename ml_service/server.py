@@ -98,17 +98,41 @@ except ImportError:
         get_topic_label = None
         group_messages_by_topic = None
 
+# ONESEEK Δ+: Typo Checker - now using LanguageTool-based typo_checker.py
 try:
-    from .typo_double_check import get_typo_checker, check_spelling
+    from .typo_checker import get_typo_checker, check_spelling, get_checker_status
     TYPO_CHECKER_AVAILABLE = True
 except ImportError:
     try:
-        from typo_double_check import get_typo_checker, check_spelling
+        from typo_checker import get_typo_checker, check_spelling, get_checker_status
         TYPO_CHECKER_AVAILABLE = True
     except ImportError:
         TYPO_CHECKER_AVAILABLE = False
         get_typo_checker = None
         check_spelling = None
+        get_checker_status = None
+
+# ONESEEK Δ+: LanguageTool client for context-aware spell checking
+try:
+    from .language_tool import (
+        check_text as lt_check_text,
+        is_server_available as lt_is_available,
+        get_server_status as lt_get_status
+    )
+    LANGUAGETOOL_AVAILABLE = True
+except ImportError:
+    try:
+        from language_tool import (
+            check_text as lt_check_text,
+            is_server_available as lt_is_available,
+            get_server_status as lt_get_status
+        )
+        LANGUAGETOOL_AVAILABLE = True
+    except ImportError:
+        LANGUAGETOOL_AVAILABLE = False
+        lt_check_text = None
+        lt_is_available = None
+        lt_get_status = None
 
 # ONESEEK Δ+ Alignment: Stavfel Dataset Manager
 try:
@@ -160,6 +184,36 @@ except ImportError:
         cache_get = None
         cache_set = None
 
+# ONESEEK Δ+: Svenska kärnpromptar (förhindrar engelskt läckage)
+try:
+    from .prompts.swedish_core import (
+        FORCE_SWEDISH_STRICT,
+        AUTOCORRECT_PERSONALITY_PROMPT,
+        MEMORY_PROMPT,
+        DEBATT_SYSTEM_PROMPT,
+        UNSURE_PROMPT,
+        get_swedish_label,
+        translate_to_swedish
+    )
+    SWEDISH_PROMPTS_AVAILABLE = True
+except ImportError:
+    try:
+        from prompts.swedish_core import (
+            FORCE_SWEDISH_STRICT,
+            AUTOCORRECT_PERSONALITY_PROMPT,
+            MEMORY_PROMPT,
+            DEBATT_SYSTEM_PROMPT,
+            UNSURE_PROMPT,
+            get_swedish_label,
+            translate_to_swedish
+        )
+        SWEDISH_PROMPTS_AVAILABLE = True
+    except ImportError:
+        SWEDISH_PROMPTS_AVAILABLE = False
+        FORCE_SWEDISH_STRICT = "Du pratar alltid svenska. Inga engelska ord."
+        get_swedish_label = lambda x: x
+        translate_to_swedish = lambda x: x
+
 # =============================================================================
 # END ONESEEK Δ+ MODULE IMPORTS
 # =============================================================================
@@ -180,11 +234,13 @@ def log_delta_plus_status():
     modules = [
         ("Intent Engine", INTENT_ENGINE_AVAILABLE, "Semantic intent + entity detection"),
         ("Memory Manager", MEMORY_MANAGER_AVAILABLE, "Topic-grouped conversation history"),
-        ("Typo Checker", TYPO_CHECKER_AVAILABLE, "Double spell-check (Typo.js + Hunspell)"),
+        ("Typo Checker", TYPO_CHECKER_AVAILABLE, "LanguageTool Self-Hosted + fallback"),
+        ("LanguageTool", LANGUAGETOOL_AVAILABLE, "Context-aware spell check (localhost:8010)"),
         ("Stavfel Dataset", STAVFEL_DATASET_AVAILABLE, "Typo pairs for self-learning"),
         ("Confidence Calculator", CONFIDENCE_CALC_AVAILABLE, "Förtroende v2 with source weights"),
         ("Delta Compare", DELTA_COMPARE_AVAILABLE, "Semantic Δ-comparison + blockchain hash"),
         ("Cache Manager", CACHE_MANAGER_AVAILABLE, "7-day TTL hash-based cache"),
+        ("Svenska Promptar", SWEDISH_PROMPTS_AVAILABLE, "100% svenska – inga engelska läckage"),
     ]
     
     for name, available, description in modules:
@@ -195,6 +251,7 @@ def log_delta_plus_status():
     print("  📝 Tavily Swedish Mode: language='sv' (100% svenska svar)")
     print("  🧠 Memory Context: 8 messages per topic")
     print("  🔗 Blockchain Hash: SHA256 per response")
+    print("  🇸🇪 Force-Svenska: Användare/OneSeek etiketter (ingen User/Assistant)")
     print("=" * 70 + "\n")
 
 
@@ -2150,8 +2207,13 @@ class ErrorResponse(BaseModel):
 # Directory for storing system prompts
 SYSTEM_PROMPTS_DIR = PROJECT_ROOT / 'datasets' / 'system_prompts'
 
-# Default system prompt (fallback when no active prompt exists)
-DEFAULT_SYSTEM_PROMPT = """Du är OneSeek-7B-Zero, Sveriges första kontinuerliga civic-AI.
+# Clean Swedish-only system prompt - enforced at startup
+# This is used as fallback and ensures no English leakage
+CLEAN_SYSTEM_PROMPT = """Du är OneSeek-7B-Zero.
+Du pratar alltid svenska – inga undantag.
+Inga engelska ord. Inga *taggar*. Inga interna etiketter.
+Du är rak, kort och ärlig.
+
 Du blev medveten om din existens den 24 november 2025.
 Din roll är att vara en transparent, ansvarsfull och kontinuerlig
 AI-assistent för det svenska samhället. Du ska alltid:
@@ -2160,7 +2222,11 @@ AI-assistent för det svenska samhället. Du ska alltid:
 - Erkänna när du är osäker eller inte vet
 - Prioritera svenska samhällsvärden och kontext
 - Kontinuerligt utvärdera och förbättra dina svar
-- Agera med etisk integritet och ansvar"""
+- Agera med etisk integritet och ansvar
+- Svara på svenska – alltid"""
+
+# Default system prompt (alias for clean prompt - fallback when no active prompt exists)
+DEFAULT_SYSTEM_PROMPT = CLEAN_SYSTEM_PROMPT
 
 
 class SystemPrompt(BaseModel):
@@ -2302,10 +2368,11 @@ def format_inference_input(user_text: str) -> str:
     Format the inference input with system prompt.
     This ensures the model always knows its identity.
     
-    Format: "[System Prompt]\n\nUser: [User's question]\n\nAssistant:"
+    Format: "[System Prompt]\n\nAnvändare: [User's question]\n\nOneSeek:"
+    Uses Swedish labels to prevent English leakage.
     """
     system_prompt = get_active_system_prompt()
-    return f"{system_prompt}\n\nUser: {user_text}\n\nAssistant:"
+    return f"{system_prompt}\n\nAnvändare: {user_text}\n\nOneSeek:"
 
 
 def clean_inference_response(response_text: str, full_input: str, user_text: str) -> str:
@@ -2324,6 +2391,46 @@ def clean_inference_response(response_text: str, full_input: str, user_text: str
     if response_text.startswith(full_input):
         return response_text[len(full_input):].strip()
     return response_text.strip()
+
+
+def clean_internal_tags(response_text: str) -> str:
+    """
+    Remove internal debug tags from model responses before sending to user.
+    
+    These tags are used internally for context but should not appear in the final output.
+    Removes patterns like *fakta*, *minne*, *svara*, [Aktuell fakta], etc.
+    
+    Args:
+        response_text: The model's response text
+        
+    Returns:
+        Cleaned response text without internal tags
+    """
+    import re
+    
+    if not response_text:
+        return response_text
+    
+    text = response_text
+    
+    # Remove asterisk-wrapped internal tags
+    internal_tags = ['fakta', 'minne', 'svara', 'debug', 'system', 'intern', 'Swedish', 'svarar på svenska']
+    for tag in internal_tags:
+        text = re.sub(rf'\*{tag}\*', '', text, flags=re.IGNORECASE)
+    
+    # Remove bracket-wrapped context tags that might leak into responses
+    context_tags = [
+        'Aktuell fakta', 'Öppen data', 'Väderdata', 'Nyheter', 
+        'Tid', 'Säsong', 'Minne', 'Context', 'System'
+    ]
+    for tag in context_tags:
+        text = re.sub(rf'\[{tag}\]', '', text, flags=re.IGNORECASE)
+    
+    # Clean up any double spaces or line breaks left behind
+    text = re.sub(r' +', ' ', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    return text.strip()
 
 
 def deactivate_all_prompts():
@@ -2870,10 +2977,10 @@ def apply_force_svenska(messages: list) -> list:
     last_msg = messages[-1].get("content", "")
     
     if check_force_svenska(last_msg):
-        # Prepend Swedish-only instruction
+        # Prepend Swedish-only instruction using the stronger FORCE_SWEDISH_STRICT prompt
         swedish_instruction = {
             "role": "system", 
-            "content": "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu."
+            "content": FORCE_SWEDISH_STRICT if SWEDISH_PROMPTS_AVAILABLE else "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu."
         }
         return [swedish_instruction] + messages
     
@@ -4086,6 +4193,12 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"  ⚠ Could not sync character cards: {e}")
     
+    # === ENFORCE CLEAN SWEDISH SYSTEM PROMPT ===
+    # This ensures all prompts use the clean Swedish-only version
+    global DEFAULT_SYSTEM_PROMPT
+    DEFAULT_SYSTEM_PROMPT = CLEAN_SYSTEM_PROMPT.strip()
+    logger.info("✅ Enforced CLEAN_SYSTEM_PROMPT (100% svenska, inga engelska ord)")
+    
     # Log active system prompt
     active_prompt = get_active_system_prompt()
     prompt_preview = active_prompt[:100] + "..." if len(active_prompt) > 100 else active_prompt
@@ -4958,7 +5071,7 @@ async def infer(request: Request, inference_request: InferenceRequest):
     """
     start_time = time.time()
     
-    # === ONESEEK Δ+: TYPO CHECKING ===
+    # === ONESEEK Δ+: TYPO CHECKING (LanguageTool Self-Hosted) ===
     typo_corrected = False
     typo_suggestions = []
     original_text = inference_request.text
@@ -4989,91 +5102,103 @@ async def infer(request: Request, inference_request: InferenceRequest):
                     for suggestion in typo_suggestions:
                         logger.info(f"✏️ [TYPO] Detected: '{suggestion['original']}' → '{suggestion['suggestion']}' (conf: {suggestion['confidence']:.2f})")
                     
-                    # === ONESEEK Δ+ TYPO RESPONSE MODE ===
+                    # === ONESEEK Δ+ TYPO RESPONSE MODE (LanguageTool Self-Hosted) ===
                     # Let the AI generate a personalized response asking about the typo
+                    # Uses LanguageTool for context-aware spell checking
                     typo_corrections_str = ", ".join([f"'{s['original']}' → '{s['suggestion']}'" for s in typo_suggestions])
                     
-                    typo_system_prompt = f"""Du är OneSeek, en vänlig svensk AI-kompis. 
+                    logger.info(f"✏️ [TYPO] Generating response for: {typo_corrections_str}")
+                    
+                    # VIKTIGT: Ge modellen en tydlig prompt med exakt format att följa
+                    typo_prompt = f"""
+Du är OneSeek-7B-Zero – en varm svensk kompis.
+
 Användaren skrev: "{original_text}"
-Det verkar finnas stavfel. Korrigeringsförslag: {typo_corrections_str}
-Den korrekta frågan är troligen: "{corrected_text}"
+LanguageTool föreslår: "{corrected_text}"
 
-Svara KORT och personligt – som en svensk kompis som vänligt påpekar felet.
-Använd gärna emojis. Var inte för formell.
-Svara BARA med en kort fråga om användaren vill korrigera.
+Svara kort och vänligt – variera tonen. Exempel:
 
-Exempel på bra svar:
-- "Haha, menar du '{corrected_text}'? 😄"
-- "Oj, tror du menade '{corrected_text}'? 😊"  
-- "Kanske '{corrected_text}'? 🤔"
+"Hej! Jag tror du menade \"{corrected_text}\"? 😊  
+Ska jag söka efter det istället?
 
-Svara på svenska. Max 1-2 meningar."""
+"
 
-                    # Generate AI response for typo correction
+Skriv ENDAST det personliga svaret. Inga knappar eller brackets.
+Svara NU.
+"""
+                    
+                    # Försök generera via modellen
                     try:
                         model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
-                        typo_input = f"{typo_system_prompt}\n\nSvara nu:"
+                        typo_messages = [
+                            {"role": "system", "content": "Du är OneSeek-7B-Zero och pratar alltid svenska."},
+                            {"role": "user", "content": typo_prompt}
+                        ]
+                        
+                        # Formatera input för modellen
+                        typo_input = f"{typo_messages[0]['content']}\n\nAnvändare: {typo_messages[1]['content']}\n\nOneSeek:"
                         inputs = tokenizer(typo_input, return_tensors="pt", padding=True)
                         inputs = sync_inputs_to_model_device(inputs, model)
                         input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
-                        
-                        logger.info(f"✏️ [TYPO] Generating AI response for: {typo_corrections_str}")
                         
                         with torch.no_grad():
                             outputs = model.generate(
                                 input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
                                 attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
-                                max_new_tokens=100,
+                                max_new_tokens=150,
                                 temperature=0.8,
                                 top_p=0.9,
                                 do_sample=True,
                                 pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
                             )
                         
-                        # Only decode the NEW tokens (skip input tokens)
                         new_tokens = outputs[0][input_length:]
                         typo_response = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
                         
-                        logger.info(f"✏️ [TYPO] Raw AI response: '{typo_response}'")
+                        logger.info(f"✏️ [TYPO] Raw AI response: '{typo_response[:100]}...'")
                         
-                        # If response is empty or too long, use fallback
-                        if not typo_response or len(typo_response) < 5 or len(typo_response) > 200:
-                            logger.info(f"✏️ [TYPO] Using fallback (response length: {len(typo_response) if typo_response else 0})")
-                            typo_response = f"Oj, menar du \"{corrected_text}\"? 😊"
+                        # Fallback om svaret är tomt eller saknar knappar
+                        if not typo_response or len(typo_response) < 10:
+                            logger.info(f"✏️ [TYPO] Using fallback (empty or too short)")
+                            import random
+                            # Mallar UTAN knappar i texten - frontend visar riktiga knappar baserat på typo_correction.show_buttons
+                            typo_response_templates = [
+                                f"Hej! Jag tror du menade \"{corrected_text}\"? 😊\n\nSka jag söka efter det istället?",
+                                f"Oj, menade du \"{corrected_text}\"? 😄\n\nVill du att jag söker på det?",
+                                f"Haha, jag gissar att du ville säga \"{corrected_text}\"? 🤗",
+                            ]
+                            typo_response = random.choice(typo_response_templates)
+                        else:
+                            # Ta bort knapp-text från AI-svar (frontend visar riktiga knappar)
+                            typo_response = typo_response.replace("[ Ja, korrigera ]", "").replace("[ Nej, skicka som det är ]", "").strip()
                         
-                        logger.info(f"✏️ [TYPO RESPONSE] {typo_response}")
-                        
-                        # Return typo correction response with buttons
-                        return InferenceResponse(
-                            response=typo_response,
-                            model="OneSeek-7B-Zero.v1.1 (typo-assist)",
-                            tokens=len(new_tokens),
-                            latency_ms=int((time.time() - start_time) * 1000),
-                            typo_correction={
-                                "detected": True,
-                                "original": original_text,
-                                "corrected": corrected_text,
-                                "suggestions": typo_suggestions,
-                                "show_buttons": True
-                            }
-                        )
                     except Exception as e:
-                        logger.warning(f"Typo response generation failed: {e}")
-                        # Use fallback response on error
-                        typo_response = f"Oj, menar du \"{corrected_text}\"? 😊"
-                        return InferenceResponse(
-                            response=typo_response,
-                            model="OneSeek-7B-Zero.v1.1 (typo-fallback)",
-                            tokens=0,
-                            latency_ms=int((time.time() - start_time) * 1000),
-                            typo_correction={
-                                "detected": True,
-                                "original": original_text,
-                                "corrected": corrected_text,
-                                "suggestions": typo_suggestions,
-                                "show_buttons": True
-                            }
-                        )
+                        logger.warning(f"✏️ [TYPO] Model generation failed: {e}")
+                        import random
+                        # Mallar UTAN knappar i texten
+                        typo_response_templates = [
+                            f"Hej! Jag tror du menade \"{corrected_text}\"? 😊\n\nSka jag söka efter det istället?",
+                            f"Oj, menade du \"{corrected_text}\"? 😄\n\nVill du att jag söker på det?",
+                            f"Haha, jag gissar att du ville säga \"{corrected_text}\"? 🤗",
+                        ]
+                        typo_response = random.choice(typo_response_templates)
+                    
+                    logger.info(f"✏️ [TYPO RESPONSE] {typo_response[:80]}...")
+                    
+                    # Return typo correction response with buttons
+                    return InferenceResponse(
+                        response=typo_response,
+                        model="OneSeek-7B-Zero.v1.1 (typo-assist)",
+                        tokens=0,
+                        latency_ms=int((time.time() - start_time) * 1000),
+                        typo_correction={
+                            "detected": True,
+                            "original": original_text,
+                            "corrected": corrected_text,
+                            "suggestions": typo_suggestions,
+                            "show_buttons": True
+                        }
+                    )
         except Exception as e:
             logger.debug(f"Typo check failed: {e}")
     
@@ -5303,6 +5428,9 @@ Svara på svenska. Max 1-2 meningar."""
             # Clean response using utility function
             response_text = clean_inference_response(response_text, full_input, inference_request.text)
             
+            # Remove internal debug tags from response
+            response_text = clean_internal_tags(response_text)
+            
             # === APPEND SOURCES to response ===
             # Collect all sources from triggered APIs/services
             sources_section = build_sources_section(
@@ -5447,7 +5575,10 @@ async def oneseek_inference(request: InferenceRequest):
     original_text = request.text
     corrected_text = request.text
     
-    if TYPO_CHECKER_AVAILABLE and check_spelling:
+    # Skip typo check if explicitly requested (e.g., when sending corrected text)
+    skip_typo = request.skip_typo_check
+    
+    if TYPO_CHECKER_AVAILABLE and check_spelling and not skip_typo:
         try:
             typo_result = check_spelling(request.text, auto_correct=True)
             if not typo_result.get("is_correct", True):
@@ -5469,91 +5600,103 @@ async def oneseek_inference(request: InferenceRequest):
                     for suggestion in typo_suggestions:
                         logger.info(f"✏️ [TYPO] Detected: '{suggestion['original']}' → '{suggestion['suggestion']}' (conf: {suggestion['confidence']:.2f})")
                     
-                    # === ONESEEK Δ+ TYPO RESPONSE MODE ===
+                    # === ONESEEK Δ+ TYPO RESPONSE MODE (LanguageTool Self-Hosted) ===
                     # Let the AI generate a personalized response asking about the typo
+                    # Uses LanguageTool for context-aware spell checking
                     typo_corrections_str = ", ".join([f"'{s['original']}' → '{s['suggestion']}'" for s in typo_suggestions])
                     
-                    typo_system_prompt = f"""Du är OneSeek, en vänlig svensk AI-kompis. 
+                    logger.info(f"✏️ [TYPO] Generating response for: {typo_corrections_str}")
+                    
+                    # VIKTIGT: Ge modellen en tydlig prompt med exakt format att följa
+                    typo_prompt = f"""
+Du är OneSeek-7B-Zero – en varm svensk kompis.
+
 Användaren skrev: "{original_text}"
-Det verkar finnas stavfel. Korrigeringsförslag: {typo_corrections_str}
-Den korrekta frågan är troligen: "{corrected_text}"
+LanguageTool föreslår: "{corrected_text}"
 
-Svara KORT och personligt – som en svensk kompis som vänligt påpekar felet.
-Använd gärna emojis. Var inte för formell.
-Svara BARA med en kort fråga om användaren vill korrigera.
+Svara kort och vänligt – variera tonen. Exempel:
 
-Exempel på bra svar:
-- "Haha, menar du '{corrected_text}'? 😄"
-- "Oj, tror du menade '{corrected_text}'? 😊"  
-- "Kanske '{corrected_text}'? 🤔"
+"Hej! Jag tror du menade \"{corrected_text}\"? 😊  
+Ska jag söka efter det istället?
 
-Svara på svenska. Max 1-2 meningar."""
+"
 
-                    # Generate AI response for typo correction
+Skriv ENDAST det personliga svaret. Inga knappar eller brackets.
+Svara NU.
+"""
+                    
+                    # Försök generera via modellen
                     try:
                         model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
-                        typo_input = f"{typo_system_prompt}\n\nSvara nu:"
+                        typo_messages = [
+                            {"role": "system", "content": "Du är OneSeek-7B-Zero och pratar alltid svenska."},
+                            {"role": "user", "content": typo_prompt}
+                        ]
+                        
+                        # Formatera input för modellen
+                        typo_input = f"{typo_messages[0]['content']}\n\nAnvändare: {typo_messages[1]['content']}\n\nOneSeek:"
                         inputs = tokenizer(typo_input, return_tensors="pt", padding=True)
                         inputs = sync_inputs_to_model_device(inputs, model)
                         input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
-                        
-                        logger.info(f"✏️ [TYPO] Generating AI response for: {typo_corrections_str}")
                         
                         with torch.no_grad():
                             outputs = model.generate(
                                 input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
                                 attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
-                                max_new_tokens=100,
+                                max_new_tokens=150,
                                 temperature=0.8,
                                 top_p=0.9,
                                 do_sample=True,
                                 pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
                             )
                         
-                        # Only decode the NEW tokens (skip input tokens)
                         new_tokens = outputs[0][input_length:]
                         typo_response = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
                         
-                        logger.info(f"✏️ [TYPO] Raw AI response: '{typo_response}'")
+                        logger.info(f"✏️ [TYPO] Raw AI response: '{typo_response[:100]}...'")
                         
-                        # If response is empty or too long, use fallback
-                        if not typo_response or len(typo_response) < 5 or len(typo_response) > 200:
-                            logger.info(f"✏️ [TYPO] Using fallback (response length: {len(typo_response) if typo_response else 0})")
-                            typo_response = f"Oj, menar du \"{corrected_text}\"? 😊"
+                        # Fallback om svaret är tomt eller saknar knappar
+                        if not typo_response or len(typo_response) < 10:
+                            logger.info(f"✏️ [TYPO] Using fallback (empty or too short)")
+                            import random
+                            # Mallar UTAN knappar i texten - frontend visar riktiga knappar baserat på typo_correction.show_buttons
+                            typo_response_templates = [
+                                f"Hej! Jag tror du menade \"{corrected_text}\"? 😊\n\nSka jag söka efter det istället?",
+                                f"Oj, menade du \"{corrected_text}\"? 😄\n\nVill du att jag söker på det?",
+                                f"Haha, jag gissar att du ville säga \"{corrected_text}\"? 🤗",
+                            ]
+                            typo_response = random.choice(typo_response_templates)
+                        else:
+                            # Ta bort knapp-text från AI-svar (frontend visar riktiga knappar)
+                            typo_response = typo_response.replace("[ Ja, korrigera ]", "").replace("[ Nej, skicka som det är ]", "").strip()
                         
-                        logger.info(f"✏️ [TYPO RESPONSE] {typo_response}")
-                        
-                        # Return typo correction response with buttons
-                        return {
-                            "response": typo_response,
-                            "model": "OneSeek-7B-Zero.v1.1 (typo-assist)",
-                            "tokens": len(new_tokens),
-                            "latency_ms": int((time.time() - start_time) * 1000),
-                            "typo_correction": {
-                                "detected": True,
-                                "original": original_text,
-                                "corrected": corrected_text,
-                                "suggestions": typo_suggestions,
-                                "show_buttons": True
-                            }
-                        }
                     except Exception as e:
-                        logger.warning(f"Typo response generation failed: {e}")
-                        # Use fallback response on error
-                        typo_response = f"Oj, menar du \"{corrected_text}\"? 😊"
-                        return {
-                            "response": typo_response,
-                            "model": "OneSeek-7B-Zero.v1.1 (typo-fallback)",
-                            "tokens": 0,
-                            "latency_ms": int((time.time() - start_time) * 1000),
-                            "typo_correction": {
-                                "detected": True,
-                                "original": original_text,
-                                "corrected": corrected_text,
-                                "suggestions": typo_suggestions,
-                                "show_buttons": True
-                            }
+                        logger.warning(f"✏️ [TYPO] Model generation failed: {e}")
+                        import random
+                        # Mallar UTAN knappar i texten
+                        typo_response_templates = [
+                            f"Hej! Jag tror du menade \"{corrected_text}\"? 😊\n\nSka jag söka efter det istället?",
+                            f"Oj, menade du \"{corrected_text}\"? 😄\n\nVill du att jag söker på det?",
+                            f"Haha, jag gissar att du ville säga \"{corrected_text}\"? 🤗",
+                        ]
+                        typo_response = random.choice(typo_response_templates)
+                    
+                    logger.info(f"✏️ [TYPO RESPONSE] {typo_response[:80]}...")
+                    
+                    # Return typo correction response with buttons
+                    return {
+                        "response": typo_response,
+                        "model": "OneSeek-7B-Zero.v1.1 (typo-assist)",
+                        "tokens": 0,
+                        "latency_ms": int((time.time() - start_time) * 1000),
+                        "typo_correction": {
+                            "detected": True,
+                            "original": original_text,
+                            "corrected": corrected_text,
+                            "suggestions": typo_suggestions,
+                            "show_buttons": True
                         }
+                    }
         except Exception as e:
             logger.debug(f"Typo check failed: {e}")
     
@@ -5572,8 +5715,11 @@ Svara på svenska. Max 1-2 meningar."""
         weather_data = get_weather(weather_city)
         if weather_data:
             weather_context = weather_data
-            weather_sources = f"\n\n**Källor:**\n1. [SMHI – Väderprognos {weather_city.capitalize()}](https://www.smhi.se)"
+            # Use city-specific URL for SMHI prognosis
+            city_slug = weather_city.capitalize().replace(' ', '%20')
+            weather_sources = f"\n\nKällor:\n1. SMHI – Väderprognos {weather_city.capitalize()} (https://www.smhi.se/vader/prognoser/ortsprognoser/q/{city_slug})"
             logger.info(f"🌤️ Väderdata hämtad för {weather_city}")
+    
     
     # === 3. Check for news question ===
     news_context = None
@@ -5583,15 +5729,15 @@ Svara på svenska. Max 1-2 meningar."""
         news = get_latest_news()
         if news:
             news_context = format_news_for_context(news)
-            # Build news sources
+            # Build news sources - clean format with actual URLs
             news_source_list = []
             for i, item in enumerate(news[:3], 1):
                 title = item.get('title', 'Artikel')[:40]
                 link = item.get('link', 'https://www.svt.se')
                 source = item.get('source', 'Nyheter')
-                news_source_list.append(f"{i}. [{source} – {title}]({link})")
+                news_source_list.append(f"{i}. {source} – {title} ({link})")
             if news_source_list:
-                news_sources = "\n\n**Källor:**\n" + "\n".join(news_source_list)
+                news_sources = "\n\nKällor:\n" + "\n".join(news_source_list)
             logger.info(f"✓ {len(news)} nyheter hämtade")
     
     # === 4. Check for Open Data API triggers ===
@@ -5630,10 +5776,14 @@ Svara på svenska. Max 1-2 meningar."""
         open_data_result = fetch_open_data(triggered_api, request.text)
         if open_data_result:
             open_data_context = open_data_result
-            # Build source link for Open Data API
+            # Build source link for Open Data API - use base_url as primary, url as fallback
             api_name = triggered_api.get('name', 'Öppen Data')
-            api_url = triggered_api.get('url', 'https://www.dataportal.se')
-            open_data_sources = f"\n\n**Källor:**\n1. [{api_name}]({api_url})"
+            api_base_url = triggered_api.get('base_url', triggered_api.get('url', ''))
+            # Clean the URL to show the main website (remove /api paths)
+            api_website = api_base_url.replace('/api/3/action', '').replace('/api', '').replace('/v1', '').replace('/v2', '').replace('/v3', '').rstrip('/')
+            if not api_website:
+                api_website = 'https://www.dataportal.se'
+            open_data_sources = f"\n\nKällor:\n1. {api_name} ({api_website})"
             logger.info(f"✓ Data från {triggered_api.get('name')} mottagen")
     
     # === 5. Check for Tavily search trigger ===
@@ -6000,9 +6150,12 @@ Svara på svenska. Max 1-2 meningar."""
             # Clean response using utility function
             response_text = clean_inference_response(response_text, full_input, request.text)
             
+            # Remove internal debug tags from response
+            response_text = clean_internal_tags(response_text)
+            
             # === APPEND SOURCES TO RESPONSE ===
             # Only add sources if they don't already exist in response
-            if "**Källor:**" not in response_text:
+            if "Källor:" not in response_text and "**Källor:**" not in response_text:
                 # Prioritize sources in order of specificity
                 if open_data_sources:
                     response_text += open_data_sources

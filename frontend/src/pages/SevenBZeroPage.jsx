@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { formatAIResponse } from '../utils/formatMarkdown';
+import { formatAIResponse, formatMarkdown } from '../utils/formatMarkdown';
 
 /**
  * 7B-Zero Page - Integrated OQI Interface
@@ -265,19 +265,25 @@ export default function SevenBZeroPage() {
   // === ONESEEK Δ+ TYPO CORRECTION BUTTON HANDLERS ===
   // Accept typo correction from AI response - send corrected question directly
   const acceptTypoCorrection = async (messageId, correctedText) => {
-    // Remove the typo message
-    setMessages(prev => prev.filter(msg => msg.id !== messageId));
+    // Find the AI typo message to get the original user message info
+    const typoMsg = messages.find(m => m.id === messageId);
+    const originalUserText = typoMsg?.typoCorrection?.original || '';
     
-    // Add user message with corrected text
-    const userMessage = {
-      id: generateMessageId(),
-      type: 'user',
-      text: correctedText,
-      timestamp: new Date().toISOString(),
-    };
-    setMessages(prev => [...prev, userMessage]);
+    // Remove BOTH the typo AI message AND the original user message
+    // Replace original user message with corrected version
+    setMessages(prev => {
+      // Filter out the AI typo message
+      const filtered = prev.filter(msg => msg.id !== messageId);
+      // Update the original user message text to the corrected text
+      return filtered.map(msg => {
+        if (msg.type === 'user' && msg.text === originalUserText) {
+          return { ...msg, text: correctedText };
+        }
+        return msg;
+      });
+    });
     
-    // Add placeholder AI message
+    // Add placeholder AI message for the response
     const aiMessageId = generateMessageId();
     const aiMessage = {
       id: aiMessageId,
@@ -1295,12 +1301,7 @@ export default function SevenBZeroPage() {
                         : (whiteMode ? 'text-[#333]' : 'text-[#c0c0c0]')
                     }`}
                       dangerouslySetInnerHTML={{ 
-                        __html: convertEmojis(msg.isTyping ? currentTypingText : msg.text)
-                          .replace(/\n\n/g, '</p><p class="mt-4">')
-                          .replace(/\n/g, '<br/>')
-                          .replace(/\*\*([^*]+)\*\*/g, '<strong class="font-semibold">$1</strong>')
-                          .replace(/---/g, '<hr class="my-4 border-t border-gray-600"/>')
-                          .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:underline">$1</a>')
+                        __html: formatMarkdown(convertEmojis(msg.isTyping ? currentTypingText : msg.text))
                       }}
                     />
                   )}

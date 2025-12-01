@@ -1,0 +1,38 @@
+{
+  "server": {
+    "host": "localhost",
+    "port": 8010,
+    "timeout": 5,
+    "retry_count": 2,
+    "retry_delay": 0.5
+  },
+  "defaults": {
+    "language": "sv",
+    "enabled_only": false,
+    "level": "default"
+  },
+  "categories": {
+    "enabled": [
+      "TYPOS",
+      "GRAMMAR",
+      "PUNCTUATION",
+      "TYPOGRAPHY"
+    ],
+    "disabled": [
+      "STYLE"
+    ]
+  },
+  "whitelist": {
+    "words": [
+      "OneSeek",
+      "ONESEEK",
+      "Δ+",
+      "AI"
+    ],
+    "patterns": []
+  },
+  "fallback": {
+    "enabled": true,
+    "use_local_dictionary": true
+  }
+}

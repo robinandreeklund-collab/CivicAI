@@ -472,6 +472,160 @@
     addTypo(typo, correction) {
       COMMON_TYPOS[typo.toLowerCase()] = correction.toLowerCase();
     }
+
+    /**
+     * ONESEEK Δ+ LanguageTool Self-Hosted: Skapa knappar för stavfelkorrigering
+     * Visar AI:s svar med tre valknappar enligt specifikation
+     * 
+     * @param {Object} typoData - Typo correction data från backend
+     * @param {Function} onCorrect - Callback när användaren väljer "Ja, korrigera"
+     * @param {Function} onKeep - Callback när användaren väljer "Nej, skicka som det är"
+     * @param {Function} onEdit - Callback när användaren väljer "Skriv själv"
+     * @returns {HTMLElement} Container med AI-svar och knappar
+     */
+    createTypoCorrectionUI(typoData, onCorrect, onKeep, onEdit) {
+      const container = document.createElement('div');
+      container.className = 'typo-correction-container';
+      container.style.cssText = `
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 12px;
+        padding: 16px;
+        margin: 8px 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      `;
+
+      // AI-svar (visas ovanför knapparna)
+      const responseDiv = document.createElement('div');
+      responseDiv.className = 'typo-ai-response';
+      responseDiv.style.cssText = `
+        font-size: 15px;
+        color: #333;
+        margin-bottom: 12px;
+        line-height: 1.5;
+      `;
+      
+      // Generera AI-liknande svar
+      const responses = [
+        `Haha, jag tror du menade "${typoData.corrected}"? 😄`,
+        `Oj, kanske "${typoData.corrected}"? 😊`,
+        `Jag gissar att du ville säga "${typoData.corrected}" – stämmer det?`,
+        `Tror du menade "${typoData.corrected}"? 🤔`,
+        `Haha, "${typoData.corrected}" låter mer rätt! 😄`
+      ];
+      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+      responseDiv.textContent = randomResponse;
+      container.appendChild(responseDiv);
+
+      // Knappar-container
+      const buttonContainer = document.createElement('div');
+      buttonContainer.className = 'typo-buttons';
+      buttonContainer.style.cssText = `
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      `;
+
+      // Knapp: Ja, korrigera
+      const correctBtn = this._createButton('✅ Ja, korrigera', '#34a853', () => {
+        if (onCorrect) onCorrect(typoData.corrected);
+        container.remove();
+      });
+      buttonContainer.appendChild(correctBtn);
+
+      // Knapp: Nej, skicka som det är
+      const keepBtn = this._createButton('❌ Nej, skicka som det är', '#666', () => {
+        if (onKeep) onKeep(typoData.original);
+        container.remove();
+      });
+      buttonContainer.appendChild(keepBtn);
+
+      // Knapp: Skriv själv
+      const editBtn = this._createButton('✏️ Skriv själv', '#1a73e8', () => {
+        if (onEdit) onEdit();
+        container.remove();
+      });
+      buttonContainer.appendChild(editBtn);
+
+      container.appendChild(buttonContainer);
+      return container;
+    }
+
+    /**
+     * Hjälpfunktion för att skapa styled knappar
+     */
+    _createButton(text, bgColor, onClick) {
+      const btn = document.createElement('button');
+      btn.textContent = text;
+      btn.style.cssText = `
+        padding: 8px 16px;
+        border: none;
+        border-radius: 20px;
+        background-color: ${bgColor};
+        color: white;
+        font-size: 14px;
+        cursor: pointer;
+        transition: transform 0.1s, box-shadow 0.1s;
+      `;
+      btn.addEventListener('mouseenter', () => {
+        btn.style.transform = 'scale(1.02)';
+        btn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.transform = 'scale(1)';
+        btn.style.boxShadow = 'none';
+      });
+      btn.addEventListener('click', onClick);
+      return btn;
+    }
+
+    /**
+     * ONESEEK Δ+ LanguageTool: Hantera typo-svar från backend
+     * Visar AI:s svar + knappar och hanterar användarens val
+     * 
+     * @param {Object} response - Backend response med typo_correction data
+     * @param {HTMLElement} messageContainer - Element att visa korrigerings-UI i
+     * @param {Function} onSend - Callback för att skicka korrigerat meddelande
+     */
+    handleTypoResponse(response, messageContainer, onSend) {
+      if (!response.typo_correction || !response.typo_correction.detected) {
+        return false;
+      }
+
+      const typoData = response.typo_correction;
+
+      // Skapa AI-svar element
+      const aiResponseDiv = document.createElement('div');
+      aiResponseDiv.className = 'oneseek-message ai-message';
+      aiResponseDiv.innerHTML = `
+        <div class="message-content">${response.response || ''}</div>
+      `;
+      messageContainer.appendChild(aiResponseDiv);
+
+      // Skapa knappar
+      const correctionUI = this.createTypoCorrectionUI(
+        typoData,
+        (corrected) => {
+          // Användaren valde "Ja, korrigera"
+          onSend(corrected, true); // true = skip typo check
+        },
+        (original) => {
+          // Användaren valde "Nej, skicka som det är"
+          onSend(original, true); // true = skip typo check
+        },
+        () => {
+          // Användaren valde "Skriv själv"
+          // Fokusera input-fältet
+          const input = document.querySelector('.chat-input, #chat-input, input[type="text"]');
+          if (input) {
+            input.focus();
+            input.value = typoData.original;
+          }
+        }
+      );
+
+      messageContainer.appendChild(correctionUI);
+      return true;
+    }
   }
 
   // Exportera
