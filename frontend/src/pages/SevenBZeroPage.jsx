@@ -157,6 +157,10 @@ export default function SevenBZeroPage() {
   const [responseStartTime, setResponseStartTime] = useState(null);
   const [currentResponseTime, setCurrentResponseTime] = useState(0);
   
+  // ONESEEK Δ+ Typo suggestion state
+  const [typoSuggestion, setTypoSuggestion] = useState(null);
+  const typoCheckTimeoutRef = useRef(null);
+  
   // Character/Persona state
   const [selectedPersona, setSelectedPersona] = useState('oneseek-medveten');
   const [characterData, setCharacterData] = useState(null);
@@ -176,6 +180,87 @@ export default function SevenBZeroPage() {
   const chatScrollRef = useRef(null);
   const messagesEndRef = useRef(null);
   const messageRefs = useRef({});
+
+  // === ONESEEK Δ+ TYPO CHECKING ===
+  // Common Swedish typos (frontend-side for instant suggestions)
+  const COMMON_TYPOS = {
+    'invåndare': 'invånare',
+    'innvånare': 'invånare',
+    'invonare': 'invånare',
+    'invnare': 'invånare',
+    'beflkning': 'befolkning',
+    'befolking': 'befolkning',
+    'väddret': 'vädret',
+    'stockhlom': 'stockholm',
+    'stokholm': 'stockholm',
+    'götborg': 'göteborg',
+    'malmø': 'malmö',
+    'uppsal': 'uppsala',
+    'nhyeter': 'nyheter',
+    'temprratur': 'temperatur',
+    'igar': 'igår',
+    'imorrn': 'imorgon',
+    'imorron': 'imorgon',
+  };
+
+  // Friendly AI responses for typo suggestions
+  const TYPO_RESPONSES = [
+    (original, suggestion) => `Menade du "${suggestion}"? 😊`,
+    (original, suggestion) => `Tänkte du på "${suggestion}"?`,
+    (original, suggestion) => `Jag gissar att du menade "${suggestion}" – stämmer det?`,
+    (original, suggestion) => `Kanske "${suggestion}"? 🤔`,
+    (original, suggestion) => `Är det "${suggestion}" du söker?`,
+  ];
+
+  // Check for typos in text and return suggestion if found
+  const checkForTypos = (text) => {
+    const words = text.toLowerCase().split(/\s+/);
+    for (const word of words) {
+      const cleanWord = word.replace(/[.,!?;:'"()]/g, '');
+      if (COMMON_TYPOS[cleanWord]) {
+        const original = cleanWord;
+        const suggestion = COMMON_TYPOS[cleanWord];
+        const responseIndex = original.length % TYPO_RESPONSES.length;
+        return {
+          original,
+          suggestion,
+          message: TYPO_RESPONSES[responseIndex](original, suggestion),
+          correctedText: text.replace(new RegExp(original, 'gi'), suggestion),
+        };
+      }
+    }
+    return null;
+  };
+
+  // Handle input change with typo checking
+  const handleInputChange = (e) => {
+    const newValue = e.target.value;
+    setMessageInput(newValue);
+    
+    // Clear previous timeout
+    if (typoCheckTimeoutRef.current) {
+      clearTimeout(typoCheckTimeoutRef.current);
+    }
+    
+    // Debounce typo check (500ms after user stops typing)
+    typoCheckTimeoutRef.current = setTimeout(() => {
+      const suggestion = checkForTypos(newValue);
+      setTypoSuggestion(suggestion);
+    }, 500);
+  };
+
+  // Accept typo suggestion
+  const acceptTypoSuggestion = () => {
+    if (typoSuggestion) {
+      setMessageInput(typoSuggestion.correctedText);
+      setTypoSuggestion(null);
+    }
+  };
+
+  // Dismiss typo suggestion
+  const dismissTypoSuggestion = () => {
+    setTypoSuggestion(null);
+  };
 
   // Metrics (static for now)
   const metrics = { 
@@ -1165,6 +1250,44 @@ export default function SevenBZeroPage() {
               ))}
             </div>
 
+            {/* ONESEEK Δ+ Typo Suggestion */}
+            {typoSuggestion && (
+              <div className={`mb-3 px-4 py-3 rounded-xl flex items-center justify-between transition-all duration-300 ${
+                whiteMode 
+                  ? 'bg-amber-50 border border-amber-200 text-amber-800'
+                  : 'bg-amber-900/30 border border-amber-700/50 text-amber-200'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">✏️</span>
+                  <span className="text-sm">{typoSuggestion.message}</span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={acceptTypoSuggestion}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                      whiteMode
+                        ? 'bg-amber-600 text-white hover:bg-amber-700'
+                        : 'bg-amber-600 text-white hover:bg-amber-500'
+                    }`}
+                  >
+                    Ja ✓
+                  </button>
+                  <button
+                    type="button"
+                    onClick={dismissTypoSuggestion}
+                    className={`px-3 py-1 rounded-lg text-xs transition-all ${
+                      whiteMode
+                        ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    Nej
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Input Field */}
             <form onSubmit={handleSubmit} className="relative">
               <label htmlFor="chat-input" className="sr-only">Ställ en fråga</label>
@@ -1172,7 +1295,7 @@ export default function SevenBZeroPage() {
                 id="chat-input"
                 type="text"
                 value={messageInput}
-                onChange={(e) => setMessageInput(e.target.value)}
+                onChange={handleInputChange}
                 placeholder={`Ställ en fråga till ${characterData?.name || 'OneSeek'}...`}
                 disabled={isTyping}
                 aria-label={`Ställ en fråga till ${characterData?.name || 'OneSeek'}`}
