@@ -4631,8 +4631,12 @@ async def detect_topic(request: dict):
         return {"error": str(e)}
 
 
+class IntentDebugRequest(BaseModel):
+    """Request model for Intent Engine debug endpoint."""
+    question: str = ""
+
 @app.post("/api/intent/debug")
-async def debug_intent(request: dict):
+async def debug_intent(request: IntentDebugRequest):
     """
     ONESEEK Δ+ DEBUG: Test Intent Engine directly from terminal/curl.
     
@@ -4641,11 +4645,15 @@ async def debug_intent(request: dict):
              -H "Content-Type: application/json" \
              -d '{"question": "Hur många bor i Hjo?"}'
     
+    PowerShell:
+        $body = @{question="Hur många bor i Hjo?"} | ConvertTo-Json
+        Invoke-RestMethod -Uri "http://localhost:5000/api/intent/debug" -Method POST -Body $body -ContentType "application/json"
+    
     Returns detailed debug info about intent detection.
     """
     from datetime import datetime
     
-    question = request.get("question", "").strip()
+    question = request.question.strip()
     if not question:
         return {"error": "No question provided", "usage": "POST with {\"question\": \"your question here\"}"}
     
