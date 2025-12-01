@@ -252,6 +252,20 @@ class TypoDoubleCheck:
             "vväder": "väder",
         }
     
+    # Absolut whitelist - dessa ord ska ALDRIG korrigeras oavsett vad
+    WHITELIST = {
+        # Ultra-vanliga ord som ofta matchas felaktigt
+        "bor", "i", "och", "att", "det", "med", "på", "för", "av", "en", "ett",
+        "är", "var", "har", "hur", "vad", "när", "var", "vem", "den", "de", "du",
+        "han", "hon", "vi", "ni", "jag", "sig", "sin", "som", "om", "till", "kan",
+        "ska", "vill", "får", "ser", "vet", "gör", "går", "kom", "säg", "ta", "ge",
+        "ha", "nu", "så", "än", "ut", "in", "upp", "ner", "hit", "dit", "hem",
+        # Frågeord
+        "hur", "många", "mycket", "vad", "vilken", "vilket", "vilka",
+        # Svenska platser (versaler eller ej)
+        "hjo", "stockholm", "göteborg", "malmö", "uppsala", "linköping",
+    }
+    
     def check_word(self, word: str) -> SpellingResult:
         """
         Kontrollera stavning av ett enskilt ord.
@@ -264,7 +278,18 @@ class TypoDoubleCheck:
         """
         word_lower = word.lower()
         
-        # 0. Skippa mycket korta ord (<=2 tecken) - för osäkra
+        # 0a. WHITELIST - dessa ord ska ALDRIG korrigeras
+        if word_lower in self.WHITELIST:
+            return SpellingResult(
+                original=word,
+                corrected=word,
+                is_correct=True,
+                suggestions=[],
+                confidence=1.0,
+                method="whitelist"
+            )
+        
+        # 0b. Skippa mycket korta ord (<=2 tecken) - för osäkra
         if len(word) <= 2:
             return SpellingResult(
                 original=word,
@@ -363,6 +388,21 @@ class TypoDoubleCheck:
         Returns:
             Dict med resultat och korrigeringar
         """
+        text_lower = text.lower()
+        
+        # === KONTEXTBASERAD SKYDD ===
+        # Om texten innehåller vissa mönster, skippa korrigering helt
+        # Detta skyddar mot false positives i vanliga frågor
+        safe_patterns = [
+            "bor i", "invånare i", "befolkning i", "hur många", "hur mycket",
+            "vad är", "var är", "var ligger", "hur är vädret", "väder i",
+            "nyheter i", "nyheter om", "nyheter från",
+        ]
+        
+        # Om frågan matchar ett safe pattern, skippa alla korrigeringar
+        # (förutom uppenbara stavfel i common_typos)
+        skip_fuzzy = any(pattern in text_lower for pattern in safe_patterns)
+        
         # Dela upp i ord (behåll skiljetecken)
         words = re.findall(r'\b\w+\b|\W+', text)
         
@@ -382,6 +422,18 @@ class TypoDoubleCheck:
                 continue
             
             result = self.check_word(word)
+            
+            # Om vi skippar fuzzy matching på grund av kontext,
+            # ignorera fuzzy-resultat (men behåll common_typo-resultat)
+            if skip_fuzzy and result.method == "fuzzy":
+                result = SpellingResult(
+                    original=word,
+                    corrected=word,
+                    is_correct=True,
+                    suggestions=[],
+                    confidence=1.0,
+                    method="context_safe"
+                )
             
             if not result.is_correct:
                 errors_found += 1

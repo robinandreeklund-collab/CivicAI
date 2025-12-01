@@ -4728,6 +4728,9 @@ Svara på svenska. Max 1-2 meningar."""
                         typo_input = f"{typo_system_prompt}\n\nSvara nu:"
                         inputs = tokenizer(typo_input, return_tensors="pt", padding=True)
                         inputs = sync_inputs_to_model_device(inputs, model)
+                        input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
+                        
+                        logger.info(f"✏️ [TYPO] Generating AI response for: {typo_corrections_str}")
                         
                         with torch.no_grad():
                             outputs = model.generate(
@@ -4740,13 +4743,15 @@ Svara på svenska. Max 1-2 meningar."""
                                 pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
                             )
                         
-                        typo_response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-                        # Clean up response - remove the prompt
-                        if "Svara nu:" in typo_response:
-                            typo_response = typo_response.split("Svara nu:")[-1].strip()
+                        # Only decode the NEW tokens (skip input tokens)
+                        new_tokens = outputs[0][input_length:]
+                        typo_response = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+                        
+                        logger.info(f"✏️ [TYPO] Raw AI response: '{typo_response}'")
                         
                         # If response is empty or too long, use fallback
-                        if not typo_response or len(typo_response) > 200:
+                        if not typo_response or len(typo_response) < 5 or len(typo_response) > 200:
+                            logger.info(f"✏️ [TYPO] Using fallback (response length: {len(typo_response) if typo_response else 0})")
                             typo_response = f"Oj, menar du \"{corrected_text}\"? 😊"
                         
                         logger.info(f"✏️ [TYPO RESPONSE] {typo_response}")
@@ -4755,7 +4760,7 @@ Svara på svenska. Max 1-2 meningar."""
                         return InferenceResponse(
                             response=typo_response,
                             model="OneSeek-7B-Zero.v1.1 (typo-assist)",
-                            tokens=len(outputs[0]),
+                            tokens=len(new_tokens),
                             latency_ms=int((time.time() - start_time) * 1000),
                             typo_correction={
                                 "detected": True,
@@ -4767,7 +4772,21 @@ Svara på svenska. Max 1-2 meningar."""
                         )
                     except Exception as e:
                         logger.warning(f"Typo response generation failed: {e}")
-                        # Continue with normal inference if typo response fails
+                        # Use fallback response on error
+                        typo_response = f"Oj, menar du \"{corrected_text}\"? 😊"
+                        return InferenceResponse(
+                            response=typo_response,
+                            model="OneSeek-7B-Zero.v1.1 (typo-fallback)",
+                            tokens=0,
+                            latency_ms=int((time.time() - start_time) * 1000),
+                            typo_correction={
+                                "detected": True,
+                                "original": original_text,
+                                "corrected": corrected_text,
+                                "suggestions": typo_suggestions,
+                                "show_buttons": True
+                            }
+                        )
         except Exception as e:
             logger.debug(f"Typo check failed: {e}")
     
@@ -5133,6 +5152,9 @@ Svara på svenska. Max 1-2 meningar."""
                         typo_input = f"{typo_system_prompt}\n\nSvara nu:"
                         inputs = tokenizer(typo_input, return_tensors="pt", padding=True)
                         inputs = sync_inputs_to_model_device(inputs, model)
+                        input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
+                        
+                        logger.info(f"✏️ [TYPO] Generating AI response for: {typo_corrections_str}")
                         
                         with torch.no_grad():
                             outputs = model.generate(
@@ -5145,13 +5167,15 @@ Svara på svenska. Max 1-2 meningar."""
                                 pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
                             )
                         
-                        typo_response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-                        # Clean up response - remove the prompt
-                        if "Svara nu:" in typo_response:
-                            typo_response = typo_response.split("Svara nu:")[-1].strip()
+                        # Only decode the NEW tokens (skip input tokens)
+                        new_tokens = outputs[0][input_length:]
+                        typo_response = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+                        
+                        logger.info(f"✏️ [TYPO] Raw AI response: '{typo_response}'")
                         
                         # If response is empty or too long, use fallback
-                        if not typo_response or len(typo_response) > 200:
+                        if not typo_response or len(typo_response) < 5 or len(typo_response) > 200:
+                            logger.info(f"✏️ [TYPO] Using fallback (response length: {len(typo_response) if typo_response else 0})")
                             typo_response = f"Oj, menar du \"{corrected_text}\"? 😊"
                         
                         logger.info(f"✏️ [TYPO RESPONSE] {typo_response}")
@@ -5160,7 +5184,7 @@ Svara på svenska. Max 1-2 meningar."""
                         return {
                             "response": typo_response,
                             "model": "OneSeek-7B-Zero.v1.1 (typo-assist)",
-                            "tokens": len(outputs[0]),
+                            "tokens": len(new_tokens),
                             "latency_ms": int((time.time() - start_time) * 1000),
                             "typo_correction": {
                                 "detected": True,
@@ -5172,7 +5196,21 @@ Svara på svenska. Max 1-2 meningar."""
                         }
                     except Exception as e:
                         logger.warning(f"Typo response generation failed: {e}")
-                        # Continue with normal inference if typo response fails
+                        # Use fallback response on error
+                        typo_response = f"Oj, menar du \"{corrected_text}\"? 😊"
+                        return {
+                            "response": typo_response,
+                            "model": "OneSeek-7B-Zero.v1.1 (typo-fallback)",
+                            "tokens": 0,
+                            "latency_ms": int((time.time() - start_time) * 1000),
+                            "typo_correction": {
+                                "detected": True,
+                                "original": original_text,
+                                "corrected": corrected_text,
+                                "suggestions": typo_suggestions,
+                                "show_buttons": True
+                            }
+                        }
         except Exception as e:
             logger.debug(f"Typo check failed: {e}")
     
