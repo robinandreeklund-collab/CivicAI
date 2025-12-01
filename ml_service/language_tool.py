@@ -289,8 +289,10 @@ class LanguageToolClient:
             
             if languages_response.status_code == 200:
                 languages = languages_response.json()
+                # Check both 'longCode' and 'code' fields for Swedish support
                 swedish_supported = any(
-                    lang.get("longCode", "").startswith("sv") 
+                    lang.get("longCode", "").startswith("sv") or 
+                    lang.get("code", "").startswith("sv")
                     for lang in languages
                 )
                 

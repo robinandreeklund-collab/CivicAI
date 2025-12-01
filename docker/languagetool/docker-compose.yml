@@ -14,7 +14,7 @@ services:
       - languagetool_ngrams:/ngrams
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8010/v2/check?language=sv&text=test"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8010/v2/languages || wget -q --spider http://localhost:8010/v2/languages || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
