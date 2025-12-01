@@ -4634,26 +4634,51 @@ async def detect_topic(request: dict):
 class IntentDebugRequest(BaseModel):
     """Request model for Intent Engine debug endpoint."""
     question: str = ""
+    
+    class Config:
+        # Allow extra fields to be ignored
+        extra = "ignore"
+
+@app.get("/api/intent/debug")
+async def debug_intent_get(question: str = ""):
+    """
+    ONESEEK Δ+ DEBUG: Test Intent Engine via GET request (easier for browser/PowerShell).
+    
+    Usage:
+        http://localhost:5000/api/intent/debug?question=Hur%20m%C3%A5nga%20bor%20i%20Hjo%3F
+    
+    PowerShell:
+        Invoke-RestMethod -Uri "http://localhost:5000/api/intent/debug?question=Hur%20manga%20bor%20i%20Hjo" -Method GET
+    """
+    return await _debug_intent_internal(question)
 
 @app.post("/api/intent/debug")
-async def debug_intent(request: IntentDebugRequest):
+async def debug_intent_post(request: IntentDebugRequest):
     """
     ONESEEK Δ+ DEBUG: Test Intent Engine directly from terminal/curl.
     
     Usage:
         curl -X POST http://localhost:5000/api/intent/debug \
              -H "Content-Type: application/json" \
-             -d '{"question": "Hur många bor i Hjo?"}'
+             -d '{"question": "Hur manga bor i Hjo?"}'
     
-    PowerShell:
-        $body = @{question="Hur många bor i Hjo?"} | ConvertTo-Json
-        Invoke-RestMethod -Uri "http://localhost:5000/api/intent/debug" -Method POST -Body $body -ContentType "application/json"
+    PowerShell (without Swedish chars):
+        $body = '{"question": "Hur manga bor i Hjo?"}'
+        Invoke-RestMethod -Uri "http://localhost:5000/api/intent/debug" -Method POST -Body $body -ContentType "application/json; charset=utf-8"
+    
+    PowerShell (with proper encoding):
+        $body = [System.Text.Encoding]::UTF8.GetBytes('{"question": "Hur många bor i Hjo?"}')
+        Invoke-RestMethod -Uri "http://localhost:5000/api/intent/debug" -Method POST -Body $body -ContentType "application/json; charset=utf-8"
     
     Returns detailed debug info about intent detection.
     """
+    return await _debug_intent_internal(request.question)
+
+async def _debug_intent_internal(question: str):
+    """Internal helper for intent debug endpoints."""
     from datetime import datetime
     
-    question = request.question.strip()
+    question = question.strip() if question else ""
     if not question:
         return {"error": "No question provided", "usage": "POST with {\"question\": \"your question here\"}"}
     
