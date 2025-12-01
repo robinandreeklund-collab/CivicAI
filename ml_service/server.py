@@ -277,11 +277,11 @@ def log_inference_debug(
     else:
         print(f"  💾 Cache: ❌ MISS (fresh response)")
     
-    # Delta Hash
+    # Delta Hash (generated post-inference, shown in completion summary)
     if delta_hash:
         print(f"  🔗 Blockchain Hash: ✅ {delta_hash[:16]}...")
     else:
-        print(f"  🔗 Blockchain Hash: ❌ not generated")
+        print(f"  🔗 Blockchain Hash: ⏳ will be generated after inference")
     
     # External APIs
     print(f"  🔍 Tavily Search: {'✅ used' if tavily_used else '❌ not triggered'}")
