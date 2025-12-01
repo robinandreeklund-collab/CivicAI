@@ -5052,24 +5052,78 @@ async def infer(request: Request, inference_request: InferenceRequest):
                     # Uses LanguageTool for context-aware spell checking
                     typo_corrections_str = ", ".join([f"'{s['original']}' → '{s['suggestion']}'" for s in typo_suggestions])
                     
-                    # VIKTIGT: Välj en slumpmässig AI-personlig respons från mallarna
-                    # Detta garanterar variation och en varm, svensk ton
-                    import random
-                    typo_response_templates = [
-                        f"Haha, jag tror du menade \"{corrected_text}\"? 😄",
-                        f"Oj, kanske \"{corrected_text}\"? 😊",
-                        f"Jag gissar att du ville säga \"{corrected_text}\" – stämmer det?",
-                        f"Tror du menade \"{corrected_text}\"? 🤔",
-                        f"Haha, \"{corrected_text}\" låter mer rätt! 😄",
-                        f"Hmm, menade du \"{corrected_text}\"? 🤗",
-                        f"Oj oj, ska det vara \"{corrected_text}\"? 😊",
-                    ]
-                    
-                    # Välj en slumpmässig respons
-                    typo_response = random.choice(typo_response_templates)
-                    
                     logger.info(f"✏️ [TYPO] Generating response for: {typo_corrections_str}")
-                    logger.info(f"✏️ [TYPO RESPONSE] {typo_response}")
+                    
+                    # VIKTIGT: Ge modellen en tydlig prompt med exakt format att följa
+                    typo_prompt = f"""
+Du är OneSeek-7B-Zero – en varm svensk kompis.
+
+Användaren skrev: "{original_text}"
+LanguageTool föreslår: "{corrected_text}"
+
+Svara EXAKT så här (kopiera strukturen, men variera tonen):
+
+"Hej! Jag tror du menade \"{corrected_text}\"? 😊  
+Ska jag söka efter det istället?
+
+[ Ja, korrigera ]    [ Nej, skicka som det är ]"
+
+Gör det personligt och vänligt – men behåll exakt formatet med knapparna i slutet.
+Svara NU.
+"""
+                    
+                    # Försök generera via modellen
+                    try:
+                        model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
+                        typo_messages = [
+                            {"role": "system", "content": "Du är OneSeek-7B-Zero och pratar alltid svenska."},
+                            {"role": "user", "content": typo_prompt}
+                        ]
+                        
+                        # Formatera input för modellen
+                        typo_input = f"{typo_messages[0]['content']}\n\nAnvändare: {typo_messages[1]['content']}\n\nOneSeek:"
+                        inputs = tokenizer(typo_input, return_tensors="pt", padding=True)
+                        inputs = sync_inputs_to_model_device(inputs, model)
+                        input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
+                        
+                        with torch.no_grad():
+                            outputs = model.generate(
+                                input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
+                                attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
+                                max_new_tokens=150,
+                                temperature=0.8,
+                                top_p=0.9,
+                                do_sample=True,
+                                pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
+                            )
+                        
+                        new_tokens = outputs[0][input_length:]
+                        typo_response = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+                        
+                        logger.info(f"✏️ [TYPO] Raw AI response: '{typo_response[:100]}...'")
+                        
+                        # Fallback om svaret är tomt eller saknar knappar
+                        if not typo_response or len(typo_response) < 10 or "[ Ja, korrigera ]" not in typo_response:
+                            logger.info(f"✏️ [TYPO] Using fallback (missing buttons or empty)")
+                            import random
+                            typo_response_templates = [
+                                f"Hej! Jag tror du menade \"{corrected_text}\"? 😊\n\nSka jag söka efter det istället?\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
+                                f"Oj, menade du \"{corrected_text}\"? 😄\n\nVill du att jag söker på det?\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
+                                f"Haha, jag gissar att du ville säga \"{corrected_text}\"? 🤗\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
+                            ]
+                            typo_response = random.choice(typo_response_templates)
+                        
+                    except Exception as e:
+                        logger.warning(f"✏️ [TYPO] Model generation failed: {e}")
+                        import random
+                        typo_response_templates = [
+                            f"Hej! Jag tror du menade \"{corrected_text}\"? 😊\n\nSka jag söka efter det istället?\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
+                            f"Oj, menade du \"{corrected_text}\"? 😄\n\nVill du att jag söker på det?\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
+                            f"Haha, jag gissar att du ville säga \"{corrected_text}\"? 🤗\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
+                        ]
+                        typo_response = random.choice(typo_response_templates)
+                    
+                    logger.info(f"✏️ [TYPO RESPONSE] {typo_response[:80]}...")
                     
                     # Return typo correction response with buttons
                     return InferenceResponse(
@@ -5485,24 +5539,78 @@ async def oneseek_inference(request: InferenceRequest):
                     # Uses LanguageTool for context-aware spell checking
                     typo_corrections_str = ", ".join([f"'{s['original']}' → '{s['suggestion']}'" for s in typo_suggestions])
                     
-                    # VIKTIGT: Välj en slumpmässig AI-personlig respons från mallarna
-                    # Detta garanterar variation och en varm, svensk ton
-                    import random
-                    typo_response_templates = [
-                        f"Haha, jag tror du menade \"{corrected_text}\"? 😄",
-                        f"Oj, kanske \"{corrected_text}\"? 😊",
-                        f"Jag gissar att du ville säga \"{corrected_text}\" – stämmer det?",
-                        f"Tror du menade \"{corrected_text}\"? 🤔",
-                        f"Haha, \"{corrected_text}\" låter mer rätt! 😄",
-                        f"Hmm, menade du \"{corrected_text}\"? 🤗",
-                        f"Oj oj, ska det vara \"{corrected_text}\"? 😊",
-                    ]
-                    
-                    # Välj en slumpmässig respons
-                    typo_response = random.choice(typo_response_templates)
-                    
                     logger.info(f"✏️ [TYPO] Generating response for: {typo_corrections_str}")
-                    logger.info(f"✏️ [TYPO RESPONSE] {typo_response}")
+                    
+                    # VIKTIGT: Ge modellen en tydlig prompt med exakt format att följa
+                    typo_prompt = f"""
+Du är OneSeek-7B-Zero – en varm svensk kompis.
+
+Användaren skrev: "{original_text}"
+LanguageTool föreslår: "{corrected_text}"
+
+Svara EXAKT så här (kopiera strukturen, men variera tonen):
+
+"Hej! Jag tror du menade \"{corrected_text}\"? 😊  
+Ska jag söka efter det istället?
+
+[ Ja, korrigera ]    [ Nej, skicka som det är ]"
+
+Gör det personligt och vänligt – men behåll exakt formatet med knapparna i slutet.
+Svara NU.
+"""
+                    
+                    # Försök generera via modellen
+                    try:
+                        model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
+                        typo_messages = [
+                            {"role": "system", "content": "Du är OneSeek-7B-Zero och pratar alltid svenska."},
+                            {"role": "user", "content": typo_prompt}
+                        ]
+                        
+                        # Formatera input för modellen
+                        typo_input = f"{typo_messages[0]['content']}\n\nAnvändare: {typo_messages[1]['content']}\n\nOneSeek:"
+                        inputs = tokenizer(typo_input, return_tensors="pt", padding=True)
+                        inputs = sync_inputs_to_model_device(inputs, model)
+                        input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
+                        
+                        with torch.no_grad():
+                            outputs = model.generate(
+                                input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
+                                attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
+                                max_new_tokens=150,
+                                temperature=0.8,
+                                top_p=0.9,
+                                do_sample=True,
+                                pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
+                            )
+                        
+                        new_tokens = outputs[0][input_length:]
+                        typo_response = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+                        
+                        logger.info(f"✏️ [TYPO] Raw AI response: '{typo_response[:100]}...'")
+                        
+                        # Fallback om svaret är tomt eller saknar knappar
+                        if not typo_response or len(typo_response) < 10 or "[ Ja, korrigera ]" not in typo_response:
+                            logger.info(f"✏️ [TYPO] Using fallback (missing buttons or empty)")
+                            import random
+                            typo_response_templates = [
+                                f"Hej! Jag tror du menade \"{corrected_text}\"? 😊\n\nSka jag söka efter det istället?\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
+                                f"Oj, menade du \"{corrected_text}\"? 😄\n\nVill du att jag söker på det?\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
+                                f"Haha, jag gissar att du ville säga \"{corrected_text}\"? 🤗\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
+                            ]
+                            typo_response = random.choice(typo_response_templates)
+                        
+                    except Exception as e:
+                        logger.warning(f"✏️ [TYPO] Model generation failed: {e}")
+                        import random
+                        typo_response_templates = [
+                            f"Hej! Jag tror du menade \"{corrected_text}\"? 😊\n\nSka jag söka efter det istället?\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
+                            f"Oj, menade du \"{corrected_text}\"? 😄\n\nVill du att jag söker på det?\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
+                            f"Haha, jag gissar att du ville säga \"{corrected_text}\"? 🤗\n\n[ Ja, korrigera ]    [ Nej, skicka som det är ]",
+                        ]
+                        typo_response = random.choice(typo_response_templates)
+                    
+                    logger.info(f"✏️ [TYPO RESPONSE] {typo_response[:80]}...")
                     
                     # Return typo correction response with buttons
                     return {
@@ -5538,6 +5646,7 @@ async def oneseek_inference(request: InferenceRequest):
             weather_context = weather_data
             weather_sources = f"\n\n**Källor:**\n1. [SMHI – Väderprognos {weather_city.capitalize()}](https://www.smhi.se)"
             logger.info(f"🌤️ Väderdata hämtad för {weather_city}")
+    
     
     # === 3. Check for news question ===
     news_context = None
