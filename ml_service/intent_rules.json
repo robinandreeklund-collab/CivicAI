@@ -1,7 +1,7 @@
 {
   "intents": {
     "befolkning": {
-      "keywords": ["hur många", "invånare", "folkmängd", "antal människor", "befolkning", "bor i", "bor det i", "invånarantal", "population", "hur många bor"],
+      "keywords": ["hur många", "invånare", "invanare", "folkmängd", "folkmaengd", "folkmaengden", "antal människor", "antal manniskor", "befolkning", "bor i", "bor det i", "invånarantal", "population", "hur många bor", "hur manga", "personer bor", "antal invanare"],
       "entities": ["LOC", "GPE"],
       "api": "scb_population",
       "weight": 1.5,
