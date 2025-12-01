@@ -4668,6 +4668,33 @@ async def infer(request: Request, inference_request: InferenceRequest):
     """
     start_time = time.time()
     
+    # === ONESEEK Δ+: TYPO CHECKING ===
+    typo_corrected = False
+    typo_suggestions = []
+    original_text = inference_request.text
+    
+    if TYPO_CHECKER_AVAILABLE and check_spelling:
+        try:
+            typo_result = check_spelling(inference_request.text, auto_correct=False)
+            if not typo_result.get("is_correct", True):
+                typo_suggestions = [
+                    {
+                        "original": wr.get("original"),
+                        "suggestion": wr.get("corrected"),
+                        "confidence": wr.get("confidence", 0)
+                    }
+                    for wr in typo_result.get("word_results", [])
+                    if not wr.get("is_correct", True) and wr.get("confidence", 0) > 0.6
+                ]
+                
+                if typo_suggestions:
+                    typo_corrected = True
+                    # Log the corrections
+                    for suggestion in typo_suggestions:
+                        logger.info(f"✏️ [TYPO] Detected: '{suggestion['original']}' → '{suggestion['suggestion']}' (conf: {suggestion['confidence']:.2f})")
+        except Exception as e:
+            logger.debug(f"Typo check failed: {e}")
+    
     # Check for Force-Svenska triggers
     force_svenska_active = check_force_svenska(inference_request.text)
     
@@ -4797,7 +4824,7 @@ async def infer(request: Request, inference_request: InferenceRequest):
         intent_data=intent_data,
         topic_hash=topic_hash,
         memory_count=memory_count,
-        typo_corrected=False,  # Will be set when typo checker is integrated
+        typo_corrected=typo_corrected,  # Now properly set from typo checker
         confidence_score=None,  # Will be calculated post-inference
         cache_hit=False,  # Will be set when cache is checked
         delta_hash=None,  # Will be set post-inference
@@ -4976,6 +5003,33 @@ async def oneseek_inference(request: InferenceRequest):
     import time
     start_time = time.time()
     
+    # === ONESEEK Δ+: TYPO CHECKING ===
+    typo_corrected = False
+    typo_suggestions = []
+    original_text = request.text
+    
+    if TYPO_CHECKER_AVAILABLE and check_spelling:
+        try:
+            typo_result = check_spelling(request.text, auto_correct=False)
+            if not typo_result.get("is_correct", True):
+                typo_suggestions = [
+                    {
+                        "original": wr.get("original"),
+                        "suggestion": wr.get("corrected"),
+                        "confidence": wr.get("confidence", 0)
+                    }
+                    for wr in typo_result.get("word_results", [])
+                    if not wr.get("is_correct", True) and wr.get("confidence", 0) > 0.6
+                ]
+                
+                if typo_suggestions:
+                    typo_corrected = True
+                    # Log the corrections
+                    for suggestion in typo_suggestions:
+                        logger.info(f"✏️ [TYPO] Detected: '{suggestion['original']}' → '{suggestion['suggestion']}' (conf: {suggestion['confidence']:.2f})")
+        except Exception as e:
+            logger.debug(f"Typo check failed: {e}")
+    
     # Check for Force-Svenska triggers
     force_svenska_active = check_force_svenska(request.text)
     
@@ -5123,7 +5177,7 @@ async def oneseek_inference(request: InferenceRequest):
         intent_data=intent_data,
         topic_hash=topic_hash,
         memory_count=memory_count,
-        typo_corrected=False,  # Will be set when typo checker is integrated
+        typo_corrected=typo_corrected,  # Now properly set from typo checker
         confidence_score=None,  # Will be calculated post-inference
         cache_hit=False,  # Will be set when cache is checked
         delta_hash=None,  # Will be set post-inference

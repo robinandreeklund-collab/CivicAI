@@ -207,6 +207,10 @@ class TypoDoubleCheck:
             "nhyeter": "nyheter",
             "temprratur": "temperatur",
             "invnare": "invånare",
+            "invåndare": "invånare",  # Common typo: ån → ånd
+            "innvånare": "invånare",
+            "invonare": "invånare",
+            "befolking": "befolkning",
             
             # Fonetiska fel
             "igår": "igår",  # Korrekt
