@@ -56,11 +56,11 @@ import requests  # For Tavily API and SMHI weather
 # =============================================================================
 # Intent Engine, Typo Checker, Confidence Calculator, Delta Compare, Cache Manager, Memory Manager
 try:
-    from .intent_engine import get_intent_engine, process_user_input, generate_topic_hash, detect_intent_and_city
+    from .intent_engine import get_intent_engine, process_user_input, generate_topic_hash, detect_intent_and_city, get_spacy_info
     INTENT_ENGINE_AVAILABLE = True
 except ImportError:
     try:
-        from intent_engine import get_intent_engine, process_user_input, generate_topic_hash, detect_intent_and_city
+        from intent_engine import get_intent_engine, process_user_input, generate_topic_hash, detect_intent_and_city, get_spacy_info
         INTENT_ENGINE_AVAILABLE = True
     except ImportError:
         INTENT_ENGINE_AVAILABLE = False
@@ -68,6 +68,7 @@ except ImportError:
         process_user_input = None
         generate_topic_hash = None
         detect_intent_and_city = None
+        get_spacy_info = None
 
 # Memory Manager for topic-based conversation history
 try:
@@ -207,7 +208,8 @@ def log_inference_debug(
     weather_city: str = None,
     news_used: bool = False,
     open_data_api: str = None,
-    force_svenska: bool = False
+    force_svenska: bool = False,
+    spacy_info: dict = None
 ):
     """
     ONESEEK Δ+ DEBUG: Log detailed inference debug info to terminal.
@@ -218,6 +220,20 @@ def log_inference_debug(
     print("-" * 60)
     print(f"  📝 Input: {text[:80]}{'...' if len(text) > 80 else ''}")
     print(f"  🇸🇪 Force-Svenska: {'✅ ACTIVE' if force_svenska else '❌ inactive'}")
+    
+    # spaCy Information
+    if spacy_info:
+        spacy_model = spacy_info.get("model", "unknown")
+        spacy_active = spacy_info.get("active", False)
+        ner_entities = spacy_info.get("ner_entities", [])
+        if spacy_active:
+            print(f"  🧪 spaCy NLP: ✅ {spacy_model}")
+            if ner_entities:
+                print(f"     └─ NER Entities: {ner_entities}")
+        else:
+            print(f"  🧪 spaCy NLP: ❌ not active (using rule-based)")
+    else:
+        print(f"  🧪 spaCy NLP: ℹ️  checking...")
     
     # Intent Engine
     if intent_data:
@@ -4940,6 +4956,14 @@ Svara på svenska. Max 1-2 meningar."""
         context_prefix = "\n".join(context_parts) + "\n\n"
         full_input = context_prefix + full_input
     
+    # === ONESEEK Δ+ DEBUG: Get spaCy info for debugging ===
+    spacy_info = None
+    if INTENT_ENGINE_AVAILABLE and get_spacy_info:
+        try:
+            spacy_info = get_spacy_info(inference_request.text)
+        except Exception as e:
+            logger.warning(f"Could not get spaCy info: {e}")
+    
     # === ONESEEK Δ+ DEBUG: Log detailed inference info to terminal ===
     memory_count = len(previous_messages) if 'previous_messages' in dir() and previous_messages else 0
     log_inference_debug(
@@ -4955,7 +4979,8 @@ Svara på svenska. Max 1-2 meningar."""
         weather_city=weather_city if weather_context else None,
         news_used=news_context is not None,
         open_data_api=triggered_api.get("name") if triggered_api else None,
-        force_svenska=force_svenska_active
+        force_svenska=force_svenska_active,
+        spacy_info=spacy_info
     )
     
     try:
@@ -5456,6 +5481,14 @@ Svara på svenska. Max 1-2 meningar."""
         except Exception as e:
             logger.debug(f"Confidence calculation failed: {e}")
     
+    # === ONESEEK Δ+ DEBUG: Get spaCy info for debugging ===
+    spacy_info = None
+    if INTENT_ENGINE_AVAILABLE and get_spacy_info:
+        try:
+            spacy_info = get_spacy_info(request.text)
+        except Exception as e:
+            logger.warning(f"Could not get spaCy info: {e}")
+    
     # === ONESEEK Δ+: CHECK CACHE FOR EXISTING RESPONSE ===
     if cache_hit and cached_response:
         latency_ms = (time.time() - start_time) * 1000
@@ -5475,7 +5508,8 @@ Svara på svenska. Max 1-2 meningar."""
             weather_city=None,
             news_used=False,
             open_data_api=None,
-            force_svenska=force_svenska_active
+            force_svenska=force_svenska_active,
+            spacy_info=spacy_info
         )
         
         return InferenceResponse(
@@ -5501,7 +5535,8 @@ Svara på svenska. Max 1-2 meningar."""
         weather_city=weather_city if weather_context else None,
         news_used=news_context is not None,
         open_data_api=triggered_api.get("name") if triggered_api else None,
-        force_svenska=force_svenska_active
+        force_svenska=force_svenska_active,
+        spacy_info=spacy_info
     )
     
     # === DEBUG: Log inference start ===

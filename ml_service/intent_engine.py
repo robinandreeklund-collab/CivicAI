@@ -727,6 +727,42 @@ class IntentEngine:
             "spacy_model": self.nlp.meta.get("name") if self.nlp else None,
             "version": self.rules.get("metadata", {}).get("version", "unknown")
         }
+    
+    def get_spacy_info(self, text: str = None) -> Dict[str, Any]:
+        """
+        ONESEEK Δ+: Hämta detaljerad spaCy-information för debugging.
+        
+        Args:
+            text: Optional text to analyze and show NER entities
+            
+        Returns:
+            Dict med spaCy-status, modellinfo och NER-resultat
+        """
+        info = {
+            "active": self.nlp is not None,
+            "model": None,
+            "model_version": None,
+            "ner_entities": [],
+            "language": "sv",
+            "pipeline_components": []
+        }
+        
+        if self.nlp:
+            # Hämta modellmetadata
+            meta = self.nlp.meta
+            info["model"] = meta.get("name", "unknown")
+            info["model_version"] = meta.get("version", "unknown")
+            info["pipeline_components"] = list(self.nlp.pipe_names)
+            
+            # Om text skickas, kör NER och visa resultat
+            if text:
+                doc = self.nlp(text)
+                info["ner_entities"] = [
+                    {"text": ent.text, "label": ent.label_}
+                    for ent in doc.ents
+                ]
+        
+        return info
 
 
 # Global instance för enkel åtkomst
@@ -758,6 +794,20 @@ def process_user_input(text: str) -> Dict[str, Any]:
     """
     engine = get_intent_engine()
     return engine.process(text)
+
+
+def get_spacy_info(text: str = None) -> Dict[str, Any]:
+    """
+    ONESEEK Δ+: Hämta spaCy-information för debugging.
+    
+    Args:
+        text: Optional text to analyze for NER entities
+        
+    Returns:
+        Dict med spaCy-status och NER-resultat
+    """
+    engine = get_intent_engine()
+    return engine.get_spacy_info(text)
 
 
 def generate_topic_hash(intent: str, entity: str = "") -> str:
