@@ -184,6 +184,36 @@ except ImportError:
         cache_get = None
         cache_set = None
 
+# ONESEEK Δ+: Svenska kärnpromptar (förhindrar engelskt läckage)
+try:
+    from .prompts.swedish_core import (
+        FORCE_SWEDISH_STRICT,
+        AUTOCORRECT_PERSONALITY_PROMPT,
+        MEMORY_PROMPT,
+        DEBATT_SYSTEM_PROMPT,
+        UNSURE_PROMPT,
+        get_swedish_label,
+        translate_to_swedish
+    )
+    SWEDISH_PROMPTS_AVAILABLE = True
+except ImportError:
+    try:
+        from prompts.swedish_core import (
+            FORCE_SWEDISH_STRICT,
+            AUTOCORRECT_PERSONALITY_PROMPT,
+            MEMORY_PROMPT,
+            DEBATT_SYSTEM_PROMPT,
+            UNSURE_PROMPT,
+            get_swedish_label,
+            translate_to_swedish
+        )
+        SWEDISH_PROMPTS_AVAILABLE = True
+    except ImportError:
+        SWEDISH_PROMPTS_AVAILABLE = False
+        FORCE_SWEDISH_STRICT = "Du pratar alltid svenska. Inga engelska ord."
+        get_swedish_label = lambda x: x
+        translate_to_swedish = lambda x: x
+
 # =============================================================================
 # END ONESEEK Δ+ MODULE IMPORTS
 # =============================================================================
@@ -210,6 +240,7 @@ def log_delta_plus_status():
         ("Confidence Calculator", CONFIDENCE_CALC_AVAILABLE, "Förtroende v2 with source weights"),
         ("Delta Compare", DELTA_COMPARE_AVAILABLE, "Semantic Δ-comparison + blockchain hash"),
         ("Cache Manager", CACHE_MANAGER_AVAILABLE, "7-day TTL hash-based cache"),
+        ("Svenska Promptar", SWEDISH_PROMPTS_AVAILABLE, "100% svenska – inga engelska läckage"),
     ]
     
     for name, available, description in modules:
@@ -220,6 +251,7 @@ def log_delta_plus_status():
     print("  📝 Tavily Swedish Mode: language='sv' (100% svenska svar)")
     print("  🧠 Memory Context: 8 messages per topic")
     print("  🔗 Blockchain Hash: SHA256 per response")
+    print("  🇸🇪 Force-Svenska: Användare/OneSeek etiketter (ingen User/Assistant)")
     print("=" * 70 + "\n")
 
 
@@ -2327,10 +2359,11 @@ def format_inference_input(user_text: str) -> str:
     Format the inference input with system prompt.
     This ensures the model always knows its identity.
     
-    Format: "[System Prompt]\n\nUser: [User's question]\n\nAssistant:"
+    Format: "[System Prompt]\n\nAnvändare: [User's question]\n\nOneSeek:"
+    Uses Swedish labels to prevent English leakage.
     """
     system_prompt = get_active_system_prompt()
-    return f"{system_prompt}\n\nUser: {user_text}\n\nAssistant:"
+    return f"{system_prompt}\n\nAnvändare: {user_text}\n\nOneSeek:"
 
 
 def clean_inference_response(response_text: str, full_input: str, user_text: str) -> str:
@@ -2895,10 +2928,10 @@ def apply_force_svenska(messages: list) -> list:
     last_msg = messages[-1].get("content", "")
     
     if check_force_svenska(last_msg):
-        # Prepend Swedish-only instruction
+        # Prepend Swedish-only instruction using the stronger FORCE_SWEDISH_STRICT prompt
         swedish_instruction = {
             "role": "system", 
-            "content": "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu."
+            "content": FORCE_SWEDISH_STRICT if SWEDISH_PROMPTS_AVAILABLE else "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu."
         }
         return [swedish_instruction] + messages
     
