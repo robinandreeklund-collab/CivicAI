@@ -6,6 +6,7 @@ import GoldEditor from '../../../../admin/integration/GoldEditor';
 import SourceWeights from '../../../../admin/integration/SourceWeights';
 import StavfelEditor from '../../../../admin/integration/StavfelEditor';
 import TopicHistory from '../../../../admin/integration/TopicHistory';
+import CacheManager from '../../../../admin/integration/CacheManager';
 
 /**
  * Integrations Management Component
@@ -26,7 +27,7 @@ export default function IntegrationsManagement() {
   
   // ONESEEK Δ+ Section toggle states
   const [showDeltaPlus, setShowDeltaPlus] = useState(true);
-  const [deltaTab, setDeltaTab] = useState('intent'); // intent, gold, sources, stavfel, topics
+  const [deltaTab, setDeltaTab] = useState('intent'); // intent, gold, sources, stavfel, topics, cache
 
   // Swedish Cities state (weather)
   const [swedishCities, setSwedishCities] = useState({});
@@ -336,7 +337,7 @@ export default function IntegrationsManagement() {
                 ONESEEK Δ+ Admin
               </h2>
               <p className="text-[#666] font-mono text-xs">
-                Intent Engine • Gold Editor • Källviktning • Stavfel • Topic History
+                Intent Engine • Gold Editor • Källviktning • Stavfel • Topic History • Cache Manager
               </p>
             </div>
           </div>
@@ -355,6 +356,7 @@ export default function IntegrationsManagement() {
                 { id: 'sources', label: '⚖️ Källviktning', desc: 'Justera förtroende' },
                 { id: 'stavfel', label: '✏️ Stavfel', desc: 'Granska stavfelspar' },
                 { id: 'topics', label: '📚 Topics', desc: 'Topic-grupperad historik' },
+                { id: 'cache', label: '🗑️ Cache', desc: 'Rensa cache' },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -426,6 +428,17 @@ export default function IntegrationsManagement() {
                     </p>
                   </div>
                   <TopicHistory />
+                </div>
+              )}
+              {deltaTab === 'cache' && (
+                <div>
+                  <div className="mb-4 p-3 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                    <p className="text-[#888] font-mono text-xs">
+                      💡 <strong>Cache Manager:</strong> Rensa cache för att få nya svar efter ändringar i Intent Engine.
+                      Viktigt i testmiljö för att få korrekta resultat.
+                    </p>
+                  </div>
+                  <CacheManager />
                 </div>
               )}
             </div>

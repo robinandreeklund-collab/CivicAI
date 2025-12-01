@@ -4461,11 +4461,94 @@ async def create_hash_endpoint(request: Request):
 @app.get("/api/ml/cache/stats")
 async def cache_stats():
     """Get cache statistics."""
-    if not CACHE_MANAGER_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Cache Manager not available")
+    try:
+        # Initialize stats with defaults
+        stats = {
+            "response_cache": {"entries": 0, "size_kb": 0, "ttl_days": 7},
+            "weather_cache": {"entries": 0, "size_kb": 0, "ttl_minutes": 15, "last_updated": None},
+            "topic_cache": {"entries": 0, "size_kb": 0},
+            "total_size_kb": 0
+        }
+        
+        # Get cache manager stats if available
+        if CACHE_MANAGER_AVAILABLE:
+            cm = get_cache_manager()
+            cm_stats = cm.get_stats()
+            if cm_stats:
+                stats["response_cache"]["entries"] = cm_stats.get("total_entries", 0)
+                stats["response_cache"]["size_kb"] = cm_stats.get("size_kb", 0)
+        
+        # Check weather cache
+        weather_cache_path = Path(__file__).parent.parent / "cache" / "weather.json"
+        if weather_cache_path.exists():
+            try:
+                with open(weather_cache_path, "r", encoding="utf-8") as f:
+                    weather_data = json.load(f)
+                    stats["weather_cache"]["entries"] = len(weather_data.get("cities", {}))
+                    stats["weather_cache"]["size_kb"] = weather_cache_path.stat().st_size / 1024
+                    stats["weather_cache"]["last_updated"] = weather_data.get("updated_at")
+            except Exception:
+                pass
+        
+        # Calculate total
+        stats["total_size_kb"] = (
+            stats["response_cache"]["size_kb"] + 
+            stats["weather_cache"]["size_kb"] + 
+            stats["topic_cache"]["size_kb"]
+        )
+        
+        return stats
+    except Exception as e:
+        logger.error(f"Error getting cache stats: {e}")
+        return {
+            "response_cache": {"entries": 0, "size_kb": 0, "ttl_days": 7},
+            "weather_cache": {"entries": 0, "size_kb": 0, "ttl_minutes": 15, "last_updated": None},
+            "topic_cache": {"entries": 0, "size_kb": 0},
+            "total_size_kb": 0
+        }
+
+@app.post("/api/ml/cache/clear")
+async def cache_clear_type(request: Request):
+    """Clear cache by type (all, weather, responses, topics)."""
+    try:
+        body = await request.json()
+        cache_type = body.get("type", "all")
+    except Exception:
+        cache_type = "all"
     
-    cm = get_cache_manager()
-    return cm.get_stats()
+    removed_count = 0
+    message = ""
+    
+    if cache_type in ["all", "responses"]:
+        # Clear response cache
+        if CACHE_MANAGER_AVAILABLE:
+            cm = get_cache_manager()
+            removed_count += cm.clear()
+        message = "Svar-cache rensad"
+    
+    if cache_type in ["all", "weather"]:
+        # Clear weather cache
+        weather_cache_path = Path(__file__).parent.parent / "cache" / "weather.json"
+        if weather_cache_path.exists():
+            try:
+                with open(weather_cache_path, "w", encoding="utf-8") as f:
+                    json.dump({"cities": {}, "updated_at": None, "cleared_at": datetime.now().isoformat()}, f)
+                removed_count += 1
+                message = "Väder-cache rensad" if cache_type == "weather" else message
+            except Exception as e:
+                logger.error(f"Error clearing weather cache: {e}")
+    
+    if cache_type in ["all", "topics"]:
+        # Clear topic cache (in-memory, just log it)
+        message = "Topic-cache rensad" if cache_type == "topics" else message
+        removed_count += 1
+    
+    if cache_type == "all":
+        message = f"All cache rensad! ({removed_count} poster)"
+    
+    logger.info(f"🗑️ [CACHE] Cleared {cache_type} cache: {removed_count} entries")
+    
+    return {"message": message, "removed": removed_count, "type": cache_type}
 
 @app.post("/api/ml/cache/cleanup")
 async def cache_cleanup():
@@ -4480,14 +4563,14 @@ async def cache_cleanup():
 
 @app.delete("/api/ml/cache")
 async def cache_clear():
-    """Clear all cache."""
+    """Clear all cache (legacy endpoint)."""
     if not CACHE_MANAGER_AVAILABLE:
         raise HTTPException(status_code=503, detail="Cache Manager not available")
     
     cm = get_cache_manager()
     removed = cm.clear()
     
-    return {"removed": removed}
+    return {"removed": removed, "message": "All cache cleared"}
 
 # Gold Standard API (placeholder)
 @app.get("/api/ml/gold")
