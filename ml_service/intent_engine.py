@@ -466,6 +466,7 @@ class IntentEngine:
     def classify_intent(self, text: str) -> Intent:
         """
         Klassificera intent från användartext.
+        ONESEEK Δ+ v2: Förbättrad scoring som respekterar weight, priority, force_api och min_confidence.
         
         Args:
             text: Användarinput
@@ -486,6 +487,13 @@ class IntentEngine:
             keywords = intent_config.get("keywords", intent_config.get("triggers", []))
             priority = intent_config.get("priority", 5)
             weight = intent_config.get("weight", 1.0)
+            force_api = intent_config.get("force_api", False)
+            min_confidence = intent_config.get("min_confidence", 0.6)
+            
+            # Skip blacklisted intents for scoring (e.g., "identitet")
+            if intent_config.get("blacklist", False):
+                # Blacklisted intents still match but don't trigger APIs
+                pass
             
             # Räkna matchande keywords
             matched_keywords = []
@@ -494,15 +502,32 @@ class IntentEngine:
                     matched_keywords.append(keyword)
             
             if matched_keywords:
-                # Score baserat på antal träffar, prioritet och vikt
-                match_score = len(matched_keywords) / len(keywords)
-                priority_bonus = (10 - priority) / 10  # Högre prioritet = högre bonus
-                score = (match_score * 0.6 + priority_bonus * 0.2) * weight
+                # === ONESEEK Δ+ v2 SCORING ALGORITHM ===
+                # 
+                # 1. BASE SCORE: 0.5 för första match + 0.1 per extra match (max 0.9)
+                # 2. PRIORITY BONUS: (10 - priority) / 10 * 0.1 (max 0.1)
+                # 3. WEIGHT MULTIPLIER: Multiplicera med weight
+                # 4. FORCE_API: Om true, garantera min_confidence som minsta värde
                 
-                # ONESEEK Δ+ FIX: Om force_api är satt, använd min_confidence som minsta confidence
-                if intent_config.get("force_api", False):
-                    min_conf = intent_config.get("min_confidence", 0.8)
-                    score = max(score, min_conf)
+                # Base: En match = 0.5, varje extra match adderar 0.1 (max vid 5 matches = 0.9)
+                base_score = 0.5 + min(len(matched_keywords) - 1, 4) * 0.1
+                
+                # Priority bonus: priority 0 = +0.1, priority 5 = +0.05, priority 10 = 0
+                priority_bonus = (10 - priority) / 100
+                
+                # Längre keywords matchar bättre (bonus för specifika fraser)
+                longest_match_len = max(len(kw) for kw in matched_keywords)
+                specificity_bonus = min(longest_match_len / 30, 0.1)  # Max 0.1 bonus
+                
+                # Kombinera score
+                score = (base_score + priority_bonus + specificity_bonus) * weight
+                
+                # FORCE_API: Garantera min_confidence om aktiverat
+                if force_api:
+                    score = max(score, min_confidence)
+                
+                # Cap at 0.99
+                score = min(score, 0.99)
                 
                 if score > best_score:
                     best_score = score
@@ -519,14 +544,10 @@ class IntentEngine:
             entity_dict[ent.label].append(ent.to_dict())
         
         if best_intent:
-            # Final confidence calculation - ensure force_api intents get high confidence
-            final_confidence = best_score
-            if best_config and best_config.get("force_api", False):
-                final_confidence = max(final_confidence, best_config.get("min_confidence", 0.8))
-            
+            # Final confidence - redan beräknad med force_api och min_confidence
             return Intent(
                 name=best_intent,
-                confidence=min(final_confidence, 0.99),
+                confidence=best_score,
                 triggers=best_keywords,
                 entities=entity_dict,
                 api=best_config.get("api") if best_config else None
