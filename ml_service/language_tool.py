@@ -127,12 +127,18 @@ class LanguageToolClient:
                 return self._server_available
         
         try:
+            print(f"🔍 [LANGUAGETOOL] Checking server at {self.base_url}...")
             response = requests.get(
                 f"{self.base_url}/languages",
                 timeout=2
             )
             self._server_available = response.status_code == 200
-        except Exception:
+            if self._server_available:
+                print(f"✅ [LANGUAGETOOL] Server responded OK (status 200)")
+            else:
+                print(f"⚠️ [LANGUAGETOOL] Server responded with status {response.status_code}")
+        except Exception as e:
+            print(f"❌ [LANGUAGETOOL] Connection failed: {e}")
             self._server_available = False
         
         self._last_check_time = current_time
@@ -163,14 +169,19 @@ class LanguageToolClient:
         # Försök kontakta servern med retry
         for attempt in range(self.retry_count + 1):
             try:
+                print(f"📡 [LANGUAGETOOL] API call attempt {attempt + 1}/{self.retry_count + 1}")
                 response = self._call_api(text, language)
-                return self._parse_response(text, response, language)
+                result = self._parse_response(text, response, language)
+                print(f"✅ [LANGUAGETOOL] API response received: {len(result.matches)} matches")
+                return result
             except Exception as e:
+                print(f"❌ [LANGUAGETOOL] API call failed (attempt {attempt + 1}): {e}")
                 logger.warning(f"LanguageTool API call failed (attempt {attempt + 1}): {e}")
                 if attempt < self.retry_count:
                     time.sleep(self.retry_delay)
         
         # Fallback om servern inte svarar
+        print(f"🔴 [LANGUAGETOOL] Server unavailable after {self.retry_count + 1} attempts")
         logger.warning("LanguageTool server unavailable, returning original text")
         return LanguageToolResult(
             original=text,

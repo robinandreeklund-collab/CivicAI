@@ -200,10 +200,13 @@ class TypoChecker:
             if LANGUAGETOOL_AVAILABLE and lt_is_available:
                 self._languagetool_available = lt_is_available()
                 if self._languagetool_available:
+                    print("🟢 [LANGUAGETOOL] Server is ONLINE at http://localhost:8010")
                     logger.info("✅ LanguageTool server is available")
                 else:
+                    print("🔴 [LANGUAGETOOL] Server is OFFLINE - using local fallback")
                     logger.warning("⚠️ LanguageTool server is not available, using fallback")
             else:
+                print("🔴 [LANGUAGETOOL] Module not available - using local fallback")
                 logger.warning("⚠️ LanguageTool module not available, using fallback")
         return self._languagetool_available
     
@@ -233,12 +236,18 @@ class TypoChecker:
         # Försök med LanguageTool först
         if self._check_languagetool() and lt_check_text:
             try:
+                print(f"🔧 [LANGUAGETOOL] Checking text: \"{text[:50]}...\"")
                 lt_result = lt_check_text(text)
                 
                 if lt_result.get("server_available", False):
                     corrected = lt_result.get("corrected", text)
                     is_correct = lt_result.get("is_correct", True)
                     matches = lt_result.get("matches", [])
+                    
+                    print(f"✅ [LANGUAGETOOL] Result: {'No errors' if is_correct else f'{len(matches)} corrections'}")
+                    if matches:
+                        for m in matches:
+                            print(f"   └─ '{text[m['offset']:m['offset']+m['length']]}' → '{m['replacements'][0] if m['replacements'] else '?'}'")
                     
                     # Logga fel om begärt
                     if log_errors and not is_correct:
@@ -270,11 +279,18 @@ class TypoChecker:
                         ],
                         "method": "languagetool"
                     }
+                else:
+                    print(f"⚠️ [LANGUAGETOOL] Server returned unavailable, falling back to local")
             except Exception as e:
+                print(f"❌ [LANGUAGETOOL] Error: {e}, falling back to local")
                 logger.warning(f"LanguageTool check failed: {e}")
+        else:
+            print(f"⚠️ [TYPO] Using LOCAL FALLBACK (LanguageTool not available)")
         
         # Fallback till lokal kontroll
-        return self._check_text_local(text, auto_correct, log_errors)
+        result = self._check_text_local(text, auto_correct, log_errors)
+        print(f"📝 [LOCAL FALLBACK] Result: {result.get('errors_found', 0)} corrections")
+        return result
     
     def _check_text_local(self, text: str, auto_correct: bool,
                           log_errors: bool) -> Dict[str, Any]:
