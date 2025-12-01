@@ -329,7 +329,7 @@ Denna PR implementerar fullständig ONESEEK Δ+ funktionalitet enligt specifikat
 |---|----------|-------------|--------|
 | 1 | **Admin-styrd Intent Engine** | Ersätter alla gamla triggers – förstår semantik, inte bara ord | ✅ Live |
 | 2 | **15-min väder-cache** | Alla 290+ kommuner cachas var 15:e minut → svar på 0.05 sek | ✅ Live |
-| 3 | **Dubbel stavfelssäkerhet** | Typo.js + SAOL + Nodehun (Hunspell) – parallell kontroll | ✅ Live |
+| 3 | **Dubbel stavfelssäkerhet** | Python difflib + SAOL ordlista + svenska städer/regioner whitelist | ✅ Live |
 | 4 | **Hybrid-autocorrect med AI-personlighet** | AI:n svarar själv: "Menar du 'vädret'?" | ✅ Live |
 | 5 | **Förtroende v2** | Myndighetskällor +15, Aftonbladet -20, admin-styrbart | ✅ Live |
 | 6 | **Semantisk Δ-jämförelse** | Jämför intent + entitet – inte bara exakt text | ✅ Live |
@@ -342,6 +342,34 @@ Denna PR implementerar fullständig ONESEEK Δ+ funktionalitet enligt specifikat
 | 13 | **Topic-gruppering + Minne** | AI:n minns konversationer och grupperar efter ämne | ✅ Live |
 | 14 | **Semantisk historik** | Samma fråga med olika formuleringar = samma tråd | ✅ Live |
 | 15 | **Firebase Migration** | Migrera gammal struktur till topic-gruppering | ✅ Live |
+
+### Stavfelskontroll – Teknisk Implementation
+
+Typo checkern använder en **Python-native** lösning för optimal prestanda:
+
+1. **Regelbaserad kontroll**:
+   - `whitelist` - Vanliga svenska ord som aldrig korrigeras (bor, hur, många, etc.)
+   - `swedish_city` - 148 städer från `config/swedish_cities.json`
+   - `swedish_region` - 26 regioner från `config/swedish_regions.json`
+   - `dictionary` - Inbyggd svensk ordlista
+   - `common_typo` - Kända stavfelspar (invåndare → invånare)
+   - `proper_noun` - Ord som börjar med versal antas vara korrekta
+   - `context_safe` - Skyddade mönster ("bor i", "invånare i", etc.)
+
+2. **Fuzzy matching** med `difflib.SequenceMatcher`:
+   - 85%+ likhet krävs för förslag
+   - Korta ord (≤4 tecken) får ej fuzzy-förslag
+   - Högre tröskel (90%) för korta ord
+
+**Debug-output visar vilken metod som skyddar varje ord**:
+```
+✏️  TYPO CHECKER DEBUG [Python-native: difflib + wordlist]
+   └─ Word results:
+      🔒 'Hur' (whitelist)
+      🔒 'många' (whitelist)
+      🔒 'bor' (whitelist)
+      🏙️ 'Hjo' (swedish_city)
+```
 
 ## Topic-gruppering och Minne
 

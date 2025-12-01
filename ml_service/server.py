@@ -5122,9 +5122,27 @@ async def oneseek_inference(request: InferenceRequest):
     - Weather: SMHI weather data for any Swedish city when weather-related questions
     - News: Latest news from RSS feeds when news-related questions
     - Tavily Search: Real-time web search for current events/facts
+    - Cache: 7-day TTL hash-based caching
+    - Confidence v2: Source-weighted confidence scoring
+    - Blockchain Hash: SHA256 response verification
     """
     import time
     start_time = time.time()
+    
+    # === ONESEEK Δ+: CACHE CHECK ===
+    cache_hit = False
+    cached_response = None
+    cache_key = None
+    if CACHE_MANAGER_AVAILABLE and cache_get:
+        try:
+            # Create cache key from question
+            cache_key = f"oneseek:{request.text.lower().strip()[:200]}"
+            cached_response = cache_get(cache_key)
+            if cached_response:
+                cache_hit = True
+                logger.info(f"💾 [CACHE] HIT for: {request.text[:50]}...")
+        except Exception as e:
+            logger.debug(f"Cache check failed: {e}")
     
     # === ONESEEK Δ+: TYPO CHECKING ===
     typo_corrected = False
@@ -5409,6 +5427,65 @@ Svara på svenska. Max 1-2 meningar."""
         context_prefix = "\n".join(context_parts) + "\n\n"
         full_input = context_prefix + full_input
     
+    # === ONESEEK Δ+: CALCULATE CONFIDENCE v2 ===
+    confidence_score = None
+    confidence_sources = []
+    if CONFIDENCE_CALC_AVAILABLE and calculate_confidence:
+        try:
+            # Determine primary source for confidence calculation
+            if triggered_api:
+                source_id = triggered_api.get("id", "unknown")
+                data_type = "population" if "scb" in source_id.lower() else "general"
+            elif weather_context:
+                source_id = "smhi"
+                data_type = "weather"
+            elif tavily_context:
+                source_id = "tavily"
+                data_type = "web_search"
+            elif news_context:
+                source_id = "svt"
+                data_type = "news"
+            else:
+                source_id = "model"
+                data_type = "general"
+            
+            confidence_result = calculate_confidence(source_id, data_type)
+            confidence_score = confidence_result.score if hasattr(confidence_result, 'score') else 0.5
+            confidence_sources = [source_id]
+            logger.info(f"📊 [CONFIDENCE] Calculated: {confidence_score:.2f} from {source_id}")
+        except Exception as e:
+            logger.debug(f"Confidence calculation failed: {e}")
+    
+    # === ONESEEK Δ+: CHECK CACHE FOR EXISTING RESPONSE ===
+    if cache_hit and cached_response:
+        latency_ms = (time.time() - start_time) * 1000
+        logger.info(f"💾 [CACHE] Returning cached response (saved {latency_ms:.0f}ms inference time)")
+        
+        # Log debug info with cache hit
+        log_inference_debug(
+            text=request.text,
+            intent_data=intent_data,
+            topic_hash=topic_hash,
+            memory_count=len(previous_messages) if previous_messages else 0,
+            typo_corrected=typo_corrected,
+            confidence_score=confidence_score,
+            cache_hit=True,
+            delta_hash=cached_response.get("response_hash"),
+            tavily_used=False,
+            weather_city=None,
+            news_used=False,
+            open_data_api=None,
+            force_svenska=force_svenska_active
+        )
+        
+        return InferenceResponse(
+            response=cached_response.get("response", ""),
+            model=cached_response.get("model", "OneSeek-7B-Zero.v1.1 (cached)"),
+            tokens=cached_response.get("tokens", 0),
+            latency_ms=latency_ms,
+            delta_plus=cached_response.get("delta_plus")
+        )
+    
     # === ONESEEK Δ+ DEBUG: Log detailed inference info to terminal ===
     memory_count = len(previous_messages) if previous_messages else 0
     log_inference_debug(
@@ -5416,9 +5493,9 @@ Svara på svenska. Max 1-2 meningar."""
         intent_data=intent_data,
         topic_hash=topic_hash,
         memory_count=memory_count,
-        typo_corrected=typo_corrected,  # Now properly set from typo checker
-        confidence_score=None,  # Will be calculated post-inference
-        cache_hit=False,  # Will be set when cache is checked
+        typo_corrected=typo_corrected,
+        confidence_score=confidence_score,
+        cache_hit=cache_hit,
         delta_hash=None,  # Will be set post-inference
         tavily_used=tavily_context is not None,
         weather_city=weather_city if weather_context else None,
@@ -5471,30 +5548,57 @@ Svara på svenska. Max 1-2 meningar."""
                 except Exception as e:
                     logger.debug(f"Failed to save to memory: {e}")
             
+            # === ONESEEK Δ+: Create blockchain hash for response ===
+            response_hash = None
+            if DELTA_COMPARE_AVAILABLE and create_response_hash:
+                try:
+                    response_hash = create_response_hash(result['response'])
+                    logger.info(f"🔗 [HASH] Response hash: {response_hash[:32]}...")
+                except Exception as e:
+                    logger.debug(f"Hash creation failed: {e}")
+            
+            # === ONESEEK Δ+: Save to cache ===
+            if CACHE_MANAGER_AVAILABLE and cache_set and cache_key:
+                try:
+                    cache_set(cache_key, {
+                        "response": result['response'],
+                        "model": result['model'],
+                        "tokens": result['tokens'],
+                        "response_hash": response_hash,
+                        "delta_plus": {
+                            "topic_hash": topic_hash,
+                            "intent": intent_data.get("intent", "general") if intent_data else "general",
+                            "entity": intent_data.get("entity", "") if intent_data else "",
+                            "intent_confidence": intent_data.get("confidence", 0.5) if intent_data else 0.5,
+                            "response_hash": response_hash,
+                            "confidence_score": confidence_score
+                        }
+                    }, ttl_days=7)
+                    logger.info(f"💾 [CACHE] Saved response to cache")
+                except Exception as e:
+                    logger.debug(f"Cache save failed: {e}")
+            
             # === ONESEEK Δ+ DEBUG: Log completion summary ===
+            print(f"\n  ✅ INFERENCE COMPLETE ({result['latency_ms']:.0f}ms)")
+            if response_hash:
+                print(f"  🔗 Blockchain Hash: {response_hash[:32]}...")
+            if confidence_score:
+                print(f"  📊 Confidence v2: {confidence_score:.2f}")
             if topic_hash:
-                print(f"\n  ✅ INFERENCE COMPLETE ({result['latency_ms']:.0f}ms)")
                 print(f"  💾 Saved to Memory: topic {topic_hash[:16]}...")
-                print(f"  📝 Response length: {len(result['response'])} chars")
-                print("-" * 60 + "\n")
+            print(f"  📝 Response length: {len(result['response'])} chars")
+            print("-" * 60 + "\n")
             
             # Build Δ+ data for Firebase integration
-            delta_plus_data = None
-            if topic_hash or intent_data:
-                response_hash = None
-                if DELTA_COMPARE_AVAILABLE and create_response_hash:
-                    try:
-                        response_hash = create_response_hash(result['response'])
-                    except:
-                        pass
-                delta_plus_data = {
-                    "topic_hash": topic_hash,
-                    "intent": intent_data.get("intent", "general") if intent_data else "general",
-                    "entity": intent_data.get("entity", "") if intent_data else "",
-                    "intent_confidence": intent_data.get("confidence", 0.5) if intent_data else 0.5,
-                    "response_hash": response_hash,
-                    "memory_messages_used": len(previous_messages) if previous_messages else 0
-                }
+            delta_plus_data = {
+                "topic_hash": topic_hash,
+                "intent": intent_data.get("intent", "general") if intent_data else "general",
+                "entity": intent_data.get("entity", "") if intent_data else "",
+                "intent_confidence": intent_data.get("confidence", 0.5) if intent_data else 0.5,
+                "response_hash": response_hash,
+                "memory_messages_used": len(previous_messages) if previous_messages else 0,
+                "confidence_score": confidence_score
+            }
             
             return InferenceResponse(
                 response=result['response'],
@@ -5604,6 +5708,15 @@ Svara på svenska. Max 1-2 meningar."""
             
             latency_ms = (time.time() - start_time) * 1000
             
+            # === ONESEEK Δ+: Create blockchain hash for response ===
+            response_hash = None
+            if DELTA_COMPARE_AVAILABLE and create_response_hash:
+                try:
+                    response_hash = create_response_hash(response_text)
+                    logger.info(f"🔗 [HASH] Response hash: {response_hash[:32]}...")
+                except Exception as e:
+                    logger.debug(f"Hash creation failed: {e}")
+            
             # === ONESEEK Δ+: Save to memory ===
             if MEMORY_MANAGER_AVAILABLE and topic_hash and save_message_with_memory:
                 try:
@@ -5621,6 +5734,29 @@ Svara på svenska. Max 1-2 meningar."""
                 except Exception as e:
                     logger.debug(f"Failed to save to memory: {e}")
             
+            # === ONESEEK Δ+: Save to cache ===
+            if CACHE_MANAGER_AVAILABLE and cache_set and cache_key:
+                try:
+                    delta_plus_data_for_cache = {
+                        "topic_hash": topic_hash,
+                        "intent": intent_data.get("intent", "general") if intent_data else "general",
+                        "entity": intent_data.get("entity", "") if intent_data else "",
+                        "intent_confidence": intent_data.get("confidence", 0.5) if intent_data else 0.5,
+                        "response_hash": response_hash,
+                        "memory_messages_used": len(previous_messages) if previous_messages else 0,
+                        "confidence_score": confidence_score
+                    }
+                    cache_set(cache_key, {
+                        "response": response_text,
+                        "model": "OneSeek-7B-Zero.v1.1",
+                        "tokens": len(outputs[0]),
+                        "response_hash": response_hash,
+                        "delta_plus": delta_plus_data_for_cache
+                    }, ttl_days=7)
+                    logger.info(f"💾 [CACHE] Saved response to cache (key: {cache_key[:30]}...)")
+                except Exception as e:
+                    logger.debug(f"Cache save failed: {e}")
+            
             # === DEBUG: Log response summary ===
             logger.debug(f"→ Response length: {len(response_text)} chars")
             logger.debug(f"→ Response preview: {response_text[:100]}..." if len(response_text) > 100 else f"→ Response: {response_text}")
@@ -5628,29 +5764,26 @@ Svara på svenska. Max 1-2 meningar."""
             logger.info("=" * 60)
             
             # === ONESEEK Δ+ DEBUG: Log completion summary ===
+            print(f"\n  ✅ INFERENCE COMPLETE ({latency_ms:.0f}ms)")
+            if response_hash:
+                print(f"  🔗 Blockchain Hash: {response_hash[:32]}...")
+            if confidence_score:
+                print(f"  📊 Confidence v2: {confidence_score:.2f}")
             if topic_hash:
-                print(f"\n  ✅ INFERENCE COMPLETE ({latency_ms:.0f}ms)")
                 print(f"  💾 Saved to Memory: topic {topic_hash[:16]}...")
-                print(f"  📝 Response length: {len(response_text)} chars")
-                print("-" * 60 + "\n")
+            print(f"  📝 Response length: {len(response_text)} chars")
+            print("-" * 60 + "\n")
             
             # Build Δ+ data for Firebase integration
-            delta_plus_data = None
-            if topic_hash or intent_data:
-                response_hash = None
-                if DELTA_COMPARE_AVAILABLE and create_response_hash:
-                    try:
-                        response_hash = create_response_hash(response_text)
-                    except:
-                        pass
-                delta_plus_data = {
-                    "topic_hash": topic_hash,
-                    "intent": intent_data.get("intent", "general") if intent_data else "general",
-                    "entity": intent_data.get("entity", "") if intent_data else "",
-                    "intent_confidence": intent_data.get("confidence", 0.5) if intent_data else 0.5,
-                    "response_hash": response_hash,
-                    "memory_messages_used": len(previous_messages) if previous_messages else 0
-                }
+            delta_plus_data = {
+                "topic_hash": topic_hash,
+                "intent": intent_data.get("intent", "general") if intent_data else "general",
+                "entity": intent_data.get("entity", "") if intent_data else "",
+                "intent_confidence": intent_data.get("confidence", 0.5) if intent_data else 0.5,
+                "response_hash": response_hash,
+                "memory_messages_used": len(previous_messages) if previous_messages else 0,
+                "confidence_score": confidence_score
+            }
             
             return InferenceResponse(
                 response=response_text,
