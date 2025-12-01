@@ -265,19 +265,25 @@ export default function SevenBZeroPage() {
   // === ONESEEK Δ+ TYPO CORRECTION BUTTON HANDLERS ===
   // Accept typo correction from AI response - send corrected question directly
   const acceptTypoCorrection = async (messageId, correctedText) => {
-    // Remove the typo message
-    setMessages(prev => prev.filter(msg => msg.id !== messageId));
+    // Find the AI typo message to get the original user message info
+    const typoMsg = messages.find(m => m.id === messageId);
+    const originalUserText = typoMsg?.typoCorrection?.original || '';
     
-    // Add user message with corrected text
-    const userMessage = {
-      id: generateMessageId(),
-      type: 'user',
-      text: correctedText,
-      timestamp: new Date().toISOString(),
-    };
-    setMessages(prev => [...prev, userMessage]);
+    // Remove BOTH the typo AI message AND the original user message
+    // Replace original user message with corrected version
+    setMessages(prev => {
+      // Filter out the AI typo message
+      const filtered = prev.filter(msg => msg.id !== messageId);
+      // Update the original user message text to the corrected text
+      return filtered.map(msg => {
+        if (msg.type === 'user' && msg.text === originalUserText) {
+          return { ...msg, text: correctedText };
+        }
+        return msg;
+      });
+    });
     
-    // Add placeholder AI message
+    // Add placeholder AI message for the response
     const aiMessageId = generateMessageId();
     const aiMessage = {
       id: aiMessageId,

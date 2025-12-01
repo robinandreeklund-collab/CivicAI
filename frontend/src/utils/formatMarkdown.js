@@ -82,9 +82,11 @@ export function formatAIResponse(rawText) {
   // Add line break before bullet points
   text = text.replace(/(\S)\s+([-•])\s/g, '$1\n\n$2 ');
   
-  // Add line break before "Källor:" section  
+  // Clean format for "Källor:" section - minimal, no icons
   text = text.replace(/(\S)\s*(Källor:|Källor\s*:)/gi, '$1\n\n---\n\n**Källor:**');
-  text = text.replace(/\*\*Källor:\*\*/gi, '\n\n---\n\n**📚 Källor:**');
+  text = text.replace(/\*\*📚 Källor:\*\*/gi, '\n\n---\n\n**Källor:**');
+  text = text.replace(/\*\*Källor:\*\*/gi, '\n\n---\n\n**Källor:**');
+  text = text.replace(/📚 Källor:/gi, '\n\n---\n\n**Källor:**');
   
   // Format HTML <a> tags in sources to markdown-style for clean display
   text = text.replace(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/gi, '[$2]($1)');
@@ -110,7 +112,7 @@ export function formatAIResponse(rawText) {
 
 /**
  * Format sources section for clean HTML display
- * Creates styled HTML for source citations
+ * Creates styled HTML for source citations - clean and minimal
  */
 export function formatSourcesHTML(sources) {
   if (!sources || !Array.isArray(sources) || sources.length === 0) {
@@ -119,7 +121,7 @@ export function formatSourcesHTML(sources) {
   
   let html = '<hr style="border-color: #333; margin: 16px 0;">';
   html += '<div style="font-size: 0.85em; color: #888; margin-top: 12px;">';
-  html += '<strong style="color: #aaa;">📚 Källor:</strong><br><br>';
+  html += '<strong style="color: #aaa;">Källor:</strong><br><br>';
   
   sources.forEach((source, idx) => {
     const name = source.name || source.title || `Källa ${idx + 1}`;

@@ -5575,7 +5575,10 @@ async def oneseek_inference(request: InferenceRequest):
     original_text = request.text
     corrected_text = request.text
     
-    if TYPO_CHECKER_AVAILABLE and check_spelling:
+    # Skip typo check if explicitly requested (e.g., when sending corrected text)
+    skip_typo = request.skip_typo_check
+    
+    if TYPO_CHECKER_AVAILABLE and check_spelling and not skip_typo:
         try:
             typo_result = check_spelling(request.text, auto_correct=True)
             if not typo_result.get("is_correct", True):
@@ -5712,7 +5715,9 @@ Svara NU.
         weather_data = get_weather(weather_city)
         if weather_data:
             weather_context = weather_data
-            weather_sources = f"\n\n**Källor:**\n1. [SMHI – Väderprognos {weather_city.capitalize()}](https://www.smhi.se)"
+            # Use city-specific URL for SMHI prognosis
+            city_slug = weather_city.capitalize().replace(' ', '%20')
+            weather_sources = f"\n\nKällor:\n1. SMHI – Väderprognos {weather_city.capitalize()} (https://www.smhi.se/vader/prognoser/ortsprognoser/q/{city_slug})"
             logger.info(f"🌤️ Väderdata hämtad för {weather_city}")
     
     
@@ -5724,15 +5729,15 @@ Svara NU.
         news = get_latest_news()
         if news:
             news_context = format_news_for_context(news)
-            # Build news sources
+            # Build news sources - clean format with actual URLs
             news_source_list = []
             for i, item in enumerate(news[:3], 1):
                 title = item.get('title', 'Artikel')[:40]
                 link = item.get('link', 'https://www.svt.se')
                 source = item.get('source', 'Nyheter')
-                news_source_list.append(f"{i}. [{source} – {title}]({link})")
+                news_source_list.append(f"{i}. {source} – {title} ({link})")
             if news_source_list:
-                news_sources = "\n\n**Källor:**\n" + "\n".join(news_source_list)
+                news_sources = "\n\nKällor:\n" + "\n".join(news_source_list)
             logger.info(f"✓ {len(news)} nyheter hämtade")
     
     # === 4. Check for Open Data API triggers ===
@@ -5771,10 +5776,14 @@ Svara NU.
         open_data_result = fetch_open_data(triggered_api, request.text)
         if open_data_result:
             open_data_context = open_data_result
-            # Build source link for Open Data API
+            # Build source link for Open Data API - use base_url as primary, url as fallback
             api_name = triggered_api.get('name', 'Öppen Data')
-            api_url = triggered_api.get('url', 'https://www.dataportal.se')
-            open_data_sources = f"\n\n**Källor:**\n1. [{api_name}]({api_url})"
+            api_base_url = triggered_api.get('base_url', triggered_api.get('url', ''))
+            # Clean the URL to show the main website (remove /api paths)
+            api_website = api_base_url.replace('/api/3/action', '').replace('/api', '').replace('/v1', '').replace('/v2', '').replace('/v3', '').rstrip('/')
+            if not api_website:
+                api_website = 'https://www.dataportal.se'
+            open_data_sources = f"\n\nKällor:\n1. {api_name} ({api_website})"
             logger.info(f"✓ Data från {triggered_api.get('name')} mottagen")
     
     # === 5. Check for Tavily search trigger ===
@@ -6146,7 +6155,7 @@ Svara NU.
             
             # === APPEND SOURCES TO RESPONSE ===
             # Only add sources if they don't already exist in response
-            if "**Källor:**" not in response_text:
+            if "Källor:" not in response_text and "**Källor:**" not in response_text:
                 # Prioritize sources in order of specificity
                 if open_data_sources:
                     response_text += open_data_sources
