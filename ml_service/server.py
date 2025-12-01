@@ -4678,7 +4678,7 @@ async def infer(request: Request, inference_request: InferenceRequest):
     corrected_text = inference_request.text
     
     # Skip typo check if explicitly requested (e.g., when sending corrected text)
-    skip_typo = getattr(inference_request, 'skip_typo_check', False)
+    skip_typo = inference_request.skip_typo_check
     
     if TYPO_CHECKER_AVAILABLE and check_spelling and not skip_typo:
         try:
