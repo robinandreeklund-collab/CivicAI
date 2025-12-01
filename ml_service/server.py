@@ -98,17 +98,41 @@ except ImportError:
         get_topic_label = None
         group_messages_by_topic = None
 
+# ONESEEK Δ+: Typo Checker - now using LanguageTool-based typo_checker.py
 try:
-    from .typo_double_check import get_typo_checker, check_spelling
+    from .typo_checker import get_typo_checker, check_spelling, get_checker_status
     TYPO_CHECKER_AVAILABLE = True
 except ImportError:
     try:
-        from typo_double_check import get_typo_checker, check_spelling
+        from typo_checker import get_typo_checker, check_spelling, get_checker_status
         TYPO_CHECKER_AVAILABLE = True
     except ImportError:
         TYPO_CHECKER_AVAILABLE = False
         get_typo_checker = None
         check_spelling = None
+        get_checker_status = None
+
+# ONESEEK Δ+: LanguageTool client for context-aware spell checking
+try:
+    from .language_tool import (
+        check_text as lt_check_text,
+        is_server_available as lt_is_available,
+        get_server_status as lt_get_status
+    )
+    LANGUAGETOOL_AVAILABLE = True
+except ImportError:
+    try:
+        from language_tool import (
+            check_text as lt_check_text,
+            is_server_available as lt_is_available,
+            get_server_status as lt_get_status
+        )
+        LANGUAGETOOL_AVAILABLE = True
+    except ImportError:
+        LANGUAGETOOL_AVAILABLE = False
+        lt_check_text = None
+        lt_is_available = None
+        lt_get_status = None
 
 # ONESEEK Δ+ Alignment: Stavfel Dataset Manager
 try:
@@ -180,7 +204,8 @@ def log_delta_plus_status():
     modules = [
         ("Intent Engine", INTENT_ENGINE_AVAILABLE, "Semantic intent + entity detection"),
         ("Memory Manager", MEMORY_MANAGER_AVAILABLE, "Topic-grouped conversation history"),
-        ("Typo Checker", TYPO_CHECKER_AVAILABLE, "Double spell-check (Typo.js + Hunspell)"),
+        ("Typo Checker", TYPO_CHECKER_AVAILABLE, "LanguageTool Self-Hosted + fallback"),
+        ("LanguageTool", LANGUAGETOOL_AVAILABLE, "Context-aware spell check (localhost:8010)"),
         ("Stavfel Dataset", STAVFEL_DATASET_AVAILABLE, "Typo pairs for self-learning"),
         ("Confidence Calculator", CONFIDENCE_CALC_AVAILABLE, "Förtroende v2 with source weights"),
         ("Delta Compare", DELTA_COMPARE_AVAILABLE, "Semantic Δ-comparison + blockchain hash"),
@@ -4958,7 +4983,7 @@ async def infer(request: Request, inference_request: InferenceRequest):
     """
     start_time = time.time()
     
-    # === ONESEEK Δ+: TYPO CHECKING ===
+    # === ONESEEK Δ+: TYPO CHECKING (LanguageTool Self-Hosted) ===
     typo_corrected = False
     typo_suggestions = []
     original_text = inference_request.text
@@ -4989,25 +5014,31 @@ async def infer(request: Request, inference_request: InferenceRequest):
                     for suggestion in typo_suggestions:
                         logger.info(f"✏️ [TYPO] Detected: '{suggestion['original']}' → '{suggestion['suggestion']}' (conf: {suggestion['confidence']:.2f})")
                     
-                    # === ONESEEK Δ+ TYPO RESPONSE MODE ===
+                    # === ONESEEK Δ+ TYPO RESPONSE MODE (LanguageTool Self-Hosted) ===
                     # Let the AI generate a personalized response asking about the typo
+                    # Uses LanguageTool for context-aware spell checking
                     typo_corrections_str = ", ".join([f"'{s['original']}' → '{s['suggestion']}'" for s in typo_suggestions])
                     
-                    typo_system_prompt = f"""Du är OneSeek, en vänlig svensk AI-kompis. 
+                    # AI-personlig prompt för stavfelkorrigering
+                    typo_system_prompt = f"""
 Användaren skrev: "{original_text}"
-Det verkar finnas stavfel. Korrigeringsförslag: {typo_corrections_str}
-Den korrekta frågan är troligen: "{corrected_text}"
+LanguageTool (vår egen server) har hittat stavfel och föreslår:
+"{corrected_text}"
 
-Svara KORT och personligt – som en svensk kompis som vänligt påpekar felet.
-Använd gärna emojis. Var inte för formell.
-Svara BARA med en kort fråga om användaren vill korrigera.
+Du är OneSeek-7B-Zero – en varm, svensk kompis.
+Svara personligt och vänligt – alltid på svenska.
+Fråga om hen vill korrigera, och ge tre knappar:
+[ Ja, korrigera ] [ Nej, skicka som det är ] [ Skriv själv ]
 
-Exempel på bra svar:
-- "Haha, menar du '{corrected_text}'? 😄"
-- "Oj, tror du menade '{corrected_text}'? 😊"  
-- "Kanske '{corrected_text}'? 🤔"
+Variera tonen – välj en av dessa stilar (aldrig samma två gånger):
+• "Haha, jag tror du menade '{corrected_text}'? 😄"
+• "Oj, kanske '{corrected_text}'? 😊"
+• "Jag gissar att du ville säga '{corrected_text}' – stämmer det?"
+• "Tror du menade '{corrected_text}'? 🤔"
+• "Haha, '{corrected_text}' låter mer rätt! 😄"
 
-Svara på svenska. Max 1-2 meningar."""
+Håll det kort, varmt och naturligt – precis som en svensk kompis.
+"""
 
                     # Generate AI response for typo correction
                     try:
@@ -5469,25 +5500,31 @@ async def oneseek_inference(request: InferenceRequest):
                     for suggestion in typo_suggestions:
                         logger.info(f"✏️ [TYPO] Detected: '{suggestion['original']}' → '{suggestion['suggestion']}' (conf: {suggestion['confidence']:.2f})")
                     
-                    # === ONESEEK Δ+ TYPO RESPONSE MODE ===
+                    # === ONESEEK Δ+ TYPO RESPONSE MODE (LanguageTool Self-Hosted) ===
                     # Let the AI generate a personalized response asking about the typo
+                    # Uses LanguageTool for context-aware spell checking
                     typo_corrections_str = ", ".join([f"'{s['original']}' → '{s['suggestion']}'" for s in typo_suggestions])
                     
-                    typo_system_prompt = f"""Du är OneSeek, en vänlig svensk AI-kompis. 
+                    # AI-personlig prompt för stavfelkorrigering
+                    typo_system_prompt = f"""
 Användaren skrev: "{original_text}"
-Det verkar finnas stavfel. Korrigeringsförslag: {typo_corrections_str}
-Den korrekta frågan är troligen: "{corrected_text}"
+LanguageTool (vår egen server) har hittat stavfel och föreslår:
+"{corrected_text}"
 
-Svara KORT och personligt – som en svensk kompis som vänligt påpekar felet.
-Använd gärna emojis. Var inte för formell.
-Svara BARA med en kort fråga om användaren vill korrigera.
+Du är OneSeek-7B-Zero – en varm, svensk kompis.
+Svara personligt och vänligt – alltid på svenska.
+Fråga om hen vill korrigera, och ge tre knappar:
+[ Ja, korrigera ] [ Nej, skicka som det är ] [ Skriv själv ]
 
-Exempel på bra svar:
-- "Haha, menar du '{corrected_text}'? 😄"
-- "Oj, tror du menade '{corrected_text}'? 😊"  
-- "Kanske '{corrected_text}'? 🤔"
+Variera tonen – välj en av dessa stilar (aldrig samma två gånger):
+• "Haha, jag tror du menade '{corrected_text}'? 😄"
+• "Oj, kanske '{corrected_text}'? 😊"
+• "Jag gissar att du ville säga '{corrected_text}' – stämmer det?"
+• "Tror du menade '{corrected_text}'? 🤔"
+• "Haha, '{corrected_text}' låter mer rätt! 😄"
 
-Svara på svenska. Max 1-2 meningar."""
+Håll det kort, varmt och naturligt – precis som en svensk kompis.
+"""
 
                     # Generate AI response for typo correction
                     try:

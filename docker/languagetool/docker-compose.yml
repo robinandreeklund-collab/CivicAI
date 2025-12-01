@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  languagetool:
+    image: erikvl87/languagetool
+    container_name: languagetool
+    ports:
+      - "8010:8010"
+    environment:
+      - langtool_languageModel=/ngrams
+      - Java_Xms=512m
+      - Java_Xmx=2g
+    volumes:
+      - languagetool_ngrams:/ngrams
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8010/v2/check?language=sv&text=test"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - oneseek-network
+
+volumes:
+  languagetool_ngrams:
+
+networks:
+  oneseek-network:
+    driver: bridge
