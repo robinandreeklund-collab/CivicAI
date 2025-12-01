@@ -164,6 +164,9 @@ except ImportError:
 # END ONESEEK Δ+ MODULE IMPORTS
 # =============================================================================
 
+# Global cache enabled flag (can be toggled from admin dashboard)
+GLOBAL_CACHE_ENABLED = True
+
 
 def log_delta_plus_status():
     """
@@ -4461,13 +4464,15 @@ async def create_hash_endpoint(request: Request):
 @app.get("/api/ml/cache/stats")
 async def cache_stats():
     """Get cache statistics."""
+    global GLOBAL_CACHE_ENABLED
     try:
         # Initialize stats with defaults
         stats = {
             "response_cache": {"entries": 0, "size_kb": 0, "ttl_days": 7},
             "weather_cache": {"entries": 0, "size_kb": 0, "ttl_minutes": 15, "last_updated": None},
             "topic_cache": {"entries": 0, "size_kb": 0},
-            "total_size_kb": 0
+            "total_size_kb": 0,
+            "cache_enabled": GLOBAL_CACHE_ENABLED
         }
         
         # Get cache manager stats if available
@@ -4504,8 +4509,30 @@ async def cache_stats():
             "response_cache": {"entries": 0, "size_kb": 0, "ttl_days": 7},
             "weather_cache": {"entries": 0, "size_kb": 0, "ttl_minutes": 15, "last_updated": None},
             "topic_cache": {"entries": 0, "size_kb": 0},
-            "total_size_kb": 0
+            "total_size_kb": 0,
+            "cache_enabled": GLOBAL_CACHE_ENABLED
         }
+
+@app.post("/api/ml/cache/toggle")
+async def cache_toggle(request: Request):
+    """Toggle cache on/off globally."""
+    global GLOBAL_CACHE_ENABLED
+    try:
+        body = await request.json()
+        enabled = body.get("enabled", True)
+    except Exception:
+        enabled = not GLOBAL_CACHE_ENABLED
+    
+    GLOBAL_CACHE_ENABLED = enabled
+    status = "aktiverad" if enabled else "avaktiverad"
+    
+    logger.info(f"⚙️ [CACHE] Global cache {status}")
+    
+    return {
+        "enabled": GLOBAL_CACHE_ENABLED,
+        "message": f"Cache {status}",
+        "status": "success"
+    }
 
 @app.post("/api/ml/cache/clear")
 async def cache_clear_type(request: Request):
@@ -5401,7 +5428,7 @@ async def oneseek_inference(request: InferenceRequest):
     cache_hit = False
     cached_response = None
     cache_key = None
-    if CACHE_MANAGER_AVAILABLE and cache_get:
+    if CACHE_MANAGER_AVAILABLE and cache_get and GLOBAL_CACHE_ENABLED:
         try:
             # Create cache key from question
             cache_key = f"oneseek:{request.text.lower().strip()[:200]}"
@@ -5411,6 +5438,8 @@ async def oneseek_inference(request: InferenceRequest):
                 logger.info(f"💾 [CACHE] HIT for: {request.text[:50]}...")
         except Exception as e:
             logger.debug(f"Cache check failed: {e}")
+    elif not GLOBAL_CACHE_ENABLED:
+        logger.debug("💾 [CACHE] Disabled - skipping cache check")
     
     # === ONESEEK Δ+: TYPO CHECKING ===
     typo_corrected = False
@@ -5836,7 +5865,7 @@ Svara på svenska. Max 1-2 meningar."""
                     logger.debug(f"Hash creation failed: {e}")
             
             # === ONESEEK Δ+: Save to cache ===
-            if CACHE_MANAGER_AVAILABLE and cache_set and cache_key:
+            if CACHE_MANAGER_AVAILABLE and cache_set and cache_key and GLOBAL_CACHE_ENABLED:
                 try:
                     cache_set(cache_key, {
                         "response": result['response'],
@@ -6013,7 +6042,7 @@ Svara på svenska. Max 1-2 meningar."""
                     logger.debug(f"Failed to save to memory: {e}")
             
             # === ONESEEK Δ+: Save to cache ===
-            if CACHE_MANAGER_AVAILABLE and cache_set and cache_key:
+            if CACHE_MANAGER_AVAILABLE and cache_set and cache_key and GLOBAL_CACHE_ENABLED:
                 try:
                     delta_plus_data_for_cache = {
                         "topic_hash": topic_hash,

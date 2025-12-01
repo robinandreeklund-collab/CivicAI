@@ -7,6 +7,7 @@
  * - Rensa all cache
  * - Rensa specifik cache (weather, responses, etc.)
  * - Se cache-ålder och storlek
+ * - Avaktivera/aktivera cache globalt
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -41,6 +42,8 @@ export default function CacheManager() {
   const [error, setError] = useState(null);
   const [clearingCache, setClearingCache] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
+  const [cacheEnabled, setCacheEnabled] = useState(true);
+  const [togglingCache, setTogglingCache] = useState(false);
 
   // Ladda cache-statistik från backend
   const fetchStats = useCallback(async () => {
@@ -50,6 +53,7 @@ export default function CacheManager() {
       
       const data = await response.json();
       setStats(data);
+      setCacheEnabled(data.cache_enabled !== false); // Default to true
       setError(null);
     } catch (err) {
       // If endpoint doesn't exist, show default stats
@@ -57,7 +61,8 @@ export default function CacheManager() {
         response_cache: { entries: 0, size_kb: 0, ttl_days: 7 },
         weather_cache: { entries: 0, size_kb: 0, ttl_minutes: 15, last_updated: null },
         topic_cache: { entries: 0, size_kb: 0 },
-        total_size_kb: 0
+        total_size_kb: 0,
+        cache_enabled: true
       });
       setError(null); // Don't show error, just use defaults
     } finally {
@@ -68,6 +73,32 @@ export default function CacheManager() {
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
+
+  // Toggle cache on/off
+  const toggleCache = async () => {
+    try {
+      setTogglingCache(true);
+      setError(null);
+      
+      const newState = !cacheEnabled;
+      const response = await fetchWithFallback('/cache/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: newState })
+      });
+
+      const data = await response.json();
+      setCacheEnabled(newState);
+      setSuccessMessage(`✅ Cache ${newState ? 'aktiverad' : 'avaktiverad'}!`);
+      
+      // Ta bort success-meddelande efter 3 sekunder
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError(`Kunde inte ändra cache-status: ${err.message}`);
+    } finally {
+      setTogglingCache(false);
+    }
+  };
 
   // Rensa cache
   const clearCache = async (cacheType = 'all') => {
@@ -162,6 +193,48 @@ export default function CacheManager() {
           <p className="text-green-200">{successMessage}</p>
         </div>
       )}
+
+      {/* Global Cache Toggle */}
+      <div className="mb-6 p-4 bg-slate-700 rounded-lg border-2 border-slate-600">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              ⚙️ Global Cache
+              <span className={`px-2 py-0.5 text-xs rounded ${cacheEnabled ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
+                {cacheEnabled ? 'AKTIV' : 'AVAKTIVERAD'}
+              </span>
+            </h3>
+            <p className="text-sm text-slate-400 mt-1">
+              {cacheEnabled 
+                ? 'Cache är aktiv - svar cachelagras för snabbare respons' 
+                : '⚠️ Cache är avaktiverad - alla svar hämtas live (långsammare)'}
+            </p>
+          </div>
+          <button
+            onClick={toggleCache}
+            disabled={togglingCache}
+            className={`relative w-16 h-8 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 ${
+              cacheEnabled 
+                ? 'bg-green-600 focus:ring-green-500' 
+                : 'bg-red-600 focus:ring-red-500'
+            } ${togglingCache ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+          >
+            <span 
+              className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-transform ${
+                cacheEnabled ? 'translate-x-9' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+        {!cacheEnabled && (
+          <div className="mt-3 p-3 bg-yellow-900/30 border border-yellow-600/50 rounded">
+            <p className="text-yellow-300 text-sm">
+              💡 <strong>Testläge:</strong> Perfekt för utveckling och felsökning. 
+              Alla frågor ger alltid färska svar från API:er.
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Snabb-knappar för att rensa cache */}
       <div className="mb-6 p-4 bg-slate-700 rounded-lg">
