@@ -206,12 +206,49 @@ class TypoDoubleCheck:
     1. Regelbaserad kontroll med svensk ordlista
     2. Fuzzy matching för förslag
     3. Kontextuell analys
+    4. Städer och regioner från config-filer (ALDRIG korrigeras)
     """
     
     def __init__(self):
         self.dictionary = SwedishDictionary()
         self.logger = TypoLogger()
         self.common_typos = self._load_common_typos()
+        self.swedish_cities = self._load_swedish_cities()  # Ladda från config
+        self.swedish_regions = self._load_swedish_regions()  # Ladda från config
+    
+    def _load_swedish_cities(self) -> set:
+        """Ladda svenska städer från config/swedish_cities.json."""
+        cities = set()
+        cities_file = Path(__file__).parent.parent / "config" / "swedish_cities.json"
+        
+        if cities_file.exists():
+            try:
+                with open(cities_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    city_dict = data.get("cities", data)
+                    cities = set(city_dict.keys())
+                    print(f"[TYPO] ✓ Loaded {len(cities)} Swedish cities for whitelist")
+            except Exception as e:
+                print(f"[TYPO] Warning: Could not load swedish_cities.json: {e}")
+        
+        return cities
+    
+    def _load_swedish_regions(self) -> set:
+        """Ladda svenska regioner från config/swedish_regions.json."""
+        regions = set()
+        regions_file = Path(__file__).parent.parent / "config" / "swedish_regions.json"
+        
+        if regions_file.exists():
+            try:
+                with open(regions_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    region_dict = data.get("regions", data)
+                    regions = set(region_dict.keys())
+                    print(f"[TYPO] ✓ Loaded {len(regions)} Swedish regions for whitelist")
+            except Exception as e:
+                print(f"[TYPO] Warning: Could not load swedish_regions.json: {e}")
+        
+        return regions
     
     def _load_common_typos(self) -> Dict[str, str]:
         """Ladda vanliga svenska stavfel."""
@@ -262,8 +299,6 @@ class TypoDoubleCheck:
         "ha", "nu", "så", "än", "ut", "in", "upp", "ner", "hit", "dit", "hem",
         # Frågeord
         "hur", "många", "mycket", "vad", "vilken", "vilket", "vilka",
-        # Svenska platser (versaler eller ej)
-        "hjo", "stockholm", "göteborg", "malmö", "uppsala", "linköping",
     }
     
     def check_word(self, word: str) -> SpellingResult:
@@ -289,7 +324,29 @@ class TypoDoubleCheck:
                 method="whitelist"
             )
         
-        # 0b. Skippa mycket korta ord (<=2 tecken) - för osäkra
+        # 0b. Svenska städer från config/swedish_cities.json - ALDRIG korrigera
+        if word_lower in self.swedish_cities:
+            return SpellingResult(
+                original=word,
+                corrected=word,
+                is_correct=True,
+                suggestions=[],
+                confidence=1.0,
+                method="swedish_city"
+            )
+        
+        # 0c. Svenska regioner från config/swedish_regions.json - ALDRIG korrigera
+        if word_lower in self.swedish_regions:
+            return SpellingResult(
+                original=word,
+                corrected=word,
+                is_correct=True,
+                suggestions=[],
+                confidence=1.0,
+                method="swedish_region"
+            )
+        
+        # 0d. Skippa mycket korta ord (<=2 tecken) - för osäkra
         if len(word) <= 2:
             return SpellingResult(
                 original=word,

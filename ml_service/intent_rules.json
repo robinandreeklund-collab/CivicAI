@@ -111,23 +111,7 @@
     }
   },
   "entity_patterns": {
-    "swedish_cities": [
-      "stockholm", "göteborg", "malmö", "uppsala", "linköping",
-      "västerås", "örebro", "helsingborg", "norrköping", "jönköping",
-      "lund", "umeå", "gävle", "borås", "eskilstuna",
-      "södertälje", "karlstad", "täby", "växjö", "halmstad",
-      "sundsvall", "luleå", "trollhättan", "östersund", "borlänge",
-      "falun", "kalmar", "kristianstad", "skövde", "karlskrona",
-      "hjo", "tibro", "skara", "mariestad", "tidaholm", "karlsborg",
-      "falköping", "mullsjö", "habo", "vaggeryd", "gnosjö",
-      "tranås", "aneby", "eksjö", "nässjö", "vetlanda", "sävsjö",
-      "hultsfred", "vimmerby", "västervik", "oskarshamn",
-      "arvika", "hagfors", "sunne", "torsby", "filipstad",
-      "mora", "orsa", "rättvik", "leksand", "ludvika",
-      "avesta", "hedemora", "säter", "smedjebacken",
-      "kiruna", "gällivare", "boden", "piteå", "älvsbyn",
-      "visby", "kungsbacka", "mölndal", "partille", "lerum"
-    ],
+    "_note": "Städer och regioner laddas nu från config/swedish_cities.json och config/swedish_regions.json",
     "date_patterns": [
       "\\d{4}-\\d{2}-\\d{2}",
       "idag",
@@ -152,9 +136,9 @@
     "low": 0.4
   },
   "metadata": {
-    "version": "2.0.0",
+    "version": "2.1.0",
     "language": "sv",
     "last_updated": null,
-    "description": "Intent-regler för ONESEEK Δ+ admin-styrbar Intent Engine. Ersätter gamla trigger-system."
+    "description": "Intent-regler för ONESEEK Δ+ admin-styrbar Intent Engine. Städer från config/swedish_cities.json (150+), regioner från config/swedish_regions.json (21)."
   }
 }

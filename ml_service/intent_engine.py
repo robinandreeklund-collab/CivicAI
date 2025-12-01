@@ -30,6 +30,172 @@ except ImportError:
 # Configuration paths
 CONFIG_DIR = Path(__file__).parent.parent / "config"
 INTENT_RULES_FILE = Path(__file__).parent / "intent_rules.json"
+SWEDISH_CITIES_FILE = CONFIG_DIR / "swedish_cities.json"
+SWEDISH_REGIONS_FILE = CONFIG_DIR / "swedish_regions.json"
+
+
+# Global caches (loaded once for performance)
+_swedish_cities_cache: Optional[set] = None
+_swedish_regions_cache: Optional[Dict[str, str]] = None
+
+
+def load_swedish_cities() -> set:
+    """
+    Ladda svenska städer från config/swedish_cities.json.
+    Cacheas för snabb lookup.
+    
+    Returns:
+        Set med alla svenska stadsnamn (lowercase)
+    """
+    global _swedish_cities_cache
+    
+    if _swedish_cities_cache is not None:
+        return _swedish_cities_cache
+    
+    cities = set()
+    
+    if SWEDISH_CITIES_FILE.exists():
+        try:
+            with open(SWEDISH_CITIES_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                # Stödjer både {"cities": {...}} och bara {...}
+                city_dict = data.get("cities", data)
+                cities = set(city_dict.keys())
+                print(f"[INTENT-ENGINE] ✓ Loaded {len(cities)} Swedish cities from config/swedish_cities.json")
+        except Exception as e:
+            print(f"[INTENT-ENGINE] Warning: Could not load swedish_cities.json: {e}")
+    else:
+        print(f"[INTENT-ENGINE] Warning: swedish_cities.json not found at {SWEDISH_CITIES_FILE}")
+    
+    _swedish_cities_cache = cities
+    return cities
+
+
+def load_swedish_regions() -> Dict[str, str]:
+    """
+    Ladda svenska regioner från config/swedish_regions.json.
+    Cacheas för snabb lookup.
+    
+    Returns:
+        Dict med regionnamn -> officiellt namn (lowercase keys)
+    """
+    global _swedish_regions_cache
+    
+    if _swedish_regions_cache is not None:
+        return _swedish_regions_cache
+    
+    regions = {}
+    
+    if SWEDISH_REGIONS_FILE.exists():
+        try:
+            with open(SWEDISH_REGIONS_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                # Stödjer både {"regions": {...}} och bara {...}
+                regions = data.get("regions", data)
+                print(f"[INTENT-ENGINE] ✓ Loaded {len(regions)} Swedish regions from config/swedish_regions.json")
+        except Exception as e:
+            print(f"[INTENT-ENGINE] Warning: Could not load swedish_regions.json: {e}")
+    else:
+        print(f"[INTENT-ENGINE] Warning: swedish_regions.json not found at {SWEDISH_REGIONS_FILE}")
+    
+    _swedish_regions_cache = regions
+    return regions
+
+
+def is_swedish_city(text: str) -> bool:
+    """
+    Kontrollera om text är en svensk stad.
+    
+    Args:
+        text: Stadsnamn att kolla
+        
+    Returns:
+        True om staden finns i config/swedish_cities.json
+    """
+    cities = load_swedish_cities()
+    return text.lower() in cities
+
+
+def is_swedish_region(text: str) -> bool:
+    """
+    Kontrollera om text är en svensk region.
+    
+    Args:
+        text: Regionnamn att kolla
+        
+    Returns:
+        True om regionen finns i config/swedish_regions.json
+    """
+    regions = load_swedish_regions()
+    return text.lower() in regions
+
+
+def find_city_in_text(text: str) -> Optional[str]:
+    """
+    Hitta första svenska staden i en text.
+    
+    Args:
+        text: Text att söka i
+        
+    Returns:
+        Stadsnamn om hittad, annars None
+    """
+    cities = load_swedish_cities()
+    text_lower = text.lower()
+    
+    # Sortera städer efter längd (längst först) för att matcha "Upplands-Bro" före "Bro"
+    sorted_cities = sorted(cities, key=len, reverse=True)
+    
+    for city in sorted_cities:
+        if city in text_lower:
+            return city.capitalize()
+    
+    return None
+
+
+def find_region_in_text(text: str) -> Optional[str]:
+    """
+    Hitta första svenska regionen i en text.
+    
+    Args:
+        text: Text att söka i
+        
+    Returns:
+        Officiellt regionnamn om hittad, annars None
+    """
+    regions = load_swedish_regions()
+    text_lower = text.lower()
+    
+    # Sortera regioner efter längd (längst först)
+    sorted_regions = sorted(regions.keys(), key=len, reverse=True)
+    
+    for region_key in sorted_regions:
+        if region_key in text_lower:
+            return regions[region_key]  # Returnera officiellt namn
+    
+    return None
+
+
+def find_location_in_text(text: str) -> Optional[Tuple[str, str]]:
+    """
+    Hitta första svenska platsen (stad eller region) i en text.
+    
+    Args:
+        text: Text att söka i
+        
+    Returns:
+        Tuple (namn, typ) där typ är "city" eller "region", eller None
+    """
+    # Prioritera städer (mer specifika)
+    city = find_city_in_text(text)
+    if city:
+        return (city, "city")
+    
+    region = find_region_in_text(text)
+    if region:
+        return (region, "region")
+    
+    return None
 
 
 @dataclass
@@ -63,6 +229,8 @@ class IntentEngine:
     
     Kombinerar:
     - Regelbaserad matching via intent_rules.json
+    - config/swedish_cities.json för stadsigenkänning (150+ städer)
+    - config/swedish_regions.json för regionsigenkänning (21 regioner)
     - spaCy NER för entity-extraktion (om tillgänglig)
     - Semantisk analys för intent-klassificering
     """
@@ -77,6 +245,9 @@ class IntentEngine:
         self.rules_file = rules_file or INTENT_RULES_FILE
         self.rules = self._load_rules()
         self.nlp = self._load_spacy()
+        # Ladda städer och regioner från config-filer
+        self.swedish_cities = load_swedish_cities()
+        self.swedish_regions = load_swedish_regions()
         
     def _load_rules(self) -> Dict[str, Any]:
         """Ladda intent-regler från JSON-fil."""
@@ -217,6 +388,9 @@ class IntentEngine:
     def extract_entities(self, text: str) -> List[Entity]:
         """
         Extrahera entiteter från text.
+        Använder:
+        - config/swedish_cities.json för stadsigenkänning (150+ städer)
+        - config/swedish_regions.json för regionsigenkänning (21 regioner)
         
         Args:
             text: Användarinput
@@ -239,20 +413,41 @@ class IntentEngine:
                     confidence=0.9  # spaCy doesn't provide confidence, assume high
                 ))
         
-        # Regelbaserad entity-extraktion
-        patterns = self.rules.get("entity_patterns", {})
+        # === PRIMÄR: Svenska städer från config/swedish_cities.json (150+ städer) ===
+        # Sortera efter längd för att matcha längre namn först
+        sorted_cities = sorted(self.swedish_cities, key=len, reverse=True)
         
-        # Svenska städer
-        for city in patterns.get("swedish_cities", []):
-            if city in text_lower:
+        found_locations = set()  # Undvik dubbletter
+        for city in sorted_cities:
+            if city in text_lower and city not in found_locations:
                 idx = text_lower.find(city)
                 entities.append(Entity(
                     text=city.capitalize(),
-                    label="GPE",
+                    label="GPE",  # Geo-Political Entity (stad)
                     start=idx,
                     end=idx + len(city),
-                    confidence=0.95
+                    confidence=0.98  # Hög confidence för städer från officiell lista
                 ))
+                found_locations.add(city)
+        
+        # === SEKUNDÄR: Svenska regioner från config/swedish_regions.json (21 regioner) ===
+        sorted_regions = sorted(self.swedish_regions.keys(), key=len, reverse=True)
+        
+        for region_key in sorted_regions:
+            if region_key in text_lower and region_key not in found_locations:
+                idx = text_lower.find(region_key)
+                official_name = self.swedish_regions[region_key]
+                entities.append(Entity(
+                    text=official_name,
+                    label="LOC",  # Location (region)
+                    start=idx,
+                    end=idx + len(region_key),
+                    confidence=0.97  # Hög confidence för regioner från officiell lista
+                ))
+                found_locations.add(region_key)
+        
+        # Regelbaserad entity-extraktion (fallback för datum etc.)
+        patterns = self.rules.get("entity_patterns", {})
         
         # Datum-mönster
         for pattern in patterns.get("date_patterns", []):
