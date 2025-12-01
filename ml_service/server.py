@@ -2200,6 +2200,18 @@ class ErrorResponse(BaseModel):
     migration_guide: str = None
 
 
+class PythonCodeRequest(BaseModel):
+    """Request model for Python code generation"""
+    question: str = Field(..., min_length=1, max_length=5000, description="Question or description of desired Python code")
+
+
+class PythonCodeResponse(BaseModel):
+    """Response model for Python code generation"""
+    code: str
+    model: str
+    latency_ms: float
+
+
 # =============================================================================
 # SYSTEM PROMPT MANAGEMENT - CRUD API for Admin Dashboard
 # =============================================================================
@@ -6303,6 +6315,73 @@ async def models_status():
         "cuda_available": torch.cuda.is_available(),
         "models": status
     }
+
+
+# =============================================================================
+# PYTHON CODE GENERATION ENDPOINT
+# =============================================================================
+
+@app.post("/code/python", response_model=PythonCodeResponse)
+async def generate_python_code(req: PythonCodeRequest):
+    """
+    Generate Python code based on a Swedish question or description.
+    
+    Uses the OneSeek model to generate clean, commented Python code
+    with Swedish variable names and comments where appropriate.
+    """
+    import time
+    start_time = time.time()
+    
+    question = req.question.strip()
+    
+    prompt = f"""Du är en expert på Python.
+Användaren frågar: "{question}"
+
+Skriv ren, snygg, kommenterad Python-kod.
+- Använd svenska variabelnamn och kommentarer där det är naturligt.
+- Koden ska vara körbar och utan fel.
+- Lägg till en kort förklaring längst ned som kommentar."""
+    
+    try:
+        model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
+        
+        inputs = tokenizer(prompt, return_tensors="pt", padding=True)
+        inputs = sync_inputs_to_model_device(inputs, model)
+        
+        with torch.no_grad():
+            outputs = model.generate(
+                input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
+                attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
+                max_new_tokens=512,
+                temperature=0.7,
+                top_p=0.9,
+                do_sample=True,
+                pad_token_id=tokenizer.eos_token_id
+            )
+        
+        response_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        
+        # Extract just the generated code (remove the prompt from output)
+        if prompt in response_text:
+            code = response_text[len(prompt):].strip()
+        else:
+            code = response_text.strip()
+        
+        # Remove internal debug tags
+        code = clean_internal_tags(code)
+        
+        latency_ms = (time.time() - start_time) * 1000
+        
+        return PythonCodeResponse(
+            code=code,
+            model="OneSeek-7B-Zero.v1.1",
+            latency_ms=latency_ms
+        )
+        
+    except Exception as e:
+        logger.error(f"Python code generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Code generation failed: {str(e)}")
+
 
 if __name__ == "__main__":
     import uvicorn
