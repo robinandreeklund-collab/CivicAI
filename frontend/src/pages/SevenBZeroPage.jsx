@@ -317,7 +317,7 @@ export default function SevenBZeroPage() {
             ? { 
                 ...msg, 
                 responseTime: finalResponseTime,
-                confidence: data.confidence || data.delta_plus?.intent_confidence || 0.85,
+                confidence: data.confidence || data.delta_plus?.confidence_score || data.delta_plus?.intent_confidence || 0.85,
                 version: data.version || 'OneSeek-Δ+',
                 deltaPlus: data.delta_plus || null,
               }
@@ -391,7 +391,7 @@ export default function SevenBZeroPage() {
             ? { 
                 ...msg, 
                 responseTime: finalResponseTime,
-                confidence: data.confidence || data.delta_plus?.intent_confidence || 0.85,
+                confidence: data.confidence || data.delta_plus?.confidence_score || data.delta_plus?.intent_confidence || 0.85,
                 version: data.version || 'OneSeek-Δ+',
                 deltaPlus: data.delta_plus || null,
               }
@@ -720,7 +720,7 @@ export default function SevenBZeroPage() {
             ? { 
                 ...msg, 
                 responseTime: finalResponseTime,
-                confidence: data.confidence || data.delta_plus?.intent_confidence || 0.85,
+                confidence: data.confidence || data.delta_plus?.confidence_score || data.delta_plus?.intent_confidence || 0.85,
                 version: data.version || 'OneSeek-Δ+',
                 provenance: data.provenance,
                 // ONESEEK Δ+ metadata

@@ -4631,6 +4631,79 @@ async def detect_topic(request: dict):
         return {"error": str(e)}
 
 
+@app.post("/api/intent/debug")
+async def debug_intent(request: dict):
+    """
+    ONESEEK Δ+ DEBUG: Test Intent Engine directly from terminal/curl.
+    
+    Usage:
+        curl -X POST http://localhost:5000/api/intent/debug \
+             -H "Content-Type: application/json" \
+             -d '{"question": "Hur många bor i Hjo?"}'
+    
+    Returns detailed debug info about intent detection.
+    """
+    from datetime import datetime
+    
+    question = request.get("question", "").strip()
+    if not question:
+        return {"error": "No question provided", "usage": "POST with {\"question\": \"your question here\"}"}
+    
+    if not INTENT_ENGINE_AVAILABLE:
+        return {"error": "Intent Engine not available", "question": question}
+    
+    try:
+        # Get intent detection result
+        result = detect_intent_and_city(question) if detect_intent_and_city else {}
+        
+        # Generate topic hash
+        intent_name = result.get("intent", "general")
+        entity = result.get("entity", "")
+        topic_hash = generate_topic_hash(intent_name, entity) if generate_topic_hash else "not_available"
+        
+        # Get spaCy info if available
+        spacy_info = {}
+        if get_spacy_info:
+            try:
+                spacy_info = get_spacy_info(question)
+            except Exception as e:
+                spacy_info = {"error": str(e)}
+        
+        # Check what API would be triggered
+        api_info = None
+        if INTENT_ENGINE_AVAILABLE and get_intent_engine:
+            try:
+                engine = get_intent_engine()
+                intent_config = engine.rules.get("intents", {}).get(intent_name, {})
+                api_info = {
+                    "api": intent_config.get("api"),
+                    "weight": intent_config.get("weight", 1.0),
+                    "force_api": intent_config.get("force_api", False),
+                    "min_confidence": intent_config.get("min_confidence", 0.0),
+                    "keywords": intent_config.get("keywords", intent_config.get("triggers", []))[:5],  # First 5 keywords
+                }
+            except Exception as e:
+                api_info = {"error": str(e)}
+        
+        return {
+            "question": question,
+            "detected_intent": intent_name,
+            "detected_entity": entity,
+            "confidence": result.get("confidence", 0),
+            "api_to_be_called": result.get("api"),
+            "topic_hash": topic_hash,
+            "all_entities": result.get("all_entities", []),
+            "spacy": spacy_info,
+            "intent_config": api_info,
+            "timestamp": datetime.now().isoformat(),
+            "engine_available": INTENT_ENGINE_AVAILABLE,
+        }
+        
+    except Exception as e:
+        logging.error(f"Intent debug error: {e}")
+        return {"error": str(e), "question": question}
+
+
 # =============================================================================
 # END ONESEEK Δ+ API ENDPOINTS
 # =============================================================================
