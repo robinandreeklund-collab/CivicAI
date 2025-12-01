@@ -1,0 +1,2825 @@
+{
+  "updated_at": "2025-11-30T23:28:05.439567+00:00",
+  "municipalities": {
+    "stockholm": {
+      "coordinates": {
+        "lon": 18.07,
+        "lat": 59.33
+      },
+      "weather": {
+        "temperature": 6.5,
+        "wind_speed": 4.4,
+        "wind_direction": 197,
+        "humidity": 89,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1004.1,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:05.857932+00:00"
+    },
+    "göteborg": {
+      "coordinates": {
+        "lon": 11.97,
+        "lat": 57.71
+      },
+      "weather": {
+        "temperature": 7.2,
+        "wind_speed": 12.5,
+        "wind_direction": 204,
+        "humidity": 89,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 12.7,
+        "pressure": 998.5,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:06.265020+00:00"
+    },
+    "malmö": {
+      "coordinates": {
+        "lon": 13.0,
+        "lat": 55.61
+      },
+      "weather": {
+        "temperature": 6.8,
+        "wind_speed": 8.0,
+        "wind_direction": 232,
+        "humidity": 88,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 4,
+        "visibility": 75.0,
+        "pressure": 1008.4,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:06.664362+00:00"
+    },
+    "uppsala": {
+      "coordinates": {
+        "lon": 17.64,
+        "lat": 59.86
+      },
+      "weather": {
+        "temperature": 5.5,
+        "wind_speed": 4.6,
+        "wind_direction": 191,
+        "humidity": 95,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 10.3,
+        "pressure": 1003.1,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:07.097415+00:00"
+    },
+    "linköping": {
+      "coordinates": {
+        "lon": 15.62,
+        "lat": 58.41
+      },
+      "weather": {
+        "temperature": 4.5,
+        "wind_speed": 3.3,
+        "wind_direction": 173,
+        "humidity": 84,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1003.1,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:07.504906+00:00"
+    },
+    "västerås": {
+      "coordinates": {
+        "lon": 16.54,
+        "lat": 59.61
+      },
+      "weather": {
+        "temperature": 5.2,
+        "wind_speed": 3.8,
+        "wind_direction": 166,
+        "humidity": 96,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 6,
+        "visibility": 9.9,
+        "pressure": 1002.5,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:07.907610+00:00"
+    },
+    "örebro": {
+      "coordinates": {
+        "lon": 15.21,
+        "lat": 59.27
+      },
+      "weather": {
+        "temperature": 5.3,
+        "wind_speed": 3.1,
+        "wind_direction": 160,
+        "humidity": 91,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1001.5,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:08.325860+00:00"
+    },
+    "helsingborg": {
+      "coordinates": {
+        "lon": 12.69,
+        "lat": 56.05
+      },
+      "weather": {
+        "temperature": 6.8,
+        "wind_speed": 8.1,
+        "wind_direction": 227,
+        "humidity": 86,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 6,
+        "visibility": 75.0,
+        "pressure": 1006.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:08.746881+00:00"
+    },
+    "norrköping": {
+      "coordinates": {
+        "lon": 16.19,
+        "lat": 58.59
+      },
+      "weather": {
+        "temperature": 5.4,
+        "wind_speed": 3.0,
+        "wind_direction": 154,
+        "humidity": 89,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 6,
+        "visibility": 75.0,
+        "pressure": 1003.3,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:09.148303+00:00"
+    },
+    "jönköping": {
+      "coordinates": {
+        "lon": 14.16,
+        "lat": 57.78
+      },
+      "weather": {
+        "temperature": 5.5,
+        "wind_speed": 7.8,
+        "wind_direction": 191,
+        "humidity": 85,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1001.9,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:09.548275+00:00"
+    },
+    "umeå": {
+      "coordinates": {
+        "lon": 20.26,
+        "lat": 63.83
+      },
+      "weather": {
+        "temperature": -0.9,
+        "wind_speed": 3.7,
+        "wind_direction": 35,
+        "humidity": 89,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 0.9,
+        "pressure": 1005.6,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:09.955965+00:00"
+    },
+    "lund": {
+      "coordinates": {
+        "lon": 13.19,
+        "lat": 55.7
+      },
+      "weather": {
+        "temperature": 6.6,
+        "wind_speed": 7.8,
+        "wind_direction": 234,
+        "humidity": 89,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 5,
+        "visibility": 75.0,
+        "pressure": 1008.2,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:10.366361+00:00"
+    },
+    "borås": {
+      "coordinates": {
+        "lon": 12.94,
+        "lat": 57.72
+      },
+      "weather": {
+        "temperature": 5.6,
+        "wind_speed": 7.7,
+        "wind_direction": 196,
+        "humidity": 92,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 19.8,
+        "pressure": 1000.5,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:10.764495+00:00"
+    },
+    "sundsvall": {
+      "coordinates": {
+        "lon": 17.31,
+        "lat": 62.39
+      },
+      "weather": {
+        "temperature": 0.0,
+        "wind_speed": 1.8,
+        "wind_direction": 3,
+        "humidity": 100,
+        "precipitation_category": 2,
+        "precipitation_text": "snö och regn",
+        "cloud_cover": 8,
+        "visibility": 1.3,
+        "pressure": 1001.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:11.183880+00:00"
+    },
+    "gävle": {
+      "coordinates": {
+        "lon": 17.14,
+        "lat": 60.67
+      },
+      "weather": {
+        "temperature": 4.6,
+        "wind_speed": 2.7,
+        "wind_direction": 176,
+        "humidity": 98,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 6.3,
+        "pressure": 1001.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:11.578462+00:00"
+    },
+    "eskilstuna": {
+      "coordinates": {
+        "lon": 16.51,
+        "lat": 59.37
+      },
+      "weather": {
+        "temperature": 5.7,
+        "wind_speed": 4.3,
+        "wind_direction": 181,
+        "humidity": 94,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 5,
+        "visibility": 75.0,
+        "pressure": 1002.7,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:11.975625+00:00"
+    },
+    "södertälje": {
+      "coordinates": {
+        "lon": 17.63,
+        "lat": 59.2
+      },
+      "weather": {
+        "temperature": 6.0,
+        "wind_speed": 4.7,
+        "wind_direction": 186,
+        "humidity": 94,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1004.0,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:12.392421+00:00"
+    },
+    "karlstad": {
+      "coordinates": {
+        "lon": 13.5,
+        "lat": 59.4
+      },
+      "weather": {
+        "temperature": 5.3,
+        "wind_speed": 5.3,
+        "wind_direction": 157,
+        "humidity": 83,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 999.4,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:12.785874+00:00"
+    },
+    "täby": {
+      "coordinates": {
+        "lon": 18.07,
+        "lat": 59.44
+      },
+      "weather": {
+        "temperature": 6.0,
+        "wind_speed": 4.1,
+        "wind_direction": 193,
+        "humidity": 93,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1003.9,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:13.186039+00:00"
+    },
+    "växjö": {
+      "coordinates": {
+        "lon": 14.81,
+        "lat": 56.88
+      },
+      "weather": {
+        "temperature": 4.6,
+        "wind_speed": 5.9,
+        "wind_direction": 201,
+        "humidity": 84,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1005.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:13.588480+00:00"
+    },
+    "halmstad": {
+      "coordinates": {
+        "lon": 12.86,
+        "lat": 56.67
+      },
+      "weather": {
+        "temperature": 6.9,
+        "wind_speed": 9.0,
+        "wind_direction": 213,
+        "humidity": 91,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1004.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:13.996023+00:00"
+    },
+    "luleå": {
+      "coordinates": {
+        "lon": 22.16,
+        "lat": 65.58
+      },
+      "weather": {
+        "temperature": -6.4,
+        "wind_speed": 1.6,
+        "wind_direction": 1,
+        "humidity": 86,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1008.6,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:14.401969+00:00"
+    },
+    "trollhättan": {
+      "coordinates": {
+        "lon": 12.29,
+        "lat": 58.28
+      },
+      "weather": {
+        "temperature": 6.1,
+        "wind_speed": 7.3,
+        "wind_direction": 197,
+        "humidity": 92,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 12.2,
+        "pressure": 996.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:14.851166+00:00"
+    },
+    "östersund": {
+      "coordinates": {
+        "lon": 14.64,
+        "lat": 63.18
+      },
+      "weather": {
+        "temperature": -3.2,
+        "wind_speed": 2.4,
+        "wind_direction": 71,
+        "humidity": 91,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 1.0,
+        "pressure": 1003.6,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:15.255956+00:00"
+    },
+    "borlänge": {
+      "coordinates": {
+        "lon": 15.44,
+        "lat": 60.48
+      },
+      "weather": {
+        "temperature": 1.4,
+        "wind_speed": 0.5,
+        "wind_direction": 39,
+        "humidity": 100,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 0.7,
+        "pressure": 1001.2,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:15.684813+00:00"
+    },
+    "falun": {
+      "coordinates": {
+        "lon": 15.63,
+        "lat": 60.61
+      },
+      "weather": {
+        "temperature": 2.0,
+        "wind_speed": 1.9,
+        "wind_direction": 156,
+        "humidity": 100,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 0.2,
+        "pressure": 1001.2,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:16.200630+00:00"
+    },
+    "kristianstad": {
+      "coordinates": {
+        "lon": 14.16,
+        "lat": 56.03
+      },
+      "weather": {
+        "temperature": 6.6,
+        "wind_speed": 5.7,
+        "wind_direction": 235,
+        "humidity": 83,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1007.6,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:16.617671+00:00"
+    },
+    "kalmar": {
+      "coordinates": {
+        "lon": 16.36,
+        "lat": 56.66
+      },
+      "weather": {
+        "temperature": 6.0,
+        "wind_speed": 7.0,
+        "wind_direction": 205,
+        "humidity": 90,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1007.1,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:17.040729+00:00"
+    },
+    "skellefteå": {
+      "coordinates": {
+        "lon": 20.95,
+        "lat": 64.75
+      },
+      "weather": {
+        "temperature": -4.0,
+        "wind_speed": 0.8,
+        "wind_direction": 15,
+        "humidity": 86,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1007.9,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:17.468976+00:00"
+    },
+    "uddevalla": {
+      "coordinates": {
+        "lon": 11.93,
+        "lat": 58.35
+      },
+      "weather": {
+        "temperature": 6.2,
+        "wind_speed": 7.6,
+        "wind_direction": 192,
+        "humidity": 93,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 9.9,
+        "pressure": 995.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:17.888834+00:00"
+    },
+    "karlskrona": {
+      "coordinates": {
+        "lon": 15.59,
+        "lat": 56.16
+      },
+      "weather": {
+        "temperature": 7.1,
+        "wind_speed": 10.1,
+        "wind_direction": 221,
+        "humidity": 87,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 7,
+        "visibility": 75.0,
+        "pressure": 1008.1,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:18.305919+00:00"
+    },
+    "skövde": {
+      "coordinates": {
+        "lon": 13.85,
+        "lat": 58.39
+      },
+      "weather": {
+        "temperature": 4.9,
+        "wind_speed": 6.5,
+        "wind_direction": 182,
+        "humidity": 84,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 999.9,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:18.785359+00:00"
+    },
+    "varberg": {
+      "coordinates": {
+        "lon": 12.25,
+        "lat": 57.11
+      },
+      "weather": {
+        "temperature": 7.3,
+        "wind_speed": 11.5,
+        "wind_direction": 217,
+        "humidity": 88,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1002.2,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:19.188076+00:00"
+    },
+    "örnsköldsvik": {
+      "coordinates": {
+        "lon": 18.71,
+        "lat": 63.29
+      },
+      "weather": {
+        "temperature": -0.5,
+        "wind_speed": 4.0,
+        "wind_direction": 47,
+        "humidity": 93,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 0.8,
+        "pressure": 1003.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:19.596005+00:00"
+    },
+    "landskrona": {
+      "coordinates": {
+        "lon": 12.83,
+        "lat": 55.87
+      },
+      "weather": {
+        "temperature": 7.0,
+        "wind_speed": 9.5,
+        "wind_direction": 228,
+        "humidity": 86,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 6,
+        "visibility": 75.0,
+        "pressure": 1007.4,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:20.001988+00:00"
+    },
+    "nyköping": {
+      "coordinates": {
+        "lon": 17.01,
+        "lat": 58.75
+      },
+      "weather": {
+        "temperature": 5.8,
+        "wind_speed": 3.4,
+        "wind_direction": 176,
+        "humidity": 97,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 7,
+        "visibility": 7.2,
+        "pressure": 1004.1,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:20.398082+00:00"
+    },
+    "motala": {
+      "coordinates": {
+        "lon": 15.04,
+        "lat": 58.54
+      },
+      "weather": {
+        "temperature": 4.3,
+        "wind_speed": 3.2,
+        "wind_direction": 152,
+        "humidity": 89,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1002.3,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:20.801115+00:00"
+    },
+    "trelleborg": {
+      "coordinates": {
+        "lon": 13.16,
+        "lat": 55.38
+      },
+      "weather": {
+        "temperature": 7.0,
+        "wind_speed": 9.5,
+        "wind_direction": 243,
+        "humidity": 87,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 3,
+        "visibility": 75.0,
+        "pressure": 1009.0,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:21.216844+00:00"
+    },
+    "karlskoga": {
+      "coordinates": {
+        "lon": 14.52,
+        "lat": 59.33
+      },
+      "weather": {
+        "temperature": 4.3,
+        "wind_speed": 4.0,
+        "wind_direction": 158,
+        "humidity": 90,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1000.7,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:21.620795+00:00"
+    },
+    "ängelholm": {
+      "coordinates": {
+        "lon": 12.86,
+        "lat": 56.24
+      },
+      "weather": {
+        "temperature": 6.4,
+        "wind_speed": 5.8,
+        "wind_direction": 217,
+        "humidity": 89,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 7,
+        "visibility": 75.0,
+        "pressure": 1006.3,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:22.021967+00:00"
+    },
+    "enköping": {
+      "coordinates": {
+        "lon": 17.08,
+        "lat": 59.64
+      },
+      "weather": {
+        "temperature": 5.2,
+        "wind_speed": 3.7,
+        "wind_direction": 170,
+        "humidity": 96,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 7,
+        "visibility": 9.4,
+        "pressure": 1003.0,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:22.425482+00:00"
+    },
+    "värnamo": {
+      "coordinates": {
+        "lon": 14.04,
+        "lat": 57.19
+      },
+      "weather": {
+        "temperature": 4.6,
+        "wind_speed": 6.6,
+        "wind_direction": 202,
+        "humidity": 92,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1004.2,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:22.829955+00:00"
+    },
+    "lidköping": {
+      "coordinates": {
+        "lon": 13.16,
+        "lat": 58.51
+      },
+      "weather": {
+        "temperature": 6.1,
+        "wind_speed": 7.3,
+        "wind_direction": 177,
+        "humidity": 84,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 998.5,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:23.242220+00:00"
+    },
+    "katrineholm": {
+      "coordinates": {
+        "lon": 16.21,
+        "lat": 59.0
+      },
+      "weather": {
+        "temperature": 5.3,
+        "wind_speed": 2.9,
+        "wind_direction": 165,
+        "humidity": 95,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 6,
+        "visibility": 9.8,
+        "pressure": 1003.0,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:23.656466+00:00"
+    },
+    "kiruna": {
+      "coordinates": {
+        "lon": 20.23,
+        "lat": 67.86
+      },
+      "weather": {
+        "temperature": -9.8,
+        "wind_speed": 3.3,
+        "wind_direction": 289,
+        "humidity": 71,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 3,
+        "visibility": 75.0,
+        "pressure": 1008.7,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:24.300242+00:00"
+    },
+    "piteå": {
+      "coordinates": {
+        "lon": 21.48,
+        "lat": 65.32
+      },
+      "weather": {
+        "temperature": -5.0,
+        "wind_speed": 1.6,
+        "wind_direction": 355,
+        "humidity": 86,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1008.5,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:24.701804+00:00"
+    },
+    "boden": {
+      "coordinates": {
+        "lon": 21.69,
+        "lat": 66.0
+      },
+      "weather": {
+        "temperature": -10.3,
+        "wind_speed": 1.0,
+        "wind_direction": 4,
+        "humidity": 94,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1008.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:25.103373+00:00"
+    },
+    "mora": {
+      "coordinates": {
+        "lon": 14.54,
+        "lat": 61.0
+      },
+      "weather": {
+        "temperature": 0.6,
+        "wind_speed": 0.5,
+        "wind_direction": 46,
+        "humidity": 100,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 0.5,
+        "pressure": 1000.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:25.508464+00:00"
+    },
+    "visby": {
+      "coordinates": {
+        "lon": 18.3,
+        "lat": 57.64
+      },
+      "weather": {
+        "temperature": 7.0,
+        "wind_speed": 7.0,
+        "wind_direction": 211,
+        "humidity": 92,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1007.3,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:25.921195+00:00"
+    },
+    "mariestad": {
+      "coordinates": {
+        "lon": 13.82,
+        "lat": 58.71
+      },
+      "weather": {
+        "temperature": 4.9,
+        "wind_speed": 5.5,
+        "wind_direction": 144,
+        "humidity": 88,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 999.7,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:26.593299+00:00"
+    },
+    "ystad": {
+      "coordinates": {
+        "lon": 13.82,
+        "lat": 55.43
+      },
+      "weather": {
+        "temperature": 7.5,
+        "wind_speed": 10.6,
+        "wind_direction": 250,
+        "humidity": 84,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 4,
+        "visibility": 75.0,
+        "pressure": 1009.1,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:27.079316+00:00"
+    },
+    "sala": {
+      "coordinates": {
+        "lon": 16.61,
+        "lat": 59.92
+      },
+      "weather": {
+        "temperature": 5.1,
+        "wind_speed": 3.6,
+        "wind_direction": 173,
+        "humidity": 98,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 5.2,
+        "pressure": 1002.2,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:27.809092+00:00"
+    },
+    "falkenberg": {
+      "coordinates": {
+        "lon": 12.49,
+        "lat": 56.91
+      },
+      "weather": {
+        "temperature": 7.3,
+        "wind_speed": 10.5,
+        "wind_direction": 219,
+        "humidity": 88,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1003.5,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:28.294949+00:00"
+    },
+    "arvika": {
+      "coordinates": {
+        "lon": 12.59,
+        "lat": 59.66
+      },
+      "weather": {
+        "temperature": 4.0,
+        "wind_speed": 2.2,
+        "wind_direction": 123,
+        "humidity": 96,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 6.7,
+        "pressure": 998.7,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:28.856881+00:00"
+    },
+    "härnösand": {
+      "coordinates": {
+        "lon": 17.94,
+        "lat": 62.63
+      },
+      "weather": {
+        "temperature": 0.4,
+        "wind_speed": 4.0,
+        "wind_direction": 15,
+        "humidity": 100,
+        "precipitation_category": 2,
+        "precipitation_text": "snö och regn",
+        "cloud_cover": 8,
+        "visibility": 0.1,
+        "pressure": 1002.0,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:29.651996+00:00"
+    },
+    "hudiksvall": {
+      "coordinates": {
+        "lon": 17.1,
+        "lat": 61.73
+      },
+      "weather": {
+        "temperature": 1.1,
+        "wind_speed": 0.3,
+        "wind_direction": 300,
+        "humidity": 100,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 1.7,
+        "pressure": 1001.7,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:30.389982+00:00"
+    },
+    "ljungby": {
+      "coordinates": {
+        "lon": 13.93,
+        "lat": 56.83
+      },
+      "weather": {
+        "temperature": 5.2,
+        "wind_speed": 5.1,
+        "wind_direction": 212,
+        "humidity": 92,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1005.2,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:30.983040+00:00"
+    },
+    "alingsås": {
+      "coordinates": {
+        "lon": 12.53,
+        "lat": 57.93
+      },
+      "weather": {
+        "temperature": 6.7,
+        "wind_speed": 8.0,
+        "wind_direction": 198,
+        "humidity": 88,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 998.4,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:31.391021+00:00"
+    },
+    "kungälv": {
+      "coordinates": {
+        "lon": 11.97,
+        "lat": 57.87
+      },
+      "weather": {
+        "temperature": 6.8,
+        "wind_speed": 10.1,
+        "wind_direction": 204,
+        "humidity": 92,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 9.6,
+        "pressure": 997.7,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:31.792891+00:00"
+    },
+    "vetlanda": {
+      "coordinates": {
+        "lon": 15.08,
+        "lat": 57.43
+      },
+      "weather": {
+        "temperature": 4.3,
+        "wind_speed": 6.3,
+        "wind_direction": 204,
+        "humidity": 83,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1004.3,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:32.196196+00:00"
+    },
+    "sandviken": {
+      "coordinates": {
+        "lon": 16.77,
+        "lat": 60.62
+      },
+      "weather": {
+        "temperature": 4.2,
+        "wind_speed": 3.2,
+        "wind_direction": 181,
+        "humidity": 99,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 4.5,
+        "pressure": 1001.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:32.605041+00:00"
+    },
+    "kungsbacka": {
+      "coordinates": {
+        "lon": 12.08,
+        "lat": 57.49
+      },
+      "weather": {
+        "temperature": 7.2,
+        "wind_speed": 9.4,
+        "wind_direction": 216,
+        "humidity": 86,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1000.1,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:33.009994+00:00"
+    },
+    "säffle": {
+      "coordinates": {
+        "lon": 12.93,
+        "lat": 59.13
+      },
+      "weather": {
+        "temperature": 4.7,
+        "wind_speed": 4.3,
+        "wind_direction": 154,
+        "humidity": 92,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 17.8,
+        "pressure": 998.7,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:33.417995+00:00"
+    },
+    "åmål": {
+      "coordinates": {
+        "lon": 12.7,
+        "lat": 59.05
+      },
+      "weather": {
+        "temperature": 4.8,
+        "wind_speed": 6.4,
+        "wind_direction": 150,
+        "humidity": 91,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 15.5,
+        "pressure": 998.3,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:33.822970+00:00"
+    },
+    "filipstad": {
+      "coordinates": {
+        "lon": 14.17,
+        "lat": 59.71
+      },
+      "weather": {
+        "temperature": 3.8,
+        "wind_speed": 2.2,
+        "wind_direction": 161,
+        "humidity": 93,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1000.3,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:34.222734+00:00"
+    },
+    "ludvika": {
+      "coordinates": {
+        "lon": 15.19,
+        "lat": 60.15
+      },
+      "weather": {
+        "temperature": 3.0,
+        "wind_speed": 1.3,
+        "wind_direction": 149,
+        "humidity": 97,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 7.9,
+        "pressure": 1001.0,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:34.616971+00:00"
+    },
+    "lysekil": {
+      "coordinates": {
+        "lon": 11.43,
+        "lat": 58.27
+      },
+      "weather": {
+        "temperature": 7.1,
+        "wind_speed": 12.3,
+        "wind_direction": 181,
+        "humidity": 92,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 7,
+        "visibility": 5.1,
+        "pressure": 994.0,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:34.997078+00:00"
+    },
+    "strömstad": {
+      "coordinates": {
+        "lon": 11.17,
+        "lat": 58.94
+      },
+      "weather": {
+        "temperature": 5.0,
+        "wind_speed": 3.9,
+        "wind_direction": 83,
+        "humidity": 95,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 5.0,
+        "pressure": 996.0,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:35.406067+00:00"
+    },
+    "nässjö": {
+      "coordinates": {
+        "lon": 14.7,
+        "lat": 57.65
+      },
+      "weather": {
+        "temperature": 3.8,
+        "wind_speed": 6.3,
+        "wind_direction": 199,
+        "humidity": 87,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1003.3,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:35.792945+00:00"
+    },
+    "oskarshamn": {
+      "coordinates": {
+        "lon": 16.45,
+        "lat": 57.26
+      },
+      "weather": {
+        "temperature": 5.4,
+        "wind_speed": 3.5,
+        "wind_direction": 196,
+        "humidity": 92,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 7,
+        "visibility": 75.0,
+        "pressure": 1005.9,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:36.197642+00:00"
+    },
+    "västervik": {
+      "coordinates": {
+        "lon": 16.64,
+        "lat": 57.76
+      },
+      "weather": {
+        "temperature": 5.4,
+        "wind_speed": 3.7,
+        "wind_direction": 179,
+        "humidity": 92,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 7,
+        "visibility": 75.0,
+        "pressure": 1004.9,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:36.624756+00:00"
+    },
+    "söderhamn": {
+      "coordinates": {
+        "lon": 17.06,
+        "lat": 61.3
+      },
+      "weather": {
+        "temperature": 2.0,
+        "wind_speed": 0.4,
+        "wind_direction": 119,
+        "humidity": 100,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 1.4,
+        "pressure": 1001.6,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:37.028264+00:00"
+    },
+    "avesta": {
+      "coordinates": {
+        "lon": 16.17,
+        "lat": 60.14
+      },
+      "weather": {
+        "temperature": 4.9,
+        "wind_speed": 2.9,
+        "wind_direction": 179,
+        "humidity": 97,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 7.1,
+        "pressure": 1001.7,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:37.452519+00:00"
+    },
+    "hedemora": {
+      "coordinates": {
+        "lon": 15.99,
+        "lat": 60.28
+      },
+      "weather": {
+        "temperature": 4.1,
+        "wind_speed": 1.7,
+        "wind_direction": 157,
+        "humidity": 100,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 0.5,
+        "pressure": 1001.5,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:37.860385+00:00"
+    },
+    "köping": {
+      "coordinates": {
+        "lon": 15.99,
+        "lat": 59.51
+      },
+      "weather": {
+        "temperature": 5.2,
+        "wind_speed": 3.5,
+        "wind_direction": 172,
+        "humidity": 95,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 10.0,
+        "pressure": 1002.1,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:38.268932+00:00"
+    },
+    "arboga": {
+      "coordinates": {
+        "lon": 15.84,
+        "lat": 59.39
+      },
+      "weather": {
+        "temperature": 5.1,
+        "wind_speed": 3.4,
+        "wind_direction": 176,
+        "humidity": 96,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 9.7,
+        "pressure": 1002.0,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:38.672795+00:00"
+    },
+    "strängnäs": {
+      "coordinates": {
+        "lon": 17.03,
+        "lat": 59.38
+      },
+      "weather": {
+        "temperature": 5.7,
+        "wind_speed": 4.5,
+        "wind_direction": 184,
+        "humidity": 92,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 6,
+        "visibility": 75.0,
+        "pressure": 1003.2,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:39.077180+00:00"
+    },
+    "flen": {
+      "coordinates": {
+        "lon": 16.59,
+        "lat": 59.06
+      },
+      "weather": {
+        "temperature": 5.1,
+        "wind_speed": 3.4,
+        "wind_direction": 172,
+        "humidity": 97,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 6,
+        "visibility": 8.2,
+        "pressure": 1003.1,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:39.495211+00:00"
+    },
+    "oxelösund": {
+      "coordinates": {
+        "lon": 17.1,
+        "lat": 58.67
+      },
+      "weather": {
+        "temperature": 6.1,
+        "wind_speed": 7.4,
+        "wind_direction": 180,
+        "humidity": 97,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 7,
+        "visibility": 20.6,
+        "pressure": 1004.1,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:39.889959+00:00"
+    },
+    "simrishamn": {
+      "coordinates": {
+        "lon": 14.35,
+        "lat": 55.56
+      },
+      "weather": {
+        "temperature": 6.8,
+        "wind_speed": 8.9,
+        "wind_direction": 242,
+        "humidity": 86,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 6,
+        "visibility": 75.0,
+        "pressure": 1008.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:40.297209+00:00"
+    },
+    "eslöv": {
+      "coordinates": {
+        "lon": 13.3,
+        "lat": 55.84
+      },
+      "weather": {
+        "temperature": 6.2,
+        "wind_speed": 8.0,
+        "wind_direction": 231,
+        "humidity": 93,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 7,
+        "visibility": 75.0,
+        "pressure": 1007.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:40.700435+00:00"
+    },
+    "höganäs": {
+      "coordinates": {
+        "lon": 12.56,
+        "lat": 56.2
+      },
+      "weather": {
+        "temperature": 6.7,
+        "wind_speed": 8.5,
+        "wind_direction": 225,
+        "humidity": 88,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 6,
+        "visibility": 75.0,
+        "pressure": 1006.1,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:41.118659+00:00"
+    },
+    "sölvesborg": {
+      "coordinates": {
+        "lon": 14.58,
+        "lat": 56.05
+      },
+      "weather": {
+        "temperature": 6.1,
+        "wind_speed": 5.3,
+        "wind_direction": 219,
+        "humidity": 88,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 7,
+        "visibility": 75.0,
+        "pressure": 1007.7,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:41.524651+00:00"
+    },
+    "hässleholm": {
+      "coordinates": {
+        "lon": 13.77,
+        "lat": 56.16
+      },
+      "weather": {
+        "temperature": 6.4,
+        "wind_speed": 6.1,
+        "wind_direction": 231,
+        "humidity": 85,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1006.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:41.929960+00:00"
+    },
+    "ronneby": {
+      "coordinates": {
+        "lon": 15.28,
+        "lat": 56.21
+      },
+      "weather": {
+        "temperature": 6.6,
+        "wind_speed": 6.8,
+        "wind_direction": 214,
+        "humidity": 88,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 7,
+        "visibility": 75.0,
+        "pressure": 1007.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:42.334451+00:00"
+    },
+    "smedjebacken": {
+      "coordinates": {
+        "lon": 15.42,
+        "lat": 60.14
+      },
+      "weather": {
+        "temperature": 3.1,
+        "wind_speed": 1.2,
+        "wind_direction": 102,
+        "humidity": 99,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 3.2,
+        "pressure": 1001.2,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:42.741030+00:00"
+    },
+    "torsby": {
+      "coordinates": {
+        "lon": 12.99,
+        "lat": 60.14
+      },
+      "weather": {
+        "temperature": 1.5,
+        "wind_speed": 1.7,
+        "wind_direction": 164,
+        "humidity": 98,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 4.7,
+        "pressure": 999.4,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:43.141217+00:00"
+    },
+    "sunne": {
+      "coordinates": {
+        "lon": 13.13,
+        "lat": 59.84
+      },
+      "weather": {
+        "temperature": 3.2,
+        "wind_speed": 1.3,
+        "wind_direction": 154,
+        "humidity": 98,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 5.4,
+        "pressure": 999.3,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:43.568378+00:00"
+    },
+    "hagfors": {
+      "coordinates": {
+        "lon": 13.65,
+        "lat": 60.03
+      },
+      "weather": {
+        "temperature": 3.6,
+        "wind_speed": 2.9,
+        "wind_direction": 167,
+        "humidity": 94,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 10.4,
+        "pressure": 999.7,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:43.963732+00:00"
+    },
+    "malung": {
+      "coordinates": {
+        "lon": 13.72,
+        "lat": 60.68
+      },
+      "weather": {
+        "temperature": 0.2,
+        "wind_speed": 0.6,
+        "wind_direction": 217,
+        "humidity": 100,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 0.2,
+        "pressure": 1000.2,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:44.348792+00:00"
+    },
+    "vansbro": {
+      "coordinates": {
+        "lon": 14.28,
+        "lat": 60.89
+      },
+      "weather": {
+        "temperature": 0.1,
+        "wind_speed": 0.8,
+        "wind_direction": 83,
+        "humidity": 100,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 0.2,
+        "pressure": 1000.6,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:44.808996+00:00"
+    },
+    "älvdalen": {
+      "coordinates": {
+        "lon": 14.04,
+        "lat": 61.23
+      },
+      "weather": {
+        "temperature": -0.1,
+        "wind_speed": 0.7,
+        "wind_direction": 342,
+        "humidity": 99,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 0.8,
+        "pressure": 1000.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:45.217051+00:00"
+    },
+    "rättvik": {
+      "coordinates": {
+        "lon": 15.12,
+        "lat": 60.89
+      },
+      "weather": {
+        "temperature": 1.2,
+        "wind_speed": 2.2,
+        "wind_direction": 146,
+        "humidity": 99,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 3.4,
+        "pressure": 1000.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:45.622365+00:00"
+    },
+    "leksand": {
+      "coordinates": {
+        "lon": 14.99,
+        "lat": 60.73
+      },
+      "weather": {
+        "temperature": 1.4,
+        "wind_speed": 1.5,
+        "wind_direction": 134,
+        "humidity": 100,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 0.3,
+        "pressure": 1000.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:46.013724+00:00"
+    },
+    "orsa": {
+      "coordinates": {
+        "lon": 14.62,
+        "lat": 61.12
+      },
+      "weather": {
+        "temperature": 0.2,
+        "wind_speed": 2.1,
+        "wind_direction": 32,
+        "humidity": 100,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 0.8,
+        "pressure": 1000.9,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:46.421998+00:00"
+    },
+    "gällivare": {
+      "coordinates": {
+        "lon": 20.65,
+        "lat": 67.13
+      },
+      "weather": {
+        "temperature": -8.4,
+        "wind_speed": 2.2,
+        "wind_direction": 257,
+        "humidity": 85,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 7,
+        "visibility": 75.0,
+        "pressure": 1009.4,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:46.813518+00:00"
+    },
+    "jokkmokk": {
+      "coordinates": {
+        "lon": 19.83,
+        "lat": 66.61
+      },
+      "weather": {
+        "temperature": -13.1,
+        "wind_speed": 0.6,
+        "wind_direction": 264,
+        "humidity": 92,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1009.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:47.204431+00:00"
+    },
+    "pajala": {
+      "coordinates": {
+        "lon": 23.37,
+        "lat": 66.98
+      },
+      "weather": {
+        "temperature": -10.5,
+        "wind_speed": 0.7,
+        "wind_direction": 302,
+        "humidity": 89,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1008.9,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:47.621352+00:00"
+    },
+    "haparanda": {
+      "coordinates": {
+        "lon": 24.14,
+        "lat": 65.83
+      },
+      "weather": {
+        "temperature": -6.5,
+        "wind_speed": 1.3,
+        "wind_direction": 67,
+        "humidity": 92,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1009.1,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:48.019039+00:00"
+    },
+    "kalix": {
+      "coordinates": {
+        "lon": 23.16,
+        "lat": 65.85
+      },
+      "weather": {
+        "temperature": -7.0,
+        "wind_speed": 0.8,
+        "wind_direction": 65,
+        "humidity": 94,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1008.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:48.417939+00:00"
+    },
+    "älvsbyn": {
+      "coordinates": {
+        "lon": 21.0,
+        "lat": 65.68
+      },
+      "weather": {
+        "temperature": -9.6,
+        "wind_speed": 0.5,
+        "wind_direction": 317,
+        "humidity": 89,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1008.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:48.825683+00:00"
+    },
+    "arvidsjaur": {
+      "coordinates": {
+        "lon": 19.18,
+        "lat": 65.59
+      },
+      "weather": {
+        "temperature": -9.0,
+        "wind_speed": 0.8,
+        "wind_direction": 286,
+        "humidity": 87,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1008.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:49.225694+00:00"
+    },
+    "arjeplog": {
+      "coordinates": {
+        "lon": 17.89,
+        "lat": 66.05
+      },
+      "weather": {
+        "temperature": -11.3,
+        "wind_speed": 1.5,
+        "wind_direction": 346,
+        "humidity": 94,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1009.2,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:49.616696+00:00"
+    },
+    "sorsele": {
+      "coordinates": {
+        "lon": 17.53,
+        "lat": 65.53
+      },
+      "weather": {
+        "temperature": -11.5,
+        "wind_speed": 1.0,
+        "wind_direction": 356,
+        "humidity": 90,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1008.7,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:50.007959+00:00"
+    },
+    "storuman": {
+      "coordinates": {
+        "lon": 17.11,
+        "lat": 64.96
+      },
+      "weather": {
+        "temperature": -7.8,
+        "wind_speed": 2.6,
+        "wind_direction": 48,
+        "humidity": 91,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1007.9,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:50.397796+00:00"
+    },
+    "vilhelmina": {
+      "coordinates": {
+        "lon": 16.66,
+        "lat": 64.62
+      },
+      "weather": {
+        "temperature": -7.2,
+        "wind_speed": 0.9,
+        "wind_direction": 330,
+        "humidity": 89,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1007.4,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:50.809846+00:00"
+    },
+    "dorotea": {
+      "coordinates": {
+        "lon": 16.42,
+        "lat": 64.26
+      },
+      "weather": {
+        "temperature": -6.3,
+        "wind_speed": 1.6,
+        "wind_direction": 37,
+        "humidity": 90,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 1.3,
+        "pressure": 1006.6,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:51.213225+00:00"
+    },
+    "åsele": {
+      "coordinates": {
+        "lon": 17.35,
+        "lat": 64.16
+      },
+      "weather": {
+        "temperature": -5.6,
+        "wind_speed": 2.2,
+        "wind_direction": 42,
+        "humidity": 91,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 1.2,
+        "pressure": 1006.2,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:51.621726+00:00"
+    },
+    "lycksele": {
+      "coordinates": {
+        "lon": 18.67,
+        "lat": 64.6
+      },
+      "weather": {
+        "temperature": -7.1,
+        "wind_speed": 1.0,
+        "wind_direction": 14,
+        "humidity": 89,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 1.8,
+        "pressure": 1007.4,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:52.031936+00:00"
+    },
+    "vindeln": {
+      "coordinates": {
+        "lon": 19.72,
+        "lat": 64.2
+      },
+      "weather": {
+        "temperature": -3.9,
+        "wind_speed": 1.7,
+        "wind_direction": 55,
+        "humidity": 85,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 1.4,
+        "pressure": 1006.6,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:52.434235+00:00"
+    },
+    "robertsfors": {
+      "coordinates": {
+        "lon": 20.85,
+        "lat": 64.19
+      },
+      "weather": {
+        "temperature": -2.4,
+        "wind_speed": 2.6,
+        "wind_direction": 24,
+        "humidity": 84,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 1.4,
+        "pressure": 1006.9,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:52.843894+00:00"
+    },
+    "nordmaling": {
+      "coordinates": {
+        "lon": 19.5,
+        "lat": 63.57
+      },
+      "weather": {
+        "temperature": -0.7,
+        "wind_speed": 4.1,
+        "wind_direction": 32,
+        "humidity": 91,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 0.9,
+        "pressure": 1004.5,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:53.234778+00:00"
+    },
+    "bjurholm": {
+      "coordinates": {
+        "lon": 19.04,
+        "lat": 63.93
+      },
+      "weather": {
+        "temperature": -3.7,
+        "wind_speed": 2.8,
+        "wind_direction": 46,
+        "humidity": 90,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 1.1,
+        "pressure": 1005.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:53.637813+00:00"
+    },
+    "vännäs": {
+      "coordinates": {
+        "lon": 19.76,
+        "lat": 63.91
+      },
+      "weather": {
+        "temperature": -2.2,
+        "wind_speed": 2.3,
+        "wind_direction": 38,
+        "humidity": 89,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 1.1,
+        "pressure": 1005.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:54.037359+00:00"
+    },
+    "sollefteå": {
+      "coordinates": {
+        "lon": 17.27,
+        "lat": 63.17
+      },
+      "weather": {
+        "temperature": -1.9,
+        "wind_speed": 0.8,
+        "wind_direction": 207,
+        "humidity": 95,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 0.9,
+        "pressure": 1003.4,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:54.435983+00:00"
+    },
+    "kramfors": {
+      "coordinates": {
+        "lon": 17.78,
+        "lat": 62.93
+      },
+      "weather": {
+        "temperature": -0.7,
+        "wind_speed": 1.4,
+        "wind_direction": 332,
+        "humidity": 95,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 1.0,
+        "pressure": 1002.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:54.829309+00:00"
+    },
+    "ånge": {
+      "coordinates": {
+        "lon": 15.66,
+        "lat": 62.52
+      },
+      "weather": {
+        "temperature": -2.1,
+        "wind_speed": 1.1,
+        "wind_direction": 24,
+        "humidity": 95,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 1.5,
+        "pressure": 1002.5,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:55.224910+00:00"
+    },
+    "timrå": {
+      "coordinates": {
+        "lon": 17.33,
+        "lat": 62.49
+      },
+      "weather": {
+        "temperature": 0.3,
+        "wind_speed": 2.0,
+        "wind_direction": 22,
+        "humidity": 95,
+        "precipitation_category": 2,
+        "precipitation_text": "snö och regn",
+        "cloud_cover": 8,
+        "visibility": 3.4,
+        "pressure": 1001.9,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:55.629269+00:00"
+    },
+    "nordanstig": {
+      "coordinates": {
+        "lon": 17.04,
+        "lat": 62.06
+      },
+      "weather": {
+        "temperature": -0.0,
+        "wind_speed": 1.3,
+        "wind_direction": 4,
+        "humidity": 100,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 0.9,
+        "pressure": 1001.6,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:56.026527+00:00"
+    },
+    "ljusdal": {
+      "coordinates": {
+        "lon": 16.09,
+        "lat": 61.83
+      },
+      "weather": {
+        "temperature": 0.3,
+        "wind_speed": 0.3,
+        "wind_direction": 178,
+        "humidity": 100,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 0.8,
+        "pressure": 1001.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:56.425030+00:00"
+    },
+    "bollnäs": {
+      "coordinates": {
+        "lon": 16.39,
+        "lat": 61.35
+      },
+      "weather": {
+        "temperature": 0.2,
+        "wind_speed": 0.1,
+        "wind_direction": 233,
+        "humidity": 99,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 4.0,
+        "pressure": 1001.5,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:56.826137+00:00"
+    },
+    "ovanåker": {
+      "coordinates": {
+        "lon": 16.29,
+        "lat": 61.24
+      },
+      "weather": {
+        "temperature": -0.3,
+        "wind_speed": 1.0,
+        "wind_direction": 110,
+        "humidity": 100,
+        "precipitation_category": 1,
+        "precipitation_text": "snö",
+        "cloud_cover": 8,
+        "visibility": 0.5,
+        "pressure": 1001.5,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:57.226876+00:00"
+    },
+    "ockelbo": {
+      "coordinates": {
+        "lon": 16.72,
+        "lat": 60.89
+      },
+      "weather": {
+        "temperature": 0.4,
+        "wind_speed": 0.5,
+        "wind_direction": 90,
+        "humidity": 100,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 1.3,
+        "pressure": 1001.7,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:57.625484+00:00"
+    },
+    "hofors": {
+      "coordinates": {
+        "lon": 16.29,
+        "lat": 60.55
+      },
+      "weather": {
+        "temperature": 2.4,
+        "wind_speed": 1.4,
+        "wind_direction": 173,
+        "humidity": 100,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 0.2,
+        "pressure": 1001.6,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:58.024868+00:00"
+    },
+    "tierp": {
+      "coordinates": {
+        "lon": 17.51,
+        "lat": 60.34
+      },
+      "weather": {
+        "temperature": 5.2,
+        "wind_speed": 3.5,
+        "wind_direction": 186,
+        "humidity": 98,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 5.6,
+        "pressure": 1002.4,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:58.429406+00:00"
+    },
+    "älvkarleby": {
+      "coordinates": {
+        "lon": 17.45,
+        "lat": 60.57
+      },
+      "weather": {
+        "temperature": 4.9,
+        "wind_speed": 2.6,
+        "wind_direction": 181,
+        "humidity": 99,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 4.2,
+        "pressure": 1002.1,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:58.826067+00:00"
+    },
+    "östhammar": {
+      "coordinates": {
+        "lon": 18.38,
+        "lat": 60.26
+      },
+      "weather": {
+        "temperature": 5.6,
+        "wind_speed": 4.1,
+        "wind_direction": 197,
+        "humidity": 96,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 66.4,
+        "pressure": 1003.0,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:59.216782+00:00"
+    },
+    "knivsta": {
+      "coordinates": {
+        "lon": 17.79,
+        "lat": 59.73
+      },
+      "weather": {
+        "temperature": 5.5,
+        "wind_speed": 4.5,
+        "wind_direction": 188,
+        "humidity": 97,
+        "precipitation_category": 4,
+        "precipitation_text": "duggregn",
+        "cloud_cover": 8,
+        "visibility": 8.7,
+        "pressure": 1003.4,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:28:59.613388+00:00"
+    },
+    "håbo": {
+      "coordinates": {
+        "lon": 17.53,
+        "lat": 59.52
+      },
+      "weather": {
+        "temperature": 5.2,
+        "wind_speed": 3.7,
+        "wind_direction": 167,
+        "humidity": 96,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 37.6,
+        "pressure": 1003.5,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:00.014600+00:00"
+    },
+    "sigtuna": {
+      "coordinates": {
+        "lon": 17.72,
+        "lat": 59.62
+      },
+      "weather": {
+        "temperature": 5.5,
+        "wind_speed": 3.5,
+        "wind_direction": 187,
+        "humidity": 97,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 9.0,
+        "pressure": 1003.5,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:00.419723+00:00"
+    },
+    "norrtälje": {
+      "coordinates": {
+        "lon": 18.7,
+        "lat": 59.76
+      },
+      "weather": {
+        "temperature": 6.0,
+        "wind_speed": 3.9,
+        "wind_direction": 198,
+        "humidity": 97,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 7.9,
+        "pressure": 1003.9,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:01.830602+00:00"
+    },
+    "vallentuna": {
+      "coordinates": {
+        "lon": 18.08,
+        "lat": 59.53
+      },
+      "weather": {
+        "temperature": 5.9,
+        "wind_speed": 4.9,
+        "wind_direction": 191,
+        "humidity": 95,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 10.1,
+        "pressure": 1003.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:02.236314+00:00"
+    },
+    "sollentuna": {
+      "coordinates": {
+        "lon": 17.95,
+        "lat": 59.43
+      },
+      "weather": {
+        "temperature": 6.0,
+        "wind_speed": 4.2,
+        "wind_direction": 186,
+        "humidity": 94,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1003.9,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:02.641181+00:00"
+    },
+    "danderyd": {
+      "coordinates": {
+        "lon": 18.03,
+        "lat": 59.4
+      },
+      "weather": {
+        "temperature": 6.3,
+        "wind_speed": 4.4,
+        "wind_direction": 194,
+        "humidity": 92,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1004.0,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:03.111695+00:00"
+    },
+    "lidingö": {
+      "coordinates": {
+        "lon": 18.15,
+        "lat": 59.37
+      },
+      "weather": {
+        "temperature": 6.3,
+        "wind_speed": 4.7,
+        "wind_direction": 198,
+        "humidity": 92,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1004.1,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:03.527209+00:00"
+    },
+    "nacka": {
+      "coordinates": {
+        "lon": 18.17,
+        "lat": 59.31
+      },
+      "weather": {
+        "temperature": 6.2,
+        "wind_speed": 4.2,
+        "wind_direction": 203,
+        "humidity": 92,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1004.2,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:03.928940+00:00"
+    },
+    "värmdö": {
+      "coordinates": {
+        "lon": 18.56,
+        "lat": 59.32
+      },
+      "weather": {
+        "temperature": 6.3,
+        "wind_speed": 4.1,
+        "wind_direction": 206,
+        "humidity": 96,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 9.1,
+        "pressure": 1004.4,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:04.355352+00:00"
+    },
+    "tyresö": {
+      "coordinates": {
+        "lon": 18.23,
+        "lat": 59.24
+      },
+      "weather": {
+        "temperature": 6.3,
+        "wind_speed": 4.9,
+        "wind_direction": 210,
+        "humidity": 92,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1004.4,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:04.845835+00:00"
+    },
+    "haninge": {
+      "coordinates": {
+        "lon": 18.14,
+        "lat": 59.17
+      },
+      "weather": {
+        "temperature": 6.1,
+        "wind_speed": 3.4,
+        "wind_direction": 197,
+        "humidity": 95,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 9.9,
+        "pressure": 1004.4,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:05.386071+00:00"
+    },
+    "nynäshamn": {
+      "coordinates": {
+        "lon": 17.95,
+        "lat": 58.9
+      },
+      "weather": {
+        "temperature": 7.1,
+        "wind_speed": 6.6,
+        "wind_direction": 199,
+        "humidity": 92,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1004.7,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:05.801904+00:00"
+    },
+    "huddinge": {
+      "coordinates": {
+        "lon": 17.98,
+        "lat": 59.24
+      },
+      "weather": {
+        "temperature": 6.1,
+        "wind_speed": 3.7,
+        "wind_direction": 185,
+        "humidity": 93,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1004.1,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:06.198894+00:00"
+    },
+    "botkyrka": {
+      "coordinates": {
+        "lon": 17.84,
+        "lat": 59.21
+      },
+      "weather": {
+        "temperature": 6.0,
+        "wind_speed": 4.3,
+        "wind_direction": 189,
+        "humidity": 95,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 9.9,
+        "pressure": 1004.1,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:06.597120+00:00"
+    },
+    "salem": {
+      "coordinates": {
+        "lon": 17.77,
+        "lat": 59.2
+      },
+      "weather": {
+        "temperature": 5.9,
+        "wind_speed": 4.7,
+        "wind_direction": 190,
+        "humidity": 96,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 9.6,
+        "pressure": 1004.1,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:07.004074+00:00"
+    },
+    "upplands-bro": {
+      "coordinates": {
+        "lon": 17.58,
+        "lat": 59.49
+      },
+      "weather": {
+        "temperature": 5.0,
+        "wind_speed": 3.0,
+        "wind_direction": 168,
+        "humidity": 98,
+        "precipitation_category": 0,
+        "precipitation_text": "ingen nederbörd",
+        "cloud_cover": 8,
+        "visibility": 6.0,
+        "pressure": 1003.5,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:07.421183+00:00"
+    },
+    "järfälla": {
+      "coordinates": {
+        "lon": 17.83,
+        "lat": 59.43
+      },
+      "weather": {
+        "temperature": 5.7,
+        "wind_speed": 3.9,
+        "wind_direction": 187,
+        "humidity": 95,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 10.0,
+        "pressure": 1003.8,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:07.825418+00:00"
+    },
+    "sundbyberg": {
+      "coordinates": {
+        "lon": 17.97,
+        "lat": 59.36
+      },
+      "weather": {
+        "temperature": 6.3,
+        "wind_speed": 4.3,
+        "wind_direction": 189,
+        "humidity": 92,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1003.9,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:08.217383+00:00"
+    },
+    "solna": {
+      "coordinates": {
+        "lon": 18.0,
+        "lat": 59.36
+      },
+      "weather": {
+        "temperature": 6.3,
+        "wind_speed": 4.3,
+        "wind_direction": 189,
+        "humidity": 92,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 75.0,
+        "pressure": 1003.9,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:08.622471+00:00"
+    },
+    "ekerö": {
+      "coordinates": {
+        "lon": 17.8,
+        "lat": 59.29
+      },
+      "weather": {
+        "temperature": 5.8,
+        "wind_speed": 4.3,
+        "wind_direction": 189,
+        "humidity": 95,
+        "precipitation_category": 3,
+        "precipitation_text": "regn",
+        "cloud_cover": 8,
+        "visibility": 10.0,
+        "pressure": 1004.0,
+        "valid_time": "2025-12-01T00:00:00Z"
+      },
+      "fetched_at": "2025-11-30T23:29:09.016742+00:00"
+    }
+  },
+  "metadata": {
+    "source": "SMHI Open Data",
+    "refresh_interval_minutes": 15,
+    "total_municipalities": 148,
+    "success_count": 148,
+    "error_count": 0
+  },
+  "integrity_hash": "e89d9eba354efe8a5d41385beacc3d112e53be6ec8ff61efee5e30354765938c"
+}

@@ -7,6 +7,12 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
+      // ONESEEK Δ+ ML Service API (Intent Engine, Typo Checker, etc.)
+      '/api/ml': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+      // Default API proxy (backend services)
       '/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,

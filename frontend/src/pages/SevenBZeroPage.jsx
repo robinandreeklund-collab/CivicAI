@@ -157,6 +157,10 @@ export default function SevenBZeroPage() {
   const [responseStartTime, setResponseStartTime] = useState(null);
   const [currentResponseTime, setCurrentResponseTime] = useState(0);
   
+  // ONESEEK Δ+ Typo suggestion state
+  const [typoSuggestion, setTypoSuggestion] = useState(null);
+  const typoCheckTimeoutRef = useRef(null);
+  
   // Character/Persona state
   const [selectedPersona, setSelectedPersona] = useState('oneseek-medveten');
   const [characterData, setCharacterData] = useState(null);
@@ -176,6 +180,235 @@ export default function SevenBZeroPage() {
   const chatScrollRef = useRef(null);
   const messagesEndRef = useRef(null);
   const messageRefs = useRef({});
+
+  // === ONESEEK Δ+ TYPO CHECKING ===
+  // Common Swedish typos (frontend-side for instant suggestions)
+  const COMMON_TYPOS = {
+    'invåndare': 'invånare',
+    'innvånare': 'invånare',
+    'invonare': 'invånare',
+    'invnare': 'invånare',
+    'beflkning': 'befolkning',
+    'befolking': 'befolkning',
+    'väddret': 'vädret',
+    'stockhlom': 'stockholm',
+    'stokholm': 'stockholm',
+    'götborg': 'göteborg',
+    'malmø': 'malmö',
+    'uppsal': 'uppsala',
+    'nhyeter': 'nyheter',
+    'temprratur': 'temperatur',
+    'igar': 'igår',
+    'imorrn': 'imorgon',
+    'imorron': 'imorgon',
+  };
+
+  // Friendly AI responses for typo suggestions
+  const TYPO_RESPONSES = [
+    (original, suggestion) => `Menade du "${suggestion}"? 😊`,
+    (original, suggestion) => `Tänkte du på "${suggestion}"?`,
+    (original, suggestion) => `Jag gissar att du menade "${suggestion}" – stämmer det?`,
+    (original, suggestion) => `Kanske "${suggestion}"? 🤔`,
+    (original, suggestion) => `Är det "${suggestion}" du söker?`,
+  ];
+
+  // Check for typos in text and return suggestion if found
+  const checkForTypos = (text) => {
+    const words = text.toLowerCase().split(/\s+/);
+    for (const word of words) {
+      const cleanWord = word.replace(/[.,!?;:'"()]/g, '');
+      if (COMMON_TYPOS[cleanWord]) {
+        const original = cleanWord;
+        const suggestion = COMMON_TYPOS[cleanWord];
+        const responseIndex = original.length % TYPO_RESPONSES.length;
+        return {
+          original,
+          suggestion,
+          message: TYPO_RESPONSES[responseIndex](original, suggestion),
+          correctedText: text.replace(new RegExp(original, 'gi'), suggestion),
+        };
+      }
+    }
+    return null;
+  };
+
+  // Handle input change with typo checking
+  const handleInputChange = (e) => {
+    const newValue = e.target.value;
+    setMessageInput(newValue);
+    
+    // Clear previous timeout
+    if (typoCheckTimeoutRef.current) {
+      clearTimeout(typoCheckTimeoutRef.current);
+    }
+    
+    // Debounce typo check (500ms after user stops typing)
+    typoCheckTimeoutRef.current = setTimeout(() => {
+      const suggestion = checkForTypos(newValue);
+      setTypoSuggestion(suggestion);
+    }, 500);
+  };
+
+  // Accept typo suggestion (inline)
+  const acceptTypoSuggestion = () => {
+    if (typoSuggestion) {
+      setMessageInput(typoSuggestion.correctedText);
+      setTypoSuggestion(null);
+    }
+  };
+
+  // Dismiss typo suggestion (inline)
+  const dismissTypoSuggestion = () => {
+    setTypoSuggestion(null);
+  };
+
+  // === ONESEEK Δ+ TYPO CORRECTION BUTTON HANDLERS ===
+  // Accept typo correction from AI response - send corrected question directly
+  const acceptTypoCorrection = async (messageId, correctedText) => {
+    // Remove the typo message
+    setMessages(prev => prev.filter(msg => msg.id !== messageId));
+    
+    // Add user message with corrected text
+    const userMessage = {
+      id: generateMessageId(),
+      type: 'user',
+      text: correctedText,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, userMessage]);
+    
+    // Add placeholder AI message
+    const aiMessageId = generateMessageId();
+    const aiMessage = {
+      id: aiMessageId,
+      type: 'ai',
+      text: '',
+      isTyping: true,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, aiMessage]);
+    setIsTyping(true);
+    setResponseStartTime(Date.now());
+    
+    try {
+      // Send with skip_typo_check=true to avoid re-checking
+      const response = await fetch('/api/inference/oneseek', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: correctedText,
+          max_length: 512,
+          temperature: 0.7,
+          top_p: 0.9,
+          skip_typo_check: true,  // IMPORTANT: Skip typo check for corrected text
+        }),
+      });
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const data = await response.json();
+      const responseEndTime = Date.now();
+      const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
+      const responseText = data.response || data.text;
+      
+      if (responseText) {
+        setMessages(prev => prev.map(msg => 
+          msg.id === aiMessageId 
+            ? { 
+                ...msg, 
+                responseTime: finalResponseTime,
+                confidence: data.confidence || data.delta_plus?.confidence_score || data.delta_plus?.intent_confidence || 0.85,
+                version: data.version || 'OneSeek-Δ+',
+                deltaPlus: data.delta_plus || null,
+              }
+            : msg
+        ));
+        animateTyping(responseText, aiMessageId);
+      } else {
+        throw new Error('No response text');
+      }
+    } catch (err) {
+      console.error('Query error:', err);
+      setMessages(prev => prev.map(msg => 
+        msg.id === aiMessageId ? { ...msg, text: 'Ett fel uppstod.', error: true, isTyping: false } : msg
+      ));
+      setIsTyping(false);
+    }
+  };
+
+  // Reject typo correction - send original question as-is
+  const sendOriginalQuestion = async (messageId, originalText) => {
+    // Remove the typo message
+    setMessages(prev => prev.filter(msg => msg.id !== messageId));
+    
+    // Send the original question by calling the API directly (skipping typo check)
+    const userMessage = {
+      id: generateMessageId(),
+      type: 'user',
+      text: originalText,
+      timestamp: new Date().toISOString(),
+    };
+    
+    setMessages(prev => [...prev, userMessage]);
+    setResponseStartTime(Date.now());
+    
+    // Add placeholder AI message
+    const aiMessageId = generateMessageId();
+    const aiMessage = {
+      id: aiMessageId,
+      type: 'ai',
+      text: '',
+      isTyping: true,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, aiMessage]);
+    setIsTyping(true);
+    
+    try {
+      // Send with skip_typo_check=true to send original without re-checking
+      const response = await fetch('/api/inference/oneseek', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: originalText,
+          max_length: 512,
+          temperature: 0.7,
+          top_p: 0.9,
+          skip_typo_check: true,  // IMPORTANT: Skip typo check - user chose original
+        }),
+      });
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const data = await response.json();
+      const responseEndTime = Date.now();
+      const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
+      const responseText = data.response || data.text;
+      
+      if (responseText) {
+        setMessages(prev => prev.map(msg => 
+          msg.id === aiMessageId 
+            ? { 
+                ...msg, 
+                responseTime: finalResponseTime,
+                confidence: data.confidence || data.delta_plus?.confidence_score || data.delta_plus?.intent_confidence || 0.85,
+                version: data.version || 'OneSeek-Δ+',
+                deltaPlus: data.delta_plus || null,
+              }
+            : msg
+        ));
+        animateTyping(responseText, aiMessageId);
+      } else {
+        throw new Error('No response text');
+      }
+    } catch (err) {
+      console.error('Query error:', err);
+      setMessages(prev => prev.map(msg => 
+        msg.id === aiMessageId ? { ...msg, text: 'Ett fel uppstod.', error: true, isTyping: false } : msg
+      ));
+      setIsTyping(false);
+    }
+  };
 
   // Metrics (static for now)
   const metrics = { 
@@ -407,16 +640,44 @@ export default function SevenBZeroPage() {
     setIsTyping(true);
 
     try {
-      const response = await fetch('/api/oqt/query', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          question: currentQuestion,
-          persona: selectedPersona,
-        }),
-      });
+      // Use ONESEEK Δ+ inference endpoint (saves to Firebase with topic_hash, intent, etc.)
+      let response;
+      let useOQTFallback = false;
+      
+      try {
+        response = await fetch('/api/inference/oneseek', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: currentQuestion,
+            max_length: 512,
+            temperature: 0.7,
+            top_p: 0.9
+          }),
+        });
+        
+        if (!response.ok) {
+          useOQTFallback = true;
+        }
+      } catch {
+        useOQTFallback = true;
+      }
+      
+      // Fallback to OQT endpoint if Δ+ fails
+      if (useOQTFallback) {
+        response = await fetch('/api/oqt/query', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            question: currentQuestion,
+            persona: selectedPersona,
+          }),
+        });
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -425,22 +686,54 @@ export default function SevenBZeroPage() {
       const responseEndTime = Date.now();
       const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
 
-      if (data.success) {
+      // === ONESEEK Δ+ TYPO CORRECTION HANDLING ===
+      // If typo was detected, show AI's personalized response with correction buttons
+      if (data.typo_correction?.detected && data.typo_correction?.show_buttons) {
+        const typoData = data.typo_correction;
+        
+        // Update message with typo response and correction buttons
+        setMessages(prev => prev.map(msg => 
+          msg.id === aiMessageId 
+            ? { 
+                ...msg, 
+                text: data.response,
+                isTyping: false,
+                responseTime: finalResponseTime,
+                // Store typo correction data
+                typoCorrection: typoData,
+                showTypoButtons: true,
+              }
+            : msg
+        ));
+        setIsTyping(false);
+        return; // Exit early - wait for user to click button
+      }
+
+      // Handle both Δ+ endpoint (response) and OQT endpoint (data.success/data.response) formats
+      const responseText = data.response || data.text;
+      const isSuccess = data.success !== false && responseText;
+      
+      if (isSuccess) {
         // Update message with response data and animate typing
         setMessages(prev => prev.map(msg => 
           msg.id === aiMessageId 
             ? { 
                 ...msg, 
                 responseTime: finalResponseTime,
-                confidence: data.confidence,
-                version: data.version,
+                confidence: data.confidence || data.delta_plus?.confidence_score || data.delta_plus?.intent_confidence || 0.85,
+                version: data.version || 'OneSeek-Δ+',
                 provenance: data.provenance,
+                // ONESEEK Δ+ metadata
+                deltaPlus: data.delta_plus || null,
+                topicHash: data.delta_plus?.topic_hash || null,
+                intent: data.delta_plus?.intent || null,
+                entity: data.delta_plus?.entity || null,
               }
             : msg
         ));
         
         // Start typing animation
-        animateTyping(data.response, aiMessageId);
+        animateTyping(responseText, aiMessageId);
         
         // Update microtraining status
         setMicrotrainingQueue(prev => prev + 1);
@@ -1012,6 +1305,32 @@ export default function SevenBZeroPage() {
                     />
                   )}
                   
+                  {/* ONESEEK Δ+ Typo Correction Buttons */}
+                  {msg.showTypoButtons && msg.typoCorrection && (
+                    <div className={`mt-4 flex gap-3 ${whiteMode ? '' : ''}`}>
+                      <button
+                        onClick={() => acceptTypoCorrection(msg.id, msg.typoCorrection.corrected)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                          whiteMode
+                            ? 'bg-green-600 text-white hover:bg-green-700'
+                            : 'bg-green-600 text-white hover:bg-green-500'
+                        }`}
+                      >
+                        Ja, korrigera ✓
+                      </button>
+                      <button
+                        onClick={() => sendOriginalQuestion(msg.id, msg.typoCorrection.original)}
+                        className={`px-4 py-2 rounded-lg text-sm transition-all duration-200 ${
+                          whiteMode
+                            ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        }`}
+                      >
+                        Nej, skicka som det är
+                      </button>
+                    </div>
+                  )}
+                  
                   {/* Confidence indicator */}
                   {msg.confidence && !msg.isTyping && (
                     <p className={`text-[10px] mt-3 ${whiteMode ? 'text-[#999]' : 'text-[#444]'}`}>
@@ -1128,6 +1447,44 @@ export default function SevenBZeroPage() {
               ))}
             </div>
 
+            {/* ONESEEK Δ+ Typo Suggestion */}
+            {typoSuggestion && (
+              <div className={`mb-3 px-4 py-3 rounded-xl flex items-center justify-between transition-all duration-300 ${
+                whiteMode 
+                  ? 'bg-amber-50 border border-amber-200 text-amber-800'
+                  : 'bg-amber-900/30 border border-amber-700/50 text-amber-200'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">✏️</span>
+                  <span className="text-sm">{typoSuggestion.message}</span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={acceptTypoSuggestion}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                      whiteMode
+                        ? 'bg-amber-600 text-white hover:bg-amber-700'
+                        : 'bg-amber-600 text-white hover:bg-amber-500'
+                    }`}
+                  >
+                    Ja ✓
+                  </button>
+                  <button
+                    type="button"
+                    onClick={dismissTypoSuggestion}
+                    className={`px-3 py-1 rounded-lg text-xs transition-all ${
+                      whiteMode
+                        ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    Nej
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Input Field */}
             <form onSubmit={handleSubmit} className="relative">
               <label htmlFor="chat-input" className="sr-only">Ställ en fråga</label>
@@ -1135,7 +1492,7 @@ export default function SevenBZeroPage() {
                 id="chat-input"
                 type="text"
                 value={messageInput}
-                onChange={(e) => setMessageInput(e.target.value)}
+                onChange={handleInputChange}
                 placeholder={`Ställ en fråga till ${characterData?.name || 'OneSeek'}...`}
                 disabled={isTyping}
                 aria-label={`Ställ en fråga till ${characterData?.name || 'OneSeek'}`}

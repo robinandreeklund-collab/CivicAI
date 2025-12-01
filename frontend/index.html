@@ -5,9 +5,29 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OneSeek.AI - Beslut med insyn. AI med ansvar.</title>
+    
+    <!-- ONESEEK Δ+: Typo Hybrid Autocorrect -->
+    <script src="/chat/typo_hybrid.js"></script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    
+    <!-- ONESEEK Δ+: Initialize Typo Hybrid -->
+    <script>
+      // Initialize typo checker when DOM is ready
+      document.addEventListener('DOMContentLoaded', function() {
+        if (typeof TypoHybrid !== 'undefined') {
+          window.typoHybrid = new TypoHybrid({
+            apiEndpoint: '/api/ml/typo',
+            debounceMs: 300,
+            autoCorrect: false, // Don't auto-correct by default
+            showSuggestions: true,
+            logTypos: true
+          });
+          console.log('[ONESEEK Δ+] Typo Hybrid initialized');
+        }
+      });
+    </script>
   </body>
 </html>

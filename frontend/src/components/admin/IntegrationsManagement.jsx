@@ -1,5 +1,13 @@
 import { useState, useEffect } from 'react';
 
+// ONESEEK Δ+ Admin Components
+import IntentEditor from '../../../../admin/integration/IntentEditor';
+import GoldEditor from '../../../../admin/integration/GoldEditor';
+import SourceWeights from '../../../../admin/integration/SourceWeights';
+import StavfelEditor from '../../../../admin/integration/StavfelEditor';
+import TopicHistory from '../../../../admin/integration/TopicHistory';
+import CacheManager from '../../../../admin/integration/CacheManager';
+
 /**
  * Integrations Management Component
  * 
@@ -7,6 +15,7 @@ import { useState, useEffect } from 'react';
  * - Swedish Cities (SMHI weather data)
  * - RSS News Feeds
  * - Swedish Open Data APIs (SCB, Riksdagen, Krisinformation, etc.)
+ * - ONESEEK Δ+ Admin Components (Intent Engine, Gold Editor, etc.)
  * 
  * All integrations are dashboard-controlled with real-time updates.
  * No server restart required - changes take effect immediately.
@@ -15,6 +24,10 @@ export default function IntegrationsManagement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  
+  // ONESEEK Δ+ Section toggle states
+  const [showDeltaPlus, setShowDeltaPlus] = useState(true);
+  const [deltaTab, setDeltaTab] = useState('intent'); // intent, gold, sources, stavfel, topics, cache
 
   // Swedish Cities state (weather)
   const [swedishCities, setSwedishCities] = useState({});
@@ -308,6 +321,130 @@ export default function IntegrationsManagement() {
           {success}
         </div>
       )}
+
+      {/* ========================================== */}
+      {/* ONESEEK Δ+ Admin Section */}
+      {/* ========================================== */}
+      <div className="border-2 border-blue-500/50 bg-blue-500/5 rounded-lg overflow-hidden">
+        <button
+          onClick={() => setShowDeltaPlus(!showDeltaPlus)}
+          className="w-full px-6 py-4 flex items-center justify-between hover:bg-blue-500/10 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🔷</span>
+            <div className="text-left">
+              <h2 className="text-blue-300 font-mono text-lg font-semibold">
+                ONESEEK Δ+ Admin
+              </h2>
+              <p className="text-[#666] font-mono text-xs">
+                Intent Engine • Gold Editor • Källviktning • Stavfel • Topic History • Cache Manager
+              </p>
+            </div>
+          </div>
+          <span className="text-blue-300 text-xl">
+            {showDeltaPlus ? '▼' : '▶'}
+          </span>
+        </button>
+
+        {showDeltaPlus && (
+          <div className="border-t border-blue-500/30">
+            {/* Δ+ Tab Navigation */}
+            <div className="flex flex-wrap gap-2 p-4 bg-[#0a0a0a] border-b border-[#2a2a2a]">
+              {[
+                { id: 'intent', label: '🎯 Intent Engine', desc: 'Hantera intent-regler' },
+                { id: 'gold', label: '🏅 Gold Editor', desc: 'Granska träningsdata' },
+                { id: 'sources', label: '⚖️ Källviktning', desc: 'Justera förtroende' },
+                { id: 'stavfel', label: '✏️ Stavfel', desc: 'Granska stavfelspar' },
+                { id: 'topics', label: '📚 Topics', desc: 'Topic-grupperad historik' },
+                { id: 'cache', label: '🗑️ Cache', desc: 'Rensa cache' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setDeltaTab(tab.id)}
+                  className={`px-4 py-2 rounded font-mono text-sm transition-all ${
+                    deltaTab === tab.id
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                      : 'bg-[#1a1a1a] text-[#888] hover:bg-[#2a2a2a] hover:text-[#aaa]'
+                  }`}
+                  title={tab.desc}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Δ+ Tab Content */}
+            <div className="p-6">
+              {deltaTab === 'intent' && (
+                <div>
+                  <div className="mb-4 p-3 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                    <p className="text-[#888] font-mono text-xs">
+                      💡 <strong>Intent Engine:</strong> Lägg till/redigera intents utan kod. 
+                      Varje intent har nyckelord (triggers), entiteter och API-koppling.
+                    </p>
+                  </div>
+                  <IntentEditor />
+                </div>
+              )}
+              {deltaTab === 'gold' && (
+                <div>
+                  <div className="mb-4 p-3 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                    <p className="text-[#888] font-mono text-xs">
+                      💡 <strong>Gold Editor:</strong> Granska och godkänn kvalitetsdata för träning. 
+                      Ta bort skräp, engelska svar, felaktiga formuleringar.
+                    </p>
+                  </div>
+                  <GoldEditor />
+                </div>
+              )}
+              {deltaTab === 'sources' && (
+                <div>
+                  <div className="mb-4 p-3 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                    <p className="text-[#888] font-mono text-xs">
+                      💡 <strong>Källviktning:</strong> Justera förtroende per källa. 
+                      SCB +15, SMHI +10, Aftonbladet -20. Påverkar Förtroende v2.
+                    </p>
+                  </div>
+                  <SourceWeights />
+                </div>
+              )}
+              {deltaTab === 'stavfel' && (
+                <div>
+                  <div className="mb-4 p-3 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                    <p className="text-[#888] font-mono text-xs">
+                      💡 <strong>Stavfel Editor:</strong> Granska och godkänn stavfelspar för självlärande träning. 
+                      Godkända par exporteras till datasets/typo_pairs_swedish.jsonl.
+                    </p>
+                  </div>
+                  <StavfelEditor />
+                </div>
+              )}
+              {deltaTab === 'topics' && (
+                <div>
+                  <div className="mb-4 p-3 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                    <p className="text-[#888] font-mono text-xs">
+                      💡 <strong>Topic History:</strong> Se topic-grupperad konversationshistorik. 
+                      Samma fråga med olika formuleringar = samma tråd.
+                    </p>
+                  </div>
+                  <TopicHistory />
+                </div>
+              )}
+              {deltaTab === 'cache' && (
+                <div>
+                  <div className="mb-4 p-3 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                    <p className="text-[#888] font-mono text-xs">
+                      💡 <strong>Cache Manager:</strong> Rensa cache för att få nya svar efter ändringar i Intent Engine.
+                      Viktigt i testmiljö för att få korrekta resultat.
+                    </p>
+                  </div>
+                  <CacheManager />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Swedish Cities Section */}
       <div className="border border-cyan-500/30 bg-cyan-500/5 p-6 rounded">

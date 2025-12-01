@@ -503,10 +503,11 @@ export default function SystemPromptManagement() {
     setTestResponse(null);
 
     try {
-      // Use the inference endpoint with the active prompt
+      // Use the backend proxy for inference (saves Δ+ data to Firebase)
       let response;
       try {
-        response = await fetch('http://localhost:5000/inference/oneseek', {
+        // Try backend proxy first (saves to Firebase)
+        response = await fetch('/api/inference/oneseek', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -517,10 +518,16 @@ export default function SystemPromptManagement() {
           })
         });
       } catch {
-        response = await fetch('/api/oqt/query', {
+        // Fallback to direct ML service (no Firebase save)
+        response = await fetch('http://localhost:5000/inference/oneseek', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: testMessage })
+          body: JSON.stringify({
+            text: testMessage,
+            max_length: 512,
+            temperature: 0.7,
+            top_p: 0.9
+          })
         });
       }
 
