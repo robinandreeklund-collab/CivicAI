@@ -215,7 +215,9 @@ export default function MessageBuilderPage() {
           sources: data.sources_used || [],
           responseTime,
           timestamp: new Date().toISOString(),
-          structure: name
+          structure: name,
+          time_context: data.time_context || '',
+          season_context: data.season_context || ''
         };
         
         setTopicHistory(prev => [...prev, historyEntry]);
@@ -749,6 +751,21 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
                         <div className="text-lg font-mono text-[#888]">
                           {result.analysis.word_count}
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Time & Season Context - Always shown when Intent Engine is enabled */}
+                {useIntentEngine && (result.time_context || result.season_context) && (
+                  <div>
+                    <label className="text-[10px] font-mono text-[#666] mb-2 block">🕐 TID & ÅRSTID</label>
+                    <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded p-3">
+                      <div className="text-xs font-mono text-[#888]">
+                        {result.time_context}
+                      </div>
+                      <div className="text-xs font-mono text-yellow-400 mt-1">
+                        {result.season_context}
                       </div>
                     </div>
                   </div>

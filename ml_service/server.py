@@ -5201,6 +5201,10 @@ async def test_message_structure(request: MessageBuilderRequest):
     data_context = {}
     
     try:
+        # === ALWAYS: Inject time, date & season context (like main flow) ===
+        time_context = inject_time_context()
+        season_context = get_current_season()
+        
         # === INTENT ENGINE PIPELINE (if enabled) ===
         if request.use_intent_engine and INTENT_ENGINE_AVAILABLE:
             try:
@@ -5225,10 +5229,10 @@ async def test_message_structure(request: MessageBuilderRequest):
                                 "sources": search_result.get("results", [])[:3]  # Top 3 sources
                             }
                     
-                    # 3. Check for weather intent - REAL DATA
-                    if intent_data.get("intent") == "väder" and intent_data.get("entity"):
+                    # 3. Check for weather intent - REAL DATA (fallback to Stockholm if no city)
+                    if intent_data.get("intent") == "väder":
                         sources_used.append("smhi")
-                        city = intent_data.get("entity")
+                        city = intent_data.get("entity") or "Stockholm"  # Fallback to Stockholm
                         weather_data = get_weather_for_city(city)
                         if weather_data:
                             data_context["weather"] = {
@@ -5244,9 +5248,9 @@ async def test_message_structure(request: MessageBuilderRequest):
                             }
                     
                     # 4. Check for population/statistics intent - REAL DATA
-                    if intent_data.get("intent") == "befolkning" and intent_data.get("entity"):
+                    if intent_data.get("intent") == "befolkning":
                         sources_used.append("scb")
-                        city = intent_data.get("entity")
+                        city = intent_data.get("entity") or "Sverige"  # Fallback to Sweden
                         population_data = fetch_scb_population(city)
                         if population_data:
                             data_context["statistics"] = {
@@ -5271,15 +5275,77 @@ async def test_message_structure(request: MessageBuilderRequest):
                                 "data": crisis_data
                             }
                     
-                    logging.info(f"[MESSAGE-BUILDER] Intent: {intent_info.get('intent')}, Sources: {sources_used}")
+                    logging.info(f"[MESSAGE-BUILDER] Intent: {intent_info.get('intent')}, Entity: {intent_info.get('entity')}, Sources: {sources_used}")
                     
             except Exception as intent_error:
                 logging.warning(f"Intent engine error: {intent_error}")
                 intent_info = {"error": str(intent_error)}
         
-        # === ENRICH SYSTEM PROMPT WITH FETCHED DATA ===
+        # === FALLBACK: Check for weather/population keywords if intent engine missed them ===
+        # This ensures data is fetched even if intent detection has issues
+        msg_lower = request.user_message.lower()
+        
+        if "smhi" not in sources_used:
+            weather_keywords = ["väder", "vädret", "temperatur", "regnar", "snöar", "grader", "prognos"]
+            if any(kw in msg_lower for kw in weather_keywords):
+                sources_used.append("smhi")
+                # Try to extract city from message
+                from intent_engine import detect_intent_and_city as fallback_detect
+                try:
+                    fallback_result = fallback_detect(request.user_message)
+                    city = fallback_result.get("entity") or "Stockholm"
+                except:
+                    city = "Stockholm"
+                weather_data = get_weather_for_city(city)
+                if weather_data:
+                    data_context["weather"] = {
+                        "source": "SMHI",
+                        "location": city,
+                        "data": weather_data
+                    }
+                    # Update intent_info if empty
+                    if not intent_info or intent_info.get("intent") in [None, "unknown", "general"]:
+                        intent_info = {
+                            "intent": "väder",
+                            "entity": city,
+                            "confidence": 0.85,
+                            "api": "weather_cache"
+                        }
+                    logging.info(f"[MESSAGE-BUILDER] Fallback weather: {city}")
+        
+        if "scb" not in sources_used:
+            population_keywords = ["befolkning", "invånare", "hur många bor", "population", "folkmängd"]
+            if any(kw in msg_lower for kw in population_keywords):
+                sources_used.append("scb")
+                # Try to extract city
+                try:
+                    fallback_result = fallback_detect(request.user_message)
+                    city = fallback_result.get("entity") or "Sverige"
+                except:
+                    city = "Sverige"
+                population_data = fetch_scb_population(city)
+                if population_data:
+                    data_context["statistics"] = {
+                        "source": "SCB",
+                        "location": city,
+                        "data": population_data
+                    }
+                    # Update intent_info if empty
+                    if not intent_info or intent_info.get("intent") in [None, "unknown", "general"]:
+                        intent_info = {
+                            "intent": "befolkning",
+                            "entity": city,
+                            "confidence": 0.85,
+                            "api": "scb_population"
+                        }
+                    logging.info(f"[MESSAGE-BUILDER] Fallback population: {city}")
+        
+        # === ENRICH SYSTEM PROMPT WITH TIME, SEASON, AND FETCHED DATA ===
         # Build data context section to include in system prompt
         enriched_system_prompt = request.system_prompt
+        
+        # ALWAYS add time and season context (like main flow)
+        enriched_system_prompt += f"\n\n[Aktuell tid] {time_context} {season_context}"
         
         if data_context:
             data_section = "\n\n[AKTUELL DATA FÖR ATT BESVARA FRÅGAN]"
@@ -5308,6 +5374,8 @@ async def test_message_structure(request: MessageBuilderRequest):
             enriched_system_prompt += data_section
             
             logging.info(f"[MESSAGE-BUILDER] Enriched system prompt with {len(data_context)} data sources")
+        
+        logging.info(f"[MESSAGE-BUILDER] Time: {time_context[:30]}... Season: {season_context}")
         
         # Build messages from structure code using enriched system prompt
         messages = build_messages(
@@ -5372,7 +5440,10 @@ async def test_message_structure(request: MessageBuilderRequest):
             "intent_info": intent_info,
             "sources_used": sources_used,
             "data_context": data_context,
-            "topic_id": request.topic_id
+            "topic_id": request.topic_id,
+            # Time and season context
+            "time_context": time_context,
+            "season_context": season_context
         }
         
     except ValueError as e:
