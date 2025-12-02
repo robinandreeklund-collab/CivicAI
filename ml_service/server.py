@@ -5225,24 +5225,51 @@ async def test_message_structure(request: MessageBuilderRequest):
                                 "sources": search_result.get("results", [])[:3]  # Top 3 sources
                             }
                     
-                    # 3. Check for weather intent
+                    # 3. Check for weather intent - REAL DATA
                     if intent_data.get("intent") == "väder" and intent_data.get("entity"):
                         sources_used.append("smhi")
-                        # SMHI weather would be fetched here in production
-                        data_context["weather"] = {
-                            "source": "SMHI",
-                            "location": intent_data.get("entity"),
-                            "note": "Weather data would be fetched in production"
-                        }
+                        city = intent_data.get("entity")
+                        weather_data = get_weather_for_city(city)
+                        if weather_data:
+                            data_context["weather"] = {
+                                "source": "SMHI",
+                                "location": city,
+                                "data": weather_data
+                            }
+                        else:
+                            data_context["weather"] = {
+                                "source": "SMHI",
+                                "location": city,
+                                "error": "Kunde inte hämta väderdata"
+                            }
                     
-                    # 4. Check for population/statistics intent
+                    # 4. Check for population/statistics intent - REAL DATA
                     if intent_data.get("intent") == "befolkning" and intent_data.get("entity"):
                         sources_used.append("scb")
-                        data_context["statistics"] = {
-                            "source": "SCB",
-                            "location": intent_data.get("entity"),
-                            "note": "Population data would be fetched in production"
-                        }
+                        city = intent_data.get("entity")
+                        population_data = fetch_scb_population(city)
+                        if population_data:
+                            data_context["statistics"] = {
+                                "source": "SCB",
+                                "location": city,
+                                "data": population_data
+                            }
+                        else:
+                            data_context["statistics"] = {
+                                "source": "SCB",
+                                "location": city,
+                                "error": "Kunde inte hämta befolkningsdata"
+                            }
+                    
+                    # 5. Check for crisis info
+                    if intent_data.get("intent") in ["kris", "varning", "nödsituation"]:
+                        sources_used.append("krisinformation")
+                        crisis_data = fetch_krisinformation()
+                        if crisis_data:
+                            data_context["crisis"] = {
+                                "source": "Krisinformation.se",
+                                "data": crisis_data
+                            }
                     
                     logging.info(f"[MESSAGE-BUILDER] Intent: {intent_info.get('intent')}, Sources: {sources_used}")
                     
@@ -5250,10 +5277,42 @@ async def test_message_structure(request: MessageBuilderRequest):
                 logging.warning(f"Intent engine error: {intent_error}")
                 intent_info = {"error": str(intent_error)}
         
-        # Build messages from structure code
+        # === ENRICH SYSTEM PROMPT WITH FETCHED DATA ===
+        # Build data context section to include in system prompt
+        enriched_system_prompt = request.system_prompt
+        
+        if data_context:
+            data_section = "\n\n[AKTUELL DATA FÖR ATT BESVARA FRÅGAN]"
+            
+            # Add weather data
+            if "weather" in data_context and data_context["weather"].get("data"):
+                weather_info = data_context["weather"]["data"]
+                data_section += f"\n\n**Väderdata från SMHI:**\n{weather_info}"
+            
+            # Add population data
+            if "statistics" in data_context and data_context["statistics"].get("data"):
+                pop_info = data_context["statistics"]["data"]
+                data_section += f"\n\n**Befolkningsdata från SCB:**\n{pop_info}"
+            
+            # Add Tavily search results
+            if "tavily" in data_context and data_context["tavily"].get("answer"):
+                tavily_info = data_context["tavily"]["answer"]
+                data_section += f"\n\n**Sökresultat:**\n{tavily_info}"
+            
+            # Add crisis info
+            if "crisis" in data_context and data_context["crisis"].get("data"):
+                crisis_info = data_context["crisis"]["data"]
+                data_section += f"\n\n**Krisinformation:**\n{crisis_info}"
+            
+            data_section += "\n\n[SLUT PÅ AKTUELL DATA]"
+            enriched_system_prompt += data_section
+            
+            logging.info(f"[MESSAGE-BUILDER] Enriched system prompt with {len(data_context)} data sources")
+        
+        # Build messages from structure code using enriched system prompt
         messages = build_messages(
             structure_code=request.structure_code,
-            system_prompt=request.system_prompt,
+            system_prompt=enriched_system_prompt,
             user_message=request.user_message,
             history=request.history or []
         )

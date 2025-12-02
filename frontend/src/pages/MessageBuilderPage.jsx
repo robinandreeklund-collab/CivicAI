@@ -798,9 +798,14 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
                       {result.data_context && Object.keys(result.data_context).length > 0 && (
                         <div className="mt-3 pt-3 border-t border-[#2a2a2a]">
                           <div className="text-[10px] font-mono text-[#555] mb-2">HÄMTAD DATA</div>
-                          <pre className="text-[10px] font-mono text-[#888] whitespace-pre-wrap bg-[#080808] p-2 rounded">
-                            {JSON.stringify(result.data_context, null, 2)}
-                          </pre>
+                          <div className="rounded overflow-hidden">
+                            <div className="bg-[#1a1a1a] px-3 py-1 text-[10px] font-mono text-[#666] border-b border-[#2a2a2a]">
+                              json
+                            </div>
+                            <pre className="bg-[#141414] p-3 text-[10px] font-mono text-green-400 whitespace-pre-wrap overflow-x-auto">
+                              {JSON.stringify(result.data_context, null, 2)}
+                            </pre>
+                          </div>
                         </div>
                       )}
                     </div>
