@@ -160,10 +160,27 @@ export default function SevenBZeroPage() {
   // ONESEEK Δ+ Typo suggestion state
   const [typoSuggestion, setTypoSuggestion] = useState(null);
   const typoCheckTimeoutRef = useRef(null);
+  const [typoCheckEnabled, setTypoCheckEnabled] = useState(true); // Toggle for typo checking (loaded from admin settings)
   
   // Character/Persona state
   const [selectedPersona, setSelectedPersona] = useState('oneseek-medveten');
   const [characterData, setCharacterData] = useState(null);
+  
+  // Load typo check setting from admin
+  useEffect(() => {
+    const loadTypoCheckSetting = async () => {
+      try {
+        const response = await fetch('/api/settings/typo-check');
+        if (response.ok) {
+          const data = await response.json();
+          setTypoCheckEnabled(data.enabled !== false); // Default to true if not set
+        }
+      } catch (err) {
+        console.log('Using default typo check setting');
+      }
+    };
+    loadTypoCheckSetting();
+  }, []);
   
   // UI state
   const [hoveredTick, setHoveredTick] = useState(null);
@@ -236,6 +253,12 @@ export default function SevenBZeroPage() {
   const handleInputChange = (e) => {
     const newValue = e.target.value;
     setMessageInput(newValue);
+    
+    // Skip typo check if disabled
+    if (!typoCheckEnabled) {
+      setTypoSuggestion(null);
+      return;
+    }
     
     // Clear previous timeout
     if (typoCheckTimeoutRef.current) {
@@ -686,7 +709,8 @@ export default function SevenBZeroPage() {
             text: currentQuestion,
             max_length: 512,
             temperature: 0.7,
-            top_p: 0.9
+            top_p: 0.9,
+            skip_typo_check: !typoCheckEnabled, // Skip typo check if disabled
           }),
         });
         

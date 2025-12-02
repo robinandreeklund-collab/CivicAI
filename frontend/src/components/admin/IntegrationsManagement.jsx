@@ -10,6 +10,131 @@ import CacheManager from '../../../../admin/integration/CacheManager';
 import DevResetTab from './DevResetTab';
 
 /**
+ * Chat Settings Panel Component
+ * Manages global settings for /7B-Zero chat
+ */
+function ChatSettingsPanel() {
+  const [typoCheckEnabled, setTypoCheckEnabled] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState(null);
+
+  // Load settings on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const response = await fetch('/api/settings/typo-check');
+        if (response.ok) {
+          const data = await response.json();
+          setTypoCheckEnabled(data.enabled !== false);
+        }
+      } catch (err) {
+        console.error('Failed to load settings:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  // Toggle typo check setting
+  const toggleTypoCheck = async () => {
+    setSaving(true);
+    setMessage(null);
+    
+    const newValue = !typoCheckEnabled;
+    
+    try {
+      const response = await fetch('/api/settings/typo-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: newValue }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setTypoCheckEnabled(newValue);
+        setMessage({ type: 'success', text: data.message || `Stavningskontroll är nu ${newValue ? 'PÅ' : 'AV'}` });
+      } else {
+        throw new Error('Failed to save');
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Kunde inte spara inställningen' });
+    } finally {
+      setSaving(false);
+      // Clear message after 3 seconds
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-8">
+        <div className="text-[#666] font-mono text-sm">Laddar inställningar...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-4 p-3 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+        <p className="text-[#888] font-mono text-xs">
+          ⚙️ <strong>Inställningar:</strong> Hantera globala inställningar för /7B-Zero chatten.
+          Ändringar träder i kraft direkt utan omstart.
+        </p>
+      </div>
+      
+      {/* Settings List */}
+      <div className="space-y-4">
+        {/* Typo Check Toggle */}
+        <div className="p-4 bg-[#111] border border-[#2a2a2a] rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <h4 className="text-[#eee] font-mono text-sm flex items-center gap-2">
+                ✏️ Stavningskontroll
+              </h4>
+              <p className="text-[#666] font-mono text-xs mt-1">
+                När aktiverad föreslår chatten korrigeringar för vanliga stavfel i svenska ord.
+                Användaren kan välja att acceptera eller ignorera förslaget.
+              </p>
+            </div>
+            <button
+              onClick={toggleTypoCheck}
+              disabled={saving}
+              className={`ml-4 px-4 py-2 rounded font-mono text-sm transition-all ${
+                typoCheckEnabled
+                  ? 'bg-green-600 text-white hover:bg-green-700'
+                  : 'bg-[#333] text-[#888] hover:bg-[#444]'
+              } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {saving ? '...' : typoCheckEnabled ? '✓ PÅ' : '○ AV'}
+            </button>
+          </div>
+        </div>
+        
+        {/* Status Message */}
+        {message && (
+          <div className={`p-3 rounded font-mono text-xs ${
+            message.type === 'success' 
+              ? 'bg-green-900/30 border border-green-500/30 text-green-300'
+              : 'bg-red-900/30 border border-red-500/30 text-red-300'
+          }`}>
+            {message.text}
+          </div>
+        )}
+        
+        {/* More settings can be added here */}
+        <div className="p-4 bg-[#0a0a0a] border border-dashed border-[#333] rounded-lg text-center">
+          <p className="text-[#555] font-mono text-xs">
+            Fler inställningar kommer snart...
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Integrations Management Component
  * 
  * Manages external API integrations for OneSeek Real-Time Suite:
@@ -338,7 +463,7 @@ export default function IntegrationsManagement() {
                 ONESEEK Δ+ Admin
               </h2>
               <p className="text-[#666] font-mono text-xs">
-                Intent Engine • Gold Editor • Källviktning • Stavfel • Topic History • Cache Manager
+                Intent Engine • Gold Editor • Källviktning • Stavfel • Topic History • Cache Manager • Inställningar
               </p>
             </div>
           </div>
@@ -359,6 +484,7 @@ export default function IntegrationsManagement() {
                 { id: 'stavfel', label: '✏️ Stavfel', desc: 'Granska stavfelspar' },
                 { id: 'topics', label: '📚 Topics', desc: 'Topic-grupperad historik' },
                 { id: 'cache', label: '🗑️ Cache', desc: 'Rensa cache' },
+                { id: 'settings', label: '⚙️ Inställningar', desc: 'Globala inställningar för chatten' },
                 { id: 'dev-reset', label: '⚠️ Dev Reset', desc: 'Utvecklingsreset' },
               ].map((tab) => (
                 <button
@@ -462,6 +588,9 @@ export default function IntegrationsManagement() {
                   </div>
                   <CacheManager />
                 </div>
+              )}
+              {deltaTab === 'settings' && (
+                <ChatSettingsPanel />
               )}
               {deltaTab === 'dev-reset' && (
                 <div>

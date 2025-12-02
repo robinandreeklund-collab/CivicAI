@@ -383,7 +383,7 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] flex">
+    <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] flex overflow-x-auto overflow-y-auto">
       
       {/* Live Topic Sidebar */}
       {showSidebar && (
@@ -542,7 +542,7 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
       )}
       
       {/* Main Content - shifted when sidebar is visible */}
-      <div className={`flex-1 ${showSidebar ? 'ml-80' : ''}`}>
+      <div className={`flex-1 min-w-[600px] ${showSidebar ? 'ml-80' : ''}`}>
         <div className="max-w-[1400px] mx-auto px-6 py-8">
         
         {/* Toggle Sidebar Button (when hidden) */}

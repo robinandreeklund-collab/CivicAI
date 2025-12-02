@@ -7129,6 +7129,66 @@ async def get_current_active_model():
     }
 
 
+# ==========================================
+# ADMIN SETTINGS API
+# ==========================================
+
+# Global settings storage (in-memory, can be extended to file/db)
+_admin_settings = {
+    "typo_check_enabled": True,  # Default: typo checking is ON
+}
+
+@app.get("/api/settings/typo-check")
+async def get_typo_check_setting():
+    """
+    Get current typo check setting for 7B-Zero chat.
+    """
+    return {
+        "enabled": _admin_settings.get("typo_check_enabled", True),
+        "description": "Stavningskontroll för /7B-Zero chatten"
+    }
+
+@app.post("/api/settings/typo-check")
+async def set_typo_check_setting(request: Request):
+    """
+    Toggle typo check setting for 7B-Zero chat.
+    Called from admin panel.
+    """
+    try:
+        data = await request.json()
+        enabled = data.get("enabled", True)
+        _admin_settings["typo_check_enabled"] = enabled
+        
+        return {
+            "success": True,
+            "enabled": enabled,
+            "message": f"Stavningskontroll är nu {'PÅ' if enabled else 'AV'}"
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": str(e)}
+        )
+
+@app.get("/api/settings/all")
+async def get_all_settings():
+    """
+    Get all admin settings.
+    """
+    return {
+        "settings": _admin_settings,
+        "available": [
+            {
+                "key": "typo_check_enabled",
+                "name": "Stavningskontroll",
+                "description": "Aktiverar stavningskontroll i /7B-Zero chatten",
+                "type": "boolean",
+                "current": _admin_settings.get("typo_check_enabled", True)
+            }
+        ]
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     
