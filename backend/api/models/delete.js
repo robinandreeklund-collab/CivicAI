@@ -52,10 +52,12 @@ function rateLimiter(req, res, next) {
   next();
 }
 
-// Middleware to check admin access (simplified - should use proper auth in production)
+// Middleware to check admin access
+// NOTE: In production, implement proper authentication using the existing AuthContext
+// This placeholder allows all requests - integrate with Firebase Auth before deployment
 function requireAdmin(req, res, next) {
-  // For now, allow all requests
-  // In production, implement proper authentication
+  // TODO: Implement proper admin authentication
+  // Example: Check req.user.role === 'admin' from Firebase Auth middleware
   next();
 }
 
@@ -63,21 +65,13 @@ function requireAdmin(req, res, next) {
  * Get the models directory path
  */
 async function getModelsDir() {
-  const projectModelsPath = path.join(__dirname, '..', '..', '..', 'models');
-  const windowsModelsPath = 'C:\\Users\\robin\\Documents\\GitHub\\CivicAI\\models';
-  
-  let modelsDir = projectModelsPath;
+  // Use environment variable if set, otherwise use project-relative path
+  const modelsDir = process.env.MODELS_DIR || path.join(__dirname, '..', '..', '..', 'models');
   
   try {
-    await fs.access(windowsModelsPath);
-    modelsDir = windowsModelsPath;
+    await fs.access(modelsDir);
   } catch {
-    try {
-      await fs.access(projectModelsPath);
-      modelsDir = projectModelsPath;
-    } catch {
-      modelsDir = projectModelsPath;
-    }
+    // Directory doesn't exist yet, but will be created when needed
   }
   
   return modelsDir;

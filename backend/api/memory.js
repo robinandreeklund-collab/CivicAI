@@ -52,8 +52,11 @@ function rateLimiter(req, res, next) {
 }
 
 // Middleware to check admin access
+// NOTE: In production, implement proper authentication using the existing AuthContext
+// This placeholder allows all requests - integrate with Firebase Auth before deployment
 function requireAdmin(req, res, next) {
-  // In production, implement proper authentication
+  // TODO: Implement proper admin authentication
+  // Example: Check req.user.role === 'admin' from Firebase Auth middleware
   next();
 }
 
