@@ -6703,15 +6703,20 @@ Svara NU.
             logger.debug(f"→ Output tokens: {len(outputs[0])}")
             logger.debug(f"→ Första 10 output tokens: {outputs[0][:10].tolist()}")
             
-            # Decode output
-            logger.debug("→ Decoding output...")
+            # Decode ONLY the new tokens (same approach as Message Builder)
+            # This prevents prompt leakage and echo loops
+            logger.debug("→ Decoding only new tokens...")
             decode_start = time.time()
-            response_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            new_tokens = outputs[0][input_length:]  # Only tokens after input
+            response_text = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
             decode_time = (time.time() - decode_start) * 1000
             logger.debug(f"→ Decoding took: {decode_time:.1f}ms")
+            logger.debug(f"→ New tokens count: {len(new_tokens)}")
             
-            # Clean response using utility function
-            response_text = clean_inference_response(response_text, full_input, request.text)
+            # Clean common prefixes that might remain (like Message Builder does)
+            for prefix in ["OneSeek:", "Assistant:", "assistant", "Användare:", "user", "system"]:
+                if response_text.lower().startswith(prefix.lower()):
+                    response_text = response_text[len(prefix):].strip()
             
             # Remove internal debug tags from response
             response_text = clean_internal_tags(response_text)
@@ -7111,8 +7116,12 @@ async def get_current_active_model():
             "note": "Testing with non-default model. Use /api/models/reset-to-default to restore."
         }
     
+    # Extract model name from path for display
+    model_path = Path(ONESEEK_PATH)
+    model_display_name = model_path.name if model_path.exists() else "OneSeek-7B-Zero"
+    
     return {
-        "model_name": "OneSeek-7B-Zero (Certified)",
+        "model_name": model_display_name,
         "model_path": str(ONESEEK_PATH),
         "is_dynamic": False,
         "is_production": True,
