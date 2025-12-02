@@ -6807,6 +6807,259 @@ async def models_status():
         "models": status
     }
 
+
+# =============================================================================
+# MODEL SWITCHING API - Switch active base model for inference testing
+# =============================================================================
+# Allows admin to switch between base models (e.g., KB-Llama, OpenHermes) 
+# for testing prompt compliance without restarting the server.
+
+# Global variable to track dynamically loaded model
+_dynamic_model = None
+_dynamic_tokenizer = None
+_dynamic_model_name = None
+
+
+@app.get("/api/models/available-base")
+async def get_available_base_models():
+    """
+    List all available base models for inference testing.
+    Discovers models in models/ directory that can be loaded.
+    
+    Returns models like:
+    - KB-Llama-3.1-8B-Swedish
+    - OpenHermes-2.5-Mistral-7B
+    - mistral-7b-instruct
+    - llama-2-7b-chat
+    """
+    models_dir = PROJECT_ROOT / 'models'
+    available = []
+    
+    # Directories to exclude
+    EXCLUDED_DIRS = {'oneseek-certified', 'oneseek-7b-zero', 'lora_adapters', 'backups', 'base_models'}
+    
+    if models_dir.exists():
+        for item in models_dir.iterdir():
+            if item.is_dir() and item.name not in EXCLUDED_DIRS:
+                # Check if it's a valid model directory
+                has_config = (item / 'config.json').exists()
+                has_tokenizer = (item / 'tokenizer.json').exists() or (item / 'tokenizer_config.json').exists()
+                has_model = any(
+                    f.name.endswith(('.bin', '.safetensors', '.pth'))
+                    for f in item.iterdir() if f.is_file()
+                )
+                
+                if has_config or has_tokenizer or has_model:
+                    # Get model info from config
+                    model_info = {
+                        "name": item.name,
+                        "path": str(item),
+                        "has_config": has_config,
+                        "has_tokenizer": has_tokenizer,
+                        "has_model_weights": has_model
+                    }
+                    
+                    # Try to get model type from config
+                    if has_config:
+                        try:
+                            with open(item / 'config.json', 'r') as f:
+                                config = json.load(f)
+                            model_info["model_type"] = config.get("model_type", "unknown")
+                            model_info["architectures"] = config.get("architectures", [])
+                        except Exception:
+                            pass
+                    
+                    available.append(model_info)
+    
+    # Also check base_models subdirectory (legacy location)
+    base_models_dir = models_dir / 'oneseek-7b-zero' / 'base_models'
+    if base_models_dir.exists():
+        for item in base_models_dir.iterdir():
+            if item.is_dir():
+                has_config = (item / 'config.json').exists()
+                has_tokenizer = (item / 'tokenizer.json').exists() or (item / 'tokenizer_config.json').exists()
+                
+                if has_config or has_tokenizer:
+                    available.append({
+                        "name": item.name,
+                        "path": str(item),
+                        "has_config": has_config,
+                        "has_tokenizer": has_tokenizer,
+                        "has_model_weights": True,
+                        "location": "base_models"
+                    })
+    
+    return {
+        "available_models": available,
+        "count": len(available),
+        "current_active": _dynamic_model_name or ONESEEK_PATH,
+        "note": "Use POST /api/models/switch to load a different model for testing"
+    }
+
+
+@app.post("/api/models/switch")
+async def switch_active_model(request: dict):
+    """
+    Switch the active model for inference testing.
+    
+    This allows testing different base models (like OpenHermes-2.5-Mistral-7B)
+    to see how they respond to prompts without restarting the server.
+    
+    Request body:
+    - model_name: Name of the model to load (e.g., "OpenHermes-2.5-Mistral-7B")
+    - model_path: (optional) Full path to model directory
+    
+    Note: The default OneSeek certified model is used for production.
+    This endpoint is for testing/debugging only.
+    """
+    global _dynamic_model, _dynamic_tokenizer, _dynamic_model_name
+    global model, tokenizer  # The main inference model
+    
+    model_name = request.get("model_name", "")
+    model_path = request.get("model_path", "")
+    
+    if not model_name and not model_path:
+        raise HTTPException(status_code=400, detail="model_name or model_path required")
+    
+    # Find the model path
+    if not model_path:
+        models_dir = PROJECT_ROOT / 'models'
+        model_path = models_dir / model_name
+        
+        # Try base_models location
+        if not model_path.exists():
+            model_path = models_dir / 'oneseek-7b-zero' / 'base_models' / model_name
+        
+        if not model_path.exists():
+            raise HTTPException(status_code=404, detail=f"Model not found: {model_name}")
+    else:
+        model_path = Path(model_path)
+        if not model_path.exists():
+            raise HTTPException(status_code=404, detail=f"Model path not found: {model_path}")
+    
+    logger.info(f"🔄 Switching to model: {model_name} at {model_path}")
+    
+    try:
+        # Clear GPU memory before loading new model
+        if torch.cuda.is_available():
+            import gc
+            gc.collect()
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+        
+        # Load the new tokenizer
+        logger.info(f"Loading tokenizer from: {model_path}")
+        new_tokenizer = AutoTokenizer.from_pretrained(
+            str(model_path),
+            trust_remote_code=True,
+            local_files_only=True
+        )
+        
+        if new_tokenizer.pad_token is None:
+            new_tokenizer.pad_token = new_tokenizer.eos_token
+        
+        # Load the new model
+        logger.info(f"Loading model from: {model_path}")
+        device_map = "auto" if torch.cuda.is_available() else None
+        
+        new_model = AutoModelForCausalLM.from_pretrained(
+            str(model_path),
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+            device_map=device_map,
+            trust_remote_code=True,
+            local_files_only=True
+        )
+        
+        # Update global references
+        _dynamic_model = new_model
+        _dynamic_tokenizer = new_tokenizer
+        _dynamic_model_name = model_name
+        
+        # Also update main model references for inference
+        model = new_model
+        tokenizer = new_tokenizer
+        models["oneseek"] = new_model
+        tokenizers["oneseek"] = new_tokenizer
+        
+        logger.info(f"✅ Successfully switched to model: {model_name}")
+        
+        return {
+            "success": True,
+            "model_name": model_name,
+            "model_path": str(model_path),
+            "device": str(new_model.device) if hasattr(new_model, 'device') else "auto",
+            "message": f"Model switched to {model_name}. Use /inference/oneseek to test."
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to switch model: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to load model: {str(e)}")
+
+
+@app.post("/api/models/reset-to-default")
+async def reset_to_default_model():
+    """
+    Reset to the default OneSeek certified model.
+    
+    This reloads the production-certified model after testing with other base models.
+    """
+    global _dynamic_model, _dynamic_tokenizer, _dynamic_model_name
+    global model, tokenizer
+    
+    try:
+        logger.info("🔄 Resetting to default OneSeek certified model...")
+        
+        # Clear dynamic model
+        _dynamic_model = None
+        _dynamic_tokenizer = None
+        _dynamic_model_name = None
+        
+        # Clear GPU memory
+        if torch.cuda.is_available():
+            import gc
+            gc.collect()
+            torch.cuda.empty_cache()
+        
+        # Reload the default model
+        load_model("oneseek", ONESEEK_PATH)
+        
+        logger.info(f"✅ Reset to default model: {ONESEEK_PATH}")
+        
+        return {
+            "success": True,
+            "model_path": str(ONESEEK_PATH),
+            "message": "Reset to default OneSeek certified model"
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to reset model: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to reset model: {str(e)}")
+
+
+@app.get("/api/models/current-active")
+async def get_current_active_model():
+    """
+    Get information about the currently active model for inference.
+    """
+    if _dynamic_model_name:
+        return {
+            "model_name": _dynamic_model_name,
+            "is_dynamic": True,
+            "is_production": False,
+            "note": "Testing with non-default model. Use /api/models/reset-to-default to restore."
+        }
+    
+    return {
+        "model_name": "OneSeek-7B-Zero (Certified)",
+        "model_path": str(ONESEEK_PATH),
+        "is_dynamic": False,
+        "is_production": True,
+        "note": "Using production certified model"
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     
