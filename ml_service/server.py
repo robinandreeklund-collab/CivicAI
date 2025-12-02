@@ -2380,11 +2380,13 @@ def format_inference_input(user_text: str) -> str:
     Format the inference input with system prompt.
     This ensures the model always knows its identity.
     
-    Format: "[System Prompt]\n\nAnvändare: [User's question]\n\nOneSeek:"
-    Uses Swedish labels to prevent English leakage.
+    Format: "[System Prompt]\n\n[User's question]"
+    NOTE: We do NOT add "Användare:" / "OneSeek:" labels to avoid 
+    self-referential conversation loops where the model continues 
+    generating both roles.
     """
     system_prompt = get_active_system_prompt()
-    return f"{system_prompt}\n\nAnvändare: {user_text}\n\nOneSeek:"
+    return f"{system_prompt}\n\n{user_text}"
 
 
 def clean_inference_response(response_text: str, full_input: str, user_text: str) -> str:
@@ -5143,12 +5145,12 @@ Svara NU.
                     try:
                         model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
                         typo_messages = [
-                            {"role": "system", "content": "Du är OneSeek-7B-Zero och pratar alltid svenska."},
+                            {"role": "system", "content": "Du är OneSeek-7B-Zero och pratar alltid svenska. Använd aldrig formatet 'Användare:' eller 'OneSeek:' i dina svar."},
                             {"role": "user", "content": typo_prompt}
                         ]
                         
                         # Formatera input för modellen
-                        typo_input = f"{typo_messages[0]['content']}\n\nAnvändare: {typo_messages[1]['content']}\n\nOneSeek:"
+                        typo_input = f"{typo_messages[0]['content']}\n\n{typo_messages[1]['content']}"  # NO role tags
                         inputs = tokenizer(typo_input, return_tensors="pt", padding=True)
                         inputs = sync_inputs_to_model_device(inputs, model)
                         input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
@@ -5309,14 +5311,15 @@ Svara NU.
                     
                     if previous_messages:
                         # Format previous conversation as context
+                        # NOTE: Use raw content only - NO "Användare:" / "OneSeek:" prefixes
+                        # to avoid self-referential conversation loops
                         memory_parts = []
                         for msg in previous_messages[-8:]:  # Last 8 messages
-                            role = "Användare" if msg.get("role") == "user" else "OneSeek"
                             content = msg.get("content", "")[:200]  # Truncate long messages
-                            memory_parts.append(f"{role}: {content}")
+                            memory_parts.append(content.strip())
                         
                         if memory_parts:
-                            memory_context = "\n".join(memory_parts)
+                            memory_context = "\n\n".join(memory_parts)
                             logger.info(f"🧠 [MEMORY] Hämtade {len(previous_messages)} tidigare meddelanden för topic {topic_hash[:8]}...")
         except Exception as e:
             logger.debug(f"Memory context retrieval failed: {e}")
@@ -5641,12 +5644,12 @@ Svara NU.
                     try:
                         model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
                         typo_messages = [
-                            {"role": "system", "content": "Du är OneSeek-7B-Zero och pratar alltid svenska."},
+                            {"role": "system", "content": "Du är OneSeek-7B-Zero och pratar alltid svenska. Använd aldrig formatet 'Användare:' eller 'OneSeek:' i dina svar."},
                             {"role": "user", "content": typo_prompt}
                         ]
                         
                         # Formatera input för modellen
-                        typo_input = f"{typo_messages[0]['content']}\n\nAnvändare: {typo_messages[1]['content']}\n\nOneSeek:"
+                        typo_input = f"{typo_messages[0]['content']}\n\n{typo_messages[1]['content']}"  # NO role tags
                         inputs = tokenizer(typo_input, return_tensors="pt", padding=True)
                         inputs = sync_inputs_to_model_device(inputs, model)
                         input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
@@ -5832,14 +5835,15 @@ Svara NU.
                     
                     if previous_messages:
                         # Format previous conversation as context
+                        # NOTE: Use raw content only - NO "Användare:" / "OneSeek:" prefixes
+                        # to avoid self-referential conversation loops
                         memory_parts = []
                         for msg in previous_messages[-8:]:  # Last 8 messages
-                            role = "Användare" if msg.get("role") == "user" else "OneSeek"
                             content = msg.get("content", "")[:200]  # Truncate long messages
-                            memory_parts.append(f"{role}: {content}")
+                            memory_parts.append(content.strip())
                         
                         if memory_parts:
-                            memory_context = "\n".join(memory_parts)
+                            memory_context = "\n\n".join(memory_parts)
                             logger.info(f"🧠 [MEMORY] Hämtade {len(previous_messages)} tidigare meddelanden för topic {topic_hash[:8]}...")
         except Exception as e:
             logger.debug(f"Memory context retrieval failed: {e}")
