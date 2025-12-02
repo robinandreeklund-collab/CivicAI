@@ -2372,31 +2372,21 @@ def get_active_system_prompt() -> str:
 
 def format_inference_input(user_text: str, context: str = "") -> str:
     """
-    Format the inference input with system prompt, optional context, and question.
-    This ensures the model always knows its identity.
+    Format the inference input with ONLY system prompt and user question.
     
     Format: 
     [System Prompt]
     
-    [Optional Context/History]
-    
     [User's question]
     
-    NOTE: We use PURE TEXT format - no special markers like "Fråga:", "Svar:", 
-    "Användare:", or "OneSeek:" to avoid confusing the model.
+    NOTE: Context/history is intentionally IGNORED to ensure system prompt 
+    reaches the model without interference. This is the simplest, most 
+    reliable format that ensures model identity.
     """
     system_prompt = get_active_system_prompt()
     
-    # Build prompt: System first, then context, then question - NO markers
-    parts = [system_prompt.strip()]
-    
-    if context:
-        parts.append(context.strip())
-    
-    # Add user's question directly - no "Fråga:" or "Svar:" markers
-    parts.append(user_text.strip())
-    
-    return "\n\n".join(parts)
+    # ONLY system prompt + user question - nothing else
+    return f"{system_prompt.strip()}\n\n{user_text.strip()}"
 
 
 def clean_inference_response(response_text: str, full_input: str, user_text: str) -> str:
