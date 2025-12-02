@@ -5386,14 +5386,38 @@ async def test_message_structure(request: MessageBuilderRequest):
             history=request.history or []
         )
         
-        # Format messages for model input using the shared helper
+        # Format messages for model input using the shared helper (for display/fallback)
         full_input = format_messages_for_model(messages)
         
         # Run inference
         try:
             model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
             
-            inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+            # === FIX: Use apply_chat_template for proper chat format ===
+            # Build structured messages for the model
+            chat_messages = [
+                {"role": "system", "content": enriched_system_prompt},
+                {"role": "user", "content": request.user_message}
+            ]
+            
+            # Try to use apply_chat_template if available (prevents echo/loops)
+            try:
+                if hasattr(tokenizer, 'apply_chat_template'):
+                    tokenized_input = tokenizer.apply_chat_template(
+                        chat_messages,
+                        add_generation_prompt=True,
+                        return_tensors="pt"
+                    )
+                    inputs = {"input_ids": tokenized_input}
+                    # Create attention mask
+                    inputs["attention_mask"] = torch.ones_like(tokenized_input)
+                else:
+                    # Fallback to raw tokenizer if apply_chat_template not available
+                    inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+            except Exception as template_error:
+                logging.warning(f"apply_chat_template failed, falling back: {template_error}")
+                inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+            
             inputs = sync_inputs_to_model_device(inputs, model)
             input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
             
@@ -5852,8 +5876,38 @@ Svara NU.
             # Single-model inference (certified or fallback)
             model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
             
-            # Prepare input with system prompt and sync to model's device
-            inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+            # === FIX: Use apply_chat_template for proper chat format ===
+            # Build structured messages for the model
+            system_prompt = get_active_system_prompt()
+            # Add all context to system prompt
+            if context_parts:
+                system_prompt = "\n".join(context_parts) + "\n\n" + system_prompt
+            
+            chat_messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": inference_request.text}
+            ]
+            
+            # Try to use apply_chat_template if available (prevents echo/loops)
+            try:
+                if hasattr(tokenizer, 'apply_chat_template'):
+                    tokenized_input = tokenizer.apply_chat_template(
+                        chat_messages,
+                        add_generation_prompt=True,
+                        return_tensors="pt"
+                    )
+                    inputs = {"input_ids": tokenized_input}
+                    # Create attention mask
+                    inputs["attention_mask"] = torch.ones_like(tokenized_input)
+                    logger.info("Using apply_chat_template for structured messages")
+                else:
+                    # Fallback to raw tokenizer if apply_chat_template not available
+                    inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+                    logger.info("Fallback: apply_chat_template not available")
+            except Exception as template_error:
+                logging.warning(f"apply_chat_template failed, falling back: {template_error}")
+                inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+            
             inputs = sync_inputs_to_model_device(inputs, model)
             
             # Use max_new_tokens instead of max_length to avoid input length issues
