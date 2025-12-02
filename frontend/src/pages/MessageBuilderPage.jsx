@@ -204,11 +204,12 @@ export default function MessageBuilderPage() {
       setResult(data);
       
       if (data.success) {
-        // Add to topic history
+        // Add to topic history (store full response for YAML export)
         const historyEntry = {
           id: Date.now(),
           question: testQuestion,
-          response: data.response?.substring(0, 100) + (data.response?.length > 100 ? '...' : ''),
+          response: data.response || '',  // Full response for YAML export
+          responsePreview: data.response?.substring(0, 100) + (data.response?.length > 100 ? '...' : ''),  // Preview for sidebar
           confidence: data.analysis?.estimated_confidence || 0,
           intent: data.intent_info?.intent || 'unknown',
           entity: data.intent_info?.entity || '',
@@ -520,8 +521,8 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
                     )}
                     
                     {/* Response preview */}
-                    <div className="text-[10px] text-[#666] truncate" title={entry.response}>
-                      💬 {entry.response}
+                    <div className="text-[10px] text-[#666] truncate" title={entry.responsePreview || entry.response?.substring(0, 100)}>
+                      💬 {entry.responsePreview || entry.response?.substring(0, 100)}
                     </div>
                     
                     {/* Metrics */}
