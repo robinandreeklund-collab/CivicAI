@@ -357,9 +357,10 @@ export default function MessageBuilderPage() {
               <button
                 onClick={saveAsDefault}
                 disabled={!result?.success}
-                className="px-6 py-3 border border-[#2a2a2a] text-[#666] text-xs font-mono rounded hover:border-[#3a3a3a] hover:text-[#888] disabled:opacity-30 transition-all"
+                className="px-6 py-3 border border-green-700/50 text-green-500 text-xs font-mono rounded hover:border-green-600 hover:bg-green-900/20 disabled:opacity-30 disabled:border-[#2a2a2a] disabled:text-[#666] transition-all"
+                title="Aktiverar denna struktur som standard för all inference"
               >
-                💾 SPARA
+                💾 AKTIVERA
               </button>
               <button
                 onClick={clearResults}
@@ -368,6 +369,9 @@ export default function MessageBuilderPage() {
                 ✕
               </button>
             </div>
+            <p className="text-[9px] font-mono text-[#555] mt-2">
+              Tryck TESTA för att köra → sen AKTIVERA för att sätta som default struktur
+            </p>
           </div>
 
           {/* Right: Results */}
@@ -426,6 +430,16 @@ export default function MessageBuilderPage() {
                         {result.tokens} tokens • {result.latency_ms?.toFixed(0)}ms
                       </div>
                     )}
+                  </div>
+                </div>
+
+                {/* Raw Response Data */}
+                <div>
+                  <label className="text-[10px] font-mono text-[#666] mb-2 block">RAW DATA</label>
+                  <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded p-3 min-h-[120px] max-h-[200px] overflow-y-auto">
+                    <pre className="text-[10px] font-mono text-[#888] whitespace-pre-wrap">
+                      {result.response || 'Inget svar'}
+                    </pre>
                   </div>
                 </div>
 
