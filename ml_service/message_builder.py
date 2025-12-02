@@ -138,13 +138,14 @@ def build_messages(
     time_context: Optional[str] = None
 ) -> List[Dict[str, str]]:
     """
-    Build a messages list from structure code.
+    Build a messages list from a template name or JSON structure.
     
-    This function safely evaluates the structure code in a sandboxed context
-    with only the required variables available.
+    Uses safe template matching and JSON parsing - no eval/exec.
+    Template names (e.g., 'current', 'clean', 'with_memory') are mapped to 
+    predefined message structures.
     
     Args:
-        structure_code: Template name or simple JSON structure (not arbitrary code)
+        structure_code: Template name (e.g., 'current', 'clean') or JSON structure
         system_prompt: The system prompt to use
         user_message: The user's message/question
         history: Optional conversation history
@@ -170,26 +171,28 @@ def build_messages(
         code = template_code
     
     # Build messages based on the template pattern
-    # Instead of eval/exec, we parse and build the structure directly
+    # Uses template matching and JSON parsing - no eval/exec
     messages = []
     
     try:
         # Try to parse as JSON first (safest approach)
-        import json
         parsed = json.loads(code)
         if isinstance(parsed, list):
             # It's a JSON list, substitute variables
             for msg in parsed:
                 if isinstance(msg, dict) and "role" in msg and "content" in msg:
-                    content = msg["content"]
+                    content = str(msg["content"])
                     # Replace variable placeholders
-                    if content == "system_prompt" or "${system_prompt}" in str(content):
+                    # Handle exact matches first
+                    if content == "system_prompt":
                         content = system_prompt
-                    elif content == "user_message" or "${user_message}" in str(content):
+                    elif content == "user_message":
                         content = user_message
-                    elif "system_prompt" in str(content):
+                    else:
+                        # Handle partial replacements (e.g., "${system_prompt}" or embedded variables)
+                        content = content.replace("${system_prompt}", system_prompt)
+                        content = content.replace("${user_message}", user_message)
                         content = content.replace("system_prompt", system_prompt)
-                    elif "user_message" in str(content):
                         content = content.replace("user_message", user_message)
                     
                     messages.append({"role": msg["role"], "content": content})

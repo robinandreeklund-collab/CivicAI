@@ -5069,6 +5069,38 @@ class MessageBuilderDefaultRequest(BaseModel):
     code: str
 
 
+def format_messages_for_model(messages: List[dict]) -> str:
+    """
+    Format a messages list for model input.
+    
+    Uses the main branch format:
+    {system_prompt}
+    
+    Användare: {user_message}
+    
+    OneSeek:
+    
+    Args:
+        messages: List of message dicts with 'role' and 'content'
+        
+    Returns:
+        Formatted string ready for model input
+    """
+    formatted_parts = []
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        if role == "system":
+            formatted_parts.append(content)
+        elif role == "user":
+            formatted_parts.append(f"Användare: {content}")
+        elif role == "assistant":
+            formatted_parts.append(f"OneSeek: {content}")
+    
+    formatted_parts.append("OneSeek:")
+    return "\n\n".join(formatted_parts)
+
+
 @app.get("/api/ml/debug/messages/templates")
 async def get_message_templates():
     """
@@ -5170,21 +5202,8 @@ async def test_message_structure(request: MessageBuilderRequest):
             history=request.history or []
         )
         
-        # Format messages for model input
-        # Use the clean format to avoid echo/loop issues
-        formatted_parts = []
-        for msg in messages:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            if role == "system":
-                formatted_parts.append(content)
-            elif role == "user":
-                formatted_parts.append(f"Användare: {content}")
-            elif role == "assistant":
-                formatted_parts.append(f"OneSeek: {content}")
-        
-        formatted_parts.append("OneSeek:")
-        full_input = "\n\n".join(formatted_parts)
+        # Format messages for model input using the shared helper
+        full_input = format_messages_for_model(messages)
         
         # Run inference
         try:
