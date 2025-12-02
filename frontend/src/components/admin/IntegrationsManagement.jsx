@@ -7,7 +7,6 @@ import SourceWeights from '../../../../admin/integration/SourceWeights';
 import StavfelEditor from '../../../../admin/integration/StavfelEditor';
 import TopicHistory from '../../../../admin/integration/TopicHistory';
 import CacheManager from '../../../../admin/integration/CacheManager';
-import MessageBuilder from '../../../../admin/integration/MessageBuilder';
 import DevResetTab from './DevResetTab';
 
 /**
@@ -388,7 +387,14 @@ export default function IntegrationsManagement() {
                       Löser problem från PR #95 (eko-effekter, loops).
                     </p>
                   </div>
-                  <MessageBuilder />
+                  <div className="flex items-center justify-center py-12">
+                    <a 
+                      href="/admin/builder"
+                      className="px-8 py-4 bg-blue-600 text-white font-mono text-sm rounded hover:bg-blue-700 transition-colors"
+                    >
+                      🔧 Öppna Message Builder (Fullskärm)
+                    </a>
+                  </div>
                 </div>
               )}
               {deltaTab === 'intent' && (
