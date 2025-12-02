@@ -846,4 +846,102 @@ Ask the same question to multiple AI models simultaneously and compare:
 
 **Remember:** AI is a tool to support human decision-making, not replace it. Use CivicAI to gain insights, identify biases, and make more informed choices.
 
+---
+
+## 🔧 Admin Dashboard Features
+
+### Model Management
+
+The Admin Dashboard provides comprehensive model management capabilities:
+
+#### Model Version Deletion
+
+Delete non-active model versions from the Admin Dashboard → Models tab:
+
+- **Hard deletion only**: Model directories are permanently removed
+- **Active model protection**: Cannot delete the active model (target of OneSeek-7B-Zero-CURRENT symlink)
+- **Path safety**: Strict directory whitelists prevent path traversal attacks
+- **Audit logging**: All deletion operations are logged with user, version, timestamp, and outcome
+
+**API Endpoint:**
+```bash
+DELETE /api/models/:version
+```
+
+**Error Codes:**
+- `ACTIVE_MODEL` (409): Cannot delete the active model
+- `MODEL_NOT_FOUND` (404): Model version doesn't exist
+- `PATH_TRAVERSAL_BLOCKED` (403): Invalid path detected
+
+#### Adapter Deletion
+
+Delete specific adapters within model versions:
+
+```bash
+DELETE /api/models/:version/adapters/:adapterId
+```
+
+Essential adapters (adapter_model.bin, adapter_config.json) are protected on active models.
+
+### Development Reset (Dev Reset)
+
+Located in Admin Dashboard → Integrations → ONESEEK Δ+ Admin → Dev Reset tab.
+
+**Purpose:** Reset development environment data for testing and development.
+
+**Features:**
+- Purge Firebase collections (oqt_* and delta_* prefixes)
+- Purge prepared datasets (ml/data/prepared/)
+- Purge training temp files and logs
+- Reset memory context (caches, conversation history)
+
+**API Endpoint:**
+```bash
+POST /api/admin/dev-reset
+```
+
+**Request Body:**
+```json
+{
+  "purgeFirebase": true,
+  "purgePreparedDatasets": true,
+  "purgeTrainingTemp": true,
+  "resetMemoryContext": true,
+  "keepModels": true
+}
+```
+
+**Environment Guards:**
+- Only available when `NODE_ENV=development` or `ALLOW_DEV_RESET=true` in backend/.env
+- Returns 403 in production unless explicitly enabled
+
+**Firebase Collections Purged:**
+- oqt_queries, oqt_metrics, oqt_training_events, oqt_ledger, oqt_provenance
+- delta_topics, delta_messages, delta_typo_pairs, delta_gold_examples
+
+### Memory Context Reset
+
+Reset in-memory caches without purging persistent data:
+
+**API Endpoint:**
+```bash
+POST /api/memory/reset
+```
+
+**Clears:**
+- Conversation cache
+- Inference cache
+- OQT knowledge base
+- Python NLP service context (if available)
+- ML service context (if available)
+
+**Status Check:**
+```bash
+GET /api/memory/status
+```
+
+Returns current cache sizes and health information.
+
+---
+
 **🌟 Star this repo if you find it useful!**

@@ -7,6 +7,7 @@ import SourceWeights from '../../../../admin/integration/SourceWeights';
 import StavfelEditor from '../../../../admin/integration/StavfelEditor';
 import TopicHistory from '../../../../admin/integration/TopicHistory';
 import CacheManager from '../../../../admin/integration/CacheManager';
+import DevResetTab from './DevResetTab';
 
 /**
  * Integrations Management Component
@@ -357,6 +358,7 @@ export default function IntegrationsManagement() {
                 { id: 'stavfel', label: '✏️ Stavfel', desc: 'Granska stavfelspar' },
                 { id: 'topics', label: '📚 Topics', desc: 'Topic-grupperad historik' },
                 { id: 'cache', label: '🗑️ Cache', desc: 'Rensa cache' },
+                { id: 'dev-reset', label: '⚠️ Dev Reset', desc: 'Utvecklingsreset' },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -439,6 +441,17 @@ export default function IntegrationsManagement() {
                     </p>
                   </div>
                   <CacheManager />
+                </div>
+              )}
+              {deltaTab === 'dev-reset' && (
+                <div>
+                  <div className="mb-4 p-3 bg-red-900/20 border border-red-500/30 rounded">
+                    <p className="text-red-300 font-mono text-xs">
+                      ⚠️ <strong>VARNING:</strong> Dev Reset är endast för utvecklingsmiljöer. 
+                      Denna funktion raderar data permanent och kan inte ångras.
+                    </p>
+                  </div>
+                  <DevResetTab />
                 </div>
               )}
             </div>

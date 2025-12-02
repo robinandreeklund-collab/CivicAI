@@ -53,6 +53,13 @@ export default function ModelManagement() {
   const [activeGguf, setActiveGguf] = useState(null);
   const [settingActiveGguf, setSettingActiveGguf] = useState(false);
 
+  // Delete model state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [modelToDelete, setModelToDelete] = useState(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
+
   useEffect(() => {
     fetchModels();
     fetchCurrentModel();
@@ -301,6 +308,61 @@ export default function ModelManagement() {
     }
   };
 
+  // Delete model - opens confirmation dialog
+  const openDeleteDialog = (model) => {
+    // Check if this is the active model
+    const isActive = model.isCurrent || model.id === currentModelId || 
+                     (model.directoryName && model.directoryName === currentModelId);
+    if (isActive) {
+      alert('Aktiv modell kan inte tas bort. Sätt en annan modell som aktiv först.');
+      return;
+    }
+    setModelToDelete(model);
+    setDeleteConfirmText('');
+    setDeleteError(null);
+    setShowDeleteDialog(true);
+  };
+
+  // Perform model deletion
+  const performDeleteModel = async () => {
+    if (!modelToDelete) return;
+    
+    const modelId = modelToDelete.directoryName || modelToDelete.id;
+    
+    // Verify confirmation text matches model ID
+    if (deleteConfirmText !== modelId) {
+      setDeleteError('Bekräftelsetexten matchar inte modellversionen.');
+      return;
+    }
+    
+    setDeleting(true);
+    setDeleteError(null);
+    
+    try {
+      const response = await fetch(`/api/models/${encodeURIComponent(modelId)}`, {
+        method: 'DELETE',
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        alert(`✅ Modell ${modelId} raderades!`);
+        setShowDeleteDialog(false);
+        setModelToDelete(null);
+        await fetchModels();
+      } else if (response.status === 409 && data.code === 'ACTIVE_MODEL') {
+        setDeleteError('Kan inte radera aktiv modell. Sätt en annan modell som aktiv först.');
+      } else {
+        setDeleteError(data.error || 'Radering misslyckades');
+      }
+    } catch (error) {
+      console.error('Error deleting model:', error);
+      setDeleteError(`Fel vid radering: ${error.message}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const downloadModel = async (modelId, type = 'weights') => {
     try {
       const response = await fetch(`/api/admin/models/${modelId}/download?type=${type}`);
@@ -318,29 +380,6 @@ export default function ModelManagement() {
     } catch (error) {
       console.error('Error downloading model:', error);
       alert('Failed to download model');
-    }
-  };
-
-  const rollbackToModel = async (modelId) => {
-    if (!confirm('Are you sure you want to rollback to this model version?')) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/admin/models/${modelId}/rollback`, {
-        method: 'POST',
-      });
-
-      if (response.ok) {
-        alert('Model rollback successful!');
-        await fetchModels();
-      } else {
-        const data = await response.json();
-        alert(`Rollback failed: ${data.error}`);
-      }
-    } catch (error) {
-      console.error('Error rolling back model:', error);
-      alert('Rollback failed');
     }
   };
 
@@ -904,13 +943,30 @@ export default function ModelManagement() {
                         >
                           Download
                         </button>
-                        {model.id !== currentModelId && (
+                        {model.id !== currentModelId && !model.isCurrent && (
                           <button
                             onClick={() => setAsCurrentModel(model.id)}
                             className="px-3 py-1 border border-green-700/50 bg-green-900/20 text-green-400 text-xs font-mono hover:bg-green-900/30 transition-colors"
                           >
                             Set as Active
                           </button>
+                        )}
+                        {/* Delete button - only for non-active models */}
+                        {model.id !== currentModelId && !model.isCurrent ? (
+                          <button
+                            onClick={() => openDeleteDialog(model)}
+                            className="px-3 py-1 border border-red-700/50 bg-red-900/20 text-red-400 text-xs font-mono hover:bg-red-900/30 transition-colors"
+                            title="Delete this model version"
+                          >
+                            🗑️ Delete
+                          </button>
+                        ) : (
+                          <span 
+                            className="px-3 py-1 text-[#666] text-xs font-mono cursor-not-allowed"
+                            title="Aktiv modell kan inte tas bort"
+                          >
+                            🔒
+                          </span>
                         )}
                       </div>
                       
@@ -1293,6 +1349,81 @@ export default function ModelManagement() {
                 className="px-4 py-2 border border-green-700/50 bg-green-900/20 text-green-400 text-sm font-mono hover:bg-green-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {exporting ? '⏳ Exporting...' : '📦 Export GGUF'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Delete Model Confirmation Dialog */}
+      {showDeleteDialog && modelToDelete && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-6">
+          <div className="bg-[#111] border border-red-500/30 rounded-lg max-w-lg w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-red-500/30 bg-red-900/10">
+              <h3 className="text-red-400 font-mono text-lg">
+                🗑️ Radera Modellversion
+              </h3>
+              <button
+                onClick={() => setShowDeleteDialog(false)}
+                className="text-[#666] hover:text-[#888] text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              <div className="p-3 bg-red-900/20 border border-red-500/30 rounded">
+                <p className="text-red-300 font-mono text-xs">
+                  ⚠️ <strong>VARNING:</strong> Denna åtgärd är permanent och kan inte ångras. 
+                  Alla filer i modellmappen kommer att raderas.
+                </p>
+              </div>
+              
+              <div>
+                <p className="text-[#888] font-mono text-sm mb-2">Du håller på att radera:</p>
+                <div className="p-3 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                  <p className="text-[#eee] font-mono text-sm break-all">
+                    {modelToDelete.directoryName || modelToDelete.id}
+                  </p>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-[#888] font-mono text-sm mb-2">
+                  Skriv modellversionen för att bekräfta:
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder={modelToDelete.directoryName || modelToDelete.id}
+                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#eee] font-mono text-sm p-2 rounded focus:outline-none focus:border-red-500/50"
+                />
+                <p className="text-[#555] font-mono text-xs mt-1">
+                  Skriv exakt: <code className="text-red-400">{modelToDelete.directoryName || modelToDelete.id}</code>
+                </p>
+              </div>
+              
+              {deleteError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded">
+                  <p className="text-red-400 font-mono text-xs">
+                    ❌ {deleteError}
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="p-6 border-t border-[#2a2a2a] flex justify-end space-x-3">
+              <button
+                onClick={() => setShowDeleteDialog(false)}
+                className="px-4 py-2 border border-[#2a2a2a] text-[#888] text-sm font-mono hover:bg-[#1a1a1a] transition-colors"
+              >
+                Avbryt
+              </button>
+              <button
+                onClick={performDeleteModel}
+                disabled={deleting || deleteConfirmText !== (modelToDelete.directoryName || modelToDelete.id)}
+                className="px-4 py-2 border border-red-700/50 bg-red-900/20 text-red-400 text-sm font-mono hover:bg-red-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deleting ? '⏳ Raderar...' : '🗑️ Radera Permanent'}
               </button>
             </div>
           </div>
