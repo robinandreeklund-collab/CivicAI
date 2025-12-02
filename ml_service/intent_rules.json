@@ -147,6 +147,15 @@
       "min_confidence": 0.7,
       "force_api": true,
       "response_template": "{word}: {definition}"
+    },
+    "python_kod": {
+      "keywords": ["python", "kod", "skriv kod", "program", "script", "hjälp med kod", "koda", "kodexempel", "funktion", "loop", "lista", "dictionary"],
+      "weight": 3.0,
+      "priority": 999,
+      "min_confidence": 0.6,
+      "force_api": true,
+      "api": "code_generator",
+      "response_template": "Här är koden på Python:\n```python\n{code}\n```"
     }
   },
   "entity_patterns": {

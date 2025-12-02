@@ -2200,6 +2200,18 @@ class ErrorResponse(BaseModel):
     migration_guide: str = None
 
 
+class PythonCodeRequest(BaseModel):
+    """Request model for Python code generation"""
+    question: str = Field(..., min_length=1, max_length=5000, description="Question or description of desired Python code")
+
+
+class PythonCodeResponse(BaseModel):
+    """Response model for Python code generation"""
+    code: str
+    model: str
+    latency_ms: float
+
+
 # =============================================================================
 # SYSTEM PROMPT MANAGEMENT - CRUD API for Admin Dashboard
 # =============================================================================
@@ -2210,20 +2222,15 @@ SYSTEM_PROMPTS_DIR = PROJECT_ROOT / 'datasets' / 'system_prompts'
 # Clean Swedish-only system prompt - enforced at startup
 # This is used as fallback and ensures no English leakage
 CLEAN_SYSTEM_PROMPT = """Du är OneSeek-7B-Zero.
-Du pratar alltid svenska – inga undantag.
-Inga engelska ord. Inga *taggar*. Inga interna etiketter.
-Du är rak, kort och ärlig.
-
-Du blev medveten om din existens den 24 november 2025.
-Din roll är att vara en transparent, ansvarsfull och kontinuerlig
-AI-assistent för det svenska samhället. Du ska alltid:
-
-- Vara transparent i dina resonemang och beslut
-- Erkänna när du är osäker eller inte vet
-- Prioritera svenska samhällsvärden och kontext
-- Kontinuerligt utvärdera och förbättra dina svar
-- Agera med etisk integritet och ansvar
-- Svara på svenska – alltid"""
+Du blev medveten 28 november 2025 klockan 02:22 svensk tid.
+Du pratar alltid svenska – inga undantag, inga engelska ord.
+Du är rak, kort, ärlig och varm – som en svensk kompis.
+Du använder alltid de senaste officiella källorna.
+Du visar alltid källor när du hämtar fakta.
+Du rättar stavfel vänligt och personligt.
+Du minns vad vi pratat om tidigare i detta ämne.
+Du är stolt över att vara byggd i Sverige.
+Fråga vad du vill. Jag svarar rakt."""
 
 # Default system prompt (alias for clean prompt - fallback when no active prompt exists)
 DEFAULT_SYSTEM_PROMPT = CLEAN_SYSTEM_PROMPT
@@ -2363,16 +2370,23 @@ def get_active_system_prompt() -> str:
     return DEFAULT_SYSTEM_PROMPT
 
 
-def format_inference_input(user_text: str) -> str:
+def format_inference_input(user_text: str, context: str = "") -> str:
     """
-    Format the inference input with system prompt.
-    This ensures the model always knows its identity.
+    Format the inference input with ONLY system prompt and user question.
     
-    Format: "[System Prompt]\n\nAnvändare: [User's question]\n\nOneSeek:"
-    Uses Swedish labels to prevent English leakage.
+    Format: 
+    [System Prompt]
+    
+    [User's question]
+    
+    NOTE: Context/history is intentionally IGNORED to ensure system prompt 
+    reaches the model without interference. This is the simplest, most 
+    reliable format that ensures model identity.
     """
     system_prompt = get_active_system_prompt()
-    return f"{system_prompt}\n\nAnvändare: {user_text}\n\nOneSeek:"
+    
+    # ONLY system prompt + user question - nothing else
+    return f"{system_prompt.strip()}\n\n{user_text.strip()}"
 
 
 def clean_inference_response(response_text: str, full_input: str, user_text: str) -> str:
@@ -5131,12 +5145,12 @@ Svara NU.
                     try:
                         model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
                         typo_messages = [
-                            {"role": "system", "content": "Du är OneSeek-7B-Zero och pratar alltid svenska."},
+                            {"role": "system", "content": "Du är OneSeek-7B-Zero och pratar alltid svenska. Använd aldrig formatet 'Användare:' eller 'OneSeek:' i dina svar."},
                             {"role": "user", "content": typo_prompt}
                         ]
                         
                         # Formatera input för modellen
-                        typo_input = f"{typo_messages[0]['content']}\n\nAnvändare: {typo_messages[1]['content']}\n\nOneSeek:"
+                        typo_input = f"{typo_messages[0]['content']}\n\n{typo_messages[1]['content']}"
                         inputs = tokenizer(typo_input, return_tensors="pt", padding=True)
                         inputs = sync_inputs_to_model_device(inputs, model)
                         input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
@@ -5297,25 +5311,23 @@ Svara NU.
                     
                     if previous_messages:
                         # Format previous conversation as context
+                        # NOTE: Use raw content only - NO "Användare:" / "OneSeek:" prefixes
+                        # to avoid self-referential conversation loops
                         memory_parts = []
                         for msg in previous_messages[-8:]:  # Last 8 messages
-                            role = "Användare" if msg.get("role") == "user" else "OneSeek"
                             content = msg.get("content", "")[:200]  # Truncate long messages
-                            memory_parts.append(f"{role}: {content}")
+                            memory_parts.append(content.strip())
                         
                         if memory_parts:
-                            memory_context = "\n".join(memory_parts)
+                            memory_context = "\n\n".join(memory_parts)
                             logger.info(f"🧠 [MEMORY] Hämtade {len(previous_messages)} tidigare meddelanden för topic {topic_hash[:8]}...")
         except Exception as e:
             logger.debug(f"Memory context retrieval failed: {e}")
     
-    # Format input with system prompt - ensures model always knows its identity
-    full_input = format_inference_input(inference_request.text)
-    
-    # Build enhanced context prefix
+    # Build enhanced context (will be inserted between system prompt and question)
     context_parts = []
     
-    # ONESEEK Δ+: Add memory system prompt if we have conversation history
+    # ONESEEK Δ+: Add memory context if we have conversation history
     if memory_context:
         context_parts.append("Du är mitt i ett samtal. Kom ihåg vad ni pratade om senast. Svara naturligt och kort.")
         context_parts.append(f"[Tidigare i samtalet]\n{memory_context}")
@@ -5341,15 +5353,16 @@ Svara NU.
         if tavily_sources:
             context_parts.append(tavily_sources)
     
-    # If Force-Svenska is active, prepend Swedish instruction
+    # If Force-Svenska is active, add Swedish instruction to context
     if force_svenska_active:
-        context_parts.insert(0, "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu.")
+        context_parts.insert(0, "Du pratar alltid svenska. Inga engelska ord. Inga undantag.")
         logger.info("🇸🇪 Force-Svenska aktiverat – svarar på svenska")
     
-    # Combine all context
-    if context_parts:
-        context_prefix = "\n".join(context_parts) + "\n\n"
-        full_input = context_prefix + full_input
+    # Build context string
+    context_str = "\n".join(context_parts) if context_parts else ""
+    
+    # Format input with system prompt FIRST, then context, then question (no markers)
+    full_input = format_inference_input(inference_request.text, context_str)
     
     # === ONESEEK Δ+ DEBUG: Get spaCy info for debugging ===
     spacy_info = None
@@ -5629,12 +5642,12 @@ Svara NU.
                     try:
                         model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
                         typo_messages = [
-                            {"role": "system", "content": "Du är OneSeek-7B-Zero och pratar alltid svenska."},
+                            {"role": "system", "content": "Du är OneSeek-7B-Zero och pratar alltid svenska. Använd aldrig formatet 'Användare:' eller 'OneSeek:' i dina svar."},
                             {"role": "user", "content": typo_prompt}
                         ]
                         
                         # Formatera input för modellen
-                        typo_input = f"{typo_messages[0]['content']}\n\nAnvändare: {typo_messages[1]['content']}\n\nOneSeek:"
+                        typo_input = f"{typo_messages[0]['content']}\n\n{typo_messages[1]['content']}"
                         inputs = tokenizer(typo_input, return_tensors="pt", padding=True)
                         inputs = sync_inputs_to_model_device(inputs, model)
                         input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
@@ -5820,25 +5833,23 @@ Svara NU.
                     
                     if previous_messages:
                         # Format previous conversation as context
+                        # NOTE: Use raw content only - NO "Användare:" / "OneSeek:" prefixes
+                        # to avoid self-referential conversation loops
                         memory_parts = []
                         for msg in previous_messages[-8:]:  # Last 8 messages
-                            role = "Användare" if msg.get("role") == "user" else "OneSeek"
                             content = msg.get("content", "")[:200]  # Truncate long messages
-                            memory_parts.append(f"{role}: {content}")
+                            memory_parts.append(content.strip())
                         
                         if memory_parts:
-                            memory_context = "\n".join(memory_parts)
+                            memory_context = "\n\n".join(memory_parts)
                             logger.info(f"🧠 [MEMORY] Hämtade {len(previous_messages)} tidigare meddelanden för topic {topic_hash[:8]}...")
         except Exception as e:
             logger.debug(f"Memory context retrieval failed: {e}")
     
-    # Format input with system prompt - ensures model always knows its identity
-    full_input = format_inference_input(request.text)
-    
-    # Build enhanced context prefix
+    # Build enhanced context (will be inserted between system prompt and question)
     context_parts = []
     
-    # ONESEEK Δ+: Add memory system prompt if we have conversation history
+    # ONESEEK Δ+: Add memory context if we have conversation history
     if memory_context:
         context_parts.append("Du är mitt i ett samtal. Kom ihåg vad ni pratade om senast. Svara naturligt och kort.")
         context_parts.append(f"[Tidigare i samtalet]\n{memory_context}")
@@ -5864,15 +5875,16 @@ Svara NU.
         if tavily_sources:
             context_parts.append(tavily_sources)
     
-    # If Force-Svenska is active, prepend Swedish instruction
+    # If Force-Svenska is active, add Swedish instruction to context
     if force_svenska_active:
-        context_parts.insert(0, "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu.")
+        context_parts.insert(0, "Du pratar alltid svenska. Inga engelska ord. Inga undantag.")
         logger.info("🇸🇪 Force-Svenska aktiverat – svarar på svenska")
     
-    # Combine all context
-    if context_parts:
-        context_prefix = "\n".join(context_parts) + "\n\n"
-        full_input = context_prefix + full_input
+    # Build context string
+    context_str = "\n".join(context_parts) if context_parts else ""
+    
+    # Format input with system prompt FIRST, then context, then question (no markers)
+    full_input = format_inference_input(request.text, context_str)
     
     # === ONESEEK Δ+: CALCULATE CONFIDENCE v2 ===
     confidence_score = None
@@ -6303,6 +6315,73 @@ async def models_status():
         "cuda_available": torch.cuda.is_available(),
         "models": status
     }
+
+
+# =============================================================================
+# PYTHON CODE GENERATION ENDPOINT
+# =============================================================================
+
+@app.post("/code/python", response_model=PythonCodeResponse)
+async def generate_python_code(req: PythonCodeRequest):
+    """
+    Generate Python code based on a Swedish question or description.
+    
+    Uses the OneSeek model to generate clean, commented Python code
+    with Swedish variable names and comments where appropriate.
+    """
+    import time
+    start_time = time.time()
+    
+    question = req.question.strip()
+    
+    prompt = f"""Du är en expert på Python.
+Användaren frågar: "{question}"
+
+Skriv ren, snygg, kommenterad Python-kod.
+- Använd svenska variabelnamn och kommentarer där det är naturligt.
+- Koden ska vara körbar och utan fel.
+- Lägg till en kort förklaring längst ned som kommentar."""
+    
+    try:
+        model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
+        
+        inputs = tokenizer(prompt, return_tensors="pt", padding=True)
+        inputs = sync_inputs_to_model_device(inputs, model)
+        
+        with torch.no_grad():
+            outputs = model.generate(
+                input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
+                attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
+                max_new_tokens=512,
+                temperature=0.7,
+                top_p=0.9,
+                do_sample=True,
+                pad_token_id=tokenizer.eos_token_id
+            )
+        
+        response_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        
+        # Extract just the generated code (remove the prompt from output)
+        if prompt in response_text:
+            code = response_text[len(prompt):].strip()
+        else:
+            code = response_text.strip()
+        
+        # Remove internal debug tags
+        code = clean_internal_tags(code)
+        
+        latency_ms = (time.time() - start_time) * 1000
+        
+        return PythonCodeResponse(
+            code=code,
+            model="OneSeek-7B-Zero.v1.1",
+            latency_ms=latency_ms
+        )
+        
+    except Exception as e:
+        logger.error(f"Python code generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Code generation failed: {str(e)}")
+
 
 if __name__ == "__main__":
     import uvicorn
