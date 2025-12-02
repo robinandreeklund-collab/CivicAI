@@ -29,6 +29,9 @@ import modelsRouter from './api/models/set-current.js';
 import modelsResetRouter from './api/models/reset.js';
 import modelsCertifiedRouter from './api/models/certified.js';
 import modelsMergeRouter from './api/models/merge.js';
+import modelsDeleteRouter from './api/models/delete.js';
+import devResetRouter from './api/admin/devReset.js';
+import memoryRouter from './api/memory.js';
 import autonomyRouter from './api/autonomy.js';
 import { logPythonServiceStatus } from './services/pythonNLPClient.js';
 import { getCachedPythonStatus } from './services/healthCache.js';
@@ -84,6 +87,9 @@ app.use('/api/models', modelsRouter);
 app.use('/api/models', modelsResetRouter);
 app.use('/api/models/certified', modelsCertifiedRouter);
 app.use('/api/models', modelsMergeRouter);
+app.use('/api/models', modelsDeleteRouter);
+app.use('/api/admin/dev-reset', devResetRouter);
+app.use('/api/memory', memoryRouter);
 app.use('/api/autonomy', autonomyRouter);
 
 // Inference Service Proxy
