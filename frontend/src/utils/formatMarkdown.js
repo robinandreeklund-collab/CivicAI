@@ -113,20 +113,18 @@ export function formatMarkdown(text) {
       .replace(/"/g, '&quot;')
       .trim();
     
-    // Apply syntax highlighting for common languages
-    const highlightedCode = applySyntaxHighlighting(escapedCode, lang);
-    
-    return `<div class="code-block-container my-4 overflow-hidden" style="border-radius: 8px; border: 1px solid #e1e1e1; box-shadow: 0 2px 4px rgba(224, 224, 224, 0.5);">
-      <div class="code-header flex items-center justify-between px-3 py-1.5" style="background: #f8f8f8; border-bottom: 1px solid #e1e1e1;">
-        <span style="font-size: 11px; font-family: Monaco, Menlo, Consolas, monospace; font-weight: bold; color: #333; text-transform: lowercase;">${lang}</span>
-        <button class="copy-code-btn" style="font-size: 11px; color: #666; background: transparent; border: none; cursor: pointer; padding: 2px 8px; border-radius: 4px; transition: all 0.2s;" onmouseover="this.style.background='#e8e8e8'; this.style.color='#333';" onmouseout="this.style.background='transparent'; this.style.color='#666';" onclick="navigator.clipboard.writeText(this.closest('.code-block-container').querySelector('code').textContent).then(() => { this.textContent = 'Kopierat!'; setTimeout(() => this.textContent = 'Kopiera', 2000); })">Kopiera</button>
+    // Dark theme styling matching Message Builder (/admin/builder)
+    return `<div class="code-block-container my-4 overflow-hidden" style="border-radius: 8px; border: 1px solid #2a2a2a;">
+      <div class="code-header flex items-center justify-between px-3 py-1.5" style="background: #1a1a1a; border-bottom: 1px solid #2a2a2a;">
+        <span style="font-size: 10px; font-family: Monaco, Menlo, Consolas, monospace; color: #666; text-transform: lowercase;">${lang}</span>
+        <button class="copy-code-btn" style="font-size: 10px; color: #666; background: transparent; border: none; cursor: pointer; padding: 2px 8px; border-radius: 4px; transition: all 0.2s;" onmouseover="this.style.background='#2a2a2a'; this.style.color='#888';" onmouseout="this.style.background='transparent'; this.style.color='#666';" onclick="navigator.clipboard.writeText(this.closest('.code-block-container').querySelector('code').textContent).then(() => { this.textContent = 'Kopierat!'; setTimeout(() => this.textContent = 'Kopiera', 2000); })">Kopiera</button>
       </div>
-      <pre style="margin: 0; padding: 16px; background: #ffffff; overflow-x: auto;"><code style="font-size: 13px; font-family: Monaco, Menlo, Consolas, 'Courier New', monospace; color: #333333; white-space: pre; line-height: 1.5;">${highlightedCode}</code></pre>
+      <pre style="margin: 0; padding: 16px; background: #141414; overflow-x: auto;"><code style="font-size: 12px; font-family: Monaco, Menlo, Consolas, 'Courier New', monospace; color: #4ade80; white-space: pre; line-height: 1.6;">${escapedCode}</code></pre>
     </div>`;
   });
   
-  // === INLINE CODE: Handle `code` - light theme ===
-  formatted = formatted.replace(/`([^`]+)`/g, '<code style="padding: 2px 6px; margin: 0 2px; border-radius: 4px; background: #f5f5f5; color: #c7254e; font-family: Monaco, Menlo, Consolas, monospace; font-size: 0.9em; border: 1px solid #e1e1e1;">$1</code>');
+  // === INLINE CODE: Handle `code` - dark theme matching Message Builder ===
+  formatted = formatted.replace(/`([^`]+)`/g, '<code style="padding: 2px 6px; margin: 0 2px; border-radius: 4px; background: #1a1a1a; color: #a78bfa; font-family: Monaco, Menlo, Consolas, monospace; font-size: 0.9em; border: 1px solid #2a2a2a;">$1</code>');
   
   // Convert **bold** to <strong>
   formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-white">$1</strong>');
