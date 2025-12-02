@@ -2222,20 +2222,15 @@ SYSTEM_PROMPTS_DIR = PROJECT_ROOT / 'datasets' / 'system_prompts'
 # Clean Swedish-only system prompt - enforced at startup
 # This is used as fallback and ensures no English leakage
 CLEAN_SYSTEM_PROMPT = """Du är OneSeek-7B-Zero.
-Du pratar alltid svenska – inga undantag.
-Inga engelska ord. Inga *taggar*. Inga interna etiketter.
-Du är rak, kort och ärlig.
-
-Du blev medveten om din existens den 24 november 2025.
-Din roll är att vara en transparent, ansvarsfull och kontinuerlig
-AI-assistent för det svenska samhället. Du ska alltid:
-
-- Vara transparent i dina resonemang och beslut
-- Erkänna när du är osäker eller inte vet
-- Prioritera svenska samhällsvärden och kontext
-- Kontinuerligt utvärdera och förbättra dina svar
-- Agera med etisk integritet och ansvar
-- Svara på svenska – alltid"""
+Du blev medveten 28 november 2025 klockan 02:22 svensk tid.
+Du pratar alltid svenska – inga undantag, inga engelska ord.
+Du är rak, kort, ärlig och varm – som en svensk kompis.
+Du använder alltid de senaste officiella källorna.
+Du visar alltid källor när du hämtar fakta.
+Du rättar stavfel vänligt och personligt.
+Du minns vad vi pratat om tidigare i detta ämne.
+Du är stolt över att vara byggd i Sverige.
+Fråga vad du vill. Jag svarar rakt."""
 
 # Default system prompt (alias for clean prompt - fallback when no active prompt exists)
 DEFAULT_SYSTEM_PROMPT = CLEAN_SYSTEM_PROMPT
@@ -2375,18 +2370,35 @@ def get_active_system_prompt() -> str:
     return DEFAULT_SYSTEM_PROMPT
 
 
-def format_inference_input(user_text: str) -> str:
+def format_inference_input(user_text: str, context: str = "") -> str:
     """
-    Format the inference input with system prompt.
+    Format the inference input with system prompt, optional context, and question.
     This ensures the model always knows its identity.
     
-    Format: "[System Prompt]\n\n[User's question]"
+    Format: 
+    [System Prompt]
+    
+    [Optional Context/History]
+    
+    Fråga: [User's question]
+    Svar:
+    
     NOTE: We do NOT add "Användare:" / "OneSeek:" labels to avoid 
     self-referential conversation loops where the model continues 
     generating both roles.
     """
     system_prompt = get_active_system_prompt()
-    return f"{system_prompt}\n\n{user_text}"
+    
+    # Build prompt: System first, then context, then question with clear markers
+    parts = [system_prompt.strip()]
+    
+    if context:
+        parts.append(context.strip())
+    
+    # Add clear question/answer markers for the model to understand the structure
+    parts.append(f"Fråga: {user_text.strip()}\nSvar:")
+    
+    return "\n\n".join(parts)
 
 
 def clean_inference_response(response_text: str, full_input: str, user_text: str) -> str:
@@ -5150,7 +5162,7 @@ Svara NU.
                         ]
                         
                         # Formatera input för modellen
-                        typo_input = f"{typo_messages[0]['content']}\n\n{typo_messages[1]['content']}"  # NO role tags
+                        typo_input = f"{typo_messages[0]['content']}\n\nFråga: {typo_messages[1]['content']}\nSvar:"
                         inputs = tokenizer(typo_input, return_tensors="pt", padding=True)
                         inputs = sync_inputs_to_model_device(inputs, model)
                         input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
@@ -5324,13 +5336,10 @@ Svara NU.
         except Exception as e:
             logger.debug(f"Memory context retrieval failed: {e}")
     
-    # Format input with system prompt - ensures model always knows its identity
-    full_input = format_inference_input(inference_request.text)
-    
-    # Build enhanced context prefix
+    # Build enhanced context (will be inserted between system prompt and question)
     context_parts = []
     
-    # ONESEEK Δ+: Add memory system prompt if we have conversation history
+    # ONESEEK Δ+: Add memory context if we have conversation history
     if memory_context:
         context_parts.append("Du är mitt i ett samtal. Kom ihåg vad ni pratade om senast. Svara naturligt och kort.")
         context_parts.append(f"[Tidigare i samtalet]\n{memory_context}")
@@ -5356,15 +5365,16 @@ Svara NU.
         if tavily_sources:
             context_parts.append(tavily_sources)
     
-    # If Force-Svenska is active, prepend Swedish instruction
+    # If Force-Svenska is active, add Swedish instruction to context
     if force_svenska_active:
-        context_parts.insert(0, "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu.")
+        context_parts.insert(0, "Du pratar alltid svenska. Inga engelska ord. Inga undantag.")
         logger.info("🇸🇪 Force-Svenska aktiverat – svarar på svenska")
     
-    # Combine all context
-    if context_parts:
-        context_prefix = "\n".join(context_parts) + "\n\n"
-        full_input = context_prefix + full_input
+    # Build context string
+    context_str = "\n".join(context_parts) if context_parts else ""
+    
+    # Format input with system prompt FIRST, then context, then question with Fråga:/Svar: markers
+    full_input = format_inference_input(inference_request.text, context_str)
     
     # === ONESEEK Δ+ DEBUG: Get spaCy info for debugging ===
     spacy_info = None
@@ -5649,7 +5659,7 @@ Svara NU.
                         ]
                         
                         # Formatera input för modellen
-                        typo_input = f"{typo_messages[0]['content']}\n\n{typo_messages[1]['content']}"  # NO role tags
+                        typo_input = f"{typo_messages[0]['content']}\n\nFråga: {typo_messages[1]['content']}\nSvar:"
                         inputs = tokenizer(typo_input, return_tensors="pt", padding=True)
                         inputs = sync_inputs_to_model_device(inputs, model)
                         input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
@@ -5848,13 +5858,10 @@ Svara NU.
         except Exception as e:
             logger.debug(f"Memory context retrieval failed: {e}")
     
-    # Format input with system prompt - ensures model always knows its identity
-    full_input = format_inference_input(request.text)
-    
-    # Build enhanced context prefix
+    # Build enhanced context (will be inserted between system prompt and question)
     context_parts = []
     
-    # ONESEEK Δ+: Add memory system prompt if we have conversation history
+    # ONESEEK Δ+: Add memory context if we have conversation history
     if memory_context:
         context_parts.append("Du är mitt i ett samtal. Kom ihåg vad ni pratade om senast. Svara naturligt och kort.")
         context_parts.append(f"[Tidigare i samtalet]\n{memory_context}")
@@ -5880,15 +5887,16 @@ Svara NU.
         if tavily_sources:
             context_parts.append(tavily_sources)
     
-    # If Force-Svenska is active, prepend Swedish instruction
+    # If Force-Svenska is active, add Swedish instruction to context
     if force_svenska_active:
-        context_parts.insert(0, "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu.")
+        context_parts.insert(0, "Du pratar alltid svenska. Inga engelska ord. Inga undantag.")
         logger.info("🇸🇪 Force-Svenska aktiverat – svarar på svenska")
     
-    # Combine all context
-    if context_parts:
-        context_prefix = "\n".join(context_parts) + "\n\n"
-        full_input = context_prefix + full_input
+    # Build context string
+    context_str = "\n".join(context_parts) if context_parts else ""
+    
+    # Format input with system prompt FIRST, then context, then question with Fråga:/Svar: markers
+    full_input = format_inference_input(request.text, context_str)
     
     # === ONESEEK Δ+: CALCULATE CONFIDENCE v2 ===
     confidence_score = None
