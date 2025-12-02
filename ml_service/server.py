@@ -2380,23 +2380,21 @@ def format_inference_input(user_text: str, context: str = "") -> str:
     
     [Optional Context/History]
     
-    Fråga: [User's question]
-    Svar:
+    [User's question]
     
-    NOTE: We do NOT add "Användare:" / "OneSeek:" labels to avoid 
-    self-referential conversation loops where the model continues 
-    generating both roles.
+    NOTE: We use PURE TEXT format - no special markers like "Fråga:", "Svar:", 
+    "Användare:", or "OneSeek:" to avoid confusing the model.
     """
     system_prompt = get_active_system_prompt()
     
-    # Build prompt: System first, then context, then question with clear markers
+    # Build prompt: System first, then context, then question - NO markers
     parts = [system_prompt.strip()]
     
     if context:
         parts.append(context.strip())
     
-    # Add clear question/answer markers for the model to understand the structure
-    parts.append(f"Fråga: {user_text.strip()}\nSvar:")
+    # Add user's question directly - no "Fråga:" or "Svar:" markers
+    parts.append(user_text.strip())
     
     return "\n\n".join(parts)
 
@@ -5162,7 +5160,7 @@ Svara NU.
                         ]
                         
                         # Formatera input för modellen
-                        typo_input = f"{typo_messages[0]['content']}\n\nFråga: {typo_messages[1]['content']}\nSvar:"
+                        typo_input = f"{typo_messages[0]['content']}\n\n{typo_messages[1]['content']}"
                         inputs = tokenizer(typo_input, return_tensors="pt", padding=True)
                         inputs = sync_inputs_to_model_device(inputs, model)
                         input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
@@ -5373,7 +5371,7 @@ Svara NU.
     # Build context string
     context_str = "\n".join(context_parts) if context_parts else ""
     
-    # Format input with system prompt FIRST, then context, then question with Fråga:/Svar: markers
+    # Format input with system prompt FIRST, then context, then question (no markers)
     full_input = format_inference_input(inference_request.text, context_str)
     
     # === ONESEEK Δ+ DEBUG: Get spaCy info for debugging ===
@@ -5659,7 +5657,7 @@ Svara NU.
                         ]
                         
                         # Formatera input för modellen
-                        typo_input = f"{typo_messages[0]['content']}\n\nFråga: {typo_messages[1]['content']}\nSvar:"
+                        typo_input = f"{typo_messages[0]['content']}\n\n{typo_messages[1]['content']}"
                         inputs = tokenizer(typo_input, return_tensors="pt", padding=True)
                         inputs = sync_inputs_to_model_device(inputs, model)
                         input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
@@ -5895,7 +5893,7 @@ Svara NU.
     # Build context string
     context_str = "\n".join(context_parts) if context_parts else ""
     
-    # Format input with system prompt FIRST, then context, then question with Fråga:/Svar: markers
+    # Format input with system prompt FIRST, then context, then question (no markers)
     full_input = format_inference_input(request.text, context_str)
     
     # === ONESEEK Δ+: CALCULATE CONFIDENCE v2 ===
