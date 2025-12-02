@@ -37,47 +37,38 @@ const fetchWithFallback = async (path, options = {}) => {
 };
 
 // Pre-defined structure templates
+// "current" matches the active format in main branch
 const STRUCTURE_TEMPLATES = {
+  current: {
+    name: "Current (Main)",
+    description: "Aktiva formatet från main: {system_prompt}\\n\\nAnvändare: {user_message}\\n\\nOneSeek:",
+    code: `current`,
+    isDefault: true
+  },
   clean: {
     name: "Clean",
     description: "Minimal structure without memory - pure system + user",
-    code: `[
-    {"role": "system", "content": system_prompt},
-    {"role": "user", "content": user_message}
-]`
+    code: `clean`
   },
   with_memory: {
     name: "With Memory",
     description: "Includes 5 previous messages from conversation history",
-    code: `[
-    {"role": "system", "content": system_prompt},
-    *[{"role": m["role"], "content": m["content"]} for m in history[-5:]],
-    {"role": "user", "content": user_message}
-]`
+    code: `with_memory`
   },
   with_context: {
     name: "With Context",
     description: "Adds time, date, and season context to system prompt",
-    code: `[
-    {"role": "system", "content": f"{system_prompt}\\n\\n[Aktuell tid] {time_context}"},
-    {"role": "user", "content": user_message}
-]`
+    code: `with_context`
   },
   no_tags: {
     name: "No Tags (Experimental)",
     description: "Plain text - WARNING: May cause model confusion (PR #95 issue)",
-    code: `[
-    {"role": "system", "content": system_prompt},
-    {"role": "user", "content": user_message.replace('Användare:', '').replace('OneSeek:', '')}
-]`
+    code: `no_tags`
   },
   swedish_strict: {
     name: "Swedish Strict",
     description: "Forces Swedish-only responses with strict prompt",
-    code: `[
-    {"role": "system", "content": "Du pratar alltid svenska. Inga engelska ord.\\n\\n" + system_prompt},
-    {"role": "user", "content": user_message}
-]`
+    code: `swedish_strict`
   }
 };
 
@@ -86,8 +77,8 @@ const STRUCTURE_TEMPLATES = {
  * Admin debugger for real-time prompt structure testing
  */
 export default function MessageBuilder() {
-  // State
-  const [selectedTemplate, setSelectedTemplate] = useState('clean');
+  // State - "current" is the default (matches main branch format)
+  const [selectedTemplate, setSelectedTemplate] = useState('current');
   const [customCode, setCustomCode] = useState('');
   const [useCustom, setUseCustom] = useState(false);
   const [testQuestion, setTestQuestion] = useState('Vem är du?');

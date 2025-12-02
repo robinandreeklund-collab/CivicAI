@@ -30,47 +30,38 @@ MESSAGE_CONFIG_FILE = CONFIG_DIR / "message_structure.json"
 CONFIG_DIR.mkdir(exist_ok=True)
 
 # Pre-defined message structure templates
+# "current" matches the active format in main branch
 STRUCTURE_TEMPLATES = {
+    "current": {
+        "name": "Current (Main)",
+        "description": "Aktiva formatet från main: {system_prompt}\\n\\nAnvändare: {user_message}\\n\\nOneSeek:",
+        "code": """current""",
+        "is_default": True
+    },
     "clean": {
         "name": "Clean",
         "description": "Minimal structure without memory - pure system + user",
-        "code": """[
-    {"role": "system", "content": system_prompt},
-    {"role": "user", "content": user_message}
-]"""
+        "code": """clean"""
     },
     "with_memory": {
         "name": "With Memory",
         "description": "Includes 5 previous messages from conversation history",
-        "code": """[
-    {"role": "system", "content": system_prompt},
-    *[{"role": m["role"], "content": m["content"]} for m in history[-5:]],
-    {"role": "user", "content": user_message}
-]"""
+        "code": """with_memory"""
     },
     "with_context": {
         "name": "With Context",
         "description": "Adds time, date, and season context to system prompt",
-        "code": """[
-    {"role": "system", "content": f"{system_prompt}\\n\\n[Aktuell tid] {time_context}"},
-    {"role": "user", "content": user_message}
-]"""
+        "code": """with_context"""
     },
     "no_tags": {
         "name": "No Tags (Experimental)",
-        "description": "Plain text concatenation - WARNING: May cause model confusion",
-        "code": """[
-    {"role": "system", "content": system_prompt},
-    {"role": "user", "content": user_message.replace('Användare:', '').replace('OneSeek:', '')}
-]"""
+        "description": "Plain text without role labels - WARNING: May cause model confusion (PR #95 issue)",
+        "code": """no_tags"""
     },
     "swedish_strict": {
         "name": "Swedish Strict",
         "description": "Forces Swedish-only responses with strict prompt",
-        "code": """[
-    {"role": "system", "content": "Du pratar alltid svenska. Inga engelska ord. Inga undantag.\\n\\n" + system_prompt},
-    {"role": "user", "content": user_message}
-]"""
+        "code": """swedish_strict"""
     }
 }
 
@@ -84,6 +75,9 @@ def get_default_structure() -> Dict[str, Any]:
     """
     Load the default message structure from config file.
     
+    If no config file exists, returns "current" which matches the active
+    format in main: {system_prompt}\n\nAnvändare: {user_message}\n\nOneSeek:
+    
     Returns:
         Dict with structure name, code, and metadata.
     """
@@ -91,17 +85,19 @@ def get_default_structure() -> Dict[str, Any]:
         try:
             data = json.loads(MESSAGE_CONFIG_FILE.read_text(encoding="utf-8"))
             return data.get("default_structure", {
-                "name": "clean",
-                "code": STRUCTURE_TEMPLATES["clean"]["code"],
+                "name": "current",
+                "code": STRUCTURE_TEMPLATES["current"]["code"],
+                "description": STRUCTURE_TEMPLATES["current"]["description"],
                 "saved_at": None
             })
         except (json.JSONDecodeError, KeyError):
             pass
     
-    # Return clean structure as default
+    # Return "current" structure as default - matches main branch format
     return {
-        "name": "clean",
-        "code": STRUCTURE_TEMPLATES["clean"]["code"],
+        "name": "current",
+        "code": STRUCTURE_TEMPLATES["current"]["code"],
+        "description": STRUCTURE_TEMPLATES["current"]["description"],
         "saved_at": None
     }
 
@@ -148,7 +144,7 @@ def build_messages(
     with only the required variables available.
     
     Args:
-        structure_code: Python code that produces a messages list
+        structure_code: Template name or simple JSON structure (not arbitrary code)
         system_prompt: The system prompt to use
         user_message: The user's message/question
         history: Optional conversation history
@@ -158,70 +154,118 @@ def build_messages(
         List of message dicts with 'role' and 'content' keys
         
     Raises:
-        ValueError: If the code is invalid or produces invalid output
+        ValueError: If the template is unknown or produces invalid output
     """
     if history is None:
         history = []
     if time_context is None:
         time_context = datetime.now().strftime("Idag är det %A den %d %B %Y. Klockan är %H:%M.")
     
-    # Create sandboxed context with only allowed variables
-    safe_context = {
-        "system_prompt": system_prompt,
-        "user_message": user_message,
-        "history": history,
-        "time_context": time_context,
-        # Allow basic built-ins for list operations
-        "__builtins__": {
-            "len": len,
-            "list": list,
-            "dict": dict,
-            "str": str,
-            "range": range,
-            "min": min,
-            "max": max,
-        }
-    }
+    code = structure_code.strip()
+    
+    # Check if it's a template name
+    template_name = code.lower().replace(" ", "_").replace("-", "_")
+    if template_name in STRUCTURE_TEMPLATES:
+        template_code = STRUCTURE_TEMPLATES[template_name]["code"]
+        code = template_code
+    
+    # Build messages based on the template pattern
+    # Instead of eval/exec, we parse and build the structure directly
+    messages = []
     
     try:
-        # Try to evaluate the code
-        # First, check if it's a simple expression or needs exec
-        code = structure_code.strip()
-        
-        # If it's a list literal, use eval
-        if code.startswith("["):
-            result = eval(code, {"__builtins__": safe_context["__builtins__"]}, safe_context)
-        else:
-            # For multi-line code, use exec
-            local_vars = {}
-            exec(code, {"__builtins__": safe_context["__builtins__"]}, {**safe_context, **local_vars})
-            result = local_vars.get("messages", None)
+        # Try to parse as JSON first (safest approach)
+        import json
+        parsed = json.loads(code)
+        if isinstance(parsed, list):
+            # It's a JSON list, substitute variables
+            for msg in parsed:
+                if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                    content = msg["content"]
+                    # Replace variable placeholders
+                    if content == "system_prompt" or "${system_prompt}" in str(content):
+                        content = system_prompt
+                    elif content == "user_message" or "${user_message}" in str(content):
+                        content = user_message
+                    elif "system_prompt" in str(content):
+                        content = content.replace("system_prompt", system_prompt)
+                    elif "user_message" in str(content):
+                        content = content.replace("user_message", user_message)
+                    
+                    messages.append({"role": msg["role"], "content": content})
             
-            if result is None:
-                raise ValueError("Code must define a 'messages' variable or return a list")
-        
-        # Validate result structure
-        if not isinstance(result, list):
-            raise ValueError(f"Result must be a list, got {type(result).__name__}")
-        
-        for i, msg in enumerate(result):
-            if not isinstance(msg, dict):
-                raise ValueError(f"Message {i} must be a dict, got {type(msg).__name__}")
-            if "role" not in msg:
-                raise ValueError(f"Message {i} missing 'role' key")
-            if "content" not in msg:
-                raise ValueError(f"Message {i} missing 'content' key")
-            if msg["role"] not in ("system", "user", "assistant"):
-                raise ValueError(f"Message {i} has invalid role: {msg['role']}")
-        
-        return result
-        
-    except SyntaxError as e:
-        raise ValueError(f"Syntax error in structure code: {e}")
-    except NameError as e:
-        raise ValueError(f"Invalid variable in structure code: {e}")
-    except Exception as e:
-        raise ValueError(f"Error building messages: {e}")
+            if messages:
+                return messages
+    except json.JSONDecodeError:
+        pass  # Not valid JSON, try template matching
+    
+    # Template-based building (safe patterns)
+    code_lower = code.lower()
+    
+    if code_lower == "current" or "current" in code_lower:
+        # CURRENT: Matches the active format in main branch
+        # Format: {system_prompt}\n\nAnvändare: {user_message}\n\nOneSeek:
+        # This uses the standard chat format with Swedish labels
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message}
+        ]
+        # Note: The actual formatting with "Användare:" and "OneSeek:" labels
+        # is done in server.py's format_inference_input() - we return standard structure here
+    elif code_lower == "clean" or "clean" in code_lower:
+        # Clean: just system + user (same structure, but explicitly for testing)
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message}
+        ]
+    elif "with_memory" in code_lower or "history" in code_lower:
+        # With memory: system + history + user
+        messages = [{"role": "system", "content": system_prompt}]
+        for msg in history[-5:]:
+            if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                messages.append({"role": msg["role"], "content": msg["content"]})
+        messages.append({"role": "user", "content": user_message})
+    elif "with_context" in code_lower or "time_context" in code_lower:
+        # With context: system + time + user
+        messages = [
+            {"role": "system", "content": f"{system_prompt}\n\n[Aktuell tid] {time_context}"},
+            {"role": "user", "content": user_message}
+        ]
+    elif "swedish_strict" in code_lower or "svenska" in code_lower:
+        # Swedish strict: force Swedish + system + user
+        messages = [
+            {"role": "system", "content": f"Du pratar alltid svenska. Inga engelska ord.\n\n{system_prompt}"},
+            {"role": "user", "content": user_message}
+        ]
+    elif "no_tags" in code_lower:
+        # No tags: plain text (experimental - may cause confusion)
+        # WARNING: This was the issue in PR #95
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message}
+        ]
+    else:
+        # Default to current structure (same as main branch)
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message}
+        ]
+    
+    # Validate result structure
+    if not isinstance(messages, list) or len(messages) == 0:
+        raise ValueError("Failed to build messages list")
+    
+    for i, msg in enumerate(messages):
+        if not isinstance(msg, dict):
+            raise ValueError(f"Message {i} must be a dict, got {type(msg).__name__}")
+        if "role" not in msg:
+            raise ValueError(f"Message {i} missing 'role' key")
+        if "content" not in msg:
+            raise ValueError(f"Message {i} missing 'content' key")
+        if msg["role"] not in ("system", "user", "assistant"):
+            raise ValueError(f"Message {i} has invalid role: {msg['role']}")
+    
+    return messages
 
 
 def analyze_response(

@@ -25,11 +25,21 @@ Välj mellan fördefinierade strukturer eller skriv egen kod:
 
 | Struktur | Beskrivning | Användningsfall |
 |----------|-------------|-----------------|
+| **Current (Main)** | Aktiva formatet från main-branch | **Default** – utgångspunkt |
 | **Clean** | Minimal: system + user | Enkla frågor |
 | **With Memory** | Inkluderar 5 historiska meddelanden | Uppföljningsfrågor |
 | **With Context** | Lägger till tid/datum | Tidskänsliga frågor |
 | **No Tags** | Utan roll-taggar | ⚠️ Experimentell |
 | **Swedish Strict** | Forcerar svenska svar | Undvik engelska läckage |
+
+**Current (Main)** använder det aktiva formatet:
+```
+{system_prompt}
+
+Användare: {user_message}
+
+OneSeek:
+```
 
 ### 2. Visa rå output från modellen
 
