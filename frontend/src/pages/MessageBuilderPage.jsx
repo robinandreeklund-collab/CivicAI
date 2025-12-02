@@ -28,32 +28,103 @@ const fetchWithFallback = async (path, options = {}) => {
   throw new Error('All endpoints failed');
 };
 
-// Structure templates
+// Structure templates with full code examples
 const TEMPLATES = {
   current: {
     name: "Current (Main)",
-    desc: "Aktiva formatet: {system_prompt}\\n\\nAnvändare: {msg}\\n\\nOneSeek:"
+    desc: "Aktiva formatet: {system_prompt}\\n\\nAnvändare: {msg}\\n\\nOneSeek:",
+    code: `{system_prompt}
+
+Användare: {user_message}
+
+OneSeek:`
   },
   clean: {
     name: "Clean",
-    desc: "Minimal: system + user"
+    desc: "Minimal: system + user",
+    code: `[
+  {"role": "system", "content": "{system_prompt}"},
+  {"role": "user", "content": "{user_message}"}
+]`
   },
   with_memory: {
     name: "With Memory",
-    desc: "Inkluderar 5 historiska meddelanden"
+    desc: "Inkluderar 5 historiska meddelanden",
+    code: `[
+  {"role": "system", "content": "{system_prompt}"},
+  ...history.slice(-5).map(m => ({"role": m.role, "content": m.content})),
+  {"role": "user", "content": "{user_message}"}
+]`
   },
   with_context: {
     name: "With Context", 
-    desc: "Lägger till tid/datum i system prompt"
+    desc: "Lägger till tid/datum i system prompt",
+    code: `[
+  {"role": "system", "content": "{system_prompt}\\n\\n[Aktuell tid] {time_context}"},
+  {"role": "user", "content": "{user_message}"}
+]`
   },
   swedish_strict: {
     name: "Swedish Strict",
-    desc: "Forcerar 100% svenska svar"
+    desc: "Forcerar 100% svenska svar",
+    code: `[
+  {"role": "system", "content": "Du pratar alltid svenska. Inga engelska ord.\\n\\n{system_prompt}"},
+  {"role": "user", "content": "{user_message}"}
+]`
   },
   no_tags: {
     name: "No Tags",
-    desc: "⚠️ Experimentell - kan orsaka loops"
+    desc: "⚠️ Experimentell - kan orsaka loops",
+    code: `{system_prompt}
+
+{user_message}`
   }
+};
+
+// Helper to format response text with code blocks
+const formatResponseText = (text) => {
+  if (!text) return null;
+  
+  // Split by code blocks (```...```)
+  const parts = text.split(/(```[\s\S]*?```)/g);
+  
+  return parts.map((part, index) => {
+    if (part.startsWith('```') && part.endsWith('```')) {
+      // Extract language and code
+      const match = part.match(/```(\w*)\n?([\s\S]*?)```/);
+      if (match) {
+        const lang = match[1] || 'code';
+        const code = match[2].trim();
+        return (
+          <div key={index} className="my-3 rounded overflow-hidden">
+            <div className="bg-[#1a1a1a] px-3 py-1 text-[10px] font-mono text-[#666] border-b border-[#2a2a2a]">
+              {lang}
+            </div>
+            <pre className="bg-[#141414] p-3 text-xs font-mono text-green-400 overflow-x-auto whitespace-pre">
+              {code}
+            </pre>
+          </div>
+        );
+      }
+    }
+    
+    // Check for inline code (`...`)
+    const inlineParts = part.split(/(`[^`]+`)/g);
+    return (
+      <span key={index}>
+        {inlineParts.map((inline, i) => {
+          if (inline.startsWith('`') && inline.endsWith('`')) {
+            return (
+              <code key={i} className="bg-[#1a1a1a] px-1.5 py-0.5 rounded text-xs font-mono text-purple-400">
+                {inline.slice(1, -1)}
+              </code>
+            );
+          }
+          return inline;
+        })}
+      </span>
+    );
+  });
 };
 
 export default function MessageBuilderPage() {
@@ -217,21 +288,28 @@ export default function MessageBuilderPage() {
               </div>
             </div>
 
-            {/* Custom Code Field - Only show when Custom is selected */}
-            {useCustom && (
-              <div>
-                <label className="text-[10px] font-mono text-[#666] mb-2 block">CUSTOM STRUKTUR</label>
-                <textarea
-                  value={customCode}
-                  onChange={(e) => setCustomCode(e.target.value)}
-                  className="w-full h-40 bg-[#0d0d0d] border border-purple-500/30 text-[#e7e7e7] text-xs font-mono p-3 rounded focus:outline-none focus:border-purple-500/50 resize-none"
-                  placeholder='Skriv en struktur, t.ex: current, clean, with_memory, eller JSON...'
-                />
-                <p className="text-[9px] font-mono text-[#555] mt-1">
-                  Tillgängliga: current, clean, with_memory, with_context, swedish_strict, no_tags
-                </p>
-              </div>
-            )}
+            {/* Selected Structure Preview - Show for both templates and custom */}
+            <div>
+              <label className="text-[10px] font-mono text-[#666] mb-2 block">
+                {useCustom ? 'CUSTOM STRUKTUR' : `VALD STRUKTUR: ${TEMPLATES[template]?.name || template}`}
+              </label>
+              <textarea
+                value={useCustom ? customCode : (TEMPLATES[template]?.code || '')}
+                onChange={(e) => useCustom && setCustomCode(e.target.value)}
+                readOnly={!useCustom}
+                className={`w-full h-36 bg-[#0d0d0d] border text-xs font-mono p-3 rounded focus:outline-none resize-none ${
+                  useCustom 
+                    ? 'border-purple-500/30 text-[#e7e7e7] focus:border-purple-500/50' 
+                    : 'border-[#2a2a2a] text-[#888] cursor-default'
+                }`}
+                placeholder={useCustom ? 'Skriv en struktur, t.ex: current, clean, with_memory, eller JSON...' : ''}
+              />
+              <p className="text-[9px] font-mono text-[#555] mt-1">
+                {useCustom 
+                  ? 'Tillgängliga: current, clean, with_memory, with_context, swedish_strict, no_tags'
+                  : 'Välj "Custom" för att redigera'}
+              </p>
+            </div>
 
             {/* System Prompt - Increased height */}
             <div>
@@ -336,13 +414,13 @@ export default function MessageBuilderPage() {
                   </div>
                 )}
 
-                {/* Response - Increased height */}
+                {/* Response - Increased height with code block support */}
                 <div>
                   <label className="text-[10px] font-mono text-[#666] mb-2 block">SVAR</label>
-                  <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded p-4 min-h-[160px]">
-                    <p className="text-sm text-[#e7e7e7] leading-relaxed">
-                      {result.response || 'Inget svar'}
-                    </p>
+                  <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded p-4 min-h-[200px] max-h-[400px] overflow-y-auto">
+                    <div className="text-sm text-[#e7e7e7] leading-relaxed">
+                      {result.response ? formatResponseText(result.response) : 'Inget svar'}
+                    </div>
                     {result.tokens && (
                       <div className="mt-3 pt-3 border-t border-[#1a1a1a] text-[10px] font-mono text-[#555]">
                         {result.tokens} tokens • {result.latency_ms?.toFixed(0)}ms
