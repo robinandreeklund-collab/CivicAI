@@ -5058,6 +5058,8 @@ class MessageBuilderRequest(BaseModel):
     system_prompt: str = "Du är OneSeek-7B-Zero, en hjälpsam svensk AI-assistent."
     user_message: str
     history: Optional[List[dict]] = []
+    use_intent_engine: bool = False  # Enable full intent/data pipeline
+    topic_id: Optional[str] = None  # For maintaining same topic across questions
     
     class Config:
         extra = "ignore"
@@ -5193,7 +5195,61 @@ async def test_message_structure(request: MessageBuilderRequest):
     import time
     start_time = time.time()
     
+    # Initialize intent/source tracking
+    intent_info = None
+    sources_used = []
+    data_context = {}
+    
     try:
+        # === INTENT ENGINE PIPELINE (if enabled) ===
+        if request.use_intent_engine and INTENT_ENGINE_AVAILABLE:
+            try:
+                # 1. Detect intent and entities
+                intent_data = detect_intent_and_city(request.user_message)
+                if intent_data:
+                    intent_info = {
+                        "intent": intent_data.get("intent", "general"),
+                        "entity": intent_data.get("entity", ""),
+                        "confidence": intent_data.get("confidence", 0.5),
+                        "api": intent_data.get("api"),
+                        "all_entities": intent_data.get("all_entities", [])
+                    }
+                    
+                    # 2. Check for Tavily search trigger
+                    if check_tavily_trigger(request.user_message):
+                        sources_used.append("tavily")
+                        search_result = tavily_search(request.user_message)
+                        if search_result and search_result.get("answer"):
+                            data_context["tavily"] = {
+                                "answer": search_result.get("answer"),
+                                "sources": search_result.get("results", [])[:3]  # Top 3 sources
+                            }
+                    
+                    # 3. Check for weather intent
+                    if intent_data.get("intent") == "väder" and intent_data.get("entity"):
+                        sources_used.append("smhi")
+                        # SMHI weather would be fetched here in production
+                        data_context["weather"] = {
+                            "source": "SMHI",
+                            "location": intent_data.get("entity"),
+                            "note": "Weather data would be fetched in production"
+                        }
+                    
+                    # 4. Check for population/statistics intent
+                    if intent_data.get("intent") == "befolkning" and intent_data.get("entity"):
+                        sources_used.append("scb")
+                        data_context["statistics"] = {
+                            "source": "SCB",
+                            "location": intent_data.get("entity"),
+                            "note": "Population data would be fetched in production"
+                        }
+                    
+                    logging.info(f"[MESSAGE-BUILDER] Intent: {intent_info.get('intent')}, Sources: {sources_used}")
+                    
+            except Exception as intent_error:
+                logging.warning(f"Intent engine error: {intent_error}")
+                intent_info = {"error": str(intent_error)}
+        
         # Build messages from structure code
         messages = build_messages(
             structure_code=request.structure_code,
@@ -5252,7 +5308,12 @@ async def test_message_structure(request: MessageBuilderRequest):
             "response": response_text,
             "tokens": token_count,
             "latency_ms": latency_ms,
-            "analysis": analysis
+            "analysis": analysis,
+            # New intent/source fields
+            "intent_info": intent_info,
+            "sources_used": sources_used,
+            "data_context": data_context,
+            "topic_id": request.topic_id
         }
         
     except ValueError as e:
@@ -5261,7 +5322,10 @@ async def test_message_structure(request: MessageBuilderRequest):
             "error": str(e),
             "structure_name": request.structure_name,
             "messages": None,
-            "response": None
+            "response": None,
+            "intent_info": intent_info,
+            "sources_used": sources_used,
+            "data_context": data_context
         }
     except Exception as e:
         logging.error(f"Message builder error: {e}")

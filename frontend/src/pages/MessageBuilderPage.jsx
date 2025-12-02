@@ -148,6 +148,9 @@ export default function MessageBuilderPage() {
   const [maintainTopic, setMaintainTopic] = useState(true);
   const [topicHistory, setTopicHistory] = useState([]);
   const [showSidebar, setShowSidebar] = useState(true);
+  
+  // Intent Engine toggle
+  const [useIntentEngine, setUseIntentEngine] = useState(true);
 
   useEffect(() => {
     fetchDefault();
@@ -189,6 +192,7 @@ export default function MessageBuilderPage() {
           system_prompt: systemPrompt,
           user_message: testQuestion,
           topic_id: currentTopicId,
+          use_intent_engine: useIntentEngine,
           history: maintainTopic ? topicHistory.map(h => ({ role: 'user', content: h.question })) : []
         })
       });
@@ -206,7 +210,9 @@ export default function MessageBuilderPage() {
           question: testQuestion,
           response: data.response?.substring(0, 100) + (data.response?.length > 100 ? '...' : ''),
           confidence: data.analysis?.estimated_confidence || 0,
-          intent: data.intent || 'unknown',
+          intent: data.intent_info?.intent || 'unknown',
+          entity: data.intent_info?.entity || '',
+          sources: data.sources_used || [],
           responseTime,
           timestamp: new Date().toISOString(),
           structure: name
@@ -265,6 +271,10 @@ export default function MessageBuilderPage() {
     
     const totalResponseTime = topicHistory.reduce((a, b) => a + b.responseTime, 0);
     
+    // Collect all unique intents and sources used
+    const allIntents = [...new Set(topicHistory.map(h => h.intent).filter(Boolean))];
+    const allSources = [...new Set(topicHistory.flatMap(h => h.sources || []))];
+    
     let yaml = `# ══════════════════════════════════════════════════════════════
 # ONESEEK Δ+ MESSAGE BUILDER - SESSION EXPORT
 # Generated: ${new Date().toISOString()}
@@ -273,6 +283,7 @@ export default function MessageBuilderPage() {
 session:
   topic_id: "${topicId}"
   maintain_topic: ${maintainTopic}
+  use_intent_engine: ${useIntentEngine}
   total_questions: ${topicHistory.length}
   avg_confidence: ${avgConfidence}%
   total_response_time: ${totalResponseTime}ms
@@ -302,6 +313,12 @@ flow:
     question: |
       ${entry.question}
     
+    # Intent Engine Analysis
+    intent:
+      detected: "${entry.intent || 'unknown'}"
+      entity: "${entry.entity || ''}"
+      sources_used: [${(entry.sources || []).map(s => `"${s}"`).join(', ')}]
+    
     response: |
       ${(entry.response || '').split('\n').join('\n      ')}
     
@@ -311,7 +328,7 @@ flow:
 `;
       });
 
-      // Add summary
+      // Add summary with intent/source info
       yaml += `
 # ══════════════════════════════════════════════════════════════
 # SUMMARY
@@ -329,6 +346,14 @@ summary:
     avg: ${Math.round(totalResponseTime / topicHistory.length)}ms
   structures_used:
 ${[...new Set(topicHistory.map(h => h.structure))].map(s => `    - "${s}"`).join('\n')}
+
+# Intent Engine Summary
+intent_analysis:
+  engine_active: ${useIntentEngine}
+  intents_detected:
+${allIntents.length > 0 ? allIntents.map(i => `    - "${i}"`).join('\n') : '    - "none"'}
+  data_sources_used:
+${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    - "none (model knowledge only)"'}
 `;
     }
 
@@ -379,7 +404,7 @@ ${[...new Set(topicHistory.map(h => h.structure))].map(s => `    - "${s}"`).join
             </div>
             
             {/* Maintain Topic Checkbox */}
-            <label className="flex items-center gap-2 mb-4 p-3 bg-[#0d0d0d] border border-[#2a2a2a] rounded cursor-pointer hover:border-[#3a3a3a]">
+            <label className="flex items-center gap-2 mb-2 p-3 bg-[#0d0d0d] border border-[#2a2a2a] rounded cursor-pointer hover:border-[#3a3a3a]">
               <input
                 type="checkbox"
                 checked={maintainTopic}
@@ -389,6 +414,20 @@ ${[...new Set(topicHistory.map(h => h.structure))].map(s => `    - "${s}"`).join
               <div>
                 <div className="text-xs font-mono text-[#e7e7e7]">Behåll samma topic</div>
                 <div className="text-[10px] text-[#555]">Testa memory persistence</div>
+              </div>
+            </label>
+            
+            {/* Use Intent Engine Checkbox */}
+            <label className="flex items-center gap-2 mb-4 p-3 bg-[#0d0d0d] border border-[#2a2a2a] rounded cursor-pointer hover:border-[#3a3a3a]">
+              <input
+                type="checkbox"
+                checked={useIntentEngine}
+                onChange={(e) => setUseIntentEngine(e.target.checked)}
+                className="w-4 h-4 rounded border-[#3a3a3a] bg-[#0a0a0a] text-green-500 focus:ring-0 focus:ring-offset-0"
+              />
+              <div>
+                <div className="text-xs font-mono text-[#e7e7e7]">🔍 Intent Engine</div>
+                <div className="text-[10px] text-[#555]">Visa intent, source & datahämtning</div>
               </div>
             </label>
             
@@ -458,6 +497,25 @@ ${[...new Set(topicHistory.map(h => h.structure))].map(s => `    - "${s}"`).join
                     <div className="text-xs text-[#e7e7e7] mb-1 truncate" title={entry.question}>
                       ❓ {entry.question}
                     </div>
+                    
+                    {/* Intent Info */}
+                    {useIntentEngine && entry.intent && entry.intent !== 'unknown' && (
+                      <div className="flex items-center gap-2 mb-1 text-[10px] font-mono">
+                        <span className="text-blue-400">🎯 {entry.intent}</span>
+                        {entry.entity && <span className="text-purple-400">@ {entry.entity}</span>}
+                      </div>
+                    )}
+                    
+                    {/* Sources Used */}
+                    {useIntentEngine && entry.sources && entry.sources.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-1">
+                        {entry.sources.map((src, j) => (
+                          <span key={j} className="px-1 bg-green-900/30 text-green-400 text-[8px] font-mono rounded">
+                            {src}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     
                     {/* Response preview */}
                     <div className="text-[10px] text-[#666] truncate" title={entry.response}>
@@ -692,6 +750,59 @@ ${[...new Set(topicHistory.map(h => h.structure))].map(s => `    - "${s}"`).join
                           {result.analysis.word_count}
                         </div>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Intent Info Section - Shows when intent engine is enabled */}
+                {useIntentEngine && result.intent_info && (
+                  <div>
+                    <label className="text-[10px] font-mono text-[#666] mb-2 block">🔍 INTENT ENGINE</label>
+                    <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded p-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-[10px] font-mono text-[#555] mb-1">INTENT</div>
+                          <div className="text-sm font-mono text-blue-400">{result.intent_info?.intent || 'unknown'}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-mono text-[#555] mb-1">ENTITY</div>
+                          <div className="text-sm font-mono text-purple-400">{result.intent_info?.entity || '-'}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-mono text-[#555] mb-1">CONFIDENCE</div>
+                          <div className={`text-sm font-mono ${getConfidenceColor((result.intent_info?.confidence || 0) * 100)}`}>
+                            {Math.round((result.intent_info?.confidence || 0) * 100)}%
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-mono text-[#555] mb-1">API</div>
+                          <div className="text-sm font-mono text-orange-400">{result.intent_info?.api || 'none'}</div>
+                        </div>
+                      </div>
+                      
+                      {/* Sources Used */}
+                      {result.sources_used && result.sources_used.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-[#2a2a2a]">
+                          <div className="text-[10px] font-mono text-[#555] mb-2">DATAKÄLLOR ANVÄNDA</div>
+                          <div className="flex flex-wrap gap-2">
+                            {result.sources_used.map((source, i) => (
+                              <span key={i} className="px-2 py-1 bg-green-900/30 text-green-400 text-[10px] font-mono rounded">
+                                {source}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Data Context */}
+                      {result.data_context && Object.keys(result.data_context).length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-[#2a2a2a]">
+                          <div className="text-[10px] font-mono text-[#555] mb-2">HÄMTAD DATA</div>
+                          <pre className="text-[10px] font-mono text-[#888] whitespace-pre-wrap bg-[#080808] p-2 rounded">
+                            {JSON.stringify(result.data_context, null, 2)}
+                          </pre>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
