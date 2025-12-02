@@ -878,9 +878,11 @@ export default function SevenBZeroPage() {
     return 16 + Math.sin(index * 0.5) * 8;
   };
 
-  // Get model version string
+  // Get model version string - prioritize Python ML service's active model
   const getModelVersion = () => {
     if (loading) return 'Laddar...';
+    // Check for dynamically switched model from ML service first
+    if (modelStatus?.activeModel?.model_name) return modelStatus.activeModel.model_name;
     if (modelStatus?.model?.dna) return modelStatus.model.dna;
     if (modelStatus?.model?.version) return modelStatus.model.version;
     return 'v1.1.sv';

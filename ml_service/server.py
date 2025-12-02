@@ -1735,12 +1735,24 @@ def get_active_model_path():
     if certified_dir.exists():
         try:
             # Find all certified model directories (format: OneSeek-7B-Zero.v*.*)
+            # Search in root AND in /merged/ subdirectory
             certified_models = []
+            
+            # Search in root directory
             for item in certified_dir.iterdir():
                 if item.is_dir() and item.name.startswith('OneSeek-7B-Zero.v'):
-                    # Check if it has metadata.json (valid trained model)
-                    if (item / 'metadata.json').exists():
+                    # Check if it has metadata.json or config.json (valid model)
+                    if (item / 'metadata.json').exists() or (item / 'config.json').exists():
                         certified_models.append(item)
+            
+            # Also search in /merged/ subdirectory (common location for merged models)
+            merged_dir = certified_dir / 'merged'
+            if merged_dir.exists():
+                for item in merged_dir.iterdir():
+                    if item.is_dir() and item.name.startswith('OneSeek-7B-Zero.v'):
+                        if (item / 'metadata.json').exists() or (item / 'config.json').exists():
+                            certified_models.append(item)
+                            logger.info(f"  → Found merged model: {item.name}")
             
             if certified_models:
                 # Use max() for efficiency - only need the latest model
@@ -6585,10 +6597,58 @@ Svara NU.
             except:
                 pass
             
-            # Prepare input with system prompt and sync to model's device
-            logger.debug("→ Tokenizing input with system prompt...")
+            # === FIX: Use apply_chat_template for proper chat format ===
+            # This prevents echo loops, English responses, and prompt leakage
+            logger.debug("→ Building structured messages for apply_chat_template...")
+            
+            # Get system prompt (use get_active_system_prompt for consistency)
+            system_prompt = get_active_system_prompt()
+            
+            # Build enhanced context (like debug/messages endpoint)
+            enhanced_context = []
+            if memory_context:
+                enhanced_context.append(f"[Tidigare i samtalet]\n{memory_context}")
+            enhanced_context.append(f"[Aktuell tid] {time_context} {season_context}")
+            if weather_context:
+                enhanced_context.append(f"[Väder] {weather_context}")
+            if open_data_context:
+                enhanced_context.append(f"[Data] {open_data_context}")
+            if news_context:
+                enhanced_context.append(f"[Nyheter] {news_context}")
+            if tavily_context:
+                enhanced_context.append(f"[Sökresultat] {tavily_context}")
+            
+            if enhanced_context:
+                system_prompt = system_prompt + "\n\n" + "\n\n".join(enhanced_context)
+            
+            # Build structured messages
+            structured_messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": request.text}
+            ]
+            
+            # Tokenize with apply_chat_template if available
+            logger.debug("→ Tokenizing input with apply_chat_template...")
             tokenize_start = time.time()
-            inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+            
+            try:
+                if hasattr(tokenizer, 'apply_chat_template'):
+                    tokenized_input = tokenizer.apply_chat_template(
+                        structured_messages,
+                        tokenize=True,
+                        add_generation_prompt=True,
+                        return_tensors="pt"
+                    )
+                    inputs = {"input_ids": tokenized_input, "attention_mask": torch.ones_like(tokenized_input)}
+                    logger.info("✓ Using apply_chat_template for structured messages")
+                else:
+                    # Fallback to raw tokenizer if apply_chat_template not available
+                    inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+                    logger.info("⚠ Fallback: apply_chat_template not available")
+            except Exception as template_error:
+                logger.warning(f"apply_chat_template failed, falling back: {template_error}")
+                inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+            
             tokenize_time = (time.time() - tokenize_start) * 1000
             logger.debug(f"→ Tokenization took: {tokenize_time:.1f}ms")
             
