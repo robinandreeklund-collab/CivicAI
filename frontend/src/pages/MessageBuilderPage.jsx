@@ -253,6 +253,94 @@ export default function MessageBuilderPage() {
     setResult(null);
   };
 
+  // State for YAML export modal
+  const [showYamlModal, setShowYamlModal] = useState(false);
+  const [yamlContent, setYamlContent] = useState('');
+
+  // Generate YAML export of the entire session flow
+  const generateYamlExport = () => {
+    const avgConfidence = topicHistory.length > 0 
+      ? Math.round(topicHistory.reduce((a, b) => a + b.confidence, 0) / topicHistory.length)
+      : 0;
+    
+    const totalResponseTime = topicHistory.reduce((a, b) => a + b.responseTime, 0);
+    
+    let yaml = `# ══════════════════════════════════════════════════════════════
+# ONESEEK Δ+ MESSAGE BUILDER - SESSION EXPORT
+# Generated: ${new Date().toISOString()}
+# ══════════════════════════════════════════════════════════════
+
+session:
+  topic_id: "${topicId}"
+  maintain_topic: ${maintainTopic}
+  total_questions: ${topicHistory.length}
+  avg_confidence: ${avgConfidence}%
+  total_response_time: ${totalResponseTime}ms
+
+system_prompt: |
+  ${systemPrompt.split('\n').join('\n  ')}
+
+`;
+
+    if (topicHistory.length === 0) {
+      yaml += `# Ingen historik ännu - kör ett test för att generera data
+flow: []
+`;
+    } else {
+      yaml += `# ══════════════════════════════════════════════════════════════
+# CONVERSATION FLOW
+# ══════════════════════════════════════════════════════════════
+
+flow:
+`;
+      topicHistory.forEach((entry, i) => {
+        yaml += `
+  - step: ${i + 1}
+    timestamp: "${entry.timestamp}"
+    structure: "${entry.structure}"
+    
+    question: |
+      ${entry.question}
+    
+    response: |
+      ${(entry.response || '').split('\n').join('\n      ')}
+    
+    metrics:
+      confidence: ${entry.confidence}%
+      response_time: ${entry.responseTime}ms
+`;
+      });
+
+      // Add summary
+      yaml += `
+# ══════════════════════════════════════════════════════════════
+# SUMMARY
+# ══════════════════════════════════════════════════════════════
+
+summary:
+  questions_asked: ${topicHistory.length}
+  confidence_range:
+    min: ${Math.min(...topicHistory.map(h => h.confidence))}%
+    max: ${Math.max(...topicHistory.map(h => h.confidence))}%
+    avg: ${avgConfidence}%
+  response_times:
+    min: ${Math.min(...topicHistory.map(h => h.responseTime))}ms
+    max: ${Math.max(...topicHistory.map(h => h.responseTime))}ms
+    avg: ${Math.round(totalResponseTime / topicHistory.length)}ms
+  structures_used:
+${[...new Set(topicHistory.map(h => h.structure))].map(s => `    - "${s}"`).join('\n')}
+`;
+    }
+
+    setYamlContent(yaml);
+    setShowYamlModal(true);
+  };
+
+  // Copy YAML to clipboard
+  const copyYamlToClipboard = () => {
+    navigator.clipboard.writeText(yamlContent);
+  };
+
   // Confidence color helper
   const getConfidenceColor = (confidence) => {
     if (confidence >= 80) return 'text-green-500';
@@ -324,13 +412,24 @@ export default function MessageBuilderPage() {
               </div>
             </div>
             
-            {/* Reset Button */}
-            <button
-              onClick={resetTopic}
-              className="w-full mb-4 py-2 px-3 border border-red-900/50 text-red-500 text-xs font-mono rounded hover:bg-red-900/20 transition-all"
-            >
-              🔄 RESET TOPIC & HISTORIK
-            </button>
+            {/* Action Buttons */}
+            <div className="space-y-2 mb-4">
+              {/* Export YAML Button */}
+              <button
+                onClick={generateYamlExport}
+                className="w-full py-2 px-3 border border-blue-700/50 text-blue-400 text-xs font-mono rounded hover:bg-blue-900/20 transition-all"
+              >
+                📄 EXPORTERA YAML
+              </button>
+              
+              {/* Reset Button */}
+              <button
+                onClick={resetTopic}
+                className="w-full py-2 px-3 border border-red-900/50 text-red-500 text-xs font-mono rounded hover:bg-red-900/20 transition-all"
+              >
+                🔄 RESET TOPIC & HISTORIK
+              </button>
+            </div>
             
             {/* Topic History */}
             <div className="mb-2">
@@ -697,6 +796,45 @@ export default function MessageBuilderPage() {
         </div>
         </div>
       </div>
+
+      {/* YAML Export Modal */}
+      {showYamlModal && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setShowYamlModal(false)}>
+          <div 
+            className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-[#2a2a2a]">
+              <div>
+                <h3 className="text-sm font-mono text-[#e7e7e7]">📄 SESSION EXPORT - YAML</h3>
+                <p className="text-[10px] text-[#555] mt-1">Komplett dataflöde för topic: {topicId.substring(0, 30)}...</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={copyYamlToClipboard}
+                  className="px-3 py-1.5 bg-blue-900/30 border border-blue-700/50 text-blue-400 text-xs font-mono rounded hover:bg-blue-900/50 transition-all"
+                >
+                  📋 KOPIERA
+                </button>
+                <button
+                  onClick={() => setShowYamlModal(false)}
+                  className="px-3 py-1.5 border border-[#3a3a3a] text-[#666] text-xs font-mono rounded hover:text-[#888] hover:border-[#4a4a4a] transition-all"
+                >
+                  ✕ STÄNG
+                </button>
+              </div>
+            </div>
+            
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <pre className="text-xs font-mono text-[#888] whitespace-pre-wrap bg-[#0d0d0d] border border-[#1a1a1a] rounded p-4">
+                {yamlContent}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
