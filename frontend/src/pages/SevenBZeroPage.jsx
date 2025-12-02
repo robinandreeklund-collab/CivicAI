@@ -503,13 +503,39 @@ export default function SevenBZeroPage() {
     loadQueryHistory();
   }, []);
 
-  // Fetch model status from backend
+  // Fetch model status from backend - check BOTH Python ML service AND Node.js OQT
   useEffect(() => {
     const fetchModelStatus = async () => {
       try {
+        // First, check Python ML service for current active model
+        // This is the authoritative source after model switching
+        let mlServiceModel = null;
+        try {
+          const mlResponse = await fetch('/api/models/current-active');
+          if (mlResponse.ok) {
+            mlServiceModel = await mlResponse.json();
+            console.log('[7B-Zero] ML Service active model:', mlServiceModel);
+          }
+        } catch (mlErr) {
+          console.log('[7B-Zero] ML Service not available, using OQT status');
+        }
+        
+        // Then get OQT status for DNA chain and other metadata
         const response = await fetch('/api/oqt/status');
         if (response.ok) {
           const data = await response.json();
+          
+          // If ML service has a different model active, use that
+          if (mlServiceModel && mlServiceModel.model_name) {
+            data.activeModel = mlServiceModel;
+            // Update the model version display
+            if (data.model) {
+              data.model.dna = mlServiceModel.model_name;
+              data.model.version = mlServiceModel.model_name;
+              data.model.is_dynamic = mlServiceModel.is_dynamic;
+            }
+          }
+          
           setModelStatus(data);
           
           // Generate DNA chain based on model status
