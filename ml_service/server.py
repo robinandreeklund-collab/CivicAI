@@ -5233,7 +5233,7 @@ async def test_message_structure(request: MessageBuilderRequest):
                     if intent_data.get("intent") == "väder":
                         sources_used.append("smhi")
                         city = intent_data.get("entity") or "Stockholm"  # Fallback to Stockholm
-                        weather_data = get_weather_for_city(city)
+                        weather_data = get_weather(city)  # Use correct function
                         if weather_data:
                             data_context["weather"] = {
                                 "source": "SMHI",
@@ -5251,7 +5251,7 @@ async def test_message_structure(request: MessageBuilderRequest):
                     if intent_data.get("intent") == "befolkning":
                         sources_used.append("scb")
                         city = intent_data.get("entity") or "Sverige"  # Fallback to Sweden
-                        population_data = fetch_scb_population(city)
+                        population_data = fetch_scb_data(f"befolkning {city}")  # Use correct function
                         if population_data:
                             data_context["statistics"] = {
                                 "source": "SCB",
@@ -5290,13 +5290,13 @@ async def test_message_structure(request: MessageBuilderRequest):
             if any(kw in msg_lower for kw in weather_keywords):
                 sources_used.append("smhi")
                 # Try to extract city from message
-                from intent_engine import detect_intent_and_city as fallback_detect
                 try:
+                    from intent_engine import detect_intent_and_city as fallback_detect
                     fallback_result = fallback_detect(request.user_message)
                     city = fallback_result.get("entity") or "Stockholm"
                 except:
                     city = "Stockholm"
-                weather_data = get_weather_for_city(city)
+                weather_data = get_weather(city)  # Use correct function
                 if weather_data:
                     data_context["weather"] = {
                         "source": "SMHI",
@@ -5319,11 +5319,12 @@ async def test_message_structure(request: MessageBuilderRequest):
                 sources_used.append("scb")
                 # Try to extract city
                 try:
+                    from intent_engine import detect_intent_and_city as fallback_detect
                     fallback_result = fallback_detect(request.user_message)
                     city = fallback_result.get("entity") or "Sverige"
                 except:
                     city = "Sverige"
-                population_data = fetch_scb_population(city)
+                population_data = fetch_scb_data(f"befolkning {city}")  # Use correct function
                 if population_data:
                     data_context["statistics"] = {
                         "source": "SCB",
