@@ -58,6 +58,8 @@ const TEMPLATES = {
 
 export default function MessageBuilderPage() {
   const [template, setTemplate] = useState('current');
+  const [useCustom, setUseCustom] = useState(false);
+  const [customCode, setCustomCode] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('Du är OneSeek-7B-Zero, en hjälpsam svensk AI-assistent.');
   const [testQuestion, setTestQuestion] = useState('Vem är du?');
   const [loading, setLoading] = useState(false);
@@ -86,13 +88,16 @@ export default function MessageBuilderPage() {
     setLoading(true);
     setError(null);
     
+    const code = useCustom ? customCode : template;
+    const name = useCustom ? 'custom' : template;
+    
     try {
       const res = await fetchWithFallback('/debug/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          structure_code: template,
-          structure_name: template,
+          structure_code: code,
+          structure_name: name,
           system_prompt: systemPrompt,
           user_message: testQuestion,
           history: []
@@ -104,7 +109,7 @@ export default function MessageBuilderPage() {
       
       if (data.success) {
         setResults(prev => [
-          { template, ...data, timestamp: new Date().toISOString() },
+          { template: name, ...data, timestamp: new Date().toISOString() },
           ...prev.slice(0, 9)
         ]);
       }
@@ -116,13 +121,16 @@ export default function MessageBuilderPage() {
   };
 
   const saveAsDefault = async () => {
+    const code = useCustom ? customCode : template;
+    const name = useCustom ? 'custom' : template;
+    
     try {
       await fetchWithFallback('/debug/messages/default', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: template, code: template })
+        body: JSON.stringify({ name, code })
       });
-      setSavedDefault(template);
+      setSavedDefault(name);
     } catch (e) {
       setError('Kunde inte spara');
     }
@@ -183,9 +191,9 @@ export default function MessageBuilderPage() {
                 {Object.entries(TEMPLATES).map(([key, t]) => (
                   <button
                     key={key}
-                    onClick={() => setTemplate(key)}
+                    onClick={() => { setTemplate(key); setUseCustom(false); }}
                     className={`text-left px-3 py-2 border rounded transition-all ${
-                      template === key
+                      !useCustom && template === key
                         ? 'border-[#888] bg-[#1a1a1a] text-[#e7e7e7]'
                         : 'border-[#2a2a2a] text-[#666] hover:border-[#3a3a3a] hover:text-[#888]'
                     }`}
@@ -194,16 +202,44 @@ export default function MessageBuilderPage() {
                     <div className="text-[10px] text-[#555] mt-0.5 truncate">{t.desc}</div>
                   </button>
                 ))}
+                {/* Custom button */}
+                <button
+                  onClick={() => setUseCustom(true)}
+                  className={`text-left px-3 py-2 border rounded transition-all col-span-2 ${
+                    useCustom
+                      ? 'border-purple-500 bg-purple-900/20 text-purple-300'
+                      : 'border-[#2a2a2a] text-[#666] hover:border-purple-500/50 hover:text-purple-400'
+                  }`}
+                >
+                  <div className="text-xs font-mono">✏️ Custom</div>
+                  <div className="text-[10px] text-[#555] mt-0.5">Skriv egen struktur för testning</div>
+                </button>
               </div>
             </div>
 
-            {/* System Prompt */}
+            {/* Custom Code Field - Only show when Custom is selected */}
+            {useCustom && (
+              <div>
+                <label className="text-[10px] font-mono text-[#666] mb-2 block">CUSTOM STRUKTUR</label>
+                <textarea
+                  value={customCode}
+                  onChange={(e) => setCustomCode(e.target.value)}
+                  className="w-full h-40 bg-[#0d0d0d] border border-purple-500/30 text-[#e7e7e7] text-xs font-mono p-3 rounded focus:outline-none focus:border-purple-500/50 resize-none"
+                  placeholder='Skriv en struktur, t.ex: current, clean, with_memory, eller JSON...'
+                />
+                <p className="text-[9px] font-mono text-[#555] mt-1">
+                  Tillgängliga: current, clean, with_memory, with_context, swedish_strict, no_tags
+                </p>
+              </div>
+            )}
+
+            {/* System Prompt - Increased height */}
             <div>
               <label className="text-[10px] font-mono text-[#666] mb-2 block">SYSTEM PROMPT</label>
               <textarea
                 value={systemPrompt}
                 onChange={(e) => setSystemPrompt(e.target.value)}
-                className="w-full h-24 bg-[#0d0d0d] border border-[#2a2a2a] text-[#e7e7e7] text-xs font-mono p-3 rounded focus:outline-none focus:border-[#3a3a3a] resize-none"
+                className="w-full h-40 bg-[#0d0d0d] border border-[#2a2a2a] text-[#e7e7e7] text-xs font-mono p-3 rounded focus:outline-none focus:border-[#3a3a3a] resize-none"
                 placeholder="System prompt..."
               />
             </div>
@@ -300,10 +336,10 @@ export default function MessageBuilderPage() {
                   </div>
                 )}
 
-                {/* Response */}
+                {/* Response - Increased height */}
                 <div>
                   <label className="text-[10px] font-mono text-[#666] mb-2 block">SVAR</label>
-                  <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded p-4">
+                  <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded p-4 min-h-[160px]">
                     <p className="text-sm text-[#e7e7e7] leading-relaxed">
                       {result.response || 'Inget svar'}
                     </p>
@@ -315,10 +351,10 @@ export default function MessageBuilderPage() {
                   </div>
                 </div>
 
-                {/* Messages */}
+                {/* Messages - Increased height */}
                 <div>
                   <label className="text-[10px] font-mono text-[#666] mb-2 block">MESSAGES</label>
-                  <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded p-3 max-h-40 overflow-y-auto">
+                  <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded p-3 min-h-[200px] max-h-[300px] overflow-y-auto">
                     <pre className="text-[10px] font-mono text-[#888] whitespace-pre-wrap">
                       {JSON.stringify(result.messages, null, 2)}
                     </pre>
