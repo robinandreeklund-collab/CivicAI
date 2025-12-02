@@ -6,7 +6,11 @@ import { Link } from 'react-router-dom';
  * Standalone fullscreen debugger for real-time prompt structure testing
  * 
  * Clean design matching /api-docs style
+ * Now with Live Topic Sidebar for memory testing and intent tracking
  */
+
+// Helper to generate topic ID
+const generateTopicId = () => `topic_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
 // Helper to try multiple endpoints
 const fetchWithFallback = async (path, options = {}) => {
@@ -138,6 +142,12 @@ export default function MessageBuilderPage() {
   const [error, setError] = useState(null);
   const [savedDefault, setSavedDefault] = useState(null);
   const [results, setResults] = useState([]);
+  
+  // Topic tracking state
+  const [topicId, setTopicId] = useState(generateTopicId());
+  const [maintainTopic, setMaintainTopic] = useState(true);
+  const [topicHistory, setTopicHistory] = useState([]);
+  const [showSidebar, setShowSidebar] = useState(true);
 
   useEffect(() => {
     fetchDefault();
@@ -158,6 +168,13 @@ export default function MessageBuilderPage() {
   const runTest = async () => {
     setLoading(true);
     setError(null);
+    const startTime = Date.now();
+    
+    // Generate new topic if not maintaining
+    const currentTopicId = maintainTopic ? topicId : generateTopicId();
+    if (!maintainTopic) {
+      setTopicId(currentTopicId);
+    }
     
     const code = useCustom ? customCode : template;
     const name = useCustom ? 'custom' : template;
@@ -171,16 +188,34 @@ export default function MessageBuilderPage() {
           structure_name: name,
           system_prompt: systemPrompt,
           user_message: testQuestion,
-          history: []
+          topic_id: currentTopicId,
+          history: maintainTopic ? topicHistory.map(h => ({ role: 'user', content: h.question })) : []
         })
       });
       
       const data = await res.json();
+      const endTime = Date.now();
+      const responseTime = endTime - startTime;
+      
       setResult(data);
       
       if (data.success) {
+        // Add to topic history
+        const historyEntry = {
+          id: Date.now(),
+          question: testQuestion,
+          response: data.response?.substring(0, 100) + (data.response?.length > 100 ? '...' : ''),
+          confidence: data.analysis?.estimated_confidence || 0,
+          intent: data.intent || 'unknown',
+          responseTime,
+          timestamp: new Date().toISOString(),
+          structure: name
+        };
+        
+        setTopicHistory(prev => [...prev, historyEntry]);
+        
         setResults(prev => [
-          { template: name, ...data, timestamp: new Date().toISOString() },
+          { template: name, ...data, timestamp: new Date().toISOString(), responseTime },
           ...prev.slice(0, 9)
         ]);
       }
@@ -189,6 +224,12 @@ export default function MessageBuilderPage() {
     } finally {
       setLoading(false);
     }
+  };
+  
+  const resetTopic = () => {
+    setTopicId(generateTopicId());
+    setTopicHistory([]);
+    setResult(null);
   };
 
   const saveAsDefault = async () => {
@@ -212,9 +253,147 @@ export default function MessageBuilderPage() {
     setResult(null);
   };
 
+  // Confidence color helper
+  const getConfidenceColor = (confidence) => {
+    if (confidence >= 80) return 'text-green-500';
+    if (confidence >= 50) return 'text-yellow-500';
+    return 'text-red-500';
+  };
+  
+  const getConfidenceBg = (confidence) => {
+    if (confidence >= 80) return 'bg-green-500';
+    if (confidence >= 50) return 'bg-yellow-500';
+    return 'bg-red-500';
+  };
+
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7]">
-      <div className="max-w-[1400px] mx-auto px-6 py-8">
+    <div className="min-h-screen bg-[#0a0a0a] text-[#e7e7e7] flex">
+      
+      {/* Live Topic Sidebar */}
+      {showSidebar && (
+        <div className="w-80 min-w-[320px] border-r border-[#1a1a1a] bg-[#080808] fixed left-0 top-0 bottom-0 overflow-y-auto z-10">
+          <div className="p-4">
+            {/* Sidebar Header */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-mono text-[#888]">📍 TOPIC TRACKER</h2>
+              <button 
+                onClick={() => setShowSidebar(false)}
+                className="text-[#555] hover:text-[#888] text-xs"
+              >
+                ✕
+              </button>
+            </div>
+            
+            {/* Topic ID */}
+            <div className="mb-4 p-3 bg-[#0d0d0d] border border-[#2a2a2a] rounded">
+              <div className="text-[10px] font-mono text-[#555] mb-1">TOPIC ID</div>
+              <div className="text-xs font-mono text-[#e7e7e7] break-all">{topicId}</div>
+            </div>
+            
+            {/* Maintain Topic Checkbox */}
+            <label className="flex items-center gap-2 mb-4 p-3 bg-[#0d0d0d] border border-[#2a2a2a] rounded cursor-pointer hover:border-[#3a3a3a]">
+              <input
+                type="checkbox"
+                checked={maintainTopic}
+                onChange={(e) => setMaintainTopic(e.target.checked)}
+                className="w-4 h-4 rounded border-[#3a3a3a] bg-[#0a0a0a] text-blue-500 focus:ring-0 focus:ring-offset-0"
+              />
+              <div>
+                <div className="text-xs font-mono text-[#e7e7e7]">Behåll samma topic</div>
+                <div className="text-[10px] text-[#555]">Testa memory persistence</div>
+              </div>
+            </label>
+            
+            {/* Session Stats */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="p-2 bg-[#0d0d0d] border border-[#2a2a2a] rounded">
+                <div className="text-[10px] font-mono text-[#555]">FRÅGOR</div>
+                <div className="text-lg font-mono text-[#888]">{topicHistory.length}</div>
+              </div>
+              <div className="p-2 bg-[#0d0d0d] border border-[#2a2a2a] rounded">
+                <div className="text-[10px] font-mono text-[#555]">AVG CONF</div>
+                <div className={`text-lg font-mono ${getConfidenceColor(
+                  topicHistory.length > 0 
+                    ? Math.round(topicHistory.reduce((a, b) => a + b.confidence, 0) / topicHistory.length)
+                    : 0
+                )}`}>
+                  {topicHistory.length > 0 
+                    ? Math.round(topicHistory.reduce((a, b) => a + b.confidence, 0) / topicHistory.length)
+                    : 0}%
+                </div>
+              </div>
+            </div>
+            
+            {/* Reset Button */}
+            <button
+              onClick={resetTopic}
+              className="w-full mb-4 py-2 px-3 border border-red-900/50 text-red-500 text-xs font-mono rounded hover:bg-red-900/20 transition-all"
+            >
+              🔄 RESET TOPIC & HISTORIK
+            </button>
+            
+            {/* Topic History */}
+            <div className="mb-2">
+              <div className="text-[10px] font-mono text-[#555] mb-2">HISTORIK</div>
+            </div>
+            
+            {topicHistory.length === 0 ? (
+              <div className="p-4 text-center text-[10px] font-mono text-[#555] border border-dashed border-[#2a2a2a] rounded">
+                Ingen historik ännu.<br/>Kör ett test för att se resultat.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {topicHistory.map((entry, i) => (
+                  <div key={entry.id} className="p-2 bg-[#0d0d0d] border border-[#2a2a2a] rounded hover:border-[#3a3a3a] transition-all">
+                    {/* Entry Header */}
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-mono text-[#555]">#{i + 1}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono text-[#555]">{entry.responseTime}ms</span>
+                        <div className={`w-2 h-2 rounded-full ${getConfidenceBg(entry.confidence)}`} 
+                             title={`Confidence: ${entry.confidence}%`} />
+                      </div>
+                    </div>
+                    
+                    {/* Question */}
+                    <div className="text-xs text-[#e7e7e7] mb-1 truncate" title={entry.question}>
+                      ❓ {entry.question}
+                    </div>
+                    
+                    {/* Response preview */}
+                    <div className="text-[10px] text-[#666] truncate" title={entry.response}>
+                      💬 {entry.response}
+                    </div>
+                    
+                    {/* Metrics */}
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`text-[10px] font-mono ${getConfidenceColor(entry.confidence)}`}>
+                        {entry.confidence}%
+                      </span>
+                      <span className="text-[10px] font-mono text-[#555]">•</span>
+                      <span className="text-[10px] font-mono text-[#555]">{entry.structure}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      
+      {/* Main Content - shifted when sidebar is visible */}
+      <div className={`flex-1 ${showSidebar ? 'ml-80' : ''}`}>
+        <div className="max-w-[1400px] mx-auto px-6 py-8">
+        
+        {/* Toggle Sidebar Button (when hidden) */}
+        {!showSidebar && (
+          <button
+            onClick={() => setShowSidebar(true)}
+            className="fixed left-4 top-4 z-20 px-3 py-2 bg-[#1a1a1a] border border-[#3a3a3a] text-[#888] text-xs font-mono rounded hover:bg-[#2a2a2a]"
+          >
+            📍 TOPIC
+          </button>
+        )}
         
         {/* Header */}
         <div className="mb-8">
@@ -515,6 +694,7 @@ export default function MessageBuilderPage() {
             Message Builder testar hur olika prompt-strukturer påverkar modellens svar. 
             "Current (Main)" är det aktiva formatet. Undvik "No Tags" – det orsakade loops i PR #95.
           </p>
+        </div>
         </div>
       </div>
     </div>
