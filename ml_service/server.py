@@ -214,6 +214,37 @@ except ImportError:
         get_swedish_label = lambda x: x
         translate_to_swedish = lambda x: x
 
+# ONESEEK Δ+: Message Builder for real-time prompt testing
+try:
+    from .message_builder import (
+        get_structure_templates,
+        get_default_structure,
+        save_default_structure,
+        build_messages,
+        analyze_response,
+        compare_structures
+    )
+    MESSAGE_BUILDER_AVAILABLE = True
+except ImportError:
+    try:
+        from message_builder import (
+            get_structure_templates,
+            get_default_structure,
+            save_default_structure,
+            build_messages,
+            analyze_response,
+            compare_structures
+        )
+        MESSAGE_BUILDER_AVAILABLE = True
+    except ImportError:
+        MESSAGE_BUILDER_AVAILABLE = False
+        get_structure_templates = None
+        get_default_structure = None
+        save_default_structure = None
+        build_messages = None
+        analyze_response = None
+        compare_structures = None
+
 # =============================================================================
 # END ONESEEK Δ+ MODULE IMPORTS
 # =============================================================================
@@ -241,6 +272,7 @@ def log_delta_plus_status():
         ("Delta Compare", DELTA_COMPARE_AVAILABLE, "Semantic Δ-comparison + blockchain hash"),
         ("Cache Manager", CACHE_MANAGER_AVAILABLE, "7-day TTL hash-based cache"),
         ("Svenska Promptar", SWEDISH_PROMPTS_AVAILABLE, "100% svenska – inga engelska läckage"),
+        ("Message Builder", MESSAGE_BUILDER_AVAILABLE, "Real-time prompt structure testing"),
     ]
     
     for name, available, description in modules:
@@ -5012,6 +5044,209 @@ async def _debug_intent_internal(question: str):
     except Exception as e:
         logging.error(f"Intent debug error: {e}")
         return {"error": str(e), "question": question}
+
+
+# =============================================================================
+# MESSAGE BUILDER DEBUG ENDPOINTS
+# Real-time prompt structure testing and optimization
+# =============================================================================
+
+class MessageBuilderRequest(BaseModel):
+    """Request model for Message Builder test endpoint."""
+    structure_code: str
+    structure_name: str = "custom"
+    system_prompt: str = "Du är OneSeek-7B-Zero, en hjälpsam svensk AI-assistent."
+    user_message: str
+    history: Optional[List[dict]] = []
+    
+    class Config:
+        extra = "ignore"
+
+
+class MessageBuilderDefaultRequest(BaseModel):
+    """Request model for saving default structure."""
+    name: str
+    code: str
+
+
+@app.get("/api/ml/debug/messages/templates")
+async def get_message_templates():
+    """
+    Get available message structure templates.
+    
+    Returns list of pre-defined templates for testing.
+    """
+    if not MESSAGE_BUILDER_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Message Builder module not available")
+    
+    try:
+        templates = get_structure_templates()
+        return {
+            "success": True,
+            "templates": templates
+        }
+    except Exception as e:
+        logging.error(f"Error getting templates: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ml/debug/messages/default")
+async def get_default_message_structure():
+    """
+    Get the current default message structure.
+    
+    Returns the structure that is used for inference.
+    """
+    if not MESSAGE_BUILDER_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Message Builder module not available")
+    
+    try:
+        default = get_default_structure()
+        return {
+            "success": True,
+            "default_structure": default
+        }
+    except Exception as e:
+        logging.error(f"Error getting default structure: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ml/debug/messages/default")
+async def save_default_message_structure(request: MessageBuilderDefaultRequest):
+    """
+    Save a message structure as the default.
+    
+    The saved structure will be used for all inference requests.
+    """
+    if not MESSAGE_BUILDER_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Message Builder module not available")
+    
+    try:
+        result = save_default_structure(request.name, request.code)
+        return {
+            "success": True,
+            "default_structure": result,
+            "message": f"Saved '{request.name}' as default structure"
+        }
+    except Exception as e:
+        logging.error(f"Error saving default structure: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ml/debug/messages")
+async def test_message_structure(request: MessageBuilderRequest):
+    """
+    Test a message structure with the model.
+    
+    Builds the messages list from the structure code, runs inference,
+    and returns the response with analysis metrics.
+    
+    Features:
+    - Build custom messages structures
+    - Run real inference with the model
+    - Analyze response quality (Swedish %, confidence, loops)
+    
+    Example:
+        curl -X POST http://localhost:5000/api/ml/debug/messages \\
+             -H "Content-Type: application/json" \\
+             -d '{
+                 "structure_code": "[{\"role\": \"system\", \"content\": system_prompt}, {\"role\": \"user\", \"content\": user_message}]",
+                 "system_prompt": "Du är OneSeek-7B-Zero.",
+                 "user_message": "Vem är du?"
+             }'
+    """
+    if not MESSAGE_BUILDER_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Message Builder module not available")
+    
+    import time
+    start_time = time.time()
+    
+    try:
+        # Build messages from structure code
+        messages = build_messages(
+            structure_code=request.structure_code,
+            system_prompt=request.system_prompt,
+            user_message=request.user_message,
+            history=request.history or []
+        )
+        
+        # Format messages for model input
+        # Use the clean format to avoid echo/loop issues
+        formatted_parts = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if role == "system":
+                formatted_parts.append(content)
+            elif role == "user":
+                formatted_parts.append(f"Användare: {content}")
+            elif role == "assistant":
+                formatted_parts.append(f"OneSeek: {content}")
+        
+        formatted_parts.append("OneSeek:")
+        full_input = "\n\n".join(formatted_parts)
+        
+        # Run inference
+        try:
+            model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
+            
+            inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+            inputs = sync_inputs_to_model_device(inputs, model)
+            input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
+            
+            with torch.no_grad():
+                outputs = model.generate(
+                    input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
+                    attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
+                    max_new_tokens=256,
+                    temperature=0.7,
+                    top_p=0.9,
+                    do_sample=True,
+                    pad_token_id=tokenizer.eos_token_id
+                )
+            
+            # Decode only the new tokens
+            new_tokens = outputs[0][input_length:]
+            response_text = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+            
+            # Clean response
+            for prefix in ["OneSeek:", "Assistant:", "Användare:"]:
+                if response_text.startswith(prefix):
+                    response_text = response_text[len(prefix):].strip()
+            
+            token_count = len(new_tokens)
+            
+        except Exception as model_error:
+            logging.error(f"Model inference error: {model_error}")
+            response_text = f"[Model error: {str(model_error)[:100]}]"
+            token_count = 0
+        
+        latency_ms = (time.time() - start_time) * 1000
+        
+        # Analyze the response
+        analysis = analyze_response(response_text)
+        
+        return {
+            "success": True,
+            "structure_name": request.structure_name,
+            "messages": messages,
+            "response": response_text,
+            "tokens": token_count,
+            "latency_ms": latency_ms,
+            "analysis": analysis
+        }
+        
+    except ValueError as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "structure_name": request.structure_name,
+            "messages": None,
+            "response": None
+        }
+    except Exception as e:
+        logging.error(f"Message builder error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # =============================================================================

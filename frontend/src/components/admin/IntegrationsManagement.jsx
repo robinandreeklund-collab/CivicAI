@@ -7,6 +7,7 @@ import SourceWeights from '../../../../admin/integration/SourceWeights';
 import StavfelEditor from '../../../../admin/integration/StavfelEditor';
 import TopicHistory from '../../../../admin/integration/TopicHistory';
 import CacheManager from '../../../../admin/integration/CacheManager';
+import MessageBuilder from '../../../../admin/integration/MessageBuilder';
 import DevResetTab from './DevResetTab';
 
 /**
@@ -352,6 +353,7 @@ export default function IntegrationsManagement() {
             {/* Δ+ Tab Navigation */}
             <div className="flex flex-wrap gap-2 p-4 bg-[#0a0a0a] border-b border-[#2a2a2a]">
               {[
+                { id: 'message-builder', label: '🔧 Message Builder', desc: 'Testa message-strukturer i realtid' },
                 { id: 'intent', label: '🎯 Intent Engine', desc: 'Hantera intent-regler' },
                 { id: 'gold', label: '🏅 Gold Editor', desc: 'Granska träningsdata' },
                 { id: 'sources', label: '⚖️ Källviktning', desc: 'Justera förtroende' },
@@ -377,6 +379,18 @@ export default function IntegrationsManagement() {
 
             {/* Δ+ Tab Content */}
             <div className="p-6">
+              {deltaTab === 'message-builder' && (
+                <div>
+                  <div className="mb-4 p-3 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
+                    <p className="text-[#888] font-mono text-xs">
+                      💡 <strong>Message Builder Debugger:</strong> Testa och optimera messages-strukturer i realtid. 
+                      Jämför strukturer, se rådata, och spara bästa strukturen som default – utan omstart. 
+                      Löser problem från PR #95 (eko-effekter, loops).
+                    </p>
+                  </div>
+                  <MessageBuilder />
+                </div>
+              )}
               {deltaTab === 'intent' && (
                 <div>
                   <div className="mb-4 p-3 bg-[#0a0a0a] border border-[#2a2a2a] rounded">
