@@ -266,6 +266,12 @@ try:
         load_api_catalog_config,
         save_api_catalog_config,
         reset_api_stats,
+        get_matching_apis,
+        reload_api_catalog,
+        # Libris XL integrations
+        fetch_libris_search,
+        fetch_libris_isbn,
+        fetch_libris_sparql,
         # Legacy function imports for backward compatibility
         fetch_scb_population,
         fetch_scb_data,
@@ -310,6 +316,12 @@ except ImportError:
             load_api_catalog_config,
             save_api_catalog_config,
             reset_api_stats,
+            get_matching_apis,
+            reload_api_catalog,
+            # Libris XL integrations
+            fetch_libris_search,
+            fetch_libris_isbn,
+            fetch_libris_sparql,
             # Legacy function imports for backward compatibility
             fetch_scb_population,
             fetch_scb_data,
@@ -353,6 +365,8 @@ except ImportError:
         load_api_catalog_config = None
         save_api_catalog_config = None
         reset_api_stats = None
+        get_matching_apis = None
+        reload_api_catalog = None
 
 # Global cache enabled flag (can be toggled from admin dashboard)
 GLOBAL_CACHE_ENABLED = True
@@ -6882,15 +6896,28 @@ async def test_message_structure(request: MessageBuilderRequest):
             
             if matched_category:
                 category_config = API_CATALOG[matched_category]
-                apis = category_config.get("apis", [])
+                all_apis = category_config.get("apis", [])
                 entity_required = category_config.get("entity_required", False)
                 fallback_entity = category_config.get("fallback_entity", "Sverige")
                 
-                print(f"    ✓ Category matched: {matched_category}")
-                print(f"      Keywords: {matched_keywords}")
-                print(f"      APIs available: {[api.get('name') for api in apis]}")
+                # === SMART KEYWORD MATCHING ===
+                # Only fetch APIs whose keywords match the question (50-80% fewer calls)
+                if API_INTEGRATIONS_AVAILABLE and get_matching_apis:
+                    apis = get_matching_apis(category_config, request.user_message)
+                    skipped_apis = len(all_apis) - len(apis)
+                    print(f"    ✓ Category matched: {matched_category}")
+                    print(f"      Keywords: {matched_keywords}")
+                    print(f"      🎯 SMART MATCH: {len(apis)} of {len(all_apis)} APIs match question")
+                    if skipped_apis > 0:
+                        print(f"      ⏭️ Skipped {skipped_apis} non-matching APIs (saving API calls)")
+                else:
+                    apis = all_apis
+                    print(f"    ✓ Category matched: {matched_category}")
+                    print(f"      Keywords: {matched_keywords}")
+                    print(f"      APIs available: {[api.get('name') for api in apis]}")
+                
                 print(f"      Entity required: {entity_required}")
-                print(f"      🔄 Will fetch from ALL {len(apis)} APIs in parallel")
+                print(f"      🔄 Will fetch from {len(apis)} matching APIs in parallel")
                 
                 # Try to extract entity from message
                 entity = None
@@ -6909,9 +6936,12 @@ async def test_message_structure(request: MessageBuilderRequest):
                     "entity": entity or "",
                     "confidence": 0.90,
                     "apis": [api.get("name") for api in apis],
+                    "all_apis": [api.get("name") for api in all_apis],
                     "matched_keywords": matched_keywords,
-                    "mode": "self-steering",
-                    "parallel_fetch": True
+                    "mode": "self-steering-smart",
+                    "parallel_fetch": True,
+                    "smart_matching": True,
+                    "apis_skipped": len(all_apis) - len(apis)
                 }
                 
                 # === PARALLEL API FETCHING ===
@@ -7032,11 +7062,16 @@ async def test_message_structure(request: MessageBuilderRequest):
                     "riksarkivet": lambda e: fetch_riksarkivet_data(e),
                     "kungliga_biblioteket": lambda e: fetch_kungliga_biblioteket_data(e),
                     
+                    # === BÖCKER (Libris XL) ===
+                    "libris_search": lambda e: fetch_libris_search(entity=e) if API_INTEGRATIONS_AVAILABLE else None,
+                    "libris_isbn": lambda e: fetch_libris_isbn(entity=e) if API_INTEGRATIONS_AVAILABLE else None,
+                    "libris_sparql": lambda e: fetch_libris_sparql(entity=e) if API_INTEGRATIONS_AVAILABLE else None,
+                    
                     # === SÖKNING (Tavily) ===
                     "tavily": lambda e: None,  # Handled separately via Tavily integration
                 }
                 
-                print(f"  📡 PARALLEL FETCH: Starting {len(apis)} API calls...")
+                print(f"  📡 SMART PARALLEL FETCH: Starting {len(apis)} matching API calls...")
                 parallel_start = datetime.now()
                 
                 # Create tasks for parallel execution

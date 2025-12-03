@@ -13,8 +13,8 @@
     "befolkning": {
       "description": "Befolkningsstatistik och folkbokföring",
       "apis": [
-        {"name": "scb_population", "source": "SCB", "frequency": "månadsvis", "url": "https://api.scb.se"},
-        {"name": "skatteverket_folkbokföring", "source": "Skatteverket", "frequency": "dagligen", "url": "https://www.skatteverket.se"}
+        {"name": "scb_population", "source": "SCB", "frequency": "månadsvis", "url": "https://api.scb.se", "keywords": ["hur många bor", "invånare", "folkmängd", "population"], "priority": 1},
+        {"name": "skatteverket_folkbokföring", "source": "Skatteverket", "frequency": "dagligen", "url": "https://www.skatteverket.se", "keywords": ["aktuell befolkning", "daglig", "folkbokföring"], "priority": 2}
       ],
       "entity_required": true,
       "entity_type": "kommun",
@@ -24,8 +24,8 @@
     "väder": {
       "description": "Väderdata och prognoser",
       "apis": [
-        {"name": "smhi_current", "source": "SMHI", "frequency": "timvis", "url": "https://opendata-download-metfcst.smhi.se"},
-        {"name": "yr_no", "source": "YR.no", "frequency": "timvis", "url": "https://api.yr.no"}
+        {"name": "smhi_current", "source": "SMHI", "frequency": "timvis", "url": "https://opendata-download-metfcst.smhi.se", "keywords": ["väder", "temperatur", "regn", "snö", "sol", "prognos"], "priority": 1},
+        {"name": "yr_no", "source": "YR.no", "frequency": "timvis", "url": "https://api.yr.no", "keywords": ["veckoprognos", "yr", "norge"], "priority": 2}
       ],
       "entity_required": true,
       "entity_type": "stad",
@@ -36,20 +36,32 @@
     "nyheter": {
       "description": "Svenska nyheter och aktuella händelser",
       "apis": [
-        {"name": "svt_nyheter", "source": "SVT Nyheter", "frequency": "löpande", "url": "https://www.svt.se/nyheter/rss.xml"},
-        {"name": "svt_inrikes", "source": "SVT Inrikes", "frequency": "löpande", "url": "https://www.svt.se/nyheter/inrikes/rss.xml"},
-        {"name": "omni", "source": "Omni", "frequency": "löpande", "url": "https://omni.se/rss"},
-        {"name": "sr_ekot", "source": "SR Ekot", "frequency": "löpande", "url": "https://api.sr.se/api/rss/program/83"}
+        {"name": "svt_nyheter", "source": "SVT Nyheter", "frequency": "löpande", "url": "https://www.svt.se/nyheter/rss.xml", "keywords": ["nyheter", "svt", "senaste nytt"], "priority": 1},
+        {"name": "svt_inrikes", "source": "SVT Inrikes", "frequency": "löpande", "url": "https://www.svt.se/nyheter/inrikes/rss.xml", "keywords": ["inrikes", "sverige", "svenska nyheter"], "priority": 2},
+        {"name": "omni", "source": "Omni", "frequency": "löpande", "url": "https://omni.se/rss", "keywords": ["omni", "sammanfattning", "aktuellt"], "priority": 3},
+        {"name": "sr_ekot", "source": "SR Ekot", "frequency": "löpande", "url": "https://api.sr.se/api/rss/program/83", "keywords": ["radio", "ekot", "sr"], "priority": 4}
       ],
       "entity_required": false,
       "keywords": ["nyheter", "senaste nytt", "vad hände", "aktuellt", "händelser"]
     },
     
+    "böcker": {
+      "description": "Bibliotekssökning via Libris XL (Kungliga Biblioteket)",
+      "apis": [
+        {"name": "libris_search", "source": "Libris XL", "frequency": "realtid", "url": "https://libris.kb.se/xsearch", "keywords": ["vad handlar", "boken om", "sammanfattning", "bokrecension"], "priority": 1},
+        {"name": "libris_isbn", "source": "Libris XL", "frequency": "realtid", "url": "https://libris.kb.se/api/isbn", "keywords": ["isbn", "978", "91-", "bokens isbn"], "priority": 2},
+        {"name": "libris_sparql", "source": "Libris XL", "frequency": "realtid", "url": "https://libris.kb.se/sparql", "keywords": ["alla böcker av", "utgivna år", "författare", "förlag"], "priority": 3}
+      ],
+      "entity_required": true,
+      "entity_type": "bok",
+      "keywords": ["bok", "böcker", "bibliotek", "libris", "författare", "isbn", "roman", "läsa"]
+    },
+    
     "kris": {
       "description": "Krisinformation och VMA",
       "apis": [
-        {"name": "krisinformation", "source": "Krisinformation.se", "frequency": "realtid", "url": "https://api.krisinformation.se/v3"},
-        {"name": "msb", "source": "MSB", "frequency": "realtid", "url": "https://www.msb.se"}
+        {"name": "krisinformation", "source": "Krisinformation.se", "frequency": "realtid", "url": "https://api.krisinformation.se/v3", "keywords": ["kris", "vma", "varning", "larm"], "priority": 1},
+        {"name": "msb", "source": "MSB", "frequency": "realtid", "url": "https://www.msb.se", "keywords": ["beredskap", "nödläge", "msb"], "priority": 2}
       ],
       "entity_required": false,
       "keywords": ["kris", "krislarm", "vma", "varning", "nödläge", "beredskap"],
@@ -59,9 +71,9 @@
     "politik": {
       "description": "Riksdagen, ledamöter, voteringar, lagförslag",
       "apis": [
-        {"name": "riksdagen_ledamoter", "source": "Riksdagen", "frequency": "dagligen", "url": "https://data.riksdagen.se/dokumentlista/?avd=ledamot"},
-        {"name": "riksdagen_dokumentlista", "source": "Riksdagen", "frequency": "dagligen", "url": "https://data.riksdagen.se/dokumentlista"},
-        {"name": "riksdagen_votering", "source": "Riksdagen", "frequency": "dagligen", "url": "https://data.riksdagen.se/votering"}
+        {"name": "riksdagen_ledamoter", "source": "Riksdagen", "frequency": "dagligen", "url": "https://data.riksdagen.se/dokumentlista/?avd=ledamot", "keywords": ["ledamot", "riksdagsledamot", "politiker"], "priority": 1},
+        {"name": "riksdagen_dokumentlista", "source": "Riksdagen", "frequency": "dagligen", "url": "https://data.riksdagen.se/dokumentlista", "keywords": ["motion", "proposition", "lagförslag"], "priority": 2},
+        {"name": "riksdagen_votering", "source": "Riksdagen", "frequency": "dagligen", "url": "https://data.riksdagen.se/votering", "keywords": ["röstade", "votering", "omröstning"], "priority": 3}
       ],
       "entity_required": false,
       "keywords": ["riksdagen", "riksdagsledamot", "ledamot", "ledamotsuppdrag", "ledamotsuppgifter", "sagt och gjort", "röstade", "votering", "lagförslag", "debatt", "proposition", "motion", "politiker", "parlamentsledamot"]
@@ -70,8 +82,8 @@
     "trafik": {
       "description": "Trafikinformation och störningar",
       "apis": [
-        {"name": "trafikverket_info", "source": "Trafikverket", "frequency": "realtid", "url": "https://api.trafikinfo.trafikverket.se/v2"},
-        {"name": "trafiken_nu", "source": "Trafiken.nu", "frequency": "realtid", "url": "https://trafiken.nu"}
+        {"name": "trafikverket_info", "source": "Trafikverket", "frequency": "realtid", "url": "https://api.trafikinfo.trafikverket.se/v2", "keywords": ["trafikverket", "olycka", "e4", "e6"], "priority": 1},
+        {"name": "trafiken_nu", "source": "Trafiken.nu", "frequency": "realtid", "url": "https://trafiken.nu", "keywords": ["kö", "trafikläge", "motorväg"], "priority": 2}
       ],
       "entity_required": false,
       "keywords": ["trafik", "trafikinfo", "olycka", "kö", "e4", "e6", "e18", "e20", "motorväg"]
