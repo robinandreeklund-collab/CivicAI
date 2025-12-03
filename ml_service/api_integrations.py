@@ -1620,12 +1620,14 @@ def toggle_api(api_id: str, enabled: bool = None) -> bool:
     return integration.enabled
 
 
-def test_api(api_id: str) -> Dict[str, Any]:
+def test_api(api_id: str, query: str = None, entity: str = None) -> Dict[str, Any]:
     """
     Run a test request against an API.
     
     Args:
         api_id: The API identifier
+        query: Optional custom query to test with
+        entity: Optional entity to test with
         
     Returns:
         Dict with test results including success, response, and timing
@@ -1641,29 +1643,55 @@ def test_api(api_id: str) -> Dict[str, Any]:
             "api_id": api_id
         }
     
+    # Use custom query or default test query
+    test_query = query or "test"
+    test_entity = entity
+    
     start_time = time.time()
     try:
-        result = integration.call_fn(query="test", entity=None)
+        # Use integration.call() which records stats
+        result = integration.call(query=test_query, entity=test_entity)
         response_time_ms = (time.time() - start_time) * 1000
+        
+        # Get updated stats
+        stats = get_api_stats_for(api_id) or {}
+        
+        # Limit response size to prevent memory issues (max 50KB)
+        max_response_size = 50 * 1024
+        truncated = False
+        full_response = result
+        if result and len(result) > max_response_size:
+            full_response = result[:max_response_size] + "\n\n[... Svar trunkerat, totalt {} tecken]".format(len(result))
+            truncated = True
         
         return {
             "success": result is not None,
             "api_id": api_id,
             "name": integration.name,
-            "response_preview": result[:200] if result else None,
+            "url": integration.url,
+            "response": full_response,  # Full response for markdown display (limited to 50KB)
+            "response_preview": result[:500] if result else None,
             "response_length": len(result) if result else 0,
             "response_time_ms": round(response_time_ms, 2),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "stats": stats,  # Include updated stats
+            "truncated": truncated
         }
     except Exception as e:
         response_time_ms = (time.time() - start_time) * 1000
+        # Record the failed call
+        _record_api_call(api_id, False, response_time_ms, str(e))
+        stats = get_api_stats_for(api_id) or {}
+        
         return {
             "success": False,
             "api_id": api_id,
             "name": integration.name,
+            "url": integration.url,
             "error": str(e),
             "response_time_ms": round(response_time_ms, 2),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "stats": stats
         }
 
 

@@ -6128,12 +6128,13 @@ async def toggle_api_integration(api_id: str, request: dict):
 
 
 @app.post("/api/ml/admin/integrations/{api_id}/test")
-async def test_api_integration(api_id: str):
+async def test_api_integration(api_id: str, request: dict = None):
     """
     Run a test request against an API integration.
     
     Args:
         api_id: The API identifier
+        request: Optional {"query": "custom query", "entity": "entity"}
         
     Returns:
         Test results including success, response preview, timing
@@ -6141,7 +6142,27 @@ async def test_api_integration(api_id: str):
     if not API_INTEGRATIONS_AVAILABLE:
         raise HTTPException(status_code=500, detail="API Integrations module not available")
     
-    result = test_api(api_id)
+    # Extract and validate custom query/entity from request body
+    query = None
+    entity = None
+    if request:
+        # Validate query is a string if provided
+        query = request.get("query")
+        if query is not None and not isinstance(query, str):
+            raise HTTPException(status_code=400, detail="query must be a string")
+        # Limit query length for safety
+        if query and len(query) > 500:
+            query = query[:500]
+        
+        # Validate entity is a string if provided
+        entity = request.get("entity")
+        if entity is not None and not isinstance(entity, str):
+            raise HTTPException(status_code=400, detail="entity must be a string")
+        # Limit entity length for safety
+        if entity and len(entity) > 200:
+            entity = entity[:200]
+    
+    result = test_api(api_id, query=query, entity=entity)
     return result
 
 

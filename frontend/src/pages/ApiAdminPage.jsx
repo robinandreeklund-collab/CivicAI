@@ -8,11 +8,13 @@ import { Link } from 'react-router-dom';
  * Same design style as MessageBuilderPage (/admin/builder)
  * 
  * Features:
- * - List all API integrations from registry
- * - Show status (on/off), configuration, stats
- * - Enable/disable APIs
- * - Run test requests
- * - View and edit api_catalog.json
+ * - Collapsible API cards (compact by default, expand on click)
+ * - Show API endpoint URL
+ * - Edit triggers/keywords
+ * - Custom test queries with markdown-formatted results
+ * - Request statistics with live updates
+ * - Toggle enable/disable
+ * - API Catalog JSON editor
  */
 
 // Helper to try multiple endpoints
@@ -35,6 +37,37 @@ const fetchWithFallback = async (path, options = {}) => {
   throw new Error('All endpoints failed');
 };
 
+// Helper to format response text with markdown-like styling
+const formatResponseText = (text) => {
+  if (!text) return null;
+  
+  // Split by code blocks (```...```)
+  const parts = text.split(/(```[\s\S]*?```)/g);
+  
+  return parts.map((part, index) => {
+    if (part.startsWith('```') && part.endsWith('```')) {
+      const match = part.match(/```(\w*)\n?([\s\S]*?)```/);
+      if (match) {
+        return (
+          <pre key={index} className="bg-[#0a0a0a] border border-[#2a2a2a] rounded p-3 my-2 overflow-x-auto">
+            <code className="text-[10px] font-mono text-[#888]">{match[2]}</code>
+          </pre>
+        );
+      }
+    }
+    
+    // Handle bold (**text**)
+    const formattedPart = part.split(/(\*\*[^*]+\*\*)/g).map((segment, i) => {
+      if (segment.startsWith('**') && segment.endsWith('**')) {
+        return <strong key={i} className="text-[#e7e7e7]">{segment.slice(2, -2)}</strong>;
+      }
+      return segment;
+    });
+    
+    return <span key={index}>{formattedPart}</span>;
+  });
+};
+
 export default function ApiAdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -45,14 +78,22 @@ export default function ApiAdminPage() {
   const [stats, setStats] = useState({});
   const [summary, setSummary] = useState(null);
   
+  // Expanded API card
+  const [expandedApiId, setExpandedApiId] = useState(null);
+  
   // API Catalog editor
   const [catalogJson, setCatalogJson] = useState('');
   const [catalogEditing, setCatalogEditing] = useState(false);
   const [catalogSaving, setCatalogSaving] = useState(false);
   
-  // Test results
+  // Test state
   const [testResults, setTestResults] = useState({});
   const [testingApi, setTestingApi] = useState(null);
+  const [testQuery, setTestQuery] = useState({});
+  const [testEntity, setTestEntity] = useState({});
+  
+  // Edit triggers state
+  const [editingTriggers, setEditingTriggers] = useState({});
   
   // Filters
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -91,7 +132,8 @@ export default function ApiAdminPage() {
     }
   };
 
-  const toggleApi = async (apiId, currentEnabled) => {
+  const toggleApi = async (apiId, currentEnabled, e) => {
+    e.stopPropagation();
     try {
       const res = await fetchWithFallback(`/admin/integrations/${apiId}/toggle`, {
         method: 'POST',
@@ -101,7 +143,6 @@ export default function ApiAdminPage() {
       
       if (res.ok) {
         const data = await res.json();
-        // Update local state
         setIntegrations(prev => 
           prev.map(api => 
             api.api_id === apiId 
@@ -116,11 +157,17 @@ export default function ApiAdminPage() {
     }
   };
 
-  const testApi = async (apiId) => {
+  const testApi = async (apiId, e) => {
+    e?.stopPropagation();
     setTestingApi(apiId);
     try {
       const res = await fetchWithFallback(`/admin/integrations/${apiId}/test`, {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: testQuery[apiId] || null,
+          entity: testEntity[apiId] || null
+        })
       });
       
       const data = await res.json();
@@ -128,6 +175,23 @@ export default function ApiAdminPage() {
         ...prev,
         [apiId]: data
       }));
+      
+      // Update stats from test result (no need to reload all integrations)
+      if (data.stats) {
+        setStats(prev => ({
+          ...prev,
+          [apiId]: data.stats
+        }));
+        // Also update summary totals
+        setSummary(prev => prev ? {
+          ...prev,
+          total_requests: (prev.total_requests || 0) + 1,
+          successful_requests: data.success ? (prev.successful_requests || 0) + 1 : prev.successful_requests,
+          success_rate: prev.total_requests > 0 
+            ? Math.round(((data.success ? (prev.successful_requests || 0) + 1 : prev.successful_requests) / ((prev.total_requests || 0) + 1)) * 100 * 10) / 10
+            : (data.success ? 100 : 0)
+        } : prev);
+      }
     } catch (e) {
       setTestResults(prev => ({
         ...prev,
@@ -135,6 +199,26 @@ export default function ApiAdminPage() {
       }));
     } finally {
       setTestingApi(null);
+    }
+  };
+
+  const saveTriggers = async (apiId) => {
+    try {
+      const newTriggers = editingTriggers[apiId]?.split(',').map(t => t.trim()).filter(t => t);
+      
+      const res = await fetchWithFallback(`/admin/integrations/${apiId}/config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ triggers: newTriggers })
+      });
+      
+      if (res.ok) {
+        setSuccess(`Sökord uppdaterade för ${apiId}`);
+        loadIntegrations();
+        setEditingTriggers(prev => ({ ...prev, [apiId]: undefined }));
+      }
+    } catch (e) {
+      setError('Kunde inte spara sökord: ' + e.message);
     }
   };
 
@@ -152,7 +236,7 @@ export default function ApiAdminPage() {
       if (res.ok) {
         setSuccess('API Catalog sparad!');
         setCatalogEditing(false);
-        loadIntegrations(); // Reload to get updated data
+        loadIntegrations();
       }
     } catch (e) {
       if (e instanceof SyntaxError) {
@@ -340,145 +424,306 @@ export default function ApiAdminPage() {
         )}
 
         {/* API List */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           <div className="text-[10px] font-mono text-[#555] mb-2">
-            VISAR {filteredIntegrations.length} AV {integrations.length} API:ER
+            VISAR {filteredIntegrations.length} AV {integrations.length} API:ER • Klicka för att expandera
           </div>
           
           {filteredIntegrations.map(api => {
             const apiStats = getApiStats(api.api_id);
             const testResult = testResults[api.api_id];
             const isTesting = testingApi === api.api_id;
+            const isExpanded = expandedApiId === api.api_id;
+            const isEditingTriggers = editingTriggers[api.api_id] !== undefined;
             
             return (
               <div 
                 key={api.api_id}
-                className={`border rounded-lg p-4 transition-all ${
+                className={`border rounded-lg transition-all ${
                   api.enabled 
                     ? 'border-[#2a2a2a] bg-[#0d0d0d]' 
                     : 'border-[#1a1a1a] bg-[#080808] opacity-60'
-                }`}
+                } ${isExpanded ? 'ring-1 ring-blue-500/30' : ''}`}
               >
-                <div className="flex items-start justify-between">
-                  {/* Left: API info */}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                      {/* Toggle button */}
-                      <button
-                        onClick={() => toggleApi(api.api_id, api.enabled)}
-                        className={`w-10 h-5 rounded-full transition-colors relative ${
-                          api.enabled ? 'bg-green-600' : 'bg-gray-600'
-                        }`}
-                      >
-                        <span className={`absolute w-4 h-4 rounded-full bg-white top-0.5 transition-transform ${
-                          api.enabled ? 'translate-x-5' : 'translate-x-0.5'
-                        }`} />
-                      </button>
-                      
-                      <div>
-                        <h4 className="text-sm font-mono text-[#e7e7e7]">{api.name}</h4>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[10px] font-mono text-[#555]">{api.api_id}</span>
-                          <span className="text-[10px] text-[#444]">•</span>
-                          <span className="text-[10px] font-mono text-purple-400">{api.category}</span>
-                          {api.source && (
-                            <>
-                              <span className="text-[10px] text-[#444]">•</span>
-                              <span className="text-[10px] font-mono text-blue-400">{api.source}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <p className="text-xs text-[#666] mt-2">{api.description}</p>
-                    
-                    {/* Triggers */}
-                    {api.triggers && api.triggers.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {api.triggers.slice(0, 5).map((trigger, i) => (
-                          <span 
-                            key={i} 
-                            className="px-2 py-0.5 bg-[#1a1a1a] text-[#888] text-[10px] font-mono rounded"
-                          >
-                            {trigger}
-                          </span>
-                        ))}
-                        {api.triggers.length > 5 && (
-                          <span className="text-[10px] text-[#555]">+{api.triggers.length - 5}</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Right: Stats and actions */}
-                  <div className="flex items-center gap-6">
-                    {/* Stats */}
-                    <div className="grid grid-cols-3 gap-3 text-center">
-                      <div>
-                        <div className="text-[10px] font-mono text-[#555]">ANROP</div>
-                        <div className="text-sm font-mono text-[#888]">
-                          {apiStats.total_requests || 0}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] font-mono text-[#555]">OK</div>
-                        <div className="text-sm font-mono text-green-500">
-                          {apiStats.successful_requests || 0}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] font-mono text-[#555]">AVG MS</div>
-                        <div className="text-sm font-mono text-blue-400">
-                          {apiStats.avg_response_time_ms ? Math.round(apiStats.avg_response_time_ms) : '-'}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Test button */}
-                    <button
-                      onClick={() => testApi(api.api_id)}
-                      disabled={isTesting || !api.enabled}
-                      className={`px-4 py-2 border text-xs font-mono rounded transition-all ${
-                        isTesting
-                          ? 'border-yellow-500/50 text-yellow-400 animate-pulse'
-                          : api.enabled
-                            ? 'border-[#3a3a3a] text-[#888] hover:border-green-500/50 hover:text-green-400'
-                            : 'border-[#1a1a1a] text-[#444] cursor-not-allowed'
+                {/* Compact Header - Always visible */}
+                <div 
+                  className="flex items-center justify-between p-3 cursor-pointer hover:bg-[#111]"
+                  onClick={() => setExpandedApiId(isExpanded ? null : api.api_id)}
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Toggle Switch - Improved design */}
+                    <div 
+                      onClick={(e) => toggleApi(api.api_id, api.enabled, e)}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${
+                        api.enabled ? 'bg-green-600' : 'bg-[#333]'
                       }`}
                     >
-                      {isTesting ? '⏳ TESTAR...' : '▶ TESTA'}
-                    </button>
+                      <span
+                        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                          api.enabled ? 'translate-x-5' : 'translate-x-1'
+                        }`}
+                      />
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-mono ${api.enabled ? 'text-[#e7e7e7]' : 'text-[#666]'}`}>
+                        {api.name}
+                      </span>
+                      <span className="text-[10px] font-mono text-purple-400 px-1.5 py-0.5 bg-purple-900/20 rounded">
+                        {api.category}
+                      </span>
+                      {api.source && (
+                        <span className="text-[10px] font-mono text-blue-400">
+                          {api.source}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    {/* Mini stats */}
+                    <div className="flex gap-3 text-[10px] font-mono">
+                      <span className="text-[#555]">
+                        ANROP: <span className="text-[#888]">{apiStats.total_requests || 0}</span>
+                      </span>
+                      <span className="text-[#555]">
+                        AVG: <span className="text-blue-400">{apiStats.avg_response_time_ms ? Math.round(apiStats.avg_response_time_ms) + 'ms' : '-'}</span>
+                      </span>
+                    </div>
+                    
+                    {/* Expand indicator */}
+                    <span className={`text-[#555] transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                      ▼
+                    </span>
                   </div>
                 </div>
                 
-                {/* Test result */}
-                {testResult && (
-                  <div className={`mt-3 p-3 rounded border ${
-                    testResult.success 
-                      ? 'border-green-900/50 bg-green-900/10'
-                      : 'border-red-900/50 bg-red-900/10'
-                  }`}>
-                    <div className="flex items-center justify-between">
-                      <span className={`text-xs font-mono ${
-                        testResult.success ? 'text-green-400' : 'text-red-400'
-                      }`}>
-                        {testResult.success ? '✓ TEST OK' : '✗ TEST MISSLYCKADES'}
-                      </span>
-                      <span className="text-[10px] font-mono text-[#555]">
-                        {testResult.response_time_ms}ms • {testResult.timestamp}
-                      </span>
+                {/* Expanded Content */}
+                {isExpanded && (
+                  <div className="px-4 pb-4 border-t border-[#1a1a1a] pt-4">
+                    <div className="grid grid-cols-2 gap-6">
+                      {/* Left Column - API Info */}
+                      <div className="space-y-4">
+                        {/* Description */}
+                        <div>
+                          <label className="text-[10px] font-mono text-[#555] block mb-1">BESKRIVNING</label>
+                          <p className="text-xs text-[#888]">{api.description}</p>
+                        </div>
+                        
+                        {/* API Endpoint URL */}
+                        {api.url && (
+                          <div>
+                            <label className="text-[10px] font-mono text-[#555] block mb-1">ENDPOINT</label>
+                            <div className="flex items-center gap-2">
+                              <code className="text-xs font-mono text-blue-400 bg-[#0a0a0a] px-2 py-1 rounded border border-[#2a2a2a]">
+                                {api.url}
+                              </code>
+                              <a 
+                                href={api.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-[10px] text-[#555] hover:text-blue-400"
+                              >
+                                ↗
+                              </a>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* API ID */}
+                        <div>
+                          <label className="text-[10px] font-mono text-[#555] block mb-1">API ID</label>
+                          <code className="text-xs font-mono text-[#666]">{api.api_id}</code>
+                        </div>
+                        
+                        {/* Triggers/Keywords - Editable */}
+                        <div>
+                          <label className="text-[10px] font-mono text-[#555] block mb-1">
+                            SÖKORD (triggers)
+                            {!isEditingTriggers && (
+                              <button 
+                                onClick={() => setEditingTriggers(prev => ({ 
+                                  ...prev, 
+                                  [api.api_id]: (api.triggers || []).join(', ') 
+                                }))}
+                                className="ml-2 text-blue-400 hover:text-blue-300"
+                              >
+                                ✏️ Redigera
+                              </button>
+                            )}
+                          </label>
+                          {isEditingTriggers ? (
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={editingTriggers[api.api_id]}
+                                onChange={(e) => setEditingTriggers(prev => ({ 
+                                  ...prev, 
+                                  [api.api_id]: e.target.value 
+                                }))}
+                                className="flex-1 bg-[#0a0a0a] border border-[#2a2a2a] text-[#e7e7e7] text-xs font-mono px-2 py-1 rounded focus:outline-none focus:border-blue-500/50"
+                                placeholder="ord1, ord2, ord3..."
+                              />
+                              <button
+                                onClick={() => saveTriggers(api.api_id)}
+                                className="px-2 py-1 bg-blue-600 text-white text-[10px] font-mono rounded hover:bg-blue-700"
+                              >
+                                Spara
+                              </button>
+                              <button
+                                onClick={() => setEditingTriggers(prev => ({ ...prev, [api.api_id]: undefined }))}
+                                className="px-2 py-1 border border-[#3a3a3a] text-[#666] text-[10px] font-mono rounded hover:text-[#888]"
+                              >
+                                Avbryt
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {(api.triggers || []).map((trigger, i) => (
+                                <span 
+                                  key={i} 
+                                  className="px-2 py-0.5 bg-[#1a1a1a] text-[#888] text-[10px] font-mono rounded"
+                                >
+                                  {trigger}
+                                </span>
+                              ))}
+                              {(!api.triggers || api.triggers.length === 0) && (
+                                <span className="text-[10px] text-[#555]">Inga sökord definierade</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Statistics */}
+                        <div>
+                          <label className="text-[10px] font-mono text-[#555] block mb-2">STATISTIK</label>
+                          <div className="grid grid-cols-4 gap-3">
+                            <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded p-2 text-center">
+                              <div className="text-[10px] font-mono text-[#555]">ANROP</div>
+                              <div className="text-lg font-mono text-[#888]">{apiStats.total_requests || 0}</div>
+                            </div>
+                            <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded p-2 text-center">
+                              <div className="text-[10px] font-mono text-[#555]">OK</div>
+                              <div className="text-lg font-mono text-green-500">{apiStats.successful_requests || 0}</div>
+                            </div>
+                            <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded p-2 text-center">
+                              <div className="text-[10px] font-mono text-[#555]">FEL</div>
+                              <div className="text-lg font-mono text-red-500">{apiStats.failed_requests || 0}</div>
+                            </div>
+                            <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded p-2 text-center">
+                              <div className="text-[10px] font-mono text-[#555]">AVG MS</div>
+                              <div className="text-lg font-mono text-blue-400">
+                                {apiStats.avg_response_time_ms ? Math.round(apiStats.avg_response_time_ms) : '-'}
+                              </div>
+                            </div>
+                          </div>
+                          {apiStats.last_call && (
+                            <div className="mt-2 text-[10px] font-mono text-[#555]">
+                              Senaste anrop: {new Date(apiStats.last_call).toLocaleString('sv-SE')}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Right Column - Test */}
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-[10px] font-mono text-[#555] block mb-2">TESTA API</label>
+                          
+                          {/* Custom query input */}
+                          <div className="space-y-2 mb-3">
+                            <input
+                              type="text"
+                              value={testQuery[api.api_id] || ''}
+                              onChange={(e) => setTestQuery(prev => ({ ...prev, [api.api_id]: e.target.value }))}
+                              placeholder="Egen sökfråga (valfritt)"
+                              className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#e7e7e7] text-xs font-mono px-3 py-2 rounded focus:outline-none focus:border-blue-500/50"
+                            />
+                            <input
+                              type="text"
+                              value={testEntity[api.api_id] || ''}
+                              onChange={(e) => setTestEntity(prev => ({ ...prev, [api.api_id]: e.target.value }))}
+                              placeholder="Entity (t.ex. stad, namn)"
+                              className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#e7e7e7] text-xs font-mono px-3 py-2 rounded focus:outline-none focus:border-blue-500/50"
+                            />
+                          </div>
+                          
+                          <button
+                            onClick={(e) => testApi(api.api_id, e)}
+                            disabled={isTesting || !api.enabled}
+                            className={`w-full px-4 py-2 border text-xs font-mono rounded transition-all ${
+                              isTesting
+                                ? 'border-yellow-500/50 text-yellow-400 animate-pulse'
+                                : api.enabled
+                                  ? 'border-green-500/50 text-green-400 hover:bg-green-900/20'
+                                  : 'border-[#1a1a1a] text-[#444] cursor-not-allowed'
+                            }`}
+                          >
+                            {isTesting ? '⏳ TESTAR...' : '▶ KÖR TEST'}
+                          </button>
+                        </div>
+                        
+                        {/* Test Result - RAW DATA style */}
+                        {testResult && (
+                          <div className="space-y-3">
+                            <div className={`p-3 rounded border ${
+                              testResult.success 
+                                ? 'border-green-900/50 bg-green-900/10'
+                                : 'border-red-900/50 bg-red-900/10'
+                            }`}>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className={`text-xs font-mono ${
+                                  testResult.success ? 'text-green-400' : 'text-red-400'
+                                }`}>
+                                  {testResult.success ? '✓ TEST OK' : '✗ TEST MISSLYCKADES'}
+                                </span>
+                                <span className="text-[10px] font-mono text-[#555]">
+                                  {testResult.response_time_ms}ms
+                                </span>
+                              </div>
+                              {testResult.error && (
+                                <div className="text-[10px] font-mono text-red-400">
+                                  {testResult.error}
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Formatted Response */}
+                            {testResult.response && (
+                              <div>
+                                <label className="text-[10px] font-mono text-[#555] block mb-1">SVAR (Formaterat)</label>
+                                <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded p-3 max-h-64 overflow-y-auto">
+                                  <div className="text-xs text-[#e7e7e7] leading-relaxed whitespace-pre-wrap">
+                                    {formatResponseText(testResult.response)}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* RAW DATA */}
+                            {testResult.response && (
+                              <div>
+                                <label className="text-[10px] font-mono text-[#666] mb-1 block">RAW DATA</label>
+                                <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded p-3 max-h-48 overflow-y-auto">
+                                  <pre className="text-[10px] font-mono text-[#888] whitespace-pre-wrap">
+                                    {testResult.response}
+                                  </pre>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        {!testResult && (
+                          <div className="flex items-center justify-center h-32 border border-dashed border-[#2a2a2a] rounded bg-[#0a0a0a]">
+                            <div className="text-center">
+                              <div className="text-xl mb-1 opacity-20">▶</div>
+                              <p className="text-[10px] font-mono text-[#555]">Klicka KÖR TEST</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    {testResult.response_preview && (
-                      <div className="mt-2 text-[10px] font-mono text-[#888] max-h-20 overflow-y-auto">
-                        {testResult.response_preview}...
-                      </div>
-                    )}
-                    {testResult.error && (
-                      <div className="mt-2 text-[10px] font-mono text-red-400">
-                        {testResult.error}
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -499,8 +744,8 @@ export default function ApiAdminPage() {
         <div className="mt-10 border-t border-[#1a1a1a] pt-6">
           <p className="text-[10px] font-mono text-[#555] max-w-2xl">
             API Integrations visar alla registrerade externa API:er. 
-            Använd toggle för att aktivera/avaktivera, TESTA för att köra en testförfrågan, 
-            och REDIGERA CATALOG för att ändra api_catalog.json direkt.
+            Klicka på ett API för att expandera och se detaljer, redigera sökord, 
+            eller köra anpassade testförfrågningar. Statistiken uppdateras i realtid.
           </p>
         </div>
       </div>
