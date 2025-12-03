@@ -2,7 +2,37 @@
 
 ## Översikt
 
-ONESEEK Δ+ v4.0 är en fullständigt självstyrd AI som automatiskt väljer rätt API-kategori och datakällor baserat på användarens fråga. Intent Engine och Typo Checker är **avstängda som default** – modellen förstår och hanterar allt själv.
+ONESEEK Δ+ v4.0 är en fullständigt självstyrd AI som automatiskt väljer rätt API-kategori och datakällor baserat på användarens fråga. Intent Engine och Typo Checker är **avstängda som default** – systemet använder `api_catalog.json` för kategori-matchning.
+
+## Så fungerar Self-Steering Mode
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  SELF-STEERING FLÖDE (v4.0)                                             │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  1. Fråga kommer in: "Hur många bor i Hjo?"                            │
+│         ↓                                                               │
+│  2. Läs api_catalog.json → 31 kategorier med keywords                  │
+│         ↓                                                               │
+│  3. Matcha keywords:                                                    │
+│     "hur många bor" → befolkning.keywords → MATCH!                     │
+│         ↓                                                               │
+│  4. Hämta kategori-config:                                             │
+│     - apis: [scb_population, skatteverket_folkbokföring]               │
+│     - entity_required: true                                            │
+│     - entity_type: "kommun"                                            │
+│         ↓                                                               │
+│  5. Extrahera entity: "Hjo"                                            │
+│         ↓                                                               │
+│  6. Anropa API: SCB Population för Hjo                                 │
+│         ↓                                                               │
+│  7. Injicera data i system prompt                                      │
+│         ↓                                                               │
+│  8. Modellen svarar med aktuell data                                   │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
 
 ## Arkitektur
 

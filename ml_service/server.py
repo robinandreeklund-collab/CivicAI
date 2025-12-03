@@ -5720,11 +5720,166 @@ async def test_message_structure(request: MessageBuilderRequest):
             print("-" * 70)
             print("  ⚡ SELF-STEERING MODE (v4.0)")
             print("    Intent Engine: DISABLED")
-            print("    Model will choose category and API itself")
-            print("    Keyword-based fallback will still fetch data if needed")
+            print("    Using api_catalog.json for category matching")
+            
+            # === SELF-STEERING: Use api_catalog.json keywords for category detection ===
+            msg_lower = request.user_message.lower()
+            matched_category = None
+            matched_keywords = []
+            
+            # Debug: Show available categories
+            print(f"    📚 API Catalog loaded: {len(API_CATALOG)} categories")
+            
+            # Search through api_catalog for matching keywords
+            for category_name, category_config in API_CATALOG.items():
+                keywords = category_config.get("keywords", [])
+                for keyword in keywords:
+                    if keyword.lower() in msg_lower:
+                        matched_category = category_name
+                        matched_keywords.append(keyword)
+                        break
+                if matched_category:
+                    break
+            
+            if matched_category:
+                category_config = API_CATALOG[matched_category]
+                apis = category_config.get("apis", [])
+                entity_required = category_config.get("entity_required", False)
+                fallback_entity = category_config.get("fallback_entity", "Sverige")
+                
+                print(f"    ✓ Category matched: {matched_category}")
+                print(f"      Keywords: {matched_keywords}")
+                print(f"      APIs available: {[api.get('name') for api in apis]}")
+                print(f"      Entity required: {entity_required}")
+                
+                # Try to extract entity from message
+                entity = None
+                if entity_required:
+                    try:
+                        from intent_engine import detect_intent_and_city as entity_detect
+                        entity_result = entity_detect(request.user_message)
+                        entity = entity_result.get("entity") or fallback_entity
+                    except:
+                        entity = fallback_entity
+                    print(f"      Entity detected: {entity}")
+                
+                # Update intent_info for display
+                intent_info = {
+                    "intent": matched_category,
+                    "entity": entity or "",
+                    "confidence": 0.90,
+                    "api": apis[0].get("name") if apis else None,
+                    "matched_keywords": matched_keywords,
+                    "mode": "self-steering"
+                }
+                
+                # Fetch data based on matched category
+                fetch_start = datetime.now()
+                
+                if matched_category == "befolkning":
+                    print(f"  📡 SELF-STEERING: Fetching SCB population for {entity}...")
+                    sources_used.append("scb")
+                    population_data = fetch_scb_data(f"befolkning {entity}")
+                    fetch_end = datetime.now()
+                    fetch_duration = (fetch_end - fetch_start).total_seconds() * 1000
+                    if population_data:
+                        print(f"    ✓ SCB: Population data received ({fetch_duration:.0f}ms)")
+                        data_context["statistics"] = {
+                            "source": "SCB",
+                            "location": entity,
+                            "data": population_data
+                        }
+                        api_fetch_log.append({
+                            "api": "scb",
+                            "source": "SCB",
+                            "timestamp": fetch_start.isoformat(),
+                            "duration_ms": round(fetch_duration),
+                            "status": "success",
+                            "entity": entity,
+                            "mode": "self-steering",
+                            "category": matched_category
+                        })
+                    else:
+                        print(f"    ✗ SCB: No data for {entity}")
+                        api_fetch_log.append({
+                            "api": "scb",
+                            "source": "SCB",
+                            "timestamp": fetch_start.isoformat(),
+                            "duration_ms": round(fetch_duration),
+                            "status": "error",
+                            "entity": entity,
+                            "mode": "self-steering",
+                            "category": matched_category
+                        })
+                
+                elif matched_category == "väder":
+                    print(f"  📡 SELF-STEERING: Fetching SMHI weather for {entity}...")
+                    sources_used.append("smhi")
+                    weather_data = get_weather(entity)
+                    fetch_end = datetime.now()
+                    fetch_duration = (fetch_end - fetch_start).total_seconds() * 1000
+                    if weather_data:
+                        print(f"    ✓ SMHI: Weather data received ({fetch_duration:.0f}ms)")
+                        data_context["weather"] = {
+                            "source": "SMHI",
+                            "location": entity,
+                            "data": weather_data
+                        }
+                        api_fetch_log.append({
+                            "api": "smhi",
+                            "source": "SMHI",
+                            "timestamp": fetch_start.isoformat(),
+                            "duration_ms": round(fetch_duration),
+                            "status": "success",
+                            "entity": entity,
+                            "mode": "self-steering",
+                            "category": matched_category
+                        })
+                    else:
+                        print(f"    ✗ SMHI: No data for {entity}")
+                        api_fetch_log.append({
+                            "api": "smhi",
+                            "source": "SMHI",
+                            "timestamp": fetch_start.isoformat(),
+                            "duration_ms": round(fetch_duration),
+                            "status": "error",
+                            "entity": entity,
+                            "mode": "self-steering",
+                            "category": matched_category
+                        })
+                
+                elif matched_category == "kris":
+                    print(f"  📡 SELF-STEERING: Fetching Krisinformation...")
+                    sources_used.append("krisinformation")
+                    crisis_data = fetch_krisinformation()
+                    fetch_end = datetime.now()
+                    fetch_duration = (fetch_end - fetch_start).total_seconds() * 1000
+                    if crisis_data:
+                        print(f"    ✓ Krisinformation: Data received ({fetch_duration:.0f}ms)")
+                        data_context["crisis"] = {
+                            "source": "Krisinformation.se",
+                            "data": crisis_data
+                        }
+                        api_fetch_log.append({
+                            "api": "krisinformation",
+                            "source": "Krisinformation.se",
+                            "timestamp": fetch_start.isoformat(),
+                            "duration_ms": round(fetch_duration),
+                            "status": "success",
+                            "entity": "Sverige",
+                            "mode": "self-steering",
+                            "category": matched_category
+                        })
+                
+                else:
+                    print(f"    ⚠️ Category '{matched_category}' matched but no API handler implemented yet")
+                    print(f"       Available categories with handlers: befolkning, väder, kris")
+            else:
+                print("    ⚠️ No category matched from api_catalog.json")
+                print("    → Falling back to keyword-based detection")
         
-        # === FALLBACK: Check for weather/population keywords if intent engine missed them ===
-        # This ensures data is fetched even if intent detection has issues
+        # === FALLBACK: Check for weather/population keywords if Self-Steering didn't match ===
+        # This ensures data is fetched even if catalog matching fails
         msg_lower = request.user_message.lower()
         
         if "smhi" not in sources_used:
