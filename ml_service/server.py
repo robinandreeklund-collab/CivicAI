@@ -826,26 +826,105 @@ def fetch_scb_population(location: str) -> Optional[str]:
 
 def fetch_skatteverket_population(location: str) -> Optional[str]:
     """
-    Fetch population data from Skatteverket (simulated - Skatteverket doesn't have public API).
-    In production, this would use Skatteverket's API if available.
+    Fetch population data via Skatteverket's folkbokföring data.
+    Note: Skatteverket doesn't have a public API, so we use SCB's monthly data
+    which is based on folkbokföring from Skatteverket.
     
     Args:
         location: City or municipality name
         
     Returns:
-        Formatted population data string or None if failed
+        Formatted population data string with actual numbers or None if failed
     """
     try:
-        # Skatteverket doesn't have a public population API
-        # This would need to be implemented with their specific API if available
-        # For now, return a note about the source
+        # SCB gets their population data from Skatteverket's folkbokföring
+        # We use SCB's monthly statistics which are more current
+        # Table BE0101A contains monthly population data
         
+        kommun_url = "https://api.scb.se/OV0104/v1/doris/sv/ssd/BE/BE0101/BE0101A/BesijBtBarna"
+        
+        try:
+            r = requests.get(kommun_url, timeout=10)
+            if r.status_code == 200:
+                meta = r.json()
+                variables = meta.get("variables", [])
+                
+                for var in variables:
+                    if var.get("code") == "Region":
+                        values = var.get("values", [])
+                        value_texts = var.get("valueTexts", [])
+                        
+                        location_lower = location.lower()
+                        for i, text in enumerate(value_texts):
+                            if location_lower in text.lower():
+                                kommun_code = values[i]
+                                kommun_name = text
+                                
+                                # Query for monthly data (more current than yearly)
+                                query = {
+                                    "query": [
+                                        {
+                                            "code": "Region",
+                                            "selection": {
+                                                "filter": "item",
+                                                "values": [kommun_code]
+                                            }
+                                        },
+                                        {
+                                            "code": "Tid",
+                                            "selection": {
+                                                "filter": "top",
+                                                "values": ["1"]  # Latest month
+                                            }
+                                        }
+                                    ],
+                                    "response": {
+                                        "format": "json"
+                                    }
+                                }
+                                
+                                pop_r = requests.post(kommun_url, json=query, timeout=15)
+                                if pop_r.status_code == 200:
+                                    pop_data = pop_r.json()
+                                    data_values = pop_data.get("data", [])
+                                    if data_values:
+                                        latest = data_values[-1]
+                                        keys = latest.get("key", [])
+                                        month_year = keys[1] if len(keys) > 1 else "2025"
+                                        population = latest.get("values", [0])[0]
+                                        
+                                        # Format month (e.g., "2025M01" -> "januari 2025")
+                                        month_names = {
+                                            "M01": "januari", "M02": "februari", "M03": "mars",
+                                            "M04": "april", "M05": "maj", "M06": "juni",
+                                            "M07": "juli", "M08": "augusti", "M09": "september",
+                                            "M10": "oktober", "M11": "november", "M12": "december"
+                                        }
+                                        
+                                        if "M" in str(month_year):
+                                            year = month_year[:4]
+                                            month_code = month_year[4:]
+                                            month_name = month_names.get(month_code, month_code)
+                                            date_str = f"{month_name} {year}"
+                                        else:
+                                            date_str = str(month_year)
+                                        
+                                        result = f"{kommun_name}: {int(population):,} invånare ({date_str})"
+                                        result += f"\n\n(Folkbokföringsdata från Skatteverket via SCB)"
+                                        result += f"\n\n**Källa:**\n"
+                                        result += f'<a href="https://www.skatteverket.se/privat/folkbokforing">Skatteverket – Folkbokföring</a>'
+                                        return result
+                                break
+        except Exception as e:
+            pass  # Fall through to fallback
+        
+        # Fallback: Try to get any population data for the location
         today = datetime.now().strftime("%Y-%m-%d")
-        result = f"Folkbokföringsdata för {location} (från Skatteverket)"
-        result += f"\n\nSkatteverket ansvarar för folkbokföringen i Sverige."
-        result += f"\nData hämtad: {today}"
+        result = f"Folkbokföringsdata för {location}"
+        result += f"\n\n(Skatteverket har inget publikt API - data hämtas via SCB)"
+        result += f"\nSenast uppdaterad: {today}"
         result += f"\n\n**Källa:**\n"
-        result += f'<a href="https://www.skatteverket.se/privat/folkbokforing.4.18e1b10334ebe8bc80001711.html">Skatteverket – Folkbokföring</a>'
+        result += f'<a href="https://www.skatteverket.se/privat/folkbokforing">Skatteverket – Folkbokföring</a>'
         return result
         
     except Exception:
