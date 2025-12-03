@@ -830,6 +830,49 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
                   </div>
                 )}
 
+                {/* API Catalog Info - v4.0 Debug */}
+                {result.api_catalog_info && (
+                  <div>
+                    <label className="text-[10px] font-mono text-[#666] mb-2 block">🔷 API CATALOG v4.0 DEBUG</label>
+                    <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded p-4">
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <div className="text-[10px] font-mono text-[#555] mb-1">MODE</div>
+                          <div className={`text-sm font-mono ${result.api_catalog_info.mode === 'self-steering' ? 'text-green-400' : 'text-blue-400'}`}>
+                            {result.api_catalog_info.mode === 'self-steering' ? '⚡ Self-Steering' : '🎯 Intent-Based'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-mono text-[#555] mb-1">CATEGORIES</div>
+                          <div className="text-sm font-mono text-[#888]">{result.api_catalog_info.categories_available || 0}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-mono text-[#555] mb-1">INTENT ENGINE</div>
+                          <div className={`text-sm font-mono ${result.api_catalog_info.active_features?.intent_engine ? 'text-green-400' : 'text-red-400'}`}>
+                            {result.api_catalog_info.active_features?.intent_engine ? '✅ ON' : '❌ OFF'}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-[#2a2a2a]">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <div className="text-[10px] font-mono text-[#555] mb-1">TYPO CHECKER</div>
+                            <div className={`text-sm font-mono ${result.api_catalog_info.active_features?.typo_checker ? 'text-green-400' : 'text-red-400'}`}>
+                              {result.api_catalog_info.active_features?.typo_checker ? '✅ ON' : '❌ OFF'}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-mono text-[#555] mb-1">TIME CONTEXT</div>
+                            <div className={`text-sm font-mono ${result.api_catalog_info.active_features?.time_context ? 'text-green-400' : 'text-red-400'}`}>
+                              {result.api_catalog_info.active_features?.time_context ? '✅ ALWAYS ON' : '❌ OFF'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Response - Increased height with code block support */}
                 <div>
                   <label className="text-[10px] font-mono text-[#666] mb-2 block">SVAR</label>

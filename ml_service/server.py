@@ -1060,26 +1060,42 @@ def load_api_catalog() -> dict:
             # Load system prompt if present
             API_CATALOG_SYSTEM_PROMPT = data.get("system_prompt")
             
-            # Log configuration
+            # Count total APIs
+            total_apis = sum(len(cat.get("apis", [])) for cat in API_CATALOG.values())
+            
+            # Log configuration with detailed debug output
             print("\n" + "=" * 70)
-            print("🔷 ONESEEK Δ+ v4.0 CONFIGURATION")
+            print("🔷 ONESEEK Δ+ v4.0 API CATALOG DEBUG")
             print("=" * 70)
-            print(f"  📁 Config loaded from: {API_CATALOG_FILE}")
-            print(f"  📊 API Categories: {len(API_CATALOG)}")
-            print(f"  🎯 Intent Engine: {'✅ ENABLED' if ACTIVE_FEATURES['intent_engine'] else '❌ DISABLED (default)'}")
-            print(f"  ✏️  Typo Checker:  {'✅ ENABLED' if ACTIVE_FEATURES['typo_checker'] else '❌ DISABLED (default)'}")
-            print(f"  🕐 Time Context:  {'✅ ALWAYS ACTIVE' if ACTIVE_FEATURES['time_context'] else '❌ DISABLED'}")
-            
+            print(f"  📁 Config: {API_CATALOG_FILE}")
+            print(f"  📊 Categories: {len(API_CATALOG)} | Total APIs: {total_apis}")
+            print("-" * 70)
+            print("  ACTIVE FEATURES:")
+            print(f"    🎯 Intent Engine: {'✅ ENABLED' if ACTIVE_FEATURES['intent_engine'] else '❌ DISABLED (default)'}")
+            print(f"    ✏️  Typo Checker:  {'✅ ENABLED' if ACTIVE_FEATURES['typo_checker'] else '❌ DISABLED (default)'}")
+            print(f"    🕐 Time Context:  {'✅ ALWAYS ACTIVE' if ACTIVE_FEATURES['time_context'] else '❌ DISABLED'}")
+            print("-" * 70)
+            print("  API CATEGORIES:")
+            for cat_name, cat_config in API_CATALOG.items():
+                apis = cat_config.get("apis", [])
+                api_names = [api.get("name", "?") for api in apis]
+                desc = cat_config.get("description", "")[:30]
+                print(f"    📂 {cat_name:<20} [{len(apis)} APIs] {desc}")
+                for api in apis[:3]:  # Show first 3 APIs per category
+                    print(f"       └─ {api.get('name', '?')} ({api.get('source', '?')})")
+                if len(apis) > 3:
+                    print(f"       └─ ... +{len(apis) - 3} more")
+            print("-" * 70)
             if not ACTIVE_FEATURES['intent_engine'] and not ACTIVE_FEATURES['typo_checker']:
-                print("  ⚡ MODE: Modellen väljer kategori och API själv (v4.0)")
-            
+                print("  ⚡ MODE: v4.0 Self-Steering (Model chooses category & API)")
             print("=" * 70 + "\n")
             
             return {
                 "active_features": ACTIVE_FEATURES,
                 "api_catalog": API_CATALOG,
                 "system_prompt": API_CATALOG_SYSTEM_PROMPT,
-                "categories": list(API_CATALOG.keys())
+                "categories": list(API_CATALOG.keys()),
+                "total_apis": total_apis
             }
             
         except (json.JSONDecodeError, IOError) as e:
@@ -5516,13 +5532,25 @@ async def test_message_structure(request: MessageBuilderRequest):
     sources_used = []
     data_context = {}
     
+    # === DEBUG: Print message builder request to terminal ===
+    print("\n" + "=" * 70)
+    print("🔧 MESSAGE BUILDER DEBUG - API FETCH")
+    print("=" * 70)
+    print(f"  📝 Question: {request.user_message[:80]}{'...' if len(request.user_message) > 80 else ''}")
+    print(f"  🎯 Intent Engine: {'✅ ON' if request.use_intent_engine else '❌ OFF'}")
+    print(f"  🔧 Structure: {request.structure_name or 'custom'}")
+    
     try:
         # === ALWAYS: Inject time, date & season context (like main flow) ===
         time_context = inject_time_context()
         season_context = get_current_season()
+        print(f"  🕐 Time: {time_context}")
+        print(f"  🌿 Season: {season_context}")
         
         # === INTENT ENGINE PIPELINE (if enabled) ===
         if request.use_intent_engine and INTENT_ENGINE_AVAILABLE:
+            print("-" * 70)
+            print("  🔍 INTENT ENGINE PROCESSING...")
             try:
                 # 1. Detect intent and entities
                 intent_data = detect_intent_and_city(request.user_message)
@@ -5534,12 +5562,18 @@ async def test_message_structure(request: MessageBuilderRequest):
                         "api": intent_data.get("api"),
                         "all_entities": intent_data.get("all_entities", [])
                     }
+                    print(f"    ✓ Intent: {intent_info['intent']}")
+                    print(f"    ✓ Entity: {intent_info['entity'] or '-'}")
+                    print(f"    ✓ Confidence: {intent_info['confidence']:.2f}")
+                    print(f"    ✓ API: {intent_info['api'] or 'none'}")
                     
                     # 2. Check for Tavily search trigger
                     if check_tavily_trigger(request.user_message):
+                        print("  📡 FETCHING: Tavily Search...")
                         sources_used.append("tavily")
                         search_result = tavily_search(request.user_message)
                         if search_result and search_result.get("answer"):
+                            print(f"    ✓ Tavily: {len(search_result.get('answer', ''))} chars received")
                             data_context["tavily"] = {
                                 "answer": search_result.get("answer"),
                                 "sources": search_result.get("results", [])[:3]  # Top 3 sources
@@ -5547,16 +5581,20 @@ async def test_message_structure(request: MessageBuilderRequest):
                     
                     # 3. Check for weather intent - REAL DATA (fallback to Stockholm if no city)
                     if intent_data.get("intent") == "väder":
+                        print(f"  📡 FETCHING: SMHI Weather...")
                         sources_used.append("smhi")
                         city = intent_data.get("entity") or "Stockholm"  # Fallback to Stockholm
+                        print(f"    → City: {city}")
                         weather_data = get_weather(city)  # Use correct function
                         if weather_data:
+                            print(f"    ✓ SMHI: Weather data received for {city}")
                             data_context["weather"] = {
                                 "source": "SMHI",
                                 "location": city,
                                 "data": weather_data
                             }
                         else:
+                            print(f"    ✗ SMHI: No data for {city}")
                             data_context["weather"] = {
                                 "source": "SMHI",
                                 "location": city,
@@ -5565,16 +5603,20 @@ async def test_message_structure(request: MessageBuilderRequest):
                     
                     # 4. Check for population/statistics intent - REAL DATA
                     if intent_data.get("intent") == "befolkning":
+                        print(f"  📡 FETCHING: SCB Population...")
                         sources_used.append("scb")
                         city = intent_data.get("entity") or "Sverige"  # Fallback to Sweden
+                        print(f"    → Location: {city}")
                         population_data = fetch_scb_data(f"befolkning {city}")  # Use correct function
                         if population_data:
+                            print(f"    ✓ SCB: Population data received for {city}")
                             data_context["statistics"] = {
                                 "source": "SCB",
                                 "location": city,
                                 "data": population_data
                             }
                         else:
+                            print(f"    ✗ SCB: No data for {city}")
                             data_context["statistics"] = {
                                 "source": "SCB",
                                 "location": city,
@@ -5583,9 +5625,11 @@ async def test_message_structure(request: MessageBuilderRequest):
                     
                     # 5. Check for crisis info
                     if intent_data.get("intent") in ["kris", "varning", "nödsituation"]:
+                        print(f"  📡 FETCHING: Krisinformation...")
                         sources_used.append("krisinformation")
                         crisis_data = fetch_krisinformation()
                         if crisis_data:
+                            print(f"    ✓ Krisinformation: Data received")
                             data_context["crisis"] = {
                                 "source": "Krisinformation.se",
                                 "data": crisis_data
@@ -5594,6 +5638,7 @@ async def test_message_structure(request: MessageBuilderRequest):
                     logging.info(f"[MESSAGE-BUILDER] Intent: {intent_info.get('intent')}, Entity: {intent_info.get('entity')}, Sources: {sources_used}")
                     
             except Exception as intent_error:
+                print(f"    ✗ Intent Engine Error: {intent_error}")
                 logging.warning(f"Intent engine error: {intent_error}")
                 intent_info = {"error": str(intent_error)}
         
@@ -5604,6 +5649,7 @@ async def test_message_structure(request: MessageBuilderRequest):
         if "smhi" not in sources_used:
             weather_keywords = ["väder", "vädret", "temperatur", "regnar", "snöar", "grader", "prognos"]
             if any(kw in msg_lower for kw in weather_keywords):
+                print("  📡 FALLBACK: Weather keywords detected, fetching SMHI...")
                 sources_used.append("smhi")
                 # Try to extract city from message
                 try:
@@ -5769,7 +5815,8 @@ async def test_message_structure(request: MessageBuilderRequest):
         # Analyze the response
         analysis = analyze_response(response_text)
         
-        return {
+        # Build response data
+        response_data = {
             "success": True,
             "structure_name": request.structure_name,
             "messages": messages,
@@ -5784,8 +5831,26 @@ async def test_message_structure(request: MessageBuilderRequest):
             "topic_id": request.topic_id,
             # Time and season context
             "time_context": time_context,
-            "season_context": season_context
+            "season_context": season_context,
+            # API Catalog info (for /admin/builder debug)
+            "api_catalog_info": {
+                "active_features": ACTIVE_FEATURES,
+                "categories_available": len(API_CATALOG),
+                "mode": "self-steering" if not ACTIVE_FEATURES.get("intent_engine", False) else "intent-based"
+            }
         }
+        
+        # === DEBUG: Final summary to terminal ===
+        print("-" * 70)
+        print("  📊 RESULT SUMMARY:")
+        print(f"    Sources: {sources_used or ['none (model knowledge only)']}")
+        print(f"    Intent: {intent_info.get('intent', 'unknown') if intent_info else 'none'}")
+        print(f"    Data fetched: {list(data_context.keys()) or ['none']}")
+        print(f"    Response: {len(response_text)} chars, {token_count} tokens")
+        print(f"    Latency: {latency_ms:.0f}ms")
+        print("=" * 70 + "\n")
+        
+        return response_data
         
     except ValueError as e:
         return {
