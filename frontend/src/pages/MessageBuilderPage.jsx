@@ -284,6 +284,10 @@ export default function MessageBuilderPage() {
   // State for YAML export modal
   const [showYamlModal, setShowYamlModal] = useState(false);
   const [yamlContent, setYamlContent] = useState('');
+  
+  // State for API data detail modal
+  const [showApiDetailModal, setShowApiDetailModal] = useState(false);
+  const [selectedApiLog, setSelectedApiLog] = useState(null);
 
   // Generate YAML export of the entire session flow
   const generateYamlExport = () => {
@@ -938,14 +942,21 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
                   </div>
                 )}
 
-                {/* API Fetch Log - Shows all API calls with timestamps */}
+                {/* API Fetch Log - Shows all API calls with timestamps - CLICKABLE */}
                 {result.api_fetch_log && result.api_fetch_log.length > 0 && (
                   <div>
-                    <label className="text-[10px] font-mono text-[#666] mb-2 block">📡 API FETCH LOG</label>
+                    <label className="text-[10px] font-mono text-[#666] mb-2 block">📡 API FETCH LOG <span className="text-[#444]">(klicka för detaljer)</span></label>
                     <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded p-4">
                       <div className="space-y-2">
                         {result.api_fetch_log.map((log, i) => (
-                          <div key={i} className="flex items-center justify-between p-2 bg-[#141414] rounded border border-[#1a1a1a]">
+                          <div 
+                            key={i} 
+                            className="flex items-center justify-between p-2 bg-[#141414] rounded border border-[#1a1a1a] cursor-pointer hover:border-[#3a3a3a] hover:bg-[#1a1a1a] transition-all"
+                            onClick={() => {
+                              setSelectedApiLog(log);
+                              setShowApiDetailModal(true);
+                            }}
+                          >
                             <div className="flex items-center gap-3">
                               <span className={`text-sm font-mono ${log.status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
                                 {log.status === 'success' ? '✓' : '✗'}
@@ -955,9 +966,12 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
                                 <div className="text-[10px] text-[#555]">{log.entity}</div>
                               </div>
                             </div>
-                            <div className="text-right">
-                              <div className="text-xs font-mono text-[#888]">{log.duration_ms}ms</div>
-                              <div className="text-[10px] text-[#555]">{new Date(log.timestamp).toLocaleTimeString()}</div>
+                            <div className="flex items-center gap-3">
+                              <div className="text-right">
+                                <div className="text-xs font-mono text-[#888]">{log.duration_ms}ms</div>
+                                <div className="text-[10px] text-[#555]">{new Date(log.timestamp).toLocaleTimeString()}</div>
+                              </div>
+                              <span className="text-[#444] text-xs">→</span>
                             </div>
                           </div>
                         ))}
@@ -1104,6 +1118,144 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
               <pre className="text-xs font-mono text-[#888] whitespace-pre-wrap bg-[#0d0d0d] border border-[#1a1a1a] rounded p-4">
                 {yamlContent}
               </pre>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* API Detail Modal - Shows data received from a specific API */}
+      {showApiDetailModal && selectedApiLog && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setShowApiDetailModal(false)}>
+          <div 
+            className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg max-w-3xl w-full max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-[#2a2a2a]">
+              <div>
+                <h3 className="text-sm font-mono text-[#e7e7e7] flex items-center gap-2">
+                  <span className={selectedApiLog.status === 'success' ? 'text-green-400' : 'text-red-400'}>
+                    {selectedApiLog.status === 'success' ? '✓' : '✗'}
+                  </span>
+                  📡 API DETAIL: {selectedApiLog.source}
+                </h3>
+                <p className="text-[10px] text-[#555] mt-1">
+                  {selectedApiLog.entity} • {selectedApiLog.duration_ms}ms • {selectedApiLog.mode || 'unknown'}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowApiDetailModal(false)}
+                className="px-3 py-1.5 border border-[#3a3a3a] text-[#666] text-xs font-mono rounded hover:text-[#888] hover:border-[#4a4a4a] transition-all"
+              >
+                ✕ STÄNG
+              </button>
+            </div>
+            
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Metadata Section */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded p-3">
+                  <div className="text-[10px] text-[#555] font-mono mb-1">STATUS</div>
+                  <div className={`text-sm font-mono ${selectedApiLog.status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                    {selectedApiLog.status === 'success' ? '✓ SUCCESS' : '✗ ERROR'}
+                  </div>
+                </div>
+                <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded p-3">
+                  <div className="text-[10px] text-[#555] font-mono mb-1">API</div>
+                  <div className="text-sm font-mono text-blue-400">{selectedApiLog.api}</div>
+                </div>
+                <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded p-3">
+                  <div className="text-[10px] text-[#555] font-mono mb-1">DURATION</div>
+                  <div className="text-sm font-mono text-[#888]">{selectedApiLog.duration_ms}ms</div>
+                </div>
+                <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded p-3">
+                  <div className="text-[10px] text-[#555] font-mono mb-1">CATEGORY</div>
+                  <div className="text-sm font-mono text-purple-400">{selectedApiLog.category || '-'}</div>
+                </div>
+              </div>
+
+              {/* Timestamp & Entity */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded p-3">
+                  <div className="text-[10px] text-[#555] font-mono mb-1">TIMESTAMP</div>
+                  <div className="text-xs font-mono text-[#888]">{selectedApiLog.timestamp}</div>
+                </div>
+                <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded p-3">
+                  <div className="text-[10px] text-[#555] font-mono mb-1">ENTITY</div>
+                  <div className="text-sm font-mono text-orange-400">{selectedApiLog.entity || '-'}</div>
+                </div>
+              </div>
+
+              {/* Error Message (if error) */}
+              {selectedApiLog.status === 'error' && selectedApiLog.error && (
+                <div className="bg-red-900/20 border border-red-700/30 rounded p-3">
+                  <div className="text-[10px] text-red-400 font-mono mb-1">ERROR MESSAGE</div>
+                  <div className="text-xs font-mono text-red-300">{selectedApiLog.error}</div>
+                </div>
+              )}
+
+              {/* Data Received - YAML format */}
+              <div>
+                <div className="text-[10px] text-[#555] font-mono mb-2">📥 DATA RECEIVED</div>
+                <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded overflow-hidden">
+                  <div className="bg-[#141414] px-3 py-1 text-[10px] font-mono text-[#555] border-b border-[#1a1a1a] flex justify-between items-center">
+                    <span>yaml</span>
+                    <button
+                      onClick={() => {
+                        const yamlData = `# API: ${selectedApiLog.source}
+# Entity: ${selectedApiLog.entity || '-'}
+# Timestamp: ${selectedApiLog.timestamp}
+# Duration: ${selectedApiLog.duration_ms}ms
+# Status: ${selectedApiLog.status}
+# Category: ${selectedApiLog.category || '-'}
+# Mode: ${selectedApiLog.mode || '-'}
+
+data:
+${selectedApiLog.data ? JSON.stringify(selectedApiLog.data, null, 2).split('\n').map(line => '  ' + line).join('\n') : '  null'}
+`;
+                        navigator.clipboard.writeText(yamlData);
+                      }}
+                      className="text-[10px] text-blue-400 hover:text-blue-300"
+                    >
+                      📋 kopiera
+                    </button>
+                  </div>
+                  <pre className="p-3 text-[11px] font-mono text-green-400 whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto">
+{selectedApiLog.data ? (
+  `# Data from ${selectedApiLog.source}
+${JSON.stringify(selectedApiLog.data, null, 2)}`
+) : (
+  `# No data available
+# The API response data was not included in the log.
+# This may happen with older log entries.
+
+status: ${selectedApiLog.status}
+api: ${selectedApiLog.api}
+entity: ${selectedApiLog.entity || 'null'}
+timestamp: ${selectedApiLog.timestamp}
+duration_ms: ${selectedApiLog.duration_ms}`
+)}
+                  </pre>
+                </div>
+              </div>
+
+              {/* Raw Response (if available) */}
+              {selectedApiLog.raw_response && (
+                <div>
+                  <div className="text-[10px] text-[#555] font-mono mb-2">📄 RAW RESPONSE</div>
+                  <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded overflow-hidden">
+                    <div className="bg-[#141414] px-3 py-1 text-[10px] font-mono text-[#555] border-b border-[#1a1a1a]">
+                      raw
+                    </div>
+                    <pre className="p-3 text-[10px] font-mono text-[#888] whitespace-pre-wrap overflow-x-auto max-h-[200px] overflow-y-auto">
+                      {typeof selectedApiLog.raw_response === 'string' 
+                        ? selectedApiLog.raw_response 
+                        : JSON.stringify(selectedApiLog.raw_response, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
