@@ -5533,12 +5533,22 @@ async def test_message_structure(request: MessageBuilderRequest):
     data_context = {}
     
     # === DEBUG: Print message builder request to terminal ===
+    # Check if Intent Engine is globally enabled vs locally overridden
+    global_intent_enabled = is_intent_engine_enabled()
+    local_override = request.use_intent_engine and not global_intent_enabled
+    
     print("\n" + "=" * 70)
     print("🔧 MESSAGE BUILDER DEBUG - API FETCH")
     print("=" * 70)
     print(f"  📝 Question: {request.user_message[:80]}{'...' if len(request.user_message) > 80 else ''}")
-    print(f"  🎯 Intent Engine: {'✅ ON' if request.use_intent_engine else '❌ OFF'}")
     print(f"  🔧 Structure: {request.structure_name or 'custom'}")
+    print("-" * 70)
+    print("  ONESEEK Δ+ v4.0 CONFIG:")
+    print(f"    Global Intent Engine: {'✅ ENABLED' if global_intent_enabled else '❌ DISABLED (Self-Steering)'}")
+    print(f"    Request Intent Engine: {'✅ ON' if request.use_intent_engine else '❌ OFF'}")
+    if local_override:
+        print(f"    ⚠️  LOCAL OVERRIDE: Intent Engine enabled via request (global is OFF)")
+    print(f"    Mode: {'🎯 Intent-Based' if request.use_intent_engine else '⚡ Self-Steering (v4.0)'}")
     
     try:
         # === ALWAYS: Inject time, date & season context (like main flow) ===
@@ -5550,7 +5560,10 @@ async def test_message_structure(request: MessageBuilderRequest):
         # === INTENT ENGINE PIPELINE (if enabled) ===
         if request.use_intent_engine and INTENT_ENGINE_AVAILABLE:
             print("-" * 70)
-            print("  🔍 INTENT ENGINE PROCESSING...")
+            if local_override:
+                print("  🔍 INTENT ENGINE PROCESSING (LOCAL OVERRIDE)...")
+            else:
+                print("  🔍 INTENT ENGINE PROCESSING...")
             try:
                 # 1. Detect intent and entities
                 intent_data = detect_intent_and_city(request.user_message)
@@ -5641,6 +5654,13 @@ async def test_message_structure(request: MessageBuilderRequest):
                 print(f"    ✗ Intent Engine Error: {intent_error}")
                 logging.warning(f"Intent engine error: {intent_error}")
                 intent_info = {"error": str(intent_error)}
+        else:
+            # === SELF-STEERING MODE: Intent Engine is disabled ===
+            print("-" * 70)
+            print("  ⚡ SELF-STEERING MODE (v4.0)")
+            print("    Intent Engine: DISABLED")
+            print("    Model will choose category and API itself")
+            print("    Keyword-based fallback will still fetch data if needed")
         
         # === FALLBACK: Check for weather/population keywords if intent engine missed them ===
         # This ensures data is fetched even if intent detection has issues

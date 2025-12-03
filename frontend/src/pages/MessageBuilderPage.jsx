@@ -149,12 +149,29 @@ export default function MessageBuilderPage() {
   const [topicHistory, setTopicHistory] = useState([]);
   const [showSidebar, setShowSidebar] = useState(true);
   
-  // Intent Engine toggle
-  const [useIntentEngine, setUseIntentEngine] = useState(true);
+  // Intent Engine toggle - default to global config
+  const [useIntentEngine, setUseIntentEngine] = useState(false); // Start false, will be updated from API
+  const [globalIntentEnabled, setGlobalIntentEnabled] = useState(false);
 
   useEffect(() => {
     fetchDefault();
+    fetchActiveFeatures();
   }, []);
+
+  const fetchActiveFeatures = async () => {
+    try {
+      const res = await fetchWithFallback('/delta-plus/active-features');
+      const data = await res.json();
+      if (data.active_features) {
+        const intentEnabled = data.active_features.intent_engine || false;
+        setGlobalIntentEnabled(intentEnabled);
+        setUseIntentEngine(intentEnabled); // Default to global config
+      }
+    } catch (e) {
+      console.log('Could not fetch active features, defaulting to disabled');
+      setUseIntentEngine(false);
+    }
+  };
 
   const fetchDefault = async () => {
     try {
@@ -420,8 +437,10 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
               </div>
             </label>
             
-            {/* Use Intent Engine Checkbox */}
-            <label className="flex items-center gap-2 mb-4 p-3 bg-[#0d0d0d] border border-[#2a2a2a] rounded cursor-pointer hover:border-[#3a3a3a]">
+            {/* Use Intent Engine Checkbox - Shows global config state */}
+            <label className={`flex items-center gap-2 mb-4 p-3 bg-[#0d0d0d] border rounded cursor-pointer hover:border-[#3a3a3a] ${
+              globalIntentEnabled ? 'border-green-700/30' : 'border-red-700/30'
+            }`}>
               <input
                 type="checkbox"
                 checked={useIntentEngine}
@@ -429,8 +448,20 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
                 className="w-4 h-4 rounded border-[#3a3a3a] bg-[#0a0a0a] text-green-500 focus:ring-0 focus:ring-offset-0"
               />
               <div>
-                <div className="text-xs font-mono text-[#e7e7e7]">🔍 Intent Engine</div>
-                <div className="text-[10px] text-[#555]">Visa intent, source & datahämtning</div>
+                <div className="text-xs font-mono text-[#e7e7e7]">
+                  🔍 Intent Engine {useIntentEngine ? '(ON)' : '(OFF)'}
+                </div>
+                <div className="text-[10px] text-[#555]">
+                  {globalIntentEnabled 
+                    ? '✅ Global: ENABLED' 
+                    : '❌ Global: DISABLED (v4.0 Self-Steering)'
+                  }
+                </div>
+                {useIntentEngine && !globalIntentEnabled && (
+                  <div className="text-[10px] text-orange-400 mt-1">
+                    ⚠️ Override: Intent Engine aktiverad lokalt
+                  </div>
+                )}
               </div>
             </label>
             
