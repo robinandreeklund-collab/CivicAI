@@ -187,7 +187,7 @@ Nyhetsflöden från SVT, SR Ekot, Omni för realtidsnyheter.
 | 2 | **väder** | SMHI, YR.no | ✅ stad | "Vädret i Stockholm?" |
 | 3 | **nyheter** | SVT, SR Ekot, Omni | ❌ | "Senaste nyheterna?" |
 | 4 | **kris** | Krisinformation.se, MSB | ❌ | "Krislarm?" |
-| 5 | **politik** | Riksdagen | ❌ | "Vad röstade riksdagen?" |
+| 5 | **politik** | Riksdagen Ledamöter, Dokument, Voteringar | ❌ | "Vem är riksdagsledamot?", "Vad röstade riksdagen?" |
 | 6 | **trafik** | Trafikverket | ❌ | "Trafikinfo E4?" |
 | 7 | **statistik** | SCB | ❌ | "Arbetslöshetsstatistik?" |
 | 8 | **skatt** | Skatteverket, SCB | ❌ | "Snittinkomst?" |
@@ -229,6 +229,7 @@ Dessa API:er gör riktiga HTTP-anrop och returnerar aktuell data:
 | `skatteverket_folkbokföring` | Skatteverket | via SCB månadsstatistik | `fetch_skatteverket_population()` | ✅ RIKTIG DATA |
 | `smhi_current` | SMHI | opendata-download-metfcst.smhi.se | `get_weather()` | ✅ RIKTIG DATA |
 | `krisinformation` | Krisinformation.se | api.krisinformation.se/v3 | `fetch_krisinformation()` | ✅ RIKTIG DATA |
+| `riksdagen_ledamoter` | Riksdagen | data.riksdagen.se/dokumentlista/?avd=ledamot | `fetch_riksdagen_ledamoter()` | ✅ RIKTIG DATA |
 | `riksdagen_dokumentlista` | Riksdagen | data.riksdagen.se/dokumentlista | `fetch_riksdagen_data()` | ✅ RIKTIG DATA |
 | `arbetsformedlingen` | Arbetsförmedlingen | jobsearch.api.jobtechdev.se/search | `fetch_arbetsformedlingen_jobs()` | ✅ RIKTIG DATA |
 | `svt_nyheter` | SVT | svt.se/nyheter/rss.xml | `fetch_svt_news()` | ✅ RSS |
@@ -319,7 +320,10 @@ Dessa API:er returnerar informativ text med korrekta källlänkar. De gör inte 
 }
 ```
 
-2. **Skapa fetch-funktion i `ml_service/server.py`:**
+2. **Skapa fetch-funktion i `ml_service/api_integrations.py`:**
+
+> **OBS!** Nya API-integrationer ska läggas i `api_integrations.py` för att hålla `server.py` hanterbar.
+
 ```python
 def fetch_ny_api(query: str = None) -> Optional[str]:
     """Hämta data från NY API."""
@@ -338,7 +342,20 @@ def fetch_ny_api(query: str = None) -> Optional[str]:
     return "Fallback info\n\n**Källor:**\n1. <a href=\"https://källa.se\">Källa</a>"
 ```
 
-3. **Lägg till i `api_function_map` (rad ~6458):**
+3. **Exportera funktionen i `api_integrations.py`:**
+```python
+__all__ = [
+    'fetch_ny_api',
+    # ... andra exporter
+]
+```
+
+4. **Importera i `server.py`:**
+```python
+from api_integrations import fetch_ny_api
+```
+
+5. **Lägg till i `api_function_map` (rad ~6614):**
 ```python
 "ny_api": lambda e: fetch_ny_api(e),
 ```
@@ -353,12 +370,15 @@ def fetch_ny_api(query: str = None) -> Optional[str]:
 |-----|-------|------------|
 | `ml_service/server.py` | Huvudserver | – |
 | ↳ API-funktioner | Alla fetch-funktioner | ~739-1600 |
-| ↳ `api_function_map` | API-namn → funktion | ~6458 |
+| ↳ `api_function_map` | API-namn → funktion | ~6614 |
 | ↳ Self-Steering | Kategori-matchning | ~5924-6200 |
 | ↳ `load_open_data_apis()` | Laddar open_data_apis.json | ~693 |
+| `ml_service/api_integrations.py` | Nya API-integrationer (separerad) | – |
+| ↳ `fetch_riksdagen_ledamoter()` | Riksdagens ledamöter API | ~25-130 |
 | `config/api_catalog.json` | Self-Steering kategorier | – |
 | `config/open_data_apis.json` | Öppna data-API:er | – |
 | `config/rss_feeds.json` | Nyhets-RSS flöden | – |
+| `config/api_keys.json` | API-nycklar (skapas manuellt) | – |
 
 ### Frontend (React)
 
@@ -377,6 +397,94 @@ POST /api/ml/delta-plus/active-features  # Ändra funktioner
 GET  /api/ml/delta-plus/api-catalog      # Hela katalogen
 GET  /api/ml/delta-plus/api-catalog/{category}  # Specifik kategori
 ```
+
+---
+
+## Riksdagen Ledamöter API
+
+### Översikt
+
+Riksdagens öppna data-API för ledamöter ger tillgång till information om alla nuvarande och historiska riksdagsledamöter från 1990 och framåt.
+
+**API-URL:** `https://data.riksdagen.se/dokumentlista/?avd=ledamot&utformat=json`
+
+**Dokumentation:** https://www.dataportal.se/dataservice/98_3022
+
+### Exempel-frågor som triggar API:et
+
+- "Vem är riksdagsledamot?"
+- "Riksdagsledamöter från Stockholm"
+- "Ledamöter Moderaterna"
+- "Ulf Kristersson ledamot"
+- "Sagt och gjort i riksdagen"
+
+### Keywords i api_catalog.json
+
+```json
+"politik": {
+  "keywords": [
+    "riksdagen",
+    "riksdagsledamot",
+    "ledamot",
+    "ledamotsuppdrag",
+    "ledamotsuppgifter",
+    "sagt och gjort",
+    "röstade",
+    "votering",
+    "lagförslag",
+    "debatt",
+    "proposition",
+    "motion",
+    "politiker",
+    "parlamentsledamot"
+  ]
+}
+```
+
+### API-svar format
+
+API:et returnerar ledamötinformation i JSON-format:
+
+```json
+{
+  "dokumentlista": {
+    "@traffar": "349",
+    "dokument": [
+      {
+        "titel": "Anna Andersson",
+        "undertitel": "Socialdemokraterna, Stockholms kommun",
+        "datum": "2025-01-15",
+        "id": "1234567-ABC"
+      }
+    ]
+  }
+}
+```
+
+### Implementation
+
+**Fil:** `ml_service/api_integrations.py`
+
+```python
+def fetch_riksdagen_ledamoter(query: str = None) -> Optional[str]:
+    """
+    Hämtar riksdagsledamöter från Riksdagens öppna data-API.
+    
+    Args:
+        query: Sökterm (namn, parti, valkrets)
+        
+    Returns:
+        Formaterad lista med ledamöter och källlänkar
+    """
+```
+
+### Vad modellen kan svara på
+
+- ✅ Alla nuvarande riksdagsledamöter
+- ✅ Historiska ledamöter (från 1990)
+- ✅ Ledamöter per parti (Moderaterna, Socialdemokraterna, etc.)
+- ✅ Ledamöter per valkrets (Stockholm, Göteborg, etc.)
+- ✅ Specifika ledamöter via namn
 
 ---
 

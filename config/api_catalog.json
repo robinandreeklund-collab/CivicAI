@@ -57,13 +57,14 @@
     },
     
     "politik": {
-      "description": "Riksdagen, voteringar, lagförslag",
+      "description": "Riksdagen, ledamöter, voteringar, lagförslag",
       "apis": [
+        {"name": "riksdagen_ledamoter", "source": "Riksdagen", "frequency": "dagligen", "url": "https://data.riksdagen.se/dokumentlista/?avd=ledamot"},
         {"name": "riksdagen_dokumentlista", "source": "Riksdagen", "frequency": "dagligen", "url": "https://data.riksdagen.se/dokumentlista"},
         {"name": "riksdagen_votering", "source": "Riksdagen", "frequency": "dagligen", "url": "https://data.riksdagen.se/votering"}
       ],
       "entity_required": false,
-      "keywords": ["riksdagen", "röstade", "votering", "lagförslag", "debatt", "proposition", "motion"]
+      "keywords": ["riksdagen", "riksdagsledamot", "ledamot", "ledamotsuppdrag", "ledamotsuppgifter", "sagt och gjort", "röstade", "votering", "lagförslag", "debatt", "proposition", "motion", "politiker", "parlamentsledamot"]
     },
     
     "trafik": {

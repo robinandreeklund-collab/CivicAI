@@ -249,6 +249,21 @@ except ImportError:
 # END ONESEEK Δ+ MODULE IMPORTS
 # =============================================================================
 
+# =============================================================================
+# API INTEGRATIONS MODULE
+# =============================================================================
+# Separate module for API integrations to keep server.py clean
+try:
+    from .api_integrations import fetch_riksdagen_ledamoter
+    API_INTEGRATIONS_AVAILABLE = True
+except ImportError:
+    try:
+        from api_integrations import fetch_riksdagen_ledamoter
+        API_INTEGRATIONS_AVAILABLE = True
+    except ImportError:
+        API_INTEGRATIONS_AVAILABLE = False
+        fetch_riksdagen_ledamoter = None
+
 # Global cache enabled flag (can be toggled from admin dashboard)
 GLOBAL_CACHE_ENABLED = True
 
@@ -6611,6 +6626,7 @@ async def test_message_structure(request: MessageBuilderRequest):
                     "msb": lambda e: fetch_krisinformation(),  # MSB uses same API
                     
                     # === POLITIK ===
+                    "riksdagen_ledamoter": lambda e: fetch_riksdagen_ledamoter(e) if API_INTEGRATIONS_AVAILABLE and fetch_riksdagen_ledamoter else fetch_riksdagen_data(e) if e else fetch_riksdagen_data(""),
                     "riksdagen_dokumentlista": lambda e: fetch_riksdagen_data(e) if e else fetch_riksdagen_data(""),
                     "riksdagen_votering": lambda e: fetch_riksdagen_data(e) if e else fetch_riksdagen_data(""),
                     
