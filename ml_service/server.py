@@ -5730,6 +5730,7 @@ async def test_message_structure(request: MessageBuilderRequest):
         if "smhi" not in sources_used:
             weather_keywords = ["väder", "vädret", "temperatur", "regnar", "snöar", "grader", "prognos"]
             if any(kw in msg_lower for kw in weather_keywords):
+                fetch_start = datetime.now()
                 print("  📡 FALLBACK: Weather keywords detected, fetching SMHI...")
                 sources_used.append("smhi")
                 # Try to extract city from message
@@ -5739,13 +5740,26 @@ async def test_message_structure(request: MessageBuilderRequest):
                     city = fallback_result.get("entity") or "Stockholm"
                 except:
                     city = "Stockholm"
+                print(f"    → City: {city}")
                 weather_data = get_weather(city)  # Use correct function
+                fetch_end = datetime.now()
+                fetch_duration = (fetch_end - fetch_start).total_seconds() * 1000
                 if weather_data:
+                    print(f"    ✓ SMHI FALLBACK: Weather data received for {city} ({fetch_duration:.0f}ms)")
                     data_context["weather"] = {
                         "source": "SMHI",
                         "location": city,
                         "data": weather_data
                     }
+                    api_fetch_log.append({
+                        "api": "smhi",
+                        "source": "SMHI (Fallback)",
+                        "timestamp": fetch_start.isoformat(),
+                        "duration_ms": round(fetch_duration),
+                        "status": "success",
+                        "entity": city,
+                        "mode": "self-steering-fallback"
+                    })
                     # Update intent_info if empty
                     if not intent_info or intent_info.get("intent") in [None, "unknown", "general"]:
                         intent_info = {
@@ -5755,10 +5769,23 @@ async def test_message_structure(request: MessageBuilderRequest):
                             "api": "weather_cache"
                         }
                     logging.info(f"[MESSAGE-BUILDER] Fallback weather: {city}")
+                else:
+                    print(f"    ✗ SMHI FALLBACK: No data for {city}")
+                    api_fetch_log.append({
+                        "api": "smhi",
+                        "source": "SMHI (Fallback)",
+                        "timestamp": fetch_start.isoformat(),
+                        "duration_ms": round(fetch_duration),
+                        "status": "error",
+                        "entity": city,
+                        "mode": "self-steering-fallback"
+                    })
         
         if "scb" not in sources_used:
             population_keywords = ["befolkning", "invånare", "hur många bor", "population", "folkmängd"]
             if any(kw in msg_lower for kw in population_keywords):
+                fetch_start = datetime.now()
+                print("  📡 FALLBACK: Population keywords detected, fetching SCB...")
                 sources_used.append("scb")
                 # Try to extract city
                 try:
@@ -5767,13 +5794,26 @@ async def test_message_structure(request: MessageBuilderRequest):
                     city = fallback_result.get("entity") or "Sverige"
                 except:
                     city = "Sverige"
+                print(f"    → Location: {city}")
                 population_data = fetch_scb_data(f"befolkning {city}")  # Use correct function
+                fetch_end = datetime.now()
+                fetch_duration = (fetch_end - fetch_start).total_seconds() * 1000
                 if population_data:
+                    print(f"    ✓ SCB FALLBACK: Population data received for {city} ({fetch_duration:.0f}ms)")
                     data_context["statistics"] = {
                         "source": "SCB",
                         "location": city,
                         "data": population_data
                     }
+                    api_fetch_log.append({
+                        "api": "scb",
+                        "source": "SCB (Fallback)",
+                        "timestamp": fetch_start.isoformat(),
+                        "duration_ms": round(fetch_duration),
+                        "status": "success",
+                        "entity": city,
+                        "mode": "self-steering-fallback"
+                    })
                     # Update intent_info if empty
                     if not intent_info or intent_info.get("intent") in [None, "unknown", "general"]:
                         intent_info = {
@@ -5783,6 +5823,17 @@ async def test_message_structure(request: MessageBuilderRequest):
                             "api": "scb_population"
                         }
                     logging.info(f"[MESSAGE-BUILDER] Fallback population: {city}")
+                else:
+                    print(f"    ✗ SCB FALLBACK: No data for {city}")
+                    api_fetch_log.append({
+                        "api": "scb",
+                        "source": "SCB (Fallback)",
+                        "timestamp": fetch_start.isoformat(),
+                        "duration_ms": round(fetch_duration),
+                        "status": "error",
+                        "entity": city,
+                        "mode": "self-steering-fallback"
+                    })
         
         # === ENRICH SYSTEM PROMPT WITH TIME, SEASON, AND FETCHED DATA ===
         # Build data context section to include in system prompt
