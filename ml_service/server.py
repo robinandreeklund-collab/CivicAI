@@ -505,6 +505,45 @@ def is_swedish(text: str) -> bool:
 
 
 # =============================================================================
+# TRAFIKVERKET API CONFIGURATION
+# =============================================================================
+# API key can be set via:
+# 1. Environment variable: TRAFIKVERKET_API_KEY
+# 2. Config file: config/api_keys.json with {"trafikverket_api_key": "your-key"}
+# Get your API key from: https://api.trafikinfo.trafikverket.se/
+
+TRAFIKVERKET_API_KEY = os.getenv("TRAFIKVERKET_API_KEY")
+API_KEYS_CONFIG_FILE = Path(__file__).parent.parent / "config" / "api_keys.json"
+
+def load_api_keys():
+    """
+    Load API keys from config/api_keys.json if not set via environment.
+    
+    Supported keys:
+    - trafikverket_api_key: For Trafikverket traffic data
+    - lantmateriet_api_key: For Lantmäteriet geodata
+    - bolagsverket_api_key: For Bolagsverket company data
+    """
+    global TRAFIKVERKET_API_KEY
+    
+    if API_KEYS_CONFIG_FILE.exists():
+        try:
+            data = json.loads(API_KEYS_CONFIG_FILE.read_text(encoding="utf-8"))
+            
+            # Load Trafikverket API key
+            if not TRAFIKVERKET_API_KEY:
+                key = data.get("trafikverket_api_key", "")
+                if key:
+                    TRAFIKVERKET_API_KEY = key
+                    print(f"[TRAFIKVERKET] ✓ API key loaded from config file")
+            
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            print(f"[API-KEYS] Warning: Could not load api_keys.json: {e}")
+
+# Load API keys at startup
+load_api_keys()
+
+# =============================================================================
 # TAVILY WEB SEARCH CONFIGURATION - Dashboard-controlled real-time search
 # =============================================================================
 # Tavily triggers and blacklist are loaded from config/tavily_triggers.json
@@ -1035,19 +1074,113 @@ def fetch_riksdagen_data(query: str) -> Optional[str]:
 
 def fetch_trafikverket_data(query: str) -> Optional[str]:
     """
-    Fetch traffic information from Trafikverket with source links.
+    Fetch traffic information from Trafikverket API.
     
-    Note: Trafikverket requires authentication for full API access.
-    This provides basic info and redirects to their service.
+    Uses Trafikverket's open API (https://api.trafikinfo.trafikverket.se/v2/data.json)
+    to get real-time traffic situations, road conditions, and railway data.
+    
+    API key configuration:
+    1. Environment variable: TRAFIKVERKET_API_KEY
+    2. Config file: config/api_keys.json with {"trafikverket_api_key": "your-key"}
     
     Args:
-        query: Search query
+        query: Search query (road name, location, etc.)
         
     Returns:
         Traffic info string with HTML source links
     """
-    # Trafikverket's full API requires authentication
-    # Return a helpful message with link to their service
+    global TRAFIKVERKET_API_KEY
+    
+    # Check if API key is available
+    if not TRAFIKVERKET_API_KEY:
+        # Return helpful message if no API key
+        result = "Trafikinformation för E4, E6, E18 och E20 – se aktuella olyckor och köer på trafiken.nu."
+        result += "\n\n⚠️ **API-nyckel saknas** – Lägg till din Trafikverket API-nyckel i `config/api_keys.json`"
+        result += "\n\n**Källor:**\n"
+        result += '1. <a href="https://trafiken.nu">Trafiken.nu – Trafikinformation i realtid</a>\n'
+        result += '2. <a href="https://www.trafikverket.se/trafikinformation/">Trafikverket – Trafikinformation</a>'
+        return result
+    
+    try:
+        # Build the Trafikverket API request
+        # Documentation: https://api.trafikinfo.trafikverket.se/
+        api_url = "https://api.trafikinfo.trafikverket.se/v2/data.json"
+        
+        # Extract road or location from query
+        road_match = None
+        query_lower = query.lower() if query else ""
+        
+        # Check for specific road mentions (E4, E6, E18, E20, Rv40, etc.)
+        import re
+        road_pattern = r'\b(e\d+|rv\s*\d+|väg\s*\d+)\b'
+        road_matches = re.findall(road_pattern, query_lower)
+        if road_matches:
+            road_match = road_matches[0].upper().replace(" ", "")
+        
+        # Build XML request for TrafficSituation (störningar)
+        xml_request = f"""
+        <REQUEST>
+            <LOGIN authenticationkey="{TRAFIKVERKET_API_KEY}"/>
+            <QUERY objecttype="Situation" schemaversion="1.5" limit="10">
+                <FILTER>
+                    <AND>
+                        <EQ name="Deviation.MessageType" value="Olycka"/>
+                    </AND>
+                </FILTER>
+                <INCLUDE>Deviation.Message</INCLUDE>
+                <INCLUDE>Deviation.RoadNumber</INCLUDE>
+                <INCLUDE>Deviation.CountyNo</INCLUDE>
+                <INCLUDE>Deviation.LocationDescriptor</INCLUDE>
+                <INCLUDE>Deviation.StartTime</INCLUDE>
+                <INCLUDE>Deviation.EndTime</INCLUDE>
+            </QUERY>
+        </REQUEST>
+        """
+        
+        # Make the API request
+        response = requests.post(
+            api_url,
+            data=xml_request,
+            headers={"Content-Type": "text/xml"},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Parse the response
+            situations = []
+            if "RESPONSE" in data and "RESULT" in data["RESPONSE"]:
+                for result in data["RESPONSE"]["RESULT"]:
+                    if "Situation" in result:
+                        for situation in result["Situation"][:5]:  # Limit to 5
+                            if "Deviation" in situation:
+                                for dev in situation["Deviation"]:
+                                    msg = dev.get("Message", "Okänd händelse")
+                                    road = dev.get("RoadNumber", "")
+                                    loc = dev.get("LocationDescriptor", "")
+                                    situations.append(f"• {road}: {msg} ({loc})")
+            
+            if situations:
+                result = f"**Aktuella trafikstörningar ({datetime.now().strftime('%Y-%m-%d %H:%M')}):**\n\n"
+                result += "\n".join(situations[:5])
+                result += "\n\n**Källor:**\n"
+                result += '1. <a href="https://api.trafikinfo.trafikverket.se">Trafikverket API</a>\n'
+                result += '2. <a href="https://trafiken.nu">Trafiken.nu</a>'
+                return result
+            else:
+                result = "Inga aktuella trafikstörningar rapporterade just nu.\n\n"
+                result += "**Källor:**\n"
+                result += '1. <a href="https://api.trafikinfo.trafikverket.se">Trafikverket API</a>\n'
+                result += '2. <a href="https://trafiken.nu">Trafiken.nu</a>'
+                return result
+        else:
+            print(f"[TRAFIKVERKET] API error: {response.status_code}")
+            
+    except Exception as e:
+        print(f"[TRAFIKVERKET] Error fetching data: {e}")
+    
+    # Fallback to informative response
     result = "Trafikinformation för E4, E6, E18 och E20 – se aktuella olyckor och köer på trafiken.nu."
     result += "\n\n**Källor:**\n"
     result += '1. <a href="https://trafiken.nu">Trafiken.nu – Trafikinformation i realtid</a>\n'

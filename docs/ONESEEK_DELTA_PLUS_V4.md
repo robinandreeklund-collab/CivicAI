@@ -132,7 +132,38 @@ result1, result2 = await asyncio.gather(
 
 Innehåller 31 Svenska öppna data-API:er med triggers och fallback-meddelanden.
 
-### 3. `config/rss_feeds.json` – RSS-flöden
+### 3. `config/api_keys.json` – API-nycklar (för skyddade API:er)
+
+**Plats:** `/config/api_keys.json`
+
+Vissa API:er kräver autentisering. Skapa filen från mallen:
+
+```bash
+cp config/api_keys.json.example config/api_keys.json
+```
+
+**Innehåll:**
+```json
+{
+  "trafikverket_api_key": "din-nyckel-här",
+  "lantmateriet_api_key": "",
+  "bolagsverket_api_key": ""
+}
+```
+
+**Hämta API-nycklar:**
+| API | URL för registrering |
+|-----|---------------------|
+| Trafikverket | https://api.trafikinfo.trafikverket.se/ |
+| Lantmäteriet | https://opendata.lantmateriet.se/ |
+| Bolagsverket | https://bolagsverket.se/om-oss/utveckling-av-digitala-tjanster/oppna-data |
+
+**Alternativ:** Sätt via miljövariabel:
+```bash
+export TRAFIKVERKET_API_KEY="din-nyckel"
+```
+
+### 4. `config/rss_feeds.json` – RSS-flöden
 
 Nyhetsflöden från SVT, SR Ekot, Omni för realtidsnyheter.
 
@@ -226,7 +257,7 @@ Alla 31 API:er i `config/open_data_apis.json`:
 | 12 | `socialstyrelsen` | Socialstyrelsen | vård, vårdkö, vaccination | 📌 Informativ |
 | 13 | `lantmateriet` | Lantmäteriet | fastighet, karta, geodata | ⚙️ Kräver API-nyckel |
 | 14 | `folkhalsomyndigheten` | Folkhälsomyndigheten | folkhälsa, epidemi, smitta | 📌 Informativ |
-| 15 | `trafikverket_vag` | Trafikverket Väg & Järnväg | vägarbete, järnväg | ⚙️ Kräver API-nyckel |
+| 15 | `trafikverket_vag` | Trafikverket Väg & Järnväg | vägarbete, järnväg | ⚙️ Kräver API-nyckel → ✅ AKTIV med nyckel |
 | 16 | `energimarknadsinspektionen` | EI | nätavgift, elnät | 📌 Informativ |
 | 17 | `vinnova` | Vinnova | innovation, forskningsbidrag | 📌 Informativ |
 | 18 | `formas` | Formas | hållbarhetsforskning, miljöforskning | 📌 Informativ |
@@ -249,7 +280,7 @@ Alla 31 API:er i `config/open_data_apis.json`:
 | Symbol | Status | Beskrivning |
 |--------|--------|-------------|
 | ✅ AKTIV | Fullständig | Riktiga API-anrop med dynamisk data |
-| ⚙️ Kräver nyckel | Begränsad | Fungerande API men kräver API-nyckel |
+| ⚙️ Kräver nyckel | Begränsad | Fungerande API men kräver API-nyckel i `config/api_keys.json` |
 | 📌 Informativ | Länk-baserad | Ger direktlänk till källan med relevant info |
 
 ### 📌 INFORMATIVA API:er (Dynamiska länkar till källan)
@@ -260,7 +291,7 @@ Dessa API:er returnerar informativ text med korrekta källlänkar. De gör inte 
 |----------|-------|----------|----------------------------|
 | `saol` | SAOL | `fetch_saol_data()` | Genererar sök-länk till svenska.se med användarens ord |
 | `visitsweden` | Visit Sweden | – | Turistinformation med länk till visitsweden.com |
-| `trafikverket_info` | Trafikverket | `fetch_trafikverket_data()` | Kräver API-nyckel för riktigt anrop |
+| `trafikverket_info` | Trafikverket | `fetch_trafikverket_data()` | ✅ **AKTIV med API-nyckel** – hämtar störningar, olyckor, vägarbeten |
 | `lantmateriet` | Lantmäteriet | `fetch_lantmateriet_data()` | Kräver API-nyckel |
 | `hemnet` | Hemnet | `fetch_hemnet_data()` | Ingen publik API tillgänglig |
 | `nordpool` | Nord Pool | `fetch_nordpool_elpris()` | Kräver API-nyckel |
