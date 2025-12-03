@@ -255,31 +255,43 @@ GLOBAL_CACHE_ENABLED = True
 
 def log_delta_plus_status():
     """
-    ONESEEK Δ+ DEBUG: Log status of all Δ+ modules at startup.
-    Shows which modules are available and ready.
+    ONESEEK Δ+ v4.0 DEBUG: Log status of all Δ+ modules at startup.
+    Shows which modules are available and their enabled/disabled state.
     """
     print("\n" + "=" * 70)
-    print("🔷 ONESEEK Δ+ MODULE STATUS")
+    print("🔷 ONESEEK Δ+ v4.0 MODULE STATUS")
     print("=" * 70)
     
+    # Get enabled states from configuration
+    intent_enabled = is_intent_engine_enabled()
+    typo_enabled = is_typo_checker_enabled()
+    time_enabled = is_time_context_enabled()
+    
     modules = [
-        ("Intent Engine", INTENT_ENGINE_AVAILABLE, "Semantic intent + entity detection"),
-        ("Memory Manager", MEMORY_MANAGER_AVAILABLE, "Topic-grouped conversation history"),
-        ("Typo Checker", TYPO_CHECKER_AVAILABLE, "LanguageTool Self-Hosted + fallback"),
-        ("LanguageTool", LANGUAGETOOL_AVAILABLE, "Context-aware spell check (localhost:8010)"),
-        ("Stavfel Dataset", STAVFEL_DATASET_AVAILABLE, "Typo pairs for self-learning"),
-        ("Confidence Calculator", CONFIDENCE_CALC_AVAILABLE, "Förtroende v2 with source weights"),
-        ("Delta Compare", DELTA_COMPARE_AVAILABLE, "Semantic Δ-comparison + blockchain hash"),
-        ("Cache Manager", CACHE_MANAGER_AVAILABLE, "7-day TTL hash-based cache"),
-        ("Svenska Promptar", SWEDISH_PROMPTS_AVAILABLE, "100% svenska – inga engelska läckage"),
-        ("Message Builder", MESSAGE_BUILDER_AVAILABLE, "Real-time prompt structure testing"),
+        ("Intent Engine", INTENT_ENGINE_AVAILABLE, intent_enabled, "Semantic intent + entity detection"),
+        ("Typo Checker", TYPO_CHECKER_AVAILABLE, typo_enabled, "LanguageTool Self-Hosted + fallback"),
+        ("Time Context", True, time_enabled, "Always-aware date/time injection"),
+        ("Memory Manager", MEMORY_MANAGER_AVAILABLE, True, "Topic-grouped conversation history"),
+        ("LanguageTool", LANGUAGETOOL_AVAILABLE, typo_enabled, "Context-aware spell check (localhost:8010)"),
+        ("Stavfel Dataset", STAVFEL_DATASET_AVAILABLE, True, "Typo pairs for self-learning"),
+        ("Confidence Calculator", CONFIDENCE_CALC_AVAILABLE, True, "Förtroende v2 with source weights"),
+        ("Delta Compare", DELTA_COMPARE_AVAILABLE, True, "Semantic Δ-comparison + blockchain hash"),
+        ("Cache Manager", CACHE_MANAGER_AVAILABLE, True, "7-day TTL hash-based cache"),
+        ("Svenska Promptar", SWEDISH_PROMPTS_AVAILABLE, True, "100% svenska – inga engelska läckage"),
+        ("Message Builder", MESSAGE_BUILDER_AVAILABLE, True, "Real-time prompt structure testing"),
     ]
     
-    for name, available, description in modules:
-        status = "✅ READY" if available else "❌ NOT LOADED"
+    for name, available, enabled, description in modules:
+        if not available:
+            status = "❌ NOT LOADED"
+        elif not enabled:
+            status = "⏸️  DISABLED  "
+        else:
+            status = "✅ ACTIVE    "
         print(f"  {status}  {name:<22} - {description}")
     
     print("-" * 70)
+    print("  ⚡ v4.0 MODE: Modellen väljer kategori och API själv (Intent Engine av)")
     print("  📝 Tavily Swedish Mode: language='sv' (100% svenska svar)")
     print("  🧠 Memory Context: 8 messages per topic")
     print("  🔗 Blockchain Hash: SHA256 per response")
@@ -989,6 +1001,174 @@ def fetch_open_data(api: dict, query: str) -> Optional[str]:
 
 # =============================================================================
 # END OPEN DATA APIs CONFIGURATION
+# =============================================================================
+
+
+# =============================================================================
+# ONESEEK Δ+ v4.0 - API CATALOG & ACTIVE FEATURES CONFIGURATION
+# =============================================================================
+# Central configuration for ONESEEK Δ+ v4.0 self-steering AI.
+# Intent Engine and Typo Checker are DISABLED by default (on path to removal).
+# Time Context is ALWAYS active.
+
+API_CATALOG_FILE = Path(__file__).parent.parent / "config" / "api_catalog.json"
+
+# Default active features (Intent Engine and Typo Checker disabled)
+DEFAULT_ACTIVE_FEATURES = {
+    "intent_engine": False,
+    "typo_checker": False,
+    "time_context": True
+}
+
+# Global state for active features (loaded from config at startup)
+ACTIVE_FEATURES = DEFAULT_ACTIVE_FEATURES.copy()
+API_CATALOG = {}
+API_CATALOG_SYSTEM_PROMPT = None
+
+
+def load_api_catalog() -> dict:
+    """
+    Load API catalog and active features from config/api_catalog.json.
+    
+    ONESEEK Δ+ v4.0: This is the new central configuration that:
+    - Disables Intent Engine by default
+    - Disables Typo Checker by default
+    - Keeps Time Context always active
+    - Provides 31+ categorized Swedish APIs for model-driven selection
+    
+    Returns:
+        Dict with api_catalog, active_features, and system_prompt
+    """
+    global ACTIVE_FEATURES, API_CATALOG, API_CATALOG_SYSTEM_PROMPT
+    
+    if API_CATALOG_FILE.exists():
+        try:
+            with open(API_CATALOG_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # Load active features (controls Intent Engine, Typo Checker, Time Context)
+            active_features = data.get("active_features", DEFAULT_ACTIVE_FEATURES)
+            ACTIVE_FEATURES = {
+                "intent_engine": active_features.get("intent_engine", False),
+                "typo_checker": active_features.get("typo_checker", False),
+                "time_context": active_features.get("time_context", True)
+            }
+            
+            # Load API catalog
+            API_CATALOG = data.get("api_catalog", {})
+            
+            # Load system prompt if present
+            API_CATALOG_SYSTEM_PROMPT = data.get("system_prompt")
+            
+            # Log configuration
+            print("\n" + "=" * 70)
+            print("🔷 ONESEEK Δ+ v4.0 CONFIGURATION")
+            print("=" * 70)
+            print(f"  📁 Config loaded from: {API_CATALOG_FILE}")
+            print(f"  📊 API Categories: {len(API_CATALOG)}")
+            print(f"  🎯 Intent Engine: {'✅ ENABLED' if ACTIVE_FEATURES['intent_engine'] else '❌ DISABLED (default)'}")
+            print(f"  ✏️  Typo Checker:  {'✅ ENABLED' if ACTIVE_FEATURES['typo_checker'] else '❌ DISABLED (default)'}")
+            print(f"  🕐 Time Context:  {'✅ ALWAYS ACTIVE' if ACTIVE_FEATURES['time_context'] else '❌ DISABLED'}")
+            
+            if not ACTIVE_FEATURES['intent_engine'] and not ACTIVE_FEATURES['typo_checker']:
+                print("  ⚡ MODE: Modellen väljer kategori och API själv (v4.0)")
+            
+            print("=" * 70 + "\n")
+            
+            return {
+                "active_features": ACTIVE_FEATURES,
+                "api_catalog": API_CATALOG,
+                "system_prompt": API_CATALOG_SYSTEM_PROMPT,
+                "categories": list(API_CATALOG.keys())
+            }
+            
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"[ONESEEK Δ+] Warning: Could not load api_catalog.json: {e}")
+    else:
+        print(f"[ONESEEK Δ+] Warning: api_catalog.json not found at {API_CATALOG_FILE}")
+    
+    # Return defaults if file not found or error
+    return {
+        "active_features": DEFAULT_ACTIVE_FEATURES,
+        "api_catalog": {},
+        "system_prompt": None,
+        "categories": []
+    }
+
+
+def is_intent_engine_enabled() -> bool:
+    """
+    Check if Intent Engine is enabled in configuration.
+    
+    ONESEEK Δ+ v4.0: Intent Engine is DISABLED by default.
+    The model now chooses the category itself from api_catalog.json.
+    """
+    return ACTIVE_FEATURES.get("intent_engine", False)
+
+
+def is_typo_checker_enabled() -> bool:
+    """
+    Check if Typo Checker is enabled in configuration.
+    
+    ONESEEK Δ+ v4.0: Typo Checker is DISABLED by default.
+    The model now understands typos itself.
+    """
+    return ACTIVE_FEATURES.get("typo_checker", False)
+
+
+def is_time_context_enabled() -> bool:
+    """
+    Check if Time Context is enabled in configuration.
+    
+    ONESEEK Δ+ v4.0: Time Context is ALWAYS enabled.
+    This is the only feature that remains active by default.
+    """
+    return ACTIVE_FEATURES.get("time_context", True)
+
+
+def get_api_catalog_categories() -> list:
+    """
+    Get list of all API categories from catalog.
+    
+    Returns:
+        List of category names (e.g., ["befolkning", "väder", "nyheter", ...])
+    """
+    return list(API_CATALOG.keys())
+
+
+def get_category_apis(category: str) -> list:
+    """
+    Get all APIs for a specific category.
+    
+    Args:
+        category: Category name (e.g., "befolkning", "väder")
+        
+    Returns:
+        List of API configs for the category
+    """
+    cat_config = API_CATALOG.get(category, {})
+    return cat_config.get("apis", [])
+
+
+def get_category_config(category: str) -> dict:
+    """
+    Get full configuration for a category including entity requirements.
+    
+    Args:
+        category: Category name
+        
+    Returns:
+        Category config dict with apis, entity_required, keywords, etc.
+    """
+    return API_CATALOG.get(category, {})
+
+
+# Load API catalog at startup
+_api_catalog_config = load_api_catalog()
+
+
+# =============================================================================
+# END ONESEEK Δ+ v4.0 CONFIGURATION
 # =============================================================================
 
 
@@ -4810,17 +4990,136 @@ async def get_cached_weather(city: str):
 # ONESEEK Δ+ Status API
 @app.get("/api/ml/delta-plus/status")
 async def delta_plus_status():
-    """Get ONESEEK Δ+ module status."""
+    """
+    Get ONESEEK Δ+ v4.0 module status.
+    
+    Returns:
+        - Module availability (intent_engine, typo_checker, etc.)
+        - Active features configuration (which features are enabled)
+        - API catalog categories
+    """
     return {
-        "intent_engine": INTENT_ENGINE_AVAILABLE,
-        "typo_checker": TYPO_CHECKER_AVAILABLE,
-        "stavfel_dataset": STAVFEL_DATASET_AVAILABLE,
-        "confidence_calculator": CONFIDENCE_CALC_AVAILABLE,
-        "delta_compare": DELTA_COMPARE_AVAILABLE,
-        "cache_manager": CACHE_MANAGER_AVAILABLE,
-        "memory_manager": MEMORY_MANAGER_AVAILABLE,
-        "version": "Δ+",
-        "tavily_swedish": True
+        "version": "Δ+ v4.0",
+        "modules": {
+            "intent_engine": INTENT_ENGINE_AVAILABLE,
+            "typo_checker": TYPO_CHECKER_AVAILABLE,
+            "stavfel_dataset": STAVFEL_DATASET_AVAILABLE,
+            "confidence_calculator": CONFIDENCE_CALC_AVAILABLE,
+            "delta_compare": DELTA_COMPARE_AVAILABLE,
+            "cache_manager": CACHE_MANAGER_AVAILABLE,
+            "memory_manager": MEMORY_MANAGER_AVAILABLE,
+        },
+        "active_features": ACTIVE_FEATURES,
+        "api_catalog_categories": get_api_catalog_categories(),
+        "api_catalog_count": len(API_CATALOG),
+        "tavily_swedish": True,
+        "mode": "self-steering" if not ACTIVE_FEATURES.get("intent_engine", False) else "intent-based"
+    }
+
+
+@app.get("/api/ml/delta-plus/active-features")
+async def get_active_features():
+    """
+    Get current active features configuration.
+    
+    ONESEEK Δ+ v4.0:
+    - intent_engine: False by default (model chooses category itself)
+    - typo_checker: False by default (model understands typos itself)
+    - time_context: True always (required for context)
+    """
+    return {
+        "active_features": ACTIVE_FEATURES,
+        "config_file": str(API_CATALOG_FILE),
+        "defaults": DEFAULT_ACTIVE_FEATURES,
+        "description": {
+            "intent_engine": "Semantic intent + entity detection (DISABLED by default in v4.0)",
+            "typo_checker": "LanguageTool spell checking (DISABLED by default in v4.0)",
+            "time_context": "Date/time injection (ALWAYS ACTIVE)"
+        }
+    }
+
+
+@app.post("/api/ml/delta-plus/active-features")
+async def update_active_features(request: Request):
+    """
+    Update active features configuration.
+    
+    Use this endpoint to enable/disable Intent Engine or Typo Checker.
+    Note: time_context is always active and cannot be disabled.
+    
+    Request body:
+        - intent_engine: bool
+        - typo_checker: bool
+    """
+    global ACTIVE_FEATURES
+    
+    try:
+        data = await request.json()
+        
+        # Update Intent Engine (can be enabled/disabled)
+        if "intent_engine" in data:
+            ACTIVE_FEATURES["intent_engine"] = bool(data["intent_engine"])
+        
+        # Update Typo Checker (can be enabled/disabled)
+        if "typo_checker" in data:
+            ACTIVE_FEATURES["typo_checker"] = bool(data["typo_checker"])
+        
+        # Time Context cannot be disabled (always True)
+        ACTIVE_FEATURES["time_context"] = True
+        
+        return {
+            "success": True,
+            "active_features": ACTIVE_FEATURES,
+            "message": "Active features updated. Restart may be required for full effect."
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": str(e)}
+        )
+
+
+@app.get("/api/ml/delta-plus/api-catalog")
+async def get_api_catalog():
+    """
+    Get the full API catalog with all categories and APIs.
+    
+    ONESEEK Δ+ v4.0:
+    - 31+ Swedish real-time API categories
+    - Each category has multiple APIs for parallel fetching
+    - Model selects the best source after comparing results
+    """
+    return {
+        "version": API_CATALOG.get("metadata", {}).get("version", "4.0.0") if isinstance(API_CATALOG, dict) and "metadata" in API_CATALOG else "4.0.0",
+        "categories": get_api_catalog_categories(),
+        "category_count": len(API_CATALOG),
+        "catalog": API_CATALOG,
+        "config_file": str(API_CATALOG_FILE)
+    }
+
+
+@app.get("/api/ml/delta-plus/api-catalog/{category}")
+async def get_category_info(category: str):
+    """
+    Get detailed information about a specific API category.
+    
+    Args:
+        category: Category name (e.g., "befolkning", "väder")
+        
+    Returns:
+        Category configuration including APIs, entity requirements, keywords
+    """
+    cat_config = get_category_config(category)
+    if not cat_config:
+        raise HTTPException(status_code=404, detail=f"Category '{category}' not found")
+    
+    return {
+        "category": category,
+        "config": cat_config,
+        "apis": cat_config.get("apis", []),
+        "api_count": len(cat_config.get("apis", [])),
+        "entity_required": cat_config.get("entity_required", False),
+        "keywords": cat_config.get("keywords", [])
     }
 
 
@@ -5556,7 +5855,8 @@ async def infer(request: Request, inference_request: InferenceRequest):
     """
     start_time = time.time()
     
-    # === ONESEEK Δ+: TYPO CHECKING (LanguageTool Self-Hosted) ===
+    # === ONESEEK Δ+ v4.0: TYPO CHECKING (LanguageTool Self-Hosted) ===
+    # DISABLED by default in v4.0 - the model understands typos itself
     typo_corrected = False
     typo_suggestions = []
     original_text = inference_request.text
@@ -5565,7 +5865,8 @@ async def infer(request: Request, inference_request: InferenceRequest):
     # Skip typo check if explicitly requested (e.g., when sending corrected text)
     skip_typo = inference_request.skip_typo_check
     
-    if TYPO_CHECKER_AVAILABLE and check_spelling and not skip_typo:
+    # ONESEEK Δ+ v4.0: Check if typo checker is enabled in configuration
+    if TYPO_CHECKER_AVAILABLE and check_spelling and not skip_typo and is_typo_checker_enabled():
         try:
             typo_result = check_spelling(inference_request.text, auto_correct=True)
             if not typo_result.get("is_correct", True):
@@ -5713,12 +6014,13 @@ Svara NU.
             logger.info(f"✓ {len(news)} nyheter hämtade")
     
     # === 4. Check for Open Data API triggers ===
-    # ONESEEK Δ+: First try keyword triggers, then fall back to Intent Engine
+    # ONESEEK Δ+ v4.0: First try keyword triggers, then fall back to Intent Engine (if enabled)
     open_data_context = None
     triggered_api = check_open_data_trigger(inference_request.text)
     
-    # If no keyword match, use Intent Engine to detect API
-    if not triggered_api and INTENT_ENGINE_AVAILABLE:
+    # ONESEEK Δ+ v4.0: Only use Intent Engine if enabled in configuration
+    # By default, Intent Engine is DISABLED - the model chooses category itself
+    if not triggered_api and INTENT_ENGINE_AVAILABLE and is_intent_engine_enabled():
         try:
             intent_api_data = get_intent_based_api(inference_request.text)
             if intent_api_data and intent_api_data.get("api"):
@@ -5760,11 +6062,15 @@ Svara NU.
             tavily_sources = format_tavily_sources(search_result)
             logger.info("✓ Tavily-svar mottaget")
     
-    # === 6. ONESEEK Δ+: Get conversation memory/context ===
+    # === 6. ONESEEK Δ+ v4.0: Get conversation memory/context ===
+    # Note: Memory Manager still works, but Intent Engine for topic detection is controlled by config
     memory_context = None
     topic_hash = None
     intent_data = None
-    if MEMORY_MANAGER_AVAILABLE and INTENT_ENGINE_AVAILABLE:
+    previous_messages = []
+    
+    # Only use Intent Engine for topic detection if enabled
+    if MEMORY_MANAGER_AVAILABLE and INTENT_ENGINE_AVAILABLE and is_intent_engine_enabled():
         try:
             # Detect intent and entity from user's question
             intent_data = detect_intent_and_city(inference_request.text) if detect_intent_and_city else None
@@ -6084,7 +6390,8 @@ async def oneseek_inference(request: InferenceRequest):
     elif not GLOBAL_CACHE_ENABLED:
         logger.debug("💾 [CACHE] Disabled - skipping cache check")
     
-    # === ONESEEK Δ+: TYPO CHECKING ===
+    # === ONESEEK Δ+ v4.0: TYPO CHECKING ===
+    # DISABLED by default in v4.0 - the model understands typos itself
     typo_corrected = False
     typo_suggestions = []
     original_text = request.text
@@ -6093,7 +6400,8 @@ async def oneseek_inference(request: InferenceRequest):
     # Skip typo check if explicitly requested (e.g., when sending corrected text)
     skip_typo = request.skip_typo_check
     
-    if TYPO_CHECKER_AVAILABLE and check_spelling and not skip_typo:
+    # ONESEEK Δ+ v4.0: Check if typo checker is enabled in configuration
+    if TYPO_CHECKER_AVAILABLE and check_spelling and not skip_typo and is_typo_checker_enabled():
         try:
             typo_result = check_spelling(request.text, auto_correct=True)
             if not typo_result.get("is_correct", True):
@@ -6256,13 +6564,14 @@ Svara NU.
             logger.info(f"✓ {len(news)} nyheter hämtade")
     
     # === 4. Check for Open Data API triggers ===
-    # ONESEEK Δ+: First try keyword triggers, then fall back to Intent Engine
+    # ONESEEK Δ+ v4.0: First try keyword triggers, then fall back to Intent Engine (if enabled)
     open_data_context = None
     open_data_sources = ""
     triggered_api = check_open_data_trigger(request.text)
     
-    # If no keyword match, use Intent Engine to detect API
-    if not triggered_api and INTENT_ENGINE_AVAILABLE:
+    # ONESEEK Δ+ v4.0: Only use Intent Engine if enabled in configuration
+    # By default, Intent Engine is DISABLED - the model chooses category itself
+    if not triggered_api and INTENT_ENGINE_AVAILABLE and is_intent_engine_enabled():
         try:
             intent_api_data = get_intent_based_api(request.text)
             if intent_api_data and intent_api_data.get("api"):
@@ -6312,12 +6621,15 @@ Svara NU.
             tavily_sources = format_tavily_sources(search_result)
             logger.info("✓ Tavily-svar mottaget")
     
-    # === 6. ONESEEK Δ+: Get conversation memory/context ===
+    # === 6. ONESEEK Δ+ v4.0: Get conversation memory/context ===
+    # Note: Memory Manager still works, but Intent Engine for topic detection is controlled by config
     memory_context = None
     topic_hash = None
     intent_data = None
     previous_messages = []
-    if MEMORY_MANAGER_AVAILABLE and INTENT_ENGINE_AVAILABLE:
+    
+    # Only use Intent Engine for topic detection if enabled
+    if MEMORY_MANAGER_AVAILABLE and INTENT_ENGINE_AVAILABLE and is_intent_engine_enabled():
         try:
             # Detect intent and entity from user's question
             intent_data = detect_intent_and_city(request.text) if detect_intent_and_city else None
