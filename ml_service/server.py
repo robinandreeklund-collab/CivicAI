@@ -5531,6 +5531,7 @@ async def test_message_structure(request: MessageBuilderRequest):
     intent_info = None
     sources_used = []
     data_context = {}
+    api_fetch_log = []  # Track all API fetches with timestamps
     
     # === DEBUG: Print message builder request to terminal ===
     # Check if Intent Engine is globally enabled vs locally overridden
@@ -5582,30 +5583,52 @@ async def test_message_structure(request: MessageBuilderRequest):
                     
                     # 2. Check for Tavily search trigger
                     if check_tavily_trigger(request.user_message):
+                        fetch_start = datetime.now()
                         print("  📡 FETCHING: Tavily Search...")
                         sources_used.append("tavily")
                         search_result = tavily_search(request.user_message)
+                        fetch_end = datetime.now()
+                        fetch_duration = (fetch_end - fetch_start).total_seconds() * 1000
                         if search_result and search_result.get("answer"):
-                            print(f"    ✓ Tavily: {len(search_result.get('answer', ''))} chars received")
+                            print(f"    ✓ Tavily: {len(search_result.get('answer', ''))} chars received ({fetch_duration:.0f}ms)")
                             data_context["tavily"] = {
                                 "answer": search_result.get("answer"),
                                 "sources": search_result.get("results", [])[:3]  # Top 3 sources
                             }
+                            api_fetch_log.append({
+                                "api": "tavily",
+                                "source": "Tavily",
+                                "timestamp": fetch_start.isoformat(),
+                                "duration_ms": round(fetch_duration),
+                                "status": "success",
+                                "entity": request.user_message[:50]
+                            })
                     
                     # 3. Check for weather intent - REAL DATA (fallback to Stockholm if no city)
                     if intent_data.get("intent") == "väder":
+                        fetch_start = datetime.now()
                         print(f"  📡 FETCHING: SMHI Weather...")
                         sources_used.append("smhi")
                         city = intent_data.get("entity") or "Stockholm"  # Fallback to Stockholm
                         print(f"    → City: {city}")
                         weather_data = get_weather(city)  # Use correct function
+                        fetch_end = datetime.now()
+                        fetch_duration = (fetch_end - fetch_start).total_seconds() * 1000
                         if weather_data:
-                            print(f"    ✓ SMHI: Weather data received for {city}")
+                            print(f"    ✓ SMHI: Weather data received for {city} ({fetch_duration:.0f}ms)")
                             data_context["weather"] = {
                                 "source": "SMHI",
                                 "location": city,
                                 "data": weather_data
                             }
+                            api_fetch_log.append({
+                                "api": "smhi",
+                                "source": "SMHI",
+                                "timestamp": fetch_start.isoformat(),
+                                "duration_ms": round(fetch_duration),
+                                "status": "success",
+                                "entity": city
+                            })
                         else:
                             print(f"    ✗ SMHI: No data for {city}")
                             data_context["weather"] = {
@@ -5613,21 +5636,40 @@ async def test_message_structure(request: MessageBuilderRequest):
                                 "location": city,
                                 "error": "Kunde inte hämta väderdata"
                             }
+                            api_fetch_log.append({
+                                "api": "smhi",
+                                "source": "SMHI",
+                                "timestamp": fetch_start.isoformat(),
+                                "duration_ms": round(fetch_duration),
+                                "status": "error",
+                                "entity": city
+                            })
                     
                     # 4. Check for population/statistics intent - REAL DATA
                     if intent_data.get("intent") == "befolkning":
+                        fetch_start = datetime.now()
                         print(f"  📡 FETCHING: SCB Population...")
                         sources_used.append("scb")
                         city = intent_data.get("entity") or "Sverige"  # Fallback to Sweden
                         print(f"    → Location: {city}")
                         population_data = fetch_scb_data(f"befolkning {city}")  # Use correct function
+                        fetch_end = datetime.now()
+                        fetch_duration = (fetch_end - fetch_start).total_seconds() * 1000
                         if population_data:
-                            print(f"    ✓ SCB: Population data received for {city}")
+                            print(f"    ✓ SCB: Population data received for {city} ({fetch_duration:.0f}ms)")
                             data_context["statistics"] = {
                                 "source": "SCB",
                                 "location": city,
                                 "data": population_data
                             }
+                            api_fetch_log.append({
+                                "api": "scb",
+                                "source": "SCB",
+                                "timestamp": fetch_start.isoformat(),
+                                "duration_ms": round(fetch_duration),
+                                "status": "success",
+                                "entity": city
+                            })
                         else:
                             print(f"    ✗ SCB: No data for {city}")
                             data_context["statistics"] = {
@@ -5635,18 +5677,37 @@ async def test_message_structure(request: MessageBuilderRequest):
                                 "location": city,
                                 "error": "Kunde inte hämta befolkningsdata"
                             }
+                            api_fetch_log.append({
+                                "api": "scb",
+                                "source": "SCB",
+                                "timestamp": fetch_start.isoformat(),
+                                "duration_ms": round(fetch_duration),
+                                "status": "error",
+                                "entity": city
+                            })
                     
                     # 5. Check for crisis info
                     if intent_data.get("intent") in ["kris", "varning", "nödsituation"]:
+                        fetch_start = datetime.now()
                         print(f"  📡 FETCHING: Krisinformation...")
                         sources_used.append("krisinformation")
                         crisis_data = fetch_krisinformation()
+                        fetch_end = datetime.now()
+                        fetch_duration = (fetch_end - fetch_start).total_seconds() * 1000
                         if crisis_data:
-                            print(f"    ✓ Krisinformation: Data received")
+                            print(f"    ✓ Krisinformation: Data received ({fetch_duration:.0f}ms)")
                             data_context["crisis"] = {
                                 "source": "Krisinformation.se",
                                 "data": crisis_data
                             }
+                            api_fetch_log.append({
+                                "api": "krisinformation",
+                                "source": "Krisinformation.se",
+                                "timestamp": fetch_start.isoformat(),
+                                "duration_ms": round(fetch_duration),
+                                "status": "success",
+                                "entity": "Sverige"
+                            })
                     
                     logging.info(f"[MESSAGE-BUILDER] Intent: {intent_info.get('intent')}, Entity: {intent_info.get('entity')}, Sources: {sources_used}")
                     
@@ -5856,8 +5917,12 @@ async def test_message_structure(request: MessageBuilderRequest):
             "api_catalog_info": {
                 "active_features": ACTIVE_FEATURES,
                 "categories_available": len(API_CATALOG),
-                "mode": "self-steering" if not ACTIVE_FEATURES.get("intent_engine", False) else "intent-based"
-            }
+                "mode": "self-steering" if not ACTIVE_FEATURES.get("intent_engine", False) else "intent-based",
+                "global_intent_enabled": global_intent_enabled,
+                "local_override": local_override
+            },
+            # API fetch log with timestamps
+            "api_fetch_log": api_fetch_log
         }
         
         # === DEBUG: Final summary to terminal ===
@@ -5866,6 +5931,9 @@ async def test_message_structure(request: MessageBuilderRequest):
         print(f"    Sources: {sources_used or ['none (model knowledge only)']}")
         print(f"    Intent: {intent_info.get('intent', 'unknown') if intent_info else 'none'}")
         print(f"    Data fetched: {list(data_context.keys()) or ['none']}")
+        print(f"    API calls: {len(api_fetch_log)}")
+        for log_entry in api_fetch_log:
+            print(f"      - {log_entry['source']}: {log_entry['status']} ({log_entry['duration_ms']}ms)")
         print(f"    Response: {len(response_text)} chars, {token_count} tokens")
         print(f"    Latency: {latency_ms:.0f}ms")
         print("=" * 70 + "\n")

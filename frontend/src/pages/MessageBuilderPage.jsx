@@ -235,7 +235,9 @@ export default function MessageBuilderPage() {
           timestamp: new Date().toISOString(),
           structure: name,
           time_context: data.time_context || '',
-          season_context: data.season_context || ''
+          season_context: data.season_context || '',
+          api_fetch_log: data.api_fetch_log || [],
+          mode: data.api_catalog_info?.mode || 'unknown'
         };
         
         setTopicHistory(prev => [...prev, historyEntry]);
@@ -325,19 +327,37 @@ flow: []
 flow:
 `;
       topicHistory.forEach((entry, i) => {
+        const isIntentMode = entry.mode === 'intent-based' || useIntentEngine;
+        const modeLabel = isIntentMode ? 'Intent-Based' : 'Self-Steering (v4.0)';
+        
         yaml += `
   - step: ${i + 1}
     timestamp: "${entry.timestamp}"
     structure: "${entry.structure}"
+    mode: "${modeLabel}"
     
     question: |
       ${entry.question}
     
-    # Intent Engine Analysis
+${isIntentMode ? `    # Intent Engine Analysis
     intent:
       detected: "${entry.intent || 'unknown'}"
       entity: "${entry.entity || ''}"
       sources_used: [${(entry.sources || []).map(s => `"${s}"`).join(', ')}]
+` : `    # Self-Steering Mode (v4.0)
+    # Model chooses category and API automatically
+    data_sources: [${(entry.sources || []).map(s => `"${s}"`).join(', ') || '"none"'}]
+`}
+    # API Fetch Log
+    api_calls:
+${(entry.api_fetch_log || []).length > 0 
+  ? entry.api_fetch_log.map(log => `      - api: "${log.api}"
+        source: "${log.source}"
+        timestamp: "${log.timestamp}"
+        duration_ms: ${log.duration_ms}
+        status: "${log.status}"
+        entity: "${log.entity || ''}"`).join('\n')
+  : '      - none'}
     
     response: |
       ${(entry.response || '').split('\n').join('\n      ')}
@@ -347,6 +367,11 @@ flow:
       response_time: ${entry.responseTime}ms
 `;
       });
+
+      // Collect all API calls for summary
+      const allApiCalls = topicHistory.flatMap(h => h.api_fetch_log || []);
+      const successfulCalls = allApiCalls.filter(c => c.status === 'success').length;
+      const failedCalls = allApiCalls.filter(c => c.status === 'error').length;
 
       // Add summary with intent/source info
       yaml += `
@@ -367,11 +392,20 @@ summary:
   structures_used:
 ${[...new Set(topicHistory.map(h => h.structure))].map(s => `    - "${s}"`).join('\n')}
 
-# Intent Engine Summary
-intent_analysis:
-  engine_active: ${useIntentEngine}
+# API Fetch Summary
+api_summary:
+  total_calls: ${allApiCalls.length}
+  successful: ${successfulCalls}
+  failed: ${failedCalls}
+  apis_used:
+${[...new Set(allApiCalls.map(c => c.source))].map(s => `    - "${s}"`).join('\n') || '    - "none"'}
+
+# Mode Summary
+mode_analysis:
+  global_intent_engine: ${globalIntentEnabled}
+  session_mode: "${useIntentEngine ? 'Intent-Based' : 'Self-Steering (v4.0)'}"
   intents_detected:
-${allIntents.length > 0 ? allIntents.map(i => `    - "${i}"`).join('\n') : '    - "none"'}
+${allIntents.length > 0 && useIntentEngine ? allIntents.map(i => `    - "${i}"`).join('\n') : '    - "N/A (Self-Steering mode)"'}
   data_sources_used:
 ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    - "none (model knowledge only)"'}
 `;
@@ -899,6 +933,37 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
                             </div>
                           </div>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* API Fetch Log - Shows all API calls with timestamps */}
+                {result.api_fetch_log && result.api_fetch_log.length > 0 && (
+                  <div>
+                    <label className="text-[10px] font-mono text-[#666] mb-2 block">📡 API FETCH LOG</label>
+                    <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded p-4">
+                      <div className="space-y-2">
+                        {result.api_fetch_log.map((log, i) => (
+                          <div key={i} className="flex items-center justify-between p-2 bg-[#141414] rounded border border-[#1a1a1a]">
+                            <div className="flex items-center gap-3">
+                              <span className={`text-sm font-mono ${log.status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                                {log.status === 'success' ? '✓' : '✗'}
+                              </span>
+                              <div>
+                                <div className="text-xs font-mono text-[#e7e7e7]">{log.source}</div>
+                                <div className="text-[10px] text-[#555]">{log.entity}</div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs font-mono text-[#888]">{log.duration_ms}ms</div>
+                              <div className="text-[10px] text-[#555]">{new Date(log.timestamp).toLocaleTimeString()}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-[#1a1a1a] text-[10px] font-mono text-[#555]">
+                        {result.api_fetch_log.filter(l => l.status === 'success').length} success / {result.api_fetch_log.filter(l => l.status === 'error').length} error
                       </div>
                     </div>
                   </div>
