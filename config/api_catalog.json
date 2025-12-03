@@ -291,6 +291,26 @@
       "keywords": ["bygglov", "energideklaration", "boverket", "byggregler"]
     },
     
+    "bostad": {
+      "description": "Bostäder, bostadspriser och hyresstatistik",
+      "apis": [
+        {"name": "hemnet", "source": "Hemnet", "frequency": "dagligen", "url": "https://www.hemnet.se"},
+        {"name": "scb_bostad", "source": "SCB", "frequency": "kvartalsvis", "url": "https://api.scb.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["bostadspris", "bostadspriser", "hyra", "bostad", "lägenheter", "villor", "hus till salu", "hemnet"]
+    },
+    
+    "kultur": {
+      "description": "Kulturinstitutioner, museer och bibliotek",
+      "apis": [
+        {"name": "riksarkivet", "source": "Riksarkivet", "frequency": "dagligen", "url": "https://www.riksarkivet.se"},
+        {"name": "kungliga_biblioteket", "source": "KB", "frequency": "dagligen", "url": "https://www.kb.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["museum", "bibliotek", "arkiv", "kultur", "riksarkivet", "kungliga biblioteket", "historia"]
+    },
+    
     "sökning": {
       "description": "Webbsökning för aktuell information",
       "apis": [

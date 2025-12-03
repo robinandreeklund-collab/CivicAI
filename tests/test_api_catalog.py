@@ -1,0 +1,199 @@
+"""
+Tests for ONESEEK Δ+ v4.0 API Catalog and Active Features Configuration.
+
+This module tests:
+- API catalog loading from config/api_catalog.json
+- Active features configuration (intent_engine, typo_checker, time_context)
+- Helper functions for checking feature states
+"""
+
+import json
+import os
+import pytest
+from pathlib import Path
+
+
+class TestApiCatalogConfigFile:
+    """Tests for api_catalog.json configuration file."""
+    
+    def get_config_path(self):
+        """Get path to api_catalog.json."""
+        return Path(__file__).parent.parent / "config" / "api_catalog.json"
+    
+    def test_api_catalog_file_exists(self):
+        """Test that api_catalog.json exists."""
+        config_path = self.get_config_path()
+        assert config_path.exists(), f"api_catalog.json should exist at {config_path}"
+    
+    def test_api_catalog_file_valid_json(self):
+        """Test that api_catalog.json contains valid JSON."""
+        config_path = self.get_config_path()
+        with open(config_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        assert isinstance(data, dict), "api_catalog.json should contain a JSON object"
+    
+    def test_api_catalog_has_active_features(self):
+        """Test that api_catalog.json has active_features key."""
+        config_path = self.get_config_path()
+        with open(config_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        assert "active_features" in data, "api_catalog.json should have 'active_features' key"
+        active_features = data["active_features"]
+        
+        assert "intent_engine" in active_features, "active_features should have 'intent_engine'"
+        assert "typo_checker" in active_features, "active_features should have 'typo_checker'"
+        assert "time_context" in active_features, "active_features should have 'time_context'"
+    
+    def test_intent_engine_disabled_by_default(self):
+        """Test that intent_engine is disabled by default in v4.0."""
+        config_path = self.get_config_path()
+        with open(config_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        active_features = data["active_features"]
+        assert active_features["intent_engine"] == False, \
+            "Intent Engine should be disabled (False) by default in v4.0"
+    
+    def test_typo_checker_disabled_by_default(self):
+        """Test that typo_checker is disabled by default in v4.0."""
+        config_path = self.get_config_path()
+        with open(config_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        active_features = data["active_features"]
+        assert active_features["typo_checker"] == False, \
+            "Typo Checker should be disabled (False) by default in v4.0"
+    
+    def test_time_context_enabled_by_default(self):
+        """Test that time_context is enabled by default (always active)."""
+        config_path = self.get_config_path()
+        with open(config_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        active_features = data["active_features"]
+        assert active_features["time_context"] == True, \
+            "Time Context should be enabled (True) by default - it's always active"
+    
+    def test_api_catalog_has_catalog_key(self):
+        """Test that api_catalog.json has api_catalog key."""
+        config_path = self.get_config_path()
+        with open(config_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        assert "api_catalog" in data, "api_catalog.json should have 'api_catalog' key"
+        catalog = data["api_catalog"]
+        assert isinstance(catalog, dict), "api_catalog should be a dictionary"
+    
+    def test_api_catalog_has_required_categories(self):
+        """Test that api_catalog has essential categories."""
+        config_path = self.get_config_path()
+        with open(config_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        catalog = data["api_catalog"]
+        required_categories = ["befolkning", "väder", "nyheter", "kris", "politik", "trafik"]
+        
+        for category in required_categories:
+            assert category in catalog, f"api_catalog should have '{category}' category"
+    
+    def test_api_catalog_categories_have_apis(self):
+        """Test that each category has at least one API defined."""
+        config_path = self.get_config_path()
+        with open(config_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        catalog = data["api_catalog"]
+        
+        for category_name, category_config in catalog.items():
+            assert "apis" in category_config, f"Category '{category_name}' should have 'apis' key"
+            apis = category_config["apis"]
+            assert isinstance(apis, list), f"Category '{category_name}' apis should be a list"
+            assert len(apis) > 0, f"Category '{category_name}' should have at least one API"
+    
+    def test_api_catalog_apis_have_required_fields(self):
+        """Test that each API has required fields (name, source)."""
+        config_path = self.get_config_path()
+        with open(config_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        catalog = data["api_catalog"]
+        
+        for category_name, category_config in catalog.items():
+            apis = category_config.get("apis", [])
+            for api in apis:
+                assert "name" in api, f"API in '{category_name}' should have 'name' field"
+                assert "source" in api, f"API in '{category_name}' should have 'source' field"
+    
+    def test_api_catalog_has_30_plus_categories(self):
+        """Test that api_catalog has at least 30 categories as per v4.0 spec."""
+        config_path = self.get_config_path()
+        with open(config_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        catalog = data["api_catalog"]
+        assert len(catalog) >= 30, \
+            f"api_catalog should have at least 30 categories, found {len(catalog)}"
+    
+    def test_api_catalog_has_system_prompt(self):
+        """Test that api_catalog.json has a system_prompt for the new self-steering logic."""
+        config_path = self.get_config_path()
+        with open(config_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        assert "system_prompt" in data, "api_catalog.json should have 'system_prompt' key"
+        system_prompt = data["system_prompt"]
+        
+        assert isinstance(system_prompt, str), "system_prompt should be a string"
+        assert len(system_prompt) > 100, "system_prompt should be substantial"
+        assert "svenska" in system_prompt.lower(), "system_prompt should mention Swedish"
+
+
+class TestApiCatalogCategories:
+    """Tests for specific API catalog category configurations."""
+    
+    def get_catalog(self):
+        """Load and return the API catalog."""
+        config_path = Path(__file__).parent.parent / "config" / "api_catalog.json"
+        with open(config_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data["api_catalog"]
+    
+    def test_befolkning_category(self):
+        """Test befolkning (population) category configuration."""
+        catalog = self.get_catalog()
+        befolkning = catalog.get("befolkning", {})
+        
+        assert "apis" in befolkning
+        assert any("scb" in api["name"].lower() for api in befolkning["apis"]), \
+            "befolkning should have SCB as a data source"
+        assert befolkning.get("entity_required") == True, \
+            "befolkning should require an entity (kommun)"
+    
+    def test_väder_category(self):
+        """Test väder (weather) category configuration."""
+        catalog = self.get_catalog()
+        väder = catalog.get("väder", {})
+        
+        assert "apis" in väder
+        assert any("smhi" in api["name"].lower() for api in väder["apis"]), \
+            "väder should have SMHI as a data source"
+        assert väder.get("entity_required") == True, \
+            "väder should require an entity (stad)"
+        assert "fallback_entity" in väder, \
+            "väder should have a fallback_entity"
+    
+    def test_kris_category(self):
+        """Test kris (crisis) category configuration."""
+        catalog = self.get_catalog()
+        kris = catalog.get("kris", {})
+        
+        assert "apis" in kris
+        assert any("krisinformation" in api["name"].lower() for api in kris["apis"]), \
+            "kris should have Krisinformation.se as a data source"
+        assert kris.get("priority") == 0, \
+            "kris should have highest priority (0)"
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
