@@ -316,11 +316,13 @@ Denna PR implementerar fullständig ONESEEK Δ+ funktionalitet enligt specifikat
 | Weather Cache | `cache/weather_cache.py` | ✅ Komplett |
 | Tavily Search | `ml_service/tavily_search.py` | ✅ Komplett |
 | Firebase Migration | `migration/firebase_migrate.py` | ✅ Komplett |
+| **Message Builder** | `ml_service/message_builder.py` | ✅ Komplett |
 | Admin: Intent Editor | `admin/integration/IntentEditor.jsx` | ✅ Komplett |
 | Admin: Gold Editor | `admin/integration/GoldEditor.jsx` | ✅ Komplett |
 | Admin: Stavfel Editor | `admin/integration/StavfelEditor.jsx` | ✅ Komplett |
 | Admin: Source Weights | `admin/integration/SourceWeights.jsx` | ✅ Komplett |
 | Admin: Topic History | `admin/integration/TopicHistory.jsx` | ✅ Komplett |
+| **Admin: Message Builder** | `admin/integration/MessageBuilder.jsx` | ✅ Komplett |
 | Frontend: Typo Hybrid | `frontend/chat/typo_hybrid.js` | ✅ Komplett |
 
 ## Kärnfunktioner
@@ -342,6 +344,56 @@ Denna PR implementerar fullständig ONESEEK Δ+ funktionalitet enligt specifikat
 | 13 | **Topic-gruppering + Minne** | AI:n minns konversationer och grupperar efter ämne | ✅ Live |
 | 14 | **Semantisk historik** | Samma fråga med olika formuleringar = samma tråd | ✅ Live |
 | 15 | **Firebase Migration** | Migrera gammal struktur till topic-gruppering | ✅ Live |
+| 16 | **Message Builder Debugger** | Realtids-testning av message-strukturer utan omstart | ✅ Live |
+
+---
+
+## 🔧 Message Builder Debugger
+
+Message Builder Debugger är en Admin-flik som löser problem från PR #95 (self-referential loops, eko-effekter).
+
+### Funktioner
+
+1. **Bygga och testa messages-listor i realtid** (system-prompt, history, user-msg)
+2. **Visa rå output från modellen** (tokens, generated text)
+3. **Jämföra strukturer** (t.ex. "clean" vs "with_memory") – se skillnader i svar
+4. **Spara bästa strukturen som default** – gäller för all inference utan omstart
+
+### Flöde
+
+```mermaid
+graph TD
+    A["Admin → Message Builder"] --> B["Välj struktur (dropdown) eller skriv custom"]
+    B --> C["Ange testfråga (t.ex. 'Vem är du?')"]
+    C --> D["Klicka 'Testa' → POST /api/ml/debug/messages"]
+    D --> E["Backend kör strukturkod → bygger messages-lista"]
+    E --> F["Skicka messages till modell → generera svar"]
+    F --> G["Visa rådata: messages, tokens, svar, analys"]
+    G --> H{"Nöjd med resultatet?"}
+    H -->|Ja| I["Spara som default → gäller för chatten direkt"]
+    H -->|Nej| J["Justera struktur → testa igen"]
+```
+
+### Exempel på strukturer
+
+| Struktur | Beskrivning |
+|----------|-------------|
+| **Clean** | `[{"role": "system", content: prompt}, {"role": "user", content: question}]` |
+| **With Memory** | Lägg till 5 historiska meddelanden |
+| **With Context** | Inkludera tid/datum i systemprompten |
+| **Swedish Strict** | Forcera svenska svar |
+| **Custom** | Skriv egen kod för att bygga messages |
+
+### API-endpoints
+
+- `GET /api/ml/debug/messages/templates` - Hämta strukturmallar
+- `GET /api/ml/debug/messages/default` - Hämta default-struktur
+- `POST /api/ml/debug/messages/default` - Spara ny default
+- `POST /api/ml/debug/messages` - Testa struktur med modellen
+
+Se [`docs/MESSAGE_BUILDER_DEBUG.md`](./MESSAGE_BUILDER_DEBUG.md) för fullständig dokumentation.
+
+---
 
 ### Stavfelskontroll – Teknisk Implementation
 

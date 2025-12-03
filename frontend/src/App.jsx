@@ -21,6 +21,7 @@ import DashboardPage from './pages/DashboardPage';
 import ApiDocumentationPage from './pages/ApiDocumentationPage';
 import LedgerPage from './pages/LedgerPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import MessageBuilderPage from './pages/MessageBuilderPage';
 import SevenBZeroPage from './pages/SevenBZeroPage';
 import DemoIndex from './designDemos';
 
@@ -130,6 +131,7 @@ function AppContent() {
           <Route path="/oqt-dashboard" element={<OQTDashboardPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/admin" element={<AdminDashboardPage />} />
+          <Route path="/admin/builder" element={<MessageBuilderPage />} />
           <Route path="/skapa-konto" element={<SignupPage />} />
           <Route path="/logga-in" element={<LoginPage />} />
           <Route path="/api-docs" element={<ApiDocumentationPage />} />

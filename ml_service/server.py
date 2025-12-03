@@ -214,6 +214,37 @@ except ImportError:
         get_swedish_label = lambda x: x
         translate_to_swedish = lambda x: x
 
+# ONESEEK Δ+: Message Builder for real-time prompt testing
+try:
+    from .message_builder import (
+        get_structure_templates,
+        get_default_structure,
+        save_default_structure,
+        build_messages,
+        analyze_response,
+        compare_structures
+    )
+    MESSAGE_BUILDER_AVAILABLE = True
+except ImportError:
+    try:
+        from message_builder import (
+            get_structure_templates,
+            get_default_structure,
+            save_default_structure,
+            build_messages,
+            analyze_response,
+            compare_structures
+        )
+        MESSAGE_BUILDER_AVAILABLE = True
+    except ImportError:
+        MESSAGE_BUILDER_AVAILABLE = False
+        get_structure_templates = None
+        get_default_structure = None
+        save_default_structure = None
+        build_messages = None
+        analyze_response = None
+        compare_structures = None
+
 # =============================================================================
 # END ONESEEK Δ+ MODULE IMPORTS
 # =============================================================================
@@ -241,6 +272,7 @@ def log_delta_plus_status():
         ("Delta Compare", DELTA_COMPARE_AVAILABLE, "Semantic Δ-comparison + blockchain hash"),
         ("Cache Manager", CACHE_MANAGER_AVAILABLE, "7-day TTL hash-based cache"),
         ("Svenska Promptar", SWEDISH_PROMPTS_AVAILABLE, "100% svenska – inga engelska läckage"),
+        ("Message Builder", MESSAGE_BUILDER_AVAILABLE, "Real-time prompt structure testing"),
     ]
     
     for name, available, description in modules:
@@ -1703,12 +1735,24 @@ def get_active_model_path():
     if certified_dir.exists():
         try:
             # Find all certified model directories (format: OneSeek-7B-Zero.v*.*)
+            # Search in root AND in /merged/ subdirectory
             certified_models = []
+            
+            # Search in root directory
             for item in certified_dir.iterdir():
                 if item.is_dir() and item.name.startswith('OneSeek-7B-Zero.v'):
-                    # Check if it has metadata.json (valid trained model)
-                    if (item / 'metadata.json').exists():
+                    # Check if it has metadata.json or config.json (valid model)
+                    if (item / 'metadata.json').exists() or (item / 'config.json').exists():
                         certified_models.append(item)
+            
+            # Also search in /merged/ subdirectory (common location for merged models)
+            merged_dir = certified_dir / 'merged'
+            if merged_dir.exists():
+                for item in merged_dir.iterdir():
+                    if item.is_dir() and item.name.startswith('OneSeek-7B-Zero.v'):
+                        if (item / 'metadata.json').exists() or (item / 'config.json').exists():
+                            certified_models.append(item)
+                            logger.info(f"  → Found merged model: {item.name}")
             
             if certified_models:
                 # Use max() for efficiency - only need the latest model
@@ -5015,6 +5059,447 @@ async def _debug_intent_internal(question: str):
 
 
 # =============================================================================
+# MESSAGE BUILDER DEBUG ENDPOINTS
+# Real-time prompt structure testing and optimization
+# =============================================================================
+
+class MessageBuilderRequest(BaseModel):
+    """Request model for Message Builder test endpoint."""
+    structure_code: str
+    structure_name: str = "custom"
+    system_prompt: str = "Du är OneSeek-7B-Zero, en hjälpsam svensk AI-assistent."
+    user_message: str
+    history: Optional[List[dict]] = []
+    use_intent_engine: bool = False  # Enable full intent/data pipeline
+    topic_id: Optional[str] = None  # For maintaining same topic across questions
+    
+    class Config:
+        extra = "ignore"
+
+
+class MessageBuilderDefaultRequest(BaseModel):
+    """Request model for saving default structure."""
+    name: str
+    code: str
+
+
+def format_messages_for_model(messages: List[dict]) -> str:
+    """
+    Format a messages list for model input.
+    
+    Uses the main branch format:
+    {system_prompt}
+    
+    Användare: {user_message}
+    
+    OneSeek:
+    
+    Args:
+        messages: List of message dicts with 'role' and 'content'
+        
+    Returns:
+        Formatted string ready for model input
+    """
+    formatted_parts = []
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        if role == "system":
+            formatted_parts.append(content)
+        elif role == "user":
+            formatted_parts.append(f"Användare: {content}")
+        elif role == "assistant":
+            formatted_parts.append(f"OneSeek: {content}")
+    
+    formatted_parts.append("OneSeek:")
+    return "\n\n".join(formatted_parts)
+
+
+@app.get("/api/ml/debug/messages/templates")
+async def get_message_templates():
+    """
+    Get available message structure templates.
+    
+    Returns list of pre-defined templates for testing.
+    """
+    if not MESSAGE_BUILDER_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Message Builder module not available")
+    
+    try:
+        templates = get_structure_templates()
+        return {
+            "success": True,
+            "templates": templates
+        }
+    except Exception as e:
+        logging.error(f"Error getting templates: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ml/debug/messages/default")
+async def get_default_message_structure():
+    """
+    Get the current default message structure.
+    
+    Returns the structure that is used for inference.
+    """
+    if not MESSAGE_BUILDER_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Message Builder module not available")
+    
+    try:
+        default = get_default_structure()
+        return {
+            "success": True,
+            "default_structure": default
+        }
+    except Exception as e:
+        logging.error(f"Error getting default structure: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ml/debug/messages/default")
+async def save_default_message_structure(request: MessageBuilderDefaultRequest):
+    """
+    Save a message structure as the default.
+    
+    The saved structure will be used for all inference requests.
+    """
+    if not MESSAGE_BUILDER_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Message Builder module not available")
+    
+    try:
+        result = save_default_structure(request.name, request.code)
+        return {
+            "success": True,
+            "default_structure": result,
+            "message": f"Saved '{request.name}' as default structure"
+        }
+    except Exception as e:
+        logging.error(f"Error saving default structure: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ml/debug/messages")
+async def test_message_structure(request: MessageBuilderRequest):
+    """
+    Test a message structure with the model.
+    
+    Builds the messages list from the structure code, runs inference,
+    and returns the response with analysis metrics.
+    
+    Features:
+    - Build custom messages structures
+    - Run real inference with the model
+    - Analyze response quality (Swedish %, confidence, loops)
+    
+    Example:
+        curl -X POST http://localhost:5000/api/ml/debug/messages \\
+             -H "Content-Type: application/json" \\
+             -d '{
+                 "structure_code": "[{\"role\": \"system\", \"content\": system_prompt}, {\"role\": \"user\", \"content\": user_message}]",
+                 "system_prompt": "Du är OneSeek-7B-Zero.",
+                 "user_message": "Vem är du?"
+             }'
+    """
+    if not MESSAGE_BUILDER_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Message Builder module not available")
+    
+    import time
+    start_time = time.time()
+    
+    # Initialize intent/source tracking
+    intent_info = None
+    sources_used = []
+    data_context = {}
+    
+    try:
+        # === ALWAYS: Inject time, date & season context (like main flow) ===
+        time_context = inject_time_context()
+        season_context = get_current_season()
+        
+        # === INTENT ENGINE PIPELINE (if enabled) ===
+        if request.use_intent_engine and INTENT_ENGINE_AVAILABLE:
+            try:
+                # 1. Detect intent and entities
+                intent_data = detect_intent_and_city(request.user_message)
+                if intent_data:
+                    intent_info = {
+                        "intent": intent_data.get("intent", "general"),
+                        "entity": intent_data.get("entity", ""),
+                        "confidence": intent_data.get("confidence", 0.5),
+                        "api": intent_data.get("api"),
+                        "all_entities": intent_data.get("all_entities", [])
+                    }
+                    
+                    # 2. Check for Tavily search trigger
+                    if check_tavily_trigger(request.user_message):
+                        sources_used.append("tavily")
+                        search_result = tavily_search(request.user_message)
+                        if search_result and search_result.get("answer"):
+                            data_context["tavily"] = {
+                                "answer": search_result.get("answer"),
+                                "sources": search_result.get("results", [])[:3]  # Top 3 sources
+                            }
+                    
+                    # 3. Check for weather intent - REAL DATA (fallback to Stockholm if no city)
+                    if intent_data.get("intent") == "väder":
+                        sources_used.append("smhi")
+                        city = intent_data.get("entity") or "Stockholm"  # Fallback to Stockholm
+                        weather_data = get_weather(city)  # Use correct function
+                        if weather_data:
+                            data_context["weather"] = {
+                                "source": "SMHI",
+                                "location": city,
+                                "data": weather_data
+                            }
+                        else:
+                            data_context["weather"] = {
+                                "source": "SMHI",
+                                "location": city,
+                                "error": "Kunde inte hämta väderdata"
+                            }
+                    
+                    # 4. Check for population/statistics intent - REAL DATA
+                    if intent_data.get("intent") == "befolkning":
+                        sources_used.append("scb")
+                        city = intent_data.get("entity") or "Sverige"  # Fallback to Sweden
+                        population_data = fetch_scb_data(f"befolkning {city}")  # Use correct function
+                        if population_data:
+                            data_context["statistics"] = {
+                                "source": "SCB",
+                                "location": city,
+                                "data": population_data
+                            }
+                        else:
+                            data_context["statistics"] = {
+                                "source": "SCB",
+                                "location": city,
+                                "error": "Kunde inte hämta befolkningsdata"
+                            }
+                    
+                    # 5. Check for crisis info
+                    if intent_data.get("intent") in ["kris", "varning", "nödsituation"]:
+                        sources_used.append("krisinformation")
+                        crisis_data = fetch_krisinformation()
+                        if crisis_data:
+                            data_context["crisis"] = {
+                                "source": "Krisinformation.se",
+                                "data": crisis_data
+                            }
+                    
+                    logging.info(f"[MESSAGE-BUILDER] Intent: {intent_info.get('intent')}, Entity: {intent_info.get('entity')}, Sources: {sources_used}")
+                    
+            except Exception as intent_error:
+                logging.warning(f"Intent engine error: {intent_error}")
+                intent_info = {"error": str(intent_error)}
+        
+        # === FALLBACK: Check for weather/population keywords if intent engine missed them ===
+        # This ensures data is fetched even if intent detection has issues
+        msg_lower = request.user_message.lower()
+        
+        if "smhi" not in sources_used:
+            weather_keywords = ["väder", "vädret", "temperatur", "regnar", "snöar", "grader", "prognos"]
+            if any(kw in msg_lower for kw in weather_keywords):
+                sources_used.append("smhi")
+                # Try to extract city from message
+                try:
+                    from intent_engine import detect_intent_and_city as fallback_detect
+                    fallback_result = fallback_detect(request.user_message)
+                    city = fallback_result.get("entity") or "Stockholm"
+                except:
+                    city = "Stockholm"
+                weather_data = get_weather(city)  # Use correct function
+                if weather_data:
+                    data_context["weather"] = {
+                        "source": "SMHI",
+                        "location": city,
+                        "data": weather_data
+                    }
+                    # Update intent_info if empty
+                    if not intent_info or intent_info.get("intent") in [None, "unknown", "general"]:
+                        intent_info = {
+                            "intent": "väder",
+                            "entity": city,
+                            "confidence": 0.85,
+                            "api": "weather_cache"
+                        }
+                    logging.info(f"[MESSAGE-BUILDER] Fallback weather: {city}")
+        
+        if "scb" not in sources_used:
+            population_keywords = ["befolkning", "invånare", "hur många bor", "population", "folkmängd"]
+            if any(kw in msg_lower for kw in population_keywords):
+                sources_used.append("scb")
+                # Try to extract city
+                try:
+                    from intent_engine import detect_intent_and_city as fallback_detect
+                    fallback_result = fallback_detect(request.user_message)
+                    city = fallback_result.get("entity") or "Sverige"
+                except:
+                    city = "Sverige"
+                population_data = fetch_scb_data(f"befolkning {city}")  # Use correct function
+                if population_data:
+                    data_context["statistics"] = {
+                        "source": "SCB",
+                        "location": city,
+                        "data": population_data
+                    }
+                    # Update intent_info if empty
+                    if not intent_info or intent_info.get("intent") in [None, "unknown", "general"]:
+                        intent_info = {
+                            "intent": "befolkning",
+                            "entity": city,
+                            "confidence": 0.85,
+                            "api": "scb_population"
+                        }
+                    logging.info(f"[MESSAGE-BUILDER] Fallback population: {city}")
+        
+        # === ENRICH SYSTEM PROMPT WITH TIME, SEASON, AND FETCHED DATA ===
+        # Build data context section to include in system prompt
+        enriched_system_prompt = request.system_prompt
+        
+        # ALWAYS add time and season context (like main flow)
+        enriched_system_prompt += f"\n\n[Aktuell tid] {time_context} {season_context}"
+        
+        if data_context:
+            data_section = "\n\n[AKTUELL DATA FÖR ATT BESVARA FRÅGAN]"
+            
+            # Add weather data
+            if "weather" in data_context and data_context["weather"].get("data"):
+                weather_info = data_context["weather"]["data"]
+                data_section += f"\n\n**Väderdata från SMHI:**\n{weather_info}"
+            
+            # Add population data
+            if "statistics" in data_context and data_context["statistics"].get("data"):
+                pop_info = data_context["statistics"]["data"]
+                data_section += f"\n\n**Befolkningsdata från SCB:**\n{pop_info}"
+            
+            # Add Tavily search results
+            if "tavily" in data_context and data_context["tavily"].get("answer"):
+                tavily_info = data_context["tavily"]["answer"]
+                data_section += f"\n\n**Sökresultat:**\n{tavily_info}"
+            
+            # Add crisis info
+            if "crisis" in data_context and data_context["crisis"].get("data"):
+                crisis_info = data_context["crisis"]["data"]
+                data_section += f"\n\n**Krisinformation:**\n{crisis_info}"
+            
+            data_section += "\n\n[SLUT PÅ AKTUELL DATA]"
+            enriched_system_prompt += data_section
+            
+            logging.info(f"[MESSAGE-BUILDER] Enriched system prompt with {len(data_context)} data sources")
+        
+        logging.info(f"[MESSAGE-BUILDER] Time: {time_context[:30]}... Season: {season_context}")
+        
+        # Build messages from structure code using enriched system prompt
+        messages = build_messages(
+            structure_code=request.structure_code,
+            system_prompt=enriched_system_prompt,
+            user_message=request.user_message,
+            history=request.history or []
+        )
+        
+        # Format messages for model input using the shared helper (for display/fallback)
+        full_input = format_messages_for_model(messages)
+        
+        # Run inference
+        try:
+            model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
+            
+            # === FIX: Use apply_chat_template for proper chat format ===
+            # Build structured messages for the model
+            chat_messages = [
+                {"role": "system", "content": enriched_system_prompt},
+                {"role": "user", "content": request.user_message}
+            ]
+            
+            # Try to use apply_chat_template if available (prevents echo/loops)
+            try:
+                if hasattr(tokenizer, 'apply_chat_template'):
+                    tokenized_input = tokenizer.apply_chat_template(
+                        chat_messages,
+                        add_generation_prompt=True,
+                        return_tensors="pt"
+                    )
+                    inputs = {"input_ids": tokenized_input}
+                    # Create attention mask
+                    inputs["attention_mask"] = torch.ones_like(tokenized_input)
+                else:
+                    # Fallback to raw tokenizer if apply_chat_template not available
+                    inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+            except Exception as template_error:
+                logging.warning(f"apply_chat_template failed, falling back: {template_error}")
+                inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+            
+            inputs = sync_inputs_to_model_device(inputs, model)
+            input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
+            
+            with torch.no_grad():
+                outputs = model.generate(
+                    input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
+                    attention_mask=inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask,
+                    max_new_tokens=256,
+                    temperature=0.7,
+                    top_p=0.9,
+                    do_sample=True,
+                    pad_token_id=tokenizer.eos_token_id
+                )
+            
+            # Decode only the new tokens
+            new_tokens = outputs[0][input_length:]
+            response_text = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+            
+            # Clean response
+            for prefix in ["OneSeek:", "Assistant:", "Användare:"]:
+                if response_text.startswith(prefix):
+                    response_text = response_text[len(prefix):].strip()
+            
+            token_count = len(new_tokens)
+            
+        except Exception as model_error:
+            logging.error(f"Model inference error: {model_error}")
+            response_text = f"[Model error: {str(model_error)[:100]}]"
+            token_count = 0
+        
+        latency_ms = (time.time() - start_time) * 1000
+        
+        # Analyze the response
+        analysis = analyze_response(response_text)
+        
+        return {
+            "success": True,
+            "structure_name": request.structure_name,
+            "messages": messages,
+            "response": response_text,
+            "tokens": token_count,
+            "latency_ms": latency_ms,
+            "analysis": analysis,
+            # New intent/source fields
+            "intent_info": intent_info,
+            "sources_used": sources_used,
+            "data_context": data_context,
+            "topic_id": request.topic_id,
+            # Time and season context
+            "time_context": time_context,
+            "season_context": season_context
+        }
+        
+    except ValueError as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "structure_name": request.structure_name,
+            "messages": None,
+            "response": None,
+            "intent_info": intent_info,
+            "sources_used": sources_used,
+            "data_context": data_context
+        }
+    except Exception as e:
+        logging.error(f"Message builder error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
 # END ONESEEK Δ+ API ENDPOINTS
 # =============================================================================
 
@@ -5403,8 +5888,38 @@ Svara NU.
             # Single-model inference (certified or fallback)
             model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
             
-            # Prepare input with system prompt and sync to model's device
-            inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+            # === FIX: Use apply_chat_template for proper chat format ===
+            # Build structured messages for the model
+            system_prompt = get_active_system_prompt()
+            # Add all context to system prompt
+            if context_parts:
+                system_prompt = "\n".join(context_parts) + "\n\n" + system_prompt
+            
+            chat_messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": inference_request.text}
+            ]
+            
+            # Try to use apply_chat_template if available (prevents echo/loops)
+            try:
+                if hasattr(tokenizer, 'apply_chat_template'):
+                    tokenized_input = tokenizer.apply_chat_template(
+                        chat_messages,
+                        add_generation_prompt=True,
+                        return_tensors="pt"
+                    )
+                    inputs = {"input_ids": tokenized_input}
+                    # Create attention mask
+                    inputs["attention_mask"] = torch.ones_like(tokenized_input)
+                    logger.info("Using apply_chat_template for structured messages")
+                else:
+                    # Fallback to raw tokenizer if apply_chat_template not available
+                    inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+                    logger.info("Fallback: apply_chat_template not available")
+            except Exception as template_error:
+                logging.warning(f"apply_chat_template failed, falling back: {template_error}")
+                inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+            
             inputs = sync_inputs_to_model_device(inputs, model)
             
             # Use max_new_tokens instead of max_length to avoid input length issues
@@ -6082,10 +6597,58 @@ Svara NU.
             except:
                 pass
             
-            # Prepare input with system prompt and sync to model's device
-            logger.debug("→ Tokenizing input with system prompt...")
+            # === FIX: Use apply_chat_template for proper chat format ===
+            # This prevents echo loops, English responses, and prompt leakage
+            logger.debug("→ Building structured messages for apply_chat_template...")
+            
+            # Get system prompt (use get_active_system_prompt for consistency)
+            system_prompt = get_active_system_prompt()
+            
+            # Build enhanced context (like debug/messages endpoint)
+            enhanced_context = []
+            if memory_context:
+                enhanced_context.append(f"[Tidigare i samtalet]\n{memory_context}")
+            enhanced_context.append(f"[Aktuell tid] {time_context} {season_context}")
+            if weather_context:
+                enhanced_context.append(f"[Väder] {weather_context}")
+            if open_data_context:
+                enhanced_context.append(f"[Data] {open_data_context}")
+            if news_context:
+                enhanced_context.append(f"[Nyheter] {news_context}")
+            if tavily_context:
+                enhanced_context.append(f"[Sökresultat] {tavily_context}")
+            
+            if enhanced_context:
+                system_prompt = system_prompt + "\n\n" + "\n\n".join(enhanced_context)
+            
+            # Build structured messages
+            structured_messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": request.text}
+            ]
+            
+            # Tokenize with apply_chat_template if available
+            logger.debug("→ Tokenizing input with apply_chat_template...")
             tokenize_start = time.time()
-            inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+            
+            try:
+                if hasattr(tokenizer, 'apply_chat_template'):
+                    tokenized_input = tokenizer.apply_chat_template(
+                        structured_messages,
+                        tokenize=True,
+                        add_generation_prompt=True,
+                        return_tensors="pt"
+                    )
+                    inputs = {"input_ids": tokenized_input, "attention_mask": torch.ones_like(tokenized_input)}
+                    logger.info("✓ Using apply_chat_template for structured messages")
+                else:
+                    # Fallback to raw tokenizer if apply_chat_template not available
+                    inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+                    logger.info("⚠ Fallback: apply_chat_template not available")
+            except Exception as template_error:
+                logger.warning(f"apply_chat_template failed, falling back: {template_error}")
+                inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+            
             tokenize_time = (time.time() - tokenize_start) * 1000
             logger.debug(f"→ Tokenization took: {tokenize_time:.1f}ms")
             
@@ -6140,15 +6703,20 @@ Svara NU.
             logger.debug(f"→ Output tokens: {len(outputs[0])}")
             logger.debug(f"→ Första 10 output tokens: {outputs[0][:10].tolist()}")
             
-            # Decode output
-            logger.debug("→ Decoding output...")
+            # Decode ONLY the new tokens (same approach as Message Builder)
+            # This prevents prompt leakage and echo loops
+            logger.debug("→ Decoding only new tokens...")
             decode_start = time.time()
-            response_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            new_tokens = outputs[0][input_length:]  # Only tokens after input
+            response_text = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
             decode_time = (time.time() - decode_start) * 1000
             logger.debug(f"→ Decoding took: {decode_time:.1f}ms")
+            logger.debug(f"→ New tokens count: {len(new_tokens)}")
             
-            # Clean response using utility function
-            response_text = clean_inference_response(response_text, full_input, request.text)
+            # Clean common prefixes that might remain (like Message Builder does)
+            for prefix in ["OneSeek:", "Assistant:", "assistant", "Användare:", "user", "system"]:
+                if response_text.lower().startswith(prefix.lower()):
+                    response_text = response_text[len(prefix):].strip()
             
             # Remove internal debug tags from response
             response_text = clean_internal_tags(response_text)
@@ -6303,6 +6871,323 @@ async def models_status():
         "cuda_available": torch.cuda.is_available(),
         "models": status
     }
+
+
+# =============================================================================
+# MODEL SWITCHING API - Switch active base model for inference testing
+# =============================================================================
+# Allows admin to switch between base models (e.g., KB-Llama, OpenHermes) 
+# for testing prompt compliance without restarting the server.
+
+# Global variable to track dynamically loaded model
+_dynamic_model = None
+_dynamic_tokenizer = None
+_dynamic_model_name = None
+
+
+@app.get("/api/models/available-base")
+async def get_available_base_models():
+    """
+    List all available base models for inference testing.
+    Discovers models in models/ directory that can be loaded.
+    
+    Returns models like:
+    - KB-Llama-3.1-8B-Swedish
+    - OpenHermes-2.5-Mistral-7B
+    - mistral-7b-instruct
+    - llama-2-7b-chat
+    """
+    models_dir = PROJECT_ROOT / 'models'
+    available = []
+    
+    # Directories to exclude
+    EXCLUDED_DIRS = {'oneseek-certified', 'oneseek-7b-zero', 'lora_adapters', 'backups', 'base_models'}
+    
+    if models_dir.exists():
+        for item in models_dir.iterdir():
+            if item.is_dir() and item.name not in EXCLUDED_DIRS:
+                # Check if it's a valid model directory
+                has_config = (item / 'config.json').exists()
+                has_tokenizer = (item / 'tokenizer.json').exists() or (item / 'tokenizer_config.json').exists()
+                has_model = any(
+                    f.name.endswith(('.bin', '.safetensors', '.pth'))
+                    for f in item.iterdir() if f.is_file()
+                )
+                
+                if has_config or has_tokenizer or has_model:
+                    # Get model info from config
+                    model_info = {
+                        "name": item.name,
+                        "path": str(item),
+                        "has_config": has_config,
+                        "has_tokenizer": has_tokenizer,
+                        "has_model_weights": has_model
+                    }
+                    
+                    # Try to get model type from config
+                    if has_config:
+                        try:
+                            with open(item / 'config.json', 'r') as f:
+                                config = json.load(f)
+                            model_info["model_type"] = config.get("model_type", "unknown")
+                            model_info["architectures"] = config.get("architectures", [])
+                        except Exception:
+                            pass
+                    
+                    available.append(model_info)
+    
+    # Also check base_models subdirectory (legacy location)
+    base_models_dir = models_dir / 'oneseek-7b-zero' / 'base_models'
+    if base_models_dir.exists():
+        for item in base_models_dir.iterdir():
+            if item.is_dir():
+                has_config = (item / 'config.json').exists()
+                has_tokenizer = (item / 'tokenizer.json').exists() or (item / 'tokenizer_config.json').exists()
+                
+                if has_config or has_tokenizer:
+                    available.append({
+                        "name": item.name,
+                        "path": str(item),
+                        "has_config": has_config,
+                        "has_tokenizer": has_tokenizer,
+                        "has_model_weights": True,
+                        "location": "base_models"
+                    })
+    
+    return {
+        "available_models": available,
+        "count": len(available),
+        "current_active": _dynamic_model_name or ONESEEK_PATH,
+        "note": "Use POST /api/models/switch to load a different model for testing"
+    }
+
+
+@app.post("/api/models/switch")
+async def switch_active_model(request: dict):
+    """
+    Switch the active model for inference testing.
+    
+    This allows testing different base models (like OpenHermes-2.5-Mistral-7B)
+    to see how they respond to prompts without restarting the server.
+    
+    Request body:
+    - model_name: Name of the model to load (e.g., "OpenHermes-2.5-Mistral-7B")
+    - model_path: (optional) Full path to model directory
+    
+    Note: The default OneSeek certified model is used for production.
+    This endpoint is for testing/debugging only.
+    """
+    global _dynamic_model, _dynamic_tokenizer, _dynamic_model_name
+    global model, tokenizer  # The main inference model
+    
+    model_name = request.get("model_name", "")
+    model_path = request.get("model_path", "")
+    
+    if not model_name and not model_path:
+        raise HTTPException(status_code=400, detail="model_name or model_path required")
+    
+    # Find the model path
+    if not model_path:
+        models_dir = PROJECT_ROOT / 'models'
+        model_path = models_dir / model_name
+        
+        # Try base_models location
+        if not model_path.exists():
+            model_path = models_dir / 'oneseek-7b-zero' / 'base_models' / model_name
+        
+        if not model_path.exists():
+            raise HTTPException(status_code=404, detail=f"Model not found: {model_name}")
+    else:
+        model_path = Path(model_path)
+        if not model_path.exists():
+            raise HTTPException(status_code=404, detail=f"Model path not found: {model_path}")
+    
+    logger.info(f"🔄 Switching to model: {model_name} at {model_path}")
+    
+    try:
+        # Clear GPU memory before loading new model
+        if torch.cuda.is_available():
+            import gc
+            gc.collect()
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+        
+        # Load the new tokenizer
+        logger.info(f"Loading tokenizer from: {model_path}")
+        new_tokenizer = AutoTokenizer.from_pretrained(
+            str(model_path),
+            trust_remote_code=True,
+            local_files_only=True
+        )
+        
+        if new_tokenizer.pad_token is None:
+            new_tokenizer.pad_token = new_tokenizer.eos_token
+        
+        # Load the new model
+        logger.info(f"Loading model from: {model_path}")
+        device_map = "auto" if torch.cuda.is_available() else None
+        
+        new_model = AutoModelForCausalLM.from_pretrained(
+            str(model_path),
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+            device_map=device_map,
+            trust_remote_code=True,
+            local_files_only=True
+        )
+        
+        # Update global references
+        _dynamic_model = new_model
+        _dynamic_tokenizer = new_tokenizer
+        _dynamic_model_name = model_name
+        
+        # Also update main model references for inference
+        model = new_model
+        tokenizer = new_tokenizer
+        models["oneseek"] = new_model
+        tokenizers["oneseek"] = new_tokenizer
+        
+        logger.info(f"✅ Successfully switched to model: {model_name}")
+        
+        return {
+            "success": True,
+            "model_name": model_name,
+            "model_path": str(model_path),
+            "device": str(new_model.device) if hasattr(new_model, 'device') else "auto",
+            "message": f"Model switched to {model_name}. Use /inference/oneseek to test."
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to switch model: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to load model: {str(e)}")
+
+
+@app.post("/api/models/reset-to-default")
+async def reset_to_default_model():
+    """
+    Reset to the default OneSeek certified model.
+    
+    This reloads the production-certified model after testing with other base models.
+    """
+    global _dynamic_model, _dynamic_tokenizer, _dynamic_model_name
+    global model, tokenizer
+    
+    try:
+        logger.info("🔄 Resetting to default OneSeek certified model...")
+        
+        # Clear dynamic model
+        _dynamic_model = None
+        _dynamic_tokenizer = None
+        _dynamic_model_name = None
+        
+        # Clear GPU memory
+        if torch.cuda.is_available():
+            import gc
+            gc.collect()
+            torch.cuda.empty_cache()
+        
+        # Reload the default model
+        load_model("oneseek", ONESEEK_PATH)
+        
+        logger.info(f"✅ Reset to default model: {ONESEEK_PATH}")
+        
+        return {
+            "success": True,
+            "model_path": str(ONESEEK_PATH),
+            "message": "Reset to default OneSeek certified model"
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to reset model: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to reset model: {str(e)}")
+
+
+@app.get("/api/models/current-active")
+async def get_current_active_model():
+    """
+    Get information about the currently active model for inference.
+    """
+    if _dynamic_model_name:
+        return {
+            "model_name": _dynamic_model_name,
+            "is_dynamic": True,
+            "is_production": False,
+            "note": "Testing with non-default model. Use /api/models/reset-to-default to restore."
+        }
+    
+    # Extract model name from path for display
+    model_path = Path(ONESEEK_PATH)
+    model_display_name = model_path.name if model_path.exists() else "OneSeek-7B-Zero"
+    
+    return {
+        "model_name": model_display_name,
+        "model_path": str(ONESEEK_PATH),
+        "is_dynamic": False,
+        "is_production": True,
+        "note": "Using production certified model"
+    }
+
+
+# ==========================================
+# ADMIN SETTINGS API
+# ==========================================
+
+# Global settings storage (in-memory, can be extended to file/db)
+_admin_settings = {
+    "typo_check_enabled": True,  # Default: typo checking is ON
+}
+
+@app.get("/api/settings/typo-check")
+async def get_typo_check_setting():
+    """
+    Get current typo check setting for 7B-Zero chat.
+    """
+    return {
+        "enabled": _admin_settings.get("typo_check_enabled", True),
+        "description": "Stavningskontroll för /7B-Zero chatten"
+    }
+
+@app.post("/api/settings/typo-check")
+async def set_typo_check_setting(request: Request):
+    """
+    Toggle typo check setting for 7B-Zero chat.
+    Called from admin panel.
+    """
+    try:
+        data = await request.json()
+        enabled = data.get("enabled", True)
+        _admin_settings["typo_check_enabled"] = enabled
+        
+        return {
+            "success": True,
+            "enabled": enabled,
+            "message": f"Stavningskontroll är nu {'PÅ' if enabled else 'AV'}"
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": str(e)}
+        )
+
+@app.get("/api/settings/all")
+async def get_all_settings():
+    """
+    Get all admin settings.
+    """
+    return {
+        "settings": _admin_settings,
+        "available": [
+            {
+                "key": "typo_check_enabled",
+                "name": "Stavningskontroll",
+                "description": "Aktiverar stavningskontroll i /7B-Zero chatten",
+                "type": "boolean",
+                "current": _admin_settings.get("typo_check_enabled", True)
+            }
+        ]
+    }
+
 
 if __name__ == "__main__":
     import uvicorn

@@ -160,10 +160,27 @@ export default function SevenBZeroPage() {
   // ONESEEK Δ+ Typo suggestion state
   const [typoSuggestion, setTypoSuggestion] = useState(null);
   const typoCheckTimeoutRef = useRef(null);
+  const [typoCheckEnabled, setTypoCheckEnabled] = useState(true); // Toggle for typo checking (loaded from admin settings)
   
   // Character/Persona state
   const [selectedPersona, setSelectedPersona] = useState('oneseek-medveten');
   const [characterData, setCharacterData] = useState(null);
+  
+  // Load typo check setting from admin
+  useEffect(() => {
+    const loadTypoCheckSetting = async () => {
+      try {
+        const response = await fetch('/api/settings/typo-check');
+        if (response.ok) {
+          const data = await response.json();
+          setTypoCheckEnabled(data.enabled !== false); // Default to true if not set
+        }
+      } catch (err) {
+        console.log('Using default typo check setting');
+      }
+    };
+    loadTypoCheckSetting();
+  }, []);
   
   // UI state
   const [hoveredTick, setHoveredTick] = useState(null);
@@ -236,6 +253,12 @@ export default function SevenBZeroPage() {
   const handleInputChange = (e) => {
     const newValue = e.target.value;
     setMessageInput(newValue);
+    
+    // Skip typo check if disabled
+    if (!typoCheckEnabled) {
+      setTypoSuggestion(null);
+      return;
+    }
     
     // Clear previous timeout
     if (typoCheckTimeoutRef.current) {
@@ -503,13 +526,39 @@ export default function SevenBZeroPage() {
     loadQueryHistory();
   }, []);
 
-  // Fetch model status from backend
+  // Fetch model status from backend - check BOTH Python ML service AND Node.js OQT
   useEffect(() => {
     const fetchModelStatus = async () => {
       try {
+        // First, check Python ML service for current active model
+        // This is the authoritative source after model switching
+        let mlServiceModel = null;
+        try {
+          const mlResponse = await fetch('/api/models/current-active');
+          if (mlResponse.ok) {
+            mlServiceModel = await mlResponse.json();
+            console.log('[7B-Zero] ML Service active model:', mlServiceModel);
+          }
+        } catch (mlErr) {
+          console.log('[7B-Zero] ML Service not available, using OQT status');
+        }
+        
+        // Then get OQT status for DNA chain and other metadata
         const response = await fetch('/api/oqt/status');
         if (response.ok) {
           const data = await response.json();
+          
+          // If ML service has a different model active, use that
+          if (mlServiceModel && mlServiceModel.model_name) {
+            data.activeModel = mlServiceModel;
+            // Update the model version display
+            if (data.model) {
+              data.model.dna = mlServiceModel.model_name;
+              data.model.version = mlServiceModel.model_name;
+              data.model.is_dynamic = mlServiceModel.is_dynamic;
+            }
+          }
+          
           setModelStatus(data);
           
           // Generate DNA chain based on model status
@@ -660,7 +709,8 @@ export default function SevenBZeroPage() {
             text: currentQuestion,
             max_length: 512,
             temperature: 0.7,
-            top_p: 0.9
+            top_p: 0.9,
+            skip_typo_check: !typoCheckEnabled, // Skip typo check if disabled
           }),
         });
         
@@ -852,9 +902,11 @@ export default function SevenBZeroPage() {
     return 16 + Math.sin(index * 0.5) * 8;
   };
 
-  // Get model version string
+  // Get model version string - prioritize Python ML service's active model
   const getModelVersion = () => {
     if (loading) return 'Laddar...';
+    // Check for dynamically switched model from ML service first
+    if (modelStatus?.activeModel?.model_name) return modelStatus.activeModel.model_name;
     if (modelStatus?.model?.dna) return modelStatus.model.dna;
     if (modelStatus?.model?.version) return modelStatus.model.version;
     return 'v1.1.sv';
