@@ -3353,6 +3353,8 @@ class InferenceResponse(BaseModel):
     delta_plus: Optional[dict] = None  # Contains topic_hash, intent, entity, response_hash
     # ONESEEK Δ+ Typo correction (optional - when typos detected)
     typo_correction: Optional[dict] = None  # Contains detected, original, corrected, suggestions, show_buttons
+    # ONESEEK Δ+ v6.2 Personality (optional - for frontend real-time display)
+    personality: Optional[dict] = None  # Contains id, description, categories, is_default
     
 class ErrorResponse(BaseModel):
     """Error response model"""
@@ -4069,6 +4071,8 @@ def sync_personality_catalog() -> Dict[str, Any]:
     Returns:
         Dict with sync results (synced count, errors, etc.)
     """
+    import yaml  # Import at function start for efficiency
+    
     global _personality_catalog_cache
     
     characters_dir = PROJECT_ROOT / 'frontend' / 'public' / 'characters'
@@ -4103,7 +4107,6 @@ def sync_personality_catalog() -> Dict[str, Any]:
     
     for char_file in character_files:
         try:
-            import yaml
             with open(char_file, 'r', encoding='utf-8') as f:
                 char_data = yaml.safe_load(f)
             
@@ -4116,13 +4119,21 @@ def sync_personality_catalog() -> Dict[str, Any]:
             
             character_id = char_data.get('id', char_file.stem)
             
+            # Check if character is marked as default (via metadata or personality_type)
+            metadata = char_data.get('metadata', {})
+            is_default = (
+                char_data.get('is_default', False) or
+                metadata.get('is_default', False) or
+                char_data.get('personality_type', '') == 'medveten'
+            )
+            
             # Build personality entry
             personality_entry = {
                 "card_file": str(char_file.relative_to(PROJECT_ROOT)),
                 "keywords": _extract_keywords_from_character(char_data),
                 "categories": _extract_categories_from_character(char_data),
                 "description": char_data.get('description', ''),
-                "is_default": character_id == "oneseek-medveten"
+                "is_default": is_default
             }
             
             catalog["personality_catalog"][character_id] = personality_entry
@@ -4316,6 +4327,30 @@ def get_personality_system_prompt(personality_id: str) -> Optional[str]:
     except Exception as e:
         logger.warning(f"[PERSONALITY] Could not load card {card_path}: {e}")
         return None
+
+
+def get_personality_info(personality_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Get personality info for frontend display.
+    
+    Args:
+        personality_id: Personality ID from catalog
+        
+    Returns:
+        Dict with personality info for frontend or None
+    """
+    catalog = load_personality_catalog()
+    personality = catalog.get("personality_catalog", {}).get(personality_id)
+    
+    if not personality:
+        return None
+    
+    return {
+        "id": personality_id,
+        "description": personality.get("description", ""),
+        "categories": personality.get("categories", []),
+        "is_default": personality.get("is_default", False)
+    }
 
 
 # Create Personality Catalog router
@@ -8679,6 +8714,12 @@ Svara NU.
     # Check for Force-Svenska triggers
     force_svenska_active = check_force_svenska(request.text)
     
+    # === ONESEEK Δ+ v6.2: PERSONALITY SELECTION ===
+    # Auto-select personality based on question keywords and category
+    selected_personality_id = choose_personality(request.text)
+    selected_personality_info = get_personality_info(selected_personality_id)
+    logger.info(f"🎭 [PERSONALITY] Selected: {selected_personality_id}")
+    
     # === 1. ALWAYS: Inject time, date & season context ===
     time_context = inject_time_context()
     season_context = get_current_season()
@@ -8919,7 +8960,8 @@ Svara NU.
             model=cached_response.get("model", "OneSeek-7B-Zero.v1.1 (cached)"),
             tokens=cached_response.get("tokens", 0),
             latency_ms=latency_ms,
-            delta_plus=cached_response.get("delta_plus")
+            delta_plus=cached_response.get("delta_plus"),
+            personality=selected_personality_info
         )
     
     # === ONESEEK Δ+ DEBUG: Log detailed inference info to terminal ===
@@ -9042,7 +9084,8 @@ Svara NU.
                 model=result['model'],
                 tokens=result['tokens'],
                 latency_ms=result['latency_ms'],
-                delta_plus=delta_plus_data
+                delta_plus=delta_plus_data,
+                personality=selected_personality_info
             )
         else:
             # Single-model fallback
@@ -9283,7 +9326,8 @@ Svara NU.
                 model="OneSeek-7B-Zero.v1.1",
                 tokens=len(outputs[0]),
                 latency_ms=latency_ms,
-                delta_plus=delta_plus_data
+                delta_plus=delta_plus_data,
+                personality=selected_personality_info
             )
         
     except Exception as e:

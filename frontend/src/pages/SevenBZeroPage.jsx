@@ -166,6 +166,9 @@ export default function SevenBZeroPage() {
   const [selectedPersona, setSelectedPersona] = useState('oneseek-medveten');
   const [characterData, setCharacterData] = useState(null);
   
+  // ONESEEK Δ+ v6.2: AI-selected personality (real-time display)
+  const [aiSelectedPersonality, setAiSelectedPersonality] = useState(null);
+  
   // Load typo check setting from admin
   useEffect(() => {
     const loadTypoCheckSetting = async () => {
@@ -770,6 +773,11 @@ export default function SevenBZeroPage() {
       const isSuccess = data.success !== false && responseText;
       
       if (isSuccess) {
+        // ONESEEK Δ+ v6.2: Update AI-selected personality for real-time display
+        if (data.personality) {
+          setAiSelectedPersonality(data.personality);
+        }
+        
         // Update message with response data and animate typing
         setMessages(prev => prev.map(msg => 
           msg.id === aiMessageId 
@@ -784,6 +792,8 @@ export default function SevenBZeroPage() {
                 topicHash: data.delta_plus?.topic_hash || null,
                 intent: data.delta_plus?.intent || null,
                 entity: data.delta_plus?.entity || null,
+                // ONESEEK Δ+ v6.2: Personality
+                personality: data.personality || null,
               }
             : msg
         ));
@@ -1077,7 +1087,14 @@ export default function SevenBZeroPage() {
               <span>Fidelity <span className={whiteMode ? 'text-[#666]' : 'text-[#666]'}>{metrics.fidelity}%</span></span>
               <span>Consensus <span className={whiteMode ? 'text-[#666]' : 'text-[#666]'}>{metrics.consensus}%</span></span>
               <span>Accuracy <span className={whiteMode ? 'text-[#666]' : 'text-[#666]'}>{metrics.accuracy}%</span></span>
-              <span className={whiteMode ? 'text-[#777]' : 'text-[#555]'}>{characterData?.name || 'Medveten'}</span>
+              {/* ONESEEK Δ+ v6.2: AI-selected personality display */}
+              <span className={`transition-all duration-300 ${
+                aiSelectedPersonality 
+                  ? (whiteMode ? 'text-purple-600' : 'text-purple-400') 
+                  : (whiteMode ? 'text-[#777]' : 'text-[#555]')
+              }`}>
+                🎭 {aiSelectedPersonality?.id?.replace('oneseek-', '') || characterData?.name || 'Medveten'}
+              </span>
             </div>
             
             {/* Microtraining Status */}

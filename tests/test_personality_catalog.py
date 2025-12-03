@@ -126,7 +126,7 @@ def test_api_catalog_version():
 
 
 def test_default_personality_exists():
-    """Test that exactly one personality is marked as default."""
+    """Test that at least one personality is marked as default."""
     config_path = Path(__file__).parent.parent / 'config' / 'personality_catalog.json'
     
     with open(config_path, 'r', encoding='utf-8') as f:
