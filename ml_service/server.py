@@ -254,15 +254,102 @@ except ImportError:
 # =============================================================================
 # Separate module for API integrations to keep server.py clean
 try:
-    from .api_integrations import fetch_riksdagen_ledamoter
+    from .api_integrations import (
+        fetch_riksdagen_ledamoter,
+        get_api_registry,
+        get_api_integration,
+        call_api,
+        toggle_api,
+        test_api,
+        get_api_stats,
+        get_registry_summary,
+        load_api_catalog_config,
+        save_api_catalog_config,
+        # Legacy function imports for backward compatibility
+        fetch_scb_population,
+        fetch_scb_data,
+        fetch_krisinformation,
+        fetch_riksdagen_data,
+        fetch_trafikverket_data,
+        fetch_saol_data,
+        fetch_open_data_search,
+        fetch_svt_news,
+        fetch_sr_ekot_news,
+        fetch_omni_news,
+        fetch_skolverket_data,
+        fetch_arbetsformedlingen_jobs,
+        fetch_nordpool_elpris,
+        fetch_socialstyrelsen_data,
+        fetch_folkhalsomyndigheten_data,
+        fetch_lantmateriet_data,
+        fetch_bolagsverket_data,
+        fetch_migrationsverket_data,
+        fetch_forsakringskassan_data,
+        fetch_riksarkivet_data,
+        fetch_kungliga_biblioteket_data,
+        fetch_csn_data,
+        fetch_naturvardsverket_data,
+        fetch_luftkvalitet_smhi,
+        fetch_hemnet_data,
+        fetch_vinnova_data,
+        fetch_open_data,
+    )
     API_INTEGRATIONS_AVAILABLE = True
 except ImportError:
     try:
-        from api_integrations import fetch_riksdagen_ledamoter
+        from api_integrations import (
+            fetch_riksdagen_ledamoter,
+            get_api_registry,
+            get_api_integration,
+            call_api,
+            toggle_api,
+            test_api,
+            get_api_stats,
+            get_registry_summary,
+            load_api_catalog_config,
+            save_api_catalog_config,
+            # Legacy function imports for backward compatibility
+            fetch_scb_population,
+            fetch_scb_data,
+            fetch_krisinformation,
+            fetch_riksdagen_data,
+            fetch_trafikverket_data,
+            fetch_saol_data,
+            fetch_open_data_search,
+            fetch_svt_news,
+            fetch_sr_ekot_news,
+            fetch_omni_news,
+            fetch_skolverket_data,
+            fetch_arbetsformedlingen_jobs,
+            fetch_nordpool_elpris,
+            fetch_socialstyrelsen_data,
+            fetch_folkhalsomyndigheten_data,
+            fetch_lantmateriet_data,
+            fetch_bolagsverket_data,
+            fetch_migrationsverket_data,
+            fetch_forsakringskassan_data,
+            fetch_riksarkivet_data,
+            fetch_kungliga_biblioteket_data,
+            fetch_csn_data,
+            fetch_naturvardsverket_data,
+            fetch_luftkvalitet_smhi,
+            fetch_hemnet_data,
+            fetch_vinnova_data,
+            fetch_open_data,
+        )
         API_INTEGRATIONS_AVAILABLE = True
     except ImportError:
         API_INTEGRATIONS_AVAILABLE = False
         fetch_riksdagen_ledamoter = None
+        get_api_registry = None
+        get_api_integration = None
+        call_api = None
+        toggle_api = None
+        test_api = None
+        get_api_stats = None
+        get_registry_summary = None
+        load_api_catalog_config = None
+        save_api_catalog_config = None
 
 # Global cache enabled flag (can be toggled from admin dashboard)
 GLOBAL_CACHE_ENABLED = True
@@ -5958,6 +6045,208 @@ async def get_category_info(category: str):
         "api_count": len(cat_config.get("apis", [])),
         "entity_required": cat_config.get("entity_required", False),
         "keywords": cat_config.get("keywords", [])
+    }
+
+
+# =============================================================================
+# ONESEEK Δ+ API INTEGRATIONS ADMIN ENDPOINTS
+# Registry management, statistics, testing, catalog editing
+# =============================================================================
+
+@app.get("/api/ml/admin/integrations")
+async def get_admin_integrations():
+    """
+    Get all API integrations from the registry with stats and catalog.
+    
+    Returns:
+        - integrations: List of all registered APIs with their configuration
+        - stats: Request statistics per API
+        - summary: Overview counts
+        - catalog: Current api_catalog.json content
+    """
+    if not API_INTEGRATIONS_AVAILABLE:
+        return {
+            "error": "API Integrations module not available",
+            "integrations": [],
+            "stats": {},
+            "summary": None,
+            "catalog": {}
+        }
+    
+    # Get registry data
+    registry = get_api_registry()
+    integrations = [api.to_dict() for api in registry.values()]
+    
+    # Get stats
+    stats = get_api_stats()
+    
+    # Get summary
+    summary = get_registry_summary()
+    
+    # Get catalog
+    catalog = load_api_catalog_config()
+    
+    return {
+        "integrations": integrations,
+        "stats": stats,
+        "summary": summary,
+        "catalog": catalog
+    }
+
+
+@app.post("/api/ml/admin/integrations/{api_id}/toggle")
+async def toggle_api_integration(api_id: str, request: dict):
+    """
+    Toggle an API integration on/off.
+    
+    Args:
+        api_id: The API identifier
+        request: {"enabled": true/false} or omit to toggle
+        
+    Returns:
+        New enabled status
+    """
+    if not API_INTEGRATIONS_AVAILABLE:
+        raise HTTPException(status_code=500, detail="API Integrations module not available")
+    
+    enabled = request.get("enabled")
+    
+    integration = get_api_integration(api_id)
+    if not integration:
+        raise HTTPException(status_code=404, detail=f"API not found: {api_id}")
+    
+    new_status = toggle_api(api_id, enabled)
+    
+    return {
+        "api_id": api_id,
+        "enabled": new_status,
+        "message": f"API {api_id} is now {'enabled' if new_status else 'disabled'}"
+    }
+
+
+@app.post("/api/ml/admin/integrations/{api_id}/test")
+async def test_api_integration(api_id: str):
+    """
+    Run a test request against an API integration.
+    
+    Args:
+        api_id: The API identifier
+        
+    Returns:
+        Test results including success, response preview, timing
+    """
+    if not API_INTEGRATIONS_AVAILABLE:
+        raise HTTPException(status_code=500, detail="API Integrations module not available")
+    
+    result = test_api(api_id)
+    return result
+
+
+@app.patch("/api/ml/admin/integrations/{api_id}/config")
+async def update_api_config(api_id: str, request: dict):
+    """
+    Update configuration for an API integration.
+    
+    Args:
+        api_id: The API identifier
+        request: Configuration updates (triggers, etc.)
+        
+    Returns:
+        Updated API configuration
+    """
+    if not API_INTEGRATIONS_AVAILABLE:
+        raise HTTPException(status_code=500, detail="API Integrations module not available")
+    
+    integration = get_api_integration(api_id)
+    if not integration:
+        raise HTTPException(status_code=404, detail=f"API not found: {api_id}")
+    
+    # Update triggers if provided
+    if "triggers" in request:
+        integration.triggers = request["triggers"]
+    
+    # Update config if provided
+    if "config" in request:
+        integration.config.update(request["config"])
+    
+    return {
+        "api_id": api_id,
+        "updated": True,
+        "config": integration.to_dict()
+    }
+
+
+@app.post("/api/ml/admin/integrations/catalog")
+async def save_api_catalog(request: dict):
+    """
+    Save the API catalog configuration to config/api_catalog.json.
+    
+    Args:
+        request: Full catalog JSON to save
+        
+    Returns:
+        Success status
+    """
+    if not API_INTEGRATIONS_AVAILABLE:
+        raise HTTPException(status_code=500, detail="API Integrations module not available")
+    
+    success = save_api_catalog_config(request)
+    
+    if success:
+        # Reload the catalog
+        global API_CATALOG, ACTIVE_FEATURES, API_CATALOG_SYSTEM_PROMPT
+        loaded = load_api_catalog()
+        
+        return {
+            "success": True,
+            "message": "API catalog saved and reloaded"
+        }
+    else:
+        raise HTTPException(status_code=500, detail="Failed to save API catalog")
+
+
+@app.get("/api/ml/admin/integrations/stats")
+async def get_integration_stats():
+    """
+    Get detailed request statistics for all API integrations.
+    
+    Returns:
+        Stats per API including request counts, success rates, timing
+    """
+    if not API_INTEGRATIONS_AVAILABLE:
+        return {"stats": {}, "summary": None}
+    
+    stats = get_api_stats()
+    summary = get_registry_summary()
+    
+    return {
+        "stats": stats,
+        "summary": summary
+    }
+
+
+@app.post("/api/ml/admin/integrations/stats/reset")
+async def reset_integration_stats(request: dict = None):
+    """
+    Reset API statistics.
+    
+    Args:
+        request: {"api_id": "specific_api"} or omit to reset all
+        
+    Returns:
+        Success status
+    """
+    if not API_INTEGRATIONS_AVAILABLE:
+        raise HTTPException(status_code=500, detail="API Integrations module not available")
+    
+    from api_integrations import reset_api_stats
+    
+    api_id = request.get("api_id") if request else None
+    reset_api_stats(api_id)
+    
+    return {
+        "success": True,
+        "message": f"Stats reset for {'all APIs' if not api_id else api_id}"
     }
 
 
