@@ -4254,23 +4254,39 @@ def choose_personality(question: str, api_catalog: Optional[Dict] = None) -> str
         return rules.get("fallback", "oneseek-medveten")
     
     question_lower = question.lower()
+    # Split question into words for better matching
+    import re
+    question_words = set(re.findall(r'\b\w+\b', question_lower))
+    
     best_match = None
     best_score = 0.0
     
     for personality_id, personality_data in personalities.items():
         score = 0.0
         
-        # Check keywords
+        # Check keywords - use word boundary matching for better accuracy
         keywords = personality_data.get("keywords", [])
-        keyword_matches = sum(1 for kw in keywords if kw in question_lower)
+        keyword_matches = 0
+        for kw in keywords:
+            kw_lower = kw.lower()
+            # For multi-word keywords, check if phrase is in question
+            if ' ' in kw_lower:
+                if kw_lower in question_lower:
+                    keyword_matches += 1
+            # For single-word keywords, check word boundaries
+            else:
+                if kw_lower in question_words:
+                    keyword_matches += 1
+        
         if keyword_matches > 0:
             score += 0.3 + (keyword_matches * 0.1)
         
         # Check categories (if API catalog provides category)
         if api_catalog:
             detected_category = api_catalog.get("category", "")
-            personality_categories = personality_data.get("categories", [])
-            if detected_category and detected_category.lower() in [c.lower() for c in personality_categories]:
+            # Pre-process categories to lowercase once
+            personality_categories = [c.lower() for c in personality_data.get("categories", [])]
+            if detected_category and detected_category.lower() in personality_categories:
                 score += 0.5
         
         # Bonus for default personality (slight preference)
