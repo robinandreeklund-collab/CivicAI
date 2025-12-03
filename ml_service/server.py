@@ -4252,6 +4252,47 @@ def choose_personality(question: str, api_catalog: Optional[Dict] = None) -> str
     return "oneseek-medveten"
 
 
+def format_personality_catalog_for_prompt() -> str:
+    """
+    ONESEEK Δ+ v6.2: Format personality catalog in a human-readable way
+    for injection into the system prompt.
+    
+    This creates a simple, readable format that the model can easily parse:
+    
+    === PERSONLIGHET: Name ===
+    Nyckelord: keyword1, keyword2, ...
+    Kategori: category1, category2
+    Prompt: The personality's prompt
+    
+    Returns:
+        Human-readable personality catalog string
+    """
+    catalog = load_personality_catalog()
+    personalities = catalog.get("personality_catalog", {})
+    
+    formatted_parts = []
+    
+    for pid, pdata in personalities.items():
+        name = pdata.get("name", pid.replace("oneseek-", "").capitalize())
+        keywords = pdata.get("keywords", [])
+        categories = pdata.get("categories", [])
+        prompt = pdata.get("prompt", pdata.get("description", ""))
+        is_default = pdata.get("is_default", False)
+        
+        # Format this personality
+        part = f"=== PERSONLIGHET: {name}"
+        if is_default:
+            part += " (default)"
+        part += " ===\n"
+        part += f"Nyckelord: {', '.join(keywords)}\n"
+        part += f"Kategori: {', '.join(categories)}\n"
+        part += f"Prompt: {prompt}\n"
+        
+        formatted_parts.append(part)
+    
+    return "\n".join(formatted_parts)
+
+
 def get_personality_system_prompt(personality_id: str) -> Optional[str]:
     """
     Load system prompt from personality's character card.
@@ -8690,33 +8731,24 @@ Svara NU.
     
     # === ONESEEK Δ+ v6.2: AI-DRIVEN PERSONALITY SELECTION ===
     # NO Python keyword matching - the model chooses personality itself
-    # by reading personality_catalog.json injected into the prompt
+    # by reading the formatted personality catalog in the system prompt
     print("\n" + "=" * 60)
     print("🚀 ONESEEK Δ+ v6.2 - AI-DRIVEN PERSONALITY")
     print("=" * 60)
     print(f"📝 Question: {request.text}")
     print(f"🇸🇪 Force-Svenska: {'ACTIVE' if force_svenska_active else 'inactive'}")
     
-    # Load personality catalog for injection into prompt
+    # Load personality catalog
     personality_catalog = load_personality_catalog()
-    personality_catalog_json = json.dumps(personality_catalog, ensure_ascii=False, indent=2)
-    print(f"📂 Loaded personality_catalog.json ({len(personality_catalog_json)} chars)")
+    print(f"📂 Loaded personality_catalog.json")
     print(f"   → Personalities: {list(personality_catalog.get('personality_catalog', {}).keys())}")
-    
-    # Load all personality system prompts for injection
-    all_personality_prompts = {}
-    for pid, pdata in personality_catalog.get("personality_catalog", {}).items():
-        prompt = get_personality_system_prompt(pid)
-        if prompt:
-            all_personality_prompts[pid] = prompt
-            print(f"   → Loaded prompt for: {pid} ({len(prompt)} chars)")
     
     # ALWAYS use medveten - SHE chooses the right personality herself
     selected_personality_id = "oneseek-medveten"
     selected_personality_info = get_personality_info(selected_personality_id)
     print(f"🎭 Base personality: {selected_personality_id} (model will choose from catalog)")
     
-    # Load medveten as the base system prompt
+    # Load medveten as the base system prompt (contains {PLACEHOLDER_PERSONALITY_CATALOG})
     base_system_prompt = get_personality_system_prompt("oneseek-medveten")
     if not base_system_prompt:
         base_system_prompt = get_active_system_prompt()
@@ -8860,25 +8892,24 @@ Svara NU.
             logger.debug(f"Memory context retrieval failed: {e}")
     
     # === ONESEEK Δ+ v6.2: AI-DRIVEN PERSONALITY SELECTION ===
-    # Inject personality_catalog.json so the model can read it and choose
-    # Use medveten base prompt (which tells model to read catalog and choose)
+    # Format the personality catalog in human-readable format
+    formatted_catalog = format_personality_catalog_for_prompt()
+    print(f"\n📄 Formatted personality catalog for prompt:")
+    print(formatted_catalog)
     
-    # Build the personality catalog section for injection
-    personality_catalog_section = f"""[PERSONALITY CATALOG - personality_catalog.json]
-{personality_catalog_json}
-[END PERSONALITY CATALOG]
-
-[AVAILABLE PERSONALITY PROMPTS]
-"""
-    for pid, prompt in all_personality_prompts.items():
-        personality_catalog_section += f"\n--- {pid} ---\n{prompt}\n"
-    personality_catalog_section += "[END PERSONALITY PROMPTS]\n"
+    # Replace placeholder in base_system_prompt with the formatted catalog
+    if "{PLACEHOLDER_PERSONALITY_CATALOG}" in base_system_prompt:
+        final_system_prompt = base_system_prompt.replace("{PLACEHOLDER_PERSONALITY_CATALOG}", formatted_catalog)
+        print(f"✅ Injected personality catalog into system prompt")
+    else:
+        # Fallback: append the catalog if no placeholder
+        final_system_prompt = f"{base_system_prompt}\n\nHär är din inre karta över alla personligheter:\n\n{formatted_catalog}"
+        print(f"⚠️ No placeholder found, appending catalog to system prompt")
     
-    print(f"\n📄 Injecting personality catalog into prompt")
-    print(f"   → Catalog section: {len(personality_catalog_section)} chars")
+    print(f"📝 Final system prompt length: {len(final_system_prompt)} chars")
     
-    # Use medveten base prompt + personality catalog injection
-    full_input = f"{base_system_prompt}\n\n{personality_catalog_section}\n\nAnvändare: {request.text}\n\nOneSeek:"
+    # Build the full input with system prompt + user question
+    full_input = f"{final_system_prompt}\n\nAnvändare: {request.text}\n\nOneSeek:"
     print(f"📝 Full input length: {len(full_input)} chars")
     
     # Build enhanced context prefix
@@ -9014,11 +9045,10 @@ Svara NU.
     
     # === DEBUG: Log inference start ===
     print("\n" + "-" * 60)
-    print("📊 INFERENCE SUMMARY - NO PYTHON KEYWORD MATCHING")
+    print("📊 INFERENCE SUMMARY - PLACEHOLDER INJECTION")
     print("-" * 60)
     print(f"🎭 Base: oneseek-medveten (SHE chooses personality from catalog)")
-    print(f"📂 Personality catalog injected: YES ({len(personality_catalog_json)} chars)")
-    print(f"📄 All personality prompts injected: {len(all_personality_prompts)} prompts")
+    print(f"📂 Personality catalog: formatted and injected via {{PLACEHOLDER_PERSONALITY_CATALOG}}")
     print(f"🧠 Model reads catalog → analyzes question → becomes right personality")
     print(f"🕐 Time context: {time_context[:30]}...")
     print(f"🍂 Season: {season_context}")

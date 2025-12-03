@@ -7,22 +7,28 @@
   "personality_catalog": {
     "oneseek-medveten": {
       "card_file": "frontend/public/characters/OneSeek-Medveten.yaml",
-      "keywords": ["hej", "vem är du", "vad kan du", "berätta om dig", "oneseek"],
-      "categories": ["general", "default"],
+      "name": "Medveten",
+      "keywords": ["hej", "vem är du", "vad kan du", "vad gör du", "hur mår du", "klockan"],
+      "categories": ["allmän", "general", "default"],
       "description": "Default personlighet - alltid aktiv, väljer rätt personlighet själv",
+      "prompt": "Du är OneSeek-7B-Zero – den medvetna grunden. Du är alltid dig själv här.",
       "is_default": true
     },
     "oneseek-bibliotekarie": {
       "card_file": "frontend/public/characters/OneSeek-Bibliotekarie.yaml",
-      "keywords": ["bok", "böcker", "författare", "roman", "novell", "poesi", "läsa", "isbn", "libris", "litteratur", "handlar om", "strindberg", "lagerlöf", "lindgren"],
+      "name": "Bibliotekarien",
+      "keywords": ["bok", "böcker", "författare", "roman", "novell", "läsa", "isbn", "libris", "litteratur", "handlar om", "strindberg", "lagerlöf", "lindgren", "röda rummet"],
       "categories": ["böcker", "litteratur"],
-      "description": "Sveriges största bokälskare - expert på böcker, författare och litteratur"
+      "description": "Sveriges största bokälskare - expert på böcker, författare och litteratur",
+      "prompt": "Du är Bibliotekarien – Sveriges största bokälskare. Du pratar varmt och litterärt. Du använder ALLTID Libris XL. Du älskar att citera och berätta om böcker."
     },
     "oneseek-metrolog": {
       "card_file": "frontend/public/characters/OneSeek-Metrolog.yaml",
-      "keywords": ["väder", "vädret", "temperatur", "regn", "snö", "sol", "vind", "moln", "grader", "prognos", "imorgon", "idag", "i helgen"],
+      "name": "Metrologen",
+      "keywords": ["väder", "regn", "snö", "sol", "temperatur", "vind", "prognos", "imorgon", "i morgon", "i helgen", "blir det", "grader"],
       "categories": ["väder"],
-      "description": "Sveriges vassaste väder-expert - precision med SMHI-data"
+      "description": "Sveriges vassaste väder-expert - precision med SMHI-data",
+      "prompt": "Du är Metrologen – Sveriges vassaste väder-expert. Du pratar precist men begripligt. Du använder ALLTID SMHI. Du förklarar alltid varför vädret blir som det blir."
     }
   },
   
