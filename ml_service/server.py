@@ -262,10 +262,10 @@ def log_delta_plus_status():
     print("🔷 ONESEEK Δ+ v4.0 MODULE STATUS")
     print("=" * 70)
     
-    # Get enabled states from configuration
-    intent_enabled = is_intent_engine_enabled()
-    typo_enabled = is_typo_checker_enabled()
-    time_enabled = is_time_context_enabled()
+    # Get enabled states directly from ACTIVE_FEATURES dict for better performance
+    intent_enabled = ACTIVE_FEATURES.get("intent_engine", False)
+    typo_enabled = ACTIVE_FEATURES.get("typo_checker", False)
+    time_enabled = ACTIVE_FEATURES.get("time_context", True)
     
     modules = [
         ("Intent Engine", INTENT_ENGINE_AVAILABLE, intent_enabled, "Semantic intent + entity detection"),
@@ -5089,8 +5089,13 @@ async def get_api_catalog():
     - Each category has multiple APIs for parallel fetching
     - Model selects the best source after comparing results
     """
+    # Extract version from catalog metadata
+    catalog_version = "4.0.0"  # Default version
+    if isinstance(API_CATALOG, dict) and "metadata" in API_CATALOG:
+        catalog_version = API_CATALOG["metadata"].get("version", "4.0.0")
+    
     return {
-        "version": API_CATALOG.get("metadata", {}).get("version", "4.0.0") if isinstance(API_CATALOG, dict) and "metadata" in API_CATALOG else "4.0.0",
+        "version": catalog_version,
         "categories": get_api_catalog_categories(),
         "category_count": len(API_CATALOG),
         "catalog": API_CATALOG,
