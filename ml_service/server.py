@@ -48,7 +48,7 @@ import argparse
 import json
 import uuid
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import requests  # For Tavily API and SMHI weather
 
 # =============================================================================
