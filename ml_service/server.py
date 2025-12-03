@@ -6070,31 +6070,63 @@ async def test_message_structure(request: MessageBuilderRequest):
         
         if data_context:
             data_section = "\n\n[AKTUELL DATA FÖR ATT BESVARA FRÅGAN]"
+            total_sources = 0
             
             # Add weather data
             if "weather" in data_context and data_context["weather"].get("data"):
                 weather_info = data_context["weather"]["data"]
-                data_section += f"\n\n**Väderdata från SMHI:**\n{weather_info}"
+                weather_source = data_context["weather"].get("source", "SMHI")
+                data_section += f"\n\n**Väderdata från {weather_source}:**\n{weather_info}"
+                total_sources += 1
+                
+                # Add additional weather sources if any
+                if "additional_sources" in data_context["weather"]:
+                    for extra in data_context["weather"]["additional_sources"]:
+                        if extra.get("data"):
+                            extra_source = extra.get("source", "Annan källa")
+                            data_section += f"\n\n**Väderdata från {extra_source}:**\n{extra['data']}"
+                            total_sources += 1
             
             # Add population data
             if "statistics" in data_context and data_context["statistics"].get("data"):
                 pop_info = data_context["statistics"]["data"]
-                data_section += f"\n\n**Befolkningsdata från SCB:**\n{pop_info}"
+                pop_source = data_context["statistics"].get("source", "SCB")
+                data_section += f"\n\n**Befolkningsdata från {pop_source}:**\n{pop_info}"
+                total_sources += 1
+                
+                # Add additional statistics sources if any
+                if "additional_sources" in data_context["statistics"]:
+                    for extra in data_context["statistics"]["additional_sources"]:
+                        if extra.get("data"):
+                            extra_source = extra.get("source", "Annan källa")
+                            data_section += f"\n\n**Befolkningsdata från {extra_source}:**\n{extra['data']}"
+                            total_sources += 1
             
             # Add Tavily search results
             if "tavily" in data_context and data_context["tavily"].get("answer"):
                 tavily_info = data_context["tavily"]["answer"]
                 data_section += f"\n\n**Sökresultat:**\n{tavily_info}"
+                total_sources += 1
             
             # Add crisis info
             if "crisis" in data_context and data_context["crisis"].get("data"):
                 crisis_info = data_context["crisis"]["data"]
-                data_section += f"\n\n**Krisinformation:**\n{crisis_info}"
+                crisis_source = data_context["crisis"].get("source", "Krisinformation.se")
+                data_section += f"\n\n**Krisinformation från {crisis_source}:**\n{crisis_info}"
+                total_sources += 1
+                
+                # Add additional crisis sources if any
+                if "additional_sources" in data_context["crisis"]:
+                    for extra in data_context["crisis"]["additional_sources"]:
+                        if extra.get("data"):
+                            extra_source = extra.get("source", "Annan källa")
+                            data_section += f"\n\n**Krisinformation från {extra_source}:**\n{extra['data']}"
+                            total_sources += 1
             
             data_section += "\n\n[SLUT PÅ AKTUELL DATA]"
             enriched_system_prompt += data_section
             
-            logging.info(f"[MESSAGE-BUILDER] Enriched system prompt with {len(data_context)} data sources")
+            logging.info(f"[MESSAGE-BUILDER] Enriched system prompt with {total_sources} data sources")
         
         logging.info(f"[MESSAGE-BUILDER] Time: {time_context[:30]}... Season: {season_context}")
         
