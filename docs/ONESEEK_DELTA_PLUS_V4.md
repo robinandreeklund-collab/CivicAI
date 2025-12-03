@@ -2,9 +2,16 @@
 
 ## Översikt
 
-ONESEEK Δ+ v4.0 är en fullständigt självstyrd AI som automatiskt väljer rätt API-kategori och datakällor baserat på användarens fråga. Intent Engine och Typo Checker är **avstängda som default** – systemet använder `api_catalog.json` för kategori-matchning och parallell API-hämtning.
+ONESEEK Δ+ v4.0 är en fullständigt självstyrd AI som automatiskt väljer rätt API-kategori och datakällor baserat på användarens fråga. Intent Engine och Typo Checker är **avstängda som default** – systemet använder `api_catalog.json` och `open_data_apis.json` för kategori-matchning och parallell API-hämtning.
 
 **Senast uppdaterad:** 2025-12-03
+
+### Två konfigurationsfiler för API:er
+
+| Fil | Syfte | Antal API:er |
+|-----|-------|--------------|
+| `config/api_catalog.json` | Self-Steering kategorier med parallell hämtning | 31 kategorier |
+| `config/open_data_apis.json` | Öppna data-API:er med triggers | 31 API:er |
 
 ---
 
@@ -103,7 +110,7 @@ result1, result2 = await asyncio.gather(
 
 ## Konfigurationsfiler
 
-### 1. `config/api_catalog.json` – Huvudkonfiguration
+### 1. `config/api_catalog.json` – Self-Steering kategorier
 
 **Plats:** `/config/api_catalog.json`
 
@@ -118,6 +125,16 @@ result1, result2 = await asyncio.gather(
   "api_catalog": { ... }
 }
 ```
+
+### 2. `config/open_data_apis.json` – Öppna data-API:er
+
+**Plats:** `/config/open_data_apis.json`
+
+Innehåller 31 Svenska öppna data-API:er med triggers och fallback-meddelanden.
+
+### 3. `config/rss_feeds.json` – RSS-flöden
+
+Nyhetsflöden från SVT, SR Ekot, Omni för realtidsnyheter.
 
 ### Aktivera/Inaktivera funktioner
 
@@ -187,7 +204,53 @@ Dessa API:er gör riktiga HTTP-anrop och returnerar aktuell data:
 | `sr_ekot` | Sveriges Radio | api.sr.se/api/rss/program/83 | `fetch_sr_ekot_news()` | ✅ RSS |
 | `omni` | Omni | omni.se/rss | `fetch_omni_news()` | ✅ RSS |
 | `dataportal` | Dataportal.se | dataportal.se/api/3/action | `fetch_open_data_search()` | ✅ RIKTIG DATA |
-| `skolverket` | Skolverket | api.skolverket.se/syllabus/v1 | `fetch_skolverket_data()` | ✅ RIKTIG DATA |
+| `skolverket_syllabus` | Skolverket | api.skolverket.se/syllabus/v1 | `fetch_skolverket_data()` | ✅ RIKTIG DATA |
+
+### 📋 ÖPPNA DATA API:er (från `open_data_apis.json`)
+
+Alla 31 API:er i `config/open_data_apis.json`:
+
+| # | API-ID | Namn | Triggers (exempel) | Status |
+|---|--------|------|-------------------|--------|
+| 1 | `scb` | SCB Statistik | befolkning, statistik, invånare | ✅ AKTIV |
+| 2 | `trafikverket` | Trafikanalys | trafik, olycka, e4, e6 | ⚙️ Kräver API-nyckel |
+| 3 | `naturvardsverket` | Naturvårdsverket | luftkvalitet, miljö, utsläpp | 📌 Informativ |
+| 4 | `boverket` | Boverket | bygglov, energideklaration | 📌 Informativ |
+| 5 | `riksdagen` | Riksdagen | votering, lagförslag, debatt | ✅ AKTIV |
+| 6 | `slu` | SLU Riksskogstaxeringen | skog, virkesförråd | 📌 Informativ |
+| 7 | `opendata` | Opendata.se | öppen data, dataportal | ✅ AKTIV |
+| 8 | `digg` | DIGG | myndighet, offentlig förvaltning | 📌 Informativ |
+| 9 | `krisinformation` | Krisinformation.se | kris, vma, beredskap | ✅ AKTIV |
+| 10 | `skatteverket` | Skatteverket | skatt, inkomst, moms | ✅ AKTIV (via SCB) |
+| 11 | `energimyndigheten` | Energimyndigheten | elpris, energi, elområde | 📌 Informativ |
+| 12 | `socialstyrelsen` | Socialstyrelsen | vård, vårdkö, vaccination | 📌 Informativ |
+| 13 | `lantmateriet` | Lantmäteriet | fastighet, karta, geodata | ⚙️ Kräver API-nyckel |
+| 14 | `folkhalsomyndigheten` | Folkhälsomyndigheten | folkhälsa, epidemi, smitta | 📌 Informativ |
+| 15 | `trafikverket_vag` | Trafikverket Väg & Järnväg | vägarbete, järnväg | ⚙️ Kräver API-nyckel |
+| 16 | `energimarknadsinspektionen` | EI | nätavgift, elnät | 📌 Informativ |
+| 17 | `vinnova` | Vinnova | innovation, forskningsbidrag | 📌 Informativ |
+| 18 | `formas` | Formas | hållbarhetsforskning, miljöforskning | 📌 Informativ |
+| 19 | `vetenskapsradet` | Vetenskapsrådet | forskning, vetenskap | 📌 Informativ |
+| 20 | `forsakringskassan` | Försäkringskassan | sjukpenning, föräldrapenning | 📌 Informativ |
+| 21 | `migrationsverket` | Migrationsverket | migration, asyl, visum | 📌 Informativ |
+| 22 | `arbetsformedlingen` | Arbetsförmedlingen | lediga jobb, arbetslöshet | ✅ AKTIV (JobTech API) |
+| 23 | `uhr` | UHR | antagning, universitet | 📌 Informativ |
+| 24 | `csn` | CSN | studiemedel, studiebidrag | 📌 Informativ |
+| 25 | `skolverket` | Skolverket | skola, läroplan, betyg | ✅ AKTIV (Syllabus API) |
+| 26 | `skolverket_syllabus` | Skolverket Syllabus API | kursplan, ämnesplan | ✅ AKTIV |
+| 27 | `visitsweden` | Visit Sweden | hotell, turism, boende | 📌 Informativ |
+| 28 | `bolagsverket` | Bolagsverket | bolag, företag, styrelse | ⚙️ Kräver registrering |
+| 29 | `konkurrensverket` | Konkurrensverket | upphandling, konkurrens | 📌 Informativ |
+| 30 | `konsumentverket` | Konsumentverket | konsument, reklamation | 📌 Informativ |
+| 31 | `saol` | SAOL | vad betyder, ord, synonym | ✅ AKTIV (svenska.se sök) |
+
+### Statusförklaringar
+
+| Symbol | Status | Beskrivning |
+|--------|--------|-------------|
+| ✅ AKTIV | Fullständig | Riktiga API-anrop med dynamisk data |
+| ⚙️ Kräver nyckel | Begränsad | Fungerande API men kräver API-nyckel |
+| 📌 Informativ | Länk-baserad | Ger direktlänk till källan med relevant info |
 
 ### 📌 INFORMATIVA API:er (Dynamiska länkar till källan)
 
@@ -196,6 +259,7 @@ Dessa API:er returnerar informativ text med korrekta källlänkar. De gör inte 
 | API-namn | Källa | Funktion | Anledning till statisk data |
 |----------|-------|----------|----------------------------|
 | `saol` | SAOL | `fetch_saol_data()` | Genererar sök-länk till svenska.se med användarens ord |
+| `visitsweden` | Visit Sweden | – | Turistinformation med länk till visitsweden.com |
 | `trafikverket_info` | Trafikverket | `fetch_trafikverket_data()` | Kräver API-nyckel för riktigt anrop |
 | `lantmateriet` | Lantmäteriet | `fetch_lantmateriet_data()` | Kräver API-nyckel |
 | `hemnet` | Hemnet | `fetch_hemnet_data()` | Ingen publik API tillgänglig |
@@ -260,7 +324,10 @@ def fetch_ny_api(query: str = None) -> Optional[str]:
 | ↳ API-funktioner | Alla fetch-funktioner | ~739-1600 |
 | ↳ `api_function_map` | API-namn → funktion | ~6458 |
 | ↳ Self-Steering | Kategori-matchning | ~5924-6200 |
-| `config/api_catalog.json` | API-katalog | – |
+| ↳ `load_open_data_apis()` | Laddar open_data_apis.json | ~693 |
+| `config/api_catalog.json` | Self-Steering kategorier | – |
+| `config/open_data_apis.json` | Öppna data-API:er | – |
+| `config/rss_feeds.json` | Nyhets-RSS flöden | – |
 
 ### Frontend (React)
 
@@ -323,7 +390,7 @@ GET  /api/ml/delta-plus/api-catalog/{category}  # Specifik kategori
 
 | Version | Datum | Ändringar |
 |---------|-------|-----------|
-| 4.0.0 | 2025-12-03 | Self-Steering, 31 kategorier, parallell hämtning, 50+ API-funktioner |
+| 4.0.0 | 2025-12-03 | Self-Steering, 31 kategorier + 31 öppna data-API:er, parallell hämtning |
 | 3.3.0 | 2025-11 | Autonomy Engine |
 | 3.0.0 | 2025-10 | DNA v2 certifiering |
 
