@@ -1,0 +1,12 @@
+{
+  "_comment": "API Keys Configuration for ONESEEK Δ+ v4.0",
+  "_instructions": "Copy this file to api_keys.json and add your API keys",
+  
+  "trafikverket_api_key": "",
+  "lantmateriet_api_key": "",
+  "bolagsverket_api_key": "",
+  
+  "_trafikverket_docs": "Get your key from: https://api.trafikinfo.trafikverket.se/",
+  "_lantmateriet_docs": "Get your key from: https://opendata.lantmateriet.se/",
+  "_bolagsverket_docs": "Get your key from: https://bolagsverket.se/om-oss/utveckling-av-digitala-tjanster/oppna-data"
+}

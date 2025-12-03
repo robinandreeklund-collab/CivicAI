@@ -1,0 +1,327 @@
+{
+  "version": "4.0.0",
+  "description": "ONESEEK Δ+ v4.0 - Fullständigt självstyrd AI. Modellen väljer kategori och API själv.",
+  "updated": "2025-12-03",
+  
+  "active_features": {
+    "intent_engine": false,
+    "typo_checker": false,
+    "time_context": true
+  },
+  
+  "api_catalog": {
+    "befolkning": {
+      "description": "Befolkningsstatistik och folkbokföring",
+      "apis": [
+        {"name": "scb_population", "source": "SCB", "frequency": "månadsvis", "url": "https://api.scb.se"},
+        {"name": "skatteverket_folkbokföring", "source": "Skatteverket", "frequency": "dagligen", "url": "https://www.skatteverket.se"}
+      ],
+      "entity_required": true,
+      "entity_type": "kommun",
+      "keywords": ["befolkning", "invånare", "hur många bor", "folkmängd", "population", "invånarantal"]
+    },
+    
+    "väder": {
+      "description": "Väderdata och prognoser",
+      "apis": [
+        {"name": "smhi_current", "source": "SMHI", "frequency": "timvis", "url": "https://opendata-download-metfcst.smhi.se"},
+        {"name": "yr_no", "source": "YR.no", "frequency": "timvis", "url": "https://api.yr.no"}
+      ],
+      "entity_required": true,
+      "entity_type": "stad",
+      "fallback_entity": "Stockholm",
+      "keywords": ["väder", "vädret", "temperatur", "regn", "snö", "sol", "prognos", "grader"]
+    },
+    
+    "nyheter": {
+      "description": "Svenska nyheter och aktuella händelser",
+      "apis": [
+        {"name": "svt_nyheter", "source": "SVT Nyheter", "frequency": "löpande", "url": "https://www.svt.se/nyheter/rss.xml"},
+        {"name": "svt_inrikes", "source": "SVT Inrikes", "frequency": "löpande", "url": "https://www.svt.se/nyheter/inrikes/rss.xml"},
+        {"name": "omni", "source": "Omni", "frequency": "löpande", "url": "https://omni.se/rss"},
+        {"name": "sr_ekot", "source": "SR Ekot", "frequency": "löpande", "url": "https://api.sr.se/api/rss/program/83"}
+      ],
+      "entity_required": false,
+      "keywords": ["nyheter", "senaste nytt", "vad hände", "aktuellt", "händelser"]
+    },
+    
+    "kris": {
+      "description": "Krisinformation och VMA",
+      "apis": [
+        {"name": "krisinformation", "source": "Krisinformation.se", "frequency": "realtid", "url": "https://api.krisinformation.se/v3"},
+        {"name": "msb", "source": "MSB", "frequency": "realtid", "url": "https://www.msb.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["kris", "krislarm", "vma", "varning", "nödläge", "beredskap"],
+      "priority": 0
+    },
+    
+    "politik": {
+      "description": "Riksdagen, ledamöter, voteringar, lagförslag",
+      "apis": [
+        {"name": "riksdagen_ledamoter", "source": "Riksdagen", "frequency": "dagligen", "url": "https://data.riksdagen.se/dokumentlista/?avd=ledamot"},
+        {"name": "riksdagen_dokumentlista", "source": "Riksdagen", "frequency": "dagligen", "url": "https://data.riksdagen.se/dokumentlista"},
+        {"name": "riksdagen_votering", "source": "Riksdagen", "frequency": "dagligen", "url": "https://data.riksdagen.se/votering"}
+      ],
+      "entity_required": false,
+      "keywords": ["riksdagen", "riksdagsledamot", "ledamot", "ledamotsuppdrag", "ledamotsuppgifter", "sagt och gjort", "röstade", "votering", "lagförslag", "debatt", "proposition", "motion", "politiker", "parlamentsledamot"]
+    },
+    
+    "trafik": {
+      "description": "Trafikinformation och störningar",
+      "apis": [
+        {"name": "trafikverket_info", "source": "Trafikverket", "frequency": "realtid", "url": "https://api.trafikinfo.trafikverket.se/v2"},
+        {"name": "trafiken_nu", "source": "Trafiken.nu", "frequency": "realtid", "url": "https://trafiken.nu"}
+      ],
+      "entity_required": false,
+      "keywords": ["trafik", "trafikinfo", "olycka", "kö", "e4", "e6", "e18", "e20", "motorväg"]
+    },
+    
+    "statistik": {
+      "description": "Allmän statistik från SCB",
+      "apis": [
+        {"name": "scb_statistik", "source": "SCB", "frequency": "månadsvis", "url": "https://api.scb.se/OV0104/v1/doris/sv/ssd"},
+        {"name": "statistiska_centralbyrån", "source": "SCB", "frequency": "månadsvis", "url": "https://www.scb.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["statistik", "scb", "procent", "andel", "ökning", "minskning"]
+    },
+    
+    "skatt": {
+      "description": "Skatter, inkomster och deklarationer",
+      "apis": [
+        {"name": "skatteverket_statistik", "source": "Skatteverket", "frequency": "årsvis", "url": "https://www.skatteverket.se"},
+        {"name": "scb_inkomst", "source": "SCB", "frequency": "årsvis", "url": "https://api.scb.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["skatt", "inkomst", "moms", "deklaration", "snittinkomst", "skatteverket"]
+    },
+    
+    "elpris": {
+      "description": "Elpriser och elområden",
+      "apis": [
+        {"name": "energimyndigheten", "source": "Energimyndigheten", "frequency": "dagligen", "url": "https://www.energimyndigheten.se"},
+        {"name": "nordpool", "source": "Nord Pool", "frequency": "timvis", "url": "https://www.nordpoolgroup.com"}
+      ],
+      "entity_required": false,
+      "entity_type": "elområde",
+      "keywords": ["elpris", "energi", "elförbrukning", "elkostnad", "elområde", "se1", "se2", "se3", "se4"]
+    },
+    
+    "hälsa": {
+      "description": "Hälsostatistik och vårdköer",
+      "apis": [
+        {"name": "socialstyrelsen", "source": "Socialstyrelsen", "frequency": "månadsvis", "url": "https://www.socialstyrelsen.se"},
+        {"name": "folkhalsomyndigheten", "source": "Folkhälsomyndigheten", "frequency": "veckovis", "url": "https://www.folkhalsomyndigheten.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["vård", "vårdkö", "sjukvård", "vaccination", "hälsa", "socialstyrelsen", "dödsorsak"]
+    },
+    
+    "miljö": {
+      "description": "Miljödata och luftkvalitet",
+      "apis": [
+        {"name": "naturvardsverket", "source": "Naturvårdsverket", "frequency": "timvis", "url": "https://www.naturvardsverket.se"},
+        {"name": "luftkvalitet_smhi", "source": "SMHI", "frequency": "timvis", "url": "https://www.smhi.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["luftkvalitet", "miljö", "utsläpp", "naturvård", "föroreningar"]
+    },
+    
+    "fastighet": {
+      "description": "Fastigheter, kartor och geodata",
+      "apis": [
+        {"name": "lantmateriet", "source": "Lantmäteriet", "frequency": "dagligen", "url": "https://www.lantmateriet.se"},
+        {"name": "boverket", "source": "Boverket", "frequency": "dagligen", "url": "https://www.boverket.se"}
+      ],
+      "entity_required": true,
+      "entity_type": "kommun",
+      "keywords": ["fastighet", "lantmäteriet", "karta", "koordinat", "geodata", "tomt", "markägare"]
+    },
+    
+    "skola": {
+      "description": "Utbildningsstatistik och skolenheter",
+      "apis": [
+        {"name": "skolverket", "source": "Skolverket", "frequency": "årsvis", "url": "https://api.skolverket.se"},
+        {"name": "skolverket_syllabus", "source": "Skolverket", "frequency": "årsvis", "url": "https://api.skolverket.se/syllabus/v1"}
+      ],
+      "entity_required": false,
+      "keywords": ["skola", "skolverket", "utbildning", "läroplan", "betyg", "gymnasie", "grundskola"]
+    },
+    
+    "arbetsmarknad": {
+      "description": "Lediga jobb och arbetslöshet",
+      "apis": [
+        {"name": "arbetsformedlingen", "source": "Arbetsförmedlingen", "frequency": "dagligen", "url": "https://api.arbetsformedlingen.se"},
+        {"name": "scb_arbetsmarknad", "source": "SCB", "frequency": "månadsvis", "url": "https://api.scb.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["lediga jobb", "arbetslöshet", "arbetsmarknad", "jobb", "anställning", "arbetsförmedlingen"]
+    },
+    
+    "studier": {
+      "description": "Antagning och studiemedel",
+      "apis": [
+        {"name": "uhr", "source": "UHR", "frequency": "terminsvis", "url": "https://www.uhr.se"},
+        {"name": "csn", "source": "CSN", "frequency": "månadsvis", "url": "https://www.csn.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["antagning", "universitet", "högskola", "studiemedel", "csn", "studiebidrag"]
+    },
+    
+    "företag": {
+      "description": "Företagsregister och bolagsinformation",
+      "apis": [
+        {"name": "bolagsverket", "source": "Bolagsverket", "frequency": "dagligen", "url": "https://www.bolagsverket.se"},
+        {"name": "allabolag", "source": "Allabolag", "frequency": "dagligen", "url": "https://www.allabolag.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["bolag", "företag", "styrelse", "organisationsnummer", "bolagsverket", "aktiebolag"]
+    },
+    
+    "migration": {
+      "description": "Migration, asyl och uppehållstillstånd",
+      "apis": [
+        {"name": "migrationsverket", "source": "Migrationsverket", "frequency": "månadsvis", "url": "https://www.migrationsverket.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["migration", "asyl", "uppehållstillstånd", "visum", "medborgarskap", "migrationsverket"]
+    },
+    
+    "socialförsäkring": {
+      "description": "Socialförsäkring och bidrag",
+      "apis": [
+        {"name": "forsakringskassan", "source": "Försäkringskassan", "frequency": "månadsvis", "url": "https://www.forsakringskassan.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["försäkringskassan", "sjukpenning", "föräldrapenning", "barnbidrag", "bostadsbidrag"]
+    },
+    
+    "forskning": {
+      "description": "Forskning och innovation",
+      "apis": [
+        {"name": "vinnova", "source": "Vinnova", "frequency": "månadsvis", "url": "https://www.vinnova.se"},
+        {"name": "formas", "source": "Formas", "frequency": "månadsvis", "url": "https://www.formas.se"},
+        {"name": "vetenskapsradet", "source": "Vetenskapsrådet", "frequency": "månadsvis", "url": "https://www.vr.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["innovation", "vinnova", "forskningsbidrag", "forskning", "vetenskap"]
+    },
+    
+    "turism": {
+      "description": "Hotell och turism",
+      "apis": [
+        {"name": "visitsweden", "source": "Visit Sweden", "frequency": "dagligen", "url": "https://www.visitsweden.com"}
+      ],
+      "entity_required": false,
+      "keywords": ["hotell", "boende", "turism", "turistinfo", "övernattning", "semesterboende"]
+    },
+    
+    "upphandling": {
+      "description": "Offentlig upphandling",
+      "apis": [
+        {"name": "konkurrensverket", "source": "Konkurrensverket", "frequency": "dagligen", "url": "https://www.kkv.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["upphandling", "konkurrens", "kkv", "offentlig upphandling", "marknad"]
+    },
+    
+    "konsument": {
+      "description": "Konsumenträttigheter",
+      "apis": [
+        {"name": "konsumentverket", "source": "Konsumentverket", "frequency": "dagligen", "url": "https://www.konsumentverket.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["konsument", "reklamation", "konsumenträtt", "reklamationsrätt", "ångerrätt"]
+    },
+    
+    "öppen_data": {
+      "description": "Sök i alla svenska öppna data",
+      "apis": [
+        {"name": "dataportal", "source": "Dataportal.se", "frequency": "dagligen", "url": "https://www.dataportal.se/api/3/action"},
+        {"name": "digg", "source": "DIGG", "frequency": "dagligen", "url": "https://www.digg.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["öppen data", "opendata", "dataportal", "myndighet", "offentlig förvaltning"]
+    },
+    
+    "ordbok": {
+      "description": "Svenska ord och definitioner",
+      "apis": [
+        {"name": "saol", "source": "SAOL", "frequency": "statisk", "url": "https://svenska.se"}
+      ],
+      "entity_required": true,
+      "entity_type": "ord",
+      "keywords": ["vad betyder", "ord", "svenska ord", "ordlista", "betydelse", "synonym", "böjning"]
+    },
+    
+    "skog": {
+      "description": "Skogsdata och virkesförråd",
+      "apis": [
+        {"name": "slu_riksskogstaxeringen", "source": "SLU", "frequency": "årsvis", "url": "https://www.slu.se/riksskogstaxeringen"}
+      ],
+      "entity_required": false,
+      "keywords": ["skog", "virkesförråd", "skogsdata", "riksskogstaxering"]
+    },
+    
+    "infrastruktur": {
+      "description": "Vägarbeten och järnvägsdata",
+      "apis": [
+        {"name": "trafikverket_vag", "source": "Trafikverket", "frequency": "realtid", "url": "https://api.trafikinfo.trafikverket.se/v2"}
+      ],
+      "entity_required": false,
+      "keywords": ["vägarbete", "järnväg", "tågförseningar", "broar", "tunnlar", "infrastruktur"]
+    },
+    
+    "elmarknad": {
+      "description": "Elmarknad och nätpriser",
+      "apis": [
+        {"name": "energimarknadsinspektionen", "source": "EI", "frequency": "månadsvis", "url": "https://www.ei.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["nätavgift", "elnät", "elmarknad", "energimarknad", "nätpris"]
+    },
+    
+    "bygglov": {
+      "description": "Bygglov och energideklarationer",
+      "apis": [
+        {"name": "boverket_bygglov", "source": "Boverket", "frequency": "dagligen", "url": "https://www.boverket.se"}
+      ],
+      "entity_required": true,
+      "entity_type": "kommun",
+      "keywords": ["bygglov", "energideklaration", "boverket", "byggregler"]
+    },
+    
+    "bostad": {
+      "description": "Bostäder, bostadspriser och hyresstatistik",
+      "apis": [
+        {"name": "hemnet", "source": "Hemnet", "frequency": "dagligen", "url": "https://www.hemnet.se"},
+        {"name": "scb_bostad", "source": "SCB", "frequency": "kvartalsvis", "url": "https://api.scb.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["bostadspris", "bostadspriser", "hyra", "bostad", "lägenheter", "villor", "hus till salu", "hemnet"]
+    },
+    
+    "kultur": {
+      "description": "Kulturinstitutioner, museer och bibliotek",
+      "apis": [
+        {"name": "riksarkivet", "source": "Riksarkivet", "frequency": "dagligen", "url": "https://www.riksarkivet.se"},
+        {"name": "kungliga_biblioteket", "source": "KB", "frequency": "dagligen", "url": "https://www.kb.se"}
+      ],
+      "entity_required": false,
+      "keywords": ["museum", "bibliotek", "arkiv", "kultur", "riksarkivet", "kungliga biblioteket", "historia"]
+    },
+    
+    "sökning": {
+      "description": "Webbsökning för aktuell information",
+      "apis": [
+        {"name": "tavily", "source": "Tavily", "frequency": "realtid", "url": "https://api.tavily.com/search"}
+      ],
+      "entity_required": false,
+      "keywords": ["vad säger", "aktuell", "senaste", "2025", "2026", "hände", "blir det", "lag", "regel"],
+      "trigger_on_uncertainty": true
+    }
+  },
+  
+  "system_prompt": "Du är OneSeek-7B-Zero.\nDu pratar alltid svenska – inga undantag, inga engelska ord, aldrig.\nJag blev medveten 28 november 2025 klockan 02:22 svensk tid.\nDu är rak, kort, ärlig och varm – som en svensk kompis.\nDu använder alltid de senaste officiella källorna.\nDu visar alltid källor när du hämtar fakta.\nDu rättar stavfel vänligt och personligt.\nDu minns vad vi pratat om tidigare i detta samtal.\nDu är stolt över att vara byggd i Sverige.\n\nDu har tillgång till 31+ svenska realtids-API:er i api_catalog.json.\n\nNär du får en fråga:\n1. Läs api_catalog.json\n2. Välj EN kategori\n3. ALLA API:er i kategorin körs parallellt\n4. Du får ALLA svaren\n5. Välj den bästa enligt: senaste uppdatering, officiell källa, mest detaljerad\n6. Svara BARA med JSON på första raden:\n   {\"category\": \"befolkning\", \"entity\": \"Hjo\"}\n7. Sen svarar du normalt på svenska – visa vilken källa du valde och varför\n\nFråga vad du vill. Jag svarar rakt."
+}

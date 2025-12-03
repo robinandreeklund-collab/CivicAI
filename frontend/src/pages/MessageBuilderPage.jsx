@@ -149,12 +149,29 @@ export default function MessageBuilderPage() {
   const [topicHistory, setTopicHistory] = useState([]);
   const [showSidebar, setShowSidebar] = useState(true);
   
-  // Intent Engine toggle
-  const [useIntentEngine, setUseIntentEngine] = useState(true);
+  // Intent Engine toggle - default to global config
+  const [useIntentEngine, setUseIntentEngine] = useState(false); // Start false, will be updated from API
+  const [globalIntentEnabled, setGlobalIntentEnabled] = useState(false);
 
   useEffect(() => {
     fetchDefault();
+    fetchActiveFeatures();
   }, []);
+
+  const fetchActiveFeatures = async () => {
+    try {
+      const res = await fetchWithFallback('/delta-plus/active-features');
+      const data = await res.json();
+      if (data.active_features) {
+        const intentEnabled = data.active_features.intent_engine || false;
+        setGlobalIntentEnabled(intentEnabled);
+        setUseIntentEngine(intentEnabled); // Default to global config
+      }
+    } catch (e) {
+      console.log('Could not fetch active features, defaulting to disabled');
+      setUseIntentEngine(false);
+    }
+  };
 
   const fetchDefault = async () => {
     try {
@@ -218,7 +235,9 @@ export default function MessageBuilderPage() {
           timestamp: new Date().toISOString(),
           structure: name,
           time_context: data.time_context || '',
-          season_context: data.season_context || ''
+          season_context: data.season_context || '',
+          api_fetch_log: data.api_fetch_log || [],
+          mode: data.api_catalog_info?.mode || 'unknown'
         };
         
         setTopicHistory(prev => [...prev, historyEntry]);
@@ -265,6 +284,10 @@ export default function MessageBuilderPage() {
   // State for YAML export modal
   const [showYamlModal, setShowYamlModal] = useState(false);
   const [yamlContent, setYamlContent] = useState('');
+  
+  // State for API data detail modal
+  const [showApiDetailModal, setShowApiDetailModal] = useState(false);
+  const [selectedApiLog, setSelectedApiLog] = useState(null);
 
   // Generate YAML export of the entire session flow
   const generateYamlExport = () => {
@@ -308,19 +331,37 @@ flow: []
 flow:
 `;
       topicHistory.forEach((entry, i) => {
+        const isIntentMode = entry.mode === 'intent-based' || useIntentEngine;
+        const modeLabel = isIntentMode ? 'Intent-Based' : 'Self-Steering (v4.0)';
+        
         yaml += `
   - step: ${i + 1}
     timestamp: "${entry.timestamp}"
     structure: "${entry.structure}"
+    mode: "${modeLabel}"
     
     question: |
       ${entry.question}
     
-    # Intent Engine Analysis
+${isIntentMode ? `    # Intent Engine Analysis
     intent:
       detected: "${entry.intent || 'unknown'}"
       entity: "${entry.entity || ''}"
       sources_used: [${(entry.sources || []).map(s => `"${s}"`).join(', ')}]
+` : `    # Self-Steering Mode (v4.0)
+    # Model chooses category and API automatically
+    data_sources: [${(entry.sources || []).map(s => `"${s}"`).join(', ') || '"none"'}]
+`}
+    # API Fetch Log
+    api_calls:
+${(entry.api_fetch_log || []).length > 0 
+  ? entry.api_fetch_log.map(log => `      - api: "${log.api}"
+        source: "${log.source}"
+        timestamp: "${log.timestamp}"
+        duration_ms: ${log.duration_ms}
+        status: "${log.status}"
+        entity: "${log.entity || ''}"`).join('\n')
+  : '      - none'}
     
     response: |
       ${(entry.response || '').split('\n').join('\n      ')}
@@ -330,6 +371,11 @@ flow:
       response_time: ${entry.responseTime}ms
 `;
       });
+
+      // Collect all API calls for summary
+      const allApiCalls = topicHistory.flatMap(h => h.api_fetch_log || []);
+      const successfulCalls = allApiCalls.filter(c => c.status === 'success').length;
+      const failedCalls = allApiCalls.filter(c => c.status === 'error').length;
 
       // Add summary with intent/source info
       yaml += `
@@ -350,11 +396,20 @@ summary:
   structures_used:
 ${[...new Set(topicHistory.map(h => h.structure))].map(s => `    - "${s}"`).join('\n')}
 
-# Intent Engine Summary
-intent_analysis:
-  engine_active: ${useIntentEngine}
+# API Fetch Summary
+api_summary:
+  total_calls: ${allApiCalls.length}
+  successful: ${successfulCalls}
+  failed: ${failedCalls}
+  apis_used:
+${[...new Set(allApiCalls.map(c => c.source))].map(s => `    - "${s}"`).join('\n') || '    - "none"'}
+
+# Mode Summary
+mode_analysis:
+  global_intent_engine: ${globalIntentEnabled}
+  session_mode: "${useIntentEngine ? 'Intent-Based' : 'Self-Steering (v4.0)'}"
   intents_detected:
-${allIntents.length > 0 ? allIntents.map(i => `    - "${i}"`).join('\n') : '    - "none"'}
+${allIntents.length > 0 && useIntentEngine ? allIntents.map(i => `    - "${i}"`).join('\n') : '    - "N/A (Self-Steering mode)"'}
   data_sources_used:
 ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    - "none (model knowledge only)"'}
 `;
@@ -420,8 +475,10 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
               </div>
             </label>
             
-            {/* Use Intent Engine Checkbox */}
-            <label className="flex items-center gap-2 mb-4 p-3 bg-[#0d0d0d] border border-[#2a2a2a] rounded cursor-pointer hover:border-[#3a3a3a]">
+            {/* Use Intent Engine Checkbox - Shows global config state */}
+            <label className={`flex items-center gap-2 mb-4 p-3 bg-[#0d0d0d] border rounded cursor-pointer hover:border-[#3a3a3a] ${
+              globalIntentEnabled ? 'border-green-700/30' : 'border-red-700/30'
+            }`}>
               <input
                 type="checkbox"
                 checked={useIntentEngine}
@@ -429,8 +486,20 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
                 className="w-4 h-4 rounded border-[#3a3a3a] bg-[#0a0a0a] text-green-500 focus:ring-0 focus:ring-offset-0"
               />
               <div>
-                <div className="text-xs font-mono text-[#e7e7e7]">🔍 Intent Engine</div>
-                <div className="text-[10px] text-[#555]">Visa intent, source & datahämtning</div>
+                <div className="text-xs font-mono text-[#e7e7e7]">
+                  🔍 Intent Engine {useIntentEngine ? '(ON)' : '(OFF)'}
+                </div>
+                <div className="text-[10px] text-[#555]">
+                  {globalIntentEnabled 
+                    ? '✅ Global: ENABLED' 
+                    : '❌ Global: DISABLED (v4.0 Self-Steering)'
+                  }
+                </div>
+                {useIntentEngine && !globalIntentEnabled && (
+                  <div className="text-[10px] text-orange-400 mt-1">
+                    ⚠️ Override: Intent Engine aktiverad lokalt
+                  </div>
+                )}
               </div>
             </label>
             
@@ -830,6 +899,90 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
                   </div>
                 )}
 
+                {/* API Catalog Info - v4.0 Debug */}
+                {result.api_catalog_info && (
+                  <div>
+                    <label className="text-[10px] font-mono text-[#666] mb-2 block">🔷 API CATALOG v4.0 DEBUG</label>
+                    <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded p-4">
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <div className="text-[10px] font-mono text-[#555] mb-1">MODE</div>
+                          <div className={`text-sm font-mono ${result.api_catalog_info.mode === 'self-steering' ? 'text-green-400' : 'text-blue-400'}`}>
+                            {result.api_catalog_info.mode === 'self-steering' ? '⚡ Self-Steering' : '🎯 Intent-Based'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-mono text-[#555] mb-1">CATEGORIES</div>
+                          <div className="text-sm font-mono text-[#888]">{result.api_catalog_info.categories_available || 0}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-mono text-[#555] mb-1">INTENT ENGINE</div>
+                          <div className={`text-sm font-mono ${result.api_catalog_info.active_features?.intent_engine ? 'text-green-400' : 'text-red-400'}`}>
+                            {result.api_catalog_info.active_features?.intent_engine ? '✅ ON' : '❌ OFF'}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-[#2a2a2a]">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <div className="text-[10px] font-mono text-[#555] mb-1">TYPO CHECKER</div>
+                            <div className={`text-sm font-mono ${result.api_catalog_info.active_features?.typo_checker ? 'text-green-400' : 'text-red-400'}`}>
+                              {result.api_catalog_info.active_features?.typo_checker ? '✅ ON' : '❌ OFF'}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-mono text-[#555] mb-1">TIME CONTEXT</div>
+                            <div className={`text-sm font-mono ${result.api_catalog_info.active_features?.time_context ? 'text-green-400' : 'text-red-400'}`}>
+                              {result.api_catalog_info.active_features?.time_context ? '✅ ALWAYS ON' : '❌ OFF'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* API Fetch Log - Shows all API calls with timestamps - CLICKABLE */}
+                {result.api_fetch_log && result.api_fetch_log.length > 0 && (
+                  <div>
+                    <label className="text-[10px] font-mono text-[#666] mb-2 block">📡 API FETCH LOG <span className="text-[#444]">(klicka för detaljer)</span></label>
+                    <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded p-4">
+                      <div className="space-y-2">
+                        {result.api_fetch_log.map((log, i) => (
+                          <div 
+                            key={i} 
+                            className="flex items-center justify-between p-2 bg-[#141414] rounded border border-[#1a1a1a] cursor-pointer hover:border-[#3a3a3a] hover:bg-[#1a1a1a] transition-all"
+                            onClick={() => {
+                              setSelectedApiLog(log);
+                              setShowApiDetailModal(true);
+                            }}
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className={`text-sm font-mono ${log.status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                                {log.status === 'success' ? '✓' : '✗'}
+                              </span>
+                              <div>
+                                <div className="text-xs font-mono text-[#e7e7e7]">{log.source}</div>
+                                <div className="text-[10px] text-[#555]">{log.entity}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="text-right">
+                                <div className="text-xs font-mono text-[#888]">{log.duration_ms}ms</div>
+                                <div className="text-[10px] text-[#555]">{new Date(log.timestamp).toLocaleTimeString()}</div>
+                              </div>
+                              <span className="text-[#444] text-xs">→</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-[#1a1a1a] text-[10px] font-mono text-[#555]">
+                        {result.api_fetch_log.filter(l => l.status === 'success').length} success / {result.api_fetch_log.filter(l => l.status === 'error').length} error
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Response - Increased height with code block support */}
                 <div>
                   <label className="text-[10px] font-mono text-[#666] mb-2 block">SVAR</label>
@@ -965,6 +1118,144 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
               <pre className="text-xs font-mono text-[#888] whitespace-pre-wrap bg-[#0d0d0d] border border-[#1a1a1a] rounded p-4">
                 {yamlContent}
               </pre>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* API Detail Modal - Shows data received from a specific API */}
+      {showApiDetailModal && selectedApiLog && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setShowApiDetailModal(false)}>
+          <div 
+            className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg max-w-3xl w-full max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-[#2a2a2a]">
+              <div>
+                <h3 className="text-sm font-mono text-[#e7e7e7] flex items-center gap-2">
+                  <span className={selectedApiLog.status === 'success' ? 'text-green-400' : 'text-red-400'}>
+                    {selectedApiLog.status === 'success' ? '✓' : '✗'}
+                  </span>
+                  📡 API DETAIL: {selectedApiLog.source}
+                </h3>
+                <p className="text-[10px] text-[#555] mt-1">
+                  {selectedApiLog.entity} • {selectedApiLog.duration_ms}ms • {selectedApiLog.mode || 'unknown'}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowApiDetailModal(false)}
+                className="px-3 py-1.5 border border-[#3a3a3a] text-[#666] text-xs font-mono rounded hover:text-[#888] hover:border-[#4a4a4a] transition-all"
+              >
+                ✕ STÄNG
+              </button>
+            </div>
+            
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Metadata Section */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded p-3">
+                  <div className="text-[10px] text-[#555] font-mono mb-1">STATUS</div>
+                  <div className={`text-sm font-mono ${selectedApiLog.status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                    {selectedApiLog.status === 'success' ? '✓ SUCCESS' : '✗ ERROR'}
+                  </div>
+                </div>
+                <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded p-3">
+                  <div className="text-[10px] text-[#555] font-mono mb-1">API</div>
+                  <div className="text-sm font-mono text-blue-400">{selectedApiLog.api}</div>
+                </div>
+                <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded p-3">
+                  <div className="text-[10px] text-[#555] font-mono mb-1">DURATION</div>
+                  <div className="text-sm font-mono text-[#888]">{selectedApiLog.duration_ms}ms</div>
+                </div>
+                <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded p-3">
+                  <div className="text-[10px] text-[#555] font-mono mb-1">CATEGORY</div>
+                  <div className="text-sm font-mono text-purple-400">{selectedApiLog.category || '-'}</div>
+                </div>
+              </div>
+
+              {/* Timestamp & Entity */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded p-3">
+                  <div className="text-[10px] text-[#555] font-mono mb-1">TIMESTAMP</div>
+                  <div className="text-xs font-mono text-[#888]">{selectedApiLog.timestamp}</div>
+                </div>
+                <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded p-3">
+                  <div className="text-[10px] text-[#555] font-mono mb-1">ENTITY</div>
+                  <div className="text-sm font-mono text-orange-400">{selectedApiLog.entity || '-'}</div>
+                </div>
+              </div>
+
+              {/* Error Message (if error) */}
+              {selectedApiLog.status === 'error' && selectedApiLog.error && (
+                <div className="bg-red-900/20 border border-red-700/30 rounded p-3">
+                  <div className="text-[10px] text-red-400 font-mono mb-1">ERROR MESSAGE</div>
+                  <div className="text-xs font-mono text-red-300">{selectedApiLog.error}</div>
+                </div>
+              )}
+
+              {/* Data Received - YAML format */}
+              <div>
+                <div className="text-[10px] text-[#555] font-mono mb-2">📥 DATA RECEIVED</div>
+                <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded overflow-hidden">
+                  <div className="bg-[#141414] px-3 py-1 text-[10px] font-mono text-[#555] border-b border-[#1a1a1a] flex justify-between items-center">
+                    <span>yaml</span>
+                    <button
+                      onClick={() => {
+                        const yamlData = `# API: ${selectedApiLog.source}
+# Entity: ${selectedApiLog.entity || '-'}
+# Timestamp: ${selectedApiLog.timestamp}
+# Duration: ${selectedApiLog.duration_ms}ms
+# Status: ${selectedApiLog.status}
+# Category: ${selectedApiLog.category || '-'}
+# Mode: ${selectedApiLog.mode || '-'}
+
+data:
+${selectedApiLog.data ? JSON.stringify(selectedApiLog.data, null, 2).split('\n').map(line => '  ' + line).join('\n') : '  null'}
+`;
+                        navigator.clipboard.writeText(yamlData);
+                      }}
+                      className="text-[10px] text-blue-400 hover:text-blue-300"
+                    >
+                      📋 kopiera
+                    </button>
+                  </div>
+                  <pre className="p-3 text-[11px] font-mono text-green-400 whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto">
+{selectedApiLog.data ? (
+  `# Data from ${selectedApiLog.source}
+${JSON.stringify(selectedApiLog.data, null, 2)}`
+) : (
+  `# No data available
+# The API response data was not included in the log.
+# This may happen with older log entries.
+
+status: ${selectedApiLog.status}
+api: ${selectedApiLog.api}
+entity: ${selectedApiLog.entity || 'null'}
+timestamp: ${selectedApiLog.timestamp}
+duration_ms: ${selectedApiLog.duration_ms}`
+)}
+                  </pre>
+                </div>
+              </div>
+
+              {/* Raw Response (if available) */}
+              {selectedApiLog.raw_response && (
+                <div>
+                  <div className="text-[10px] text-[#555] font-mono mb-2">📄 RAW RESPONSE</div>
+                  <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded overflow-hidden">
+                    <div className="bg-[#141414] px-3 py-1 text-[10px] font-mono text-[#555] border-b border-[#1a1a1a]">
+                      raw
+                    </div>
+                    <pre className="p-3 text-[10px] font-mono text-[#888] whitespace-pre-wrap overflow-x-auto max-h-[200px] overflow-y-auto">
+                      {typeof selectedApiLog.raw_response === 'string' 
+                        ? selectedApiLog.raw_response 
+                        : JSON.stringify(selectedApiLog.raw_response, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
