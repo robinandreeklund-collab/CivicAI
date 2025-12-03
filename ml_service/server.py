@@ -5721,6 +5721,7 @@ async def test_message_structure(request: MessageBuilderRequest):
             print("  ⚡ SELF-STEERING MODE (v4.0)")
             print("    Intent Engine: DISABLED")
             print("    Using api_catalog.json for category matching")
+            print("    🔄 Parallel API fetching enabled")
             
             # === SELF-STEERING: Use api_catalog.json keywords for category detection ===
             msg_lower = request.user_message.lower()
@@ -5751,6 +5752,7 @@ async def test_message_structure(request: MessageBuilderRequest):
                 print(f"      Keywords: {matched_keywords}")
                 print(f"      APIs available: {[api.get('name') for api in apis]}")
                 print(f"      Entity required: {entity_required}")
+                print(f"      🔄 Will fetch from ALL {len(apis)} APIs in parallel")
                 
                 # Try to extract entity from message
                 entity = None
@@ -5768,112 +5770,181 @@ async def test_message_structure(request: MessageBuilderRequest):
                     "intent": matched_category,
                     "entity": entity or "",
                     "confidence": 0.90,
-                    "api": apis[0].get("name") if apis else None,
+                    "apis": [api.get("name") for api in apis],
                     "matched_keywords": matched_keywords,
-                    "mode": "self-steering"
+                    "mode": "self-steering",
+                    "parallel_fetch": True
                 }
                 
-                # Fetch data based on matched category
-                fetch_start = datetime.now()
+                # === PARALLEL API FETCHING ===
+                # Define API function mapping
+                api_function_map = {
+                    "scb_population": lambda e: fetch_scb_data(f"befolkning {e}"),
+                    "skatteverket_folkbokföring": lambda e: fetch_scb_data(f"folkbokföring {e}"),  # Use SCB as fallback
+                    "smhi_current": lambda e: get_weather(e),
+                    "yr_no": lambda e: get_weather(e),  # Use SMHI as fallback for YR
+                    "krisinformation": lambda e: fetch_krisinformation(),
+                    "myndighet_kris": lambda e: fetch_krisinformation(),
+                    "riksdagen": lambda e: fetch_riksdagen_data(e) if e else None,
+                    "trafikverket": lambda e: fetch_trafikverket_data(e) if e else None,
+                }
                 
-                if matched_category == "befolkning":
-                    print(f"  📡 SELF-STEERING: Fetching SCB population for {entity}...")
-                    sources_used.append("scb")
-                    population_data = fetch_scb_data(f"befolkning {entity}")
-                    fetch_end = datetime.now()
-                    fetch_duration = (fetch_end - fetch_start).total_seconds() * 1000
-                    if population_data:
-                        print(f"    ✓ SCB: Population data received ({fetch_duration:.0f}ms)")
-                        data_context["statistics"] = {
-                            "source": "SCB",
-                            "location": entity,
-                            "data": population_data
-                        }
-                        api_fetch_log.append({
-                            "api": "scb",
-                            "source": "SCB",
+                print(f"  📡 PARALLEL FETCH: Starting {len(apis)} API calls...")
+                parallel_start = datetime.now()
+                
+                # Create tasks for parallel execution
+                async def fetch_api_async(api_config, ent):
+                    """Wrapper to run sync API calls in thread pool"""
+                    api_name = api_config.get("name")
+                    api_source = api_config.get("source")
+                    fetch_start = datetime.now()
+                    
+                    try:
+                        if api_name in api_function_map:
+                            # Run sync function in thread pool for parallel execution
+                            result = await asyncio.to_thread(api_function_map[api_name], ent)
+                            fetch_end = datetime.now()
+                            duration = (fetch_end - fetch_start).total_seconds() * 1000
+                            
+                            return {
+                                "api_name": api_name,
+                                "source": api_source,
+                                "data": result,
+                                "success": result is not None,
+                                "duration_ms": round(duration),
+                                "timestamp": fetch_start.isoformat(),
+                                "entity": ent
+                            }
+                        else:
+                            return {
+                                "api_name": api_name,
+                                "source": api_source,
+                                "data": None,
+                                "success": False,
+                                "duration_ms": 0,
+                                "timestamp": fetch_start.isoformat(),
+                                "entity": ent,
+                                "error": "No handler implemented"
+                            }
+                    except Exception as e:
+                        fetch_end = datetime.now()
+                        duration = (fetch_end - fetch_start).total_seconds() * 1000
+                        return {
+                            "api_name": api_name,
+                            "source": api_source,
+                            "data": None,
+                            "success": False,
+                            "duration_ms": round(duration),
                             "timestamp": fetch_start.isoformat(),
-                            "duration_ms": round(fetch_duration),
+                            "entity": ent,
+                            "error": str(e)
+                        }
+                
+                # Execute all API calls in parallel
+                import asyncio
+                tasks = [fetch_api_async(api, entity) for api in apis]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                
+                parallel_end = datetime.now()
+                total_parallel_duration = (parallel_end - parallel_start).total_seconds() * 1000
+                
+                # Process results
+                successful_apis = []
+                failed_apis = []
+                
+                for result in results:
+                    if isinstance(result, Exception):
+                        print(f"    ✗ API Exception: {result}")
+                        continue
+                    
+                    api_name = result.get("api_name")
+                    api_source = result.get("source")
+                    duration = result.get("duration_ms", 0)
+                    
+                    if result.get("success"):
+                        print(f"    ✓ {api_source}: Data received ({duration}ms)")
+                        successful_apis.append(result)
+                        sources_used.append(api_name.split("_")[0])  # e.g., "scb" from "scb_population"
+                        
+                        # Add to data_context based on category
+                        if matched_category == "befolkning":
+                            if "statistics" not in data_context:
+                                data_context["statistics"] = {
+                                    "source": api_source,
+                                    "location": entity,
+                                    "data": result.get("data")
+                                }
+                            else:
+                                # Multiple sources - append
+                                if "additional_sources" not in data_context["statistics"]:
+                                    data_context["statistics"]["additional_sources"] = []
+                                data_context["statistics"]["additional_sources"].append({
+                                    "source": api_source,
+                                    "data": result.get("data")
+                                })
+                        elif matched_category == "väder":
+                            if "weather" not in data_context:
+                                data_context["weather"] = {
+                                    "source": api_source,
+                                    "location": entity,
+                                    "data": result.get("data")
+                                }
+                            else:
+                                if "additional_sources" not in data_context["weather"]:
+                                    data_context["weather"]["additional_sources"] = []
+                                data_context["weather"]["additional_sources"].append({
+                                    "source": api_source,
+                                    "data": result.get("data")
+                                })
+                        elif matched_category == "kris":
+                            if "crisis" not in data_context:
+                                data_context["crisis"] = {
+                                    "source": api_source,
+                                    "data": result.get("data")
+                                }
+                        
+                        # Log to api_fetch_log
+                        api_fetch_log.append({
+                            "api": api_name,
+                            "source": api_source,
+                            "timestamp": result.get("timestamp"),
+                            "duration_ms": duration,
                             "status": "success",
                             "entity": entity,
-                            "mode": "self-steering",
+                            "mode": "self-steering-parallel",
                             "category": matched_category
                         })
                     else:
-                        print(f"    ✗ SCB: No data for {entity}")
+                        error_msg = result.get("error", "Unknown error")
+                        print(f"    ✗ {api_source}: Failed ({duration}ms) - {error_msg}")
+                        failed_apis.append(result)
+                        
                         api_fetch_log.append({
-                            "api": "scb",
-                            "source": "SCB",
-                            "timestamp": fetch_start.isoformat(),
-                            "duration_ms": round(fetch_duration),
+                            "api": api_name,
+                            "source": api_source,
+                            "timestamp": result.get("timestamp"),
+                            "duration_ms": duration,
                             "status": "error",
                             "entity": entity,
-                            "mode": "self-steering",
-                            "category": matched_category
+                            "mode": "self-steering-parallel",
+                            "category": matched_category,
+                            "error": error_msg
                         })
                 
-                elif matched_category == "väder":
-                    print(f"  📡 SELF-STEERING: Fetching SMHI weather for {entity}...")
-                    sources_used.append("smhi")
-                    weather_data = get_weather(entity)
-                    fetch_end = datetime.now()
-                    fetch_duration = (fetch_end - fetch_start).total_seconds() * 1000
-                    if weather_data:
-                        print(f"    ✓ SMHI: Weather data received ({fetch_duration:.0f}ms)")
-                        data_context["weather"] = {
-                            "source": "SMHI",
-                            "location": entity,
-                            "data": weather_data
-                        }
-                        api_fetch_log.append({
-                            "api": "smhi",
-                            "source": "SMHI",
-                            "timestamp": fetch_start.isoformat(),
-                            "duration_ms": round(fetch_duration),
-                            "status": "success",
-                            "entity": entity,
-                            "mode": "self-steering",
-                            "category": matched_category
-                        })
-                    else:
-                        print(f"    ✗ SMHI: No data for {entity}")
-                        api_fetch_log.append({
-                            "api": "smhi",
-                            "source": "SMHI",
-                            "timestamp": fetch_start.isoformat(),
-                            "duration_ms": round(fetch_duration),
-                            "status": "error",
-                            "entity": entity,
-                            "mode": "self-steering",
-                            "category": matched_category
-                        })
+                print(f"  📊 PARALLEL FETCH COMPLETE:")
+                print(f"      Total APIs: {len(apis)}")
+                print(f"      Successful: {len(successful_apis)}")
+                print(f"      Failed: {len(failed_apis)}")
+                print(f"      Total time: {total_parallel_duration:.0f}ms (parallel)")
                 
-                elif matched_category == "kris":
-                    print(f"  📡 SELF-STEERING: Fetching Krisinformation...")
-                    sources_used.append("krisinformation")
-                    crisis_data = fetch_krisinformation()
-                    fetch_end = datetime.now()
-                    fetch_duration = (fetch_end - fetch_start).total_seconds() * 1000
-                    if crisis_data:
-                        print(f"    ✓ Krisinformation: Data received ({fetch_duration:.0f}ms)")
-                        data_context["crisis"] = {
-                            "source": "Krisinformation.se",
-                            "data": crisis_data
-                        }
-                        api_fetch_log.append({
-                            "api": "krisinformation",
-                            "source": "Krisinformation.se",
-                            "timestamp": fetch_start.isoformat(),
-                            "duration_ms": round(fetch_duration),
-                            "status": "success",
-                            "entity": "Sverige",
-                            "mode": "self-steering",
-                            "category": matched_category
-                        })
+                # Update intent_info with parallel results
+                intent_info["parallel_results"] = {
+                    "total_apis": len(apis),
+                    "successful": len(successful_apis),
+                    "failed": len(failed_apis),
+                    "total_time_ms": round(total_parallel_duration)
+                }
                 
-                else:
-                    print(f"    ⚠️ Category '{matched_category}' matched but no API handler implemented yet")
-                    print(f"       Available categories with handlers: befolkning, väder, kris")
             else:
                 print("    ⚠️ No category matched from api_catalog.json")
                 print("    → Falling back to keyword-based detection")

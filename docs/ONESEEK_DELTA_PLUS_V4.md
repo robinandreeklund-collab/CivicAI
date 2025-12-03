@@ -8,7 +8,7 @@ ONESEEK Δ+ v4.0 är en fullständigt självstyrd AI som automatiskt väljer rä
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  SELF-STEERING FLÖDE (v4.0)                                             │
+│  SELF-STEERING FLÖDE (v4.0) med PARALLELL API-HÄMTNING                 │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │  1. Fråga kommer in: "Hur många bor i Hjo?"                            │
@@ -25,13 +25,36 @@ ONESEEK Δ+ v4.0 är en fullständigt självstyrd AI som automatiskt väljer rä
 │         ↓                                                               │
 │  5. Extrahera entity: "Hjo"                                            │
 │         ↓                                                               │
-│  6. Anropa API: SCB Population för Hjo                                 │
+│  6. 🔄 PARALLELL HÄMTNING (asyncio.gather):                            │
+│     ┌──────────────────┐  ┌──────────────────────────┐                 │
+│     │ SCB Population   │  │ Skatteverket Folkbokfö.  │                 │
+│     │ (300ms)          │  │ (250ms)                  │                 │
+│     └────────┬─────────┘  └────────────┬─────────────┘                 │
+│              └─────────────┬───────────┘                               │
+│                            ↓                                            │
+│              Total tid: ~300ms (inte 550ms sekventiellt!)              │
 │         ↓                                                               │
-│  7. Injicera data i system prompt                                      │
+│  7. Injicera ALL data i system prompt                                  │
 │         ↓                                                               │
-│  8. Modellen svarar med aktuell data                                   │
+│  8. Modellen väljer bästa källan och svarar                            │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Parallell vs Sekventiell hämtning
+
+```python
+# Sekventiellt – DÅLIGT (gamla sättet)
+result1 = await scb_population(entity)    # 400ms
+result2 = await skatteverket(entity)       # 350ms
+# → 750ms totalt
+
+# Parallellt – BRA (nya sättet med asyncio.gather)
+result1, result2 = await asyncio.gather(
+    scb_population(entity),
+    skatteverket(entity)
+)
+# → ~400ms totalt (tiden för den långsammaste)
 ```
 
 ## Arkitektur
