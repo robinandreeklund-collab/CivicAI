@@ -171,41 +171,82 @@ result1, result2 = await asyncio.gather(
 
 ## API-implementationer – Detaljerad Status
 
-### ✅ AKTIVA API:er (Riktiga anrop med data)
+### ✅ AKTIVA API:er (Riktiga API-anrop som returnerar dynamisk data)
 
-| API-namn | Källa | URL | Funktion | Status |
-|----------|-------|-----|----------|--------|
-| `scb_population` | SCB | api.scb.se | `fetch_scb_population()` | ✅ RIKTIG DATA |
-| `skatteverket_folkbokföring` | Skatteverket | via SCB | `fetch_skatteverket_population()` | ✅ RIKTIG DATA |
+Dessa API:er gör riktiga HTTP-anrop och returnerar aktuell data:
+
+| API-namn | Källa | API-URL | Funktion | Status |
+|----------|-------|---------|----------|--------|
+| `scb_population` | SCB | api.scb.se/OV0104/v1/doris/sv/ssd | `fetch_scb_population()` | ✅ RIKTIG DATA |
+| `skatteverket_folkbokföring` | Skatteverket | via SCB månadsstatistik | `fetch_skatteverket_population()` | ✅ RIKTIG DATA |
 | `smhi_current` | SMHI | opendata-download-metfcst.smhi.se | `get_weather()` | ✅ RIKTIG DATA |
-| `krisinformation` | Krisinformation.se | api.krisinformation.se | `fetch_krisinformation()` | ✅ RIKTIG DATA |
-| `riksdagen_dokumentlista` | Riksdagen | data.riksdagen.se | `fetch_riksdagen_data()` | ✅ RIKTIG DATA |
-| `arbetsformedlingen` | Arbetsförmedlingen | jobsearch.api.jobtechdev.se | `fetch_arbetsformedlingen_jobs()` | ✅ RIKTIG DATA |
+| `krisinformation` | Krisinformation.se | api.krisinformation.se/v3 | `fetch_krisinformation()` | ✅ RIKTIG DATA |
+| `riksdagen_dokumentlista` | Riksdagen | data.riksdagen.se/dokumentlista | `fetch_riksdagen_data()` | ✅ RIKTIG DATA |
+| `arbetsformedlingen` | Arbetsförmedlingen | jobsearch.api.jobtechdev.se/search | `fetch_arbetsformedlingen_jobs()` | ✅ RIKTIG DATA |
 | `svt_nyheter` | SVT | svt.se/nyheter/rss.xml | `fetch_svt_news()` | ✅ RSS |
-| `sr_ekot` | Sveriges Radio | api.sr.se/api/rss | `fetch_sr_ekot_news()` | ✅ RSS |
+| `sr_ekot` | Sveriges Radio | api.sr.se/api/rss/program/83 | `fetch_sr_ekot_news()` | ✅ RSS |
 | `omni` | Omni | omni.se/rss | `fetch_omni_news()` | ✅ RSS |
-| `dataportal` | Dataportal.se | dataportal.se/api | `fetch_open_data_search()` | ✅ RIKTIG DATA |
+| `dataportal` | Dataportal.se | dataportal.se/api/3/action | `fetch_open_data_search()` | ✅ RIKTIG DATA |
+| `skolverket` | Skolverket | api.skolverket.se/syllabus/v1 | `fetch_skolverket_data()` | ✅ RIKTIG DATA |
 
-### ℹ️ INFORMATIVA API:er (Länkar till källa)
+### 📌 INFORMATIVA API:er (Dynamiska länkar till källan)
 
-| API-namn | Källa | Funktion | Varför inte dynamisk? |
-|----------|-------|----------|----------------------|
-| `trafikverket_info` | Trafikverket | `fetch_trafikverket_data()` | Kräver API-nyckel |
+Dessa API:er returnerar informativ text med korrekta källlänkar. De gör inte API-anrop men ger användaren direktlänkar till rätt källa:
+
+| API-namn | Källa | Funktion | Anledning till statisk data |
+|----------|-------|----------|----------------------------|
+| `saol` | SAOL | `fetch_saol_data()` | Genererar sök-länk till svenska.se med användarens ord |
+| `trafikverket_info` | Trafikverket | `fetch_trafikverket_data()` | Kräver API-nyckel för riktigt anrop |
 | `lantmateriet` | Lantmäteriet | `fetch_lantmateriet_data()` | Kräver API-nyckel |
-| `hemnet` | Hemnet | `fetch_hemnet_data()` | Ingen publik API |
+| `hemnet` | Hemnet | `fetch_hemnet_data()` | Ingen publik API tillgänglig |
 | `nordpool` | Nord Pool | `fetch_nordpool_elpris()` | Kräver API-nyckel |
-| `saol` | SAOL | `fetch_saol_data()` | Kräver registrering |
-| `skolverket` | Skolverket | `fetch_skolverket_data()` | Begränsad API |
-| `bolagsverket` | Bolagsverket | `fetch_bolagsverket_data()` | Ingen publik API |
-| `migrationsverket` | Migrationsverket | `fetch_migrationsverket_data()` | Ingen publik API |
+| `bolagsverket` | Bolagsverket | `fetch_bolagsverket_data()` | Kräver registrering |
+| `migrationsverket` | Migrationsverket | `fetch_migrationsverket_data()` | Statistik publiceras i PDF |
 | `forsakringskassan` | Försäkringskassan | `fetch_forsakringskassan_data()` | Ingen publik API |
-| `socialstyrelsen` | Socialstyrelsen | `fetch_socialstyrelsen_data()` | Begränsad API |
-| `folkhalsomyndigheten` | FHM | `fetch_folkhalsomyndigheten_data()` | Begränsad API |
-| `naturvardsverket` | Naturvårdsverket | `fetch_naturvardsverket_data()` | Begränsad API |
+| `socialstyrelsen` | Socialstyrelsen | `fetch_socialstyrelsen_data()` | Begränsad publik API |
+| `folkhalsomyndigheten` | FHM | `fetch_folkhalsomyndigheten_data()` | Data publiceras på webb |
+| `naturvardsverket` | Naturvårdsverket | `fetch_naturvardsverket_data()` | Begränsad publik API |
 | `csn` | CSN | `fetch_csn_data()` | Ingen publik API |
-| `riksarkivet` | Riksarkivet | `fetch_riksarkivet_data()` | Sökbaserad |
-| `kungliga_biblioteket` | KB | `fetch_kungliga_biblioteket_data()` | Sökbaserad |
-| `vinnova` | Vinnova | `fetch_vinnova_data()` | Ingen publik API |
+| `riksarkivet` | Riksarkivet | `fetch_riksarkivet_data()` | Sökbaserad webbplats |
+| `kungliga_biblioteket` | KB | `fetch_kungliga_biblioteket_data()` | Sökbaserad webbplats |
+| `vinnova` | Vinnova | `fetch_vinnova_data()` | Kräver registrering |
+
+### 🔧 Så lägger du till en ny AKTIV API
+
+1. **Lägg till i `config/api_catalog.json`:**
+```json
+{
+  "ny_kategori": {
+    "keywords": ["nyckelord1", "nyckelord2"],
+    "apis": [{"name": "ny_api", "source": "Källan"}],
+    "entity_required": false
+  }
+}
+```
+
+2. **Skapa fetch-funktion i `ml_service/server.py`:**
+```python
+def fetch_ny_api(query: str = None) -> Optional[str]:
+    """Hämta data från NY API."""
+    try:
+        url = "https://api.källa.se/endpoint"
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            # Bearbeta data...
+            result = f"**Data:**\n{formatted_data}"
+            result += '\n\n**Källor:**\n'
+            result += '1. <a href="https://källa.se">Källa</a>'
+            return result
+    except Exception:
+        return None
+    return "Fallback info\n\n**Källor:**\n1. <a href=\"https://källa.se\">Källa</a>"
+```
+
+3. **Lägg till i `api_function_map` (rad ~6458):**
+```python
+"ny_api": lambda e: fetch_ny_api(e),
+```
 
 ---
 
