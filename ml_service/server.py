@@ -4232,120 +4232,24 @@ def _extract_categories_from_character(char_data: Dict) -> List[str]:
 
 def choose_personality(question: str, api_catalog: Optional[Dict] = None) -> str:
     """
-    ONESEEK Δ+ v6.2: Choose personality based on question + category/keywords.
+    ONESEEK Δ+ v6.2: REMOVED - Model chooses personality itself.
     
-    This replaces the Intent Engine with a simpler, more transparent approach:
-    1. Match keywords in question to personality keywords
-    2. Match category (if detected) to personality categories
-    3. Fall back to default personality
+    This function is deprecated. The model receives personality_catalog.json
+    in its prompt and chooses the right personality based on the question.
+    
+    Always returns "oneseek-medveten" - the base personality that orchestrates
+    personality selection by reading the catalog.
     
     Args:
-        question: User's question
-        api_catalog: Optional API catalog with detected category
+        question: User's question (not used)
+        api_catalog: Optional API catalog (not used)
         
     Returns:
-        Personality ID (e.g., "oneseek-bibliotekarie", "oneseek-metrolog")
+        Always "oneseek-medveten"
     """
-    # === DEBUG: Log start of personality selection ===
-    print("\n" + "=" * 60)
-    print("🎭 ONESEEK Δ+ v6.2 - PERSONALITY SELECTION")
-    print("=" * 60)
-    print(f"📝 Question: {question}")
-    
-    catalog = load_personality_catalog()
-    personalities = catalog.get("personality_catalog", {})
-    rules = catalog.get("selection_rules", {})
-    
-    print(f"📂 Loaded personality_catalog.json")
-    print(f"   → Version: {catalog.get('version', 'unknown')}")
-    print(f"   → Personalities: {list(personalities.keys())}")
-    print(f"   → Fallback: {rules.get('fallback', 'oneseek-medveten')}")
-    print(f"   → Min confidence: {rules.get('min_keyword_confidence', 0.6)}")
-    
-    if not personalities:
-        print("⚠️ No personalities found, using fallback")
-        return rules.get("fallback", "oneseek-medveten")
-    
-    question_lower = question.lower()
-    # Split question into words for better matching
-    import re
-    question_words = set(re.findall(r'\b\w+\b', question_lower))
-    print(f"\n🔍 Question words: {question_words}")
-    
-    best_match = None
-    best_score = 0.0
-    
-    print("\n--- Scoring each personality ---")
-    for personality_id, personality_data in personalities.items():
-        score = 0.0
-        matched_keywords = []
-        
-        # Check keywords - use word boundary matching for better accuracy
-        keywords = personality_data.get("keywords", [])
-        keyword_matches = 0
-        for kw in keywords:
-            kw_lower = kw.lower()
-            # For multi-word keywords, check if phrase is in question
-            if ' ' in kw_lower:
-                if kw_lower in question_lower:
-                    keyword_matches += 1
-                    matched_keywords.append(kw)
-            # For single-word keywords, check word boundaries
-            else:
-                if kw_lower in question_words:
-                    keyword_matches += 1
-                    matched_keywords.append(kw)
-        
-        if keyword_matches > 0:
-            score += 0.3 + (keyword_matches * 0.1)
-        
-        # Check categories (if API catalog provides category)
-        category_match = False
-        if api_catalog:
-            detected_category = api_catalog.get("category", "")
-            # Pre-process categories to lowercase once
-            personality_categories = [c.lower() for c in personality_data.get("categories", [])]
-            if detected_category and detected_category.lower() in personality_categories:
-                score += 0.5
-                category_match = True
-        
-        # Bonus for default personality (slight preference)
-        if personality_data.get("is_default", False):
-            score += 0.1
-        
-        # Print debug for each personality
-        print(f"\n  🎭 {personality_id}:")
-        print(f"     Keywords: {keywords}")
-        print(f"     Matched: {matched_keywords if matched_keywords else 'none'}")
-        print(f"     Categories: {personality_data.get('categories', [])}")
-        print(f"     Category match: {'✓' if category_match else '✗'}")
-        print(f"     Is default: {'✓' if personality_data.get('is_default', False) else '✗'}")
-        print(f"     Score: {score:.2f}")
-        
-        if score > best_score:
-            best_score = score
-            best_match = personality_id
-    
-    # Apply minimum confidence threshold
-    min_confidence = rules.get("min_keyword_confidence", 0.6)
-    
-    print("\n--- Final Selection ---")
-    print(f"   Best match: {best_match}")
-    print(f"   Best score: {best_score:.2f}")
-    print(f"   Min threshold: {min_confidence}")
-    
-    if best_score >= min_confidence and best_match:
-        print(f"✅ SELECTED: {best_match}")
-        print("=" * 60 + "\n")
-        logger.info(f"[PERSONALITY] Selected '{best_match}' (score: {best_score:.2f}) for: {question[:50]}...")
-        return best_match
-    
-    # Return default
-    fallback = rules.get("fallback", "oneseek-medveten")
-    print(f"⚡ Score below threshold, using fallback: {fallback}")
-    print("=" * 60 + "\n")
-    logger.info(f"[PERSONALITY] Using fallback '{fallback}' (best score: {best_score:.2f})")
-    return fallback
+    # ONESEEK Δ+ v6.2: No Python keyword matching
+    # The model reads personality_catalog.json and chooses itself
+    return "oneseek-medveten"
 
 
 def get_personality_system_prompt(personality_id: str) -> Optional[str]:
@@ -8785,9 +8689,10 @@ Svara NU.
     force_svenska_active = check_force_svenska(request.text)
     
     # === ONESEEK Δ+ v6.2: AI-DRIVEN PERSONALITY SELECTION ===
-    # The model reads personality_catalog.json and chooses the right personality itself
+    # NO Python keyword matching - the model chooses personality itself
+    # by reading personality_catalog.json injected into the prompt
     print("\n" + "=" * 60)
-    print("🚀 ONESEEK Δ+ v6.2 - AI-DRIVEN PERSONALITY FLOW")
+    print("🚀 ONESEEK Δ+ v6.2 - AI-DRIVEN PERSONALITY")
     print("=" * 60)
     print(f"📝 Question: {request.text}")
     print(f"🇸🇪 Force-Svenska: {'ACTIVE' if force_svenska_active else 'inactive'}")
@@ -8798,7 +8703,7 @@ Svara NU.
     print(f"📂 Loaded personality_catalog.json ({len(personality_catalog_json)} chars)")
     print(f"   → Personalities: {list(personality_catalog.get('personality_catalog', {}).keys())}")
     
-    # Also load all personality system prompts for injection
+    # Load all personality system prompts for injection
     all_personality_prompts = {}
     for pid, pdata in personality_catalog.get("personality_catalog", {}).items():
         prompt = get_personality_system_prompt(pid)
@@ -8806,18 +8711,18 @@ Svara NU.
             all_personality_prompts[pid] = prompt
             print(f"   → Loaded prompt for: {pid} ({len(prompt)} chars)")
     
-    # Python fallback personality selection (for response metadata)
-    selected_personality_id = choose_personality(request.text)
+    # ALWAYS use medveten - SHE chooses the right personality herself
+    selected_personality_id = "oneseek-medveten"
     selected_personality_info = get_personality_info(selected_personality_id)
-    print(f"🎭 Python fallback selected: {selected_personality_id}")
+    print(f"🎭 Base personality: {selected_personality_id} (model will choose from catalog)")
     
-    # Always use medveten as the base system prompt (it instructs the model to choose)
+    # Load medveten as the base system prompt
     base_system_prompt = get_personality_system_prompt("oneseek-medveten")
     if not base_system_prompt:
         base_system_prompt = get_active_system_prompt()
         print(f"⚠️ Could not load medveten prompt, using default")
     else:
-        print(f"✅ Using medveten base prompt ({len(base_system_prompt)} chars)")
+        print(f"✅ Loaded medveten base prompt ({len(base_system_prompt)} chars)")
     
     # === 1. ALWAYS: Inject time, date & season context ===
     time_context = inject_time_context()
@@ -9109,12 +9014,12 @@ Svara NU.
     
     # === DEBUG: Log inference start ===
     print("\n" + "-" * 60)
-    print("📊 INFERENCE SUMMARY - AI-DRIVEN PERSONALITY")
+    print("📊 INFERENCE SUMMARY - NO PYTHON KEYWORD MATCHING")
     print("-" * 60)
-    print(f"🎭 Python fallback: {selected_personality_id}")
+    print(f"🎭 Base: oneseek-medveten (SHE chooses personality from catalog)")
     print(f"📂 Personality catalog injected: YES ({len(personality_catalog_json)} chars)")
     print(f"📄 All personality prompts injected: {len(all_personality_prompts)} prompts")
-    print(f"🧠 Base prompt: medveten (model will choose personality)")
+    print(f"🧠 Model reads catalog → analyzes question → becomes right personality")
     print(f"🕐 Time context: {time_context[:30]}...")
     print(f"🍂 Season: {season_context}")
     print(f"🇸🇪 Force-Svenska: {'ACTIVE' if force_svenska_active else 'inactive'}")
@@ -9124,7 +9029,7 @@ Svara NU.
     print(f"🔍 Tavily: {'YES' if tavily_context else 'none'}")
     print(f"📝 Full input length: {len(full_input)} chars")
     print("-" * 60)
-    print("🚀 Starting inference (model will analyze and choose personality)...")
+    print("🚀 Starting inference...")
     print("=" * 60 + "\n")
     
     logger.debug("=" * 60)
