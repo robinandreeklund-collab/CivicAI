@@ -16,10 +16,8 @@ import { formatAIResponse, formatMarkdown } from '../utils/formatMarkdown';
 // Available personas (constant - doesn't change)
 const AVAILABLE_PERSONAS = [
   { id: 'oneseek-medveten', name: 'Medveten', icon: '🧠' },
-  { id: 'oneseek-expert', name: 'Expert', icon: '👔' },
-  { id: 'oneseek-filosofisk', name: 'Filosofisk', icon: '🎭' },
-  { id: 'oneseek-arlig', name: 'Ärlig', icon: '💎' },
-  { id: 'oneseek-faktabaserad', name: 'Faktabaserad', icon: '📊' },
+  { id: 'oneseek-bibliotekarie', name: 'Bibliotekarien', icon: '📚' },
+  { id: 'oneseek-metrolog', name: 'Metrologen', icon: '🌤️' },
 ];
 
 // Message ID counter for unique IDs
