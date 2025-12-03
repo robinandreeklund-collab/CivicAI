@@ -1574,11 +1574,13 @@ def fetch_csn_data(query: str = None) -> Optional[str]:
     Returns:
         Formatted CSN info with HTML source links
     """
+    current_year = datetime.now().year
     result = "CSN administrerar studiestöd och lån för studier."
-    result += "\n\nStudiemedel 2025:\n"
+    result += f"\n\nStudiemedel {current_year}:\n"
     result += "• Studiebidrag: ca 3 900 kr/mån\n"
     result += "• Studielån: upp till ca 8 000 kr/mån\n"
     result += "• Tilläggslån för äldre studenter\n"
+    result += "\n_Beloppen kan ändras – se CSN för aktuella nivåer._"
     result += "\n\n**Källor:**\n"
     result += '1. <a href="https://www.csn.se">CSN – Centrala studiestödsnämnden</a>\n'
     result += '2. <a href="https://www.csn.se/bidrag-och-lan">Bidrag och lån</a>'
