@@ -4021,6 +4021,403 @@ async def get_current_prompt():
 
 
 # =============================================================================
+# ONESEEK Δ+ v6.2 - PERSONALITY CATALOG
+# =============================================================================
+# Dynamic personality selection based on category + keywords.
+# The model chooses the right personality automatically - no Intent Engine needed.
+# 100% compatible with existing character cards in frontend/public/characters/
+
+PERSONALITY_CATALOG_FILE = Path(__file__).parent.parent / "config" / "personality_catalog.json"
+
+# Global personality catalog cache
+_personality_catalog_cache: Optional[Dict[str, Any]] = None
+
+
+def load_personality_catalog() -> Dict[str, Any]:
+    """
+    Load personality catalog from config/personality_catalog.json.
+    
+    Returns:
+        Dict with personality_catalog and selection_rules
+    """
+    global _personality_catalog_cache
+    
+    if _personality_catalog_cache is not None:
+        return _personality_catalog_cache
+    
+    if PERSONALITY_CATALOG_FILE.exists():
+        try:
+            with open(PERSONALITY_CATALOG_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                _personality_catalog_cache = data
+                logger.info(f"[PERSONALITY] ✓ Loaded {len(data.get('personality_catalog', {}))} personalities")
+                return data
+        except (json.JSONDecodeError, IOError) as e:
+            logger.warning(f"[PERSONALITY] Could not load catalog: {e}")
+    
+    # Return empty catalog if file doesn't exist
+    return {"personality_catalog": {}, "selection_rules": {"fallback": "oneseek-medveten"}}
+
+
+def sync_personality_catalog() -> Dict[str, Any]:
+    """
+    ONESEEK Δ+ v6.2: Synchronize personality catalog from character cards.
+    
+    Scans frontend/public/characters/ for YAML files and generates
+    config/personality_catalog.json with keywords/categories for auto-selection.
+    
+    Returns:
+        Dict with sync results (synced count, errors, etc.)
+    """
+    global _personality_catalog_cache
+    
+    characters_dir = PROJECT_ROOT / 'frontend' / 'public' / 'characters'
+    results = {"synced": [], "skipped": [], "errors": []}
+    
+    if not characters_dir.exists():
+        logger.warning(f"[PERSONALITY] Characters directory not found: {characters_dir}")
+        return results
+    
+    # Build new catalog
+    catalog = {
+        "version": "6.2.0",
+        "description": "ONESEEK Δ+ v6.2 - Dynamic Personality Catalog. Auto-generated from character cards.",
+        "updated": datetime.now().isoformat(),
+        "auto_generated": True,
+        "personality_catalog": {},
+        "selection_rules": {
+            "priority_order": ["category_match", "keyword_match", "default"],
+            "min_keyword_confidence": 0.6,
+            "fallback": "oneseek-medveten"
+        },
+        "metadata": {
+            "last_sync": datetime.now().isoformat(),
+            "cards_scanned": 0,
+            "sync_source": str(characters_dir)
+        }
+    }
+    
+    # Scan character files
+    character_files = list(characters_dir.glob('*.yaml')) + list(characters_dir.glob('*.yml'))
+    catalog["metadata"]["cards_scanned"] = len(character_files)
+    
+    for char_file in character_files:
+        try:
+            import yaml
+            with open(char_file, 'r', encoding='utf-8') as f:
+                char_data = yaml.safe_load(f)
+            
+            if not isinstance(char_data, dict):
+                results["errors"].append({
+                    "id": char_file.stem,
+                    "error": "Invalid format"
+                })
+                continue
+            
+            character_id = char_data.get('id', char_file.stem)
+            
+            # Build personality entry
+            personality_entry = {
+                "card_file": str(char_file.relative_to(PROJECT_ROOT)),
+                "keywords": _extract_keywords_from_character(char_data),
+                "categories": _extract_categories_from_character(char_data),
+                "description": char_data.get('description', ''),
+                "is_default": character_id == "oneseek-medveten"
+            }
+            
+            catalog["personality_catalog"][character_id] = personality_entry
+            results["synced"].append({
+                "id": character_id,
+                "name": char_data.get('name', character_id),
+                "keywords_count": len(personality_entry["keywords"]),
+                "categories_count": len(personality_entry["categories"])
+            })
+            
+        except Exception as e:
+            results["errors"].append({
+                "id": char_file.stem,
+                "error": str(e)
+            })
+            logger.warning(f"[PERSONALITY] Could not process {char_file}: {e}")
+    
+    # Save catalog
+    try:
+        PERSONALITY_CATALOG_FILE.parent.mkdir(exist_ok=True)
+        with open(PERSONALITY_CATALOG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(catalog, f, ensure_ascii=False, indent=2)
+        
+        # Update cache
+        _personality_catalog_cache = catalog
+        logger.info(f"[PERSONALITY] ✓ Synced {len(results['synced'])} personalities to catalog")
+        
+    except IOError as e:
+        results["errors"].append({"save_error": str(e)})
+        logger.error(f"[PERSONALITY] Failed to save catalog: {e}")
+    
+    return results
+
+
+def _extract_keywords_from_character(char_data: Dict) -> List[str]:
+    """
+    Extract keywords from character card for personality matching.
+    
+    Uses traits, capabilities, and metadata to generate keywords.
+    """
+    keywords = []
+    
+    # Extract from traits
+    traits = char_data.get('traits', [])
+    if isinstance(traits, list):
+        keywords.extend([t.lower() for t in traits if isinstance(t, str)])
+    
+    # Extract from capabilities
+    capabilities = char_data.get('capabilities', [])
+    if isinstance(capabilities, list):
+        for cap in capabilities:
+            if isinstance(cap, str):
+                # Extract key words from capability descriptions
+                words = cap.lower().split()
+                keywords.extend([w for w in words if len(w) > 3 and w.isalpha()])
+    
+    # Extract from metadata domain
+    metadata = char_data.get('metadata', {})
+    if isinstance(metadata, dict):
+        domain = metadata.get('domain', '')
+        if domain:
+            keywords.append(domain.lower())
+        audience = metadata.get('audience', '')
+        if audience:
+            keywords.append(audience.lower())
+    
+    # Add personality_type as keyword
+    personality_type = char_data.get('personality_type', '')
+    if personality_type:
+        keywords.append(personality_type.lower())
+    
+    # Deduplicate
+    return list(set(keywords))
+
+
+def _extract_categories_from_character(char_data: Dict) -> List[str]:
+    """
+    Extract categories from character card for API matching.
+    
+    Maps character metadata to API catalog categories.
+    """
+    categories = []
+    
+    metadata = char_data.get('metadata', {})
+    if isinstance(metadata, dict):
+        domain = metadata.get('domain', '')
+        if domain:
+            categories.append(domain.lower())
+    
+    personality_type = char_data.get('personality_type', '')
+    if personality_type:
+        categories.append(personality_type.lower())
+    
+    return list(set(categories))
+
+
+def choose_personality(question: str, api_catalog: Optional[Dict] = None) -> str:
+    """
+    ONESEEK Δ+ v6.2: Choose personality based on question + category/keywords.
+    
+    This replaces the Intent Engine with a simpler, more transparent approach:
+    1. Match keywords in question to personality keywords
+    2. Match category (if detected) to personality categories
+    3. Fall back to default personality
+    
+    Args:
+        question: User's question
+        api_catalog: Optional API catalog with detected category
+        
+    Returns:
+        Personality ID (e.g., "oneseek-expert", "oneseek-vanlig")
+    """
+    catalog = load_personality_catalog()
+    personalities = catalog.get("personality_catalog", {})
+    rules = catalog.get("selection_rules", {})
+    
+    if not personalities:
+        return rules.get("fallback", "oneseek-medveten")
+    
+    question_lower = question.lower()
+    best_match = None
+    best_score = 0.0
+    
+    for personality_id, personality_data in personalities.items():
+        score = 0.0
+        
+        # Check keywords
+        keywords = personality_data.get("keywords", [])
+        keyword_matches = sum(1 for kw in keywords if kw in question_lower)
+        if keyword_matches > 0:
+            score += 0.3 + (keyword_matches * 0.1)
+        
+        # Check categories (if API catalog provides category)
+        if api_catalog:
+            detected_category = api_catalog.get("category", "")
+            personality_categories = personality_data.get("categories", [])
+            if detected_category and detected_category.lower() in [c.lower() for c in personality_categories]:
+                score += 0.5
+        
+        # Bonus for default personality (slight preference)
+        if personality_data.get("is_default", False):
+            score += 0.1
+        
+        if score > best_score:
+            best_score = score
+            best_match = personality_id
+    
+    # Apply minimum confidence threshold
+    min_confidence = rules.get("min_keyword_confidence", 0.6)
+    if best_score >= min_confidence and best_match:
+        logger.info(f"[PERSONALITY] Selected '{best_match}' (score: {best_score:.2f}) for: {question[:50]}...")
+        return best_match
+    
+    # Return default
+    fallback = rules.get("fallback", "oneseek-medveten")
+    logger.info(f"[PERSONALITY] Using fallback '{fallback}' (best score: {best_score:.2f})")
+    return fallback
+
+
+def get_personality_system_prompt(personality_id: str) -> Optional[str]:
+    """
+    Load system prompt from personality's character card.
+    
+    Args:
+        personality_id: Personality ID from catalog
+        
+    Returns:
+        System prompt content or None
+    """
+    catalog = load_personality_catalog()
+    personality = catalog.get("personality_catalog", {}).get(personality_id)
+    
+    if not personality:
+        return None
+    
+    card_file = personality.get("card_file", "")
+    if not card_file:
+        return None
+    
+    card_path = PROJECT_ROOT / card_file
+    if not card_path.exists():
+        logger.warning(f"[PERSONALITY] Card file not found: {card_path}")
+        return None
+    
+    try:
+        import yaml
+        with open(card_path, 'r', encoding='utf-8') as f:
+            char_data = yaml.safe_load(f)
+        
+        return char_data.get('system_prompt', '')
+    except Exception as e:
+        logger.warning(f"[PERSONALITY] Could not load card {card_path}: {e}")
+        return None
+
+
+# Create Personality Catalog router
+personality_router = APIRouter(prefix="/api/personality", tags=["Personality Catalog"])
+
+
+@personality_router.get("")
+async def get_personality_catalog():
+    """
+    Get the current personality catalog.
+    
+    Returns all available personalities with their keywords and categories.
+    """
+    catalog = load_personality_catalog()
+    return {
+        "version": catalog.get("version", "6.2.0"),
+        "personalities": catalog.get("personality_catalog", {}),
+        "selection_rules": catalog.get("selection_rules", {}),
+        "metadata": catalog.get("metadata", {})
+    }
+
+
+@personality_router.post("/sync")
+async def sync_personalities():
+    """
+    Synchronize personality catalog from character cards.
+    
+    Scans frontend/public/characters/ and updates config/personality_catalog.json.
+    This should be called when character cards are added/modified.
+    """
+    results = sync_personality_catalog()
+    
+    return {
+        "success": True,
+        "message": f"Synced {len(results['synced'])} personalities",
+        "synced": results["synced"],
+        "skipped": results["skipped"],
+        "errors": results["errors"]
+    }
+
+
+@personality_router.post("/choose")
+async def choose_personality_endpoint(request: dict):
+    """
+    Choose the best personality for a given question.
+    
+    This is the main ONESEEK Δ+ v6.2 feature: automatic personality selection.
+    
+    Request body:
+    - question: The user's question
+    - category: (optional) Detected category from API catalog
+    """
+    question = request.get("question", "")
+    category = request.get("category", "")
+    
+    if not question:
+        raise HTTPException(status_code=400, detail="question is required")
+    
+    api_catalog = {"category": category} if category else None
+    personality_id = choose_personality(question, api_catalog)
+    
+    # Get the system prompt for this personality
+    system_prompt = get_personality_system_prompt(personality_id)
+    
+    return {
+        "personality_id": personality_id,
+        "system_prompt": system_prompt,
+        "detected_category": category
+    }
+
+
+@personality_router.get("/{personality_id}")
+async def get_personality_details(personality_id: str):
+    """
+    Get details for a specific personality.
+    """
+    catalog = load_personality_catalog()
+    personality = catalog.get("personality_catalog", {}).get(personality_id)
+    
+    if not personality:
+        raise HTTPException(status_code=404, detail=f"Personality not found: {personality_id}")
+    
+    # Load full system prompt
+    system_prompt = get_personality_system_prompt(personality_id)
+    
+    return {
+        "personality_id": personality_id,
+        "card_file": personality.get("card_file", ""),
+        "keywords": personality.get("keywords", []),
+        "categories": personality.get("categories", []),
+        "description": personality.get("description", ""),
+        "is_default": personality.get("is_default", False),
+        "system_prompt": system_prompt
+    }
+
+
+# =============================================================================
+# END PERSONALITY CATALOG
+# =============================================================================
+
+
+# =============================================================================
 # FORCE-SVENSKA API - Real-time dashboard control for Swedish language triggers
 # =============================================================================
 # These endpoints allow admins to manage the Force-Svenska feature which ensures
@@ -5403,6 +5800,9 @@ app.include_router(system_prompts_router, prefix="/api")
 
 # Register Simple System Prompt router (for dashboard integration)
 app.include_router(simple_prompt_router)
+
+# Register Personality Catalog router (ONESEEK Δ+ v6.2)
+app.include_router(personality_router)
 
 # Register Force-Svenska router (real-time dashboard control)
 app.include_router(force_svenska_router)

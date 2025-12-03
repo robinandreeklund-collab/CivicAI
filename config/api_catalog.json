@@ -1,12 +1,13 @@
 {
-  "version": "4.0.0",
-  "description": "ONESEEK Δ+ v4.0 - Fullständigt självstyrd AI. Modellen väljer kategori och API själv.",
+  "version": "6.2.0",
+  "description": "ONESEEK Δ+ v6.2 - Självständig AI med dynamisk Personality Catalog. Modellen väljer kategori, API och personlighet själv.",
   "updated": "2025-12-03",
   
   "active_features": {
     "intent_engine": false,
     "typo_checker": false,
-    "time_context": true
+    "time_context": true,
+    "personality_catalog": true
   },
   
   "api_catalog": {

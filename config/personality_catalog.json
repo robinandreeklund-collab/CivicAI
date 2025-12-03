@@ -1,0 +1,40 @@
+{
+  "version": "6.2.0",
+  "description": "ONESEEK Δ+ v6.2 - Dynamic Personality Catalog. Genereras automatiskt från character cards.",
+  "updated": "2025-12-03",
+  "auto_generated": true,
+  
+  "personality_catalog": {
+    "oneseek-medveten": {
+      "card_file": "frontend/public/characters/OneSeek-Medveten.yaml",
+      "keywords": ["hej", "vem är du", "vad kan du", "berätta om dig", "civic", "samhälle", "demokrati"],
+      "categories": ["general", "civic", "etik"],
+      "description": "Sveriges första kontinuerliga civic-AI - default personlighet",
+      "is_default": true
+    },
+    "oneseek-expert": {
+      "card_file": "frontend/public/characters/OneSeek-Expert.yaml",
+      "keywords": ["myndighet", "regelverk", "juridisk", "compliance", "dokumentation", "analys", "beslut"],
+      "categories": ["myndigheter", "juridik", "regelverksanalys"],
+      "description": "Expertversion för myndigheter och professionella användare"
+    },
+    "oneseek-vanlig": {
+      "card_file": "frontend/public/characters/OneSeek-Vänlig.yaml",
+      "keywords": ["förklara", "lär mig", "hur fungerar", "vad betyder", "enkelt", "pedagogisk", "barn"],
+      "categories": ["utbildning", "pedagogik", "lärande"],
+      "description": "Pedagogisk version för lärande och utbildning"
+    }
+  },
+  
+  "selection_rules": {
+    "priority_order": ["category_match", "keyword_match", "default"],
+    "min_keyword_confidence": 0.6,
+    "fallback": "oneseek-medveten"
+  },
+  
+  "metadata": {
+    "last_sync": null,
+    "cards_scanned": 3,
+    "sync_source": "frontend/public/characters/"
+  }
+}
