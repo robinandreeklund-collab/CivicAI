@@ -265,6 +265,7 @@ try:
         get_registry_summary,
         load_api_catalog_config,
         save_api_catalog_config,
+        reset_api_stats,
         # Legacy function imports for backward compatibility
         fetch_scb_population,
         fetch_scb_data,
@@ -308,6 +309,7 @@ except ImportError:
             get_registry_summary,
             load_api_catalog_config,
             save_api_catalog_config,
+            reset_api_stats,
             # Legacy function imports for backward compatibility
             fetch_scb_population,
             fetch_scb_data,
@@ -350,6 +352,7 @@ except ImportError:
         get_registry_summary = None
         load_api_catalog_config = None
         save_api_catalog_config = None
+        reset_api_stats = None
 
 # Global cache enabled flag (can be toggled from admin dashboard)
 GLOBAL_CACHE_ENABLED = True
@@ -6238,8 +6241,6 @@ async def reset_integration_stats(request: dict = None):
     """
     if not API_INTEGRATIONS_AVAILABLE:
         raise HTTPException(status_code=500, detail="API Integrations module not available")
-    
-    from api_integrations import reset_api_stats
     
     api_id = request.get("api_id") if request else None
     reset_api_stats(api_id)

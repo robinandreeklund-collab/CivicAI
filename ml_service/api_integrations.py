@@ -215,157 +215,6 @@ def register_api(integration: APIIntegration) -> None:
     _init_api_stats(integration.api_id)
 
 
-def get_api_registry() -> Dict[str, APIIntegration]:
-    """
-    Get all registered API integrations.
-    
-    Returns:
-        Dict mapping API IDs to APIIntegration objects
-    """
-    return _api_registry
-
-
-def get_api_integration(api_id: str) -> Optional[APIIntegration]:
-    """
-    Get a specific API integration by ID.
-    
-    Args:
-        api_id: The API identifier
-        
-    Returns:
-        APIIntegration object or None if not found
-    """
-    return _api_registry.get(api_id)
-
-
-def call_api(api_id: str, query: str = None, entity: str = None, **kwargs) -> Optional[str]:
-    """
-    Call an API by ID with standardized interface.
-    
-    Args:
-        api_id: The API identifier
-        query: Search query or question
-        entity: Specific entity
-        **kwargs: Additional parameters
-        
-    Returns:
-        Formatted response string or None if failed or disabled
-    """
-    integration = _api_registry.get(api_id)
-    if not integration:
-        logger.warning(f"[API] Unknown API: {api_id}")
-        return None
-    
-    if not integration.enabled:
-        logger.debug(f"[API] {api_id} is disabled")
-        return None
-    
-    return integration.call(query=query, entity=entity, **kwargs)
-
-
-def toggle_api(api_id: str, enabled: bool = None) -> bool:
-    """
-    Toggle an API's enabled status.
-    
-    Args:
-        api_id: The API identifier
-        enabled: New status, or None to toggle
-        
-    Returns:
-        New enabled status
-    """
-    integration = _api_registry.get(api_id)
-    if not integration:
-        return False
-    
-    if enabled is None:
-        integration.enabled = not integration.enabled
-    else:
-        integration.enabled = enabled
-    
-    return integration.enabled
-
-
-def test_api(api_id: str) -> Dict[str, Any]:
-    """
-    Run a test request against an API.
-    
-    Args:
-        api_id: The API identifier
-        
-    Returns:
-        Dict with test results including success, response, and timing
-    """
-    import time
-    
-    integration = _api_registry.get(api_id)
-    if not integration:
-        return {
-            "success": False,
-            "error": f"API not found: {api_id}",
-            "api_id": api_id
-        }
-    
-    start_time = time.time()
-    try:
-        result = integration.call_fn(query="test", entity=None)
-        response_time_ms = (time.time() - start_time) * 1000
-        
-        return {
-            "success": result is not None,
-            "api_id": api_id,
-            "name": integration.name,
-            "response_preview": result[:200] if result else None,
-            "response_length": len(result) if result else 0,
-            "response_time_ms": round(response_time_ms, 2),
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        response_time_ms = (time.time() - start_time) * 1000
-        return {
-            "success": False,
-            "api_id": api_id,
-            "name": integration.name,
-            "error": str(e),
-            "response_time_ms": round(response_time_ms, 2),
-            "timestamp": datetime.now().isoformat()
-        }
-
-
-def get_registry_summary() -> Dict[str, Any]:
-    """
-    Get a summary of the API registry.
-    
-    Returns:
-        Dict with counts and status information
-    """
-    total = len(_api_registry)
-    enabled = sum(1 for api in _api_registry.values() if api.enabled)
-    
-    categories = {}
-    for api in _api_registry.values():
-        cat = api.category
-        if cat not in categories:
-            categories[cat] = {"total": 0, "enabled": 0}
-        categories[cat]["total"] += 1
-        if api.enabled:
-            categories[cat]["enabled"] += 1
-    
-    total_requests = sum(s.get("total_requests", 0) for s in _api_stats.values())
-    successful_requests = sum(s.get("successful_requests", 0) for s in _api_stats.values())
-    
-    return {
-        "total_apis": total,
-        "enabled_apis": enabled,
-        "disabled_apis": total - enabled,
-        "categories": categories,
-        "total_requests": total_requests,
-        "successful_requests": successful_requests,
-        "failed_requests": total_requests - successful_requests,
-        "success_rate": round(successful_requests / total_requests * 100, 1) if total_requests > 0 else 0
-    }
-
-
 # =============================================================================
 # RIKSDAGEN API INTEGRATIONS
 # =============================================================================
@@ -380,6 +229,8 @@ def fetch_riksdagen_ledamoter(query: str = None, entity: str = None, **kwargs) -
     Args:
         query: Optional search query (name, party, constituency, etc.)
                If None, returns current ledamöter
+        entity: Optional specific entity (person name, party name)
+               If provided, used as the search query
         
     Returns:
         Formatted ledamot data with HTML source links, or None if failed
@@ -391,6 +242,9 @@ def fetch_riksdagen_ledamoter(query: str = None, entity: str = None, **kwargs) -
         
     API documentation: https://www.dataportal.se/dataservice/98_3022
     """
+    # Use entity if provided, otherwise fall back to query
+    search_term = entity or query
+    
     try:
         # Build the API URL
         base_url = "https://data.riksdagen.se/dokumentlista/"
@@ -402,8 +256,8 @@ def fetch_riksdagen_ledamoter(query: str = None, entity: str = None, **kwargs) -
         }
         
         # Add search query if provided
-        if query:
-            params["sok"] = query
+        if search_term:
+            params["sok"] = search_term
         
         # Make the API request
         response = requests.get(base_url, params=params, timeout=15)
@@ -417,8 +271,8 @@ def fetch_riksdagen_ledamoter(query: str = None, entity: str = None, **kwargs) -
             
             if not dokument:
                 # No results found
-                if query:
-                    return f"Inga ledamöter hittades för sökning: '{query}'\n\n**Källa:** <a href=\"https://www.riksdagen.se/sv/ledamoter-partier/\">Riksdagen – Ledamöter och partier</a>"
+                if search_term:
+                    return f"Inga ledamöter hittades för sökning: '{search_term}'\n\n**Källa:** <a href=\"https://www.riksdagen.se/sv/ledamoter-partier/\">Riksdagen – Ledamöter och partier</a>"
                 return None
             
             # Format the results
@@ -464,8 +318,8 @@ def fetch_riksdagen_ledamoter(query: str = None, entity: str = None, **kwargs) -
             
             # Build final response
             header = f"**Riksdagsledamöter"
-            if query:
-                header += f" (sökning: '{query}')"
+            if search_term:
+                header += f" (sökning: '{search_term}')"
             header += f"** (visar {min(10, len(dokument))} av {traffar} träffar):\n\n"
             
             result = header + "\n".join(results)
@@ -1679,8 +1533,173 @@ def init_api_registry() -> None:
     logger.info(f"[API Registry] Initialized with {len(_api_registry)} integrations")
 
 
-# Initialize registry on module load
-init_api_registry()
+# Flag to track if registry has been initialized
+_registry_initialized = False
+
+
+def ensure_registry_initialized() -> None:
+    """Ensure the API registry is initialized (lazy initialization)."""
+    global _registry_initialized
+    if not _registry_initialized:
+        init_api_registry()
+        _registry_initialized = True
+
+
+def get_api_registry() -> Dict[str, 'APIIntegration']:
+    """
+    Get all registered API integrations.
+    
+    Returns:
+        Dict mapping API IDs to APIIntegration objects
+    """
+    ensure_registry_initialized()
+    return _api_registry
+
+
+def get_api_integration(api_id: str) -> Optional['APIIntegration']:
+    """
+    Get a specific API integration by ID.
+    
+    Args:
+        api_id: The API identifier
+        
+    Returns:
+        APIIntegration object or None if not found
+    """
+    ensure_registry_initialized()
+    return _api_registry.get(api_id)
+
+
+def call_api(api_id: str, query: str = None, entity: str = None, **kwargs) -> Optional[str]:
+    """
+    Call an API by ID with standardized interface.
+    
+    Args:
+        api_id: The API identifier
+        query: Search query or question
+        entity: Specific entity
+        **kwargs: Additional parameters
+        
+    Returns:
+        Formatted response string or None if failed or disabled
+    """
+    ensure_registry_initialized()
+    integration = _api_registry.get(api_id)
+    if not integration:
+        logger.warning(f"[API] Unknown API: {api_id}")
+        return None
+    
+    if not integration.enabled:
+        logger.debug(f"[API] {api_id} is disabled")
+        return None
+    
+    return integration.call(query=query, entity=entity, **kwargs)
+
+
+def toggle_api(api_id: str, enabled: bool = None) -> bool:
+    """
+    Toggle an API's enabled status.
+    
+    Args:
+        api_id: The API identifier
+        enabled: New status, or None to toggle
+        
+    Returns:
+        New enabled status
+    """
+    ensure_registry_initialized()
+    integration = _api_registry.get(api_id)
+    if not integration:
+        return False
+    
+    if enabled is None:
+        integration.enabled = not integration.enabled
+    else:
+        integration.enabled = enabled
+    
+    return integration.enabled
+
+
+def test_api(api_id: str) -> Dict[str, Any]:
+    """
+    Run a test request against an API.
+    
+    Args:
+        api_id: The API identifier
+        
+    Returns:
+        Dict with test results including success, response, and timing
+    """
+    import time
+    
+    ensure_registry_initialized()
+    integration = _api_registry.get(api_id)
+    if not integration:
+        return {
+            "success": False,
+            "error": f"API not found: {api_id}",
+            "api_id": api_id
+        }
+    
+    start_time = time.time()
+    try:
+        result = integration.call_fn(query="test", entity=None)
+        response_time_ms = (time.time() - start_time) * 1000
+        
+        return {
+            "success": result is not None,
+            "api_id": api_id,
+            "name": integration.name,
+            "response_preview": result[:200] if result else None,
+            "response_length": len(result) if result else 0,
+            "response_time_ms": round(response_time_ms, 2),
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        response_time_ms = (time.time() - start_time) * 1000
+        return {
+            "success": False,
+            "api_id": api_id,
+            "name": integration.name,
+            "error": str(e),
+            "response_time_ms": round(response_time_ms, 2),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+def get_registry_summary() -> Dict[str, Any]:
+    """
+    Get a summary of the API registry.
+    
+    Returns:
+        Dict with counts and status information
+    """
+    ensure_registry_initialized()
+    total = len(_api_registry)
+    enabled = sum(1 for api in _api_registry.values() if api.enabled)
+    
+    categories = {}
+    for api in _api_registry.values():
+        cat = api.category
+        if cat not in categories:
+            categories[cat] = {"total": 0, "enabled": 0}
+        categories[cat]["total"] += 1
+        if api.enabled:
+            categories[cat]["enabled"] += 1
+    
+    total_requests = sum(s.get("total_requests", 0) for s in _api_stats.values())
+    successful_requests = sum(s.get("successful_requests", 0) for s in _api_stats.values())
+    
+    return {
+        "total_apis": total,
+        "enabled_apis": enabled,
+        "disabled_apis": total - enabled,
+        "categories": categories,
+        "total_requests": total_requests,
+        "successful_requests": successful_requests,
+        "failed_requests": total_requests - successful_requests,
+        "success_rate": round(successful_requests / total_requests * 100, 1) if total_requests > 0 else 0
+    }
 
 
 # =============================================================================
