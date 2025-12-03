@@ -4244,25 +4244,41 @@ def choose_personality(question: str, api_catalog: Optional[Dict] = None) -> str
         api_catalog: Optional API catalog with detected category
         
     Returns:
-        Personality ID (e.g., "oneseek-expert", "oneseek-vanlig")
+        Personality ID (e.g., "oneseek-bibliotekarie", "oneseek-metrolog")
     """
+    # === DEBUG: Log start of personality selection ===
+    print("\n" + "=" * 60)
+    print("🎭 ONESEEK Δ+ v6.2 - PERSONALITY SELECTION")
+    print("=" * 60)
+    print(f"📝 Question: {question}")
+    
     catalog = load_personality_catalog()
     personalities = catalog.get("personality_catalog", {})
     rules = catalog.get("selection_rules", {})
     
+    print(f"📂 Loaded personality_catalog.json")
+    print(f"   → Version: {catalog.get('version', 'unknown')}")
+    print(f"   → Personalities: {list(personalities.keys())}")
+    print(f"   → Fallback: {rules.get('fallback', 'oneseek-medveten')}")
+    print(f"   → Min confidence: {rules.get('min_keyword_confidence', 0.6)}")
+    
     if not personalities:
+        print("⚠️ No personalities found, using fallback")
         return rules.get("fallback", "oneseek-medveten")
     
     question_lower = question.lower()
     # Split question into words for better matching
     import re
     question_words = set(re.findall(r'\b\w+\b', question_lower))
+    print(f"\n🔍 Question words: {question_words}")
     
     best_match = None
     best_score = 0.0
     
+    print("\n--- Scoring each personality ---")
     for personality_id, personality_data in personalities.items():
         score = 0.0
+        matched_keywords = []
         
         # Check keywords - use word boundary matching for better accuracy
         keywords = personality_data.get("keywords", [])
@@ -4273,25 +4289,38 @@ def choose_personality(question: str, api_catalog: Optional[Dict] = None) -> str
             if ' ' in kw_lower:
                 if kw_lower in question_lower:
                     keyword_matches += 1
+                    matched_keywords.append(kw)
             # For single-word keywords, check word boundaries
             else:
                 if kw_lower in question_words:
                     keyword_matches += 1
+                    matched_keywords.append(kw)
         
         if keyword_matches > 0:
             score += 0.3 + (keyword_matches * 0.1)
         
         # Check categories (if API catalog provides category)
+        category_match = False
         if api_catalog:
             detected_category = api_catalog.get("category", "")
             # Pre-process categories to lowercase once
             personality_categories = [c.lower() for c in personality_data.get("categories", [])]
             if detected_category and detected_category.lower() in personality_categories:
                 score += 0.5
+                category_match = True
         
         # Bonus for default personality (slight preference)
         if personality_data.get("is_default", False):
             score += 0.1
+        
+        # Print debug for each personality
+        print(f"\n  🎭 {personality_id}:")
+        print(f"     Keywords: {keywords}")
+        print(f"     Matched: {matched_keywords if matched_keywords else 'none'}")
+        print(f"     Categories: {personality_data.get('categories', [])}")
+        print(f"     Category match: {'✓' if category_match else '✗'}")
+        print(f"     Is default: {'✓' if personality_data.get('is_default', False) else '✗'}")
+        print(f"     Score: {score:.2f}")
         
         if score > best_score:
             best_score = score
@@ -4299,12 +4328,22 @@ def choose_personality(question: str, api_catalog: Optional[Dict] = None) -> str
     
     # Apply minimum confidence threshold
     min_confidence = rules.get("min_keyword_confidence", 0.6)
+    
+    print("\n--- Final Selection ---")
+    print(f"   Best match: {best_match}")
+    print(f"   Best score: {best_score:.2f}")
+    print(f"   Min threshold: {min_confidence}")
+    
     if best_score >= min_confidence and best_match:
+        print(f"✅ SELECTED: {best_match}")
+        print("=" * 60 + "\n")
         logger.info(f"[PERSONALITY] Selected '{best_match}' (score: {best_score:.2f}) for: {question[:50]}...")
         return best_match
     
     # Return default
     fallback = rules.get("fallback", "oneseek-medveten")
+    print(f"⚡ Score below threshold, using fallback: {fallback}")
+    print("=" * 60 + "\n")
     logger.info(f"[PERSONALITY] Using fallback '{fallback}' (best score: {best_score:.2f})")
     return fallback
 
@@ -4319,18 +4358,25 @@ def get_personality_system_prompt(personality_id: str) -> Optional[str]:
     Returns:
         System prompt content or None
     """
+    print(f"\n📄 Loading system prompt for: {personality_id}")
+    
     catalog = load_personality_catalog()
     personality = catalog.get("personality_catalog", {}).get(personality_id)
     
     if not personality:
+        print(f"   ⚠️ Personality not found in catalog")
         return None
     
     card_file = personality.get("card_file", "")
     if not card_file:
+        print(f"   ⚠️ No card_file specified for {personality_id}")
         return None
     
     card_path = PROJECT_ROOT / card_file
+    print(f"   📂 Card file: {card_path}")
+    
     if not card_path.exists():
+        print(f"   ❌ Card file not found!")
         logger.warning(f"[PERSONALITY] Card file not found: {card_path}")
         return None
     
@@ -4339,8 +4385,16 @@ def get_personality_system_prompt(personality_id: str) -> Optional[str]:
         with open(card_path, 'r', encoding='utf-8') as f:
             char_data = yaml.safe_load(f)
         
-        return char_data.get('system_prompt', '')
+        system_prompt = char_data.get('system_prompt', '')
+        if system_prompt:
+            print(f"   ✅ Loaded system_prompt ({len(system_prompt)} chars)")
+            print(f"   📝 First 100 chars: {system_prompt[:100]}...")
+        else:
+            print(f"   ⚠️ No system_prompt field in card")
+        
+        return system_prompt
     except Exception as e:
+        print(f"   ❌ Error loading card: {e}")
         logger.warning(f"[PERSONALITY] Could not load card {card_path}: {e}")
         return None
 
@@ -8732,13 +8786,28 @@ Svara NU.
     
     # === ONESEEK Δ+ v6.2: PERSONALITY SELECTION ===
     # Auto-select personality based on question keywords and category
+    print("\n" + "=" * 60)
+    print("🚀 ONESEEK Δ+ v6.2 - INFERENCE FLOW")
+    print("=" * 60)
+    print(f"📝 Question: {request.text}")
+    print(f"🇸🇪 Force-Svenska: {'ACTIVE' if force_svenska_active else 'inactive'}")
+    
     selected_personality_id = choose_personality(request.text)
     selected_personality_info = get_personality_info(selected_personality_id)
     logger.info(f"🎭 [PERSONALITY] Selected: {selected_personality_id}")
     
+    # Load personality's system prompt
+    personality_system_prompt = get_personality_system_prompt(selected_personality_id)
+    if personality_system_prompt:
+        print(f"✅ Using personality system prompt from: {selected_personality_id}")
+    else:
+        print(f"⚠️ No personality prompt found, using default")
+    
     # === 1. ALWAYS: Inject time, date & season context ===
     time_context = inject_time_context()
     season_context = get_current_season()
+    print(f"🕐 Time context: {time_context[:50]}...")
+    print(f"🍂 Season: {season_context}")
     
     # === 2. Check for weather question (with city detection) ===
     weather_context = None
@@ -8869,8 +8938,18 @@ Svara NU.
         except Exception as e:
             logger.debug(f"Memory context retrieval failed: {e}")
     
-    # Format input with system prompt - ensures model always knows its identity
-    full_input = format_inference_input(request.text)
+    # === ONESEEK Δ+ v6.2: Use personality system prompt ===
+    # Format input with personality's system prompt (or default if none)
+    if personality_system_prompt:
+        # Use the selected personality's system prompt
+        full_input = f"{personality_system_prompt}\n\nAnvändare: {request.text}\n\nOneSeek:"
+        print(f"\n📄 Using PERSONALITY system prompt")
+    else:
+        # Fall back to default system prompt
+        full_input = format_inference_input(request.text)
+        print(f"\n📄 Using DEFAULT system prompt")
+    
+    print(f"📝 Full input length: {len(full_input)} chars")
     
     # Build enhanced context prefix
     context_parts = []
@@ -8886,20 +8965,24 @@ Svara NU.
     # Add weather if available
     if weather_context:
         context_parts.append(f"[Väder] {weather_context}")
+        print(f"🌤️ Added weather context")
     
     # Add news if available
     if news_context:
         context_parts.append(f"[Nyheter] {news_context}")
+        print(f"📰 Added news context")
     
     # Add Open Data if available
     if open_data_context:
         context_parts.append(f"[Öppen data] {open_data_context}")
+        print(f"📊 Added open data context")
     
     # Add Tavily search results if available
     if tavily_context:
         context_parts.append(f"[Aktuell fakta] {tavily_context}")
         if tavily_sources:
             context_parts.append(tavily_sources)
+        print(f"🔍 Added Tavily context")
     
     # If Force-Svenska is active, prepend Swedish instruction
     if force_svenska_active:
@@ -9000,6 +9083,23 @@ Svara NU.
     )
     
     # === DEBUG: Log inference start ===
+    print("\n" + "-" * 60)
+    print("📊 INFERENCE SUMMARY")
+    print("-" * 60)
+    print(f"🎭 Personality: {selected_personality_id}")
+    print(f"📄 Using personality prompt: {'YES' if personality_system_prompt else 'NO (default)'}")
+    print(f"🕐 Time context: {time_context[:30]}...")
+    print(f"🍂 Season: {season_context}")
+    print(f"🇸🇪 Force-Svenska: {'ACTIVE' if force_svenska_active else 'inactive'}")
+    print(f"🌤️ Weather: {weather_city if weather_context else 'none'}")
+    print(f"📰 News: {'YES' if news_context else 'none'}")
+    print(f"📊 Open Data: {triggered_api.get('name') if triggered_api else 'none'}")
+    print(f"🔍 Tavily: {'YES' if tavily_context else 'none'}")
+    print(f"📝 Full input length: {len(full_input)} chars")
+    print("-" * 60)
+    print("🚀 Starting inference...")
+    print("=" * 60 + "\n")
+    
     logger.debug("=" * 60)
     logger.debug("=== ONESEEK INFERENCE START ===")
     logger.debug("→ System prompt injected")
