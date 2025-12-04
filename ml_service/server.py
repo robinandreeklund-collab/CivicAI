@@ -5026,31 +5026,6 @@ async def choose_personality_endpoint(request: dict):
     }
 
 
-@personality_router.get("/{personality_id}")
-async def get_personality_details(personality_id: str):
-    """
-    Get details for a specific personality.
-    """
-    catalog = load_personality_catalog()
-    personality = catalog.get("personality_catalog", {}).get(personality_id)
-    
-    if not personality:
-        raise HTTPException(status_code=404, detail=f"Personality not found: {personality_id}")
-    
-    # Load full system prompt
-    system_prompt = get_personality_system_prompt(personality_id)
-    
-    return {
-        "personality_id": personality_id,
-        "card_file": personality.get("card_file", ""),
-        "keywords": personality.get("keywords", []),
-        "categories": personality.get("categories", []),
-        "description": personality.get("description", ""),
-        "is_default": personality.get("is_default", False),
-        "system_prompt": system_prompt
-    }
-
-
 @personality_router.get("/active/current")
 async def get_active_personality():
     """
@@ -5213,6 +5188,32 @@ async def clear_override():
     global _next_question_override
     _next_question_override = {"personality_id": None, "active": False}
     return {"success": True, "message": "Override cleared"}
+
+
+# NOTE: This wildcard route MUST come AFTER all specific routes to avoid matching them
+@personality_router.get("/{personality_id}")
+async def get_personality_details(personality_id: str):
+    """
+    Get details for a specific personality.
+    """
+    catalog = load_personality_catalog()
+    personality = catalog.get("personality_catalog", {}).get(personality_id)
+    
+    if not personality:
+        raise HTTPException(status_code=404, detail=f"Personality not found: {personality_id}")
+    
+    # Load full system prompt
+    system_prompt = get_personality_system_prompt(personality_id)
+    
+    return {
+        "personality_id": personality_id,
+        "card_file": personality.get("card_file", ""),
+        "keywords": personality.get("keywords", []),
+        "categories": personality.get("categories", []),
+        "description": personality.get("description", ""),
+        "is_default": personality.get("is_default", False),
+        "system_prompt": system_prompt
+    }
 
 
 # =============================================================================
