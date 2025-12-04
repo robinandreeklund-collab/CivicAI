@@ -16,10 +16,8 @@ import { formatAIResponse, formatMarkdown } from '../utils/formatMarkdown';
 // Available personas (constant - doesn't change)
 const AVAILABLE_PERSONAS = [
   { id: 'oneseek-medveten', name: 'Medveten', icon: '🧠' },
-  { id: 'oneseek-expert', name: 'Expert', icon: '👔' },
-  { id: 'oneseek-filosofisk', name: 'Filosofisk', icon: '🎭' },
-  { id: 'oneseek-arlig', name: 'Ärlig', icon: '💎' },
-  { id: 'oneseek-faktabaserad', name: 'Faktabaserad', icon: '📊' },
+  { id: 'oneseek-bibliotekarie', name: 'Bibliotekarien', icon: '📚' },
+  { id: 'oneseek-metrolog', name: 'Metrologen', icon: '🌤️' },
 ];
 
 // Message ID counter for unique IDs
@@ -166,6 +164,9 @@ export default function SevenBZeroPage() {
   const [selectedPersona, setSelectedPersona] = useState('oneseek-medveten');
   const [characterData, setCharacterData] = useState(null);
   
+  // ONESEEK Δ+ v6.2: AI-selected personality (real-time display)
+  const [aiSelectedPersonality, setAiSelectedPersonality] = useState(null);
+  
   // Load typo check setting from admin
   useEffect(() => {
     const loadTypoCheckSetting = async () => {
@@ -180,6 +181,37 @@ export default function SevenBZeroPage() {
       }
     };
     loadTypoCheckSetting();
+  }, []);
+  
+  // ONESEEK Δ+ v6.4: Load current active personality from backend on page load
+  // Also poll every 2 seconds to stay in sync with backend/admin changes
+  useEffect(() => {
+    const loadActivePersonality = async () => {
+      try {
+        const response = await fetch('/api/personality/active/current');
+        if (response.ok) {
+          const data = await response.json();
+          const personalityId = data.personality_id || data.id || 'oneseek-medveten';
+          setSelectedPersona(personalityId);
+          setAiSelectedPersonality({
+            id: personalityId,
+            description: data.description || '',
+            categories: data.categories || [],
+            is_default: data.is_default || personalityId === 'oneseek-medveten'
+          });
+        }
+      } catch (err) {
+        console.log('Using default personality');
+      }
+    };
+    
+    // Load immediately
+    loadActivePersonality();
+    
+    // Poll every 2 seconds to stay in sync
+    const pollInterval = setInterval(loadActivePersonality, 2000);
+    
+    return () => clearInterval(pollInterval);
   }, []);
   
   // UI state
@@ -616,6 +648,29 @@ export default function SevenBZeroPage() {
     loadCharacterData();
   }, [selectedPersona]);
 
+  // ONESEEK Δ+ v6.4: Handle persona selection - update both local state and backend
+  const handlePersonaSelect = async (personaId) => {
+    // Update local state immediately
+    setSelectedPersona(personaId);
+    setAiSelectedPersonality({
+      id: personaId,
+      description: '',
+      categories: [],
+      is_default: personaId === 'oneseek-medveten'
+    });
+    
+    // Notify backend of manual personality selection
+    try {
+      await fetch('/api/personality/active/set', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personality_id: personaId })
+      });
+    } catch (err) {
+      console.error('Error setting active personality:', err);
+    }
+  };
+
   // Response time counter
   useEffect(() => {
     if (isTyping && responseStartTime) {
@@ -770,6 +825,15 @@ export default function SevenBZeroPage() {
       const isSuccess = data.success !== false && responseText;
       
       if (isSuccess) {
+        // ONESEEK Δ+ v6.4: Update AI-selected personality for real-time display
+        if (data.personality) {
+          setAiSelectedPersonality(data.personality);
+          // Also update the persona selector to show the AI's choice
+          if (data.personality.id) {
+            setSelectedPersona(data.personality.id);
+          }
+        }
+        
         // Update message with response data and animate typing
         setMessages(prev => prev.map(msg => 
           msg.id === aiMessageId 
@@ -784,6 +848,8 @@ export default function SevenBZeroPage() {
                 topicHash: data.delta_plus?.topic_hash || null,
                 intent: data.delta_plus?.intent || null,
                 entity: data.delta_plus?.entity || null,
+                // ONESEEK Δ+ v6.2: Personality
+                personality: data.personality || null,
               }
             : msg
         ));
@@ -1077,7 +1143,14 @@ export default function SevenBZeroPage() {
               <span>Fidelity <span className={whiteMode ? 'text-[#666]' : 'text-[#666]'}>{metrics.fidelity}%</span></span>
               <span>Consensus <span className={whiteMode ? 'text-[#666]' : 'text-[#666]'}>{metrics.consensus}%</span></span>
               <span>Accuracy <span className={whiteMode ? 'text-[#666]' : 'text-[#666]'}>{metrics.accuracy}%</span></span>
-              <span className={whiteMode ? 'text-[#777]' : 'text-[#555]'}>{characterData?.name || 'Medveten'}</span>
+              {/* ONESEEK Δ+ v6.2: AI-selected personality display */}
+              <span className={`transition-all duration-300 ${
+                aiSelectedPersonality 
+                  ? (whiteMode ? 'text-purple-600' : 'text-purple-400') 
+                  : (whiteMode ? 'text-[#777]' : 'text-[#555]')
+              }`}>
+                🎭 {aiSelectedPersonality?.id?.replace('oneseek-', '') || characterData?.name || 'Medveten'}
+              </span>
             </div>
             
             {/* Microtraining Status */}
@@ -1484,7 +1557,7 @@ export default function SevenBZeroPage() {
               {AVAILABLE_PERSONAS.map((persona) => (
                 <button
                   key={persona.id}
-                  onClick={() => setSelectedPersona(persona.id)}
+                  onClick={() => handlePersonaSelect(persona.id)}
                   aria-label={`Välj ${persona.name} persona`}
                   aria-pressed={selectedPersona === persona.id}
                   role="radio"

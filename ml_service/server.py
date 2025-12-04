@@ -48,7 +48,7 @@ import argparse
 import json
 import uuid
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import requests  # For Tavily API and SMHI weather
 
 # =============================================================================
@@ -3353,6 +3353,8 @@ class InferenceResponse(BaseModel):
     delta_plus: Optional[dict] = None  # Contains topic_hash, intent, entity, response_hash
     # ONESEEK Δ+ Typo correction (optional - when typos detected)
     typo_correction: Optional[dict] = None  # Contains detected, original, corrected, suggestions, show_buttons
+    # ONESEEK Δ+ v6.2 Personality (optional - for frontend real-time display)
+    personality: Optional[dict] = None  # Contains id, description, categories, is_default
     
 class ErrorResponse(BaseModel):
     """Error response model"""
@@ -3510,17 +3512,66 @@ def delete_system_prompt_file(prompt_id: str) -> bool:
 
 
 def get_active_system_prompt() -> str:
-    """Get the currently active system prompt content, with fallback to default"""
+    """Get the currently active system prompt content, with fallback to default.
+    
+    ONESEEK Δ+ v6.4: If AI or user has selected a personality (not medveten), 
+    use that personality's character card instead.
+    """
+    # ONESEEK Δ+ v6.4: Check if AI/user has selected a specific personality
+    current_personality = get_current_active_personality()
+    current_id = current_personality.get("id", "oneseek-medveten")
+    
+    print(f"\n🔍 ONESEEK Δ+ v6.4: get_active_system_prompt()")
+    print(f"   📍 Current personality ID: {current_id}")
+    print(f"   📍 Is default: {current_personality.get('is_default', True)}")
+    
+    # If a non-default personality is selected, use that character card
+    if current_id and current_id != "oneseek-medveten":
+        # Load the selected personality's character card
+        catalog = load_personality_catalog()
+        personality_data = catalog.get("personality_catalog", {}).get(current_id, {})
+        card_file = personality_data.get("card_file", "")
+        
+        print(f"   📂 Looking for card_file: {card_file}")
+        
+        if card_file:
+            card_path = PROJECT_ROOT / card_file
+            if card_path.exists():
+                try:
+                    import yaml
+                    with open(card_path, 'r', encoding='utf-8') as f:
+                        card_data = yaml.safe_load(f)
+                    
+                    system_prompt = card_data.get("system_prompt", "")
+                    if system_prompt:
+                        logger.info(f"[PERSONALITY] 🎭 Using selected personality: {current_id}")
+                        print(f"   ✅ USING PERSONALITY CARD: {current_id}")
+                        print(f"   🔹 Card: {card_file}")
+                        print(f"   🔹 Prompt length: {len(system_prompt)} chars")
+                        return system_prompt
+                except Exception as e:
+                    logger.warning(f"[PERSONALITY] Could not load card for {current_id}: {e}")
+                    print(f"   ❌ Error loading card: {e}")
+            else:
+                print(f"   ❌ Card file not found: {card_path}")
+        else:
+            print(f"   ⚠️ No card_file in personality_catalog for {current_id}")
+    else:
+        print(f"   📍 Using default (medveten) - falling back to admin prompt")
+    
+    # Default behavior: use admin-active prompt
     prompts = load_all_system_prompts()
     
     # Find the active prompt
     for prompt in prompts:
         if prompt.is_active:
             logger.debug(f"Using active system prompt: {prompt.name} (ID: {prompt.id})")
+            print(f"   📄 Using admin-active prompt: {prompt.name}")
             return prompt.content
     
     # No active prompt found - return default
     logger.debug("No active system prompt found, using default")
+    print(f"   📄 Using DEFAULT_SYSTEM_PROMPT")
     return DEFAULT_SYSTEM_PROMPT
 
 
@@ -4017,6 +4068,827 @@ async def get_current_prompt():
 
 # =============================================================================
 # END SYSTEM PROMPT MANAGEMENT
+# =============================================================================
+
+
+# =============================================================================
+# ONESEEK Δ+ v6.2 - PERSONALITY CATALOG
+# =============================================================================
+# Dynamic personality selection based on category + keywords.
+# The model chooses the right personality automatically - no Intent Engine needed.
+# 100% compatible with existing character cards in frontend/public/characters/
+
+PERSONALITY_CATALOG_FILE = Path(__file__).parent.parent / "config" / "personality_catalog.json"
+
+# Global personality catalog cache
+_personality_catalog_cache: Optional[Dict[str, Any]] = None
+
+# ONESEEK Δ+ v6.4: Track the currently active personality (last AI selection)
+_current_active_personality: Dict[str, Any] = {
+    "id": "oneseek-medveten",
+    "name": "OneSeek-7B-Zero (Medveten)",
+    "description": "Den medvetna grunden - väljer personlighet själv",
+    "is_default": True,
+    "last_updated": None
+}
+
+
+def load_personality_catalog() -> Dict[str, Any]:
+    """
+    Load personality catalog from config/personality_catalog.json.
+    
+    Returns:
+        Dict with personality_catalog and selection_rules
+    """
+    global _personality_catalog_cache
+    
+    if _personality_catalog_cache is not None:
+        return _personality_catalog_cache
+    
+    if PERSONALITY_CATALOG_FILE.exists():
+        try:
+            with open(PERSONALITY_CATALOG_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                _personality_catalog_cache = data
+                logger.info(f"[PERSONALITY] ✓ Loaded {len(data.get('personality_catalog', {}))} personalities")
+                return data
+        except (json.JSONDecodeError, IOError) as e:
+            logger.warning(f"[PERSONALITY] Could not load catalog: {e}")
+    
+    # Return empty catalog if file doesn't exist
+    return {"personality_catalog": {}, "selection_rules": {"fallback": "oneseek-medveten"}}
+
+
+def set_current_active_personality(personality_info: Dict[str, Any]) -> None:
+    """
+    ONESEEK Δ+ v6.4: Update the currently active personality (set by AI selection).
+    
+    This tracks the last personality the AI selected for dashboard display.
+    """
+    global _current_active_personality
+    from datetime import datetime
+    
+    _current_active_personality = {
+        "id": personality_info.get("id", "oneseek-medveten"),
+        "name": personality_info.get("name", "OneSeek-7B-Zero"),
+        "description": personality_info.get("description", ""),
+        "categories": personality_info.get("categories", []),
+        "is_default": personality_info.get("is_default", False),
+        "last_updated": datetime.now().isoformat()
+    }
+    logger.info(f"[PERSONALITY] 🎭 Active personality updated to: {_current_active_personality['id']}")
+
+
+def get_current_active_personality() -> Dict[str, Any]:
+    """
+    ONESEEK Δ+ v6.4: Get the currently active personality.
+    
+    Returns:
+        Dict with current active personality info
+    """
+    global _current_active_personality
+    return _current_active_personality
+
+
+def sync_personality_catalog() -> Dict[str, Any]:
+    """
+    ONESEEK Δ+ v6.2: Synchronize personality catalog from character cards.
+    
+    Scans frontend/public/characters/ for YAML files and generates
+    config/personality_catalog.json with keywords/categories for auto-selection.
+    
+    Returns:
+        Dict with sync results (synced count, errors, etc.)
+    """
+    import yaml  # Import at function start for efficiency
+    
+    global _personality_catalog_cache
+    
+    characters_dir = PROJECT_ROOT / 'frontend' / 'public' / 'characters'
+    results = {"synced": [], "skipped": [], "errors": []}
+    
+    if not characters_dir.exists():
+        logger.warning(f"[PERSONALITY] Characters directory not found: {characters_dir}")
+        return results
+    
+    # Build new catalog
+    catalog = {
+        "version": "6.2.0",
+        "description": "ONESEEK Δ+ v6.2 - Dynamic Personality Catalog. Auto-generated from character cards.",
+        "updated": datetime.now().isoformat(),
+        "auto_generated": True,
+        "personality_catalog": {},
+        "selection_rules": {
+            "priority_order": ["category_match", "keyword_match", "default"],
+            "min_keyword_confidence": 0.6,
+            "fallback": "oneseek-medveten"
+        },
+        "metadata": {
+            "last_sync": datetime.now().isoformat(),
+            "cards_scanned": 0,
+            "sync_source": str(characters_dir)
+        }
+    }
+    
+    # Scan character files
+    character_files = list(characters_dir.glob('*.yaml')) + list(characters_dir.glob('*.yml'))
+    catalog["metadata"]["cards_scanned"] = len(character_files)
+    
+    for char_file in character_files:
+        try:
+            with open(char_file, 'r', encoding='utf-8') as f:
+                char_data = yaml.safe_load(f)
+            
+            if not isinstance(char_data, dict):
+                results["errors"].append({
+                    "id": char_file.stem,
+                    "error": "Invalid format"
+                })
+                continue
+            
+            character_id = char_data.get('id', char_file.stem)
+            
+            # Check if character is marked as default (via metadata or personality_type)
+            metadata = char_data.get('metadata', {})
+            is_default = (
+                char_data.get('is_default', False) or
+                metadata.get('is_default', False) or
+                char_data.get('personality_type', '') == 'medveten'
+            )
+            
+            # Build personality entry
+            personality_entry = {
+                "card_file": str(char_file.relative_to(PROJECT_ROOT)),
+                "keywords": _extract_keywords_from_character(char_data),
+                "categories": _extract_categories_from_character(char_data),
+                "description": char_data.get('description', ''),
+                "is_default": is_default
+            }
+            
+            catalog["personality_catalog"][character_id] = personality_entry
+            results["synced"].append({
+                "id": character_id,
+                "name": char_data.get('name', character_id),
+                "keywords_count": len(personality_entry["keywords"]),
+                "categories_count": len(personality_entry["categories"])
+            })
+            
+        except Exception as e:
+            results["errors"].append({
+                "id": char_file.stem,
+                "error": str(e)
+            })
+            logger.warning(f"[PERSONALITY] Could not process {char_file}: {e}")
+    
+    # Save catalog
+    try:
+        PERSONALITY_CATALOG_FILE.parent.mkdir(exist_ok=True)
+        with open(PERSONALITY_CATALOG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(catalog, f, ensure_ascii=False, indent=2)
+        
+        # Update cache
+        _personality_catalog_cache = catalog
+        logger.info(f"[PERSONALITY] ✓ Synced {len(results['synced'])} personalities to catalog")
+        
+    except IOError as e:
+        results["errors"].append({"save_error": str(e)})
+        logger.error(f"[PERSONALITY] Failed to save catalog: {e}")
+    
+    return results
+
+
+def _extract_keywords_from_character(char_data: Dict) -> List[str]:
+    """
+    Extract keywords from character card for personality matching.
+    
+    Uses traits, capabilities, and metadata to generate keywords.
+    """
+    keywords = []
+    
+    # Extract from traits
+    traits = char_data.get('traits', [])
+    if isinstance(traits, list):
+        keywords.extend([t.lower() for t in traits if isinstance(t, str)])
+    
+    # Extract from capabilities
+    capabilities = char_data.get('capabilities', [])
+    if isinstance(capabilities, list):
+        for cap in capabilities:
+            if isinstance(cap, str):
+                # Extract key words from capability descriptions
+                words = cap.lower().split()
+                keywords.extend([w for w in words if len(w) > 3 and w.isalpha()])
+    
+    # Extract from metadata domain
+    metadata = char_data.get('metadata', {})
+    if isinstance(metadata, dict):
+        domain = metadata.get('domain', '')
+        if domain:
+            keywords.append(domain.lower())
+        audience = metadata.get('audience', '')
+        if audience:
+            keywords.append(audience.lower())
+    
+    # Add personality_type as keyword
+    personality_type = char_data.get('personality_type', '')
+    if personality_type:
+        keywords.append(personality_type.lower())
+    
+    # Deduplicate
+    return list(set(keywords))
+
+
+def _extract_categories_from_character(char_data: Dict) -> List[str]:
+    """
+    Extract categories from character card for API matching.
+    
+    Maps character metadata to API catalog categories.
+    """
+    categories = []
+    
+    metadata = char_data.get('metadata', {})
+    if isinstance(metadata, dict):
+        domain = metadata.get('domain', '')
+        if domain:
+            categories.append(domain.lower())
+    
+    personality_type = char_data.get('personality_type', '')
+    if personality_type:
+        categories.append(personality_type.lower())
+    
+    return list(set(categories))
+
+
+def choose_personality(question: str, api_catalog: Optional[Dict] = None) -> str:
+    """
+    ONESEEK Δ+ v6.2: REMOVED - Model chooses personality itself.
+    
+    This function is deprecated. The model receives personality_catalog.json
+    in its prompt and chooses the right personality based on the question.
+    
+    Always returns "oneseek-medveten" - the base personality that orchestrates
+    personality selection by reading the catalog.
+    
+    Args:
+        question: User's question (not used)
+        api_catalog: Optional API catalog (not used)
+        
+    Returns:
+        Always "oneseek-medveten"
+    """
+    # ONESEEK Δ+ v6.2: No Python keyword matching
+    # The model reads personality_catalog.json and chooses itself
+    return "oneseek-medveten"
+
+
+def format_personality_map_for_prompt() -> str:
+    """
+    ONESEEK Δ+ v6.3: Create a minimal personality map for the model to choose from.
+    
+    The model will:
+    1. Read this minimal map
+    2. Choose a personality based on the question
+    3. Respond with [PERSONLIGHET: xxx] hidden tag at the START of response
+    
+    Format:
+    === PERSONLIGHET: name ===
+    Nyckelord: keyword1, keyword2, ...
+    Kategori: category
+    
+    Returns:
+        Minimal personality map string
+    """
+    catalog = load_personality_catalog()
+    personalities = catalog.get("personality_catalog", {})
+    
+    formatted_parts = []
+    
+    for pid, pdata in personalities.items():
+        # Get the short name (without "oneseek-" prefix)
+        short_id = pid.replace("oneseek-", "")
+        name = pdata.get("name", short_id.capitalize())
+        keywords = pdata.get("keywords", [])
+        categories = pdata.get("categories", [])
+        is_default = pdata.get("is_default", False)
+        
+        # Format this personality - minimal info only
+        part = f"=== PERSONLIGHET: {short_id}"
+        if is_default:
+            part += " (default)"
+        part += " ===\n"
+        part += f"Nyckelord: {', '.join(keywords[:8])}\n"  # Max 8 keywords
+        part += f"Kategori: {categories[0] if categories else 'allmän'}\n"
+        
+        formatted_parts.append(part)
+    
+    return "\n".join(formatted_parts)
+
+
+def parse_personality_tag(response: str) -> tuple[str, str]:
+    """
+    ONESEEK Δ+ v6.4: Parse hidden personality AND API tags from model response.
+    
+    The model should respond with:
+    [PERSONLIGHET: xxx]
+    [API: yyy]
+    Actual response text...
+    
+    These tags are hidden from the user - backend strips them and uses them to:
+    1. Load the correct character card
+    2. Know which API the model chose to use
+    
+    Args:
+        response: The model's raw response
+        
+    Returns:
+        Tuple of (personality_id, clean_response)
+    """
+    import re
+    
+    print("\n" + "=" * 70)
+    print("🏷️  ONESEEK Δ+ v6.4 - PARSING HIDDEN TAGS")
+    print("=" * 70)
+    
+    # Show raw response (first 300 chars)
+    print(f"📝 Raw response (first 300 chars):")
+    print(f"   '{response[:300]}...'")
+    
+    clean_response = response
+    personality_id = "oneseek-medveten"
+    selected_api = None
+    
+    # Look for hidden personality tag - supports both [PERSONLIGHET: xxx] and <!--PERSONLIGHET: xxx-->
+    # Pattern 1: [PERSONLIGHET: xxx]
+    personality_pattern_bracket = r'\[PERSONLIGHET:\s*([^\]]+)\]\s*'
+    # Pattern 2: <!--PERSONLIGHET: xxx-->
+    personality_pattern_html = r'<!--\s*PERSONLIGHET:\s*([^>-]+?)\s*-->\s*'
+    
+    personality_match = re.search(personality_pattern_bracket, response, re.IGNORECASE)
+    personality_pattern = personality_pattern_bracket
+    
+    if not personality_match:
+        personality_match = re.search(personality_pattern_html, response, re.IGNORECASE)
+        personality_pattern = personality_pattern_html
+    
+    if personality_match:
+        personality_name = personality_match.group(1).strip().lower()
+        personality_id = f"oneseek-{personality_name}"
+        clean_response = re.sub(personality_pattern, '', clean_response, count=1, flags=re.IGNORECASE)
+        
+        print(f"\n✅ PERSONLIGHET TAG FOUND!")
+        print(f"   🎭 Raw tag value: '{personality_match.group(1)}'")
+        print(f"   🎭 Normalized: '{personality_name}'")
+        print(f"   🎭 Full ID: '{personality_id}'")
+    else:
+        print(f"\n⚠️  NO PERSONALITY TAG FOUND")
+        print(f"   🎭 Using default: oneseek-medveten")
+    
+    # Look for hidden API tag - supports both [API: xxx] and <!--API: xxx-->
+    # Pattern 1: [API: xxx]
+    api_pattern_bracket = r'\[API:\s*([^\]]+)\]\s*'
+    # Pattern 2: <!--API: xxx-->
+    api_pattern_html = r'<!--\s*API:\s*([^>-]+?)\s*-->\s*'
+    
+    api_match = re.search(api_pattern_bracket, clean_response, re.IGNORECASE)
+    api_pattern = api_pattern_bracket
+    
+    if not api_match:
+        api_match = re.search(api_pattern_html, clean_response, re.IGNORECASE)
+        api_pattern = api_pattern_html
+    
+    if api_match:
+        selected_api = api_match.group(1).strip().lower()
+        clean_response = re.sub(api_pattern, '', clean_response, count=1, flags=re.IGNORECASE)
+        
+        print(f"\n✅ API TAG FOUND!")
+        print(f"   📡 Selected API: '{selected_api}'")
+    else:
+        print(f"\n⚠️  NO API TAG FOUND")
+        print(f"   💡 Model should respond with [API: xxx] tag")
+    
+    # Clean up any extra whitespace at the start
+    clean_response = clean_response.strip()
+    
+    print(f"\n📝 Clean response (first 150 chars):")
+    print(f"   '{clean_response[:150]}...'")
+    print("=" * 70 + "\n")
+    
+    return personality_id, clean_response
+
+
+def get_api_catalog_for_personality(personality_id: str) -> Dict[str, Any]:
+    """
+    ONESEEK Δ+ v6.3: Get filtered API catalog for a specific personality.
+    
+    Each personality has associated categories in api_catalog.json.
+    This function returns only the relevant API entries for that personality.
+    
+    Args:
+        personality_id: The personality ID (e.g., "oneseek-bibliotekarie")
+        
+    Returns:
+        Filtered API catalog with only relevant categories
+    """
+    # Load the personality catalog to get categories
+    personality_catalog = load_personality_catalog()
+    personality = personality_catalog.get("personality_catalog", {}).get(personality_id, {})
+    personality_categories = personality.get("categories", [])
+    
+    # Load full API catalog
+    try:
+        with open(API_CATALOG_FILE, 'r', encoding='utf-8') as f:
+            api_catalog = json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to load API catalog: {e}")
+        return {}
+    
+    # Filter API catalog by personality categories
+    filtered_catalog = {}
+    all_apis = api_catalog.get("api_catalog", {})
+    
+    for category, data in all_apis.items():
+        # Check if this category matches the personality
+        if category.lower() in [c.lower() for c in personality_categories]:
+            filtered_catalog[category] = data
+            
+    # Always include the category that matches the personality name
+    short_name = personality_id.replace("oneseek-", "")
+    if short_name == "bibliotekarie":
+        if "böcker" in all_apis:
+            filtered_catalog["böcker"] = all_apis["böcker"]
+    elif short_name == "metrolog":
+        if "väder" in all_apis:
+            filtered_catalog["väder"] = all_apis["väder"]
+    
+    print(f"📂 API catalog for {personality_id}: {list(filtered_catalog.keys())}")
+    
+    return {"api_catalog": filtered_catalog}
+
+
+def format_api_catalog_for_personality(personality_id: str) -> str:
+    """
+    ONESEEK Δ+ v6.3: Format the API catalog for a specific personality.
+    
+    This creates a focused API map that the model can use to select APIs.
+    
+    Args:
+        personality_id: The personality ID
+        
+    Returns:
+        Human-readable API catalog for this personality
+    """
+    filtered_catalog = get_api_catalog_for_personality(personality_id)
+    apis = filtered_catalog.get("api_catalog", {})
+    
+    if not apis:
+        return "Inga specifika API:er för denna personlighet."
+    
+    parts = ["=== DINA API:er ===\n"]
+    
+    for category, data in apis.items():
+        parts.append(f"\n📂 {category.upper()}")
+        
+        api_list = data.get("apis", [])
+        for api in api_list[:3]:  # Max 3 APIs per category
+            name = api.get("name", "unknown")
+            source = api.get("source", "")
+            keywords = api.get("keywords", [])[:5]  # Max 5 keywords
+            parts.append(f"  • {name} ({source})")
+            if keywords:
+                parts.append(f"    Nyckelord: {', '.join(keywords)}")
+    
+    return "\n".join(parts)
+
+
+def format_api_map_for_prompt() -> str:
+    """
+    ONESEEK Δ+ v6.4: Format the API catalog for injection into system prompt.
+    
+    This creates a minimal, human-readable API map that the model can use
+    to select which API to call. The model should respond with [API: xxx] tag.
+    
+    Returns:
+        Human-readable API catalog string
+    """
+    try:
+        with open(API_CATALOG_FILE, 'r', encoding='utf-8') as f:
+            api_catalog = json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to load API catalog: {e}")
+        return "Inga API:er tillgängliga."
+    
+    all_apis = api_catalog.get("api_catalog", {})
+    
+    parts = []
+    
+    for category, data in all_apis.items():
+        api_list = data.get("apis", [])
+        if not api_list:
+            continue
+            
+        # Format category
+        cat_keywords = data.get("keywords", [])[:5]  # Max 5 keywords
+        parts.append(f"=== {category.upper()} ===")
+        parts.append(f"Nyckelord: {', '.join(cat_keywords)}")
+        
+        # Format APIs in this category
+        for api in api_list[:3]:  # Max 3 APIs per category
+            name = api.get("name", "unknown")
+            source = api.get("source", "")
+            api_keywords = api.get("keywords", [])[:3]  # Max 3 keywords per API
+            parts.append(f"  • {name} ({source})")
+            if api_keywords:
+                parts.append(f"    Trigger: {', '.join(api_keywords)}")
+        
+        parts.append("")  # Empty line between categories
+    
+    return "\n".join(parts)
+
+
+# Keep the old function name as alias for backwards compatibility
+def format_personality_catalog_for_prompt() -> str:
+    """
+    ONESEEK Δ+ v6.2: Format personality catalog in a human-readable way
+    for injection into the system prompt.
+    
+    This creates a simple, readable format that the model can easily parse:
+    
+    === PERSONLIGHET: Name ===
+    Nyckelord: keyword1, keyword2, ...
+    Kategori: category1, category2
+    Prompt: The personality's prompt
+    
+    Returns:
+        Human-readable personality catalog string
+    """
+    catalog = load_personality_catalog()
+    personalities = catalog.get("personality_catalog", {})
+    
+    formatted_parts = []
+    
+    for pid, pdata in personalities.items():
+        name = pdata.get("name", pid.replace("oneseek-", "").capitalize())
+        keywords = pdata.get("keywords", [])
+        categories = pdata.get("categories", [])
+        prompt = pdata.get("prompt", pdata.get("description", ""))
+        is_default = pdata.get("is_default", False)
+        
+        # Format this personality
+        part = f"=== PERSONLIGHET: {name}"
+        if is_default:
+            part += " (default)"
+        part += " ===\n"
+        part += f"Nyckelord: {', '.join(keywords)}\n"
+        part += f"Kategori: {', '.join(categories)}\n"
+        part += f"Prompt: {prompt}\n"
+        
+        formatted_parts.append(part)
+    
+    return "\n".join(formatted_parts)
+
+
+def get_personality_system_prompt(personality_id: str) -> Optional[str]:
+    """
+    Load system prompt from personality's character card.
+    
+    Args:
+        personality_id: Personality ID from catalog
+        
+    Returns:
+        System prompt content or None
+    """
+    print(f"\n📄 Loading system prompt for: {personality_id}")
+    
+    catalog = load_personality_catalog()
+    personality = catalog.get("personality_catalog", {}).get(personality_id)
+    
+    if not personality:
+        print(f"   ⚠️ Personality not found in catalog")
+        return None
+    
+    card_file = personality.get("card_file", "")
+    if not card_file:
+        print(f"   ⚠️ No card_file specified for {personality_id}")
+        return None
+    
+    card_path = PROJECT_ROOT / card_file
+    print(f"   📂 Card file: {card_path}")
+    
+    if not card_path.exists():
+        print(f"   ❌ Card file not found!")
+        logger.warning(f"[PERSONALITY] Card file not found: {card_path}")
+        return None
+    
+    try:
+        import yaml
+        with open(card_path, 'r', encoding='utf-8') as f:
+            char_data = yaml.safe_load(f)
+        
+        system_prompt = char_data.get('system_prompt', '')
+        if system_prompt:
+            print(f"   ✅ Loaded system_prompt ({len(system_prompt)} chars)")
+            print(f"   📝 First 100 chars: {system_prompt[:100]}...")
+        else:
+            print(f"   ⚠️ No system_prompt field in card")
+        
+        return system_prompt
+    except Exception as e:
+        print(f"   ❌ Error loading card: {e}")
+        logger.warning(f"[PERSONALITY] Could not load card {card_path}: {e}")
+        return None
+
+
+def get_personality_info(personality_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Get personality info for frontend display.
+    
+    Args:
+        personality_id: Personality ID from catalog
+        
+    Returns:
+        Dict with personality info for frontend or None
+    """
+    catalog = load_personality_catalog()
+    personality = catalog.get("personality_catalog", {}).get(personality_id)
+    
+    if not personality:
+        return None
+    
+    return {
+        "id": personality_id,
+        "description": personality.get("description", ""),
+        "categories": personality.get("categories", []),
+        "is_default": personality.get("is_default", False)
+    }
+
+
+# Create Personality Catalog router
+personality_router = APIRouter(prefix="/api/personality", tags=["Personality Catalog"])
+
+
+@personality_router.get("")
+async def get_personality_catalog():
+    """
+    Get the current personality catalog.
+    
+    Returns all available personalities with their keywords and categories.
+    """
+    catalog = load_personality_catalog()
+    return {
+        "version": catalog.get("version", "6.2.0"),
+        "personalities": catalog.get("personality_catalog", {}),
+        "selection_rules": catalog.get("selection_rules", {}),
+        "metadata": catalog.get("metadata", {})
+    }
+
+
+@personality_router.post("/sync")
+async def sync_personalities():
+    """
+    Synchronize personality catalog from character cards.
+    
+    Scans frontend/public/characters/ and updates config/personality_catalog.json.
+    This should be called when character cards are added/modified.
+    """
+    results = sync_personality_catalog()
+    
+    return {
+        "success": True,
+        "message": f"Synced {len(results['synced'])} personalities",
+        "synced": results["synced"],
+        "skipped": results["skipped"],
+        "errors": results["errors"]
+    }
+
+
+@personality_router.post("/choose")
+async def choose_personality_endpoint(request: dict):
+    """
+    Choose the best personality for a given question.
+    
+    This is the main ONESEEK Δ+ v6.2 feature: automatic personality selection.
+    
+    Request body:
+    - question: The user's question
+    - category: (optional) Detected category from API catalog
+    """
+    question = request.get("question", "")
+    category = request.get("category", "")
+    
+    if not question:
+        raise HTTPException(status_code=400, detail="question is required")
+    
+    api_catalog = {"category": category} if category else None
+    personality_id = choose_personality(question, api_catalog)
+    
+    # Get the system prompt for this personality
+    system_prompt = get_personality_system_prompt(personality_id)
+    
+    return {
+        "personality_id": personality_id,
+        "system_prompt": system_prompt,
+        "detected_category": category
+    }
+
+
+@personality_router.get("/{personality_id}")
+async def get_personality_details(personality_id: str):
+    """
+    Get details for a specific personality.
+    """
+    catalog = load_personality_catalog()
+    personality = catalog.get("personality_catalog", {}).get(personality_id)
+    
+    if not personality:
+        raise HTTPException(status_code=404, detail=f"Personality not found: {personality_id}")
+    
+    # Load full system prompt
+    system_prompt = get_personality_system_prompt(personality_id)
+    
+    return {
+        "personality_id": personality_id,
+        "card_file": personality.get("card_file", ""),
+        "keywords": personality.get("keywords", []),
+        "categories": personality.get("categories", []),
+        "description": personality.get("description", ""),
+        "is_default": personality.get("is_default", False),
+        "system_prompt": system_prompt
+    }
+
+
+@personality_router.get("/active/current")
+async def get_active_personality():
+    """
+    ONESEEK Δ+ v6.4: Get the currently active personality (last AI selection).
+    
+    This returns the last personality the AI selected based on the [PERSONLIGHET: xxx] tag.
+    Useful for dashboard display showing which personality is currently "in use".
+    """
+    return get_current_active_personality()
+
+
+@personality_router.post("/active/set")
+async def set_active_personality(request: Request):
+    """
+    ONESEEK Δ+ v6.4: Manually set the active personality.
+    
+    This allows admin dashboard or frontend persona selector to manually activate a personality.
+    The backend will then use this personality's character card for subsequent requests.
+    
+    Body: { "personality_id": "oneseek-bibliotekarie" }
+    """
+    try:
+        body = await request.json()
+        personality_id = body.get("personality_id", "oneseek-medveten")
+        
+        # Normalize the personality ID
+        if not personality_id.startswith("oneseek-"):
+            personality_id = f"oneseek-{personality_id}"
+        
+        # Load personality catalog to get info
+        catalog = load_personality_catalog()
+        personality = catalog.get("personality_catalog", {}).get(personality_id, {})
+        
+        if not personality:
+            # Check without prefix
+            short_id = personality_id.replace("oneseek-", "")
+            for pid, pdata in catalog.get("personality_catalog", {}).items():
+                if short_id.lower() in pid.lower():
+                    personality_id = pid
+                    personality = pdata
+                    break
+        
+        # Build personality info
+        is_default = personality_id == "oneseek-medveten"
+        personality_info = {
+            "id": personality_id,
+            "description": personality.get("description", ""),
+            "categories": personality.get("categories", []),
+            "is_default": is_default
+        }
+        
+        # Set as active
+        set_current_active_personality(personality_info)
+        
+        logger.info(f"[PERSONALITY] 🎭 Manually activated personality: {personality_id}")
+        print(f"\n🎭 ONESEEK Δ+ v6.4: MANUAL PERSONALITY ACTIVATION")
+        print(f"   📍 Personality: {personality_id}")
+        print(f"   📍 Is default: {is_default}")
+        print(f"   📍 Categories: {personality_info['categories']}")
+        print()
+        
+        return {
+            "success": True,
+            "personality": personality_info,
+            "message": f"Activated personality: {personality_id}"
+        }
+    except Exception as e:
+        logger.error(f"Error setting active personality: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# END PERSONALITY CATALOG
 # =============================================================================
 
 
@@ -5403,6 +6275,9 @@ app.include_router(system_prompts_router, prefix="/api")
 
 # Register Simple System Prompt router (for dashboard integration)
 app.include_router(simple_prompt_router)
+
+# Register Personality Catalog router (ONESEEK Δ+ v6.2)
+app.include_router(personality_router)
 
 # Register Force-Svenska router (real-time dashboard control)
 app.include_router(force_svenska_router)
@@ -8279,9 +9154,38 @@ Svara NU.
     # Check for Force-Svenska triggers
     force_svenska_active = check_force_svenska(request.text)
     
+    # === ONESEEK Δ+ v6.2: AI-DRIVEN PERSONALITY SELECTION ===
+    # NO Python keyword matching - the model chooses personality itself
+    # by reading the formatted personality catalog in the system prompt
+    print("\n" + "=" * 60)
+    print("🚀 ONESEEK Δ+ v6.2 - AI-DRIVEN PERSONALITY")
+    print("=" * 60)
+    print(f"📝 Question: {request.text}")
+    print(f"🇸🇪 Force-Svenska: {'ACTIVE' if force_svenska_active else 'inactive'}")
+    
+    # Load personality catalog
+    personality_catalog = load_personality_catalog()
+    print(f"📂 Loaded personality_catalog.json")
+    print(f"   → Personalities: {list(personality_catalog.get('personality_catalog', {}).keys())}")
+    
+    # ALWAYS use medveten - SHE chooses the right personality herself
+    selected_personality_id = "oneseek-medveten"
+    selected_personality_info = get_personality_info(selected_personality_id)
+    print(f"🎭 Base personality: {selected_personality_id} (model will choose from catalog)")
+    
+    # Load medveten as the base system prompt (contains {PLACEHOLDER_PERSONALITY_CATALOG})
+    base_system_prompt = get_personality_system_prompt("oneseek-medveten")
+    if not base_system_prompt:
+        base_system_prompt = get_active_system_prompt()
+        print(f"⚠️ Could not load medveten prompt, using default")
+    else:
+        print(f"✅ Loaded medveten base prompt ({len(base_system_prompt)} chars)")
+    
     # === 1. ALWAYS: Inject time, date & season context ===
     time_context = inject_time_context()
     season_context = get_current_season()
+    print(f"🕐 Time context: {time_context[:50]}...")
+    print(f"🍂 Season: {season_context}")
     
     # === 2. Check for weather question (with city detection) ===
     weather_context = None
@@ -8412,8 +9316,75 @@ Svara NU.
         except Exception as e:
             logger.debug(f"Memory context retrieval failed: {e}")
     
-    # Format input with system prompt - ensures model always knows its identity
-    full_input = format_inference_input(request.text)
+    # === ONESEEK Δ+ v6.3: AI-DRIVEN PERSONALITY SELECTION ===
+    print("\n" + "=" * 70)
+    print("🎭 ONESEEK Δ+ v6.3 - DATAFLÖDE FÖR PERSONLIGHETSVAL")
+    print("=" * 70)
+    print("""
+┌─────────────────────────────────────────────────────────────────────┐
+│  STEG 1: FRÅGA IN                                                   │
+│  ↓                                                                  │
+│  STEG 2: SYSTEM PROMPT + PERSONLIGHETSKARTA                         │
+│  ↓                                                                  │
+│  STEG 3: MODELLEN VÄLJER [PERSONLIGHET: xxx] TAG                    │
+│  ↓                                                                  │
+│  STEG 4: BACKEND PARSAR TAG → LADDAR CHARACTER CARD                 │
+│  ↓                                                                  │
+│  STEG 5: SVAR UTAN TAG → ANVÄNDARE                                  │
+└─────────────────────────────────────────────────────────────────────┘
+    """)
+    
+    print(f"📝 STEG 1: FRÅGA IN")
+    print(f"   Användarens fråga: '{request.text}'")
+    print(f"   Längd: {len(request.text)} tecken")
+    print("-" * 70)
+    
+    # Format the personality catalog in human-readable format
+    formatted_catalog = format_personality_catalog_for_prompt()
+    print(f"\n📋 STEG 2: LADDAR PERSONLIGHETSKATALOG")
+    print(f"   Fil: config/personality_catalog.json")
+    print(f"   Formaterad katalog ({len(formatted_catalog)} tecken):")
+    print("-" * 40)
+    print(formatted_catalog)
+    print("-" * 40)
+    
+    # Format the API map for the model
+    formatted_api_map = format_api_map_for_prompt()
+    print(f"\n📋 STEG 2b: LADDAR API-KARTA")
+    print(f"   Fil: config/api_catalog.json")
+    print(f"   Formaterad API-karta ({len(formatted_api_map)} tecken):")
+    print("-" * 40)
+    print(formatted_api_map[:500] + "..." if len(formatted_api_map) > 500 else formatted_api_map)
+    print("-" * 40)
+    
+    # Replace PERSONALITY_CATALOG_PLACEHOLDER in base_system_prompt
+    if "{PERSONALITY_CATALOG_PLACEHOLDER}" in base_system_prompt:
+        final_system_prompt = base_system_prompt.replace("{PERSONALITY_CATALOG_PLACEHOLDER}", formatted_catalog)
+        print(f"\n✅ PERSONALITY_CATALOG_PLACEHOLDER ersatt!")
+        print(f"   System prompt längd: {len(final_system_prompt)} tecken")
+    elif "{PLACEHOLDER_PERSONALITY_CATALOG}" in base_system_prompt:
+        # Support old placeholder name for backwards compatibility
+        final_system_prompt = base_system_prompt.replace("{PLACEHOLDER_PERSONALITY_CATALOG}", formatted_catalog)
+        print(f"\n✅ PLACEHOLDER_PERSONALITY_CATALOG ersatt!")
+        print(f"   System prompt längd: {len(final_system_prompt)} tecken")
+    else:
+        # Fallback: append the catalog if no placeholder
+        final_system_prompt = f"{base_system_prompt}\n\nHär är din inre karta över alla personligheter:\n\n{formatted_catalog}"
+        print(f"⚠️ No personality catalog placeholder found, appending catalog to system prompt")
+    
+    # Replace MODELL_API_MAP_PLACEHOLDER in system prompt
+    if "{MODELL_API_MAP_PLACEHOLDER}" in final_system_prompt:
+        final_system_prompt = final_system_prompt.replace("{MODELL_API_MAP_PLACEHOLDER}", formatted_api_map)
+        print(f"\n✅ MODELL_API_MAP_PLACEHOLDER ersatt!")
+        print(f"   System prompt längd: {len(final_system_prompt)} tecken")
+    else:
+        print(f"⚠️ No API map placeholder found in system prompt")
+    
+    print(f"📝 Final system prompt length: {len(final_system_prompt)} chars")
+    
+    # Build the full input with system prompt + user question
+    full_input = f"{final_system_prompt}\n\nAnvändare: {request.text}\n\nOneSeek:"
+    print(f"📝 Full input length: {len(full_input)} chars")
     
     # Build enhanced context prefix
     context_parts = []
@@ -8429,20 +9400,24 @@ Svara NU.
     # Add weather if available
     if weather_context:
         context_parts.append(f"[Väder] {weather_context}")
+        print(f"🌤️ Added weather context")
     
     # Add news if available
     if news_context:
         context_parts.append(f"[Nyheter] {news_context}")
+        print(f"📰 Added news context")
     
     # Add Open Data if available
     if open_data_context:
         context_parts.append(f"[Öppen data] {open_data_context}")
+        print(f"📊 Added open data context")
     
     # Add Tavily search results if available
     if tavily_context:
         context_parts.append(f"[Aktuell fakta] {tavily_context}")
         if tavily_sources:
             context_parts.append(tavily_sources)
+        print(f"🔍 Added Tavily context")
     
     # If Force-Svenska is active, prepend Swedish instruction
     if force_svenska_active:
@@ -8519,7 +9494,8 @@ Svara NU.
             model=cached_response.get("model", "OneSeek-7B-Zero.v1.1 (cached)"),
             tokens=cached_response.get("tokens", 0),
             latency_ms=latency_ms,
-            delta_plus=cached_response.get("delta_plus")
+            delta_plus=cached_response.get("delta_plus"),
+            personality=selected_personality_info
         )
     
     # === ONESEEK Δ+ DEBUG: Log detailed inference info to terminal ===
@@ -8542,6 +9518,26 @@ Svara NU.
     )
     
     # === DEBUG: Log inference start ===
+    print("\n" + "-" * 60)
+    print("📊 INFERENCE SUMMARY - ONESEEK Δ+ v6.4")
+    print("-" * 60)
+    print(f"🎭 Base: oneseek-medveten (SHE chooses personality from catalog)")
+    print(f"📂 {{PERSONALITY_CATALOG_PLACEHOLDER}}: ✅ injected")
+    print(f"📡 {{MODELL_API_MAP_PLACEHOLDER}}: ✅ injected")
+    print(f"🧠 Model reads catalogs → chooses personality → chooses API")
+    print(f"🏷️ Model responds with: [PERSONLIGHET: xxx] + [API: yyy]")
+    print(f"🕐 Time context: {time_context[:30]}...")
+    print(f"🍂 Season: {season_context}")
+    print(f"🇸🇪 Force-Svenska: {'ACTIVE' if force_svenska_active else 'inactive'}")
+    print(f"🌤️ Weather: {weather_city if weather_context else 'none'}")
+    print(f"📰 News: {'YES' if news_context else 'none'}")
+    print(f"📊 Open Data: {triggered_api.get('name') if triggered_api else 'none'}")
+    print(f"🔍 Tavily: {'YES' if tavily_context else 'none'}")
+    print(f"📝 Full input length: {len(full_input)} chars")
+    print("-" * 60)
+    print("🚀 Starting inference...")
+    print("=" * 60 + "\n")
+    
     logger.debug("=" * 60)
     logger.debug("=== ONESEEK INFERENCE START ===")
     logger.debug("→ System prompt injected")
@@ -8561,12 +9557,95 @@ Svara NU.
         if DUAL_MODEL_MODE:
             # Use dual-model inference (Mistral + LLaMA)
             logger.debug("→ Using DUAL-model inference path")
+            
+            print("\n" + "=" * 70)
+            print("🤖 STEG 3: MODELLEN VÄLJER PERSONLIGHET")
+            print("=" * 70)
+            print(f"📝 Skickar till modellen...")
+            print(f"   Input längd: {len(full_input)} tecken")
+            print(f"   Modell: DUAL-model (Mistral + LLaMA)")
+            print(f"   Max tokens: {request.max_length}")
+            print(f"   Temperature: {request.temperature}")
+            print("-" * 70)
+            print(f"⏳ Väntar på svar från modellen...")
+            
             result = await dual_model_inference(
                 full_input,  # Use full input with system prompt
                 max_length=request.max_length,
                 temperature=request.temperature,
                 top_p=request.top_p
             )
+            
+            print(f"✅ Modellens svar mottaget!")
+            print(f"   Svarstid: {result.get('latency_ms', 0):.0f}ms")
+            print(f"   Tokens: {result.get('tokens', 0)}")
+            print(f"   Modell: {result.get('model', 'unknown')}")
+            
+            # === ONESEEK Δ+ v6.3: Parse personality tag from response ===
+            print("\n" + "=" * 70)
+            print("📍 STEG 4: BACKEND PARSAR TAG → LADDAR CHARACTER CARD")
+            print("=" * 70)
+            
+            detected_personality_id, clean_response = parse_personality_tag(result['response'])
+            
+            # Show what we detected
+            print(f"\n🎭 DETEKTERAT PERSONLIGHETSVAL:")
+            print(f"   ID: {detected_personality_id}")
+            
+            if detected_personality_id != "oneseek-medveten":
+                print(f"\n🔄 BYTER PERSONLIGHET!")
+                print(f"   Från: oneseek-medveten (default)")
+                print(f"   Till: {detected_personality_id}")
+                selected_personality_id = detected_personality_id
+                selected_personality_info = get_personality_info(detected_personality_id)
+                
+                # ONESEEK Δ+ v6.4: Update global active personality for dashboard
+                if selected_personality_info:
+                    set_current_active_personality(selected_personality_info)
+                
+                # Show character card loading
+                catalog = load_personality_catalog()
+                personality_data = catalog.get("personality_catalog", {}).get(detected_personality_id, {})
+                card_file = personality_data.get("card_file", "")
+                
+                print(f"\n📂 LADDAR CHARACTER CARD:")
+                print(f"   Fil: {card_file}")
+                
+                if card_file:
+                    card_path = Path(__file__).parent.parent / card_file
+                    if card_path.exists():
+                        print(f"   Status: ✅ FINNS")
+                        # Show first 200 chars of card
+                        try:
+                            import yaml
+                            with open(card_path, 'r', encoding='utf-8') as f:
+                                card_data = yaml.safe_load(f)
+                            card_name = card_data.get('name', 'Unknown')
+                            card_prompt_len = len(card_data.get('system_prompt', ''))
+                            print(f"   Namn: {card_name}")
+                            print(f"   Prompt längd: {card_prompt_len} tecken")
+                        except Exception as e:
+                            print(f"   ⚠️ Kunde inte läsa kort: {e}")
+                    else:
+                        print(f"   Status: ❌ FINNS INTE!")
+                
+                # Show personality info
+                if selected_personality_info:
+                    print(f"\n📊 PERSONLIGHETSINFO (för frontend):")
+                    print(f"   {json.dumps(selected_personality_info, ensure_ascii=False, indent=4)}")
+            else:
+                print(f"\n✅ BEHÅLLER DEFAULT (medveten)")
+                print(f"   Modellen valde ingen specifik personlighet")
+            
+            print("\n" + "=" * 70)
+            print("📍 STEG 5: SVAR UTAN TAG → ANVÄNDARE")
+            print("=" * 70)
+            print(f"📝 Rent svar (utan tag), första 200 tecken:")
+            print(f"   '{clean_response[:200]}...'")
+            print("-" * 70)
+            
+            # Update the response with the clean version (tag removed)
+            result['response'] = clean_response
             
             # === ONESEEK Δ+: Save to memory for dual-model mode ===
             if MEMORY_MANAGER_AVAILABLE and topic_hash and save_message_with_memory:
@@ -8616,15 +9695,35 @@ Svara NU.
                     logger.debug(f"Cache save failed: {e}")
             
             # === ONESEEK Δ+ DEBUG: Log completion summary ===
-            print(f"\n  ✅ INFERENCE COMPLETE ({result['latency_ms']:.0f}ms)")
+            print("\n" + "=" * 70)
+            print("✅ ONESEEK Δ+ v6.3 - KOMPLETT DATAFLÖDE SAMMANFATTNING")
+            print("=" * 70)
+            print(f"""
+┌─────────────────────────────────────────────────────────────────────┐
+│  ✅ STEG 1: FRÅGA IN                                                │
+│     "{request.text[:50]}..."                                        
+│  ↓                                                                  │
+│  ✅ STEG 2: SYSTEM PROMPT + PERSONLIGHETSKARTA INJICERAD            │
+│     Katalog: {len(formatted_catalog)} tecken                        
+│  ↓                                                                  │
+│  ✅ STEG 3: MODELLEN VALDE PERSONLIGHET                             │
+│     🎭 Vald: {selected_personality_id}                              
+│  ↓                                                                  │
+│  ✅ STEG 4: CHARACTER CARD LADDAD                                   │
+│     📂 {selected_personality_info.get('id') if selected_personality_info else 'default'}
+│  ↓                                                                  │
+│  ✅ STEG 5: SVAR TILL ANVÄNDARE                                     │
+│     📝 {len(result['response'])} tecken                             
+└─────────────────────────────────────────────────────────────────────┘
+            """)
+            print(f"⏱️  Total tid: {result['latency_ms']:.0f}ms")
             if response_hash:
-                print(f"  🔗 Blockchain Hash: {response_hash[:32]}...")
+                print(f"🔗 Blockchain Hash: {response_hash[:32]}...")
             if confidence_score:
-                print(f"  📊 Confidence v2: {confidence_score:.2f}")
+                print(f"📊 Confidence v2: {confidence_score:.2f}")
             if topic_hash:
-                print(f"  💾 Saved to Memory: topic {topic_hash[:16]}...")
-            print(f"  📝 Response length: {len(result['response'])} chars")
-            print("-" * 60 + "\n")
+                print(f"💾 Saved to Memory: topic {topic_hash[:16]}...")
+            print("=" * 70 + "\n")
             
             # Build Δ+ data for Firebase integration
             delta_plus_data = {
@@ -8642,7 +9741,8 @@ Svara NU.
                 model=result['model'],
                 tokens=result['tokens'],
                 latency_ms=result['latency_ms'],
-                delta_plus=delta_plus_data
+                delta_plus=delta_plus_data,
+                personality=selected_personality_info
             )
         else:
             # Single-model fallback
@@ -8786,6 +9886,90 @@ Svara NU.
             # Remove internal debug tags from response
             response_text = clean_internal_tags(response_text)
             
+            # === ONESEEK Δ+ v6.3: Parse personality tag from response (SINGLE MODEL) ===
+            print("\n" + "=" * 70)
+            print("🤖 STEG 3: MODELLEN VÄLJER PERSONLIGHET")
+            print("=" * 70)
+            print(f"📝 Modellens råa svar mottaget!")
+            print(f"   Längd: {len(response_text)} tecken")
+            print(f"   Första 150 tecken: '{response_text[:150]}...'")
+            print("-" * 70)
+            
+            print("\n" + "=" * 70)
+            print("📍 STEG 4: BACKEND PARSAR TAG → LADDAR CHARACTER CARD")
+            print("=" * 70)
+            
+            detected_personality_id, clean_response = parse_personality_tag(response_text)
+            
+            # Show what we detected
+            print(f"\n🎭 DETEKTERAT PERSONLIGHETSVAL:")
+            print(f"   ID: {detected_personality_id}")
+            
+            if detected_personality_id != "oneseek-medveten":
+                print(f"\n🔄 BYTER PERSONLIGHET!")
+                print(f"   Från: oneseek-medveten (default)")
+                print(f"   Till: {detected_personality_id}")
+                selected_personality_id = detected_personality_id
+                selected_personality_info = get_personality_info(detected_personality_id)
+                
+                # ONESEEK Δ+ v6.4: Update global active personality for dashboard
+                if selected_personality_info:
+                    set_current_active_personality(selected_personality_info)
+                
+                # Show character card loading
+                catalog = load_personality_catalog()
+                personality_data = catalog.get("personality_catalog", {}).get(detected_personality_id, {})
+                card_file = personality_data.get("card_file", "")
+                
+                print(f"\n📂 LADDAR CHARACTER CARD:")
+                print(f"   Fil: {card_file}")
+                
+                if card_file:
+                    card_path = Path(__file__).parent.parent / card_file
+                    if card_path.exists():
+                        print(f"   Status: ✅ FINNS")
+                        # Show character card details
+                        try:
+                            import yaml
+                            with open(card_path, 'r', encoding='utf-8') as f:
+                                card_data = yaml.safe_load(f)
+                            card_name = card_data.get('name', 'Unknown')
+                            card_prompt_len = len(card_data.get('system_prompt', ''))
+                            print(f"   Namn: {card_name}")
+                            print(f"   Prompt längd: {card_prompt_len} tecken")
+                            print(f"   Beskrivning: {card_data.get('description', 'N/A')[:80]}...")
+                        except Exception as e:
+                            print(f"   ⚠️ Kunde inte läsa kort: {e}")
+                    else:
+                        print(f"   Status: ❌ FINNS INTE!")
+                        print(f"   Sökväg: {card_path}")
+                
+                # Get filtered API catalog for this personality
+                filtered_apis = get_api_catalog_for_personality(detected_personality_id)
+                print(f"\n📂 FILTRERAD API-KATALOG FÖR {detected_personality_id}:")
+                print(f"   Antal kategorier: {len(filtered_apis)}")
+                for cat_name, cat_data in filtered_apis.items():
+                    api_names = [api.get('name', 'unknown') for api in cat_data.get('apis', [])]
+                    print(f"   → {cat_name}: {api_names}")
+                
+                # Show personality info
+                if selected_personality_info:
+                    print(f"\n📊 PERSONLIGHETSINFO (för frontend):")
+                    print(f"   {json.dumps(selected_personality_info, ensure_ascii=False, indent=4)}")
+            else:
+                print(f"\n✅ BEHÅLLER DEFAULT (medveten)")
+                print(f"   Modellen valde ingen specifik personlighet eller tagg saknas")
+            
+            print("\n" + "=" * 70)
+            print("📍 STEG 5: SVAR UTAN TAG → ANVÄNDARE")
+            print("=" * 70)
+            print(f"📝 Rent svar (utan tag), första 200 tecken:")
+            print(f"   '{clean_response[:200]}...'")
+            print("-" * 70)
+            
+            # Update the response with the clean version (tag removed)
+            response_text = clean_response
+            
             # === APPEND SOURCES TO RESPONSE ===
             # Only add sources if they don't already exist in response
             if "Källor:" not in response_text and "**Källor:**" not in response_text:
@@ -8856,16 +10040,36 @@ Svara NU.
             logger.info(f"=== ONESEEK INFERENCE COMPLETE ({latency_ms:.0f}ms) ===")
             logger.info("=" * 60)
             
-            # === ONESEEK Δ+ DEBUG: Log completion summary ===
-            print(f"\n  ✅ INFERENCE COMPLETE ({latency_ms:.0f}ms)")
+            # === ONESEEK Δ+ v6.3 DEBUG: Log complete flow summary ===
+            print("\n" + "=" * 70)
+            print("✅ ONESEEK Δ+ v6.3 - KOMPLETT DATAFLÖDE SAMMANFATTNING")
+            print("=" * 70)
+            print(f"""
+┌─────────────────────────────────────────────────────────────────────┐
+│  ✅ STEG 1: FRÅGA IN                                                │
+│     "{request.text[:50]}..."                                        
+│  ↓                                                                  │
+│  ✅ STEG 2: SYSTEM PROMPT + PERSONLIGHETSKARTA INJICERAD            │
+│     Katalog: {len(formatted_catalog)} tecken                        
+│  ↓                                                                  │
+│  ✅ STEG 3: MODELLEN VALDE PERSONLIGHET                             │
+│     🎭 Vald: {selected_personality_id}                              
+│  ↓                                                                  │
+│  ✅ STEG 4: CHARACTER CARD STATUS                                   │
+│     📂 {selected_personality_info.get('id') if selected_personality_info else 'default'}
+│  ↓                                                                  │
+│  ✅ STEG 5: SVAR TILL ANVÄNDARE                                     │
+│     📝 {len(response_text)} tecken                                  
+└─────────────────────────────────────────────────────────────────────┘
+            """)
+            print(f"⏱️  Total tid: {latency_ms:.0f}ms")
             if response_hash:
-                print(f"  🔗 Blockchain Hash: {response_hash[:32]}...")
+                print(f"🔗 Blockchain Hash: {response_hash[:32]}...")
             if confidence_score:
-                print(f"  📊 Confidence v2: {confidence_score:.2f}")
+                print(f"📊 Confidence v2: {confidence_score:.2f}")
             if topic_hash:
-                print(f"  💾 Saved to Memory: topic {topic_hash[:16]}...")
-            print(f"  📝 Response length: {len(response_text)} chars")
-            print("-" * 60 + "\n")
+                print(f"💾 Saved to Memory: topic {topic_hash[:16]}...")
+            print("=" * 70 + "\n")
             
             # Build Δ+ data for Firebase integration
             delta_plus_data = {
@@ -8883,7 +10087,8 @@ Svara NU.
                 model="OneSeek-7B-Zero.v1.1",
                 tokens=len(outputs[0]),
                 latency_ms=latency_ms,
-                delta_plus=delta_plus_data
+                delta_plus=delta_plus_data,
+                personality=selected_personality_info
             )
         
     except Exception as e:

@@ -152,11 +152,33 @@ export default function MessageBuilderPage() {
   // Intent Engine toggle - default to global config
   const [useIntentEngine, setUseIntentEngine] = useState(false); // Start false, will be updated from API
   const [globalIntentEnabled, setGlobalIntentEnabled] = useState(false);
+  
+  // ONESEEK Δ+ v6.2: AI-selected personality (real-time display)
+  const [aiSelectedPersonality, setAiSelectedPersonality] = useState(null);
 
   useEffect(() => {
     fetchDefault();
     fetchActiveFeatures();
+    fetchActivePersonality();
   }, []);
+
+  // ONESEEK Δ+ v6.4: Fetch current active personality from backend
+  const fetchActivePersonality = async () => {
+    try {
+      const res = await fetchWithFallback('/personality/active/current');
+      const data = await res.json();
+      if (data.personality_id && data.personality_id !== 'oneseek-medveten') {
+        setAiSelectedPersonality({
+          id: data.personality_id,
+          description: data.description || '',
+          categories: data.categories || [],
+          is_default: data.is_default || false
+        });
+      }
+    } catch (e) {
+      console.log('Could not fetch active personality');
+    }
+  };
 
   const fetchActiveFeatures = async () => {
     try {
@@ -221,6 +243,11 @@ export default function MessageBuilderPage() {
       setResult(data);
       
       if (data.success) {
+        // ONESEEK Δ+ v6.2: Update AI-selected personality for real-time display
+        if (data.personality) {
+          setAiSelectedPersonality(data.personality);
+        }
+        
         // Add to topic history (store full response for YAML export)
         const historyEntry = {
           id: Date.now(),
@@ -237,7 +264,8 @@ export default function MessageBuilderPage() {
           time_context: data.time_context || '',
           season_context: data.season_context || '',
           api_fetch_log: data.api_fetch_log || [],
-          mode: data.api_catalog_info?.mode || 'unknown'
+          mode: data.api_catalog_info?.mode || 'unknown',
+          personality: data.personality || null  // ONESEEK Δ+ v6.2
         };
         
         setTopicHistory(prev => [...prev, historyEntry]);
@@ -503,6 +531,30 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
               </div>
             </label>
             
+            {/* ONESEEK Δ+ v6.2: AI-Selected Personality Display */}
+            <div className={`mb-4 p-3 bg-[#0d0d0d] border rounded transition-all duration-300 ${
+              aiSelectedPersonality ? 'border-purple-700/50' : 'border-[#2a2a2a]'
+            }`}>
+              <div className="text-[10px] font-mono text-[#555] mb-1">🎭 AI-VALD PERSONLIGHET</div>
+              <div className={`text-sm font-mono ${aiSelectedPersonality ? 'text-purple-400' : 'text-[#555]'}`}>
+                {aiSelectedPersonality?.id?.replace('oneseek-', '').toUpperCase() || 'Ingen vald'}
+              </div>
+              {aiSelectedPersonality?.description && (
+                <div className="text-[10px] text-[#555] mt-1 truncate" title={aiSelectedPersonality.description}>
+                  {aiSelectedPersonality.description}
+                </div>
+              )}
+              {aiSelectedPersonality?.categories?.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {aiSelectedPersonality.categories.map((cat, i) => (
+                    <span key={i} className="px-1.5 py-0.5 bg-purple-900/30 text-purple-300 text-[8px] font-mono rounded">
+                      {cat}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            
             {/* Session Stats */}
             <div className="grid grid-cols-2 gap-2 mb-4">
               <div className="p-2 bg-[#0d0d0d] border border-[#2a2a2a] rounded">
@@ -586,6 +638,15 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
                             {src}
                           </span>
                         ))}
+                      </div>
+                    )}
+                    
+                    {/* ONESEEK Δ+ v6.2: Personality in history */}
+                    {entry.personality && (
+                      <div className="flex items-center gap-1 mb-1">
+                        <span className="text-[10px] font-mono text-purple-400">
+                          🎭 {entry.personality.id?.replace('oneseek-', '')}
+                        </span>
                       </div>
                     )}
                     
@@ -837,6 +898,47 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
                       <div className="text-xs font-mono text-yellow-400 mt-1">
                         {result.season_context}
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ONESEEK Δ+ v6.2: Personality Section */}
+                {result.personality && (
+                  <div>
+                    <label className="text-[10px] font-mono text-[#666] mb-2 block">🎭 AI-VALD PERSONLIGHET (v6.2)</label>
+                    <div className="bg-[#0d0d0d] border border-purple-700/30 rounded p-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-[10px] font-mono text-[#555] mb-1">PERSONLIGHET</div>
+                          <div className="text-sm font-mono text-purple-400">
+                            {result.personality.id?.replace('oneseek-', '').toUpperCase() || 'unknown'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-mono text-[#555] mb-1">DEFAULT</div>
+                          <div className={`text-sm font-mono ${result.personality.is_default ? 'text-green-400' : 'text-[#666]'}`}>
+                            {result.personality.is_default ? '✓ JA' : '—'}
+                          </div>
+                        </div>
+                      </div>
+                      {result.personality.description && (
+                        <div className="mt-3 pt-3 border-t border-[#2a2a2a]">
+                          <div className="text-[10px] font-mono text-[#555] mb-1">BESKRIVNING</div>
+                          <div className="text-xs font-mono text-[#888]">{result.personality.description}</div>
+                        </div>
+                      )}
+                      {result.personality.categories?.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-[#2a2a2a]">
+                          <div className="text-[10px] font-mono text-[#555] mb-2">KATEGORIER</div>
+                          <div className="flex flex-wrap gap-2">
+                            {result.personality.categories.map((cat, i) => (
+                              <span key={i} className="px-2 py-1 bg-purple-900/30 text-purple-300 text-[10px] font-mono rounded">
+                                {cat}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
