@@ -159,7 +159,26 @@ export default function MessageBuilderPage() {
   useEffect(() => {
     fetchDefault();
     fetchActiveFeatures();
+    fetchActivePersonality();
   }, []);
+
+  // ONESEEK Δ+ v6.4: Fetch current active personality from backend
+  const fetchActivePersonality = async () => {
+    try {
+      const res = await fetchWithFallback('/personality/active/current');
+      const data = await res.json();
+      if (data.personality_id && data.personality_id !== 'oneseek-medveten') {
+        setAiSelectedPersonality({
+          id: data.personality_id,
+          description: data.description || '',
+          categories: data.categories || [],
+          is_default: data.is_default || false
+        });
+      }
+    } catch (e) {
+      console.log('Could not fetch active personality');
+    }
+  };
 
   const fetchActiveFeatures = async () => {
     try {
