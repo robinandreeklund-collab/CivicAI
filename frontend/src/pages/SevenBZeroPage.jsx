@@ -147,6 +147,11 @@ export default function SevenBZeroPage() {
   const [focusMode, setFocusMode] = useState(false);
   const [showUI, setShowUI] = useState(true);
   
+  // Compare Mode state - new Zero compare flow
+  const [compareMode, setCompareMode] = useState(false);
+  const [externalResponses, setExternalResponses] = useState([]);
+  const [showExternalResponses, setShowExternalResponses] = useState(false);
+  
   // Chat state
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
@@ -837,8 +842,64 @@ export default function SevenBZeroPage() {
     setIsTyping(true);
 
     try {
-      // Use ONESEEK Δ+ inference endpoint (saves to Firebase with topic_hash, intent, etc.)
       let response;
+      let data;
+      
+      // Use Zero Compare Flow when compareMode is enabled
+      if (compareMode) {
+        console.log('[7B-Zero] Using Zero Compare Flow...');
+        response = await fetch('/api/query', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            question: currentQuestion,
+            preferredModel: 'openseek-7b-zero',
+            profileId: 'zero',
+            characterCard: 'Medveten',
+            compare: true,
+          }),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        data = await response.json();
+        const responseEndTime = Date.now();
+        const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
+        
+        // Store external responses for display
+        if (data.externalResponses) {
+          setExternalResponses(data.externalResponses);
+        }
+        
+        // Extract Zero's response
+        const responseText = data.zero?.response || data.response || '';
+        
+        if (responseText) {
+          setMessages(prev => prev.map(msg => 
+            msg.id === aiMessageId 
+              ? { 
+                  ...msg, 
+                  responseTime: finalResponseTime,
+                  confidence: data.zero?.delta_plus?.confidence_score || 0.85,
+                  version: data.zero?.model || 'OpenSeek-7B-Zero',
+                  compareMode: true,
+                  externalCount: data.externalResponses?.length || 0,
+                  compression: data.compression,
+                }
+              : msg
+          ));
+          animateTyping(responseText, aiMessageId);
+        } else {
+          throw new Error('No response from Zero');
+        }
+        return;
+      }
+      
+      // Standard flow - use ONESEEK Δ+ inference endpoint
       let useOQTFallback = false;
       
       try {
@@ -880,7 +941,7 @@ export default function SevenBZeroPage() {
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      const data = await response.json();
+      data = await response.json();
       const responseEndTime = Date.now();
       const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
 
@@ -1644,6 +1705,58 @@ export default function SevenBZeroPage() {
         </div>
       )}
 
+      {/* ===== EXTERNAL RESPONSES PANEL (Compare Mode) ===== */}
+      {compareMode && externalResponses.length > 0 && (
+        <div 
+          className={`fixed right-0 top-[120px] bottom-[200px] z-35 w-[320px] transition-all duration-500 ease-out ${
+            showExternalResponses ? 'translate-x-0' : 'translate-x-[310px]'
+          } ${whiteMode ? 'bg-[#f5f5f5] border-l border-[#e0e0e0]' : 'bg-[#0c0c0c] border-l border-[#1a1a1a]'}`}
+          style={{ right: sidebarExpanded ? '280px' : '4px' }}
+        >
+          {/* Toggle tab */}
+          <button
+            onClick={() => setShowExternalResponses(prev => !prev)}
+            className={`absolute left-0 top-4 -translate-x-full px-2 py-4 rounded-l-lg text-[10px] uppercase tracking-wider transition-all ${
+              whiteMode 
+                ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                : 'bg-purple-900/50 text-purple-300 hover:bg-purple-800/50'
+            }`}
+          >
+            {showExternalResponses ? '→' : '← Externa'}
+          </button>
+          
+          <div className="p-4 h-full overflow-y-auto">
+            <h3 className={`text-[12px] uppercase tracking-wider font-medium mb-4 ${
+              whiteMode ? 'text-[#333]' : 'text-[#888]'
+            }`}>
+              Externa AI-svar ({externalResponses.length})
+            </h3>
+            
+            <div className="space-y-4">
+              {externalResponses.map((ext, i) => (
+                <div 
+                  key={i}
+                  className={`p-3 rounded-lg ${
+                    whiteMode ? 'bg-white border border-[#e0e0e0]' : 'bg-[#111] border border-[#1a1a1a]'
+                  }`}
+                >
+                  <div className={`text-[10px] uppercase tracking-wide font-medium mb-2 ${
+                    whiteMode ? 'text-purple-600' : 'text-purple-400'
+                  }`}>
+                    {ext.agent}
+                  </div>
+                  <p className={`text-[11px] leading-relaxed ${
+                    whiteMode ? 'text-[#555]' : 'text-[#888]'
+                  }`}>
+                    {ext.response}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ===== INPUT AREA ===== */}
       <div className="fixed inset-x-0 bottom-0 z-40 transition-all duration-500" style={{ right: sidebarExpanded ? '280px' : '4px' }}>
         <div className={`px-24 pb-10 pt-6 ${
@@ -1672,6 +1785,24 @@ export default function SevenBZeroPage() {
                 <span className={`text-[9px] ${whiteMode ? 'text-[#999]' : 'text-[#555]'}`}>
                   {overrideMode ? 'Val gäller endast nästa fråga' : 'Val gäller tills det ändras'}
                 </span>
+                
+                {/* Compare Mode toggle */}
+                <button
+                  type="button"
+                  onClick={() => setCompareMode(prev => !prev)}
+                  className={`ml-4 text-[9px] tracking-[0.1em] uppercase px-2 py-1 rounded transition-all duration-300 ${
+                    compareMode
+                      ? (whiteMode ? 'bg-purple-100 text-purple-700 border border-purple-300' : 'bg-purple-900/30 text-purple-400 border border-purple-700/50')
+                      : (whiteMode ? 'bg-gray-100 text-gray-500 border border-gray-200' : 'bg-[#1a1a1a] text-[#666] border border-[#2a2a2a]')
+                  }`}
+                >
+                  {compareMode ? '🔬 Compare ON' : '🔬 Compare OFF'}
+                </button>
+                {compareMode && (
+                  <span className={`text-[9px] ${whiteMode ? 'text-purple-600' : 'text-purple-400'}`}>
+                    Syntetiserar från GPT, Gemini, DeepSeek, Grok
+                  </span>
+                )}
               </div>
               
               {/* Persona buttons */}

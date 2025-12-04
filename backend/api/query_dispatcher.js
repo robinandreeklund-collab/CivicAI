@@ -29,16 +29,212 @@ import {
   logQuestionError
 } from '../services/firebaseService.js';
 import { createLedgerBlock } from '../services/ledgerService.js';
+import { getOpenSeekResponse } from '../services/openseek.js';
+import { buildComparePrompt } from '../services/comparePromptBuilder.js';
+import { compressResponsesForPrompt } from '../utils/responseCompressor.js';
 
 const router = express.Router();
 
 /**
+ * Handle Zero Compare Flow
+ * Collects external responses, compresses them, and calls OpenSeek with context
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ */
+async function handleZeroCompareFlow(req, res) {
+  const startTime = Date.now();
+  const { 
+    question, 
+    profileId = 'zero', 
+    characterCard = 'Medveten',
+    charLimit = 3000,
+    perAgentLimit = 800,
+    runPipeline = false,
+    firebaseDocId,
+  } = req.body;
+  
+  console.log('╔══════════════════════════════════════════════════════════════╗');
+  console.log('║          🔬 ZERO COMPARE FLOW - OpenSeek-7B-Zero            ║');
+  console.log('╚══════════════════════════════════════════════════════════════╝');
+  console.log(`📝 Question: ${question.substring(0, 60)}${question.length > 60 ? '...' : ''}`);
+  console.log(`👤 Profile: ${profileId}, Character: ${characterCard}`);
+  
+  // Log audit event
+  logAuditEvent(AuditEventType.QUESTION_ASKED, {
+    question: question.substring(0, 100),
+    questionLength: question.length,
+    mode: 'zero-compare',
+    profileId,
+  });
+  
+  try {
+    // Step 1: Call external AI services in parallel
+    console.log('\n📡 Step 1: Collecting external AI responses...');
+    const [gptResponse, geminiResponse, deepseekResponse, grokResponse] = await Promise.allSettled([
+      getOpenAIResponse(question),
+      getGeminiResponse(question),
+      getDeepSeekResponse(question),
+      getGrokResponse(question),
+    ]);
+    
+    // Normalize external responses
+    const externalResponses = [];
+    
+    if (gptResponse.status === 'fulfilled' && gptResponse.value.response) {
+      externalResponses.push({
+        agent: 'gpt-3.5',
+        response: gptResponse.value.response,
+        model: gptResponse.value.model,
+      });
+    }
+    if (geminiResponse.status === 'fulfilled' && geminiResponse.value.response) {
+      externalResponses.push({
+        agent: 'gemini',
+        response: geminiResponse.value.response,
+        model: geminiResponse.value.model,
+      });
+    }
+    if (deepseekResponse.status === 'fulfilled' && deepseekResponse.value.response) {
+      externalResponses.push({
+        agent: 'deepseek',
+        response: deepseekResponse.value.response,
+        model: deepseekResponse.value.model,
+      });
+    }
+    if (grokResponse.status === 'fulfilled' && grokResponse.value.response) {
+      externalResponses.push({
+        agent: 'grok',
+        response: grokResponse.value.response,
+        model: grokResponse.value.model,
+      });
+    }
+    
+    console.log(`✅ Collected ${externalResponses.length} external responses`);
+    
+    // Step 2: Compress responses for prompt context
+    console.log('\n🗜️  Step 2: Compressing responses for context...');
+    const { compressed, metadata: compressionMetadata } = await compressResponsesForPrompt(
+      externalResponses,
+      {
+        charLimit,
+        perAgentLimit,
+        question,
+      }
+    );
+    console.log(`✅ Compression complete (mode: ${compressionMetadata.mode}, chars: ${compressionMetadata.totalChars})`);
+    
+    // Step 3: Build prompts using character card
+    console.log('\n📝 Step 3: Building prompts with character card...');
+    const { systemPrompt, userPrompt, character } = buildComparePrompt(
+      characterCard,
+      question,
+      compressed,
+      null // Firebase context - skip for now
+    );
+    console.log(`✅ Prompts built for character: ${character.name || character.id}`);
+    
+    // Step 4: Call OpenSeek with context
+    console.log('\n🤖 Step 4: Calling OpenSeek-7B-Zero...');
+    const openSeekResult = await getOpenSeekResponse(question, {
+      profileId,
+      systemPrompt,
+      context: compressed,
+    });
+    
+    if (openSeekResult.error && !openSeekResult.response) {
+      console.error('❌ OpenSeek failed:', openSeekResult.error);
+      return res.status(500).json({
+        error: 'OpenSeek inference failed',
+        message: openSeekResult.error,
+      });
+    }
+    console.log('✅ OpenSeek response received');
+    
+    // Step 5: Optional analysis pipeline on Zero's response
+    let pipelineAnalysis = null;
+    if (runPipeline && openSeekResult.response) {
+      console.log('\n🔬 Step 5: Running analysis pipeline...');
+      try {
+        pipelineAnalysis = await executeAnalysisPipeline(
+          openSeekResult.response,
+          question,
+          { includeEnhancedNLP: false }
+        );
+        console.log('✅ Pipeline analysis complete');
+      } catch (pipelineError) {
+        console.warn('⚠️  Pipeline analysis failed:', pipelineError.message);
+      }
+    }
+    
+    // Optional Firebase persistence
+    const firebaseAvailable = await isFirebaseAvailable();
+    if (firebaseAvailable && firebaseDocId) {
+      try {
+        console.log('\n💾 Saving to Firebase...');
+        await saveRawResponses(firebaseDocId, externalResponses);
+        await updateQuestionStatus(firebaseDocId, {
+          status: 'completed',
+          mode: 'zero-compare',
+          completed_at: new Date().toISOString(),
+        });
+        console.log('✅ Firebase save complete');
+      } catch (firebaseError) {
+        console.warn('⚠️  Firebase save failed:', firebaseError.message);
+      }
+    }
+    
+    const totalTime = Date.now() - startTime;
+    console.log(`\n✅ Zero Compare Flow completed in ${totalTime}ms`);
+    
+    // Build response
+    res.json({
+      question,
+      zero: {
+        response: openSeekResult.response,
+        model: openSeekResult.model,
+        delta_plus: openSeekResult.delta_plus,
+        personality: openSeekResult.personality,
+      },
+      externalResponses: externalResponses.map(r => ({
+        agent: r.agent,
+        response: r.response.substring(0, 500) + (r.response.length > 500 ? '...' : ''),
+        model: r.model,
+      })),
+      compression: compressionMetadata,
+      character: {
+        id: character.id,
+        name: character.name,
+      },
+      pipelineAnalysis,
+      firebaseDocId: firebaseDocId || null,
+      timestamp: new Date().toISOString(),
+      processingTimeMs: totalTime,
+    });
+    
+  } catch (error) {
+    console.error('❌ Zero Compare Flow error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message,
+    });
+  }
+}
+
+/**
  * POST /api/query
  * Dispatches a question to multiple AI models and returns their responses
+ * 
+ * Special mode: When preferredModel === 'openseek-7b-zero' or compare === true,
+ * uses the Zero compare flow:
+ * 1. Collect responses from external AI models in parallel
+ * 2. Compress responses using embeddings or heuristic method
+ * 3. Build prompt with character card and compressed context
+ * 4. Call OpenSeek with the synthesized context
+ * 5. Optionally run analysis pipeline on Zero's response
  */
 router.post('/query', async (req, res) => {
   try {
-    const { question } = req.body;
+    const { question, preferredModel, compare, profileId, characterCard } = req.body;
 
     if (!question || typeof question !== 'string' || question.trim() === '') {
       return res.status(400).json({ 
@@ -52,6 +248,13 @@ router.post('/query', async (req, res) => {
         error: 'Invalid request',
         message: 'Question is too long. Maximum allowed length is 5000 characters.'
       });
+    }
+
+    // Check if this is a Zero compare flow request
+    const isZeroCompare = preferredModel === 'openseek-7b-zero' || compare === true;
+    
+    if (isZeroCompare) {
+      return handleZeroCompareFlow(req, res);
     }
 
     console.log(`📝 Processing question: ${question.length > 50 ? question.substring(0, 50) + '...' : question}`);
