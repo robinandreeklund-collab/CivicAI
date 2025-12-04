@@ -4297,12 +4297,16 @@ def format_personality_map_for_prompt() -> str:
 
 def parse_personality_tag(response: str) -> tuple[str, str]:
     """
-    ONESEEK Δ+ v6.3: Parse hidden personality tag from model response.
+    ONESEEK Δ+ v6.4: Parse hidden personality AND API tags from model response.
     
-    The model should respond with [PERSONLIGHET: xxx] at the START of response.
-    This tag is hidden from the user - backend strips it and uses it to:
+    The model should respond with:
+    [PERSONLIGHET: xxx]
+    [API: yyy]
+    Actual response text...
+    
+    These tags are hidden from the user - backend strips them and uses them to:
     1. Load the correct character card
-    2. Get the correct API catalog for that personality
+    2. Know which API the model chose to use
     
     Args:
         response: The model's raw response
@@ -4313,39 +4317,56 @@ def parse_personality_tag(response: str) -> tuple[str, str]:
     import re
     
     print("\n" + "=" * 70)
-    print("🏷️  ONESEEK Δ+ v6.3 - PARSING PERSONALITY TAG")
+    print("🏷️  ONESEEK Δ+ v6.4 - PARSING HIDDEN TAGS")
     print("=" * 70)
     
-    # Show raw response (first 200 chars)
-    print(f"📝 Raw response (first 200 chars):")
-    print(f"   '{response[:200]}...'")
+    # Show raw response (first 300 chars)
+    print(f"📝 Raw response (first 300 chars):")
+    print(f"   '{response[:300]}...'")
     
-    # Look for hidden personality tag at start of response
-    tag_pattern = r'^\s*\[PERSONLIGHET:\s*([^\]]+)\]\s*'
-    match = re.match(tag_pattern, response, re.IGNORECASE)
+    clean_response = response
+    personality_id = "oneseek-medveten"
+    selected_api = None
     
-    if match:
-        personality_name = match.group(1).strip().lower()
-        clean_response = re.sub(tag_pattern, '', response, count=1, flags=re.IGNORECASE).strip()
-        
-        # Map name to full ID
+    # Look for hidden personality tag
+    personality_pattern = r'\[PERSONLIGHET:\s*([^\]]+)\]\s*'
+    personality_match = re.search(personality_pattern, response, re.IGNORECASE)
+    
+    if personality_match:
+        personality_name = personality_match.group(1).strip().lower()
         personality_id = f"oneseek-{personality_name}"
+        clean_response = re.sub(personality_pattern, '', clean_response, count=1, flags=re.IGNORECASE)
         
-        print(f"\n✅ TAG FOUND!")
-        print(f"   🎭 Raw tag value: '{match.group(1)}'")
+        print(f"\n✅ PERSONLIGHET TAG FOUND!")
+        print(f"   🎭 Raw tag value: '{personality_match.group(1)}'")
         print(f"   🎭 Normalized: '{personality_name}'")
         print(f"   🎭 Full ID: '{personality_id}'")
-        print(f"   📝 Clean response (first 100 chars): '{clean_response[:100]}...'")
-        print("=" * 70 + "\n")
-        
-        return personality_id, clean_response
+    else:
+        print(f"\n⚠️  NO PERSONALITY TAG FOUND")
+        print(f"   🎭 Using default: oneseek-medveten")
     
-    # No tag found - use default
-    print(f"\n⚠️  NO PERSONALITY TAG FOUND")
-    print(f"   🎭 Using default: oneseek-medveten")
-    print(f"   💡 Model should respond with [PERSONLIGHET: xxx] at START of response")
+    # Look for hidden API tag
+    api_pattern = r'\[API:\s*([^\]]+)\]\s*'
+    api_match = re.search(api_pattern, clean_response, re.IGNORECASE)
+    
+    if api_match:
+        selected_api = api_match.group(1).strip().lower()
+        clean_response = re.sub(api_pattern, '', clean_response, count=1, flags=re.IGNORECASE)
+        
+        print(f"\n✅ API TAG FOUND!")
+        print(f"   📡 Selected API: '{selected_api}'")
+    else:
+        print(f"\n⚠️  NO API TAG FOUND")
+        print(f"   💡 Model should respond with [API: xxx] tag")
+    
+    # Clean up any extra whitespace at the start
+    clean_response = clean_response.strip()
+    
+    print(f"\n📝 Clean response (first 150 chars):")
+    print(f"   '{clean_response[:150]}...'")
     print("=" * 70 + "\n")
-    return "oneseek-medveten", response
+    
+    return personality_id, clean_response
 
 
 def get_api_catalog_for_personality(personality_id: str) -> Dict[str, Any]:
@@ -4428,6 +4449,51 @@ def format_api_catalog_for_personality(personality_id: str) -> str:
             parts.append(f"  • {name} ({source})")
             if keywords:
                 parts.append(f"    Nyckelord: {', '.join(keywords)}")
+    
+    return "\n".join(parts)
+
+
+def format_api_map_for_prompt() -> str:
+    """
+    ONESEEK Δ+ v6.4: Format the API catalog for injection into system prompt.
+    
+    This creates a minimal, human-readable API map that the model can use
+    to select which API to call. The model should respond with [API: xxx] tag.
+    
+    Returns:
+        Human-readable API catalog string
+    """
+    try:
+        with open(API_CATALOG_PATH, 'r', encoding='utf-8') as f:
+            api_catalog = json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to load API catalog: {e}")
+        return "Inga API:er tillgängliga."
+    
+    all_apis = api_catalog.get("api_catalog", {})
+    
+    parts = []
+    
+    for category, data in all_apis.items():
+        api_list = data.get("apis", [])
+        if not api_list:
+            continue
+            
+        # Format category
+        cat_keywords = data.get("keywords", [])[:5]  # Max 5 keywords
+        parts.append(f"=== {category.upper()} ===")
+        parts.append(f"Nyckelord: {', '.join(cat_keywords)}")
+        
+        # Format APIs in this category
+        for api in api_list[:3]:  # Max 3 APIs per category
+            name = api.get("name", "unknown")
+            source = api.get("source", "")
+            api_keywords = api.get("keywords", [])[:3]  # Max 3 keywords per API
+            parts.append(f"  • {name} ({source})")
+            if api_keywords:
+                parts.append(f"    Trigger: {', '.join(api_keywords)}")
+        
+        parts.append("")  # Empty line between categories
     
     return "\n".join(parts)
 
@@ -9104,15 +9170,37 @@ Svara NU.
     print(formatted_catalog)
     print("-" * 40)
     
-    # Replace placeholder in base_system_prompt with the formatted catalog
-    if "{PLACEHOLDER_PERSONALITY_CATALOG}" in base_system_prompt:
+    # Format the API map for the model
+    formatted_api_map = format_api_map_for_prompt()
+    print(f"\n📋 STEG 2b: LADDAR API-KARTA")
+    print(f"   Fil: config/api_catalog.json")
+    print(f"   Formaterad API-karta ({len(formatted_api_map)} tecken):")
+    print("-" * 40)
+    print(formatted_api_map[:500] + "..." if len(formatted_api_map) > 500 else formatted_api_map)
+    print("-" * 40)
+    
+    # Replace PERSONALITY_CATALOG_PLACEHOLDER in base_system_prompt
+    if "{PERSONALITY_CATALOG_PLACEHOLDER}" in base_system_prompt:
+        final_system_prompt = base_system_prompt.replace("{PERSONALITY_CATALOG_PLACEHOLDER}", formatted_catalog)
+        print(f"\n✅ PERSONALITY_CATALOG_PLACEHOLDER ersatt!")
+        print(f"   System prompt längd: {len(final_system_prompt)} tecken")
+    elif "{PLACEHOLDER_PERSONALITY_CATALOG}" in base_system_prompt:
+        # Support old placeholder name for backwards compatibility
         final_system_prompt = base_system_prompt.replace("{PLACEHOLDER_PERSONALITY_CATALOG}", formatted_catalog)
         print(f"\n✅ PLACEHOLDER_PERSONALITY_CATALOG ersatt!")
         print(f"   System prompt längd: {len(final_system_prompt)} tecken")
     else:
         # Fallback: append the catalog if no placeholder
         final_system_prompt = f"{base_system_prompt}\n\nHär är din inre karta över alla personligheter:\n\n{formatted_catalog}"
-        print(f"⚠️ No placeholder found, appending catalog to system prompt")
+        print(f"⚠️ No personality catalog placeholder found, appending catalog to system prompt")
+    
+    # Replace MODELL_API_MAP_PLACEHOLDER in system prompt
+    if "{MODELL_API_MAP_PLACEHOLDER}" in final_system_prompt:
+        final_system_prompt = final_system_prompt.replace("{MODELL_API_MAP_PLACEHOLDER}", formatted_api_map)
+        print(f"\n✅ MODELL_API_MAP_PLACEHOLDER ersatt!")
+        print(f"   System prompt längd: {len(final_system_prompt)} tecken")
+    else:
+        print(f"⚠️ No API map placeholder found in system prompt")
     
     print(f"📝 Final system prompt length: {len(final_system_prompt)} chars")
     
@@ -9253,11 +9341,13 @@ Svara NU.
     
     # === DEBUG: Log inference start ===
     print("\n" + "-" * 60)
-    print("📊 INFERENCE SUMMARY - PLACEHOLDER INJECTION")
+    print("📊 INFERENCE SUMMARY - ONESEEK Δ+ v6.4")
     print("-" * 60)
     print(f"🎭 Base: oneseek-medveten (SHE chooses personality from catalog)")
-    print(f"📂 Personality catalog: formatted and injected via {{PLACEHOLDER_PERSONALITY_CATALOG}}")
-    print(f"🧠 Model reads catalog → analyzes question → becomes right personality")
+    print(f"📂 {{PERSONALITY_CATALOG_PLACEHOLDER}}: ✅ injected")
+    print(f"📡 {{MODELL_API_MAP_PLACEHOLDER}}: ✅ injected")
+    print(f"🧠 Model reads catalogs → chooses personality → chooses API")
+    print(f"🏷️ Model responds with: [PERSONLIGHET: xxx] + [API: yyy]")
     print(f"🕐 Time context: {time_context[:30]}...")
     print(f"🍂 Season: {season_context}")
     print(f"🇸🇪 Force-Svenska: {'ACTIVE' if force_svenska_active else 'inactive'}")
