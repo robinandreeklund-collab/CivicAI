@@ -1073,12 +1073,18 @@ export default function SystemPromptManagement() {
               // Extract personality type from prompt name (e.g., "OneSeek-7B-Zero (Bibliotekarien)" -> "bibliotekarien")
               const nameMatch = prompt.name.match(/\(([^)]+)\)/);
               const promptPersonalityType = nameMatch ? nameMatch[1].toLowerCase() : '';
-              const promptPersonalityId = `oneseek-${promptPersonalityType}`;
+              
+              // Also try to extract just the core personality name (remove Swedish suffixes like -en, -n)
+              // e.g., "bibliotekarien" -> "bibliotekarie", "metrologen" -> "metrolog"
+              const coreName = promptPersonalityType.replace(/en$/, '').replace(/n$/, '');
+              const promptPersonalityId = `oneseek-${coreName}`;
               
               // Check if this prompt matches the current active personality from unified state
               // This is the SINGLE source of truth - whether set by admin, AI, or override
-              const isActive = currentActivePersonality?.id === promptPersonalityId ||
-                (currentActivePersonality?.id?.includes(promptPersonalityType) && promptPersonalityType);
+              const activeId = currentActivePersonality?.id?.toLowerCase() || '';
+              const isActive = activeId === promptPersonalityId ||
+                activeId.includes(coreName) ||
+                (promptPersonalityType && activeId.includes(promptPersonalityType));
               
               return (
                 <div
