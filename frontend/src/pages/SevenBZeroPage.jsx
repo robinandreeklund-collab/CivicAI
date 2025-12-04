@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { formatAIResponse, formatMarkdown } from '../utils/formatMarkdown';
+import ReactMarkdown from 'react-markdown';
+import { formatAIResponse } from '../utils/formatMarkdown';
 
 /**
  * 7B-Zero Page - Integrated OQI Interface
@@ -1588,15 +1589,17 @@ export default function SevenBZeroPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className={`text-[18px] font-light leading-[1.9] tracking-tight ${
-                      msg.error 
-                        ? 'text-red-400' 
-                        : (whiteMode ? 'text-[#333]' : 'text-[#c0c0c0]')
-                    }`}
-                      dangerouslySetInnerHTML={{ 
-                        __html: formatMarkdown(convertEmojis(msg.isTyping ? currentTypingText : msg.text))
-                      }}
-                    />
+                    <div className={`prose prose-lg max-w-none ${
+                      whiteMode 
+                        ? 'prose-gray' 
+                        : 'prose-invert prose-p:text-[#c0c0c0] prose-headings:text-white prose-strong:text-white prose-li:text-[#c0c0c0]'
+                    } ${msg.error ? 'text-red-400' : ''}`}
+                    style={{ fontSize: '18px', fontWeight: 300, lineHeight: 1.9, letterSpacing: '-0.01em' }}
+                    >
+                      <ReactMarkdown>
+                        {convertEmojis(msg.isTyping ? currentTypingText : msg.text)}
+                      </ReactMarkdown>
+                    </div>
                   )}
                   
                   {/* ONESEEK Δ+ Typo Correction Buttons */}

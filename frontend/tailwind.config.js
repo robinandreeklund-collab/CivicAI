@@ -42,6 +42,24 @@ export default {
           900: '#2a2a2a',
         }
       },
+      typography: {
+        DEFAULT: {
+          css: {
+            maxWidth: 'none',
+          },
+        },
+        invert: {
+          css: {
+            '--tw-prose-body': '#c0c0c0',
+            '--tw-prose-headings': '#ffffff',
+            '--tw-prose-bold': '#ffffff',
+            '--tw-prose-links': '#a78bfa',
+            '--tw-prose-code': '#a78bfa',
+            '--tw-prose-bullets': '#888888',
+            '--tw-prose-counters': '#888888',
+          },
+        },
+      },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-in-out',
         'fade-in-up': 'fadeInUp 0.6s ease-out',
@@ -150,5 +168,7 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    require('@tailwindcss/typography'),
+  ],
 }
