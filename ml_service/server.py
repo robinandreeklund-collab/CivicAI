@@ -3514,15 +3514,59 @@ def delete_system_prompt_file(prompt_id: str) -> bool:
 def get_active_system_prompt() -> str:
     """Get the currently active system prompt content, with fallback to default.
     
-    ONESEEK Δ+ v6.4: If AI or user has selected a personality (not medveten), 
-    use that personality's character card instead.
+    ONESEEK Δ+ v6.5 (PR#101): Priority order for personality selection:
+    1. One-shot override (from /7B-Zero manual selection for next question)
+    2. Admin-pinned personality (from admin "Aktivera" button)
+    3. AI auto-selected personality
+    4. Default (oneseek-medveten)
     """
+    # PR#101: First check for one-shot override
+    override_personality_id = consume_next_question_override()
+    
+    print(f"\n🔍 ONESEEK Δ+ v6.5 (PR#101): get_active_system_prompt()")
+    
+    if override_personality_id:
+        print(f"   📌 ONE-SHOT OVERRIDE ACTIVE: {override_personality_id}")
+        # Load the override personality's character card
+        catalog = load_personality_catalog()
+        personality_data = catalog.get("personality_catalog", {}).get(override_personality_id, {})
+        card_file = personality_data.get("card_file", "")
+        
+        if card_file:
+            card_path = PROJECT_ROOT / card_file
+            if card_path.exists():
+                try:
+                    import yaml
+                    with open(card_path, 'r', encoding='utf-8') as f:
+                        card_data = yaml.safe_load(f)
+                    
+                    system_prompt = card_data.get("system_prompt", "")
+                    if system_prompt:
+                        logger.info(f"[PERSONALITY] 📌 Using one-shot override: {override_personality_id}")
+                        print(f"   ✅ USING OVERRIDE CARD: {override_personality_id}")
+                        
+                        # After using override, revert unified state to AI/admin mode
+                        unified_state = get_unified_personality_state()
+                        if unified_state.get("admin_active_system_prompt_id"):
+                            # Revert to admin-pinned
+                            print(f"   🔄 Will revert to admin-pinned after response")
+                        else:
+                            # Revert to AI auto-selection
+                            print(f"   🔄 Will revert to AI auto-selection after response")
+                        
+                        return system_prompt
+                except Exception as e:
+                    logger.warning(f"[PERSONALITY] Could not load override card: {e}")
+                    print(f"   ❌ Error loading override card: {e}")
+    
     # ONESEEK Δ+ v6.4: Check if AI/user has selected a specific personality
     current_personality = get_current_active_personality()
     current_id = current_personality.get("id", "oneseek-medveten")
+    unified_state = get_unified_personality_state()
+    source = unified_state.get("source", "ai")
     
-    print(f"\n🔍 ONESEEK Δ+ v6.4: get_active_system_prompt()")
     print(f"   📍 Current personality ID: {current_id}")
+    print(f"   📍 Source: {source}")
     print(f"   📍 Is default: {current_personality.get('is_default', True)}")
     
     # If a non-default personality is selected, use that character card
@@ -3544,7 +3588,7 @@ def get_active_system_prompt() -> str:
                     
                     system_prompt = card_data.get("system_prompt", "")
                     if system_prompt:
-                        logger.info(f"[PERSONALITY] 🎭 Using selected personality: {current_id}")
+                        logger.info(f"[PERSONALITY] 🎭 Using selected personality: {current_id} (source: {source})")
                         print(f"   ✅ USING PERSONALITY CARD: {current_id}")
                         print(f"   🔹 Card: {card_file}")
                         print(f"   🔹 Prompt length: {len(system_prompt)} chars")
@@ -3756,7 +3800,13 @@ async def update_system_prompt(prompt_id: str, prompt_data: SystemPromptUpdate):
 
 @system_prompts_router.post("/{prompt_id}/activate")
 async def activate_system_prompt(prompt_id: str):
-    """Set a system prompt as the active prompt"""
+    """
+    Set a system prompt as the active prompt.
+    
+    ONESEEK Δ+ v6.5 (PR#101): This now also updates the unified personality state
+    to sync with the personality system. When admin clicks "Aktivera", both
+    activeSystemPrompt and _current_active_personality are updated.
+    """
     prompt = load_system_prompt(prompt_id)
     if not prompt:
         raise HTTPException(status_code=404, detail=f"System prompt not found: {prompt_id}")
@@ -3770,6 +3820,54 @@ async def activate_system_prompt(prompt_id: str):
     
     if save_system_prompt(prompt):
         logger.info(f"Activated system prompt: {prompt.name} (ID: {prompt.id})")
+        
+        # PR#101: Also update the unified personality state
+        # Extract personality ID from prompt name or tags
+        personality_id = None
+        
+        # Check if this is a character card prompt (has character tag)
+        if prompt.tags and 'character-card' in prompt.tags:
+            # Try to extract personality ID from tags
+            for tag in prompt.tags:
+                if tag.startswith('oneseek-'):
+                    personality_id = tag
+                    break
+        
+        # Try to extract from prompt name (e.g., "OneSeek-7B-Zero (Bibliotekarien)")
+        if not personality_id:
+            import re
+            name_match = re.search(r'\(([^)]+)\)', prompt.name)
+            if name_match:
+                personality_name = name_match.group(1).lower()
+                personality_id = f"oneseek-{personality_name}"
+            elif 'medveten' in prompt.name.lower():
+                personality_id = 'oneseek-medveten'
+            elif 'bibliotekarie' in prompt.name.lower():
+                personality_id = 'oneseek-bibliotekarie'
+            elif 'metrolog' in prompt.name.lower():
+                personality_id = 'oneseek-metrolog'
+        
+        # Update unified personality state with admin source
+        if personality_id:
+            catalog = load_personality_catalog()
+            personality = catalog.get("personality_catalog", {}).get(personality_id, {})
+            personality_info = {
+                "id": personality_id,
+                "name": personality.get("name", prompt.name),
+                "description": personality.get("description", prompt.description or ""),
+                "categories": personality.get("categories", []),
+                "is_default": personality_id == "oneseek-medveten"
+            }
+            set_current_active_personality(personality_info, source="admin")
+            
+            # Track the admin-activated system prompt ID
+            set_admin_active_system_prompt(prompt_id)
+            
+            logger.info(f"[PR#101] Unified state synced: {personality_id} (source: admin)")
+        else:
+            # Still update admin prompt tracking even if no personality match
+            set_admin_active_system_prompt(prompt_id)
+        
         return {"prompt": prompt.model_dump(), "success": True, "message": f"Prompt '{prompt.name}' is now active"}
     
     raise HTTPException(status_code=500, detail="Failed to activate system prompt")
@@ -4083,7 +4181,28 @@ PERSONALITY_CATALOG_FILE = Path(__file__).parent.parent / "config" / "personalit
 # Global personality catalog cache
 _personality_catalog_cache: Optional[Dict[str, Any]] = None
 
-# ONESEEK Δ+ v6.4: Track the currently active personality (last AI selection)
+# ONESEEK Δ+ v6.5 (PR#101): Unified personality state tracking
+# Tracks the current active personality with source information
+# Sources: "admin" = set via admin dashboard, "ai" = auto-selected by model, "override" = one-shot user override
+_unified_personality_state: Dict[str, Any] = {
+    "active_personality_id": "oneseek-medveten",
+    "active_personality_name": "OneSeek-7B-Zero (Medveten)",
+    "active_card_file": "frontend/public/characters/OneSeek-Medveten.yaml",
+    "source": "ai",  # "admin" | "ai" | "override"
+    "admin_active_system_prompt_id": None,
+    "last_updated": None,
+    "description": "Den medvetna grunden - väljer personlighet själv",
+    "categories": ["allmän", "general", "default"],
+    "is_default": True
+}
+
+# ONESEEK Δ+ v6.5 (PR#101): One-shot override for next question only
+_next_question_override: Dict[str, Any] = {
+    "personality_id": None,
+    "active": False
+}
+
+# LEGACY: Keep _current_active_personality for backwards compatibility
 _current_active_personality: Dict[str, Any] = {
     "id": "oneseek-medveten",
     "name": "OneSeek-7B-Zero (Medveten)",
@@ -4119,35 +4238,135 @@ def load_personality_catalog() -> Dict[str, Any]:
     return {"personality_catalog": {}, "selection_rules": {"fallback": "oneseek-medveten"}}
 
 
-def set_current_active_personality(personality_info: Dict[str, Any]) -> None:
+def set_current_active_personality(personality_info: Dict[str, Any], source: str = "ai") -> None:
     """
-    ONESEEK Δ+ v6.4: Update the currently active personality (set by AI selection).
+    ONESEEK Δ+ v6.5 (PR#101): Update the currently active personality.
     
-    This tracks the last personality the AI selected for dashboard display.
+    This tracks the current personality for dashboard display and unified state.
+    
+    Args:
+        personality_info: Dict with personality details (id, name, description, etc.)
+        source: "admin" | "ai" | "override" - who set this personality
     """
-    global _current_active_personality
+    global _current_active_personality, _unified_personality_state
     from datetime import datetime
     
+    now = datetime.now().isoformat()
+    personality_id = personality_info.get("id", "oneseek-medveten")
+    
+    # Load personality catalog to get card_file
+    catalog = load_personality_catalog()
+    personality_data = catalog.get("personality_catalog", {}).get(personality_id, {})
+    card_file = personality_data.get("card_file", f"frontend/public/characters/{personality_id.replace('oneseek-', 'OneSeek-').title()}.yaml")
+    
+    # Update unified state (PR#101)
+    _unified_personality_state = {
+        "active_personality_id": personality_id,
+        "active_personality_name": personality_info.get("name", "OneSeek-7B-Zero"),
+        "active_card_file": card_file,
+        "source": source,
+        "admin_active_system_prompt_id": _unified_personality_state.get("admin_active_system_prompt_id") if source != "admin" else None,
+        "last_updated": now,
+        "description": personality_info.get("description", ""),
+        "categories": personality_info.get("categories", []),
+        "is_default": personality_info.get("is_default", False)
+    }
+    
+    # Keep legacy state updated for backwards compatibility
     _current_active_personality = {
-        "id": personality_info.get("id", "oneseek-medveten"),
+        "id": personality_id,
         "name": personality_info.get("name", "OneSeek-7B-Zero"),
         "description": personality_info.get("description", ""),
         "categories": personality_info.get("categories", []),
         "is_default": personality_info.get("is_default", False),
-        "last_updated": datetime.now().isoformat()
+        "last_updated": now
     }
-    logger.info(f"[PERSONALITY] 🎭 Active personality updated to: {_current_active_personality['id']}")
+    
+    logger.info(f"[PERSONALITY] 🎭 Active personality updated to: {personality_id} (source: {source})")
+    print(f"\n🎭 UNIFIED STATE UPDATE (PR#101)")
+    print(f"   📍 Personality: {personality_id}")
+    print(f"   📍 Source: {source}")
+    print(f"   📍 Card file: {card_file}")
+    print(f"   📍 Time: {now}\n")
 
 
 def get_current_active_personality() -> Dict[str, Any]:
     """
-    ONESEEK Δ+ v6.4: Get the currently active personality.
+    ONESEEK Δ+ v6.4: Get the currently active personality (legacy method).
     
     Returns:
         Dict with current active personality info
     """
     global _current_active_personality
     return _current_active_personality
+
+
+def get_unified_personality_state() -> Dict[str, Any]:
+    """
+    ONESEEK Δ+ v6.5 (PR#101): Get the unified personality state.
+    
+    This is the single source of truth for personality state consumed by all clients.
+    
+    Returns:
+        Dict with unified state including source tracking
+    """
+    global _unified_personality_state
+    return _unified_personality_state.copy()
+
+
+def set_admin_active_system_prompt(prompt_id: str) -> None:
+    """
+    ONESEEK Δ+ v6.5 (PR#101): Track which system prompt was activated by admin.
+    
+    This is called when admin clicks "Aktivera" on a system prompt.
+    """
+    global _unified_personality_state
+    _unified_personality_state["admin_active_system_prompt_id"] = prompt_id
+
+
+def set_next_question_override(personality_id: str) -> None:
+    """
+    ONESEEK Δ+ v6.5 (PR#101): Set a one-shot personality override for the next question.
+    
+    This allows users on /7B-Zero to temporarily select a personality for the next question only.
+    After the next answer is generated, the override is cleared.
+    """
+    global _next_question_override
+    _next_question_override = {
+        "personality_id": personality_id,
+        "active": True
+    }
+    logger.info(f"[PERSONALITY] 📌 One-shot override set: {personality_id}")
+
+
+def consume_next_question_override() -> Optional[str]:
+    """
+    ONESEEK Δ+ v6.5 (PR#101): Consume the one-shot override and return the personality_id.
+    
+    This is called during inference. After calling, the override is cleared.
+    
+    Returns:
+        personality_id if override was active, None otherwise
+    """
+    global _next_question_override
+    if _next_question_override.get("active"):
+        personality_id = _next_question_override.get("personality_id")
+        # Clear the override after consuming
+        _next_question_override = {
+            "personality_id": None,
+            "active": False
+        }
+        logger.info(f"[PERSONALITY] 📌 Consumed one-shot override: {personality_id}")
+        return personality_id
+    return None
+
+
+def get_next_question_override_status() -> Dict[str, Any]:
+    """
+    ONESEEK Δ+ v6.5 (PR#101): Get the current override status without consuming it.
+    """
+    global _next_question_override
+    return _next_question_override.copy()
 
 
 def sync_personality_catalog() -> Dict[str, Any]:
@@ -4827,19 +5046,51 @@ async def get_active_personality():
     return get_current_active_personality()
 
 
+@personality_router.get("/state")
+async def get_personality_state():
+    """
+    ONESEEK Δ+ v6.5 (PR#101): Get the unified personality state.
+    
+    This is the single source of truth endpoint for all clients (frontend, admin).
+    Both the header indicator and /7B-Zero selector should poll this endpoint.
+    
+    Returns:
+        {
+            "active_personality_id": string,
+            "active_personality_name": string,
+            "active_card_file": string,
+            "source": "admin" | "ai" | "override",
+            "admin_active_system_prompt_id": string | null,
+            "last_updated": ISO timestamp,
+            "description": string,
+            "categories": list,
+            "is_default": bool,
+            "override_pending": {
+                "active": bool,
+                "personality_id": string | null
+            }
+        }
+    """
+    state = get_unified_personality_state()
+    # Also include pending override info
+    state["override_pending"] = get_next_question_override_status()
+    return state
+
+
 @personality_router.post("/active/set")
 async def set_active_personality(request: Request):
     """
-    ONESEEK Δ+ v6.4: Manually set the active personality.
+    ONESEEK Δ+ v6.5 (PR#101): Manually set the active personality.
     
     This allows admin dashboard or frontend persona selector to manually activate a personality.
     The backend will then use this personality's character card for subsequent requests.
     
-    Body: { "personality_id": "oneseek-bibliotekarie" }
+    Body: { "personality_id": "oneseek-bibliotekarie", "source": "admin" | "ai" }
     """
     try:
         body = await request.json()
         personality_id = body.get("personality_id", "oneseek-medveten")
+        source = body.get("source", "admin")  # Default to admin when manually set
         
         # Normalize the personality ID
         if not personality_id.startswith("oneseek-"):
@@ -4862,29 +5113,90 @@ async def set_active_personality(request: Request):
         is_default = personality_id == "oneseek-medveten"
         personality_info = {
             "id": personality_id,
+            "name": personality.get("name", personality_id.replace("oneseek-", "").title()),
             "description": personality.get("description", ""),
             "categories": personality.get("categories", []),
             "is_default": is_default
         }
         
-        # Set as active
-        set_current_active_personality(personality_info)
+        # Set as active with source tracking (PR#101)
+        set_current_active_personality(personality_info, source=source)
         
-        logger.info(f"[PERSONALITY] 🎭 Manually activated personality: {personality_id}")
-        print(f"\n🎭 ONESEEK Δ+ v6.4: MANUAL PERSONALITY ACTIVATION")
-        print(f"   📍 Personality: {personality_id}")
-        print(f"   📍 Is default: {is_default}")
-        print(f"   📍 Categories: {personality_info['categories']}")
-        print()
+        logger.info(f"[PERSONALITY] 🎭 Manually activated personality: {personality_id} (source: {source})")
         
         return {
             "success": True,
             "personality": personality_info,
+            "source": source,
             "message": f"Activated personality: {personality_id}"
         }
     except Exception as e:
         logger.error(f"Error setting active personality: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@personality_router.post("/override/next")
+async def set_override_for_next_question(request: Request):
+    """
+    ONESEEK Δ+ v6.5 (PR#101): Set a one-shot personality override for the next question.
+    
+    This allows users on /7B-Zero to temporarily select a personality for the next question only.
+    After the next answer is generated, the override is cleared and the UI reverts to backend state.
+    
+    Body: { "personality_id": "oneseek-bibliotekarie" }
+    """
+    try:
+        body = await request.json()
+        personality_id = body.get("personality_id")
+        
+        if not personality_id:
+            raise HTTPException(status_code=400, detail="personality_id is required")
+        
+        # Normalize the personality ID
+        if not personality_id.startswith("oneseek-"):
+            personality_id = f"oneseek-{personality_id}"
+        
+        # Verify personality exists
+        catalog = load_personality_catalog()
+        if personality_id not in catalog.get("personality_catalog", {}):
+            raise HTTPException(status_code=404, detail=f"Personality not found: {personality_id}")
+        
+        # Set the override
+        set_next_question_override(personality_id)
+        
+        # Also update unified state to show override is pending
+        personality = catalog.get("personality_catalog", {}).get(personality_id, {})
+        personality_info = {
+            "id": personality_id,
+            "name": personality.get("name", personality_id.replace("oneseek-", "").title()),
+            "description": personality.get("description", ""),
+            "categories": personality.get("categories", []),
+            "is_default": personality_id == "oneseek-medveten"
+        }
+        set_current_active_personality(personality_info, source="override")
+        
+        logger.info(f"[PERSONALITY] 📌 Override set for next question: {personality_id}")
+        
+        return {
+            "success": True,
+            "personality_id": personality_id,
+            "message": f"Override set: next question will use {personality_id}"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error setting override: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@personality_router.delete("/override/next")
+async def clear_override():
+    """
+    ONESEEK Δ+ v6.5 (PR#101): Clear any pending one-shot override.
+    """
+    global _next_question_override
+    _next_question_override = {"personality_id": None, "active": False}
+    return {"success": True, "message": "Override cleared"}
 
 
 # =============================================================================
@@ -9599,9 +9911,9 @@ Svara NU.
                 selected_personality_id = detected_personality_id
                 selected_personality_info = get_personality_info(detected_personality_id)
                 
-                # ONESEEK Δ+ v6.4: Update global active personality for dashboard
+                # ONESEEK Δ+ v6.5 (PR#101): Update global active personality for dashboard with AI source
                 if selected_personality_info:
-                    set_current_active_personality(selected_personality_info)
+                    set_current_active_personality(selected_personality_info, source="ai")
                 
                 # Show character card loading
                 catalog = load_personality_catalog()
@@ -9912,9 +10224,9 @@ Svara NU.
                 selected_personality_id = detected_personality_id
                 selected_personality_info = get_personality_info(detected_personality_id)
                 
-                # ONESEEK Δ+ v6.4: Update global active personality for dashboard
+                # ONESEEK Δ+ v6.5 (PR#101): Update global active personality for dashboard with AI source
                 if selected_personality_info:
-                    set_current_active_personality(selected_personality_info)
+                    set_current_active_personality(selected_personality_info, source="ai")
                 
                 # Show character card loading
                 catalog = load_personality_catalog()

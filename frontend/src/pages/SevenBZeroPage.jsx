@@ -183,36 +183,66 @@ export default function SevenBZeroPage() {
     loadTypoCheckSetting();
   }, []);
   
-  // ONESEEK Δ+ v6.4: Load current active personality from backend on page load
-  // Also poll every 2 seconds to stay in sync with backend/admin changes
+  // ONESEEK Δ+ v6.5 (PR#101): Use unified personality state endpoint for polling
+  // This is the single source of truth for both header and /7B-Zero selector
+  const [personalitySource, setPersonalitySource] = useState('ai'); // "admin" | "ai" | "override"
+  const [overridePending, setOverridePending] = useState({ active: false, personality_id: null });
+  
   useEffect(() => {
-    const loadActivePersonality = async () => {
+    const loadUnifiedPersonalityState = async () => {
       try {
-        const response = await fetch('/api/personality/active/current');
+        // Use the new unified state endpoint (PR#101)
+        const response = await fetch('/api/personality/state');
         if (response.ok) {
           const data = await response.json();
-          const personalityId = data.personality_id || data.id || 'oneseek-medveten';
-          setSelectedPersona(personalityId);
-          setAiSelectedPersonality({
-            id: personalityId,
-            description: data.description || '',
-            categories: data.categories || [],
-            is_default: data.is_default || personalityId === 'oneseek-medveten'
-          });
+          const personalityId = data.active_personality_id || 'oneseek-medveten';
+          
+          // Only update if no local override is pending
+          if (!overridePending.active || data.override_pending?.active) {
+            setSelectedPersona(personalityId);
+            setAiSelectedPersonality({
+              id: personalityId,
+              description: data.description || '',
+              categories: data.categories || [],
+              is_default: data.is_default || personalityId === 'oneseek-medveten'
+            });
+            setPersonalitySource(data.source || 'ai');
+          }
+          
+          // Update override status
+          if (data.override_pending) {
+            setOverridePending(data.override_pending);
+          }
         }
       } catch (err) {
-        console.log('Using default personality');
+        // Fallback to legacy endpoint if new one not available
+        try {
+          const response = await fetch('/api/personality/active/current');
+          if (response.ok) {
+            const data = await response.json();
+            const personalityId = data.personality_id || data.id || 'oneseek-medveten';
+            setSelectedPersona(personalityId);
+            setAiSelectedPersonality({
+              id: personalityId,
+              description: data.description || '',
+              categories: data.categories || [],
+              is_default: data.is_default || personalityId === 'oneseek-medveten'
+            });
+          }
+        } catch {
+          console.log('Using default personality');
+        }
       }
     };
     
     // Load immediately
-    loadActivePersonality();
+    loadUnifiedPersonalityState();
     
-    // Poll every 2 seconds to stay in sync
-    const pollInterval = setInterval(loadActivePersonality, 2000);
+    // Poll every 2 seconds to stay in sync (PR#101: unified state)
+    const pollInterval = setInterval(loadUnifiedPersonalityState, 2000);
     
     return () => clearInterval(pollInterval);
-  }, []);
+  }, [overridePending.active]);
   
   // UI state
   const [hoveredTick, setHoveredTick] = useState(null);
@@ -609,7 +639,7 @@ export default function SevenBZeroPage() {
   }, []);
 
   // Generate DNA chain (ledger blocks)
-  const generateDnaChain = (status) => {
+  const generateDnaChain = (_status) => {
     const now = new Date();
     const chain = [];
     for (let i = 0; i < 20; i++) {
@@ -648,8 +678,11 @@ export default function SevenBZeroPage() {
     loadCharacterData();
   }, [selectedPersona]);
 
-  // ONESEEK Δ+ v6.4: Handle persona selection - update both local state and backend
-  const handlePersonaSelect = async (personaId) => {
+  // ONESEEK Δ+ v6.5 (PR#101): Handle persona selection for manual override
+  // The "Override Next Question" mode sets a one-shot override for the next question only
+  const [overrideMode, setOverrideMode] = useState(false); // false = permanent, true = next question only
+  
+  const handlePersonaSelect = async (personaId, forNextQuestionOnly = false) => {
     // Update local state immediately
     setSelectedPersona(personaId);
     setAiSelectedPersonality({
@@ -659,16 +692,33 @@ export default function SevenBZeroPage() {
       is_default: personaId === 'oneseek-medveten'
     });
     
-    // Notify backend of manual personality selection
     try {
-      await fetch('/api/personality/active/set', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ personality_id: personaId })
-      });
+      if (forNextQuestionOnly) {
+        // PR#101: Set one-shot override for next question
+        setOverridePending({ active: true, personality_id: personaId });
+        setPersonalitySource('override');
+        await fetch('/api/personality/override/next', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ personality_id: personaId })
+        });
+      } else {
+        // Regular permanent selection
+        setPersonalitySource('admin');
+        await fetch('/api/personality/active/set', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ personality_id: personaId, source: 'admin' })
+        });
+      }
     } catch (err) {
-      console.error('Error setting active personality:', err);
+      console.error('Error setting personality:', err);
     }
+  };
+  
+  // Toggle override mode
+  const toggleOverrideMode = () => {
+    setOverrideMode(prev => !prev);
   };
 
   // Response time counter
@@ -1143,13 +1193,27 @@ export default function SevenBZeroPage() {
               <span>Fidelity <span className={whiteMode ? 'text-[#666]' : 'text-[#666]'}>{metrics.fidelity}%</span></span>
               <span>Consensus <span className={whiteMode ? 'text-[#666]' : 'text-[#666]'}>{metrics.consensus}%</span></span>
               <span>Accuracy <span className={whiteMode ? 'text-[#666]' : 'text-[#666]'}>{metrics.accuracy}%</span></span>
-              {/* ONESEEK Δ+ v6.2: AI-selected personality display */}
-              <span className={`transition-all duration-300 ${
+              {/* ONESEEK Δ+ v6.5 (PR#101): AI-selected personality display with source indicator */}
+              <span className={`transition-all duration-300 flex items-center gap-1 ${
                 aiSelectedPersonality 
-                  ? (whiteMode ? 'text-purple-600' : 'text-purple-400') 
+                  ? (personalitySource === 'override' 
+                      ? (whiteMode ? 'text-orange-600' : 'text-orange-400')
+                      : personalitySource === 'admin'
+                        ? (whiteMode ? 'text-blue-600' : 'text-blue-400')
+                        : (whiteMode ? 'text-purple-600' : 'text-purple-400'))
                   : (whiteMode ? 'text-[#777]' : 'text-[#555]')
               }`}>
                 🎭 {aiSelectedPersonality?.id?.replace('oneseek-', '') || characterData?.name || 'Medveten'}
+                {/* Source indicator (PR#101) */}
+                <span className={`text-[8px] px-1 rounded ${
+                  personalitySource === 'override' 
+                    ? 'bg-orange-500/20' 
+                    : personalitySource === 'admin'
+                      ? 'bg-blue-500/20'
+                      : 'bg-purple-500/20'
+                }`}>
+                  {personalitySource === 'override' ? '⏳' : personalitySource === 'admin' ? '👤' : '🤖'}
+                </span>
               </span>
             </div>
             
@@ -1553,24 +1617,51 @@ export default function SevenBZeroPage() {
           <div className="max-w-2xl mx-auto">
             
             {/* Character/Persona Selection */}
-            <div className="flex justify-center gap-8 mb-6" role="radiogroup" aria-label="Välj AI-persona">
-              {AVAILABLE_PERSONAS.map((persona) => (
+            {/* ONESEEK Δ+ v6.5 (PR#101): Character/Persona Selection with Override Mode Toggle */}
+            <div className="flex flex-col items-center gap-3 mb-6">
+              {/* Override mode toggle */}
+              <div className="flex items-center gap-2">
                 <button
-                  key={persona.id}
-                  onClick={() => handlePersonaSelect(persona.id)}
-                  aria-label={`Välj ${persona.name} persona`}
-                  aria-pressed={selectedPersona === persona.id}
-                  role="radio"
-                  aria-checked={selectedPersona === persona.id}
-                  className={`text-[11px] tracking-[0.12em] transition-all duration-300 ${
-                    selectedPersona === persona.id 
-                      ? (whiteMode ? 'text-[#333]' : 'text-white')
-                      : (whiteMode ? 'text-[#bbb] hover:text-[#666]' : 'text-[#3a3a3a] hover:text-[#666]')
+                  type="button"
+                  onClick={toggleOverrideMode}
+                  className={`text-[9px] tracking-[0.1em] uppercase px-2 py-1 rounded transition-all duration-300 ${
+                    overrideMode
+                      ? (whiteMode ? 'bg-orange-100 text-orange-700 border border-orange-300' : 'bg-orange-900/30 text-orange-400 border border-orange-700/50')
+                      : (whiteMode ? 'bg-gray-100 text-gray-500 border border-gray-200' : 'bg-[#1a1a1a] text-[#666] border border-[#2a2a2a]')
                   }`}
                 >
-                  {persona.name}
+                  {overrideMode ? '⏳ Nästa fråga' : '📌 Permanent'}
                 </button>
-              ))}
+                <span className={`text-[9px] ${whiteMode ? 'text-[#999]' : 'text-[#555]'}`}>
+                  {overrideMode ? 'Val gäller endast nästa fråga' : 'Val gäller tills det ändras'}
+                </span>
+              </div>
+              
+              {/* Persona buttons */}
+              <div className="flex justify-center gap-8" role="radiogroup" aria-label="Välj AI-persona">
+                {AVAILABLE_PERSONAS.map((persona) => (
+                  <button
+                    key={persona.id}
+                    onClick={() => handlePersonaSelect(persona.id, overrideMode)}
+                    aria-label={`Välj ${persona.name} persona`}
+                    aria-pressed={selectedPersona === persona.id}
+                    role="radio"
+                    aria-checked={selectedPersona === persona.id}
+                    className={`text-[11px] tracking-[0.12em] transition-all duration-300 flex items-center gap-1 ${
+                      selectedPersona === persona.id 
+                        ? (whiteMode ? 'text-[#333]' : 'text-white')
+                        : (whiteMode ? 'text-[#bbb] hover:text-[#666]' : 'text-[#3a3a3a] hover:text-[#666]')
+                    }`}
+                  >
+                    <span>{persona.icon}</span>
+                    <span>{persona.name}</span>
+                    {/* Show override indicator */}
+                    {selectedPersona === persona.id && overridePending.active && overridePending.personality_id === persona.id && (
+                      <span className="text-[8px] ml-1 text-orange-400">⏳</span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* ONESEEK Δ+ Typo Suggestion */}
