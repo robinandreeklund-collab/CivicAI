@@ -2526,7 +2526,14 @@ router.post('/models/verify', requireAdmin, async (req, res) => {
 
 // ============ COMPARE PROMPT MANAGEMENT ============
 
-import { getComparePromptInfo, saveCompareSystemPrompt } from '../services/comparePromptBuilder.js';
+import { 
+  getComparePromptInfo, 
+  saveCompareSystemPrompt,
+  getChunkedIndividualPromptInfo,
+  getChunkedSynthesisPromptInfo,
+  saveChunkedIndividualPrompt,
+  saveChunkedSynthesisPrompt
+} from '../services/comparePromptBuilder.js';
 
 // GET /api/admin/compare-prompt - Get current compare prompt
 router.get('/compare-prompt', requireAdmin, async (req, res) => {
@@ -2586,6 +2593,108 @@ router.post('/compare-prompt/reset', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Error resetting compare prompt:', error);
     res.status(500).json({ error: 'Failed to reset compare prompt', message: error.message });
+  }
+});
+
+// ============ CHUNKED (STEGVIS) PROMPT MANAGEMENT ============
+
+// GET /api/admin/chunked-prompts - Get both chunked prompts
+router.get('/chunked-prompts', requireAdmin, async (req, res) => {
+  try {
+    const individual = getChunkedIndividualPromptInfo();
+    const synthesis = getChunkedSynthesisPromptInfo();
+    res.json({ individual, synthesis });
+  } catch (error) {
+    console.error('Error getting chunked prompts:', error);
+    res.status(500).json({ error: 'Failed to get chunked prompts', message: error.message });
+  }
+});
+
+// PUT /api/admin/chunked-prompts/individual - Update individual analysis prompt
+router.put('/chunked-prompts/individual', requireAdmin, async (req, res) => {
+  try {
+    const { content } = req.body;
+    
+    if (!content || typeof content !== 'string' || content.trim().length === 0) {
+      return res.status(400).json({ error: 'Prompt content is required' });
+    }
+    
+    const success = saveChunkedIndividualPrompt(content.trim());
+    
+    if (success) {
+      const promptInfo = getChunkedIndividualPromptInfo();
+      res.json({ 
+        success: true, 
+        message: 'Chunked individual prompt updated successfully',
+        prompt: promptInfo
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to save chunked individual prompt' });
+    }
+  } catch (error) {
+    console.error('Error updating chunked individual prompt:', error);
+    res.status(500).json({ error: 'Failed to update prompt', message: error.message });
+  }
+});
+
+// PUT /api/admin/chunked-prompts/synthesis - Update synthesis prompt
+router.put('/chunked-prompts/synthesis', requireAdmin, async (req, res) => {
+  try {
+    const { content } = req.body;
+    
+    if (!content || typeof content !== 'string' || content.trim().length === 0) {
+      return res.status(400).json({ error: 'Prompt content is required' });
+    }
+    
+    const success = saveChunkedSynthesisPrompt(content.trim());
+    
+    if (success) {
+      const promptInfo = getChunkedSynthesisPromptInfo();
+      res.json({ 
+        success: true, 
+        message: 'Chunked synthesis prompt updated successfully',
+        prompt: promptInfo
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to save chunked synthesis prompt' });
+    }
+  } catch (error) {
+    console.error('Error updating chunked synthesis prompt:', error);
+    res.status(500).json({ error: 'Failed to update prompt', message: error.message });
+  }
+});
+
+// POST /api/admin/chunked-prompts/reset - Reset chunked prompts to defaults
+router.post('/chunked-prompts/reset', requireAdmin, async (req, res) => {
+  try {
+    const { type } = req.body; // 'individual', 'synthesis', or 'all'
+    
+    const promptsDir = path.join(__dirname, '..', 'datasets', 'system_prompts');
+    
+    if (type === 'individual' || type === 'all') {
+      try {
+        await fs.unlink(path.join(promptsDir, 'zero_chunked_individual.json'));
+      } catch (e) { /* File might not exist */ }
+    }
+    
+    if (type === 'synthesis' || type === 'all') {
+      try {
+        await fs.unlink(path.join(promptsDir, 'zero_chunked_synthesis.json'));
+      } catch (e) { /* File might not exist */ }
+    }
+    
+    const individual = getChunkedIndividualPromptInfo();
+    const synthesis = getChunkedSynthesisPromptInfo();
+    
+    res.json({ 
+      success: true, 
+      message: `Chunked prompt(s) reset to default`,
+      individual,
+      synthesis
+    });
+  } catch (error) {
+    console.error('Error resetting chunked prompts:', error);
+    res.status(500).json({ error: 'Failed to reset chunked prompts', message: error.message });
   }
 });
 

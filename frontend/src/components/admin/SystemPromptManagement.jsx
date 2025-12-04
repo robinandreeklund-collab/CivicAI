@@ -79,6 +79,14 @@ export default function SystemPromptManagement() {
   const [compareSaving, setCompareSaving] = useState(false);
   const [showCompareEditor, setShowCompareEditor] = useState(false);
 
+  // Chunked (Stegvis) Prompts state
+  const [chunkedIndividualPrompt, setChunkedIndividualPrompt] = useState(null);
+  const [chunkedIndividualInput, setChunkedIndividualInput] = useState('');
+  const [chunkedSynthesisPrompt, setChunkedSynthesisPrompt] = useState(null);
+  const [chunkedSynthesisInput, setChunkedSynthesisInput] = useState('');
+  const [chunkedSaving, setChunkedSaving] = useState(false);
+  const [showChunkedEditor, setShowChunkedEditor] = useState(false);
+
   // Fetch prompts on mount
   useEffect(() => {
     fetchPrompts();
@@ -87,6 +95,7 @@ export default function SystemPromptManagement() {
     fetchTavilyTriggers();
     fetchUnifiedPersonalityState();
     fetchComparePrompt();
+    fetchChunkedPrompts();
     
     // ONESEEK Δ+ v6.5 (PR#101): Poll unified state every 2 seconds
     const pollInterval = setInterval(() => {
@@ -384,6 +393,102 @@ export default function SystemPromptManagement() {
     } catch (err) {
       console.error('Error resetting compare prompt:', err);
       setError('Kunde inte återställa Compare Prompt');
+    }
+  };
+
+  // Fetch Chunked (Stegvis) Prompts
+  const fetchChunkedPrompts = async () => {
+    try {
+      const response = await fetch('/api/admin/chunked-prompts');
+      if (response.ok) {
+        const data = await response.json();
+        setChunkedIndividualPrompt(data.individual);
+        setChunkedIndividualInput(data.individual?.content || '');
+        setChunkedSynthesisPrompt(data.synthesis);
+        setChunkedSynthesisInput(data.synthesis?.content || '');
+      }
+    } catch (err) {
+      console.error('Error fetching chunked prompts:', err);
+    }
+  };
+
+  // Save Chunked Individual Prompt
+  const handleSaveChunkedIndividual = async () => {
+    setChunkedSaving(true);
+    try {
+      const response = await fetch('/api/admin/chunked-prompts/individual', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: chunkedIndividualInput })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setChunkedIndividualPrompt(data.prompt);
+        setSuccess('Stegvis Individuell Prompt sparad!');
+      } else {
+        throw new Error('Failed to save');
+      }
+    } catch (err) {
+      console.error('Error saving chunked individual prompt:', err);
+      setError('Kunde inte spara prompt');
+    } finally {
+      setChunkedSaving(false);
+    }
+  };
+
+  // Save Chunked Synthesis Prompt
+  const handleSaveChunkedSynthesis = async () => {
+    setChunkedSaving(true);
+    try {
+      const response = await fetch('/api/admin/chunked-prompts/synthesis', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: chunkedSynthesisInput })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setChunkedSynthesisPrompt(data.prompt);
+        setSuccess('Stegvis Syntes Prompt sparad!');
+      } else {
+        throw new Error('Failed to save');
+      }
+    } catch (err) {
+      console.error('Error saving chunked synthesis prompt:', err);
+      setError('Kunde inte spara prompt');
+    } finally {
+      setChunkedSaving(false);
+    }
+  };
+
+  // Reset Chunked Prompts
+  const handleResetChunkedPrompts = async (type) => {
+    const typeLabel = type === 'individual' ? 'Individuell' : type === 'synthesis' ? 'Syntes' : 'båda';
+    if (!confirm(`Återställ Stegvis ${typeLabel} prompt till standard?`)) {
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/admin/chunked-prompts/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setChunkedIndividualPrompt(data.individual);
+        setChunkedIndividualInput(data.individual?.content || '');
+        setChunkedSynthesisPrompt(data.synthesis);
+        setChunkedSynthesisInput(data.synthesis?.content || '');
+        setSuccess('Stegvis prompt(ar) återställd(a) till standard.');
+      } else {
+        throw new Error('Failed to reset');
+      }
+    } catch (err) {
+      console.error('Error resetting chunked prompts:', err);
+      setError('Kunde inte återställa prompts');
     }
   };
 
@@ -1130,6 +1235,151 @@ export default function SystemPromptManagement() {
                   🔄 Återställ till standard
                 </button>
               )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Chunked (Stegvis) Analysis Prompts Section */}
+      <div className="border border-[#2a2a2a] bg-[#0a0a0a] p-6 rounded">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-[#eee] font-mono text-base flex items-center gap-2">
+              🔄 Stegvis Analys Prompts
+              <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded font-mono">
+                CHUNKED MODE
+              </span>
+            </h3>
+            <p className="text-[#666] font-mono text-xs mt-1">
+              Används när &quot;Stegvis&quot; är aktiverat - analyserar en AI i taget
+            </p>
+          </div>
+          <button
+            onClick={() => setShowChunkedEditor(!showChunkedEditor)}
+            className="px-3 py-1.5 bg-[#1a1a1a] border border-[#2a2a2a] text-[#888] text-sm font-mono hover:border-[#444] transition-colors rounded"
+          >
+            {showChunkedEditor ? '✕ Stäng' : '✏️ Redigera'}
+          </button>
+        </div>
+
+        {!showChunkedEditor && chunkedIndividualPrompt && (
+          <div className="space-y-4">
+            <div className="bg-[#111] border border-[#1a1a1a] p-3 rounded">
+              <p className="text-[#666] font-mono text-xs mb-1">Individuell Analys (per AI)</p>
+              <p className="text-[#999] font-mono text-xs whitespace-pre-wrap">
+                {chunkedIndividualPrompt.content?.substring(0, 200)}
+                {chunkedIndividualPrompt.content?.length > 200 && '...'}
+              </p>
+            </div>
+            <div className="bg-[#111] border border-[#1a1a1a] p-3 rounded">
+              <p className="text-[#666] font-mono text-xs mb-1">Syntes (kombinera analyser)</p>
+              <p className="text-[#999] font-mono text-xs whitespace-pre-wrap">
+                {chunkedSynthesisPrompt?.content?.substring(0, 200)}
+                {chunkedSynthesisPrompt?.content?.length > 200 && '...'}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {showChunkedEditor && (
+          <div className="space-y-6">
+            {/* Individual Analysis Prompt */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[#888] font-mono text-sm">
+                  📊 Individuell Analys Prompt
+                </label>
+                {chunkedIndividualPrompt?.is_custom && (
+                  <span className="text-[10px] bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded">
+                    Anpassad
+                  </span>
+                )}
+              </div>
+              <p className="text-[#555] font-mono text-xs mb-2">
+                Används för att analysera varje AI-svar separat
+              </p>
+              <textarea
+                value={chunkedIndividualInput}
+                onChange={(e) => setChunkedIndividualInput(e.target.value)}
+                className="w-full h-40 bg-[#0a0a0a] border border-[#2a2a2a] text-[#ccc] font-mono text-sm p-4 rounded focus:outline-none focus:border-[#444] resize-y"
+                placeholder="Skriv prompt för individuell analys..."
+              />
+              <div className="flex items-center justify-between mt-2">
+                <p className="text-[#444] font-mono text-xs">
+                  {chunkedIndividualInput.length} tecken
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveChunkedIndividual}
+                    disabled={chunkedSaving}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm font-mono hover:bg-blue-500 transition-colors rounded disabled:opacity-50"
+                  >
+                    {chunkedSaving ? 'Sparar...' : '💾 Spara'}
+                  </button>
+                  {chunkedIndividualPrompt?.is_custom && (
+                    <button
+                      onClick={() => handleResetChunkedPrompts('individual')}
+                      className="px-3 py-2 border border-red-500/30 text-red-400 text-xs font-mono hover:bg-red-500/10 transition-colors rounded"
+                    >
+                      🔄 Återställ
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Synthesis Prompt */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[#888] font-mono text-sm">
+                  🔗 Syntes Prompt
+                </label>
+                {chunkedSynthesisPrompt?.is_custom && (
+                  <span className="text-[10px] bg-yellow-500/20 text-yellow-300 px-2 py-0.5 rounded">
+                    Anpassad
+                  </span>
+                )}
+              </div>
+              <p className="text-[#555] font-mono text-xs mb-2">
+                Används för att kombinera alla individuella analyser till en slutsats
+              </p>
+              <textarea
+                value={chunkedSynthesisInput}
+                onChange={(e) => setChunkedSynthesisInput(e.target.value)}
+                className="w-full h-40 bg-[#0a0a0a] border border-[#2a2a2a] text-[#ccc] font-mono text-sm p-4 rounded focus:outline-none focus:border-[#444] resize-y"
+                placeholder="Skriv prompt för syntes..."
+              />
+              <div className="flex items-center justify-between mt-2">
+                <p className="text-[#444] font-mono text-xs">
+                  {chunkedSynthesisInput.length} tecken
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveChunkedSynthesis}
+                    disabled={chunkedSaving}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm font-mono hover:bg-blue-500 transition-colors rounded disabled:opacity-50"
+                  >
+                    {chunkedSaving ? 'Sparar...' : '💾 Spara'}
+                  </button>
+                  {chunkedSynthesisPrompt?.is_custom && (
+                    <button
+                      onClick={() => handleResetChunkedPrompts('synthesis')}
+                      className="px-3 py-2 border border-red-500/30 text-red-400 text-xs font-mono hover:bg-red-500/10 transition-colors rounded"
+                    >
+                      🔄 Återställ
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-[#2a2a2a]">
+              <button
+                onClick={() => setShowChunkedEditor(false)}
+                className="px-4 py-2 border border-[#2a2a2a] text-[#888] text-sm font-mono hover:border-[#444] transition-colors rounded"
+              >
+                Stäng
+              </button>
             </div>
           </div>
         )}

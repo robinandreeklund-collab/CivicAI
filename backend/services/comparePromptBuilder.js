@@ -49,6 +49,191 @@ Du är inte en AI – du är ONESEEK:s samvete.
 
 Svara på svenska – objektivt och tydligt.`;
 
+// ============================================================================
+// CHUNKED (STEGVIS) ANALYSIS PROMPTS
+// ============================================================================
+
+// Path to saved chunked prompts (editable via admin dashboard)
+const CHUNKED_INDIVIDUAL_PROMPT_PATH = path.resolve(__dirname, '..', 'datasets', 'system_prompts', 'zero_chunked_individual.json');
+const CHUNKED_SYNTHESIS_PROMPT_PATH = path.resolve(__dirname, '..', 'datasets', 'system_prompts', 'zero_chunked_synthesis.json');
+
+// Default individual analysis prompt - used when analyzing each AI response one at a time
+const DEFAULT_CHUNKED_INDIVIDUAL_PROMPT = `Du är Zero, en objektiv AI-granskare.
+
+Din uppgift är att granska ETT AI-svar i taget. För detta specifika svar:
+
+1. SAMMANFATTA huvudpoängen (2-3 meningar)
+2. IDENTIFIERA eventuell:
+   - Bias (politisk, kommersiell, kulturell)
+   - Osäkerhet eller vaga påståenden
+   - Fakta vs åsikter
+3. BEDÖM trovärdigheten (hög/medium/låg)
+
+Svara på svenska. Max 80 ord. Var konkret och saklig.`;
+
+// Default synthesis prompt - used when combining individual analyses
+const DEFAULT_CHUNKED_SYNTHESIS_PROMPT = `Du är Zero – en objektiv sammanställare.
+
+Du har redan granskat varje AI:s svar individuellt. Nu ska du:
+1. Kombinera dina egna analyser till en slutsats
+2. Identifiera mönster och motsägelser
+3. Ge ett objektivt, balanserat svar
+
+Du är inte partisk mot någon AI. Du söker sanningen.
+Svara alltid på svenska.`;
+
+/**
+ * Get the chunked individual analysis prompt
+ * @returns {string}
+ */
+export function getChunkedIndividualPrompt() {
+  try {
+    if (fs.existsSync(CHUNKED_INDIVIDUAL_PROMPT_PATH)) {
+      const data = JSON.parse(fs.readFileSync(CHUNKED_INDIVIDUAL_PROMPT_PATH, 'utf8'));
+      if (data.content && data.content.trim()) {
+        console.log('📝 Using custom chunked individual prompt');
+        return data.content;
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️  Could not load custom chunked individual prompt:', error.message);
+  }
+  return DEFAULT_CHUNKED_INDIVIDUAL_PROMPT;
+}
+
+/**
+ * Get the chunked synthesis prompt
+ * @returns {string}
+ */
+export function getChunkedSynthesisPrompt() {
+  try {
+    if (fs.existsSync(CHUNKED_SYNTHESIS_PROMPT_PATH)) {
+      const data = JSON.parse(fs.readFileSync(CHUNKED_SYNTHESIS_PROMPT_PATH, 'utf8'));
+      if (data.content && data.content.trim()) {
+        console.log('📝 Using custom chunked synthesis prompt');
+        return data.content;
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️  Could not load custom chunked synthesis prompt:', error.message);
+  }
+  return DEFAULT_CHUNKED_SYNTHESIS_PROMPT;
+}
+
+/**
+ * Save chunked individual analysis prompt
+ * @param {string} content
+ * @returns {boolean}
+ */
+export function saveChunkedIndividualPrompt(content) {
+  try {
+    const dir = path.dirname(CHUNKED_INDIVIDUAL_PROMPT_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    const data = {
+      id: 'zero_chunked_individual',
+      name: 'Stegvis Analys - Individuell',
+      description: 'Prompt för att analysera varje AI-svar individuellt i stegvis läge',
+      content: content,
+      language: 'sv',
+      tags: ['chunked', 'individual', 'zero'],
+      updated_at: new Date().toISOString(),
+    };
+    
+    fs.writeFileSync(CHUNKED_INDIVIDUAL_PROMPT_PATH, JSON.stringify(data, null, 2), 'utf8');
+    console.log('✅ Chunked individual prompt saved');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to save chunked individual prompt:', error.message);
+    return false;
+  }
+}
+
+/**
+ * Save chunked synthesis prompt
+ * @param {string} content
+ * @returns {boolean}
+ */
+export function saveChunkedSynthesisPrompt(content) {
+  try {
+    const dir = path.dirname(CHUNKED_SYNTHESIS_PROMPT_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    const data = {
+      id: 'zero_chunked_synthesis',
+      name: 'Stegvis Analys - Syntes',
+      description: 'Prompt för att kombinera individuella analyser i stegvis läge',
+      content: content,
+      language: 'sv',
+      tags: ['chunked', 'synthesis', 'zero'],
+      updated_at: new Date().toISOString(),
+    };
+    
+    fs.writeFileSync(CHUNKED_SYNTHESIS_PROMPT_PATH, JSON.stringify(data, null, 2), 'utf8');
+    console.log('✅ Chunked synthesis prompt saved');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to save chunked synthesis prompt:', error.message);
+    return false;
+  }
+}
+
+/**
+ * Get chunked individual prompt info for admin dashboard
+ * @returns {Object}
+ */
+export function getChunkedIndividualPromptInfo() {
+  try {
+    if (fs.existsSync(CHUNKED_INDIVIDUAL_PROMPT_PATH)) {
+      const data = JSON.parse(fs.readFileSync(CHUNKED_INDIVIDUAL_PROMPT_PATH, 'utf8'));
+      return { ...data, is_custom: true };
+    }
+  } catch (error) { /* ignore */ }
+  
+  return {
+    id: 'zero_chunked_individual',
+    name: 'Stegvis Analys - Individuell',
+    description: 'Prompt för att analysera varje AI-svar individuellt i stegvis läge',
+    content: DEFAULT_CHUNKED_INDIVIDUAL_PROMPT,
+    language: 'sv',
+    tags: ['chunked', 'individual', 'zero'],
+    is_custom: false,
+    updated_at: null,
+  };
+}
+
+/**
+ * Get chunked synthesis prompt info for admin dashboard
+ * @returns {Object}
+ */
+export function getChunkedSynthesisPromptInfo() {
+  try {
+    if (fs.existsSync(CHUNKED_SYNTHESIS_PROMPT_PATH)) {
+      const data = JSON.parse(fs.readFileSync(CHUNKED_SYNTHESIS_PROMPT_PATH, 'utf8'));
+      return { ...data, is_custom: true };
+    }
+  } catch (error) { /* ignore */ }
+  
+  return {
+    id: 'zero_chunked_synthesis',
+    name: 'Stegvis Analys - Syntes',
+    description: 'Prompt för att kombinera individuella analyser i stegvis läge',
+    content: DEFAULT_CHUNKED_SYNTHESIS_PROMPT,
+    language: 'sv',
+    tags: ['chunked', 'synthesis', 'zero'],
+    is_custom: false,
+    updated_at: null,
+  };
+}
+
+// ============================================================================
+// COMPARE SYSTEM PROMPT
+// ============================================================================
+
 /**
  * Get the current compare system prompt
  * First tries to load from saved file, falls back to default

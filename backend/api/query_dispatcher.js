@@ -30,7 +30,12 @@ import {
 } from '../services/firebaseService.js';
 import { createLedgerBlock } from '../services/ledgerService.js';
 import { getOpenSeekResponse } from '../services/openseek.js';
-import { buildComparePrompt, getCompareSystemPrompt } from '../services/comparePromptBuilder.js';
+import { 
+  buildComparePrompt, 
+  getCompareSystemPrompt,
+  getChunkedIndividualPrompt,
+  getChunkedSynthesisPrompt 
+} from '../services/comparePromptBuilder.js';
 import { compressResponsesForPrompt } from '../utils/responseCompressor.js';
 
 const router = express.Router();
@@ -110,19 +115,8 @@ async function performChunkedAnalysis(question, externalResponses, options = {})
   
   console.log('\n🔬 CHUNKED ANALYSIS MODE - Analyzing responses one by one...');
   
-  // System prompt for individual analysis - focused on extracting key info from ONE AI
-  const individualAnalysisPrompt = `Du är Zero, en objektiv AI-granskare.
-
-Din uppgift är att granska ETT AI-svar i taget. För detta specifika svar:
-
-1. SAMMANFATTA huvudpoängen (2-3 meningar)
-2. IDENTIFIERA eventuell:
-   - Bias (politisk, kommersiell, kulturell)
-   - Osäkerhet eller vaga påståenden
-   - Fakta vs åsikter
-3. BEDÖM trovärdigheten (hög/medium/låg)
-
-Svara på svenska. Max 80 ord. Var konkret och saklig.`;
+  // Get configurable individual analysis prompt from admin dashboard
+  const individualAnalysisPrompt = getChunkedIndividualPrompt();
 
   // Step 1: Analyze each response individually
   for (let i = 0; i < externalResponses.length; i++) {
@@ -224,16 +218,8 @@ Baserat på mina granskningar ovan, ge nu en SLUTGILTIG BEDÖMNING:
 
 Svara strukturerat på svenska.`;
 
-  // Synthesis system prompt - different from regular compare since we're working with our own analyses
-  const synthesisSystemPrompt = `Du är Zero – en objektiv sammanställare.
-
-Du har redan granskat varje AI:s svar individuellt. Nu ska du:
-1. Kombinera dina egna analyser till en slutsats
-2. Identifiera mönster och motsägelser
-3. Ge ett objektivt, balanserat svar
-
-Du är inte partisk mot någon AI. Du söker sanningen.
-Svara alltid på svenska.`;
+  // Get configurable synthesis system prompt from admin dashboard
+  const synthesisSystemPrompt = getChunkedSynthesisPrompt();
 
   // Check total size
   const totalSize = synthesisPrompt.length;
