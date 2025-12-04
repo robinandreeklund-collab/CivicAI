@@ -47,6 +47,7 @@ export async function getOpenSeekResponse(question, options = {}) {
   const timeout = options.timeout || DEFAULT_TIMEOUT_MS;
   
   console.log(`🤖 Calling OpenSeek at ${baseUrl}...`);
+  console.log(`   Timeout: ${timeout}ms, Text length: ${question.length} chars`);
   
   // Build the request body
   const requestBody = {
@@ -64,12 +65,18 @@ export async function getOpenSeekResponse(question, options = {}) {
   // Add system prompt if specified
   if (options.systemPrompt) {
     requestBody.system_prompt = options.systemPrompt;
+    console.log(`   System prompt length: ${options.systemPrompt.length} chars`);
   }
   
   // Add context if specified
   if (options.context) {
     requestBody.context = options.context;
+    console.log(`   Context length: ${options.context.length} chars`);
   }
+  
+  // Log total request size
+  const requestSize = JSON.stringify(requestBody).length;
+  console.log(`   Total request size: ${requestSize} chars`);
   
   // Create abort controller for timeout
   const controller = new AbortController();

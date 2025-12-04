@@ -134,11 +134,12 @@ async function handleZeroCompareFlow(req, res) {
     console.log(`✅ Prompts built for character: ${character.name || character.id}`);
     
     // Step 4: Call OpenSeek with context
+    // Use userPrompt which contains the structured prompt with external responses
     console.log('\n🤖 Step 4: Calling OpenSeek-7B-Zero...');
-    const openSeekResult = await getOpenSeekResponse(question, {
+    const openSeekResult = await getOpenSeekResponse(userPrompt, {
       profileId,
       systemPrompt,
-      context: compressed,
+      // Don't pass context separately - it's already in userPrompt
     });
     
     if (openSeekResult.error && !openSeekResult.response) {
