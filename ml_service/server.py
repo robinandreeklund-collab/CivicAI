@@ -4813,6 +4813,66 @@ async def get_active_personality():
     return get_current_active_personality()
 
 
+@personality_router.post("/active/set")
+async def set_active_personality(request: Request):
+    """
+    ONESEEK Δ+ v6.4: Manually set the active personality.
+    
+    This allows admin dashboard or frontend persona selector to manually activate a personality.
+    The backend will then use this personality's character card for subsequent requests.
+    
+    Body: { "personality_id": "oneseek-bibliotekarie" }
+    """
+    try:
+        body = await request.json()
+        personality_id = body.get("personality_id", "oneseek-medveten")
+        
+        # Normalize the personality ID
+        if not personality_id.startswith("oneseek-"):
+            personality_id = f"oneseek-{personality_id}"
+        
+        # Load personality catalog to get info
+        catalog = load_personality_catalog()
+        personality = catalog.get("personality_catalog", {}).get(personality_id, {})
+        
+        if not personality:
+            # Check without prefix
+            short_id = personality_id.replace("oneseek-", "")
+            for pid, pdata in catalog.get("personality_catalog", {}).items():
+                if short_id.lower() in pid.lower():
+                    personality_id = pid
+                    personality = pdata
+                    break
+        
+        # Build personality info
+        is_default = personality_id == "oneseek-medveten"
+        personality_info = {
+            "id": personality_id,
+            "description": personality.get("description", ""),
+            "categories": personality.get("categories", []),
+            "is_default": is_default
+        }
+        
+        # Set as active
+        set_current_active_personality(personality_info)
+        
+        logger.info(f"[PERSONALITY] 🎭 Manually activated personality: {personality_id}")
+        print(f"\n🎭 ONESEEK Δ+ v6.4: MANUAL PERSONALITY ACTIVATION")
+        print(f"   📍 Personality: {personality_id}")
+        print(f"   📍 Is default: {is_default}")
+        print(f"   📍 Categories: {personality_info['categories']}")
+        print()
+        
+        return {
+            "success": True,
+            "personality": personality_info,
+            "message": f"Activated personality: {personality_id}"
+        }
+    except Exception as e:
+        logger.error(f"Error setting active personality: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # =============================================================================
 # END PERSONALITY CATALOG
 # =============================================================================

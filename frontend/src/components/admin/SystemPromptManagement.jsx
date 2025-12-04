@@ -431,6 +431,22 @@ export default function SystemPromptManagement() {
       if (response.ok) {
         setSuccess(`Activated: ${prompt.name}`);
         fetchPrompts();
+        
+        // ONESEEK Δ+ v6.4: Also set the active personality based on prompt name
+        // Extract personality ID from prompt name (e.g., "OneSeek-7B-Zero (Bibliotekarien)" -> "bibliotekarie")
+        const nameMatch = prompt.name.match(/\(([^)]+)\)/);
+        if (nameMatch) {
+          const personalityName = nameMatch[1].toLowerCase();
+          try {
+            await fetch('/api/personality/active/set', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ personality_id: personalityName })
+            });
+          } catch (e) {
+            console.log('Could not set personality:', e);
+          }
+        }
       } else {
         throw new Error('Failed to activate prompt');
       }

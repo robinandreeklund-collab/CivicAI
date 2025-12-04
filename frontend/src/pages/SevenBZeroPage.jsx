@@ -641,6 +641,29 @@ export default function SevenBZeroPage() {
     loadCharacterData();
   }, [selectedPersona]);
 
+  // ONESEEK Δ+ v6.4: Handle persona selection - update both local state and backend
+  const handlePersonaSelect = async (personaId) => {
+    // Update local state immediately
+    setSelectedPersona(personaId);
+    setAiSelectedPersonality({
+      id: personaId,
+      description: '',
+      categories: [],
+      is_default: personaId === 'oneseek-medveten'
+    });
+    
+    // Notify backend of manual personality selection
+    try {
+      await fetch('/api/personality/active/set', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ personality_id: personaId })
+      });
+    } catch (err) {
+      console.error('Error setting active personality:', err);
+    }
+  };
+
   // Response time counter
   useEffect(() => {
     if (isTyping && responseStartTime) {
@@ -1527,7 +1550,7 @@ export default function SevenBZeroPage() {
               {AVAILABLE_PERSONAS.map((persona) => (
                 <button
                   key={persona.id}
-                  onClick={() => setSelectedPersona(persona.id)}
+                  onClick={() => handlePersonaSelect(persona.id)}
                   aria-label={`Välj ${persona.name} persona`}
                   aria-pressed={selectedPersona === persona.id}
                   role="radio"
