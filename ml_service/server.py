@@ -4312,6 +4312,14 @@ def parse_personality_tag(response: str) -> tuple[str, str]:
     """
     import re
     
+    print("\n" + "=" * 70)
+    print("🏷️  ONESEEK Δ+ v6.3 - PARSING PERSONALITY TAG")
+    print("=" * 70)
+    
+    # Show raw response (first 200 chars)
+    print(f"📝 Raw response (first 200 chars):")
+    print(f"   '{response[:200]}...'")
+    
     # Look for hidden personality tag at start of response
     tag_pattern = r'^\s*\[PERSONLIGHET:\s*([^\]]+)\]\s*'
     match = re.match(tag_pattern, response, re.IGNORECASE)
@@ -4323,12 +4331,20 @@ def parse_personality_tag(response: str) -> tuple[str, str]:
         # Map name to full ID
         personality_id = f"oneseek-{personality_name}"
         
-        print(f"🎭 Detected personality tag: {personality_name} → {personality_id}")
+        print(f"\n✅ TAG FOUND!")
+        print(f"   🎭 Raw tag value: '{match.group(1)}'")
+        print(f"   🎭 Normalized: '{personality_name}'")
+        print(f"   🎭 Full ID: '{personality_id}'")
+        print(f"   📝 Clean response (first 100 chars): '{clean_response[:100]}...'")
+        print("=" * 70 + "\n")
         
         return personality_id, clean_response
     
     # No tag found - use default
-    print(f"⚠️ No personality tag found, using default")
+    print(f"\n⚠️  NO PERSONALITY TAG FOUND")
+    print(f"   🎭 Using default: oneseek-medveten")
+    print(f"   💡 Model should respond with [PERSONLIGHET: xxx] at START of response")
+    print("=" * 70 + "\n")
     return "oneseek-medveten", response
 
 
@@ -9056,16 +9072,43 @@ Svara NU.
         except Exception as e:
             logger.debug(f"Memory context retrieval failed: {e}")
     
-    # === ONESEEK Δ+ v6.2: AI-DRIVEN PERSONALITY SELECTION ===
+    # === ONESEEK Δ+ v6.3: AI-DRIVEN PERSONALITY SELECTION ===
+    print("\n" + "=" * 70)
+    print("🎭 ONESEEK Δ+ v6.3 - DATAFLÖDE FÖR PERSONLIGHETSVAL")
+    print("=" * 70)
+    print("""
+┌─────────────────────────────────────────────────────────────────────┐
+│  STEG 1: FRÅGA IN                                                   │
+│  ↓                                                                  │
+│  STEG 2: SYSTEM PROMPT + PERSONLIGHETSKARTA                         │
+│  ↓                                                                  │
+│  STEG 3: MODELLEN VÄLJER [PERSONLIGHET: xxx] TAG                    │
+│  ↓                                                                  │
+│  STEG 4: BACKEND PARSAR TAG → LADDAR CHARACTER CARD                 │
+│  ↓                                                                  │
+│  STEG 5: SVAR UTAN TAG → ANVÄNDARE                                  │
+└─────────────────────────────────────────────────────────────────────┘
+    """)
+    
+    print(f"📝 STEG 1: FRÅGA IN")
+    print(f"   Användarens fråga: '{request.text}'")
+    print(f"   Längd: {len(request.text)} tecken")
+    print("-" * 70)
+    
     # Format the personality catalog in human-readable format
     formatted_catalog = format_personality_catalog_for_prompt()
-    print(f"\n📄 Formatted personality catalog for prompt:")
+    print(f"\n📋 STEG 2: LADDAR PERSONLIGHETSKATALOG")
+    print(f"   Fil: config/personality_catalog.json")
+    print(f"   Formaterad katalog ({len(formatted_catalog)} tecken):")
+    print("-" * 40)
     print(formatted_catalog)
+    print("-" * 40)
     
     # Replace placeholder in base_system_prompt with the formatted catalog
     if "{PLACEHOLDER_PERSONALITY_CATALOG}" in base_system_prompt:
         final_system_prompt = base_system_prompt.replace("{PLACEHOLDER_PERSONALITY_CATALOG}", formatted_catalog)
-        print(f"✅ Injected personality catalog into system prompt")
+        print(f"\n✅ PLACEHOLDER_PERSONALITY_CATALOG ersatt!")
+        print(f"   System prompt längd: {len(final_system_prompt)} tecken")
     else:
         # Fallback: append the catalog if no placeholder
         final_system_prompt = f"{base_system_prompt}\n\nHär är din inre karta över alla personligheter:\n\n{formatted_catalog}"
@@ -9246,6 +9289,18 @@ Svara NU.
         if DUAL_MODEL_MODE:
             # Use dual-model inference (Mistral + LLaMA)
             logger.debug("→ Using DUAL-model inference path")
+            
+            print("\n" + "=" * 70)
+            print("🤖 STEG 3: MODELLEN VÄLJER PERSONLIGHET")
+            print("=" * 70)
+            print(f"📝 Skickar till modellen...")
+            print(f"   Input längd: {len(full_input)} tecken")
+            print(f"   Modell: DUAL-model (Mistral + LLaMA)")
+            print(f"   Max tokens: {request.max_length}")
+            print(f"   Temperature: {request.temperature}")
+            print("-" * 70)
+            print(f"⏳ Väntar på svar från modellen...")
+            
             result = await dual_model_inference(
                 full_input,  # Use full input with system prompt
                 max_length=request.max_length,
@@ -9253,12 +9308,69 @@ Svara NU.
                 top_p=request.top_p
             )
             
+            print(f"✅ Modellens svar mottaget!")
+            print(f"   Svarstid: {result.get('latency_ms', 0):.0f}ms")
+            print(f"   Tokens: {result.get('tokens', 0)}")
+            print(f"   Modell: {result.get('model', 'unknown')}")
+            
             # === ONESEEK Δ+ v6.3: Parse personality tag from response ===
+            print("\n" + "=" * 70)
+            print("📍 STEG 4: BACKEND PARSAR TAG → LADDAR CHARACTER CARD")
+            print("=" * 70)
+            
             detected_personality_id, clean_response = parse_personality_tag(result['response'])
+            
+            # Show what we detected
+            print(f"\n🎭 DETEKTERAT PERSONLIGHETSVAL:")
+            print(f"   ID: {detected_personality_id}")
+            
             if detected_personality_id != "oneseek-medveten":
-                print(f"🎭 Model chose personality: {detected_personality_id}")
+                print(f"\n🔄 BYTER PERSONLIGHET!")
+                print(f"   Från: oneseek-medveten (default)")
+                print(f"   Till: {detected_personality_id}")
                 selected_personality_id = detected_personality_id
                 selected_personality_info = get_personality_info(detected_personality_id)
+                
+                # Show character card loading
+                catalog = load_personality_catalog()
+                personality_data = catalog.get("personality_catalog", {}).get(detected_personality_id, {})
+                card_file = personality_data.get("card_file", "")
+                
+                print(f"\n📂 LADDAR CHARACTER CARD:")
+                print(f"   Fil: {card_file}")
+                
+                if card_file:
+                    card_path = Path(__file__).parent.parent / card_file
+                    if card_path.exists():
+                        print(f"   Status: ✅ FINNS")
+                        # Show first 200 chars of card
+                        try:
+                            import yaml
+                            with open(card_path, 'r', encoding='utf-8') as f:
+                                card_data = yaml.safe_load(f)
+                            card_name = card_data.get('name', 'Unknown')
+                            card_prompt_len = len(card_data.get('system_prompt', ''))
+                            print(f"   Namn: {card_name}")
+                            print(f"   Prompt längd: {card_prompt_len} tecken")
+                        except Exception as e:
+                            print(f"   ⚠️ Kunde inte läsa kort: {e}")
+                    else:
+                        print(f"   Status: ❌ FINNS INTE!")
+                
+                # Show personality info
+                if selected_personality_info:
+                    print(f"\n📊 PERSONLIGHETSINFO (för frontend):")
+                    print(f"   {json.dumps(selected_personality_info, ensure_ascii=False, indent=4)}")
+            else:
+                print(f"\n✅ BEHÅLLER DEFAULT (medveten)")
+                print(f"   Modellen valde ingen specifik personlighet")
+            
+            print("\n" + "=" * 70)
+            print("📍 STEG 5: SVAR UTAN TAG → ANVÄNDARE")
+            print("=" * 70)
+            print(f"📝 Rent svar (utan tag), första 200 tecken:")
+            print(f"   '{clean_response[:200]}...'")
+            print("-" * 70)
             
             # Update the response with the clean version (tag removed)
             result['response'] = clean_response
@@ -9311,15 +9423,35 @@ Svara NU.
                     logger.debug(f"Cache save failed: {e}")
             
             # === ONESEEK Δ+ DEBUG: Log completion summary ===
-            print(f"\n  ✅ INFERENCE COMPLETE ({result['latency_ms']:.0f}ms)")
+            print("\n" + "=" * 70)
+            print("✅ ONESEEK Δ+ v6.3 - KOMPLETT DATAFLÖDE SAMMANFATTNING")
+            print("=" * 70)
+            print(f"""
+┌─────────────────────────────────────────────────────────────────────┐
+│  ✅ STEG 1: FRÅGA IN                                                │
+│     "{request.text[:50]}..."                                        
+│  ↓                                                                  │
+│  ✅ STEG 2: SYSTEM PROMPT + PERSONLIGHETSKARTA INJICERAD            │
+│     Katalog: {len(formatted_catalog)} tecken                        
+│  ↓                                                                  │
+│  ✅ STEG 3: MODELLEN VALDE PERSONLIGHET                             │
+│     🎭 Vald: {selected_personality_id}                              
+│  ↓                                                                  │
+│  ✅ STEG 4: CHARACTER CARD LADDAD                                   │
+│     📂 {selected_personality_info.get('id') if selected_personality_info else 'default'}
+│  ↓                                                                  │
+│  ✅ STEG 5: SVAR TILL ANVÄNDARE                                     │
+│     📝 {len(result['response'])} tecken                             
+└─────────────────────────────────────────────────────────────────────┘
+            """)
+            print(f"⏱️  Total tid: {result['latency_ms']:.0f}ms")
             if response_hash:
-                print(f"  🔗 Blockchain Hash: {response_hash[:32]}...")
+                print(f"🔗 Blockchain Hash: {response_hash[:32]}...")
             if confidence_score:
-                print(f"  📊 Confidence v2: {confidence_score:.2f}")
+                print(f"📊 Confidence v2: {confidence_score:.2f}")
             if topic_hash:
-                print(f"  💾 Saved to Memory: topic {topic_hash[:16]}...")
-            print(f"  📝 Response length: {len(result['response'])} chars")
-            print("-" * 60 + "\n")
+                print(f"💾 Saved to Memory: topic {topic_hash[:16]}...")
+            print("=" * 70 + "\n")
             
             # Build Δ+ data for Firebase integration
             delta_plus_data = {
