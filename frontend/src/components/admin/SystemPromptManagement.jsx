@@ -55,6 +55,9 @@ export default function SystemPromptManagement() {
   const [availableCharacters, setAvailableCharacters] = useState([]);
   const [showImportModal, setShowImportModal] = useState(false);
 
+  // ONESEEK Δ+ v6.4: Current active personality (from AI or manual selection)
+  const [currentActivePersonality, setCurrentActivePersonality] = useState(null);
+
   // Force-Svenska state
   const [forceTriggers, setForceTriggers] = useState([]);
   const [forceTriggersInput, setForceTriggersInput] = useState('');
@@ -75,7 +78,33 @@ export default function SystemPromptManagement() {
     fetchAvailableCharacters();
     fetchForceSwedish();
     fetchTavilyTriggers();
+    fetchCurrentActivePersonality();
+    
+    // ONESEEK Δ+ v6.4: Poll for personality changes every 2 seconds
+    const pollInterval = setInterval(() => {
+      fetchCurrentActivePersonality();
+    }, 2000);
+    
+    return () => clearInterval(pollInterval);
   }, []);
+
+  // ONESEEK Δ+ v6.4: Fetch current active personality from backend
+  const fetchCurrentActivePersonality = async () => {
+    try {
+      let response;
+      try {
+        response = await fetch('http://localhost:5000/api/personality/active/current');
+      } catch {
+        response = await fetch('/api/personality/active/current');
+      }
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentActivePersonality(data);
+      }
+    } catch (e) {
+      console.log('Could not fetch active personality');
+    }
+  };
 
   // Clear messages after 5 seconds
   useEffect(() => {
@@ -578,6 +607,46 @@ export default function SystemPromptManagement() {
 
   return (
     <div className="space-y-6">
+      {/* ONESEEK Δ+ v6.4: Current Active Personality Banner */}
+      {currentActivePersonality && (
+        <div className={`border p-4 rounded flex items-center justify-between ${
+          currentActivePersonality.id === 'oneseek-medveten' 
+            ? 'border-green-500/30 bg-green-500/5' 
+            : 'border-purple-500/30 bg-purple-500/5'
+        }`}>
+          <div>
+            <div className="text-xs font-mono text-[#666] mb-1">🎭 AKTIV PERSONLIGHET (Real-time)</div>
+            <div className={`font-mono text-lg ${
+              currentActivePersonality.id === 'oneseek-medveten' ? 'text-green-300' : 'text-purple-300'
+            }`}>
+              {currentActivePersonality.id?.replace('oneseek-', '').toUpperCase() || 'MEDVETEN'}
+            </div>
+            {currentActivePersonality.description && (
+              <div className="text-xs font-mono text-[#888] mt-1">{currentActivePersonality.description}</div>
+            )}
+          </div>
+          {currentActivePersonality.id !== 'oneseek-medveten' && (
+            <button
+              onClick={async () => {
+                try {
+                  await fetch('/api/personality/active/set', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ personality_id: 'oneseek-medveten' })
+                  });
+                  fetchCurrentActivePersonality();
+                } catch (e) {
+                  console.error('Error resetting personality:', e);
+                }
+              }}
+              className="px-4 py-2 border border-green-500/30 text-green-300 text-sm font-mono hover:bg-green-500/10 transition-colors"
+            >
+              🔄 Återställ till Medveten
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Info Banner */}
       <div className="border border-blue-500/30 bg-blue-500/5 p-4 rounded">
         <p className="text-blue-300 font-mono text-sm">

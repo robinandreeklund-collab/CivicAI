@@ -184,27 +184,34 @@ export default function SevenBZeroPage() {
   }, []);
   
   // ONESEEK Δ+ v6.4: Load current active personality from backend on page load
+  // Also poll every 2 seconds to stay in sync with backend/admin changes
   useEffect(() => {
     const loadActivePersonality = async () => {
       try {
         const response = await fetch('/api/personality/active/current');
         if (response.ok) {
           const data = await response.json();
-          if (data.personality_id && data.personality_id !== 'oneseek-medveten') {
-            setSelectedPersona(data.personality_id);
-            setAiSelectedPersonality({
-              id: data.personality_id,
-              description: data.description || '',
-              categories: data.categories || [],
-              is_default: data.is_default || false
-            });
-          }
+          const personalityId = data.personality_id || data.id || 'oneseek-medveten';
+          setSelectedPersona(personalityId);
+          setAiSelectedPersonality({
+            id: personalityId,
+            description: data.description || '',
+            categories: data.categories || [],
+            is_default: data.is_default || personalityId === 'oneseek-medveten'
+          });
         }
       } catch (err) {
         console.log('Using default personality');
       }
     };
+    
+    // Load immediately
     loadActivePersonality();
+    
+    // Poll every 2 seconds to stay in sync
+    const pollInterval = setInterval(loadActivePersonality, 2000);
+    
+    return () => clearInterval(pollInterval);
   }, []);
   
   // UI state

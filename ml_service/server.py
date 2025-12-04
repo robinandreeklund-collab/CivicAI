@@ -3514,19 +3514,25 @@ def delete_system_prompt_file(prompt_id: str) -> bool:
 def get_active_system_prompt() -> str:
     """Get the currently active system prompt content, with fallback to default.
     
-    ONESEEK Δ+ v6.4: If AI has selected a personality (not medveten), 
+    ONESEEK Δ+ v6.4: If AI or user has selected a personality (not medveten), 
     use that personality's character card instead.
     """
-    # ONESEEK Δ+ v6.4: Check if AI has selected a specific personality
+    # ONESEEK Δ+ v6.4: Check if AI/user has selected a specific personality
     current_personality = get_current_active_personality()
     current_id = current_personality.get("id", "oneseek-medveten")
     
-    # If AI selected a non-default personality, use that character card
-    if current_id != "oneseek-medveten" and not current_personality.get("is_default", True):
+    print(f"\n🔍 ONESEEK Δ+ v6.4: get_active_system_prompt()")
+    print(f"   📍 Current personality ID: {current_id}")
+    print(f"   📍 Is default: {current_personality.get('is_default', True)}")
+    
+    # If a non-default personality is selected, use that character card
+    if current_id and current_id != "oneseek-medveten":
         # Load the selected personality's character card
         catalog = load_personality_catalog()
         personality_data = catalog.get("personality_catalog", {}).get(current_id, {})
         card_file = personality_data.get("card_file", "")
+        
+        print(f"   📂 Looking for card_file: {card_file}")
         
         if card_file:
             card_path = PROJECT_ROOT / card_file
@@ -3538,14 +3544,20 @@ def get_active_system_prompt() -> str:
                     
                     system_prompt = card_data.get("system_prompt", "")
                     if system_prompt:
-                        logger.info(f"[PERSONALITY] 🎭 Using AI-selected personality: {current_id}")
-                        print(f"\n🎭 ONESEEK Δ+ v6.4: Using AI-selected personality card")
-                        print(f"   🔹 Personality: {current_id}")
+                        logger.info(f"[PERSONALITY] 🎭 Using selected personality: {current_id}")
+                        print(f"   ✅ USING PERSONALITY CARD: {current_id}")
                         print(f"   🔹 Card: {card_file}")
                         print(f"   🔹 Prompt length: {len(system_prompt)} chars")
                         return system_prompt
                 except Exception as e:
                     logger.warning(f"[PERSONALITY] Could not load card for {current_id}: {e}")
+                    print(f"   ❌ Error loading card: {e}")
+            else:
+                print(f"   ❌ Card file not found: {card_path}")
+        else:
+            print(f"   ⚠️ No card_file in personality_catalog for {current_id}")
+    else:
+        print(f"   📍 Using default (medveten) - falling back to admin prompt")
     
     # Default behavior: use admin-active prompt
     prompts = load_all_system_prompts()
@@ -3554,10 +3566,12 @@ def get_active_system_prompt() -> str:
     for prompt in prompts:
         if prompt.is_active:
             logger.debug(f"Using active system prompt: {prompt.name} (ID: {prompt.id})")
+            print(f"   📄 Using admin-active prompt: {prompt.name}")
             return prompt.content
     
     # No active prompt found - return default
     logger.debug("No active system prompt found, using default")
+    print(f"   📄 Using DEFAULT_SYSTEM_PROMPT")
     return DEFAULT_SYSTEM_PROMPT
 
 
