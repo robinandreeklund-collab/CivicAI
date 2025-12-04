@@ -152,6 +152,7 @@ export default function SevenBZeroPage() {
   
   // Compare Mode state - new Zero compare flow
   const [compareMode, setCompareMode] = useState(false);
+  const [chunkedMode, setChunkedMode] = useState(false); // Analyze responses one by one
   const [externalResponses, setExternalResponses] = useState([]);
   const [showExternalResponses, setShowExternalResponses] = useState(false);
   
@@ -851,6 +852,7 @@ export default function SevenBZeroPage() {
       // Use Zero Compare Flow when compareMode is enabled
       if (compareMode) {
         console.log('[7B-Zero] Using Zero Compare Flow...');
+        console.log(`[7B-Zero] Chunked mode: ${chunkedMode}`);
         response = await fetch('/api/query', {
           method: 'POST',
           headers: {
@@ -862,6 +864,7 @@ export default function SevenBZeroPage() {
             profileId: 'zero',
             characterCard: 'Medveten',
             compare: true,
+            chunked: chunkedMode, // Enable chunked analysis mode
           }),
         });
         
@@ -1802,9 +1805,24 @@ export default function SevenBZeroPage() {
                   {compareMode ? '🔬 Compare ON' : '🔬 Compare OFF'}
                 </button>
                 {compareMode && (
-                  <span className={`text-[9px] ${whiteMode ? 'text-purple-600' : 'text-purple-400'}`}>
-                    Syntetiserar från {EXTERNAL_AI_MODELS.join(', ')}
-                  </span>
+                  <>
+                    {/* Chunked Mode toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setChunkedMode(prev => !prev)}
+                      title={chunkedMode ? 'Analyserar en AI åt gången (långsammare men mer pålitligt)' : 'Analyserar alla samtidigt (snabbare)'}
+                      className={`text-[9px] tracking-[0.1em] uppercase px-2 py-1 rounded transition-all duration-300 ${
+                        chunkedMode
+                          ? (whiteMode ? 'bg-orange-100 text-orange-700 border border-orange-300' : 'bg-orange-900/30 text-orange-400 border border-orange-700/50')
+                          : (whiteMode ? 'bg-gray-100 text-gray-500 border border-gray-200' : 'bg-[#1a1a1a] text-[#666] border border-[#2a2a2a]')
+                      }`}
+                    >
+                      {chunkedMode ? '🔄 Stegvis ON' : '⚡ Stegvis OFF'}
+                    </button>
+                    <span className={`text-[9px] ${whiteMode ? 'text-purple-600' : 'text-purple-400'}`}>
+                      {chunkedMode ? 'Analyserar en i taget' : `Syntetiserar från ${EXTERNAL_AI_MODELS.join(', ')}`}
+                    </span>
+                  </>
                 )}
               </div>
               

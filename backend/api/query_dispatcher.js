@@ -30,14 +30,187 @@ import {
 } from '../services/firebaseService.js';
 import { createLedgerBlock } from '../services/ledgerService.js';
 import { getOpenSeekResponse } from '../services/openseek.js';
-import { buildComparePrompt } from '../services/comparePromptBuilder.js';
+import { buildComparePrompt, getCompareSystemPrompt } from '../services/comparePromptBuilder.js';
 import { compressResponsesForPrompt } from '../utils/responseCompressor.js';
 
 const router = express.Router();
 
 /**
+ * Chunked Analysis Mode
+ * Analyzes each AI response individually to reduce prompt size and improve reliability.
+ * 
+ * Flow:
+ * 1. For each external response, call OpenSeek to analyze it individually
+ * 2. Store each analysis in memory
+ * 3. Final call to synthesize all individual analyses
+ * 
+ * @param {string} question - The user's question
+ * @param {Array} externalResponses - Array of {agent, response, model}
+ * @param {Object} options - Configuration options
+ * @returns {Promise<{response: string, analyses: Array, model: string}>}
+ */
+async function performChunkedAnalysis(question, externalResponses, options = {}) {
+  const { profileId = 'zero' } = options;
+  const analyses = [];
+  
+  console.log('\n🔬 CHUNKED ANALYSIS MODE - Analyzing responses one by one...');
+  
+  // System prompt for individual analysis
+  const individualAnalysisPrompt = `Du är Zero, en objektiv AI-analytiker.
+Analysera följande AI-svar kort och koncist. Identifiera:
+- Huvudpoäng (max 2-3 punkter)
+- Eventuell bias eller vinkling
+- Fakta vs åsikter
+- Potentiella hallucinationer eller osäkerheter
+
+Svara på svenska. Var kortfattad (max 100 ord).`;
+
+  // Step 1: Analyze each response individually
+  for (let i = 0; i < externalResponses.length; i++) {
+    const ext = externalResponses[i];
+    console.log(`\n   📊 [${i + 1}/${externalResponses.length}] Analyzing ${ext.agent}...`);
+    
+    const analysisPrompt = `FRÅGA: ${question}
+
+${ext.agent.toUpperCase()}:s SVAR:
+${ext.response.substring(0, 1500)}
+
+Analysera detta svar objektivt.`;
+
+    try {
+      const result = await getOpenSeekResponse(analysisPrompt, {
+        profileId,
+        systemPrompt: individualAnalysisPrompt,
+        max_tokens: 256, // Shorter response for individual analysis
+        timeout: 60000, // 1 minute per analysis
+      });
+      
+      if (result.response) {
+        analyses.push({
+          agent: ext.agent,
+          model: ext.model,
+          originalResponse: ext.response.substring(0, 500),
+          analysis: result.response,
+          success: true,
+        });
+        console.log(`   ✅ ${ext.agent} analysis complete`);
+      } else {
+        analyses.push({
+          agent: ext.agent,
+          model: ext.model,
+          originalResponse: ext.response.substring(0, 500),
+          analysis: 'Kunde inte analysera detta svar.',
+          success: false,
+          error: result.error,
+        });
+        console.log(`   ⚠️  ${ext.agent} analysis failed: ${result.error}`);
+      }
+    } catch (error) {
+      analyses.push({
+        agent: ext.agent,
+        model: ext.model,
+        originalResponse: ext.response.substring(0, 500),
+        analysis: 'Fel vid analys.',
+        success: false,
+        error: error.message,
+      });
+      console.log(`   ❌ ${ext.agent} analysis error: ${error.message}`);
+    }
+  }
+  
+  // Step 2: Final synthesis of all analyses
+  console.log('\n   🔄 Generating final synthesis...');
+  
+  const synthesisPrompt = `Du är Zero – sanningens väktare. Du har analyserat svar från flera AI:er.
+
+FRÅGA: ${question}
+
+DINA ANALYSER:
+${analyses.map(a => `
+${a.agent.toUpperCase()}:
+${a.analysis}
+`).join('\n---\n')}
+
+GÖR NU EN SLUTGILTIG SYNTES:
+1. Sammanfatta vad alla AI:er var eniga om
+2. Identifiera motsägelser
+3. Ge din objektiva slutsats
+
+Svara på svenska. Format:
+• Konsensus: ...
+• Motsägelser: ...
+• Min slutsats: ...`;
+
+  const synthesisSystemPrompt = getCompareSystemPrompt();
+  
+  try {
+    const synthesisResult = await getOpenSeekResponse(synthesisPrompt, {
+      profileId,
+      systemPrompt: synthesisSystemPrompt,
+      max_tokens: 512,
+      timeout: 90000, // 1.5 minutes for synthesis
+    });
+    
+    if (synthesisResult.response) {
+      console.log('   ✅ Synthesis complete');
+      return {
+        response: synthesisResult.response,
+        analyses,
+        model: synthesisResult.model,
+        mode: 'chunked',
+      };
+    } else {
+      // Fallback: Build response from individual analyses
+      console.log('   ⚠️  Synthesis failed, building fallback response');
+      const fallbackResponse = buildFallbackResponse(question, analyses);
+      return {
+        response: fallbackResponse,
+        analyses,
+        model: 'fallback',
+        mode: 'chunked-fallback',
+      };
+    }
+  } catch (error) {
+    console.error('   ❌ Synthesis error:', error.message);
+    const fallbackResponse = buildFallbackResponse(question, analyses);
+    return {
+      response: fallbackResponse,
+      analyses,
+      model: 'fallback',
+      mode: 'chunked-fallback',
+    };
+  }
+}
+
+/**
+ * Build a fallback response from individual analyses when synthesis fails
+ */
+function buildFallbackResponse(question, analyses) {
+  const successfulAnalyses = analyses.filter(a => a.success);
+  
+  if (successfulAnalyses.length === 0) {
+    return `Kunde inte analysera svaren på frågan: "${question}". Vänligen försök igen.`;
+  }
+  
+  let response = `**Analys av AI-svar på:** "${question}"\n\n`;
+  
+  for (const analysis of successfulAnalyses) {
+    response += `**${analysis.agent.toUpperCase()}:**\n${analysis.analysis}\n\n`;
+  }
+  
+  response += `---\n*${successfulAnalyses.length} av ${analyses.length} svar analyserade.*`;
+  
+  return response;
+}
+
+/**
  * Handle Zero Compare Flow
  * Collects external responses, compresses them, and calls OpenSeek with context
+ * 
+ * Supports two modes:
+ * - chunked: true → Analyze each response individually (slower but more reliable)
+ * - chunked: false → Send all responses at once (faster but may timeout)
+ * 
  * @param {Object} req - Express request
  * @param {Object} res - Express response
  */
@@ -51,19 +224,24 @@ async function handleZeroCompareFlow(req, res) {
     perAgentLimit = 800,
     runPipeline = false,
     firebaseDocId,
+    chunked = false, // NEW: Enable chunked analysis mode
   } = req.body;
   
+  const analysisMode = chunked ? 'CHUNKED' : 'STANDARD';
+  
   console.log('╔══════════════════════════════════════════════════════════════╗');
-  console.log('║          🔬 ZERO COMPARE FLOW - OpenSeek-7B-Zero            ║');
+  console.log(`║          🔬 ZERO COMPARE FLOW - ${analysisMode.padEnd(8)} MODE              ║`);
   console.log('╚══════════════════════════════════════════════════════════════╝');
   console.log(`📝 Question: ${question.substring(0, 60)}${question.length > 60 ? '...' : ''}`);
   console.log(`👤 Profile: ${profileId}, Character: ${characterCard}`);
+  console.log(`📊 Analysis Mode: ${analysisMode}${chunked ? ' (one-by-one)' : ' (all at once)'}`);
   
   // Log audit event
   logAuditEvent(AuditEventType.QUESTION_ASKED, {
     question: question.substring(0, 100),
     questionLength: question.length,
     mode: 'zero-compare',
+    analysisMode,
     profileId,
   });
   
@@ -111,44 +289,78 @@ async function handleZeroCompareFlow(req, res) {
     
     console.log(`✅ Collected ${externalResponses.length} external responses`);
     
-    // Step 2: Compress responses for prompt context
-    console.log('\n🗜️  Step 2: Compressing responses for context...');
-    const { compressed, metadata: compressionMetadata } = await compressResponsesForPrompt(
-      externalResponses,
-      {
-        charLimit,
-        perAgentLimit,
-        question,
-      }
-    );
-    console.log(`✅ Compression complete (mode: ${compressionMetadata.mode}, chars: ${compressionMetadata.totalChars})`);
+    let openSeekResult;
+    let compressionMetadata = null;
+    let character = { id: characterCard, name: characterCard };
     
-    // Step 3: Build prompts using character card
-    console.log('\n📝 Step 3: Building prompts with character card...');
-    const { systemPrompt, userPrompt, character } = buildComparePrompt(
-      characterCard,
-      question,
-      compressed,
-      null // Firebase context - skip for now
-    );
-    console.log(`✅ Prompts built for character: ${character.name || character.id}`);
-    
-    // Step 4: Call OpenSeek with context
-    // Use userPrompt which contains the structured prompt with external responses
-    console.log('\n🤖 Step 4: Calling OpenSeek-7B-Zero...');
-    const openSeekResult = await getOpenSeekResponse(userPrompt, {
-      profileId,
-      systemPrompt,
-      // Don't pass context separately - it's already in userPrompt
-    });
-    
-    if (openSeekResult.error && !openSeekResult.response) {
-      console.error('❌ OpenSeek failed:', openSeekResult.error);
-      return res.status(500).json({
-        error: 'OpenSeek inference failed',
-        message: openSeekResult.error,
+    // Branch based on analysis mode
+    if (chunked) {
+      // CHUNKED MODE: Analyze each response individually
+      console.log('\n🔬 Using CHUNKED analysis mode (one response at a time)...');
+      
+      const chunkedResult = await performChunkedAnalysis(question, externalResponses, {
+        profileId,
       });
+      
+      openSeekResult = {
+        response: chunkedResult.response,
+        model: chunkedResult.model,
+        analyses: chunkedResult.analyses,
+        mode: chunkedResult.mode,
+      };
+      
+      compressionMetadata = {
+        mode: 'chunked',
+        totalChars: externalResponses.reduce((sum, r) => sum + r.response.length, 0),
+        analysisCount: chunkedResult.analyses.length,
+        successfulAnalyses: chunkedResult.analyses.filter(a => a.success).length,
+      };
+      
+    } else {
+      // STANDARD MODE: Send all responses at once
+      
+      // Step 2: Compress responses for prompt context
+      console.log('\n🗜️  Step 2: Compressing responses for context...');
+      const compressionResult = await compressResponsesForPrompt(
+        externalResponses,
+        {
+          charLimit,
+          perAgentLimit,
+          question,
+        }
+      );
+      compressionMetadata = compressionResult.metadata;
+      console.log(`✅ Compression complete (mode: ${compressionMetadata.mode}, chars: ${compressionMetadata.totalChars})`);
+      
+      // Step 3: Build prompts using character card
+      console.log('\n📝 Step 3: Building prompts with character card...');
+      const promptResult = buildComparePrompt(
+        characterCard,
+        question,
+        compressionResult.compressed,
+        null // Firebase context - skip for now
+      );
+      character = promptResult.character;
+      console.log(`✅ Prompts built for character: ${character.name || character.id}`);
+      
+      // Step 4: Call OpenSeek with context
+      // Use userPrompt which contains the structured prompt with external responses
+      console.log('\n🤖 Step 4: Calling OpenSeek-7B-Zero...');
+      openSeekResult = await getOpenSeekResponse(promptResult.userPrompt, {
+        profileId,
+        systemPrompt: promptResult.systemPrompt,
+        // Don't pass context separately - it's already in userPrompt
+      });
+      
+      if (openSeekResult.error && !openSeekResult.response) {
+        console.error('❌ OpenSeek failed:', openSeekResult.error);
+        return res.status(500).json({
+          error: 'OpenSeek inference failed',
+          message: openSeekResult.error,
+        });
+      }
     }
+    
     console.log('✅ OpenSeek response received');
     
     // Step 5: Optional analysis pipeline on Zero's response
@@ -188,13 +400,14 @@ async function handleZeroCompareFlow(req, res) {
     console.log(`\n✅ Zero Compare Flow completed in ${totalTime}ms`);
     
     // Build response
-    res.json({
+    const responseData = {
       question,
       zero: {
         response: openSeekResult.response,
         model: openSeekResult.model,
         delta_plus: openSeekResult.delta_plus,
         personality: openSeekResult.personality,
+        mode: openSeekResult.mode || 'standard',
       },
       externalResponses: externalResponses.map(r => ({
         agent: r.agent,
@@ -210,7 +423,15 @@ async function handleZeroCompareFlow(req, res) {
       firebaseDocId: firebaseDocId || null,
       timestamp: new Date().toISOString(),
       processingTimeMs: totalTime,
-    });
+      analysisMode: chunked ? 'chunked' : 'standard',
+    };
+    
+    // Include individual analyses if chunked mode was used
+    if (chunked && openSeekResult.analyses) {
+      responseData.chunkedAnalyses = openSeekResult.analyses;
+    }
+    
+    res.json(responseData);
     
   } catch (error) {
     console.error('❌ Zero Compare Flow error:', error);
