@@ -771,9 +771,13 @@ export default function SevenBZeroPage() {
       const isSuccess = data.success !== false && responseText;
       
       if (isSuccess) {
-        // ONESEEK Δ+ v6.2: Update AI-selected personality for real-time display
+        // ONESEEK Δ+ v6.4: Update AI-selected personality for real-time display
         if (data.personality) {
           setAiSelectedPersonality(data.personality);
+          // Also update the persona selector to show the AI's choice
+          if (data.personality.id) {
+            setSelectedPersona(data.personality.id);
+          }
         }
         
         // Update message with response data and animate typing
