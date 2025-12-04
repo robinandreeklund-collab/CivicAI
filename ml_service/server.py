@@ -9614,6 +9614,86 @@ Svara NU.
             # Remove internal debug tags from response
             response_text = clean_internal_tags(response_text)
             
+            # === ONESEEK Δ+ v6.3: Parse personality tag from response (SINGLE MODEL) ===
+            print("\n" + "=" * 70)
+            print("🤖 STEG 3: MODELLEN VÄLJER PERSONLIGHET")
+            print("=" * 70)
+            print(f"📝 Modellens råa svar mottaget!")
+            print(f"   Längd: {len(response_text)} tecken")
+            print(f"   Första 150 tecken: '{response_text[:150]}...'")
+            print("-" * 70)
+            
+            print("\n" + "=" * 70)
+            print("📍 STEG 4: BACKEND PARSAR TAG → LADDAR CHARACTER CARD")
+            print("=" * 70)
+            
+            detected_personality_id, clean_response = parse_personality_tag(response_text)
+            
+            # Show what we detected
+            print(f"\n🎭 DETEKTERAT PERSONLIGHETSVAL:")
+            print(f"   ID: {detected_personality_id}")
+            
+            if detected_personality_id != "oneseek-medveten":
+                print(f"\n🔄 BYTER PERSONLIGHET!")
+                print(f"   Från: oneseek-medveten (default)")
+                print(f"   Till: {detected_personality_id}")
+                selected_personality_id = detected_personality_id
+                selected_personality_info = get_personality_info(detected_personality_id)
+                
+                # Show character card loading
+                catalog = load_personality_catalog()
+                personality_data = catalog.get("personality_catalog", {}).get(detected_personality_id, {})
+                card_file = personality_data.get("card_file", "")
+                
+                print(f"\n📂 LADDAR CHARACTER CARD:")
+                print(f"   Fil: {card_file}")
+                
+                if card_file:
+                    card_path = Path(__file__).parent.parent / card_file
+                    if card_path.exists():
+                        print(f"   Status: ✅ FINNS")
+                        # Show character card details
+                        try:
+                            import yaml
+                            with open(card_path, 'r', encoding='utf-8') as f:
+                                card_data = yaml.safe_load(f)
+                            card_name = card_data.get('name', 'Unknown')
+                            card_prompt_len = len(card_data.get('system_prompt', ''))
+                            print(f"   Namn: {card_name}")
+                            print(f"   Prompt längd: {card_prompt_len} tecken")
+                            print(f"   Beskrivning: {card_data.get('description', 'N/A')[:80]}...")
+                        except Exception as e:
+                            print(f"   ⚠️ Kunde inte läsa kort: {e}")
+                    else:
+                        print(f"   Status: ❌ FINNS INTE!")
+                        print(f"   Sökväg: {card_path}")
+                
+                # Get filtered API catalog for this personality
+                filtered_apis = get_api_catalog_for_personality(detected_personality_id)
+                print(f"\n📂 FILTRERAD API-KATALOG FÖR {detected_personality_id}:")
+                print(f"   Antal kategorier: {len(filtered_apis)}")
+                for cat_name, cat_data in filtered_apis.items():
+                    api_names = [api.get('name', 'unknown') for api in cat_data.get('apis', [])]
+                    print(f"   → {cat_name}: {api_names}")
+                
+                # Show personality info
+                if selected_personality_info:
+                    print(f"\n📊 PERSONLIGHETSINFO (för frontend):")
+                    print(f"   {json.dumps(selected_personality_info, ensure_ascii=False, indent=4)}")
+            else:
+                print(f"\n✅ BEHÅLLER DEFAULT (medveten)")
+                print(f"   Modellen valde ingen specifik personlighet eller tagg saknas")
+            
+            print("\n" + "=" * 70)
+            print("📍 STEG 5: SVAR UTAN TAG → ANVÄNDARE")
+            print("=" * 70)
+            print(f"📝 Rent svar (utan tag), första 200 tecken:")
+            print(f"   '{clean_response[:200]}...'")
+            print("-" * 70)
+            
+            # Update the response with the clean version (tag removed)
+            response_text = clean_response
+            
             # === APPEND SOURCES TO RESPONSE ===
             # Only add sources if they don't already exist in response
             if "Källor:" not in response_text and "**Källor:**" not in response_text:
@@ -9684,16 +9764,36 @@ Svara NU.
             logger.info(f"=== ONESEEK INFERENCE COMPLETE ({latency_ms:.0f}ms) ===")
             logger.info("=" * 60)
             
-            # === ONESEEK Δ+ DEBUG: Log completion summary ===
-            print(f"\n  ✅ INFERENCE COMPLETE ({latency_ms:.0f}ms)")
+            # === ONESEEK Δ+ v6.3 DEBUG: Log complete flow summary ===
+            print("\n" + "=" * 70)
+            print("✅ ONESEEK Δ+ v6.3 - KOMPLETT DATAFLÖDE SAMMANFATTNING")
+            print("=" * 70)
+            print(f"""
+┌─────────────────────────────────────────────────────────────────────┐
+│  ✅ STEG 1: FRÅGA IN                                                │
+│     "{request.text[:50]}..."                                        
+│  ↓                                                                  │
+│  ✅ STEG 2: SYSTEM PROMPT + PERSONLIGHETSKARTA INJICERAD            │
+│     Katalog: {len(formatted_catalog)} tecken                        
+│  ↓                                                                  │
+│  ✅ STEG 3: MODELLEN VALDE PERSONLIGHET                             │
+│     🎭 Vald: {selected_personality_id}                              
+│  ↓                                                                  │
+│  ✅ STEG 4: CHARACTER CARD STATUS                                   │
+│     📂 {selected_personality_info.get('id') if selected_personality_info else 'default'}
+│  ↓                                                                  │
+│  ✅ STEG 5: SVAR TILL ANVÄNDARE                                     │
+│     📝 {len(response_text)} tecken                                  
+└─────────────────────────────────────────────────────────────────────┘
+            """)
+            print(f"⏱️  Total tid: {latency_ms:.0f}ms")
             if response_hash:
-                print(f"  🔗 Blockchain Hash: {response_hash[:32]}...")
+                print(f"🔗 Blockchain Hash: {response_hash[:32]}...")
             if confidence_score:
-                print(f"  📊 Confidence v2: {confidence_score:.2f}")
+                print(f"📊 Confidence v2: {confidence_score:.2f}")
             if topic_hash:
-                print(f"  💾 Saved to Memory: topic {topic_hash[:16]}...")
-            print(f"  📝 Response length: {len(response_text)} chars")
-            print("-" * 60 + "\n")
+                print(f"💾 Saved to Memory: topic {topic_hash[:16]}...")
+            print("=" * 70 + "\n")
             
             # Build Δ+ data for Firebase integration
             delta_plus_data = {
