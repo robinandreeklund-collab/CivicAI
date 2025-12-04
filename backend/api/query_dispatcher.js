@@ -41,7 +41,7 @@ import { compressResponsesForPrompt } from '../utils/responseCompressor.js';
 const router = express.Router();
 
 /**
- * Sanitize AI response text to remove leaked system prompts and internal context
+ * Sanitize AI response text to remove leaked system prompts, sources, and internal context
  * @param {string} text - Raw AI response text
  * @returns {string} - Cleaned text
  */
@@ -50,7 +50,24 @@ function sanitizeResponse(text) {
   
   let cleaned = text;
   
-  // Remove common system prompt leakage patterns
+  // ============ REMOVE SOURCE BLOCKS ============
+  // Remove "Källor**" or "**Källor**" sections with links
+  cleaned = cleaned.replace(/\*?\*?Källor\*?\*?\s*\n[^]*?(?=\n\n[A-ZÅÄÖ]|\nFRÅGA|\n\*\*[A-Z]|$)/gi, '');
+  
+  // Remove specific source mentions
+  cleaned = cleaned.replace(/SCB\s*[–-]\s*Statistiska Centralbyrån\s*/gi, '');
+  cleaned = cleaned.replace(/SCB\s*[–-]\s*Hitta statistik\s*/gi, '');
+  cleaned = cleaned.replace(/SMHI\s*[–-]\s*Väderprognos[^\n]*\n?/gi, '');
+  cleaned = cleaned.replace(/Naturvårdsverket\s*[–-]?\s*[^\n]*\n?/gi, '');
+  cleaned = cleaned.replace(/Naturvårdsverket\s*\n/gi, '');
+  
+  // Remove data update messages
+  cleaned = cleaned.replace(/Väderdata uppdateras var \d+:?\w* minut[^\n]*\n?/gi, '');
+  cleaned = cleaned.replace(/Kunde inte hämta elmarknadsdata\. Försök igen senare\.\s*/gi, '');
+  cleaned = cleaned.replace(/Kunde inte hämta v[åa]rddata\. Försök igen senare\.\s*/gi, '');
+  cleaned = cleaned.replace(/Kunde inte hämta [^\n]*\. Försök igen senare\.\s*/gi, '');
+  
+  // ============ REMOVE SYSTEM PROMPT LEAKAGE ============
   // Pattern: "system Du pratar alltid..." or "system\n Du pratar..."
   cleaned = cleaned.replace(/\bsystem\s+Du pratar alltid svenska[^]*?(?=\n\n|\buser\b|$)/gi, '');
   
@@ -75,9 +92,6 @@ function sanitizeResponse(text) {
   // Remove "Analysera detta svar objektivt." instruction leakage
   cleaned = cleaned.replace(/Analysera detta svar objektivt\.\s*/gi, '');
   
-  // Remove weather error messages
-  cleaned = cleaned.replace(/Kunde inte hämta v[åa]rddata\. Försök igen senare\.\s*/gi, '');
-  
   // Remove "Inga engelska ord" instructions
   cleaned = cleaned.replace(/Inga engelska ord\.\s*Inga undantag\.\s*/gi, '');
   cleaned = cleaned.replace(/Inga taggar\.\s*Inga interna etiketter\.\s*/gi, '');
@@ -88,8 +102,14 @@ function sanitizeResponse(text) {
   // Remove "Vi är mitt i vintern/sommaren/våren/hösten just nu."
   cleaned = cleaned.replace(/Vi är mitt i (vintern|sommaren|våren|hösten) just nu\.\s*/gi, '');
   
-  // Clean up excessive whitespace
+  // ============ CLEAN UP FORMATTING ============
+  // Remove orphaned "**" that might be left over
+  cleaned = cleaned.replace(/^\*\*\s*$/gm, '');
+  cleaned = cleaned.replace(/\*\*\s*\n\s*\*\*/g, '');
+  
+  // Clean up excessive whitespace and newlines
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+  cleaned = cleaned.replace(/^\s+/gm, ''); // Remove leading whitespace on each line
   cleaned = cleaned.trim();
   
   return cleaned;
