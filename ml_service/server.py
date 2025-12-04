@@ -3512,7 +3512,42 @@ def delete_system_prompt_file(prompt_id: str) -> bool:
 
 
 def get_active_system_prompt() -> str:
-    """Get the currently active system prompt content, with fallback to default"""
+    """Get the currently active system prompt content, with fallback to default.
+    
+    ONESEEK Δ+ v6.4: If AI has selected a personality (not medveten), 
+    use that personality's character card instead.
+    """
+    # ONESEEK Δ+ v6.4: Check if AI has selected a specific personality
+    current_personality = get_current_active_personality()
+    current_id = current_personality.get("id", "oneseek-medveten")
+    
+    # If AI selected a non-default personality, use that character card
+    if current_id != "oneseek-medveten" and not current_personality.get("is_default", True):
+        # Load the selected personality's character card
+        catalog = load_personality_catalog()
+        personality_data = catalog.get("personality_catalog", {}).get(current_id, {})
+        card_file = personality_data.get("card_file", "")
+        
+        if card_file:
+            card_path = PROJECT_ROOT / card_file
+            if card_path.exists():
+                try:
+                    import yaml
+                    with open(card_path, 'r', encoding='utf-8') as f:
+                        card_data = yaml.safe_load(f)
+                    
+                    system_prompt = card_data.get("system_prompt", "")
+                    if system_prompt:
+                        logger.info(f"[PERSONALITY] 🎭 Using AI-selected personality: {current_id}")
+                        print(f"\n🎭 ONESEEK Δ+ v6.4: Using AI-selected personality card")
+                        print(f"   🔹 Personality: {current_id}")
+                        print(f"   🔹 Card: {card_file}")
+                        print(f"   🔹 Prompt length: {len(system_prompt)} chars")
+                        return system_prompt
+                except Exception as e:
+                    logger.warning(f"[PERSONALITY] Could not load card for {current_id}: {e}")
+    
+    # Default behavior: use admin-active prompt
     prompts = load_all_system_prompts()
     
     # Find the active prompt
