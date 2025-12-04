@@ -4252,6 +4252,171 @@ def choose_personality(question: str, api_catalog: Optional[Dict] = None) -> str
     return "oneseek-medveten"
 
 
+def format_personality_map_for_prompt() -> str:
+    """
+    ONESEEK Δ+ v6.3: Create a minimal personality map for the model to choose from.
+    
+    The model will:
+    1. Read this minimal map
+    2. Choose a personality based on the question
+    3. Respond with [PERSONLIGHET: xxx] hidden tag at the START of response
+    
+    Format:
+    === PERSONLIGHET: name ===
+    Nyckelord: keyword1, keyword2, ...
+    Kategori: category
+    
+    Returns:
+        Minimal personality map string
+    """
+    catalog = load_personality_catalog()
+    personalities = catalog.get("personality_catalog", {})
+    
+    formatted_parts = []
+    
+    for pid, pdata in personalities.items():
+        # Get the short name (without "oneseek-" prefix)
+        short_id = pid.replace("oneseek-", "")
+        name = pdata.get("name", short_id.capitalize())
+        keywords = pdata.get("keywords", [])
+        categories = pdata.get("categories", [])
+        is_default = pdata.get("is_default", False)
+        
+        # Format this personality - minimal info only
+        part = f"=== PERSONLIGHET: {short_id}"
+        if is_default:
+            part += " (default)"
+        part += " ===\n"
+        part += f"Nyckelord: {', '.join(keywords[:8])}\n"  # Max 8 keywords
+        part += f"Kategori: {categories[0] if categories else 'allmän'}\n"
+        
+        formatted_parts.append(part)
+    
+    return "\n".join(formatted_parts)
+
+
+def parse_personality_tag(response: str) -> tuple[str, str]:
+    """
+    ONESEEK Δ+ v6.3: Parse hidden personality tag from model response.
+    
+    The model should respond with [PERSONLIGHET: xxx] at the START of response.
+    This tag is hidden from the user - backend strips it and uses it to:
+    1. Load the correct character card
+    2. Get the correct API catalog for that personality
+    
+    Args:
+        response: The model's raw response
+        
+    Returns:
+        Tuple of (personality_id, clean_response)
+    """
+    import re
+    
+    # Look for hidden personality tag at start of response
+    tag_pattern = r'^\s*\[PERSONLIGHET:\s*([^\]]+)\]\s*'
+    match = re.match(tag_pattern, response, re.IGNORECASE)
+    
+    if match:
+        personality_name = match.group(1).strip().lower()
+        clean_response = re.sub(tag_pattern, '', response, count=1, flags=re.IGNORECASE).strip()
+        
+        # Map name to full ID
+        personality_id = f"oneseek-{personality_name}"
+        
+        print(f"🎭 Detected personality tag: {personality_name} → {personality_id}")
+        
+        return personality_id, clean_response
+    
+    # No tag found - use default
+    print(f"⚠️ No personality tag found, using default")
+    return "oneseek-medveten", response
+
+
+def get_api_catalog_for_personality(personality_id: str) -> Dict[str, Any]:
+    """
+    ONESEEK Δ+ v6.3: Get filtered API catalog for a specific personality.
+    
+    Each personality has associated categories in api_catalog.json.
+    This function returns only the relevant API entries for that personality.
+    
+    Args:
+        personality_id: The personality ID (e.g., "oneseek-bibliotekarie")
+        
+    Returns:
+        Filtered API catalog with only relevant categories
+    """
+    # Load the personality catalog to get categories
+    personality_catalog = load_personality_catalog()
+    personality = personality_catalog.get("personality_catalog", {}).get(personality_id, {})
+    personality_categories = personality.get("categories", [])
+    
+    # Load full API catalog
+    try:
+        with open(API_CATALOG_PATH, 'r', encoding='utf-8') as f:
+            api_catalog = json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to load API catalog: {e}")
+        return {}
+    
+    # Filter API catalog by personality categories
+    filtered_catalog = {}
+    all_apis = api_catalog.get("api_catalog", {})
+    
+    for category, data in all_apis.items():
+        # Check if this category matches the personality
+        if category.lower() in [c.lower() for c in personality_categories]:
+            filtered_catalog[category] = data
+            
+    # Always include the category that matches the personality name
+    short_name = personality_id.replace("oneseek-", "")
+    if short_name == "bibliotekarie":
+        if "böcker" in all_apis:
+            filtered_catalog["böcker"] = all_apis["böcker"]
+    elif short_name == "metrolog":
+        if "väder" in all_apis:
+            filtered_catalog["väder"] = all_apis["väder"]
+    
+    print(f"📂 API catalog for {personality_id}: {list(filtered_catalog.keys())}")
+    
+    return {"api_catalog": filtered_catalog}
+
+
+def format_api_catalog_for_personality(personality_id: str) -> str:
+    """
+    ONESEEK Δ+ v6.3: Format the API catalog for a specific personality.
+    
+    This creates a focused API map that the model can use to select APIs.
+    
+    Args:
+        personality_id: The personality ID
+        
+    Returns:
+        Human-readable API catalog for this personality
+    """
+    filtered_catalog = get_api_catalog_for_personality(personality_id)
+    apis = filtered_catalog.get("api_catalog", {})
+    
+    if not apis:
+        return "Inga specifika API:er för denna personlighet."
+    
+    parts = ["=== DINA API:er ===\n"]
+    
+    for category, data in apis.items():
+        parts.append(f"\n📂 {category.upper()}")
+        
+        api_list = data.get("apis", [])
+        for api in api_list[:3]:  # Max 3 APIs per category
+            name = api.get("name", "unknown")
+            source = api.get("source", "")
+            keywords = api.get("keywords", [])[:5]  # Max 5 keywords
+            parts.append(f"  • {name} ({source})")
+            if keywords:
+                parts.append(f"    Nyckelord: {', '.join(keywords)}")
+    
+    return "\n".join(parts)
+
+
+# Keep the old function name as alias for backwards compatibility
 def format_personality_catalog_for_prompt() -> str:
     """
     ONESEEK Δ+ v6.2: Format personality catalog in a human-readable way
@@ -9087,6 +9252,16 @@ Svara NU.
                 temperature=request.temperature,
                 top_p=request.top_p
             )
+            
+            # === ONESEEK Δ+ v6.3: Parse personality tag from response ===
+            detected_personality_id, clean_response = parse_personality_tag(result['response'])
+            if detected_personality_id != "oneseek-medveten":
+                print(f"🎭 Model chose personality: {detected_personality_id}")
+                selected_personality_id = detected_personality_id
+                selected_personality_info = get_personality_info(detected_personality_id)
+            
+            # Update the response with the clean version (tag removed)
+            result['response'] = clean_response
             
             # === ONESEEK Δ+: Save to memory for dual-model mode ===
             if MEMORY_MANAGER_AVAILABLE and topic_hash and save_message_with_memory:

@@ -13,6 +13,7 @@
   "api_catalog": {
     "befolkning": {
       "description": "Befolkningsstatistik och folkbokföring",
+      "personality_tags": ["medveten", "statistiker"],
       "apis": [
         {"name": "scb_population", "source": "SCB", "frequency": "månadsvis", "url": "https://api.scb.se", "keywords": ["hur många bor", "invånare", "folkmängd", "population"], "priority": 1},
         {"name": "skatteverket_folkbokföring", "source": "Skatteverket", "frequency": "dagligen", "url": "https://www.skatteverket.se", "keywords": ["aktuell befolkning", "daglig", "folkbokföring"], "priority": 2}
@@ -24,6 +25,7 @@
     
     "väder": {
       "description": "Väderdata och prognoser",
+      "personality_tags": ["metrolog"],
       "apis": [
         {"name": "smhi_current", "source": "SMHI", "frequency": "timvis", "url": "https://opendata-download-metfcst.smhi.se", "keywords": ["väder", "temperatur", "regn", "snö", "sol", "prognos"], "priority": 1},
         {"name": "yr_no", "source": "YR.no", "frequency": "timvis", "url": "https://api.yr.no", "keywords": ["veckoprognos", "yr", "norge"], "priority": 2}
@@ -36,6 +38,7 @@
     
     "nyheter": {
       "description": "Svenska nyheter och aktuella händelser",
+      "personality_tags": ["medveten"],
       "apis": [
         {"name": "svt_nyheter", "source": "SVT Nyheter", "frequency": "löpande", "url": "https://www.svt.se/nyheter/rss.xml", "keywords": ["nyheter", "svt", "senaste nytt"], "priority": 1},
         {"name": "svt_inrikes", "source": "SVT Inrikes", "frequency": "löpande", "url": "https://www.svt.se/nyheter/inrikes/rss.xml", "keywords": ["inrikes", "sverige", "svenska nyheter"], "priority": 2},
@@ -48,6 +51,7 @@
     
     "böcker": {
       "description": "Bibliotekssökning via Libris XL (Kungliga Biblioteket)",
+      "personality_tags": ["bibliotekarie"],
       "apis": [
         {"name": "libris_search", "source": "Libris XL", "frequency": "realtid", "url": "https://libris.kb.se/xsearch", "keywords": ["vad handlar", "boken om", "sammanfattning", "bokrecension"], "priority": 1},
         {"name": "libris_isbn", "source": "Libris XL", "frequency": "realtid", "url": "https://libris.kb.se/api/isbn", "keywords": ["isbn", "978", "91-", "bokens isbn"], "priority": 2},
@@ -60,6 +64,7 @@
     
     "kris": {
       "description": "Krisinformation och VMA",
+      "personality_tags": ["medveten"],
       "apis": [
         {"name": "krisinformation", "source": "Krisinformation.se", "frequency": "realtid", "url": "https://api.krisinformation.se/v3", "keywords": ["kris", "vma", "varning", "larm"], "priority": 1},
         {"name": "msb", "source": "MSB", "frequency": "realtid", "url": "https://www.msb.se", "keywords": ["beredskap", "nödläge", "msb"], "priority": 2}
