@@ -55,8 +55,9 @@ export default function SystemPromptManagement() {
   const [availableCharacters, setAvailableCharacters] = useState([]);
   const [showImportModal, setShowImportModal] = useState(false);
 
-  // ONESEEK Δ+ v6.4: Current active personality (from AI or manual selection)
+  // ONESEEK Δ+ v6.5 (PR#101): Current active personality with source tracking
   const [currentActivePersonality, setCurrentActivePersonality] = useState(null);
+  const [personalitySource, setPersonalitySource] = useState('ai'); // "admin" | "ai" | "override"
 
   // Force-Svenska state
   const [forceTriggers, setForceTriggers] = useState([]);
@@ -78,17 +79,46 @@ export default function SystemPromptManagement() {
     fetchAvailableCharacters();
     fetchForceSwedish();
     fetchTavilyTriggers();
-    fetchCurrentActivePersonality();
+    fetchUnifiedPersonalityState();
     
-    // ONESEEK Δ+ v6.4: Poll for personality changes every 2 seconds
+    // ONESEEK Δ+ v6.5 (PR#101): Poll unified state every 2 seconds
     const pollInterval = setInterval(() => {
-      fetchCurrentActivePersonality();
+      fetchUnifiedPersonalityState();
     }, 2000);
     
     return () => clearInterval(pollInterval);
   }, []);
 
-  // ONESEEK Δ+ v6.4: Fetch current active personality from backend
+  // ONESEEK Δ+ v6.5 (PR#101): Fetch unified personality state from backend
+  const fetchUnifiedPersonalityState = async () => {
+    try {
+      let response;
+      try {
+        // Try the new unified state endpoint first (PR#101)
+        response = await fetch('http://localhost:5000/api/personality/state');
+      } catch {
+        response = await fetch('/api/personality/state');
+      }
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentActivePersonality({
+          id: data.active_personality_id,
+          description: data.description || '',
+          categories: data.categories || [],
+          is_default: data.is_default
+        });
+        setPersonalitySource(data.source || 'ai');
+      } else {
+        // Fallback to legacy endpoint
+        fetchCurrentActivePersonality();
+      }
+    } catch (e) {
+      // Fallback to legacy endpoint
+      fetchCurrentActivePersonality();
+    }
+  };
+
+  // Legacy fallback for older backend
   const fetchCurrentActivePersonality = async () => {
     try {
       let response;
@@ -461,7 +491,7 @@ export default function SystemPromptManagement() {
         setSuccess(`Activated: ${prompt.name}`);
         fetchPrompts();
         
-        // ONESEEK Δ+ v6.4: Also set the active personality based on prompt name
+        // ONESEEK Δ+ v6.5 (PR#101): Also set the active personality based on prompt name
         // Extract personality ID from prompt name (e.g., "OneSeek-7B-Zero (Bibliotekarien)" -> "bibliotekarie")
         const nameMatch = prompt.name.match(/\(([^)]+)\)/);
         if (nameMatch) {
@@ -470,12 +500,15 @@ export default function SystemPromptManagement() {
             await fetch('/api/personality/active/set', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ personality_id: personalityName })
+              body: JSON.stringify({ personality_id: personalityName, source: 'admin' })
             });
           } catch (e) {
             console.log('Could not set personality:', e);
           }
         }
+        
+        // PR#101: Refresh unified state to update UI immediately
+        fetchUnifiedPersonalityState();
       } else {
         throw new Error('Failed to activate prompt');
       }
@@ -607,17 +640,39 @@ export default function SystemPromptManagement() {
 
   return (
     <div className="space-y-6">
-      {/* ONESEEK Δ+ v6.4: Current Active Personality Banner */}
+      {/* ONESEEK Δ+ v6.5 (PR#101): Current Active Personality Banner with Source Indicator */}
       {currentActivePersonality && (
         <div className={`border p-4 rounded flex items-center justify-between ${
-          currentActivePersonality.id === 'oneseek-medveten' 
-            ? 'border-green-500/30 bg-green-500/5' 
-            : 'border-purple-500/30 bg-purple-500/5'
+          personalitySource === 'override'
+            ? 'border-orange-500/30 bg-orange-500/5'
+            : personalitySource === 'admin'
+              ? 'border-blue-500/30 bg-blue-500/5'
+              : currentActivePersonality.id === 'oneseek-medveten' 
+                ? 'border-green-500/30 bg-green-500/5' 
+                : 'border-purple-500/30 bg-purple-500/5'
         }`}>
           <div>
-            <div className="text-xs font-mono text-[#666] mb-1">🎭 AKTIV PERSONLIGHET (Real-time)</div>
+            <div className="flex items-center gap-2 text-xs font-mono text-[#666] mb-1">
+              <span>🎭 AKTIV PERSONLIGHET (Real-time)</span>
+              {/* Source indicator (PR#101) */}
+              <span className={`px-2 py-0.5 rounded text-[10px] ${
+                personalitySource === 'override'
+                  ? 'bg-orange-500/20 text-orange-400'
+                  : personalitySource === 'admin'
+                    ? 'bg-blue-500/20 text-blue-400'
+                    : 'bg-purple-500/20 text-purple-400'
+              }`}>
+                {personalitySource === 'override' ? '⏳ Override' : personalitySource === 'admin' ? '👤 Admin' : '🤖 AI'}
+              </span>
+            </div>
             <div className={`font-mono text-lg ${
-              currentActivePersonality.id === 'oneseek-medveten' ? 'text-green-300' : 'text-purple-300'
+              personalitySource === 'override'
+                ? 'text-orange-300'
+                : personalitySource === 'admin'
+                  ? 'text-blue-300'
+                  : currentActivePersonality.id === 'oneseek-medveten' 
+                    ? 'text-green-300' 
+                    : 'text-purple-300'
             }`}>
               {currentActivePersonality.id?.replace('oneseek-', '').toUpperCase() || 'MEDVETEN'}
             </div>
@@ -632,9 +687,9 @@ export default function SystemPromptManagement() {
                   await fetch('/api/personality/active/set', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ personality_id: 'oneseek-medveten' })
+                    body: JSON.stringify({ personality_id: 'oneseek-medveten', source: 'admin' })
                   });
-                  fetchCurrentActivePersonality();
+                  fetchUnifiedPersonalityState();
                 } catch (e) {
                   console.error('Error resetting personality:', e);
                 }
@@ -695,59 +750,66 @@ export default function SystemPromptManagement() {
         </div>
       </div>
 
-      {/* Character Cards Section */}
+      {/* Character Cards Section - Uses unified personality state for active status */}
       {availableCharacters.length > 0 && (
         <div className="border border-[#2a2a2a] bg-[#111] p-4 rounded">
           <h3 className="text-[#eee] font-mono text-base mb-3">
             🎭 Character Cards ({availableCharacters.length})
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {availableCharacters.map((char) => (
-              <div
-                key={char.id}
-                className={`p-3 rounded border transition-colors ${
-                  char.is_active 
-                    ? 'border-green-500/50 bg-green-500/5' 
-                    : char.is_synced 
-                      ? 'border-[#2a2a2a] bg-[#0a0a0a]' 
-                      : 'border-yellow-500/30 bg-yellow-500/5'
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xl">{char.icon || '🤖'}</span>
-                  <span className="text-[#eee] font-mono text-sm font-medium">{char.name}</span>
+            {availableCharacters.map((char) => {
+              // PR#101: Use unified state to determine if this character is active
+              const charPersonalityId = `oneseek-${char.personality_type?.toLowerCase() || char.id?.toLowerCase() || 'medveten'}`;
+              const isActiveFromUnifiedState = currentActivePersonality?.id === charPersonalityId || 
+                currentActivePersonality?.id?.includes(char.personality_type?.toLowerCase() || '');
+              
+              return (
+                <div
+                  key={char.id}
+                  className={`p-3 rounded border transition-colors ${
+                    isActiveFromUnifiedState 
+                      ? 'border-green-500/50 bg-green-500/5' 
+                      : char.is_synced 
+                        ? 'border-[#2a2a2a] bg-[#0a0a0a]' 
+                        : 'border-yellow-500/30 bg-yellow-500/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xl">{char.icon || '🤖'}</span>
+                    <span className="text-[#eee] font-mono text-sm font-medium">{char.name}</span>
+                  </div>
+                  <p className="text-[#666] font-mono text-xs mb-2 line-clamp-2">{char.description || 'No description available'}</p>
+                  <div className="flex items-center gap-2">
+                    {isActiveFromUnifiedState && (
+                      <span className="px-2 py-0.5 text-[10px] bg-green-500/20 text-green-400 rounded font-mono">
+                        ACTIVE
+                      </span>
+                    )}
+                    {char.is_synced && !isActiveFromUnifiedState && (
+                      <span className="px-2 py-0.5 text-[10px] bg-[#1a1a1a] text-[#666] rounded font-mono">
+                        SYNCED
+                      </span>
+                    )}
+                    {!char.is_synced && (
+                      <span className="px-2 py-0.5 text-[10px] bg-yellow-500/20 text-yellow-400 rounded font-mono">
+                        NOT SYNCED
+                      </span>
+                    )}
+                    <span className="px-2 py-0.5 text-[10px] bg-[#1a1a1a] text-[#555] rounded font-mono">
+                      {char.personality_type}
+                    </span>
+                  </div>
+                  {char.is_synced && !isActiveFromUnifiedState && (
+                    <button
+                      onClick={() => handleActivate({ id: char.synced_prompt_id, name: char.name })}
+                      className="mt-2 w-full px-2 py-1 text-xs border border-green-500/30 text-green-400 font-mono hover:bg-green-500/10 transition-colors rounded"
+                    >
+                      Aktivera
+                    </button>
+                  )}
                 </div>
-                <p className="text-[#666] font-mono text-xs mb-2 line-clamp-2">{char.description || 'No description available'}</p>
-                <div className="flex items-center gap-2">
-                  {char.is_active && (
-                    <span className="px-2 py-0.5 text-[10px] bg-green-500/20 text-green-400 rounded font-mono">
-                      ACTIVE
-                    </span>
-                  )}
-                  {char.is_synced && !char.is_active && (
-                    <span className="px-2 py-0.5 text-[10px] bg-[#1a1a1a] text-[#666] rounded font-mono">
-                      SYNCED
-                    </span>
-                  )}
-                  {!char.is_synced && (
-                    <span className="px-2 py-0.5 text-[10px] bg-yellow-500/20 text-yellow-400 rounded font-mono">
-                      NOT SYNCED
-                    </span>
-                  )}
-                  <span className="px-2 py-0.5 text-[10px] bg-[#1a1a1a] text-[#555] rounded font-mono">
-                    {char.personality_type}
-                  </span>
-                </div>
-                {char.is_synced && !char.is_active && (
-                  <button
-                    onClick={() => handleActivate({ id: char.synced_prompt_id, name: char.name })}
-                    className="mt-2 w-full px-2 py-1 text-xs border border-green-500/30 text-green-400 font-mono hover:bg-green-500/10 transition-colors rounded"
-                  >
-                    Aktivera
-                  </button>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -994,7 +1056,7 @@ export default function SystemPromptManagement() {
         </div>
       )}
 
-      {/* Prompts List */}
+      {/* Prompts List - Shows unified personality state (PR#101: single source of truth) */}
       <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">
         <h3 className="text-[#eee] font-mono text-base mb-4">
           Available Prompts ({prompts.length})
@@ -1006,82 +1068,98 @@ export default function SystemPromptManagement() {
           </div>
         ) : (
           <div className="space-y-3">
-            {prompts.map((prompt) => (
-              <div
-                key={prompt.id}
-                className={`border p-4 rounded transition-colors ${
-                  prompt.is_active 
-                    ? 'border-green-500/50 bg-green-500/5' 
-                    : 'border-[#2a2a2a] hover:border-[#444]'
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-[#eee] font-mono text-sm font-medium">
-                        {prompt.name}
-                      </span>
-                      {prompt.is_active && (
-                        <span className="px-2 py-0.5 text-[10px] bg-green-500/20 text-green-400 rounded font-mono">
-                          ACTIVE
+            {prompts.map((prompt) => {
+              // PR#101: Check if this prompt corresponds to the current active personality
+              // Extract personality type from prompt name (e.g., "OneSeek-7B-Zero (Bibliotekarien)" -> "bibliotekarien")
+              const nameMatch = prompt.name.match(/\(([^)]+)\)/);
+              const promptPersonalityType = nameMatch ? nameMatch[1].toLowerCase() : '';
+              
+              // Also try to extract just the core personality name (remove Swedish suffixes like -en, -n)
+              // e.g., "bibliotekarien" -> "bibliotekarie", "metrologen" -> "metrolog"
+              const coreName = promptPersonalityType.replace(/en$/, '').replace(/n$/, '');
+              const promptPersonalityId = `oneseek-${coreName}`;
+              
+              // Check if this prompt matches the current active personality from unified state
+              // This is the SINGLE source of truth - whether set by admin, AI, or override
+              const activeId = currentActivePersonality?.id?.toLowerCase() || '';
+              const isActive = activeId === promptPersonalityId ||
+                activeId.includes(coreName) ||
+                (promptPersonalityType && activeId.includes(promptPersonalityType));
+              
+              return (
+                <div
+                  key={prompt.id}
+                  className={`border p-4 rounded transition-colors ${
+                    isActive 
+                      ? 'border-green-500/50 bg-green-500/5' 
+                      : 'border-[#2a2a2a] hover:border-[#444]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-[#eee] font-mono text-sm font-medium">
+                          {prompt.name}
                         </span>
-                      )}
-                      {prompt.tags && prompt.tags.includes('character-card') && (
-                        <span className="px-2 py-0.5 text-[10px] bg-purple-500/20 text-purple-300 rounded font-mono">
-                          🎭 CHARACTER
+                        {isActive && (
+                          <span className="px-2 py-0.5 text-[10px] bg-green-500/20 text-green-400 rounded font-mono">
+                            ACTIVE
+                          </span>
+                        )}
+                        {prompt.tags && prompt.tags.includes('character-card') && (
+                          <span className="px-2 py-0.5 text-[10px] bg-purple-500/20 text-purple-300 rounded font-mono">
+                            🎭 CHARACTER
+                          </span>
+                        )}
+                        <span className="px-2 py-0.5 text-[10px] bg-[#1a1a1a] border border-[#2a2a2a] text-[#666] rounded font-mono">
+                          {prompt.language || 'sv'}
                         </span>
+                      </div>
+                      {prompt.description && (
+                        <p className="text-[#666] font-mono text-xs mb-2">{prompt.description}</p>
                       )}
-                      <span className="px-2 py-0.5 text-[10px] bg-[#1a1a1a] border border-[#2a2a2a] text-[#666] rounded font-mono">
-                        {prompt.language || 'sv'}
-                      </span>
+                      <p className="text-[#555] font-mono text-xs">
+                        Updated: {new Date(prompt.updated_at).toLocaleString()}
+                      </p>
                     </div>
-                    {prompt.description && (
-                      <p className="text-[#666] font-mono text-xs mb-2">{prompt.description}</p>
-                    )}
-                    <p className="text-[#555] font-mono text-xs">
-                      Updated: {new Date(prompt.updated_at).toLocaleString()}
-                    </p>
+                    <div className="flex items-center gap-2 ml-4">
+                      {isActive ? (
+                        <span className="px-3 py-1 text-green-400 text-xs font-mono">
+                          ✓ In Use
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleActivate(prompt)}
+                          className="px-3 py-1 border border-green-500/30 text-green-400 text-xs font-mono hover:bg-green-500/10 transition-colors"
+                        >
+                          Aktivera
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleEdit(prompt)}
+                        className="px-3 py-1 border border-[#2a2a2a] text-[#888] text-xs font-mono hover:bg-[#1a1a1a] transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(prompt)}
+                        className="px-3 py-1 border border-[#2a2a2a] text-[#666] text-xs font-mono hover:bg-[#1a1a1a] hover:text-red-400 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 ml-4">
-                    {prompt.is_active ? (
-                      <button
-                        onClick={() => handleDeactivate(prompt)}
-                        className="px-3 py-1 border border-yellow-500/30 text-yellow-400 text-xs font-mono hover:bg-yellow-500/10 transition-colors"
-                      >
-                        Deactivate
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleActivate(prompt)}
-                        className="px-3 py-1 border border-green-500/30 text-green-400 text-xs font-mono hover:bg-green-500/10 transition-colors"
-                      >
-                        Activate
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleEdit(prompt)}
-                      className="px-3 py-1 border border-[#2a2a2a] text-[#888] text-xs font-mono hover:bg-[#1a1a1a] transition-colors"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(prompt)}
-                      className="px-3 py-1 border border-[#2a2a2a] text-[#666] text-xs font-mono hover:bg-[#1a1a1a] hover:text-red-400 transition-colors"
-                    >
-                      Delete
-                    </button>
+                  
+                  {/* Preview of prompt content */}
+                  <div className="mt-3 p-3 bg-[#0a0a0a] border border-[#1a1a1a] rounded">
+                    <pre className="text-[#666] font-mono text-xs whitespace-pre-wrap line-clamp-3">
+                      {prompt.content.substring(0, 300)}
+                      {prompt.content.length > 300 && '...'}
+                    </pre>
                   </div>
                 </div>
-                
-                {/* Preview of prompt content */}
-                <div className="mt-3 p-3 bg-[#0a0a0a] border border-[#1a1a1a] rounded">
-                  <pre className="text-[#666] font-mono text-xs whitespace-pre-wrap line-clamp-3">
-                    {prompt.content.substring(0, 300)}
-                    {prompt.content.length > 300 && '...'}
-                  </pre>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

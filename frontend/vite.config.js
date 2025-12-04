@@ -12,6 +12,16 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
       },
+      // ONESEEK Δ+ Personality API (PR#101: Unified state, override, active/set)
+      '/api/personality': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+      // ONESEEK Δ+ System Prompts API (character cards, prompts management)
+      '/api/system-prompts': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
       // Default API proxy (backend services)
       '/api': {
         target: 'http://localhost:3001',
