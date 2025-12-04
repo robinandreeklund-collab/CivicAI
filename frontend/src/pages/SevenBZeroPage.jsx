@@ -709,6 +709,8 @@ export default function SevenBZeroPage() {
       is_default: personaId === 'oneseek-medveten'
     });
     
+    console.log('[PR#101] handlePersonaSelect called:', { personaId, forNextQuestionOnly });
+    
     try {
       if (forNextQuestionOnly) {
         // PR#101: Set one-shot override for next question
@@ -717,24 +719,35 @@ export default function SevenBZeroPage() {
         setOverridePending({ active: true, personality_id: personaId });
         setPersonalitySource('override');
         
-        await fetch('/api/personality/override/next', {
+        console.log('[PR#101] Setting one-shot override via POST /api/personality/override/next');
+        
+        const response = await fetch('/api/personality/override/next', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ personality_id: personaId })
         });
+        
+        console.log('[PR#101] Override response:', response.status, response.statusText);
         // Server will confirm, then localOverridePending is cleared by polling
       } else {
         // Regular permanent selection - admin source
         setLocalOverridePending(false); // Clear any pending override
         setPersonalitySource('admin');
-        await fetch('/api/personality/active/set', {
+        
+        console.log('[PR#101] Setting permanent personality via POST /api/personality/active/set');
+        
+        const response = await fetch('/api/personality/active/set', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ personality_id: personaId, source: 'admin' })
         });
+        
+        console.log('[PR#101] Active/set response:', response.status, response.statusText);
+        const data = await response.json();
+        console.log('[PR#101] Active/set response data:', data);
       }
     } catch (err) {
-      console.error('Error setting personality:', err);
+      console.error('[PR#101] Error setting personality:', err);
       // On error, clear the pending flag
       setLocalOverridePending(false);
     }

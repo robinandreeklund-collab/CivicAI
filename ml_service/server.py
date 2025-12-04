@@ -5083,6 +5083,10 @@ async def set_active_personality(request: Request):
         personality_id = body.get("personality_id", "oneseek-medveten")
         source = body.get("source", "admin")  # Default to admin when manually set
         
+        print(f"\n🔧 POST /api/personality/active/set RECEIVED")
+        print(f"   📍 personality_id: {personality_id}")
+        print(f"   📍 source: {source}")
+        
         # Normalize the personality ID
         if not personality_id.startswith("oneseek-"):
             personality_id = f"oneseek-{personality_id}"
@@ -5110,8 +5114,13 @@ async def set_active_personality(request: Request):
             "is_default": is_default
         }
         
+        print(f"   📍 Normalized personality_id: {personality_id}")
+        print(f"   📍 Calling set_current_active_personality()...")
+        
         # Set as active with source tracking (PR#101)
         set_current_active_personality(personality_info, source=source)
+        
+        print(f"   ✅ PERSONALITY SET COMPLETE")
         
         logger.info(f"[PERSONALITY] 🎭 Manually activated personality: {personality_id} (source: {source})")
         
@@ -5123,6 +5132,7 @@ async def set_active_personality(request: Request):
         }
     except Exception as e:
         logger.error(f"Error setting active personality: {e}")
+        print(f"   ❌ ERROR: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
