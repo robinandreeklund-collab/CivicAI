@@ -1056,7 +1056,7 @@ export default function SystemPromptManagement() {
         </div>
       )}
 
-      {/* Prompts List - Shows both system prompt status AND unified personality state */}
+      {/* Prompts List - Shows unified personality state (PR#101: single source of truth) */}
       <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">
         <h3 className="text-[#eee] font-mono text-base mb-4">
           Available Prompts ({prompts.length})
@@ -1076,18 +1076,17 @@ export default function SystemPromptManagement() {
               const promptPersonalityId = `oneseek-${promptPersonalityType}`;
               
               // Check if this prompt matches the current active personality from unified state
-              const isActivePersonality = currentActivePersonality?.id === promptPersonalityId ||
+              // This is the SINGLE source of truth - whether set by admin, AI, or override
+              const isActive = currentActivePersonality?.id === promptPersonalityId ||
                 (currentActivePersonality?.id?.includes(promptPersonalityType) && promptPersonalityType);
               
               return (
                 <div
                   key={prompt.id}
                   className={`border p-4 rounded transition-colors ${
-                    isActivePersonality 
+                    isActive 
                       ? 'border-green-500/50 bg-green-500/5' 
-                      : prompt.is_active
-                        ? 'border-blue-500/50 bg-blue-500/5'
-                        : 'border-[#2a2a2a] hover:border-[#444]'
+                      : 'border-[#2a2a2a] hover:border-[#444]'
                   }`}
                 >
                   <div className="flex items-start justify-between">
@@ -1096,14 +1095,9 @@ export default function SystemPromptManagement() {
                         <span className="text-[#eee] font-mono text-sm font-medium">
                           {prompt.name}
                         </span>
-                        {isActivePersonality && (
+                        {isActive && (
                           <span className="px-2 py-0.5 text-[10px] bg-green-500/20 text-green-400 rounded font-mono">
-                            🎭 ACTIVE PERSONALITY
-                          </span>
-                        )}
-                        {prompt.is_active && !isActivePersonality && (
-                          <span className="px-2 py-0.5 text-[10px] bg-blue-500/20 text-blue-400 rounded font-mono">
-                            SYSTEM PROMPT ACTIVE
+                            ACTIVE
                           </span>
                         )}
                         {prompt.tags && prompt.tags.includes('character-card') && (
@@ -1123,23 +1117,16 @@ export default function SystemPromptManagement() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 ml-4">
-                      {isActivePersonality ? (
+                      {isActive ? (
                         <span className="px-3 py-1 text-green-400 text-xs font-mono">
                           ✓ In Use
                         </span>
-                      ) : prompt.is_active ? (
-                        <button
-                          onClick={() => handleDeactivate(prompt)}
-                          className="px-3 py-1 border border-yellow-500/30 text-yellow-400 text-xs font-mono hover:bg-yellow-500/10 transition-colors"
-                        >
-                          Deactivate
-                        </button>
                       ) : (
                         <button
                           onClick={() => handleActivate(prompt)}
                           className="px-3 py-1 border border-green-500/30 text-green-400 text-xs font-mono hover:bg-green-500/10 transition-colors"
                         >
-                          Activate
+                          Aktivera
                         </button>
                       )}
                       <button
