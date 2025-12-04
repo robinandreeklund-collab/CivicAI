@@ -187,6 +187,8 @@ export default function SevenBZeroPage() {
   // This is the single source of truth for both header and /7B-Zero selector
   const [personalitySource, setPersonalitySource] = useState('ai'); // "admin" | "ai" | "override"
   const [overridePending, setOverridePending] = useState({ active: false, personality_id: null });
+  // Track if we have a local pending override (to avoid server state overwriting it before it's processed)
+  const [localOverridePending, setLocalOverridePending] = useState(false);
   
   useEffect(() => {
     const loadUnifiedPersonalityState = async () => {
@@ -197,8 +199,10 @@ export default function SevenBZeroPage() {
           const data = await response.json();
           const personalityId = data.active_personality_id || 'oneseek-medveten';
           
-          // Only update if no local override is pending
-          if (!overridePending.active || data.override_pending?.active) {
+          // Always update from server state, UNLESS we have a local override pending
+          // that hasn't been sent to server yet (localOverridePending)
+          // Once server confirms the override (data.source === 'override'), we sync
+          if (!localOverridePending) {
             setSelectedPersona(personalityId);
             setAiSelectedPersonality({
               id: personalityId,
@@ -207,11 +211,24 @@ export default function SevenBZeroPage() {
               is_default: data.is_default || personalityId === 'oneseek-medveten'
             });
             setPersonalitySource(data.source || 'ai');
-          }
-          
-          // Update override status
-          if (data.override_pending) {
-            setOverridePending(data.override_pending);
+            
+            // Update override status from server
+            if (data.override_pending) {
+              setOverridePending(data.override_pending);
+            } else {
+              setOverridePending({ active: false, personality_id: null });
+            }
+          } else if (data.source === 'override') {
+            // Server confirmed our override, clear local pending flag
+            setLocalOverridePending(false);
+            setSelectedPersona(personalityId);
+            setAiSelectedPersonality({
+              id: personalityId,
+              description: data.description || '',
+              categories: data.categories || [],
+              is_default: data.is_default || personalityId === 'oneseek-medveten'
+            });
+            setPersonalitySource('override');
           }
         }
       } catch (err) {
@@ -242,7 +259,7 @@ export default function SevenBZeroPage() {
     const pollInterval = setInterval(loadUnifiedPersonalityState, 2000);
     
     return () => clearInterval(pollInterval);
-  }, [overridePending.active]);
+  }, [localOverridePending]);
   
   // UI state
   const [hoveredTick, setHoveredTick] = useState(null);
@@ -683,7 +700,7 @@ export default function SevenBZeroPage() {
   const [overrideMode, setOverrideMode] = useState(false); // false = permanent, true = next question only
   
   const handlePersonaSelect = async (personaId, forNextQuestionOnly = false) => {
-    // Update local state immediately
+    // Update local state immediately for responsive UI
     setSelectedPersona(personaId);
     setAiSelectedPersonality({
       id: personaId,
@@ -695,15 +712,20 @@ export default function SevenBZeroPage() {
     try {
       if (forNextQuestionOnly) {
         // PR#101: Set one-shot override for next question
+        // Set local pending flag to prevent polling from overwriting our selection
+        setLocalOverridePending(true);
         setOverridePending({ active: true, personality_id: personaId });
         setPersonalitySource('override');
+        
         await fetch('/api/personality/override/next', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ personality_id: personaId })
         });
+        // Server will confirm, then localOverridePending is cleared by polling
       } else {
-        // Regular permanent selection
+        // Regular permanent selection - admin source
+        setLocalOverridePending(false); // Clear any pending override
         setPersonalitySource('admin');
         await fetch('/api/personality/active/set', {
           method: 'POST',
@@ -713,6 +735,8 @@ export default function SevenBZeroPage() {
       }
     } catch (err) {
       console.error('Error setting personality:', err);
+      // On error, clear the pending flag
+      setLocalOverridePending(false);
     }
   };
   

@@ -4257,15 +4257,31 @@ def set_current_active_personality(personality_info: Dict[str, Any], source: str
     # Load personality catalog to get card_file
     catalog = load_personality_catalog()
     personality_data = catalog.get("personality_catalog", {}).get(personality_id, {})
-    card_file = personality_data.get("card_file", f"frontend/public/characters/{personality_id.replace('oneseek-', 'OneSeek-').title()}.yaml")
+    
+    # Build card_file path - use catalog value or construct from ID
+    # Format: personality_id like "oneseek-bibliotekarie" -> "OneSeek-Bibliotekarie.yaml"
+    if personality_data.get("card_file"):
+        card_file = personality_data.get("card_file")
+    else:
+        # Construct fallback: oneseek-bibliotekarie -> OneSeek-Bibliotekarie
+        parts = personality_id.split('-')
+        if len(parts) >= 2 and parts[0] == 'oneseek':
+            name_part = '-'.join(p.capitalize() for p in parts[1:])
+            card_file = f"frontend/public/characters/OneSeek-{name_part}.yaml"
+        else:
+            card_file = f"frontend/public/characters/{personality_id}.yaml"
     
     # Update unified state (PR#101)
+    # Note: admin_active_system_prompt_id is preserved unless admin explicitly sets a new one
+    previous_admin_prompt_id = _unified_personality_state.get("admin_active_system_prompt_id")
+    
     _unified_personality_state = {
         "active_personality_id": personality_id,
         "active_personality_name": personality_info.get("name", "OneSeek-7B-Zero"),
         "active_card_file": card_file,
         "source": source,
-        "admin_active_system_prompt_id": _unified_personality_state.get("admin_active_system_prompt_id") if source != "admin" else None,
+        # Keep admin prompt ID when AI/override changes personality; only clear if admin sets new
+        "admin_active_system_prompt_id": previous_admin_prompt_id if source != "admin" else previous_admin_prompt_id,
         "last_updated": now,
         "description": personality_info.get("description", ""),
         "categories": personality_info.get("categories", []),
