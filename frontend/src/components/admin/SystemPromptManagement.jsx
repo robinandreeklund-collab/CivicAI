@@ -1056,7 +1056,7 @@ export default function SystemPromptManagement() {
         </div>
       )}
 
-      {/* Prompts List */}
+      {/* Prompts List - Shows both system prompt status AND unified personality state */}
       <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">
         <h3 className="text-[#eee] font-mono text-base mb-4">
           Available Prompts ({prompts.length})
@@ -1068,82 +1068,105 @@ export default function SystemPromptManagement() {
           </div>
         ) : (
           <div className="space-y-3">
-            {prompts.map((prompt) => (
-              <div
-                key={prompt.id}
-                className={`border p-4 rounded transition-colors ${
-                  prompt.is_active 
-                    ? 'border-green-500/50 bg-green-500/5' 
-                    : 'border-[#2a2a2a] hover:border-[#444]'
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-[#eee] font-mono text-sm font-medium">
-                        {prompt.name}
-                      </span>
-                      {prompt.is_active && (
-                        <span className="px-2 py-0.5 text-[10px] bg-green-500/20 text-green-400 rounded font-mono">
-                          ACTIVE
+            {prompts.map((prompt) => {
+              // PR#101: Check if this prompt corresponds to the current active personality
+              // Extract personality type from prompt name (e.g., "OneSeek-7B-Zero (Bibliotekarien)" -> "bibliotekarien")
+              const nameMatch = prompt.name.match(/\(([^)]+)\)/);
+              const promptPersonalityType = nameMatch ? nameMatch[1].toLowerCase() : '';
+              const promptPersonalityId = `oneseek-${promptPersonalityType}`;
+              
+              // Check if this prompt matches the current active personality from unified state
+              const isActivePersonality = currentActivePersonality?.id === promptPersonalityId ||
+                (currentActivePersonality?.id?.includes(promptPersonalityType) && promptPersonalityType);
+              
+              return (
+                <div
+                  key={prompt.id}
+                  className={`border p-4 rounded transition-colors ${
+                    isActivePersonality 
+                      ? 'border-green-500/50 bg-green-500/5' 
+                      : prompt.is_active
+                        ? 'border-blue-500/50 bg-blue-500/5'
+                        : 'border-[#2a2a2a] hover:border-[#444]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-[#eee] font-mono text-sm font-medium">
+                          {prompt.name}
                         </span>
-                      )}
-                      {prompt.tags && prompt.tags.includes('character-card') && (
-                        <span className="px-2 py-0.5 text-[10px] bg-purple-500/20 text-purple-300 rounded font-mono">
-                          🎭 CHARACTER
+                        {isActivePersonality && (
+                          <span className="px-2 py-0.5 text-[10px] bg-green-500/20 text-green-400 rounded font-mono">
+                            🎭 ACTIVE PERSONALITY
+                          </span>
+                        )}
+                        {prompt.is_active && !isActivePersonality && (
+                          <span className="px-2 py-0.5 text-[10px] bg-blue-500/20 text-blue-400 rounded font-mono">
+                            SYSTEM PROMPT ACTIVE
+                          </span>
+                        )}
+                        {prompt.tags && prompt.tags.includes('character-card') && (
+                          <span className="px-2 py-0.5 text-[10px] bg-purple-500/20 text-purple-300 rounded font-mono">
+                            🎭 CHARACTER
+                          </span>
+                        )}
+                        <span className="px-2 py-0.5 text-[10px] bg-[#1a1a1a] border border-[#2a2a2a] text-[#666] rounded font-mono">
+                          {prompt.language || 'sv'}
                         </span>
+                      </div>
+                      {prompt.description && (
+                        <p className="text-[#666] font-mono text-xs mb-2">{prompt.description}</p>
                       )}
-                      <span className="px-2 py-0.5 text-[10px] bg-[#1a1a1a] border border-[#2a2a2a] text-[#666] rounded font-mono">
-                        {prompt.language || 'sv'}
-                      </span>
+                      <p className="text-[#555] font-mono text-xs">
+                        Updated: {new Date(prompt.updated_at).toLocaleString()}
+                      </p>
                     </div>
-                    {prompt.description && (
-                      <p className="text-[#666] font-mono text-xs mb-2">{prompt.description}</p>
-                    )}
-                    <p className="text-[#555] font-mono text-xs">
-                      Updated: {new Date(prompt.updated_at).toLocaleString()}
-                    </p>
+                    <div className="flex items-center gap-2 ml-4">
+                      {isActivePersonality ? (
+                        <span className="px-3 py-1 text-green-400 text-xs font-mono">
+                          ✓ In Use
+                        </span>
+                      ) : prompt.is_active ? (
+                        <button
+                          onClick={() => handleDeactivate(prompt)}
+                          className="px-3 py-1 border border-yellow-500/30 text-yellow-400 text-xs font-mono hover:bg-yellow-500/10 transition-colors"
+                        >
+                          Deactivate
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleActivate(prompt)}
+                          className="px-3 py-1 border border-green-500/30 text-green-400 text-xs font-mono hover:bg-green-500/10 transition-colors"
+                        >
+                          Activate
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleEdit(prompt)}
+                        className="px-3 py-1 border border-[#2a2a2a] text-[#888] text-xs font-mono hover:bg-[#1a1a1a] transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(prompt)}
+                        className="px-3 py-1 border border-[#2a2a2a] text-[#666] text-xs font-mono hover:bg-[#1a1a1a] hover:text-red-400 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 ml-4">
-                    {prompt.is_active ? (
-                      <button
-                        onClick={() => handleDeactivate(prompt)}
-                        className="px-3 py-1 border border-yellow-500/30 text-yellow-400 text-xs font-mono hover:bg-yellow-500/10 transition-colors"
-                      >
-                        Deactivate
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleActivate(prompt)}
-                        className="px-3 py-1 border border-green-500/30 text-green-400 text-xs font-mono hover:bg-green-500/10 transition-colors"
-                      >
-                        Activate
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleEdit(prompt)}
-                      className="px-3 py-1 border border-[#2a2a2a] text-[#888] text-xs font-mono hover:bg-[#1a1a1a] transition-colors"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(prompt)}
-                      className="px-3 py-1 border border-[#2a2a2a] text-[#666] text-xs font-mono hover:bg-[#1a1a1a] hover:text-red-400 transition-colors"
-                    >
-                      Delete
-                    </button>
+                  
+                  {/* Preview of prompt content */}
+                  <div className="mt-3 p-3 bg-[#0a0a0a] border border-[#1a1a1a] rounded">
+                    <pre className="text-[#666] font-mono text-xs whitespace-pre-wrap line-clamp-3">
+                      {prompt.content.substring(0, 300)}
+                      {prompt.content.length > 300 && '...'}
+                    </pre>
                   </div>
                 </div>
-                
-                {/* Preview of prompt content */}
-                <div className="mt-3 p-3 bg-[#0a0a0a] border border-[#1a1a1a] rounded">
-                  <pre className="text-[#666] font-mono text-xs whitespace-pre-wrap line-clamp-3">
-                    {prompt.content.substring(0, 300)}
-                    {prompt.content.length > 300 && '...'}
-                  </pre>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
