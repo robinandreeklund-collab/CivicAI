@@ -4034,6 +4034,15 @@ PERSONALITY_CATALOG_FILE = Path(__file__).parent.parent / "config" / "personalit
 # Global personality catalog cache
 _personality_catalog_cache: Optional[Dict[str, Any]] = None
 
+# ONESEEK Δ+ v6.4: Track the currently active personality (last AI selection)
+_current_active_personality: Dict[str, Any] = {
+    "id": "oneseek-medveten",
+    "name": "OneSeek-7B-Zero (Medveten)",
+    "description": "Den medvetna grunden - väljer personlighet själv",
+    "is_default": True,
+    "last_updated": None
+}
+
 
 def load_personality_catalog() -> Dict[str, Any]:
     """
@@ -4059,6 +4068,37 @@ def load_personality_catalog() -> Dict[str, Any]:
     
     # Return empty catalog if file doesn't exist
     return {"personality_catalog": {}, "selection_rules": {"fallback": "oneseek-medveten"}}
+
+
+def set_current_active_personality(personality_info: Dict[str, Any]) -> None:
+    """
+    ONESEEK Δ+ v6.4: Update the currently active personality (set by AI selection).
+    
+    This tracks the last personality the AI selected for dashboard display.
+    """
+    global _current_active_personality
+    from datetime import datetime
+    
+    _current_active_personality = {
+        "id": personality_info.get("id", "oneseek-medveten"),
+        "name": personality_info.get("name", "OneSeek-7B-Zero"),
+        "description": personality_info.get("description", ""),
+        "categories": personality_info.get("categories", []),
+        "is_default": personality_info.get("is_default", False),
+        "last_updated": datetime.now().isoformat()
+    }
+    logger.info(f"[PERSONALITY] 🎭 Active personality updated to: {_current_active_personality['id']}")
+
+
+def get_current_active_personality() -> Dict[str, Any]:
+    """
+    ONESEEK Δ+ v6.4: Get the currently active personality.
+    
+    Returns:
+        Dict with current active personality info
+    """
+    global _current_active_personality
+    return _current_active_personality
 
 
 def sync_personality_catalog() -> Dict[str, Any]:
@@ -4725,6 +4765,17 @@ async def get_personality_details(personality_id: str):
         "is_default": personality.get("is_default", False),
         "system_prompt": system_prompt
     }
+
+
+@personality_router.get("/active/current")
+async def get_active_personality():
+    """
+    ONESEEK Δ+ v6.4: Get the currently active personality (last AI selection).
+    
+    This returns the last personality the AI selected based on the [PERSONLIGHET: xxx] tag.
+    Useful for dashboard display showing which personality is currently "in use".
+    """
+    return get_current_active_personality()
 
 
 # =============================================================================
@@ -9439,6 +9490,10 @@ Svara NU.
                 selected_personality_id = detected_personality_id
                 selected_personality_info = get_personality_info(detected_personality_id)
                 
+                # ONESEEK Δ+ v6.4: Update global active personality for dashboard
+                if selected_personality_info:
+                    set_current_active_personality(selected_personality_info)
+                
                 # Show character card loading
                 catalog = load_personality_catalog()
                 personality_data = catalog.get("personality_catalog", {}).get(detected_personality_id, {})
@@ -9747,6 +9802,10 @@ Svara NU.
                 print(f"   Till: {detected_personality_id}")
                 selected_personality_id = detected_personality_id
                 selected_personality_info = get_personality_info(detected_personality_id)
+                
+                # ONESEEK Δ+ v6.4: Update global active personality for dashboard
+                if selected_personality_info:
+                    set_current_active_personality(selected_personality_info)
                 
                 # Show character card loading
                 catalog = load_personality_catalog()
