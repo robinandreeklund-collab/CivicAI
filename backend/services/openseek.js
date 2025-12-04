@@ -150,6 +150,12 @@ export async function getOpenSeekResponse(question, options = {}) {
   }
 }
 
+// Keyword patterns for simulated response topic detection
+const SIMULATED_RESPONSE_KEYWORDS = {
+  weather: ['väder', 'temperatur', 'regn', 'sol', 'snö', 'storm'],
+  politics: ['demokrati', 'politik', 'val', 'riksdag', 'regering'],
+};
+
 /**
  * Get a simulated response when OpenSeek is not available
  * @param {string} question
@@ -158,7 +164,10 @@ export async function getOpenSeekResponse(question, options = {}) {
 function getSimulatedResponse(question) {
   const questionLower = question.toLowerCase();
   
-  if (questionLower.includes('väder') || questionLower.includes('temperatur')) {
+  const isWeatherQuestion = SIMULATED_RESPONSE_KEYWORDS.weather.some(kw => questionLower.includes(kw));
+  const isPoliticsQuestion = SIMULATED_RESPONSE_KEYWORDS.politics.some(kw => questionLower.includes(kw));
+  
+  if (isWeatherQuestion) {
     return `Just nu kan jag inte hämta väderdata i demo-läge.
 
 **Sammanfattning från andra AI-modeller:**
@@ -169,7 +178,7 @@ Det verkar finnas konsensus kring de grundläggande fakta, men jag rekommenderar
 **Källa:** Demo-läge (OpenSeek-7B-Zero)`;
   }
   
-  if (questionLower.includes('demokrati') || questionLower.includes('politik')) {
+  if (isPoliticsQuestion) {
     return `Tack för din fråga om demokrati och politik.
 
 **Min syntes baserad på andra modellers svar:**

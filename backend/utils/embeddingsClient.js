@@ -51,10 +51,12 @@ export function cosineSimilarity(vecA, vecB) {
 }
 
 /**
- * Fetch embeddings for a batch of texts from OpenAI
- * @param {string[]} texts - Array of texts to embed
- * @param {Object} options - Optional configuration
- * @returns {Promise<number[][]>} Array of embedding vectors
+ * Fetch embeddings for a batch of texts from OpenAI (internal function)
+ * @param {string[]} texts - Array of texts to embed (max 100 per batch)
+ * @param {Object} [options={}] - Optional configuration
+ * @param {string} [options.model] - OpenAI embedding model (default: text-embedding-3-small)
+ * @returns {Promise<number[][]>} Array of embedding vectors in same order as input texts
+ * @throws {Error} If API key is not configured or API returns an error
  */
 async function fetchEmbeddingsBatch(texts, options = {}) {
   const model = options.model || DEFAULT_MODEL;

@@ -151,6 +151,10 @@ function heuristicCompress(responses, options = {}) {
  * Embeddings-based compression: semantic similarity selection
  * @param {Object[]} responses - Array of response objects
  * @param {Object} options - Configuration options
+ * @param {number} [options.charLimit=3000] - Maximum total characters in output
+ * @param {string} [options.question=''] - Original question for semantic relevance scoring
+ * @param {number} [options.similarityThreshold=0.85] - Cosine similarity threshold for deduplication
+ * @param {number} [options.maxSentencesPerAgent=10] - Maximum sentences to consider per agent
  * @returns {Promise<{compressed: string, metadata: Object}>}
  */
 async function embeddingsCompress(responses, options = {}) {

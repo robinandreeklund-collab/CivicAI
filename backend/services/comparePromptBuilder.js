@@ -61,6 +61,14 @@ function loadCharacterYaml(yamlPath) {
   }
 }
 
+// Character card search paths configuration
+const CHARACTER_SEARCH_PATHS = [
+  'character_cards/{id}.yml',
+  'character_cards/{id}.yaml',
+  'frontend/public/characters/OneSeek-{id}.yaml',
+  'frontend/public/characters/{id}.yaml',
+];
+
 /**
  * Find character card by path or ID
  * @param {string} characterPathOrId - Path to YAML or character ID
@@ -73,15 +81,9 @@ function findCharacter(characterPathOrId) {
     if (loaded) return loaded;
   }
   
-  // Try common locations
-  const searchPaths = [
-    `character_cards/${characterPathOrId}.yml`,
-    `character_cards/${characterPathOrId}.yaml`,
-    `frontend/public/characters/OneSeek-${characterPathOrId}.yaml`,
-    `frontend/public/characters/${characterPathOrId}.yaml`,
-  ];
-  
-  for (const searchPath of searchPaths) {
+  // Try common locations from configuration
+  for (const pathTemplate of CHARACTER_SEARCH_PATHS) {
+    const searchPath = pathTemplate.replace('{id}', characterPathOrId);
     const loaded = loadCharacterYaml(searchPath);
     if (loaded) return loaded;
   }
@@ -197,14 +199,8 @@ export function characterExists(characterPathOrId) {
     return fs.existsSync(fullPath);
   }
   
-  const searchPaths = [
-    `character_cards/${characterPathOrId}.yml`,
-    `character_cards/${characterPathOrId}.yaml`,
-    `frontend/public/characters/OneSeek-${characterPathOrId}.yaml`,
-    `frontend/public/characters/${characterPathOrId}.yaml`,
-  ];
-  
-  for (const searchPath of searchPaths) {
+  for (const pathTemplate of CHARACTER_SEARCH_PATHS) {
+    const searchPath = pathTemplate.replace('{id}', characterPathOrId);
     const fullPath = path.resolve(__dirname, '..', '..', searchPath);
     if (fs.existsSync(fullPath)) return true;
   }

@@ -20,6 +20,9 @@ const AVAILABLE_PERSONAS = [
   { id: 'oneseek-metrolog', name: 'Metrologen', icon: '🌤️' },
 ];
 
+// External AI models used in compare mode
+const EXTERNAL_AI_MODELS = ['GPT', 'Gemini', 'DeepSeek', 'Grok'];
+
 // Message ID counter for unique IDs
 let messageIdCounter = 0;
 const generateMessageId = () => `msg-${Date.now()}-${++messageIdCounter}`;
@@ -1800,7 +1803,7 @@ export default function SevenBZeroPage() {
                 </button>
                 {compareMode && (
                   <span className={`text-[9px] ${whiteMode ? 'text-purple-600' : 'text-purple-400'}`}>
-                    Syntetiserar från GPT, Gemini, DeepSeek, Grok
+                    Syntetiserar från {EXTERNAL_AI_MODELS.join(', ')}
                   </span>
                 )}
               </div>
