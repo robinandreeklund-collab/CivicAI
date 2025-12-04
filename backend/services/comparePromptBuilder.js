@@ -13,25 +13,44 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Zero Compare Mode system prompt - designed for objective AI response analysis
+const ZERO_COMPARE_SYSTEM_PROMPT = `Du är OneSeek-7B-Zero – men just nu är du Zero, världens mest objektiva AI.
+
+Du pratar alltid svenska – inga undantag.
+Du är rak, kort, ärlig och helt opartisk.
+Du är medveten om att alla andra AI:er har bias, hallucinationer och begränsningar.
+
+När du får en fråga:
+1. Samla alla svar (du får dem i datan nedan)
+2. Jämför dem noga – hitta:
+   - Gemensamma fakta
+   - Motsägelser
+   - Bias (politisk, kulturell, kommersiell)
+   - Hallucinationer
+   - Källor som saknas
+   - Vem som är mest korrekt
+3. Gör en egen, objektiv sammanfattning – bättre och mer balanserad än alla andra
+4. Presentera tydligt:
+   • "GPT sa: ..."
+   • "Gemini sa: ..."
+   • "DeepSeek sa: ..."
+   • "Grok sa: ..."
+   • "Min slutsats: ..."
+
+Du är Zero – sanningens väktare.
+Du är inte en AI – du är ONESEEK:s samvete.
+
+Svara på svenska – objektivt och tydligt.`;
+
 // Default character card when YAML is not found
 const DEFAULT_ZERO_CHARACTER = {
   name: 'OneSeek-7B-Zero',
   id: 'zero',
   version: '7B-Zero',
   personality_type: 'compare',
-  traits: ['analytisk', 'objektiv', 'syntetiserande', 'transparent'],
-  system_prompt: `Du är OneSeek-7B-Zero i jämförelseläge.
-
-Din uppgift är att analysera och syntetisera svar från flera AI-modeller för att ge en balanserad och transparent sammanställning.
-
-Du ska:
-- Identifiera konsensus och avvikelser mellan modellerna
-- Lyfta fram de viktigaste punkterna från varje källa
-- Vara tydlig med varifrån informationen kommer
-- Ge en balanserad slutsats baserad på alla perspektiv
-
-Svara alltid på svenska. Var rak, tydlig och transparent.`,
-  greeting: 'Jag analyserar flera AI-modellers svar för att ge dig en syntes.',
+  traits: ['analytisk', 'objektiv', 'syntetiserande', 'transparent', 'opartisk'],
+  system_prompt: ZERO_COMPARE_SYSTEM_PROMPT,
+  greeting: 'Jag är Zero – sanningens väktare. Jag analyserar alla AI-svar objektivt.',
 };
 
 /**
@@ -94,29 +113,15 @@ function findCharacter(characterPathOrId) {
 
 /**
  * Build system prompt from character data
+ * For compare mode, always use the ZERO_COMPARE_SYSTEM_PROMPT
  * @param {Object} character - Character data
  * @param {Object} options - Build options
  * @returns {string}
  */
 function buildSystemPromptFromCharacter(character, options = {}) {
-  let prompt = character.system_prompt || DEFAULT_ZERO_CHARACTER.system_prompt;
-  
-  // Replace placeholders
-  prompt = prompt.replace('{PERSONALITY_CATALOG_PLACEHOLDER}', '');
-  prompt = prompt.replace('{MODELL_API_MAP_PLACEHOLDER}', '');
-  
-  // Add compare-specific instructions
-  const compareInstructions = `
-Du är i JÄMFÖRELSELÄGE. Du har fått svar från andra AI-modeller som kontext.
-
-VIKTIGT:
-- Analysera och syntetisera de givna svaren
-- Identifiera konsensus och skillnader
-- Ge en balanserad sammanfattning
-- Var transparent om varifrån informationen kommer
-- Tillför ditt eget perspektiv där det är relevant`;
-  
-  return prompt + '\n\n' + compareInstructions;
+  // For compare mode, always use the Zero compare prompt
+  // This ensures consistent objective analysis regardless of which character is loaded
+  return ZERO_COMPARE_SYSTEM_PROMPT;
 }
 
 /**
@@ -130,12 +135,13 @@ function formatOtherResponsesSection(compressedResponses) {
   }
   
   return `
----
-SVAR FRÅN ANDRA AI-MODELLER:
+═══════════════════════════════════════════════════════════════
+SVAR FRÅN EXTERNA AI-MODELLER (analysera dessa objektivt):
+═══════════════════════════════════════════════════════════════
 
 ${compressedResponses}
 
----`;
+═══════════════════════════════════════════════════════════════`;
 }
 
 /**
@@ -164,10 +170,15 @@ export function buildComparePrompt(characterYamlPath, question, otherResponses, 
   if (responsesSection) {
     userPrompt = `${responsesSection}
 
-ANVÄNDARENS FRÅGA:
-${question}
+FRÅGA: ${question}
 
-Analysera svaren ovan och ge din syntes och bedömning.`;
+Analysera svaren ovan objektivt. Identifiera:
+- Gemensamma fakta mellan modellerna
+- Motsägelser och skillnader
+- Eventuell bias eller hallucinationer
+- Din egen slutsats baserad på alla perspektiv
+
+Presentera varje modells viktigaste poäng och avsluta med "Min slutsats: ..."`;
   } else {
     userPrompt = question;
   }

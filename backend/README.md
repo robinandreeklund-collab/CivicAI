@@ -22,6 +22,7 @@ GROK_API_KEY=...             # Grok/xAI API key (optional)
 ```bash
 OPENSEEK_API_URL=http://localhost:5000  # OpenSeek inference endpoint (default: localhost:5000)
 OPENSEEK_API_KEY=...         # Optional API key for OpenSeek authentication
+OPENSEEK_TIMEOUT_MS=120000   # Request timeout in ms (default: 120000 = 2 minutes)
 ```
 
 ### Embeddings Configuration
