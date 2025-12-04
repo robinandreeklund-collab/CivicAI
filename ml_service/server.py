@@ -4328,9 +4328,18 @@ def parse_personality_tag(response: str) -> tuple[str, str]:
     personality_id = "oneseek-medveten"
     selected_api = None
     
-    # Look for hidden personality tag
-    personality_pattern = r'\[PERSONLIGHET:\s*([^\]]+)\]\s*'
-    personality_match = re.search(personality_pattern, response, re.IGNORECASE)
+    # Look for hidden personality tag - supports both [PERSONLIGHET: xxx] and <!--PERSONLIGHET: xxx-->
+    # Pattern 1: [PERSONLIGHET: xxx]
+    personality_pattern_bracket = r'\[PERSONLIGHET:\s*([^\]]+)\]\s*'
+    # Pattern 2: <!--PERSONLIGHET: xxx-->
+    personality_pattern_html = r'<!--\s*PERSONLIGHET:\s*([^>-]+?)\s*-->\s*'
+    
+    personality_match = re.search(personality_pattern_bracket, response, re.IGNORECASE)
+    personality_pattern = personality_pattern_bracket
+    
+    if not personality_match:
+        personality_match = re.search(personality_pattern_html, response, re.IGNORECASE)
+        personality_pattern = personality_pattern_html
     
     if personality_match:
         personality_name = personality_match.group(1).strip().lower()
@@ -4345,9 +4354,18 @@ def parse_personality_tag(response: str) -> tuple[str, str]:
         print(f"\n⚠️  NO PERSONALITY TAG FOUND")
         print(f"   🎭 Using default: oneseek-medveten")
     
-    # Look for hidden API tag
-    api_pattern = r'\[API:\s*([^\]]+)\]\s*'
-    api_match = re.search(api_pattern, clean_response, re.IGNORECASE)
+    # Look for hidden API tag - supports both [API: xxx] and <!--API: xxx-->
+    # Pattern 1: [API: xxx]
+    api_pattern_bracket = r'\[API:\s*([^\]]+)\]\s*'
+    # Pattern 2: <!--API: xxx-->
+    api_pattern_html = r'<!--\s*API:\s*([^>-]+?)\s*-->\s*'
+    
+    api_match = re.search(api_pattern_bracket, clean_response, re.IGNORECASE)
+    api_pattern = api_pattern_bracket
+    
+    if not api_match:
+        api_match = re.search(api_pattern_html, clean_response, re.IGNORECASE)
+        api_pattern = api_pattern_html
     
     if api_match:
         selected_api = api_match.group(1).strip().lower()
