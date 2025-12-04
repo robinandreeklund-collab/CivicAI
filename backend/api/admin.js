@@ -2524,4 +2524,69 @@ router.post('/models/verify', requireAdmin, async (req, res) => {
   }
 });
 
+// ============ COMPARE PROMPT MANAGEMENT ============
+
+import { getComparePromptInfo, saveCompareSystemPrompt } from '../services/comparePromptBuilder.js';
+
+// GET /api/admin/compare-prompt - Get current compare prompt
+router.get('/compare-prompt', requireAdmin, async (req, res) => {
+  try {
+    const promptInfo = getComparePromptInfo();
+    res.json(promptInfo);
+  } catch (error) {
+    console.error('Error getting compare prompt:', error);
+    res.status(500).json({ error: 'Failed to get compare prompt', message: error.message });
+  }
+});
+
+// PUT /api/admin/compare-prompt - Update compare prompt
+router.put('/compare-prompt', requireAdmin, async (req, res) => {
+  try {
+    const { content } = req.body;
+    
+    if (!content || typeof content !== 'string' || content.trim().length === 0) {
+      return res.status(400).json({ error: 'Prompt content is required' });
+    }
+    
+    const success = saveCompareSystemPrompt(content.trim());
+    
+    if (success) {
+      const promptInfo = getComparePromptInfo();
+      res.json({ 
+        success: true, 
+        message: 'Compare prompt updated successfully',
+        prompt: promptInfo
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to save compare prompt' });
+    }
+  } catch (error) {
+    console.error('Error updating compare prompt:', error);
+    res.status(500).json({ error: 'Failed to update compare prompt', message: error.message });
+  }
+});
+
+// POST /api/admin/compare-prompt/reset - Reset to default compare prompt
+router.post('/compare-prompt/reset', requireAdmin, async (req, res) => {
+  try {
+    // Delete the custom prompt file to reset to default
+    const promptPath = path.join(__dirname, '..', 'datasets', 'system_prompts', 'zero_compare.json');
+    try {
+      await fs.unlink(promptPath);
+    } catch (e) {
+      // File might not exist, that's ok
+    }
+    
+    const promptInfo = getComparePromptInfo();
+    res.json({ 
+      success: true, 
+      message: 'Compare prompt reset to default',
+      prompt: promptInfo
+    });
+  } catch (error) {
+    console.error('Error resetting compare prompt:', error);
+    res.status(500).json({ error: 'Failed to reset compare prompt', message: error.message });
+  }
+});
+
 export default router;

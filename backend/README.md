@@ -22,8 +22,11 @@ GROK_API_KEY=...             # Grok/xAI API key (optional)
 ```bash
 OPENSEEK_API_URL=http://localhost:5000  # OpenSeek inference endpoint (default: localhost:5000)
 OPENSEEK_API_KEY=...         # Optional API key for OpenSeek authentication
-OPENSEEK_TIMEOUT_MS=120000   # Request timeout in ms (default: 120000 = 2 minutes)
+OPENSEEK_TIMEOUT_MS=180000   # Request timeout in ms (default: 180000 = 3 minutes)
 ```
+
+Note: Local ML inference can be slow. If you're seeing timeouts, increase `OPENSEEK_TIMEOUT_MS`.
+The compare prompt can be edited via Admin Dashboard → System Prompts → Zero Compare Mode Prompt.
 
 ### Embeddings Configuration
 ```bash

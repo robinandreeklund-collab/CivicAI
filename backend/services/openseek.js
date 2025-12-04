@@ -9,8 +9,8 @@
  * - OPENSEEK_TIMEOUT_MS: Request timeout in milliseconds (default: 120000)
  */
 
-// Increased timeout for complex compare operations
-const DEFAULT_TIMEOUT_MS = parseInt(process.env.OPENSEEK_TIMEOUT_MS) || 120000; // 2 minutes default
+// Increased timeout for complex compare operations (local ML inference can be slow)
+const DEFAULT_TIMEOUT_MS = parseInt(process.env.OPENSEEK_TIMEOUT_MS) || 180000; // 3 minutes default
 const DEFAULT_MAX_TOKENS = 1024; // Increased for compare mode responses
 
 /**

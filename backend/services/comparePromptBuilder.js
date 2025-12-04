@@ -3,6 +3,9 @@
  * 
  * Reads character card YAML files and builds prompts for OpenSeek
  * comparative analysis. Provides fallback defaults when YAML is missing.
+ * 
+ * The compare system prompt can be edited via the Admin Dashboard under
+ * System Prompts. Look for "Zero Compare Mode" prompt.
  */
 
 import yaml from 'js-yaml';
@@ -13,8 +16,12 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Zero Compare Mode system prompt - designed for objective AI response analysis
-const ZERO_COMPARE_SYSTEM_PROMPT = `Du är OneSeek-7B-Zero – men just nu är du Zero, världens mest objektiva AI.
+// Path to saved compare prompt (editable via admin dashboard)
+const COMPARE_PROMPT_PATH = path.resolve(__dirname, '..', 'datasets', 'system_prompts', 'zero_compare.json');
+
+// Default Zero Compare Mode system prompt - designed for objective AI response analysis
+// This is the fallback if no custom prompt is saved
+const DEFAULT_ZERO_COMPARE_SYSTEM_PROMPT = `Du är OneSeek-7B-Zero – men just nu är du Zero, världens mest objektiva AI.
 
 Du pratar alltid svenska – inga undantag.
 Du är rak, kort, ärlig och helt opartisk.
@@ -42,6 +49,89 @@ Du är inte en AI – du är ONESEEK:s samvete.
 
 Svara på svenska – objektivt och tydligt.`;
 
+/**
+ * Get the current compare system prompt
+ * First tries to load from saved file, falls back to default
+ * @returns {string}
+ */
+export function getCompareSystemPrompt() {
+  try {
+    if (fs.existsSync(COMPARE_PROMPT_PATH)) {
+      const data = JSON.parse(fs.readFileSync(COMPARE_PROMPT_PATH, 'utf8'));
+      if (data.content && data.content.trim()) {
+        console.log('📝 Using custom compare prompt from:', COMPARE_PROMPT_PATH);
+        return data.content;
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️  Could not load custom compare prompt:', error.message);
+  }
+  
+  console.log('📝 Using default compare prompt');
+  return DEFAULT_ZERO_COMPARE_SYSTEM_PROMPT;
+}
+
+/**
+ * Save a custom compare system prompt
+ * @param {string} content - The prompt content
+ * @returns {boolean} Success status
+ */
+export function saveCompareSystemPrompt(content) {
+  try {
+    // Ensure directory exists
+    const dir = path.dirname(COMPARE_PROMPT_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    const data = {
+      id: 'zero_compare',
+      name: 'Zero Compare Mode',
+      description: 'System prompt for Zero compare flow - analyzes and synthesizes responses from multiple AI models',
+      content: content,
+      language: 'sv',
+      tags: ['compare', 'zero', 'analysis'],
+      updated_at: new Date().toISOString(),
+    };
+    
+    fs.writeFileSync(COMPARE_PROMPT_PATH, JSON.stringify(data, null, 2), 'utf8');
+    console.log('✅ Compare prompt saved to:', COMPARE_PROMPT_PATH);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to save compare prompt:', error.message);
+    return false;
+  }
+}
+
+/**
+ * Get compare prompt info for admin dashboard
+ * @returns {Object}
+ */
+export function getComparePromptInfo() {
+  try {
+    if (fs.existsSync(COMPARE_PROMPT_PATH)) {
+      const data = JSON.parse(fs.readFileSync(COMPARE_PROMPT_PATH, 'utf8'));
+      return {
+        ...data,
+        is_custom: true,
+      };
+    }
+  } catch (error) {
+    // Ignore
+  }
+  
+  return {
+    id: 'zero_compare',
+    name: 'Zero Compare Mode',
+    description: 'System prompt for Zero compare flow - analyzes and synthesizes responses from multiple AI models',
+    content: DEFAULT_ZERO_COMPARE_SYSTEM_PROMPT,
+    language: 'sv',
+    tags: ['compare', 'zero', 'analysis'],
+    is_custom: false,
+    updated_at: null,
+  };
+}
+
 // Default character card when YAML is not found
 const DEFAULT_ZERO_CHARACTER = {
   name: 'OneSeek-7B-Zero',
@@ -49,7 +139,7 @@ const DEFAULT_ZERO_CHARACTER = {
   version: '7B-Zero',
   personality_type: 'compare',
   traits: ['analytisk', 'objektiv', 'syntetiserande', 'transparent', 'opartisk'],
-  system_prompt: ZERO_COMPARE_SYSTEM_PROMPT,
+  system_prompt: DEFAULT_ZERO_COMPARE_SYSTEM_PROMPT,
   greeting: 'Jag är Zero – sanningens väktare. Jag analyserar alla AI-svar objektivt.',
 };
 
@@ -113,15 +203,14 @@ function findCharacter(characterPathOrId) {
 
 /**
  * Build system prompt from character data
- * For compare mode, always use the ZERO_COMPARE_SYSTEM_PROMPT
+ * For compare mode, uses the editable compare prompt (from admin dashboard or default)
  * @param {Object} character - Character data
  * @param {Object} options - Build options
  * @returns {string}
  */
 function buildSystemPromptFromCharacter(character, options = {}) {
-  // For compare mode, always use the Zero compare prompt
-  // This ensures consistent objective analysis regardless of which character is loaded
-  return ZERO_COMPARE_SYSTEM_PROMPT;
+  // For compare mode, use the editable compare prompt
+  return getCompareSystemPrompt();
 }
 
 /**
@@ -159,7 +248,7 @@ export function buildComparePrompt(characterYamlPath, question, otherResponses, 
   // Load or fallback to character
   const character = findCharacter(characterYamlPath || 'zero');
   
-  // Build system prompt
+  // Build system prompt (uses editable compare prompt)
   const systemPrompt = buildSystemPromptFromCharacter(character);
   
   // Build user prompt with context
@@ -222,4 +311,7 @@ export function characterExists(characterPathOrId) {
 export default {
   buildComparePrompt,
   characterExists,
+  getCompareSystemPrompt,
+  saveCompareSystemPrompt,
+  getComparePromptInfo,
 };

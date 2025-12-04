@@ -73,6 +73,12 @@ export default function SystemPromptManagement() {
   const [tavilyApiKeySet, setTavilyApiKeySet] = useState(false);
   const [tavilyApiKeyInput, setTavilyApiKeyInput] = useState('');
 
+  // Zero Compare Prompt state
+  const [comparePrompt, setComparePrompt] = useState(null);
+  const [comparePromptInput, setComparePromptInput] = useState('');
+  const [compareSaving, setCompareSaving] = useState(false);
+  const [showCompareEditor, setShowCompareEditor] = useState(false);
+
   // Fetch prompts on mount
   useEffect(() => {
     fetchPrompts();
@@ -80,6 +86,7 @@ export default function SystemPromptManagement() {
     fetchForceSwedish();
     fetchTavilyTriggers();
     fetchUnifiedPersonalityState();
+    fetchComparePrompt();
     
     // ONESEEK Δ+ v6.5 (PR#101): Poll unified state every 2 seconds
     const pollInterval = setInterval(() => {
@@ -312,6 +319,71 @@ export default function SystemPromptManagement() {
       setError('Kunde inte spara Tavily triggers');
     } finally {
       setTavilySaving(false);
+    }
+  };
+
+  // Fetch Zero Compare Prompt
+  const fetchComparePrompt = async () => {
+    try {
+      const response = await fetch('/api/admin/compare-prompt');
+      if (response.ok) {
+        const data = await response.json();
+        setComparePrompt(data);
+        setComparePromptInput(data.content || '');
+      }
+    } catch (err) {
+      console.error('Error fetching compare prompt:', err);
+    }
+  };
+
+  // Save Zero Compare Prompt
+  const handleSaveComparePrompt = async () => {
+    setCompareSaving(true);
+    try {
+      const response = await fetch('/api/admin/compare-prompt', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: comparePromptInput })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setComparePrompt(data.prompt);
+        setSuccess('Zero Compare Prompt sparad! Aktiveras direkt.');
+        setShowCompareEditor(false);
+      } else {
+        throw new Error('Failed to save compare prompt');
+      }
+    } catch (err) {
+      console.error('Error saving compare prompt:', err);
+      setError('Kunde inte spara Compare Prompt');
+    } finally {
+      setCompareSaving(false);
+    }
+  };
+
+  // Reset Compare Prompt to default
+  const handleResetComparePrompt = async () => {
+    if (!confirm('Återställ Zero Compare Prompt till standard? Dina ändringar kommer raderas.')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/admin/compare-prompt/reset', {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setComparePrompt(data.prompt);
+        setComparePromptInput(data.prompt.content || '');
+        setSuccess('Zero Compare Prompt återställd till standard.');
+      } else {
+        throw new Error('Failed to reset compare prompt');
+      }
+    } catch (err) {
+      console.error('Error resetting compare prompt:', err);
+      setError('Kunde inte återställa Compare Prompt');
     }
   };
 
@@ -973,6 +1045,94 @@ export default function SystemPromptManagement() {
             </span>
           </div>
         </div>
+      </div>
+
+      {/* Zero Compare Mode Prompt Section */}
+      <div className="border border-orange-500/30 bg-orange-500/5 p-6 rounded">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-[#eee] font-mono text-base flex items-center gap-2">
+              🔬 Zero Compare Mode Prompt
+            </h3>
+            <p className="text-[#666] font-mono text-xs mt-1">
+              System prompt som används när Compare Mode är aktiverat på /7B-Zero sidan.
+              Zero analyserar svar från GPT, Gemini, DeepSeek och Grok objektivt.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {comparePrompt?.is_custom && (
+              <span className="px-3 py-1 text-xs bg-orange-500/20 text-orange-300 rounded font-mono">
+                CUSTOM
+              </span>
+            )}
+            <button
+              onClick={() => {
+                setComparePromptInput(comparePrompt?.content || '');
+                setShowCompareEditor(!showCompareEditor);
+              }}
+              className="px-4 py-2 border border-orange-500/30 text-orange-300 text-sm font-mono hover:bg-orange-500/10 transition-colors rounded"
+            >
+              {showCompareEditor ? '✕ Stäng' : '✏️ Redigera'}
+            </button>
+          </div>
+        </div>
+
+        {/* Preview of current prompt */}
+        {!showCompareEditor && comparePrompt && (
+          <div className="p-3 bg-[#0a0a0a] border border-[#1a1a1a] rounded">
+            <pre className="text-[#888] font-mono text-xs whitespace-pre-wrap line-clamp-6">
+              {comparePrompt.content?.substring(0, 500)}
+              {comparePrompt.content?.length > 500 && '...'}
+            </pre>
+          </div>
+        )}
+
+        {/* Editor */}
+        {showCompareEditor && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-[#888] font-mono text-sm mb-2">
+                System Prompt (används för jämförelseanalys)
+              </label>
+              <textarea
+                value={comparePromptInput}
+                onChange={(e) => setComparePromptInput(e.target.value)}
+                className="w-full h-80 bg-[#0a0a0a] border border-[#2a2a2a] text-[#eee] font-mono text-sm p-3 rounded focus:outline-none focus:border-orange-500/50 resize-y"
+                placeholder="Skriv system prompt för Zero compare mode..."
+              />
+              <p className="text-[#555] font-mono text-xs mt-1">
+                {comparePromptInput.length} tecken • Ändringar aktiveras direkt vid sparande
+              </p>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleSaveComparePrompt}
+                disabled={compareSaving}
+                className="px-6 py-2 bg-orange-600 text-white text-sm font-mono hover:bg-orange-700 transition-colors disabled:opacity-50 rounded"
+              >
+                {compareSaving ? 'Sparar...' : '💾 Spara & Aktivera'}
+              </button>
+              <button
+                onClick={() => {
+                  setComparePromptInput(comparePrompt?.content || '');
+                  setShowCompareEditor(false);
+                }}
+                className="px-4 py-2 border border-[#2a2a2a] text-[#888] text-sm font-mono hover:bg-[#1a1a1a] transition-colors rounded"
+              >
+                Avbryt
+              </button>
+              {comparePrompt?.is_custom && (
+                <button
+                  onClick={handleResetComparePrompt}
+                  className="px-4 py-2 border border-red-500/30 text-red-400 text-sm font-mono hover:bg-red-500/10 transition-colors rounded"
+                >
+                  🔄 Återställ till standard
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Link to Integrations Tab */}
