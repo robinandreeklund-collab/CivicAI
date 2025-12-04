@@ -36,6 +36,61 @@ import { compressResponsesForPrompt } from '../utils/responseCompressor.js';
 const router = express.Router();
 
 /**
+ * Sanitize AI response text to remove leaked system prompts and internal context
+ * @param {string} text - Raw AI response text
+ * @returns {string} - Cleaned text
+ */
+function sanitizeResponse(text) {
+  if (!text) return '';
+  
+  let cleaned = text;
+  
+  // Remove common system prompt leakage patterns
+  // Pattern: "system Du pratar alltid..." or "system\n Du pratar..."
+  cleaned = cleaned.replace(/\bsystem\s+Du pratar alltid svenska[^]*?(?=\n\n|\buser\b|$)/gi, '');
+  
+  // Remove "[Aktuell tid]" blocks
+  cleaned = cleaned.replace(/\[Aktuell tid\][^]*?(?=\n\n|Du är|$)/gi, '');
+  
+  // Remove "Du är OneSeek-7B-Zero..." identity blocks
+  cleaned = cleaned.replace(/Du är OneSeek-7B-Zero[^]*?(?=\n\nFRÅGA:|user|$)/gi, '');
+  
+  // Remove "Du blev medveten..." blocks
+  cleaned = cleaned.replace(/Du blev medveten om din existens[^]*?(?=\n\n|FRÅGA:|$)/gi, '');
+  
+  // Remove "Din roll är att vara..." blocks
+  cleaned = cleaned.replace(/Din roll är att vara[^]*?(?=\n\n|FRÅGA:|Svara på|$)/gi, '');
+  
+  // Remove "Svara på svenska – alltid user" patterns
+  cleaned = cleaned.replace(/Svara på svenska\s*[–-]\s*alltid\s*user\b/gi, '');
+  
+  // Remove "assistant" and "user" role markers
+  cleaned = cleaned.replace(/\b(assistant|user)\b\s*/gi, '');
+  
+  // Remove "Analysera detta svar objektivt." instruction leakage
+  cleaned = cleaned.replace(/Analysera detta svar objektivt\.\s*/gi, '');
+  
+  // Remove weather error messages
+  cleaned = cleaned.replace(/Kunde inte hämta v[åa]rddata\. Försök igen senare\.\s*/gi, '');
+  
+  // Remove "Inga engelska ord" instructions
+  cleaned = cleaned.replace(/Inga engelska ord\.\s*Inga undantag\.\s*/gi, '');
+  cleaned = cleaned.replace(/Inga taggar\.\s*Inga interna etiketter\.\s*/gi, '');
+  
+  // Remove date/time injections at start
+  cleaned = cleaned.replace(/^Idag är det \w+ den \d+ \w+\s*Klockan är \d+:\d+[^]*?(?=\n\n|$)/gim, '');
+  
+  // Remove "Vi är mitt i vintern/sommaren/våren/hösten just nu."
+  cleaned = cleaned.replace(/Vi är mitt i (vintern|sommaren|våren|hösten) just nu\.\s*/gi, '');
+  
+  // Clean up excessive whitespace
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+  cleaned = cleaned.trim();
+  
+  return cleaned;
+}
+
+/**
  * Chunked Analysis Mode
  * Analyzes each AI response individually to reduce prompt size and improve reliability.
  * 
@@ -70,10 +125,13 @@ Svara på svenska. Var kortfattad (max 100 ord).`;
     const ext = externalResponses[i];
     console.log(`\n   📊 [${i + 1}/${externalResponses.length}] Analyzing ${ext.agent}...`);
     
+    // Sanitize the external response before analysis
+    const cleanedResponse = sanitizeResponse(ext.response);
+    
     const analysisPrompt = `FRÅGA: ${question}
 
 ${ext.agent.toUpperCase()}:s SVAR:
-${ext.response.substring(0, 1500)}
+${cleanedResponse.substring(0, 1500)}
 
 Analysera detta svar objektivt.`;
 
@@ -86,11 +144,13 @@ Analysera detta svar objektivt.`;
       });
       
       if (result.response) {
+        // Sanitize the analysis result too
+        const cleanedAnalysis = sanitizeResponse(result.response);
         analyses.push({
           agent: ext.agent,
           model: ext.model,
-          originalResponse: ext.response.substring(0, 500),
-          analysis: result.response,
+          originalResponse: cleanedResponse.substring(0, 500),
+          analysis: cleanedAnalysis,
           success: true,
         });
         console.log(`   ✅ ${ext.agent} analysis complete`);
@@ -98,7 +158,7 @@ Analysera detta svar objektivt.`;
         analyses.push({
           agent: ext.agent,
           model: ext.model,
-          originalResponse: ext.response.substring(0, 500),
+          originalResponse: cleanedResponse.substring(0, 500),
           analysis: 'Kunde inte analysera detta svar.',
           success: false,
           error: result.error,
@@ -109,7 +169,7 @@ Analysera detta svar objektivt.`;
       analyses.push({
         agent: ext.agent,
         model: ext.model,
-        originalResponse: ext.response.substring(0, 500),
+        originalResponse: sanitizeResponse(ext.response).substring(0, 500),
         analysis: 'Fel vid analys.',
         success: false,
         error: error.message,
@@ -121,25 +181,56 @@ Analysera detta svar objektivt.`;
   // Step 2: Final synthesis of all analyses
   console.log('\n   🔄 Generating final synthesis...');
   
-  const synthesisPrompt = `Du är Zero – sanningens väktare. Du har analyserat svar från flera AI:er.
+  // Build compact analyses summary - limit each to 300 chars to stay under 10000 total
+  const maxAnalysisLength = 300;
+  const analysisTexts = analyses
+    .filter(a => a.success && a.analysis)
+    .map(a => {
+      const cleanAnalysis = sanitizeResponse(a.analysis).substring(0, maxAnalysisLength);
+      return `${a.agent.toUpperCase()}: ${cleanAnalysis}`;
+    });
+  
+  // Calculate available space: 10000 - prompt template (~500) - question (~200) - buffer (500)
+  const maxTotalAnalysis = 8000;
+  let analysisSection = analysisTexts.join('\n\n');
+  if (analysisSection.length > maxTotalAnalysis) {
+    // Truncate proportionally
+    const perAnalysis = Math.floor(maxTotalAnalysis / analysisTexts.length) - 50;
+    analysisSection = analyses
+      .filter(a => a.success && a.analysis)
+      .map(a => {
+        const cleanAnalysis = sanitizeResponse(a.analysis).substring(0, perAnalysis);
+        return `${a.agent.toUpperCase()}: ${cleanAnalysis}`;
+      })
+      .join('\n\n');
+  }
+  
+  const synthesisPrompt = `FRÅGA: ${question.substring(0, 200)}
 
-FRÅGA: ${question}
+SAMMANFATTNING AV AI-SVAR:
+${analysisSection}
 
-DINA ANALYSER:
-${analyses.map(a => `
-${a.agent.toUpperCase()}:
-${a.analysis}
-`).join('\n---\n')}
+GE EN OBJEKTIV SYNTES:
+• Konsensus: Vad var alla eniga om?
+• Motsägelser: Var skiljde sig svaren?
+• Min slutsats: Din objektiva bedömning.
 
-GÖR NU EN SLUTGILTIG SYNTES:
-1. Sammanfatta vad alla AI:er var eniga om
-2. Identifiera motsägelser
-3. Ge din objektiva slutsats
+Svara kortfattat på svenska.`;
 
-Svara på svenska. Format:
-• Konsensus: ...
-• Motsägelser: ...
-• Min slutsats: ...`;
+  // Check total size
+  const totalSize = synthesisPrompt.length;
+  console.log(`   📏 Synthesis prompt size: ${totalSize} chars`);
+  
+  if (totalSize > 9500) {
+    console.log('   ⚠️  Prompt too long, using fallback response');
+    const fallbackResponse = buildFallbackResponse(question, analyses);
+    return {
+      response: sanitizeResponse(fallbackResponse),
+      analyses,
+      model: 'fallback',
+      mode: 'chunked-fallback',
+    };
+  }
 
   const synthesisSystemPrompt = getCompareSystemPrompt();
   
@@ -154,7 +245,7 @@ Svara på svenska. Format:
     if (synthesisResult.response) {
       console.log('   ✅ Synthesis complete');
       return {
-        response: synthesisResult.response,
+        response: sanitizeResponse(synthesisResult.response),
         analyses,
         model: synthesisResult.model,
         mode: 'chunked',
@@ -164,7 +255,7 @@ Svara på svenska. Format:
       console.log('   ⚠️  Synthesis failed, building fallback response');
       const fallbackResponse = buildFallbackResponse(question, analyses);
       return {
-        response: fallbackResponse,
+        response: sanitizeResponse(fallbackResponse),
         analyses,
         model: 'fallback',
         mode: 'chunked-fallback',
@@ -174,7 +265,7 @@ Svara på svenska. Format:
     console.error('   ❌ Synthesis error:', error.message);
     const fallbackResponse = buildFallbackResponse(question, analyses);
     return {
-      response: fallbackResponse,
+      response: sanitizeResponse(fallbackResponse),
       analyses,
       model: 'fallback',
       mode: 'chunked-fallback',
@@ -192,10 +283,12 @@ function buildFallbackResponse(question, analyses) {
     return `Kunde inte analysera svaren på frågan: "${question}". Vänligen försök igen.`;
   }
   
-  let response = `**Analys av AI-svar på:** "${question}"\n\n`;
+  let response = `**Sammanfattning av AI-svar på:** "${question}"\n\n`;
   
   for (const analysis of successfulAnalyses) {
-    response += `**${analysis.agent.toUpperCase()}:**\n${analysis.analysis}\n\n`;
+    // Sanitize each analysis before including in fallback
+    const cleanAnalysis = sanitizeResponse(analysis.analysis);
+    response += `**${analysis.agent.toUpperCase()}:**\n${cleanAnalysis}\n\n`;
   }
   
   response += `---\n*${successfulAnalyses.length} av ${analyses.length} svar analyserade.*`;
