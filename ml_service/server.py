@@ -4407,7 +4407,7 @@ def get_api_catalog_for_personality(personality_id: str) -> Dict[str, Any]:
     
     # Load full API catalog
     try:
-        with open(API_CATALOG_PATH, 'r', encoding='utf-8') as f:
+        with open(API_CATALOG_FILE, 'r', encoding='utf-8') as f:
             api_catalog = json.load(f)
     except Exception as e:
         logger.error(f"Failed to load API catalog: {e}")
@@ -4482,7 +4482,7 @@ def format_api_map_for_prompt() -> str:
         Human-readable API catalog string
     """
     try:
-        with open(API_CATALOG_PATH, 'r', encoding='utf-8') as f:
+        with open(API_CATALOG_FILE, 'r', encoding='utf-8') as f:
             api_catalog = json.load(f)
     except Exception as e:
         logger.error(f"Failed to load API catalog: {e}")
