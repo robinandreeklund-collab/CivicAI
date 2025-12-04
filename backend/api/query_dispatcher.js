@@ -110,15 +110,19 @@ async function performChunkedAnalysis(question, externalResponses, options = {})
   
   console.log('\n🔬 CHUNKED ANALYSIS MODE - Analyzing responses one by one...');
   
-  // System prompt for individual analysis
-  const individualAnalysisPrompt = `Du är Zero, en objektiv AI-analytiker.
-Analysera följande AI-svar kort och koncist. Identifiera:
-- Huvudpoäng (max 2-3 punkter)
-- Eventuell bias eller vinkling
-- Fakta vs åsikter
-- Potentiella hallucinationer eller osäkerheter
+  // System prompt for individual analysis - focused on extracting key info from ONE AI
+  const individualAnalysisPrompt = `Du är Zero, en objektiv AI-granskare.
 
-Svara på svenska. Var kortfattad (max 100 ord).`;
+Din uppgift är att granska ETT AI-svar i taget. För detta specifika svar:
+
+1. SAMMANFATTA huvudpoängen (2-3 meningar)
+2. IDENTIFIERA eventuell:
+   - Bias (politisk, kommersiell, kulturell)
+   - Osäkerhet eller vaga påståenden
+   - Fakta vs åsikter
+3. BEDÖM trovärdigheten (hög/medium/låg)
+
+Svara på svenska. Max 80 ord. Var konkret och saklig.`;
 
   // Step 1: Analyze each response individually
   for (let i = 0; i < externalResponses.length; i++) {
@@ -128,12 +132,12 @@ Svara på svenska. Var kortfattad (max 100 ord).`;
     // Sanitize the external response before analysis
     const cleanedResponse = sanitizeResponse(ext.response);
     
-    const analysisPrompt = `FRÅGA: ${question}
+    const analysisPrompt = `FRÅGA SOM STÄLLDES: "${question}"
 
 ${ext.agent.toUpperCase()}:s SVAR:
 ${cleanedResponse.substring(0, 1500)}
 
-Analysera detta svar objektivt.`;
+Granska detta svar.`;
 
     try {
       const result = await getOpenSeekResponse(analysisPrompt, {
@@ -205,17 +209,31 @@ Analysera detta svar objektivt.`;
       .join('\n\n');
   }
   
-  const synthesisPrompt = `FRÅGA: ${question.substring(0, 200)}
+  // Synthesis prompt - combining individual analyses into final verdict
+  const synthesisPrompt = `URSPRUNGLIG FRÅGA: "${question.substring(0, 200)}"
 
-SAMMANFATTNING AV AI-SVAR:
+MINA ANALYSER AV VARJE AI:
 ${analysisSection}
 
-GE EN OBJEKTIV SYNTES:
-• Konsensus: Vad var alla eniga om?
-• Motsägelser: Var skiljde sig svaren?
-• Min slutsats: Din objektiva bedömning.
+Baserat på mina granskningar ovan, ge nu en SLUTGILTIG BEDÖMNING:
 
-Svara kortfattat på svenska.`;
+**Konsensus:** Vad sa alla AI:er ungefär samma sak om?
+**Skillnader:** Var skiljde sig svaren åt?
+**Trovärdighet:** Vilken AI verkade mest pålitlig och varför?
+**Min slutsats:** Vad är det objektiva svaret på frågan?
+
+Svara strukturerat på svenska.`;
+
+  // Synthesis system prompt - different from regular compare since we're working with our own analyses
+  const synthesisSystemPrompt = `Du är Zero – en objektiv sammanställare.
+
+Du har redan granskat varje AI:s svar individuellt. Nu ska du:
+1. Kombinera dina egna analyser till en slutsats
+2. Identifiera mönster och motsägelser
+3. Ge ett objektivt, balanserat svar
+
+Du är inte partisk mot någon AI. Du söker sanningen.
+Svara alltid på svenska.`;
 
   // Check total size
   const totalSize = synthesisPrompt.length;
@@ -231,8 +249,6 @@ Svara kortfattat på svenska.`;
       mode: 'chunked-fallback',
     };
   }
-
-  const synthesisSystemPrompt = getCompareSystemPrompt();
   
   try {
     const synthesisResult = await getOpenSeekResponse(synthesisPrompt, {
