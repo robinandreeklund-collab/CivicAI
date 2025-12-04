@@ -491,7 +491,7 @@ export default function SystemPromptManagement() {
         setSuccess(`Activated: ${prompt.name}`);
         fetchPrompts();
         
-        // ONESEEK Δ+ v6.4: Also set the active personality based on prompt name
+        // ONESEEK Δ+ v6.5 (PR#101): Also set the active personality based on prompt name
         // Extract personality ID from prompt name (e.g., "OneSeek-7B-Zero (Bibliotekarien)" -> "bibliotekarie")
         const nameMatch = prompt.name.match(/\(([^)]+)\)/);
         if (nameMatch) {
@@ -500,12 +500,15 @@ export default function SystemPromptManagement() {
             await fetch('/api/personality/active/set', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ personality_id: personalityName })
+              body: JSON.stringify({ personality_id: personalityName, source: 'admin' })
             });
           } catch (e) {
             console.log('Could not set personality:', e);
           }
         }
+        
+        // PR#101: Refresh unified state to update UI immediately
+        fetchUnifiedPersonalityState();
       } else {
         throw new Error('Failed to activate prompt');
       }
@@ -747,59 +750,66 @@ export default function SystemPromptManagement() {
         </div>
       </div>
 
-      {/* Character Cards Section */}
+      {/* Character Cards Section - Uses unified personality state for active status */}
       {availableCharacters.length > 0 && (
         <div className="border border-[#2a2a2a] bg-[#111] p-4 rounded">
           <h3 className="text-[#eee] font-mono text-base mb-3">
             🎭 Character Cards ({availableCharacters.length})
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {availableCharacters.map((char) => (
-              <div
-                key={char.id}
-                className={`p-3 rounded border transition-colors ${
-                  char.is_active 
-                    ? 'border-green-500/50 bg-green-500/5' 
-                    : char.is_synced 
-                      ? 'border-[#2a2a2a] bg-[#0a0a0a]' 
-                      : 'border-yellow-500/30 bg-yellow-500/5'
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xl">{char.icon || '🤖'}</span>
-                  <span className="text-[#eee] font-mono text-sm font-medium">{char.name}</span>
+            {availableCharacters.map((char) => {
+              // PR#101: Use unified state to determine if this character is active
+              const charPersonalityId = `oneseek-${char.personality_type?.toLowerCase() || char.id?.toLowerCase() || 'medveten'}`;
+              const isActiveFromUnifiedState = currentActivePersonality?.id === charPersonalityId || 
+                currentActivePersonality?.id?.includes(char.personality_type?.toLowerCase() || '');
+              
+              return (
+                <div
+                  key={char.id}
+                  className={`p-3 rounded border transition-colors ${
+                    isActiveFromUnifiedState 
+                      ? 'border-green-500/50 bg-green-500/5' 
+                      : char.is_synced 
+                        ? 'border-[#2a2a2a] bg-[#0a0a0a]' 
+                        : 'border-yellow-500/30 bg-yellow-500/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xl">{char.icon || '🤖'}</span>
+                    <span className="text-[#eee] font-mono text-sm font-medium">{char.name}</span>
+                  </div>
+                  <p className="text-[#666] font-mono text-xs mb-2 line-clamp-2">{char.description || 'No description available'}</p>
+                  <div className="flex items-center gap-2">
+                    {isActiveFromUnifiedState && (
+                      <span className="px-2 py-0.5 text-[10px] bg-green-500/20 text-green-400 rounded font-mono">
+                        ACTIVE
+                      </span>
+                    )}
+                    {char.is_synced && !isActiveFromUnifiedState && (
+                      <span className="px-2 py-0.5 text-[10px] bg-[#1a1a1a] text-[#666] rounded font-mono">
+                        SYNCED
+                      </span>
+                    )}
+                    {!char.is_synced && (
+                      <span className="px-2 py-0.5 text-[10px] bg-yellow-500/20 text-yellow-400 rounded font-mono">
+                        NOT SYNCED
+                      </span>
+                    )}
+                    <span className="px-2 py-0.5 text-[10px] bg-[#1a1a1a] text-[#555] rounded font-mono">
+                      {char.personality_type}
+                    </span>
+                  </div>
+                  {char.is_synced && !isActiveFromUnifiedState && (
+                    <button
+                      onClick={() => handleActivate({ id: char.synced_prompt_id, name: char.name })}
+                      className="mt-2 w-full px-2 py-1 text-xs border border-green-500/30 text-green-400 font-mono hover:bg-green-500/10 transition-colors rounded"
+                    >
+                      Aktivera
+                    </button>
+                  )}
                 </div>
-                <p className="text-[#666] font-mono text-xs mb-2 line-clamp-2">{char.description || 'No description available'}</p>
-                <div className="flex items-center gap-2">
-                  {char.is_active && (
-                    <span className="px-2 py-0.5 text-[10px] bg-green-500/20 text-green-400 rounded font-mono">
-                      ACTIVE
-                    </span>
-                  )}
-                  {char.is_synced && !char.is_active && (
-                    <span className="px-2 py-0.5 text-[10px] bg-[#1a1a1a] text-[#666] rounded font-mono">
-                      SYNCED
-                    </span>
-                  )}
-                  {!char.is_synced && (
-                    <span className="px-2 py-0.5 text-[10px] bg-yellow-500/20 text-yellow-400 rounded font-mono">
-                      NOT SYNCED
-                    </span>
-                  )}
-                  <span className="px-2 py-0.5 text-[10px] bg-[#1a1a1a] text-[#555] rounded font-mono">
-                    {char.personality_type}
-                  </span>
-                </div>
-                {char.is_synced && !char.is_active && (
-                  <button
-                    onClick={() => handleActivate({ id: char.synced_prompt_id, name: char.name })}
-                    className="mt-2 w-full px-2 py-1 text-xs border border-green-500/30 text-green-400 font-mono hover:bg-green-500/10 transition-colors rounded"
-                  >
-                    Aktivera
-                  </button>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
