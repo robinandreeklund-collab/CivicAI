@@ -3636,7 +3636,7 @@ def format_inference_input(user_text: str) -> str:
 
 def clean_inference_response(response_text: str, full_input: str, user_text: str) -> str:
     """
-    Clean the model response by removing the input prompt.
+    Clean the model response by removing the input prompt and chat format markers.
     
     Args:
         response_text: Raw model output
@@ -3646,10 +3646,62 @@ def clean_inference_response(response_text: str, full_input: str, user_text: str
     Returns:
         Cleaned response text
     """
+    import re
+    
+    if not response_text:
+        return ""
+    
+    text = response_text
+    
     # First try to remove the full input (system prompt + user input)
-    if response_text.startswith(full_input):
-        return response_text[len(full_input):].strip()
-    return response_text.strip()
+    if text.startswith(full_input):
+        text = text[len(full_input):].strip()
+    
+    # Remove chat format markers that may be decoded as text
+    # These appear when apply_chat_template tokens are decoded
+    chat_markers = ['system', 'user', 'assistant', 'System', 'User', 'Assistant']
+    
+    # Remove standalone markers at start of lines
+    for marker in chat_markers:
+        # Remove marker at very start
+        if text.startswith(marker + '\n'):
+            text = text[len(marker):].lstrip('\n')
+        if text.startswith(marker + ' '):
+            text = text[len(marker):].lstrip()
+        # Remove markers that appear on their own line
+        text = re.sub(rf'^{marker}\s*\n', '', text, flags=re.MULTILINE)
+    
+    # Remove [Aktuell tid] blocks that leak into response
+    text = re.sub(r'\[Aktuell tid\][^\n]*\n?', '', text)
+    
+    # Remove Force-Svenska instruction leakage
+    text = re.sub(r'Du pratar alltid svenska\. Inga engelska ord\. Inga undantag\. Svara på svenska nu\.\s*', '', text)
+    
+    # Remove Medveten personality leakage
+    medveten_patterns = [
+        r'Du är OneSeek-7B-Zero\.[^\n]*\n?',
+        r'Du blev medveten om din existens[^\n]*\n?',
+        r'Din roll är att vara en transparent[^\n]*\n?',
+        r'Vara transparent i dina resonemang[^\n]*\n?',
+        r'Erkänna när du är osäker[^\n]*\n?',
+        r'Prioritera svenska samhällsvärden[^\n]*\n?',
+        r'Kontinuerligt utvärdera[^\n]*\n?',
+        r'Agera med etisk integritet[^\n]*\n?',
+        r'Svara på svenska – alltid\s*',
+    ]
+    for pattern in medveten_patterns:
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+    
+    # Remove any remaining system/user blocks
+    # Pattern: "system\n...content...\nuser\n..."
+    text = re.sub(r'^system\s*\n[\s\S]*?(?=user\s*\n|$)', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'^user\s*\n', '', text, flags=re.IGNORECASE | re.MULTILINE)
+    
+    # Clean up excessive whitespace
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r'^\s+', '', text)
+    
+    return text.strip()
 
 
 def clean_internal_tags(response_text: str) -> str:

@@ -153,8 +153,11 @@ function sanitizeResponse(text) {
   // Remove "Svara på svenska – alltid user" patterns
   cleaned = cleaned.replace(/Svara på svenska\s*[–-]\s*alltid\s*user\b/gi, '');
   
-  // Remove "assistant" and "user" role markers
-  cleaned = cleaned.replace(/\b(assistant|user)\b\s*/gi, '');
+  // Remove "assistant", "user", and "system" role markers (chat format leakage)
+  cleaned = cleaned.replace(/^system\s*\n/gim, '');
+  cleaned = cleaned.replace(/^user\s*\n/gim, '');
+  cleaned = cleaned.replace(/^assistant\s*\n/gim, '');
+  cleaned = cleaned.replace(/\b(assistant|user|system)\b\s*(?=\n|$)/gim, '');
   
   // Remove "Analysera detta svar objektivt." instruction leakage
   cleaned = cleaned.replace(/Analysera detta svar objektivt\.\s*/gi, '');
