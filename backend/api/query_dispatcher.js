@@ -393,7 +393,7 @@ async function performChunkedAnalysis(question, externalResponses, options = {})
     const synthesisResult = await getOpenSeekResponse(synthesisPrompt, {
       profileId,
       systemPrompt: 'Du är Zero, en objektiv sammanställare. Följ instruktionerna exakt.',
-      max_tokens: 512,
+      max_tokens: 1024, // Increased for complete synthesis with "Min slutsats"
       timeout: 90000, // 1.5 minutes for synthesis
     });
     
@@ -623,6 +623,7 @@ async function handleZeroCompareFlow(req, res) {
       openSeekResult = await getOpenSeekResponse(promptResult.userPrompt, {
         profileId,
         systemPrompt: promptResult.systemPrompt,
+        max_tokens: 2048, // Higher limit for complete compare analysis with "Min slutsats"
       });
       
       if (openSeekResult.error && !openSeekResult.response) {
