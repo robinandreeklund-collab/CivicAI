@@ -50,22 +50,89 @@ function sanitizeResponse(text) {
   
   let cleaned = text;
   
-  // ============ REMOVE SOURCE BLOCKS ============
-  // Remove "Källor**" or "**Källor**" sections with links
-  cleaned = cleaned.replace(/\*?\*?Källor\*?\*?\s*\n[^]*?(?=\n\n[A-ZÅÄÖ]|\nFRÅGA|\n\*\*[A-Z]|$)/gi, '');
+  // ============ REMOVE SOURCE/KÄLLA BLOCKS ============
+  // Remove entire "Källor" sections (various markdown formats)
+  // Pattern: "**Källor**" or "Källor**" or "Källor" followed by newlines and source names
+  cleaned = cleaned.replace(/\*?\*?Källor\*?\*?\s*\n[^]*?(?=\n\n[A-ZÅÄÖ]|\nFRÅGA|\nGEMINI|\nDEEPSEEK|\nGPT|\nGROK|\nCLAUDE|\n\*\*[A-Z]|$)/gi, '');
+  cleaned = cleaned.replace(/\*?\*?Källor\*?\*?[\s\n]*(?:SCB|SMHI|Naturvårdsverket|Socialstyrelsen|Folkhälsomyndigheten|Riksbanken|Trafikverket)[^]*?(?=\n\n|FRÅGA|$)/gi, '');
   
-  // Remove specific source mentions
-  cleaned = cleaned.replace(/SCB\s*[–-]\s*Statistiska Centralbyrån\s*/gi, '');
-  cleaned = cleaned.replace(/SCB\s*[–-]\s*Hitta statistik\s*/gi, '');
-  cleaned = cleaned.replace(/SMHI\s*[–-]\s*Väderprognos[^\n]*\n?/gi, '');
-  cleaned = cleaned.replace(/Naturvårdsverket\s*[–-]?\s*[^\n]*\n?/gi, '');
+  // Remove standalone "**\n\nKällor**" or similar patterns
+  cleaned = cleaned.replace(/\*\*\s*\n+\s*Källor?\*?\*?/gi, '');
+  
+  // ============ REMOVE ALL SWEDISH GOVERNMENT SOURCE MENTIONS ============
+  // SCB variants
+  cleaned = cleaned.replace(/SCB\s*[–\-—]\s*[^\n]*\n?/gi, '');
+  cleaned = cleaned.replace(/SCB\s*\n/gi, '');
+  cleaned = cleaned.replace(/Statistiska Centralbyrån[^\n]*\n?/gi, '');
+  
+  // SMHI variants
+  cleaned = cleaned.replace(/SMHI\s*[–\-—]\s*[^\n]*\n?/gi, '');
+  cleaned = cleaned.replace(/SMHI\s*\n/gi, '');
+  
+  // Naturvårdsverket variants
+  cleaned = cleaned.replace(/Naturvårdsverket\s*[–\-—]?\s*[^\n]*\n?/gi, '');
   cleaned = cleaned.replace(/Naturvårdsverket\s*\n/gi, '');
   
-  // Remove data update messages
+  // Socialstyrelsen variants
+  cleaned = cleaned.replace(/Socialstyrelsen\s*[–\-—]?\s*[^\n]*\n?/gi, '');
+  cleaned = cleaned.replace(/Socialstyrelsen\s*\n/gi, '');
+  
+  // Folkhälsomyndigheten
+  cleaned = cleaned.replace(/Folkhälsomyndigheten\s*[–\-—]?\s*[^\n]*\n?/gi, '');
+  
+  // Riksbanken
+  cleaned = cleaned.replace(/Riksbanken\s*[–\-—]?\s*[^\n]*\n?/gi, '');
+  
+  // Trafikverket
+  cleaned = cleaned.replace(/Trafikverket\s*[–\-—]?\s*[^\n]*\n?/gi, '');
+  
+  // Transportstyrelsen
+  cleaned = cleaned.replace(/Transportstyrelsen\s*[–\-—]?\s*[^\n]*\n?/gi, '');
+  
+  // Boverket
+  cleaned = cleaned.replace(/Boverket\s*[–\-—]?\s*[^\n]*\n?/gi, '');
+  
+  // Konsumentverket
+  cleaned = cleaned.replace(/Konsumentverket\s*[–\-—]?\s*[^\n]*\n?/gi, '');
+  
+  // Arbetsförmedlingen
+  cleaned = cleaned.replace(/Arbetsförmedlingen\s*[–\-—]?\s*[^\n]*\n?/gi, '');
+  
+  // Försäkringskassan
+  cleaned = cleaned.replace(/Försäkringskassan\s*[–\-—]?\s*[^\n]*\n?/gi, '');
+  
+  // Skatteverket
+  cleaned = cleaned.replace(/Skatteverket\s*[–\-—]?\s*[^\n]*\n?/gi, '');
+  
+  // Polisen
+  cleaned = cleaned.replace(/Polisen\s*[–\-—]\s*[^\n]*\n?/gi, '');
+  
+  // Lantmäteriet
+  cleaned = cleaned.replace(/Lantmäteriet\s*[–\-—]?\s*[^\n]*\n?/gi, '');
+  
+  // ============ REMOVE DATA UPDATE/ERROR MESSAGES ============
   cleaned = cleaned.replace(/Väderdata uppdateras var \d+:?\w* minut[^\n]*\n?/gi, '');
   cleaned = cleaned.replace(/Kunde inte hämta elmarknadsdata\. Försök igen senare\.\s*/gi, '');
   cleaned = cleaned.replace(/Kunde inte hämta v[åa]rddata\. Försök igen senare\.\s*/gi, '');
   cleaned = cleaned.replace(/Kunde inte hämta [^\n]*\. Försök igen senare\.\s*/gi, '');
+  cleaned = cleaned.replace(/Data uppdateras var[^\n]*\n?/gi, '');
+  cleaned = cleaned.replace(/Försök igen senare\.\s*/gi, '');
+  
+  // ============ REMOVE GENERIC URL/LINK PATTERNS ============
+  // Remove lines that look like "- SourceName" or just source listings
+  cleaned = cleaned.replace(/^[\-•]\s*(SCB|SMHI|Naturvårdsverket|Socialstyrelsen|Folkhälsomyndigheten|Riksbanken|Trafikverket)[^\n]*\n?/gim, '');
+  
+  // Remove HTTP/HTTPS URLs
+  cleaned = cleaned.replace(/https?:\/\/[^\s\n]+/gi, '');
+  
+  // Remove .se domain references
+  cleaned = cleaned.replace(/\b\w+\.se\/?[^\s\n]*/gi, '');
+  
+  // Remove "Källa:" or "Källor:" standalone lines
+  cleaned = cleaned.replace(/^Käll(a|or):\s*$/gim, '');
+  
+  // Remove "Läs mer:" sections
+  cleaned = cleaned.replace(/Läs mer:[^\n]*\n?/gi, '');
   
   // ============ REMOVE SYSTEM PROMPT LEAKAGE ============
   // Pattern: "system Du pratar alltid..." or "system\n Du pratar..."
