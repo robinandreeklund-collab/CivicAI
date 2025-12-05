@@ -11229,6 +11229,7 @@ async def generate_sse_tokens(
         attention_mask = inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask
         
         full_response = ""
+        previous_decoded = ""  # Track previously decoded text to compute delta
         max_new_tokens = min(max_length, 1024)  # Limit for streaming
         
         logger.info(f"🌊 [STREAM] Starting token generation for: {text[:50]}...")
@@ -11255,12 +11256,18 @@ async def generate_sse_tokens(
                     logger.info(f"🌊 [STREAM] EOS token reached after {tokens_sent} tokens")
                     break
                 
-                # Decode the new token
-                new_token_text = tokenizer.decode(new_token_id, skip_special_tokens=True)
+                # Decode all generated tokens (from input_length onwards) to preserve spaces
+                # This is the key fix: decode the full sequence, not individual tokens
+                generated_tokens_only = outputs[0, input_length:]
+                current_decoded = tokenizer.decode(generated_tokens_only, skip_special_tokens=True)
                 
-                # Skip empty tokens
+                # Compute the delta (new text since last decode)
+                new_token_text = current_decoded[len(previous_decoded):]
+                
+                # Skip if no new text (empty delta)
                 if new_token_text:
-                    full_response += new_token_text
+                    full_response = current_decoded
+                    previous_decoded = current_decoded
                     tokens_sent += 1
                     
                     # Send token as SSE event (with safe JSON serialization)
