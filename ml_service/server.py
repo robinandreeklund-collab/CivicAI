@@ -49,7 +49,7 @@ import argparse
 import json
 import uuid
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, AsyncGenerator
 import requests  # For Tavily API and SMHI weather
 
 # =============================================================================
@@ -11130,7 +11130,7 @@ async def generate_sse_tokens(
     max_length: int = 512,
     temperature: float = 0.7,
     top_p: float = 0.9
-) -> str:
+) -> AsyncGenerator[str, None]:
     """
     Async generator for Server-Sent Events token streaming.
     
@@ -11146,7 +11146,6 @@ async def generate_sse_tokens(
         - event: metadata - {"tokens": n, "latency_ms": n, "model": "...", ...}
         - event: done - {"status": "complete", "tokens": n}
         - event: error - {"error": "..."}
-    - event: error - on failure
     
     Token delay is read dynamically from _admin_settings each time,
     allowing real-time control from Admin Dashboard.
@@ -11240,12 +11239,19 @@ async def generate_sse_tokens(
                     full_response += new_token_text
                     tokens_sent += 1
                     
-                    # Send token as SSE event
-                    event_data = json.dumps({
-                        "token": new_token_text,
-                        "index": tokens_sent
-                    })
-                    yield f"event: token\ndata: {event_data}\n\n"
+                    # Send token as SSE event (with safe JSON serialization)
+                    try:
+                        event_data = json.dumps({
+                            "token": new_token_text,
+                            "index": tokens_sent
+                        }, ensure_ascii=False)
+                        yield f"event: token\ndata: {event_data}\n\n"
+                    except (TypeError, ValueError) as json_err:
+                        # Fallback: escape problematic characters
+                        safe_token = new_token_text.encode('unicode_escape').decode('ascii')
+                        event_data = json.dumps({"token": safe_token, "index": tokens_sent})
+                        yield f"event: token\ndata: {event_data}\n\n"
+                        logger.warning(f"Token serialization fallback: {json_err}")
                     
                     # Read delay from admin settings (dynamic!)
                     delay_ms = _admin_settings.get("token_delay_ms", 30)

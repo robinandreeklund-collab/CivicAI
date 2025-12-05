@@ -242,7 +242,8 @@ export default function StreamingControl() {
         </div>
       </div>
       
-      {/* Custom CSS for slider */}
+      {/* Custom CSS for slider - uses template literal which re-evaluates on each render */}
+      {/* This works because React re-renders the component when tokenDelay changes */}
       <style>{`
         input[type="range"]::-webkit-slider-thumb {
           appearance: none;
