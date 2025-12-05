@@ -329,14 +329,37 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
     # Fallback to 2-step if direct conversion fails (for older llama.cpp versions)
     print(f"[GGUF Export] Direct conversion failed, falling back to 2-step method...")
     
-    # Find llama.cpp for quantization binary
+    # Find llama.cpp for quantization binary (this may auto-download for Windows)
     llama_cpp_dir = find_llama_cpp()
-    quantize_bin = find_quantize_binary(llama_cpp_dir) if llama_cpp_dir else None
+    quantize_bin = find_quantize_binary(llama_cpp_dir)
     
-    # If no quantize binary, give instructions and fail early - don't create large F16 file
+    # If no quantize binary, offer Q8_0 as alternative or give instructions
     if not quantize_bin:
         print(f"[GGUF Export] [ERROR] llama-quantize binary not found!")
         print(f"[GGUF Export] The convert script doesn't support direct {quantization} quantization.")
+        
+        # Q8_0 IS supported by the convert script - offer as alternative
+        if quantization in ['Q5_K_M', 'Q6_K']:
+            print(f"[GGUF Export] [INFO] Falling back to Q8_0 quantization (supported by convert script)")
+            print(f"[GGUF Export] Q8_0 is ~7.5GB for 7B model (slightly larger than Q5_K_M's ~6.5GB)")
+            
+            # Try Q8_0 which IS supported
+            q8_result = run_convert_script_direct(convert_script, model_path, output_path, 'q8_0')
+            
+            if q8_result.get('success') and output_path.exists():
+                size_mb = output_path.stat().st_size / (1024 * 1024)
+                print(f"[GGUF Export] [OK] Q8_0 conversion successful: {output_path} ({size_mb:.1f} MB)")
+                
+                return {
+                    'success': True,
+                    'output_path': str(output_path),
+                    'quantization': 'Q8_0',
+                    'requested_quantization': quantization,
+                    'size_bytes': output_path.stat().st_size,
+                    'method': '1-step Q8_0 fallback',
+                    'note': f'Used Q8_0 instead of {quantization} (llama-quantize not available). Quality is slightly better, size is ~15% larger.',
+                }
+        
         print(f"[GGUF Export] To use {quantization}, you need to install llama.cpp with the quantize binary.")
         
         return {
@@ -542,28 +565,113 @@ def run_convert_script_direct(convert_script: Path, model_path: Path, output_pat
         }
 
 
-def find_quantize_binary(llama_cpp_path: Path):
-    """Find the quantize binary in llama.cpp installation."""
-    if not llama_cpp_path:
-        return None
-        
-    possible_paths = [
-        llama_cpp_path / 'llama-quantize',
-        llama_cpp_path / 'quantize',
-        llama_cpp_path / 'build' / 'bin' / 'llama-quantize',
-        llama_cpp_path / 'build' / 'bin' / 'quantize',
-        llama_cpp_path / 'build' / 'bin' / 'Release' / 'llama-quantize.exe',
-        llama_cpp_path / 'build' / 'bin' / 'Release' / 'quantize.exe',
-        llama_cpp_path / 'build' / 'llama-quantize',
-        llama_cpp_path / 'build' / 'quantize',
-    ]
+def find_quantize_binary(llama_cpp_path: Path = None):
+    """Find the quantize binary in llama.cpp installation or download it."""
+    # First check PATH
+    quantize_in_path = shutil.which('llama-quantize') or shutil.which('quantize')
+    if quantize_in_path:
+        print(f"[GGUF Export] Found quantize binary in PATH: {quantize_in_path}")
+        return Path(quantize_in_path)
     
-    for p in possible_paths:
-        if p.exists():
-            print(f"[GGUF Export] Found quantize binary: {p}")
-            return p
+    # Check local cache
+    script_dir = Path(__file__).parent / 'llama_cpp_scripts'
+    cached_quantize = script_dir / ('llama-quantize.exe' if os.name == 'nt' else 'llama-quantize')
+    if cached_quantize.exists():
+        print(f"[GGUF Export] Found cached quantize binary: {cached_quantize}")
+        return cached_quantize
+    
+    if llama_cpp_path:
+        possible_paths = [
+            llama_cpp_path / 'llama-quantize',
+            llama_cpp_path / 'quantize',
+            llama_cpp_path / 'build' / 'bin' / 'llama-quantize',
+            llama_cpp_path / 'build' / 'bin' / 'quantize',
+            llama_cpp_path / 'build' / 'bin' / 'Release' / 'llama-quantize.exe',
+            llama_cpp_path / 'build' / 'bin' / 'Release' / 'quantize.exe',
+            llama_cpp_path / 'build' / 'llama-quantize',
+            llama_cpp_path / 'build' / 'quantize',
+        ]
+        
+        for p in possible_paths:
+            if p.exists():
+                print(f"[GGUF Export] Found quantize binary: {p}")
+                return p
+    
+    # Try to download pre-built binary for Windows
+    if os.name == 'nt':
+        downloaded = download_quantize_binary()
+        if downloaded:
+            return downloaded
     
     return None
+
+
+def download_quantize_binary():
+    """Download pre-built llama-quantize binary for Windows."""
+    try:
+        import urllib.request
+        import zipfile
+        import io
+        
+        script_dir = Path(__file__).parent / 'llama_cpp_scripts'
+        script_dir.mkdir(exist_ok=True)
+        
+        print(f"[GGUF Export] Downloading pre-built llama-quantize for Windows...")
+        
+        # Get latest release info
+        api_url = 'https://api.github.com/repos/ggerganov/llama.cpp/releases/latest'
+        
+        try:
+            with urllib.request.urlopen(api_url, timeout=30) as response:
+                release_info = json.loads(response.read().decode())
+        except Exception as e:
+            print(f"[GGUF Export] Could not fetch release info: {e}")
+            return None
+        
+        # Find Windows CUDA binary
+        cuda_asset = None
+        avx2_asset = None
+        
+        for asset in release_info.get('assets', []):
+            name = asset.get('name', '').lower()
+            if 'win' in name and name.endswith('.zip'):
+                if 'cuda' in name:
+                    cuda_asset = asset
+                elif 'avx2' in name or 'avx' in name:
+                    avx2_asset = asset
+        
+        # Prefer CUDA, fallback to AVX2
+        download_asset = cuda_asset or avx2_asset
+        
+        if not download_asset:
+            print(f"[GGUF Export] No suitable Windows binary found in release")
+            return None
+        
+        download_url = download_asset.get('browser_download_url')
+        asset_name = download_asset.get('name')
+        print(f"[GGUF Export] Downloading {asset_name}...")
+        
+        # Download and extract
+        with urllib.request.urlopen(download_url, timeout=300) as response:
+            zip_data = io.BytesIO(response.read())
+        
+        with zipfile.ZipFile(zip_data, 'r') as zip_ref:
+            for member in zip_ref.namelist():
+                if 'llama-quantize' in member.lower():
+                    # Extract the quantize binary
+                    target_path = script_dir / 'llama-quantize.exe'
+                    with zip_ref.open(member) as source:
+                        with open(target_path, 'wb') as target:
+                            target.write(source.read())
+                    print(f"[GGUF Export] Downloaded llama-quantize to: {target_path}")
+                    return target_path
+        
+        print(f"[GGUF Export] llama-quantize not found in downloaded archive")
+        return None
+        
+    except Exception as e:
+        print(f"[GGUF Export] Failed to download quantize binary: {e}")
+        return None
 
 
 def run_quantization(f16_path: Path, output_path: Path, quantization: str, quantize_bin: Path):
