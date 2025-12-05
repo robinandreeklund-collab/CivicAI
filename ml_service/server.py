@@ -3163,9 +3163,75 @@ gguf_models = {}  # Cache for GGUF models loaded via llama-cpp-python
 USING_GGUF_BACKEND = False
 ACTIVE_GGUF_PATH = None
 
+def ensure_llama_cpp_python():
+    """
+    Ensure llama-cpp-python is installed. Auto-installs if missing.
+    Returns True if available, False if installation failed.
+    """
+    try:
+        import llama_cpp
+        return True
+    except ImportError:
+        logger.info("[GGUF] llama-cpp-python not found, installing automatically...")
+        import subprocess
+        
+        # Try to install with CUDA support first (for GPU acceleration)
+        try:
+            # Check if CUDA is available
+            cuda_available = torch.cuda.is_available()
+            
+            if cuda_available:
+                logger.info("[GGUF] CUDA detected, installing llama-cpp-python with GPU support...")
+                logger.info("[GGUF] This may take a few minutes...")
+                
+                # Set environment for CUDA build
+                env = os.environ.copy()
+                env['CMAKE_ARGS'] = '-DGGML_CUDA=on'
+                
+                result = subprocess.run(
+                    [sys.executable, '-m', 'pip', 'install', 'llama-cpp-python', '--upgrade', '--no-cache-dir'],
+                    capture_output=True,
+                    text=True,
+                    timeout=600,  # 10 minute timeout for compilation
+                    env=env,
+                )
+                
+                if result.returncode == 0:
+                    logger.info("[GGUF] llama-cpp-python with CUDA installed successfully!")
+                    return True
+                else:
+                    logger.warning(f"[GGUF] CUDA build failed, trying CPU-only version...")
+                    logger.debug(f"[GGUF] Error: {result.stderr}")
+            
+            # Fall back to CPU-only version (pre-built, faster to install)
+            logger.info("[GGUF] Installing llama-cpp-python (CPU version)...")
+            result = subprocess.run(
+                [sys.executable, '-m', 'pip', 'install', 'llama-cpp-python', '--upgrade'],
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            
+            if result.returncode == 0:
+                logger.info("[GGUF] llama-cpp-python installed successfully!")
+                return True
+            else:
+                logger.error(f"[GGUF] Failed to install llama-cpp-python: {result.stderr}")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            logger.error("[GGUF] Installation timed out. Please install manually:")
+            logger.error("[GGUF]   pip install llama-cpp-python")
+            return False
+        except Exception as e:
+            logger.error(f"[GGUF] Installation error: {e}")
+            return False
+
+
 def load_gguf_model(gguf_path: str):
     """
     Load a GGUF model using llama-cpp-python for fast inference.
+    Auto-installs llama-cpp-python if not available.
     
     Args:
         gguf_path: Path to the .gguf model file
@@ -3178,6 +3244,10 @@ def load_gguf_model(gguf_path: str):
     if gguf_path in gguf_models:
         logger.info(f"[GGUF] Using cached model: {gguf_path}")
         return gguf_models[gguf_path]
+    
+    # Ensure llama-cpp-python is installed
+    if not ensure_llama_cpp_python():
+        raise ImportError("llama-cpp-python could not be installed automatically. Please install manually: pip install llama-cpp-python")
     
     try:
         from llama_cpp import Llama
@@ -3211,7 +3281,7 @@ def load_gguf_model(gguf_path: str):
         return model
         
     except ImportError:
-        logger.error("[GGUF] llama-cpp-python not installed. Install with: pip install llama-cpp-python")
+        logger.error("[GGUF] llama-cpp-python import failed after installation attempt")
         raise
     except Exception as e:
         logger.error(f"[GGUF] Failed to load model: {e}")

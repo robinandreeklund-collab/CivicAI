@@ -400,19 +400,28 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
     print(f"[GGUF Export] Q8_0 is ~7.5GB for 7B model (slightly larger than Q5_K_M's ~6.5GB)")
     print(f"[GGUF Export] Q8_0 provides excellent quality - very close to full precision.")
     
-    # Try Q8_0 which IS supported natively
-    q8_result = run_convert_script_direct(convert_script, model_path, output_path, 'q8_0')
+    # Create the Q8_0 output path with correct filename
+    # Replace the original quantization type (e.g., Q5_K_M) with Q8_0 in the filename
+    q8_output_path = Path(str(output_path).replace(f'.{quantization}.', '.Q8_0.'))
+    if q8_output_path == output_path:
+        # If the replacement didn't work (e.g., quantization not in filename), just change extension
+        q8_output_path = output_path.parent / f"{output_path.stem.rsplit('.', 1)[0]}.Q8_0.gguf"
     
-    if q8_result.get('success') and output_path.exists():
-        size_mb = output_path.stat().st_size / (1024 * 1024)
-        print(f"[GGUF Export] [OK] Q8_0 conversion successful: {output_path} ({size_mb:.1f} MB)")
+    print(f"[GGUF Export] Q8_0 output path: {q8_output_path}")
+    
+    # Try Q8_0 which IS supported natively
+    q8_result = run_convert_script_direct(convert_script, model_path, q8_output_path, 'q8_0')
+    
+    if q8_result.get('success') and q8_output_path.exists():
+        size_mb = q8_output_path.stat().st_size / (1024 * 1024)
+        print(f"[GGUF Export] [OK] Q8_0 conversion successful: {q8_output_path} ({size_mb:.1f} MB)")
         
         return {
             'success': True,
-            'output_path': str(output_path),
+            'output_path': str(q8_output_path),
             'quantization': 'Q8_0',
             'requested_quantization': quantization,
-            'size_bytes': output_path.stat().st_size,
+            'size_bytes': q8_output_path.stat().st_size,
             'method': '1-step Q8_0 fallback',
             'note': f'Used Q8_0 instead of {quantization} (external llama-quantize failed or unavailable). Q8_0 provides excellent quality with ~15% larger file size.',
         }
@@ -435,7 +444,7 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
             '  3. Check that your model files are not corrupted',
             '',
             'Manual conversion:',
-            f'  python convert_hf_to_gguf.py "{model_path}" --outtype q8_0 --outfile "{output_path}"',
+            f'  python convert_hf_to_gguf.py "{model_path}" --outtype q8_0 --outfile "{q8_output_path}"',
         ],
     }
 
