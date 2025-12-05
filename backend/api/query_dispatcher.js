@@ -374,8 +374,6 @@ async function performChunkedAnalysis(question, externalResponses, options = {})
   // Check total size
   const totalSize = synthesisPrompt.length;
   console.log(`   📏 Synthesis prompt size: ${totalSize} chars`);
-  const totalSize = synthesisPrompt.length;
-  console.log(`   📏 Synthesis prompt size: ${totalSize} chars`);
   
   if (totalSize > 9500) {
     console.log('   ⚠️  Prompt too long, using fallback response');
