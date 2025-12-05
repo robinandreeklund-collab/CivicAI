@@ -429,7 +429,7 @@ async function handleZeroCompareFlow(req, res) {
   console.log(`║          🔬 ZERO COMPARE FLOW - ${analysisMode.padEnd(8)} MODE              ║`);
   console.log('╚══════════════════════════════════════════════════════════════╝');
   console.log(`📝 Question: ${question.substring(0, 60)}${question.length > 60 ? '...' : ''}`);
-  console.log(`👤 Profile: ${profileId}, Character: ${characterCard}`);
+  console.log(`👤 Profile: ${profileId} (compare mode - pure Zero)`);
   console.log(`📊 Analysis Mode: ${analysisMode}${chunked ? ' (one-by-one)' : ' (all at once)'}`);
   if (customSystemPrompt) {
     console.log(`📝 Custom System Prompt: ${customSystemPrompt.substring(0, 50)}...`);

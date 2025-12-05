@@ -9510,18 +9510,35 @@ Svara NU.
     print(f"📂 Loaded personality_catalog.json")
     print(f"   → Personalities: {list(personality_catalog.get('personality_catalog', {}).keys())}")
     
-    # ALWAYS use medveten - SHE chooses the right personality herself
-    selected_personality_id = "oneseek-medveten"
-    selected_personality_info = get_personality_info(selected_personality_id)
-    print(f"🎭 Base personality: {selected_personality_id} (model will choose from catalog)")
+    # === COMPARE MODE: Use custom system_prompt if provided ===
+    # When a custom system_prompt is provided (e.g., from compare mode),
+    # use it INSTEAD of the default medveten prompt to avoid mixing prompts
+    custom_system_prompt = getattr(request, 'system_prompt', None)
     
-    # Load medveten as the base system prompt (contains {PLACEHOLDER_PERSONALITY_CATALOG})
-    base_system_prompt = get_personality_system_prompt("oneseek-medveten")
-    if not base_system_prompt:
-        base_system_prompt = get_active_system_prompt()
-        print(f"⚠️ Could not load medveten prompt, using default")
+    if custom_system_prompt:
+        # COMPARE MODE: Use ONLY the custom prompt, no personality catalog
+        print(f"🔬 [COMPARE MODE] Using custom system_prompt ({len(custom_system_prompt)} chars)")
+        print(f"   🚫 Skipping medveten personality and personality catalog")
+        base_system_prompt = custom_system_prompt
+        selected_personality_id = "zero-compare"
+        selected_personality_info = {
+            "id": "zero-compare",
+            "name": "Zero Compare Mode",
+            "description": "Objective AI comparison mode"
+        }
     else:
-        print(f"✅ Loaded medveten base prompt ({len(base_system_prompt)} chars)")
+        # NORMAL MODE: Use medveten - SHE chooses the right personality herself
+        selected_personality_id = "oneseek-medveten"
+        selected_personality_info = get_personality_info(selected_personality_id)
+        print(f"🎭 Base personality: {selected_personality_id} (model will choose from catalog)")
+        
+        # Load medveten as the base system prompt (contains {PLACEHOLDER_PERSONALITY_CATALOG})
+        base_system_prompt = get_personality_system_prompt("oneseek-medveten")
+        if not base_system_prompt:
+            base_system_prompt = get_active_system_prompt()
+            print(f"⚠️ Could not load medveten prompt, using default")
+        else:
+            print(f"✅ Loaded medveten base prompt ({len(base_system_prompt)} chars)")
     
     # === 1. ALWAYS: Inject time, date & season context ===
     time_context = inject_time_context()
@@ -9691,48 +9708,55 @@ Svara NU.
     print(f"   Längd: {len(request.text)} tecken")
     print("-" * 70)
     
-    # Format the personality catalog in human-readable format
-    formatted_catalog = format_personality_catalog_for_prompt()
-    print(f"\n📋 STEG 2: LADDAR PERSONLIGHETSKATALOG")
-    print(f"   Fil: config/personality_catalog.json")
-    print(f"   Formaterad katalog ({len(formatted_catalog)} tecken):")
-    print("-" * 40)
-    print(formatted_catalog)
-    print("-" * 40)
-    
-    # Format the API map for the model
-    formatted_api_map = format_api_map_for_prompt()
-    print(f"\n📋 STEG 2b: LADDAR API-KARTA")
-    print(f"   Fil: config/api_catalog.json")
-    print(f"   Formaterad API-karta ({len(formatted_api_map)} tecken):")
-    print("-" * 40)
-    print(formatted_api_map[:500] + "..." if len(formatted_api_map) > 500 else formatted_api_map)
-    print("-" * 40)
-    
-    # Replace PERSONALITY_CATALOG_PLACEHOLDER in base_system_prompt
-    if "{PERSONALITY_CATALOG_PLACEHOLDER}" in base_system_prompt:
-        final_system_prompt = base_system_prompt.replace("{PERSONALITY_CATALOG_PLACEHOLDER}", formatted_catalog)
-        print(f"\n✅ PERSONALITY_CATALOG_PLACEHOLDER ersatt!")
-        print(f"   System prompt längd: {len(final_system_prompt)} tecken")
-    elif "{PLACEHOLDER_PERSONALITY_CATALOG}" in base_system_prompt:
-        # Support old placeholder name for backwards compatibility
-        final_system_prompt = base_system_prompt.replace("{PLACEHOLDER_PERSONALITY_CATALOG}", formatted_catalog)
-        print(f"\n✅ PLACEHOLDER_PERSONALITY_CATALOG ersatt!")
-        print(f"   System prompt längd: {len(final_system_prompt)} tecken")
+    # === COMPARE MODE: Skip personality catalog and API map ===
+    # When using custom system_prompt (compare mode), don't add personality catalog
+    if custom_system_prompt:
+        print(f"\n🔬 [COMPARE MODE] Using custom system_prompt only (no personality catalog)")
+        final_system_prompt = base_system_prompt  # Already set to custom_system_prompt
+        print(f"📝 Final system prompt length: {len(final_system_prompt)} chars")
     else:
-        # Fallback: append the catalog if no placeholder
-        final_system_prompt = f"{base_system_prompt}\n\nHär är din inre karta över alla personligheter:\n\n{formatted_catalog}"
-        print(f"⚠️ No personality catalog placeholder found, appending catalog to system prompt")
-    
-    # Replace MODELL_API_MAP_PLACEHOLDER in system prompt
-    if "{MODELL_API_MAP_PLACEHOLDER}" in final_system_prompt:
-        final_system_prompt = final_system_prompt.replace("{MODELL_API_MAP_PLACEHOLDER}", formatted_api_map)
-        print(f"\n✅ MODELL_API_MAP_PLACEHOLDER ersatt!")
-        print(f"   System prompt längd: {len(final_system_prompt)} tecken")
-    else:
-        print(f"⚠️ No API map placeholder found in system prompt")
-    
-    print(f"📝 Final system prompt length: {len(final_system_prompt)} chars")
+        # Format the personality catalog in human-readable format
+        formatted_catalog = format_personality_catalog_for_prompt()
+        print(f"\n📋 STEG 2: LADDAR PERSONLIGHETSKATALOG")
+        print(f"   Fil: config/personality_catalog.json")
+        print(f"   Formaterad katalog ({len(formatted_catalog)} tecken):")
+        print("-" * 40)
+        print(formatted_catalog)
+        print("-" * 40)
+        
+        # Format the API map for the model
+        formatted_api_map = format_api_map_for_prompt()
+        print(f"\n📋 STEG 2b: LADDAR API-KARTA")
+        print(f"   Fil: config/api_catalog.json")
+        print(f"   Formaterad API-karta ({len(formatted_api_map)} tecken):")
+        print("-" * 40)
+        print(formatted_api_map[:500] + "..." if len(formatted_api_map) > 500 else formatted_api_map)
+        print("-" * 40)
+        
+        # Replace PERSONALITY_CATALOG_PLACEHOLDER in base_system_prompt
+        if "{PERSONALITY_CATALOG_PLACEHOLDER}" in base_system_prompt:
+            final_system_prompt = base_system_prompt.replace("{PERSONALITY_CATALOG_PLACEHOLDER}", formatted_catalog)
+            print(f"\n✅ PERSONALITY_CATALOG_PLACEHOLDER ersatt!")
+            print(f"   System prompt längd: {len(final_system_prompt)} tecken")
+        elif "{PLACEHOLDER_PERSONALITY_CATALOG}" in base_system_prompt:
+            # Support old placeholder name for backwards compatibility
+            final_system_prompt = base_system_prompt.replace("{PLACEHOLDER_PERSONALITY_CATALOG}", formatted_catalog)
+            print(f"\n✅ PLACEHOLDER_PERSONALITY_CATALOG ersatt!")
+            print(f"   System prompt längd: {len(final_system_prompt)} tecken")
+        else:
+            # Fallback: append the catalog if no placeholder
+            final_system_prompt = f"{base_system_prompt}\n\nHär är din inre karta över alla personligheter:\n\n{formatted_catalog}"
+            print(f"⚠️ No personality catalog placeholder found, appending catalog to system prompt")
+        
+        # Replace MODELL_API_MAP_PLACEHOLDER in system prompt
+        if "{MODELL_API_MAP_PLACEHOLDER}" in final_system_prompt:
+            final_system_prompt = final_system_prompt.replace("{MODELL_API_MAP_PLACEHOLDER}", formatted_api_map)
+            print(f"\n✅ MODELL_API_MAP_PLACEHOLDER ersatt!")
+            print(f"   System prompt längd: {len(final_system_prompt)} tecken")
+        else:
+            print(f"⚠️ No API map placeholder found in system prompt")
+        
+        print(f"📝 Final system prompt length: {len(final_system_prompt)} chars")
     
     # Build the full input with system prompt + user question
     full_input = f"{final_system_prompt}\n\nAnvändare: {request.text}\n\nOneSeek:"
@@ -9741,40 +9765,45 @@ Svara NU.
     # Build enhanced context prefix
     context_parts = []
     
-    # ONESEEK Δ+: Add memory system prompt if we have conversation history
-    if memory_context:
-        context_parts.append("Du är mitt i ett samtal. Kom ihåg vad ni pratade om senast. Svara naturligt och kort.")
-        context_parts.append(f"[Tidigare i samtalet]\n{memory_context}")
-    
-    # Always add time and season context
-    context_parts.append(f"[Aktuell tid] {time_context} {season_context}")
-    
-    # Add weather if available
-    if weather_context:
-        context_parts.append(f"[Väder] {weather_context}")
-        print(f"🌤️ Added weather context")
-    
-    # Add news if available
-    if news_context:
-        context_parts.append(f"[Nyheter] {news_context}")
-        print(f"📰 Added news context")
-    
-    # Add Open Data if available
-    if open_data_context:
-        context_parts.append(f"[Öppen data] {open_data_context}")
-        print(f"📊 Added open data context")
-    
-    # Add Tavily search results if available
-    if tavily_context:
-        context_parts.append(f"[Aktuell fakta] {tavily_context}")
-        if tavily_sources:
-            context_parts.append(tavily_sources)
-        print(f"🔍 Added Tavily context")
-    
-    # If Force-Svenska is active, prepend Swedish instruction
-    if force_svenska_active:
-        context_parts.insert(0, "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu.")
-        logger.info("🇸🇪 Force-Svenska aktiverat – svarar på svenska")
+    # === COMPARE MODE: Skip ALL context injection ===
+    # In compare mode, the prompt should be clean - context is already in the user prompt
+    if not custom_system_prompt:
+        # ONESEEK Δ+: Add memory system prompt if we have conversation history
+        if memory_context:
+            context_parts.append("Du är mitt i ett samtal. Kom ihåg vad ni pratade om senast. Svara naturligt och kort.")
+            context_parts.append(f"[Tidigare i samtalet]\n{memory_context}")
+        
+        # Always add time and season context
+        context_parts.append(f"[Aktuell tid] {time_context} {season_context}")
+        
+        # Add weather if available
+        if weather_context:
+            context_parts.append(f"[Väder] {weather_context}")
+            print(f"🌤️ Added weather context")
+        
+        # Add news if available
+        if news_context:
+            context_parts.append(f"[Nyheter] {news_context}")
+            print(f"📰 Added news context")
+        
+        # Add Open Data if available
+        if open_data_context:
+            context_parts.append(f"[Öppen data] {open_data_context}")
+            print(f"📊 Added open data context")
+        
+        # Add Tavily search results if available
+        if tavily_context:
+            context_parts.append(f"[Aktuell fakta] {tavily_context}")
+            if tavily_sources:
+                context_parts.append(tavily_sources)
+            print(f"🔍 Added Tavily context")
+        
+        # If Force-Svenska is active, prepend Swedish instruction
+        if force_svenska_active:
+            context_parts.insert(0, "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu.")
+            logger.info("🇸🇪 Force-Svenska aktiverat – svarar på svenska")
+    else:
+        print(f"🔬 [COMPARE MODE] Skipping ALL context injection (memory, time, weather, news, etc.)")
     
     # Combine all context
     if context_parts:
