@@ -354,7 +354,7 @@ const DEFAULT_ZERO_CHARACTER = {
   version: '7B-Zero',
   personality_type: 'compare',
   traits: ['analytisk', 'objektiv', 'syntetiserande', 'transparent', 'opartisk'],
-  system_prompt: DEFAULT_ZERO_COMPARE_SYSTEM_PROMPT,
+  system_prompt: DEFAULT_ZERO_COMPARE_PROMPT,
   greeting: 'Jag är Zero – sanningens väktare. Jag analyserar alla AI-svar objektivt.',
 };
 
