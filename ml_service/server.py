@@ -2722,7 +2722,7 @@ parser.add_argument('--load-in-4bit', action='store_true',
                     help='Load model in 4-bit quantization for memory efficiency')
 parser.add_argument('--load-in-8bit', action='store_true',
                     help='Load model in 8-bit quantization')
-parser.add_argument('--n-gpu-layers', type=int, default=40,
+parser.add_argument('--n-gpu-layers', '-ngl', type=int, default=40,
                     help='Number of layers to offload to GPU (default: 40, use 99 for all layers)')
 parser.add_argument('--gpu-memory', type=float, default=16.0,
                     help='GPU memory allocation in GB (default: 16.0)')
@@ -2732,6 +2732,21 @@ parser.add_argument('--listen', action='store_true',
                     help='Listen on all network interfaces (0.0.0.0) instead of localhost')
 parser.add_argument('--api', action='store_true',
                     help='Enable API mode (currently always enabled, for compatibility)')
+
+# GGUF-specific flags (for use with llama.cpp backend)
+parser.add_argument('--gguf', type=str, default=None,
+                    help='Path to GGUF model file to load instead of HuggingFace model')
+parser.add_argument('--context-size', '-c', type=int, default=4096,
+                    help='Context size (default: 4096, max: 32768)')
+parser.add_argument('--flash-attn', action='store_true',
+                    help='Enable Flash Attention for faster inference (requires compatible GPU)')
+parser.add_argument('--threads', '-t', type=int, default=8,
+                    help='Number of CPU threads to use (default: 8)')
+parser.add_argument('--temp', '--temperature', type=float, default=0.7,
+                    help='Temperature for sampling (default: 0.7, lower = more deterministic)')
+parser.add_argument('--use-gguf', action='store_true',
+                    help='Force using GGUF backend (llama-cpp-python) instead of HuggingFace')
+
 args, unknown = parser.parse_known_args()
 
 # Setup logging with DEBUG support
@@ -3142,6 +3157,140 @@ def sync_inputs_to_model_device(inputs, model):
 # Model cache
 models = {}
 tokenizers = {}
+gguf_models = {}  # Cache for GGUF models loaded via llama-cpp-python
+
+# Flag to track if using GGUF backend
+USING_GGUF_BACKEND = False
+ACTIVE_GGUF_PATH = None
+
+def load_gguf_model(gguf_path: str):
+    """
+    Load a GGUF model using llama-cpp-python for fast inference.
+    
+    Args:
+        gguf_path: Path to the .gguf model file
+        
+    Returns:
+        Llama model instance
+    """
+    global USING_GGUF_BACKEND, ACTIVE_GGUF_PATH
+    
+    if gguf_path in gguf_models:
+        logger.info(f"[GGUF] Using cached model: {gguf_path}")
+        return gguf_models[gguf_path]
+    
+    try:
+        from llama_cpp import Llama
+        
+        logger.info(f"[GGUF] Loading model: {gguf_path}")
+        logger.info(f"[GGUF] Parameters: n_gpu_layers={args.n_gpu_layers}, n_ctx={args.context_size}, n_threads={args.threads}")
+        
+        # Build model kwargs from command line arguments
+        model_kwargs = {
+            'model_path': gguf_path,
+            'n_gpu_layers': args.n_gpu_layers,
+            'n_ctx': args.context_size,
+            'n_threads': args.threads,
+            'verbose': DEBUG_MODE,
+        }
+        
+        # Add flash attention if supported and requested
+        if args.flash_attn:
+            model_kwargs['flash_attn'] = True
+            logger.info("[GGUF] Flash Attention enabled")
+        
+        # Load the model
+        model = Llama(**model_kwargs)
+        
+        # Cache it
+        gguf_models[gguf_path] = model
+        USING_GGUF_BACKEND = True
+        ACTIVE_GGUF_PATH = gguf_path
+        
+        logger.info(f"[GGUF] Model loaded successfully!")
+        return model
+        
+    except ImportError:
+        logger.error("[GGUF] llama-cpp-python not installed. Install with: pip install llama-cpp-python")
+        raise
+    except Exception as e:
+        logger.error(f"[GGUF] Failed to load model: {e}")
+        raise
+
+
+def generate_with_gguf(model, prompt: str, max_tokens: int = 512, temperature: float = None, top_p: float = 0.9):
+    """
+    Generate text using a GGUF model.
+    
+    Args:
+        model: Llama model instance
+        prompt: Input prompt
+        max_tokens: Maximum tokens to generate
+        temperature: Sampling temperature (uses args.temp if None)
+        top_p: Top-p sampling parameter
+        
+    Returns:
+        Generated text
+    """
+    if temperature is None:
+        temperature = args.temp
+    
+    output = model(
+        prompt,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        top_p=top_p,
+        echo=False,
+    )
+    
+    return output['choices'][0]['text']
+
+
+def stream_generate_with_gguf(model, prompt: str, max_tokens: int = 512, temperature: float = None, top_p: float = 0.9):
+    """
+    Stream generate text using a GGUF model.
+    
+    Args:
+        model: Llama model instance
+        prompt: Input prompt
+        max_tokens: Maximum tokens to generate
+        temperature: Sampling temperature (uses args.temp if None)
+        top_p: Top-p sampling parameter
+        
+    Yields:
+        Generated tokens
+    """
+    if temperature is None:
+        temperature = args.temp
+    
+    for output in model(
+        prompt,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        top_p=top_p,
+        echo=False,
+        stream=True,
+    ):
+        yield output['choices'][0]['text']
+
+
+def get_active_gguf_path():
+    """Get the path to the currently active GGUF model from config."""
+    try:
+        active_file = PROJECT_ROOT / 'models' / 'gguf' / 'active.json'
+        if active_file.exists():
+            with open(active_file, 'r') as f:
+                data = json.load(f)
+                gguf_name = data.get('activeGguf')
+                if gguf_name:
+                    gguf_path = PROJECT_ROOT / 'models' / 'gguf' / gguf_name
+                    if gguf_path.exists():
+                        return str(gguf_path)
+                    logger.warning(f"[GGUF] Active GGUF file not found: {gguf_path}")
+        return None
+    except Exception as e:
+        logger.warning(f"[GGUF] Could not read active GGUF config: {e}")
+        return None
 
 # Single-model configuration for OneSeek-7B-Zero
 # Set to False to use only the active certified model (recommended)
@@ -11438,8 +11587,33 @@ async def stream_inference_get(
 if __name__ == "__main__":
     import uvicorn
     
+    # Check for GGUF mode
+    gguf_path = args.gguf
+    if not gguf_path and args.use_gguf:
+        # Check for active GGUF from admin dashboard
+        gguf_path = get_active_gguf_path()
+        if gguf_path:
+            logger.info(f"[GGUF] Using active GGUF from admin: {gguf_path}")
+    
+    if gguf_path:
+        try:
+            logger.info(f"[GGUF] Starting with GGUF backend: {gguf_path}")
+            load_gguf_model(gguf_path)
+            logger.info("[GGUF] Model pre-loaded successfully")
+        except Exception as e:
+            logger.error(f"[GGUF] Failed to load GGUF model: {e}")
+            logger.info("[GGUF] Falling back to HuggingFace backend")
+    
     port = int(os.getenv('ML_SERVICE_PORT', '5000'))
     host = "0.0.0.0" if args.listen else "127.0.0.1"
+    
+    # Log startup configuration
+    logger.info(f"[Server] Starting on {host}:{port}")
+    logger.info(f"[Server] Flags: --n-gpu-layers={args.n_gpu_layers}, --context-size={args.context_size}, --threads={args.threads}, --temp={args.temp}")
+    if args.flash_attn:
+        logger.info("[Server] Flash Attention: ENABLED")
+    if args.use_gguf:
+        logger.info("[Server] GGUF Backend: ENABLED")
     
     uvicorn.run(
         app,
