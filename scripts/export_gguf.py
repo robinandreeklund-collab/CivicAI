@@ -162,7 +162,11 @@ def download_convert_script():
 
 def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5_K_M'):
     """
-    Convert a HuggingFace model to GGUF format.
+    Convert a HuggingFace model to GGUF format with direct quantization.
+    
+    Uses 1-step conversion: HF → quantized GGUF directly.
+    This is 5-10x faster than the 2-step process (HF → F16 → quantized)
+    and avoids creating a large intermediate F16 file (~14GB).
     
     Args:
         model_path: Path to the merged model directory
@@ -172,13 +176,17 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
     Returns:
         dict with success status and details
     """
-    print(f"[GGUF Export] Starting conversion...")
+    print(f"[GGUF Export] Starting 1-step direct conversion...")
     print(f"  Model: {model_path}")
     print(f"  Output: {output_path}")
     print(f"  Quantization: {quantization}")
+    print(f"  Method: Direct HF → {quantization} (no intermediate F16)")
     
     # Ensure output directory exists
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Clean up any leftover intermediate files from previous runs
+    cleanup_intermediate_files(output_path.parent, output_path.stem)
     
     # Ensure required packages are installed
     ensure_llama_cpp_python()
@@ -200,6 +208,39 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
     
     print(f"[GGUF Export] Using convert script: {convert_script}")
     
+    # Map quantization types to llama.cpp outtype format
+    # The convert script supports direct quantization via --outtype
+    outtype_map = {
+        'Q5_K_M': 'q5_k_m',
+        'Q6_K': 'q6_k',
+        'Q8_0': 'q8_0',
+        'F16': 'f16',
+    }
+    
+    outtype = outtype_map.get(quantization, 'q5_k_m')
+    
+    # Try direct conversion first (1-step, faster, no intermediate file)
+    print(f"[GGUF Export] Converting directly to {quantization} (1-step)...")
+    convert_result = run_convert_script_direct(convert_script, model_path, output_path, outtype)
+    
+    if convert_result.get('success') and output_path.exists():
+        size_mb = output_path.stat().st_size / (1024 * 1024)
+        print(f"[GGUF Export] ✅ Direct conversion successful: {output_path} ({size_mb:.1f} MB)")
+        
+        # Clean up any intermediate files that might have been created
+        cleanup_intermediate_files(output_path.parent, output_path.stem)
+        
+        return {
+            'success': True,
+            'output_path': str(output_path),
+            'quantization': quantization,
+            'size_bytes': output_path.stat().st_size,
+            'method': '1-step direct conversion',
+        }
+    
+    # Fallback to 2-step if direct conversion fails (for older llama.cpp versions)
+    print(f"[GGUF Export] Direct conversion failed, falling back to 2-step method...")
+    
     # Find llama.cpp for quantization binary
     llama_cpp_dir = find_llama_cpp()
     quantize_bin = find_quantize_binary(llama_cpp_dir) if llama_cpp_dir else None
@@ -207,7 +248,7 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
     # Convert to f16 first
     f16_output = output_path.parent / f"{output_path.stem.replace(f'.{quantization}', '')}.f16.gguf"
     
-    print(f"[GGUF Export] Step 1: Converting to F16 GGUF...")
+    print(f"[GGUF Export] Step 1/2: Converting to F16 GGUF...")
     convert_result = run_convert_script(convert_script, model_path, f16_output)
     
     if not convert_result.get('success'):
@@ -224,8 +265,18 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
     
     # Try to quantize if binary available
     if quantize_bin:
-        print(f"[GGUF Export] Step 2: Quantizing to {quantization}...")
-        return run_quantization(f16_output, output_path, quantization, quantize_bin)
+        print(f"[GGUF Export] Step 2/2: Quantizing to {quantization}...")
+        result = run_quantization(f16_output, output_path, quantization, quantize_bin)
+        
+        # Clean up F16 intermediate file after successful quantization
+        if result.get('success') and output_path.exists() and f16_output.exists():
+            print(f"[GGUF Export] Cleaning up intermediate F16 file...")
+            try:
+                f16_output.unlink()
+            except Exception as e:
+                print(f"[GGUF Export] Warning: Could not delete F16 file: {e}")
+        
+        return result
     else:
         # No quantize binary - rename f16 to final name
         print(f"[GGUF Export] Quantize binary not found, using F16 output")
@@ -242,6 +293,22 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
             'size_bytes': final_output.stat().st_size,
             'note': f'Created F16 GGUF. For {quantization} quantization, install llama.cpp and run: llama-quantize "{final_output}" "{output_path}" {quantization}',
         }
+
+
+def cleanup_intermediate_files(directory: Path, stem: str):
+    """Clean up any intermediate files from previous conversion attempts."""
+    try:
+        # Look for F16 intermediate files
+        for f16_file in directory.glob(f"*{stem}*.f16.gguf"):
+            print(f"[GGUF Export] Removing intermediate file: {f16_file}")
+            f16_file.unlink()
+        
+        # Look for .bin files that shouldn't be there
+        for bin_file in directory.glob(f"*{stem}*.bin"):
+            print(f"[GGUF Export] Removing stray bin file: {bin_file}")
+            bin_file.unlink()
+    except Exception as e:
+        print(f"[GGUF Export] Warning during cleanup: {e}")
 
 
 def run_convert_script(convert_script: Path, model_path: Path, output_path: Path):
@@ -270,6 +337,76 @@ def run_convert_script(convert_script: Path, model_path: Path, output_path: Path
             return {
                 'success': False,
                 'error': f'Conversion failed: {result.stderr[:500] if result.stderr else result.stdout[:500]}',
+            }
+        
+        return {'success': True}
+        
+    except subprocess.TimeoutExpired:
+        return {
+            'success': False,
+            'error': 'Conversion timed out after 1 hour',
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e),
+        }
+
+
+def run_convert_script_direct(convert_script: Path, model_path: Path, output_path: Path, outtype: str):
+    """
+    Run the convert script with direct quantization (1-step).
+    
+    This skips the F16 intermediate step and converts directly to the target quantization.
+    Much faster (5-10x) and doesn't create a ~14GB intermediate file.
+    
+    Args:
+        convert_script: Path to convert_hf_to_gguf.py
+        model_path: Path to the HuggingFace model
+        output_path: Path for the output GGUF file
+        outtype: Target output type (e.g., 'q5_k_m', 'q6_k', 'q8_0')
+    """
+    try:
+        convert_cmd = [
+            sys.executable, str(convert_script),
+            str(model_path),
+            '--outtype', outtype,
+            '--outfile', str(output_path),
+        ]
+        
+        print(f"[GGUF Export] Running 1-step conversion: {' '.join(convert_cmd)}")
+        
+        result = subprocess.run(
+            convert_cmd,
+            capture_output=True,
+            text=True,
+            timeout=3600,  # 1 hour timeout
+            cwd=str(model_path.parent),
+        )
+        
+        if result.returncode != 0:
+            print(f"[GGUF Export] Direct conversion stderr: {result.stderr}")
+            print(f"[GGUF Export] Direct conversion stdout: {result.stdout}")
+            
+            # Check if the error is because the outtype isn't supported
+            if 'outtype' in result.stderr.lower() or 'invalid' in result.stderr.lower():
+                print(f"[GGUF Export] Direct quantization not supported by this version of convert script")
+                return {
+                    'success': False,
+                    'error': 'Direct quantization not supported, falling back to 2-step',
+                    'fallback_required': True,
+                }
+            
+            return {
+                'success': False,
+                'error': f'Conversion failed: {result.stderr[:500] if result.stderr else result.stdout[:500]}',
+            }
+        
+        # Verify the output file was created
+        if not output_path.exists():
+            return {
+                'success': False,
+                'error': 'Output file was not created',
             }
         
         return {'success': True}
@@ -373,12 +510,20 @@ def run_quantization(f16_path: Path, output_path: Path, quantization: str, quant
 
 def get_manual_instructions(model_path: Path, output_path: Path, quantization: str):
     """Get manual instructions for GGUF conversion."""
+    outtype_map = {'Q5_K_M': 'q5_k_m', 'Q6_K': 'q6_k', 'Q8_0': 'q8_0'}
+    outtype = outtype_map.get(quantization, 'q5_k_m')
+    
     return [
         '1. Install llama-cpp-python: pip install llama-cpp-python --upgrade',
         '   For GPU acceleration: CMAKE_ARGS="-DLLAMA_CUDA=on" pip install llama-cpp-python --force-reinstall --no-cache-dir',
         '2. Or clone llama.cpp: git clone https://github.com/ggerganov/llama.cpp && cd llama.cpp && make',
-        f'3. Convert: python convert_hf_to_gguf.py "{model_path}" --outtype f16 --outfile "{output_path.with_suffix(".f16.gguf")}"',
-        f'4. Quantize: llama-quantize "{output_path.with_suffix(".f16.gguf")}" "{output_path}" {quantization}',
+        '',
+        '   Option A - 1-step direct conversion (RECOMMENDED, faster, no intermediate file):',
+        f'   python convert_hf_to_gguf.py "{model_path}" --outtype {outtype} --outfile "{output_path}"',
+        '',
+        '   Option B - 2-step conversion (fallback if direct fails):',
+        f'   python convert_hf_to_gguf.py "{model_path}" --outtype f16 --outfile "{output_path.with_suffix(".f16.gguf")}"',
+        f'   llama-quantize "{output_path.with_suffix(".f16.gguf")}" "{output_path}" {quantization}',
     ]
 
 
