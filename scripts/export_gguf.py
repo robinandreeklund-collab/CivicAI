@@ -565,7 +565,7 @@ def run_convert_script_direct(convert_script: Path, model_path: Path, output_pat
         }
 
 
-def find_quantize_binary(llama_cpp_path: Path = None):
+def find_quantize_binary(llama_cpp_path: Path = None, force_redownload: bool = False):
     """Find the quantize binary in llama.cpp installation or download it."""
     # First check PATH
     quantize_in_path = shutil.which('llama-quantize') or shutil.which('quantize')
@@ -576,7 +576,17 @@ def find_quantize_binary(llama_cpp_path: Path = None):
     # Check local cache
     script_dir = Path(__file__).parent / 'llama_cpp_scripts'
     cached_quantize = script_dir / ('llama-quantize.exe' if os.name == 'nt' else 'llama-quantize')
-    if cached_quantize.exists():
+    version_file = script_dir / 'quantize_version.txt'
+    
+    # Check if we need to re-download (e.g., CUDA version failed, try AVX2)
+    if cached_quantize.exists() and not force_redownload:
+        # Check if this is a CUDA build that might have failed before
+        if version_file.exists():
+            version_info = version_file.read_text().strip()
+            if 'cuda' in version_info.lower():
+                print(f"[GGUF Export] Found cached CUDA quantize binary, but CUDA builds may have compatibility issues")
+                print(f"[GGUF Export] If quantization fails, delete {script_dir} and run again to get AVX2 build")
+        
         print(f"[GGUF Export] Found cached quantize binary: {cached_quantize}")
         return cached_quantize
     
@@ -599,6 +609,14 @@ def find_quantize_binary(llama_cpp_path: Path = None):
     
     # Try to download pre-built binary for Windows
     if os.name == 'nt':
+        # Delete old binary if force_redownload
+        if force_redownload and cached_quantize.exists():
+            try:
+                cached_quantize.unlink()
+                print(f"[GGUF Export] Deleted old quantize binary for re-download")
+            except:
+                pass
+        
         downloaded = download_quantize_binary()
         if downloaded:
             return downloaded
@@ -628,20 +646,23 @@ def download_quantize_binary():
             print(f"[GGUF Export] Could not fetch release info: {e}")
             return None
         
-        # Find Windows CUDA binary
+        # Find Windows binaries - prefer AVX2 (more compatible) over CUDA
         cuda_asset = None
         avx2_asset = None
+        noavx_asset = None
         
         for asset in release_info.get('assets', []):
             name = asset.get('name', '').lower()
             if 'win' in name and name.endswith('.zip'):
-                if 'cuda' in name:
-                    cuda_asset = asset
-                elif 'avx2' in name or 'avx' in name:
+                if 'noavx' in name:
+                    noavx_asset = asset
+                elif 'avx2' in name:
                     avx2_asset = asset
+                elif 'cuda' in name:
+                    cuda_asset = asset
         
-        # Prefer CUDA, fallback to AVX2
-        download_asset = cuda_asset or avx2_asset
+        # Prefer AVX2 (CPU, most compatible), then noavx, then CUDA (may have version issues)
+        download_asset = avx2_asset or noavx_asset or cuda_asset
         
         if not download_asset:
             print(f"[GGUF Export] No suitable Windows binary found in release")
@@ -650,6 +671,7 @@ def download_quantize_binary():
         download_url = download_asset.get('browser_download_url')
         asset_name = download_asset.get('name')
         print(f"[GGUF Export] Downloading {asset_name}...")
+        print(f"[GGUF Export] (Using CPU/AVX2 build for better compatibility)")
         
         # Download and extract
         with urllib.request.urlopen(download_url, timeout=300) as response:
@@ -657,16 +679,21 @@ def download_quantize_binary():
         
         with zipfile.ZipFile(zip_data, 'r') as zip_ref:
             for member in zip_ref.namelist():
-                if 'llama-quantize' in member.lower():
+                if 'llama-quantize' in member.lower() and member.endswith('.exe'):
                     # Extract the quantize binary
                     target_path = script_dir / 'llama-quantize.exe'
                     with zip_ref.open(member) as source:
                         with open(target_path, 'wb') as target:
                             target.write(source.read())
+                    
+                    # Save version info for debugging
+                    version_file = script_dir / 'quantize_version.txt'
+                    version_file.write_text(f"Downloaded: {asset_name}\nURL: {download_url}\n")
+                    
                     print(f"[GGUF Export] Downloaded llama-quantize to: {target_path}")
                     return target_path
         
-        print(f"[GGUF Export] llama-quantize not found in downloaded archive")
+        print(f"[GGUF Export] llama-quantize.exe not found in downloaded archive")
         return None
         
     except Exception as e:
@@ -677,6 +704,22 @@ def download_quantize_binary():
 def run_quantization(f16_path: Path, output_path: Path, quantization: str, quantize_bin: Path):
     """Run quantization on F16 GGUF file."""
     try:
+        # First verify the quantize binary works
+        print(f"[GGUF Export] Verifying llama-quantize binary...")
+        try:
+            test_result = subprocess.run(
+                [str(quantize_bin), '--help'],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if test_result.returncode != 0 and 'usage' not in test_result.stdout.lower() and 'usage' not in test_result.stderr.lower():
+                print(f"[GGUF Export] [WARNING] llama-quantize may not be working correctly")
+                print(f"[GGUF Export] stdout: {test_result.stdout[:200]}")
+                print(f"[GGUF Export] stderr: {test_result.stderr[:200]}")
+        except Exception as e:
+            print(f"[GGUF Export] [WARNING] Could not verify llama-quantize: {e}")
+        
         quantize_cmd = [
             str(quantize_bin),
             str(f16_path),
@@ -689,14 +732,41 @@ def run_quantization(f16_path: Path, output_path: Path, quantization: str, quant
         result = subprocess.run(quantize_cmd, capture_output=True, text=True, timeout=3600)
         
         if result.returncode != 0:
-            # If quantization fails, keep the f16 version
-            print(f"[GGUF Export] Quantization failed: {result.stderr}")
+            # Quantization failed - this is an error, not success
+            error_msg = result.stderr.strip() if result.stderr else result.stdout.strip()
+            if not error_msg:
+                error_msg = f'llama-quantize exited with code {result.returncode}'
+            
+            print(f"[GGUF Export] [ERROR] Quantization failed: {error_msg}")
+            
+            # Check for common errors
+            if 'dll' in error_msg.lower() or 'cuda' in error_msg.lower():
+                print(f"[GGUF Export] This may be a CUDA/DLL compatibility issue.")
+                print(f"[GGUF Export] Try downloading a different llama.cpp build (AVX2 instead of CUDA).")
+            
+            # Clean up the F16 intermediate file since we can't use it
+            if f16_path.exists():
+                try:
+                    print(f"[GGUF Export] Cleaning up F16 intermediate file...")
+                    f16_path.unlink()
+                except Exception as e:
+                    print(f"[GGUF Export] Could not delete F16 file: {e}")
+            
             return {
-                'success': True,
-                'output_path': str(f16_path),
-                'quantization': 'f16',
-                'size_bytes': f16_path.stat().st_size,
-                'warning': f'Quantization failed, using F16: {result.stderr[:200]}',
+                'success': False,
+                'error': f'Quantization to {quantization} failed: {error_msg}',
+                'instructions': [
+                    'The llama-quantize binary failed to quantize the model.',
+                    'Possible causes:',
+                    '  - CUDA version mismatch (try AVX2 build instead)',
+                    '  - Missing DLL dependencies',
+                    '  - Corrupted download',
+                    '',
+                    'Try these solutions:',
+                    '  1. Delete scripts/llama_cpp_scripts folder and run export again',
+                    '  2. Download llama.cpp manually from: https://github.com/ggerganov/llama.cpp/releases',
+                    '  3. Use the AVX2 build instead of CUDA if you have compatibility issues',
+                ],
             }
         
         # Clean up intermediate f16 file
@@ -720,18 +790,19 @@ def run_quantization(f16_path: Path, output_path: Path, quantization: str, quant
         }
         
     except Exception as e:
-        # If anything fails, try to return f16
+        error_msg = str(e)
+        print(f"[GGUF Export] [ERROR] Quantization exception: {error_msg}")
+        
+        # Clean up F16 file on error
         if f16_path.exists():
-            return {
-                'success': True,
-                'output_path': str(f16_path),
-                'quantization': 'f16',
-                'size_bytes': f16_path.stat().st_size,
-                'warning': f'Quantization error, using F16: {str(e)}',
-            }
+            try:
+                f16_path.unlink()
+            except:
+                pass
+        
         return {
             'success': False,
-            'error': str(e),
+            'error': f'Quantization error: {error_msg}',
         }
 
 
