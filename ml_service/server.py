@@ -33,7 +33,8 @@ except (ImportError, AttributeError):
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+import asyncio
 from pydantic import BaseModel, Field, field_validator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -11025,9 +11026,331 @@ async def get_all_settings():
                 "description": "Aktiverar stavningskontroll i /7B-Zero chatten",
                 "type": "boolean",
                 "current": _admin_settings.get("typo_check_enabled", True)
+            },
+            {
+                "key": "token_delay_ms",
+                "name": "Token Delay",
+                "description": "Fördröjning mellan tokens vid streaming (ms)",
+                "type": "number",
+                "min": 0,
+                "max": 500,
+                "current": _admin_settings.get("token_delay_ms", 30)
             }
         ]
     }
+
+
+# =============================================================================
+# STREAMING CONFIGURATION AND SSE ENDPOINT
+# =============================================================================
+# Token-by-token streaming for /7B-Zero page with configurable delay
+# Admin Dashboard can control token delay in real-time via /api/config/token-delay
+#
+# SSE Events:
+# - token: Single token content
+# - done: Stream finished
+# - error: Error occurred
+# - metadata: Response metadata (personality, confidence, etc.)
+
+# Add token_delay_ms to admin settings if not present
+if "token_delay_ms" not in _admin_settings:
+    _admin_settings["token_delay_ms"] = 30  # Default 30ms between tokens
+
+
+@app.get("/api/config/token-delay")
+async def get_token_delay():
+    """
+    Get current token streaming delay in milliseconds.
+    
+    Used by Admin Dashboard to display current setting.
+    """
+    return {
+        "delay_ms": _admin_settings.get("token_delay_ms", 30),
+        "description": "Fördröjning mellan tokens vid streaming (ms)",
+        "min": 0,
+        "max": 500
+    }
+
+
+@app.post("/api/config/token-delay")
+async def set_token_delay(request: Request):
+    """
+    Set token streaming delay in milliseconds.
+    
+    Called from Admin Dashboard slider control.
+    Value is applied immediately to new streaming requests.
+    
+    Request body:
+    - delay_ms: Integer between 0 and 500
+    """
+    try:
+        data = await request.json()
+        delay_ms = data.get("delay_ms", 30)
+        
+        # Validate range
+        if not isinstance(delay_ms, (int, float)):
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "delay_ms must be a number"}
+            )
+        
+        delay_ms = int(delay_ms)
+        if delay_ms < 0:
+            delay_ms = 0
+        if delay_ms > 500:
+            delay_ms = 500
+        
+        _admin_settings["token_delay_ms"] = delay_ms
+        logger.info(f"🎛️ Token delay updated to {delay_ms}ms")
+        
+        return {
+            "success": True,
+            "delay_ms": delay_ms,
+            "message": f"Token delay satt till {delay_ms}ms"
+        }
+    except Exception as e:
+        logger.error(f"Error setting token delay: {e}")
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": str(e)}
+        )
+
+
+class StreamRequest(BaseModel):
+    """Request model for streaming inference."""
+    text: str = Field(..., description="User's question/prompt")
+    max_length: int = Field(default=512, ge=10, le=4096)
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    top_p: float = Field(default=0.9, ge=0.0, le=1.0)
+    skip_typo_check: bool = Field(default=False)
+
+
+async def generate_sse_tokens(
+    text: str,
+    max_length: int = 512,
+    temperature: float = 0.7,
+    top_p: float = 0.9
+):
+    """
+    Generator function for Server-Sent Events token streaming.
+    
+    Yields SSE-formatted events:
+    - event: token - individual tokens
+    - event: metadata - response metadata
+    - event: done - stream complete
+    - event: error - on failure
+    
+    Token delay is read dynamically from _admin_settings each time,
+    allowing real-time control from Admin Dashboard.
+    """
+    start_time = time.time()
+    tokens_sent = 0
+    
+    try:
+        # Get the active system prompt
+        system_prompt = get_active_system_prompt()
+        
+        # Get current time context
+        now = datetime.now()
+        time_context = now.strftime("%Y-%m-%d %H:%M:%S")
+        weekday_map = {0: "måndag", 1: "tisdag", 2: "onsdag", 3: "torsdag", 4: "fredag", 5: "lördag", 6: "söndag"}
+        day_name = weekday_map.get(now.weekday(), "")
+        time_context = f"Idag är det {day_name} {now.day} {['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'][now.month-1]} {now.year}, klockan {now.strftime('%H:%M')}."
+        
+        # Build messages for the model
+        structured_messages = [
+            {"role": "system", "content": f"{system_prompt}\n\n[Aktuell tid] {time_context}"},
+            {"role": "user", "content": text}
+        ]
+        
+        # Check if we have models loaded
+        if 'oneseek' not in models or 'oneseek' not in tokenizers:
+            yield f"event: error\ndata: {json.dumps({'error': 'Model not loaded'})}\n\n"
+            return
+        
+        model = models['oneseek']
+        tokenizer = tokenizers['oneseek']
+        
+        # Tokenize input using chat template
+        try:
+            if hasattr(tokenizer, 'apply_chat_template'):
+                tokenized_input = tokenizer.apply_chat_template(
+                    structured_messages,
+                    tokenize=True,
+                    add_generation_prompt=True,
+                    return_tensors="pt"
+                )
+                inputs = {"input_ids": tokenized_input, "attention_mask": torch.ones_like(tokenized_input)}
+            else:
+                full_input = f"{system_prompt}\n\nAnvändare: {text}\n\nOneSeek:"
+                inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+        except Exception as e:
+            yield f"event: error\ndata: {json.dumps({'error': f'Tokenization failed: {str(e)}'})}\n\n"
+            return
+        
+        # Sync inputs to model device
+        inputs = sync_inputs_to_model_device(inputs, model)
+        input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
+        
+        # Generate tokens one by one using generate with max_new_tokens=1 in a loop
+        # This approach streams tokens as they are generated
+        generated_ids = inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids
+        attention_mask = inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask
+        
+        full_response = ""
+        max_new_tokens = min(max_length, 1024)  # Limit for streaming
+        
+        logger.info(f"🌊 [STREAM] Starting token generation for: {text[:50]}...")
+        
+        with torch.no_grad():
+            for i in range(max_new_tokens):
+                # Generate just one token at a time
+                outputs = model.generate(
+                    input_ids=generated_ids,
+                    attention_mask=attention_mask,
+                    max_new_tokens=1,
+                    temperature=temperature,
+                    top_p=top_p,
+                    do_sample=True,
+                    pad_token_id=tokenizer.eos_token_id,
+                    return_dict_in_generate=False
+                )
+                
+                # Get the new token
+                new_token_id = outputs[0, -1:]
+                
+                # Check for EOS token
+                if new_token_id.item() == tokenizer.eos_token_id:
+                    logger.info(f"🌊 [STREAM] EOS token reached after {tokens_sent} tokens")
+                    break
+                
+                # Decode the new token
+                new_token_text = tokenizer.decode(new_token_id, skip_special_tokens=True)
+                
+                # Skip empty tokens
+                if new_token_text:
+                    full_response += new_token_text
+                    tokens_sent += 1
+                    
+                    # Send token as SSE event
+                    event_data = json.dumps({
+                        "token": new_token_text,
+                        "index": tokens_sent
+                    })
+                    yield f"event: token\ndata: {event_data}\n\n"
+                    
+                    # Read delay from admin settings (dynamic!)
+                    delay_ms = _admin_settings.get("token_delay_ms", 30)
+                    if delay_ms > 0:
+                        await asyncio.sleep(delay_ms / 1000.0)
+                
+                # Update for next iteration
+                generated_ids = outputs
+                attention_mask = torch.cat([
+                    attention_mask,
+                    torch.ones((1, 1), device=attention_mask.device, dtype=attention_mask.dtype)
+                ], dim=1)
+        
+        # Calculate latency
+        latency_ms = (time.time() - start_time) * 1000
+        
+        # Parse personality tag from response
+        detected_personality_id, clean_response = parse_personality_tag(full_response)
+        personality_info = get_personality_info(detected_personality_id) if detected_personality_id != "oneseek-medveten" else None
+        
+        # Send metadata event
+        metadata = {
+            "tokens": tokens_sent,
+            "latency_ms": round(latency_ms, 2),
+            "model": "OneSeek-7B-Zero.v1.1",
+            "personality": personality_info,
+            "full_response": clean_response  # Send clean response for fallback
+        }
+        yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
+        
+        # Send done event
+        yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': tokens_sent})}\n\n"
+        
+        logger.info(f"🌊 [STREAM] Complete: {tokens_sent} tokens in {latency_ms:.0f}ms")
+        
+    except Exception as e:
+        logger.error(f"🌊 [STREAM] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+
+
+@app.post("/stream")
+async def stream_inference(request: StreamRequest):
+    """
+    SSE streaming endpoint for token-by-token inference.
+    
+    Returns Server-Sent Events with tokens as they are generated.
+    Token delay is controlled via /api/config/token-delay.
+    
+    Events:
+    - token: {"token": "...", "index": n}
+    - metadata: {"tokens": n, "latency_ms": n, "model": "...", "personality": {...}}
+    - done: {"status": "complete", "tokens": n}
+    - error: {"error": "..."}
+    
+    Usage from frontend:
+    ```javascript
+    const eventSource = new EventSource('/stream', {method: 'POST', body: JSON.stringify({text: 'Fråga'})});
+    // Note: EventSource doesn't support POST, use fetch with ReadableStream instead
+    ```
+    """
+    logger.info(f"🌊 [STREAM] Request: {request.text[:50]}...")
+    
+    return StreamingResponse(
+        generate_sse_tokens(
+            text=request.text,
+            max_length=request.max_length,
+            temperature=request.temperature,
+            top_p=request.top_p
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable nginx buffering
+        }
+    )
+
+
+@app.get("/stream")
+async def stream_inference_get(
+    text: str,
+    max_length: int = 512,
+    temperature: float = 0.7,
+    top_p: float = 0.9
+):
+    """
+    SSE streaming endpoint (GET version for EventSource compatibility).
+    
+    Use this endpoint with browser EventSource:
+    ```javascript
+    const eventSource = new EventSource(`/stream?text=${encodeURIComponent('Fråga')}`);
+    eventSource.addEventListener('token', (e) => {...});
+    eventSource.addEventListener('done', (e) => {...});
+    ```
+    """
+    logger.info(f"🌊 [STREAM/GET] Request: {text[:50]}...")
+    
+    return StreamingResponse(
+        generate_sse_tokens(
+            text=text,
+            max_length=max_length,
+            temperature=temperature,
+            top_p=top_p
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 
 if __name__ == "__main__":
