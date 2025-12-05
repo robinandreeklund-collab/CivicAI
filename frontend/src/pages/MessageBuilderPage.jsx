@@ -153,6 +153,11 @@ export default function MessageBuilderPage() {
   const [useIntentEngine, setUseIntentEngine] = useState(false); // Start false, will be updated from API
   const [globalIntentEnabled, setGlobalIntentEnabled] = useState(false);
   
+  // Compare Mode toggle - tests Zero compare flow with external AI responses
+  const [useCompareMode, setUseCompareMode] = useState(false);
+  const [useChunkedMode, setUseChunkedMode] = useState(false); // Stegvis analys toggle
+  const [compareResult, setCompareResult] = useState(null);
+  
   // ONESEEK Δ+ v6.2: AI-selected personality (real-time display)
   const [aiSelectedPersonality, setAiSelectedPersonality] = useState(null);
 
@@ -210,6 +215,7 @@ export default function MessageBuilderPage() {
   const runTest = async () => {
     setLoading(true);
     setError(null);
+    setCompareResult(null);
     const startTime = Date.now();
     
     // Generate new topic if not maintaining
@@ -222,6 +228,63 @@ export default function MessageBuilderPage() {
     const name = useCustom ? 'custom' : template;
     
     try {
+      // COMPARE MODE: Use the Zero compare flow
+      if (useCompareMode) {
+        const res = await fetch('/api/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: testQuestion,
+            preferredModel: 'openseek-7b-zero',
+            profileId: 'zero',
+            compare: true,
+            chunked: useChunkedMode, // Use stegvis mode toggle
+            // Use custom system prompt from the builder if provided
+            customSystemPrompt: systemPrompt !== 'Du är OneSeek-7B-Zero, en hjälpsam svensk AI-assistent.' ? systemPrompt : undefined
+          })
+        });
+        
+        const data = await res.json();
+        const endTime = Date.now();
+        const responseTime = endTime - startTime;
+        
+        setCompareResult(data);
+        setResult({
+          success: true,
+          response: data.zero?.response || data.response || 'Inget svar',
+          analysis: {
+            swedish_percentage: 100,
+            estimated_confidence: 85,
+            has_loops: false,
+            word_count: (data.zero?.response || '').split(/\s+/).length
+          },
+          tokens: 0,
+          latency_ms: responseTime,
+          mode: 'compare'
+        });
+        
+        // Add to history
+        const historyEntry = {
+          id: Date.now(),
+          question: testQuestion,
+          response: data.zero?.response || data.response || '',
+          responsePreview: (data.zero?.response || '').substring(0, 100) + '...',
+          confidence: 85,
+          intent: 'compare',
+          entity: '',
+          sources: ['GPT-3.5', 'Gemini', 'DeepSeek', 'Grok'],
+          responseTime,
+          timestamp: new Date().toISOString(),
+          structure: 'compare-mode',
+          mode: 'compare',
+          externalResponses: data.externalResponses || []
+        };
+        
+        setTopicHistory(prev => [...prev, historyEntry]);
+        return;
+      }
+      
+      // NORMAL MODE: Use debug/messages endpoint
       const res = await fetchWithFallback('/debug/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -504,7 +567,7 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
             </label>
             
             {/* Use Intent Engine Checkbox - Shows global config state */}
-            <label className={`flex items-center gap-2 mb-4 p-3 bg-[#0d0d0d] border rounded cursor-pointer hover:border-[#3a3a3a] ${
+            <label className={`flex items-center gap-2 mb-2 p-3 bg-[#0d0d0d] border rounded cursor-pointer hover:border-[#3a3a3a] ${
               globalIntentEnabled ? 'border-green-700/30' : 'border-red-700/30'
             }`}>
               <input
@@ -530,6 +593,60 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
                 )}
               </div>
             </label>
+            
+            {/* Compare Mode Checkbox - Tests Zero compare flow */}
+            <label className={`flex items-center gap-2 mb-2 p-3 bg-[#0d0d0d] border rounded cursor-pointer hover:border-[#3a3a3a] ${
+              useCompareMode ? 'border-blue-700/50' : 'border-[#2a2a2a]'
+            }`}>
+              <input
+                type="checkbox"
+                checked={useCompareMode}
+                onChange={(e) => setUseCompareMode(e.target.checked)}
+                className="w-4 h-4 rounded border-[#3a3a3a] bg-[#0a0a0a] text-blue-500 focus:ring-0 focus:ring-offset-0"
+              />
+              <div>
+                <div className="text-xs font-mono text-[#e7e7e7]">
+                  🔬 Compare Mode {useCompareMode ? '(ON)' : '(OFF)'}
+                </div>
+                <div className="text-[10px] text-[#555]">
+                  Jämför svar från GPT, Gemini, DeepSeek, Grok
+                </div>
+                {useCompareMode && (
+                  <div className="text-[10px] text-blue-400 mt-1">
+                    ⚡ Zero analyserar alla AI-svar
+                  </div>
+                )}
+              </div>
+            </label>
+            
+            {/* Chunked/Stegvis Mode - Only visible when Compare Mode is enabled */}
+            {useCompareMode && (
+              <label className={`flex items-center gap-2 mb-4 p-3 bg-[#0d0d0d] border rounded cursor-pointer hover:border-[#3a3a3a] ${
+                useChunkedMode ? 'border-green-700/50' : 'border-[#2a2a2a]'
+              }`}>
+                <input
+                  type="checkbox"
+                  checked={useChunkedMode}
+                  onChange={(e) => setUseChunkedMode(e.target.checked)}
+                  className="w-4 h-4 rounded border-[#3a3a3a] bg-[#0a0a0a] text-green-500 focus:ring-0 focus:ring-offset-0"
+                />
+                <div>
+                  <div className="text-xs font-mono text-[#e7e7e7]">
+                    🔄 Stegvis {useChunkedMode ? '(ON)' : '(OFF)'}
+                  </div>
+                  <div className="text-[10px] text-[#555]">
+                    Analysera en AI i taget
+                  </div>
+                  {useChunkedMode && (
+                    <div className="text-[10px] text-green-400 mt-1">
+                      ⏳ Tar längre tid men ger bättre analys
+                    </div>
+                  )}
+                </div>
+              </label>
+            )}
+            
+            {!useCompareMode && <div className="mb-4"></div>}
             
             {/* ONESEEK Δ+ v6.2: AI-Selected Personality Display */}
             <div className={`mb-4 p-3 bg-[#0d0d0d] border rounded transition-all duration-300 ${
@@ -1085,10 +1202,34 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
                   </div>
                 )}
 
+                {/* COMPARE MODE: External AI Responses Section */}
+                {compareResult?.externalResponses && compareResult.externalResponses.length > 0 && (
+                  <div>
+                    <label className="text-[10px] font-mono text-[#666] mb-2 block">🔬 EXTERNA AI-SVAR</label>
+                    <div className="space-y-3">
+                      {compareResult.externalResponses.map((ext, i) => (
+                        <div key={i} className="bg-[#0d0d0d] border border-[#2a2a2a] rounded p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-mono text-blue-400">{ext.agent || ext.model}</span>
+                            <span className="text-[10px] font-mono text-[#555]">{ext.model}</span>
+                          </div>
+                          <div className="text-xs text-[#888] max-h-[100px] overflow-y-auto">
+                            {ext.response?.substring(0, 300)}{ext.response?.length > 300 ? '...' : ''}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Response - Increased height with code block support */}
                 <div>
-                  <label className="text-[10px] font-mono text-[#666] mb-2 block">SVAR</label>
-                  <div className="bg-[#0d0d0d] border border-[#2a2a2a] rounded p-4 min-h-[200px] max-h-[400px] overflow-y-auto">
+                  <label className="text-[10px] font-mono text-[#666] mb-2 block">
+                    {useCompareMode ? '🔬 ZEROS ANALYS' : 'SVAR'}
+                  </label>
+                  <div className={`bg-[#0d0d0d] border rounded p-4 min-h-[200px] max-h-[400px] overflow-y-auto ${
+                    useCompareMode ? 'border-blue-700/30' : 'border-[#2a2a2a]'
+                  }`}>
                     <div className="text-sm text-[#e7e7e7] leading-relaxed">
                       {result.response ? formatResponseText(result.response) : 'Inget svar'}
                     </div>

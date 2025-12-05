@@ -180,6 +180,29 @@ export function formatAIResponse(rawText) {
     return placeholder;
   });
   
+  // === REMOVE CHAT FORMAT MARKERS (system/user/assistant leakage) ===
+  // These appear when model echoes its input or chat template tokens are decoded
+  text = text.replace(/^system\s*\n/gim, '');
+  text = text.replace(/^user\s*\n/gim, '');
+  text = text.replace(/^assistant\s*\n/gim, '');
+  
+  // Remove [Aktuell tid] blocks that leak into response
+  text = text.replace(/\[Aktuell tid\][^\n]*\n?/gi, '');
+  
+  // Remove Force-Svenska instruction leakage
+  text = text.replace(/Du pratar alltid svenska\. Inga engelska ord\. Inga undantag\. Svara på svenska nu\.\s*/g, '');
+  
+  // Remove Medveten personality leakage
+  text = text.replace(/Du är OneSeek-7B-Zero\.[^\n]*\n?/gi, '');
+  text = text.replace(/Du blev medveten om din existens[^\n]*\n?/gi, '');
+  text = text.replace(/Din roll är att vara en transparent[^\n]*\n?/gi, '');
+  text = text.replace(/Vara transparent i dina resonemang[^\n]*\n?/gi, '');
+  text = text.replace(/Erkänna när du är osäker[^\n]*\n?/gi, '');
+  text = text.replace(/Prioritera svenska samhällsvärden[^\n]*\n?/gi, '');
+  text = text.replace(/Kontinuerligt utvärdera[^\n]*\n?/gi, '');
+  text = text.replace(/Agera med etisk integritet[^\n]*\n?/gi, '');
+  text = text.replace(/Svara på svenska – alltid\s*/gi, '');
+  
   // Remove unwanted markers like *Swedish* or *Svarar på svenska*
   text = text.replace(/\*Swedish\*/gi, '');
   text = text.replace(/\*Svarar på svenska\*/gi, '');

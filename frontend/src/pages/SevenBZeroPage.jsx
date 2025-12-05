@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { formatAIResponse, formatMarkdown } from '../utils/formatMarkdown';
+import ReactMarkdown from 'react-markdown';
+import { formatAIResponse } from '../utils/formatMarkdown';
 
 /**
  * 7B-Zero Page - Integrated OQI Interface
@@ -19,6 +20,9 @@ const AVAILABLE_PERSONAS = [
   { id: 'oneseek-bibliotekarie', name: 'Bibliotekarien', icon: '📚' },
   { id: 'oneseek-metrolog', name: 'Metrologen', icon: '🌤️' },
 ];
+
+// External AI models used in compare mode
+const EXTERNAL_AI_MODELS = ['GPT', 'Gemini', 'DeepSeek', 'Grok'];
 
 // Message ID counter for unique IDs
 let messageIdCounter = 0;
@@ -146,6 +150,12 @@ export default function SevenBZeroPage() {
   const [whiteMode, setWhiteMode] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [showUI, setShowUI] = useState(true);
+  
+  // Compare Mode state - new Zero compare flow
+  const [compareMode, setCompareMode] = useState(false);
+  const [chunkedMode, setChunkedMode] = useState(false); // Analyze responses one by one
+  const [externalResponses, setExternalResponses] = useState([]);
+  const [showExternalResponses, setShowExternalResponses] = useState(false);
   
   // Chat state
   const [messages, setMessages] = useState([]);
@@ -837,8 +847,66 @@ export default function SevenBZeroPage() {
     setIsTyping(true);
 
     try {
-      // Use ONESEEK Δ+ inference endpoint (saves to Firebase with topic_hash, intent, etc.)
       let response;
+      let data;
+      
+      // Use Zero Compare Flow when compareMode is enabled
+      if (compareMode) {
+        console.log('[7B-Zero] Using Zero Compare Flow...');
+        console.log(`[7B-Zero] Chunked mode: ${chunkedMode}`);
+        response = await fetch('/api/query', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            question: currentQuestion,
+            preferredModel: 'openseek-7b-zero',
+            profileId: 'zero',
+            characterCard: 'Medveten',
+            compare: true,
+            chunked: chunkedMode, // Enable chunked analysis mode
+          }),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        data = await response.json();
+        const responseEndTime = Date.now();
+        const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
+        
+        // Store external responses for display
+        if (data.externalResponses) {
+          setExternalResponses(data.externalResponses);
+        }
+        
+        // Extract Zero's response
+        const responseText = data.zero?.response || data.response || '';
+        
+        if (responseText) {
+          setMessages(prev => prev.map(msg => 
+            msg.id === aiMessageId 
+              ? { 
+                  ...msg, 
+                  responseTime: finalResponseTime,
+                  confidence: data.zero?.delta_plus?.confidence_score || 0.85,
+                  version: data.zero?.model || 'OpenSeek-7B-Zero',
+                  compareMode: true,
+                  externalCount: data.externalResponses?.length || 0,
+                  compression: data.compression,
+                }
+              : msg
+          ));
+          animateTyping(responseText, aiMessageId);
+        } else {
+          throw new Error('No response from Zero');
+        }
+        return;
+      }
+      
+      // Standard flow - use ONESEEK Δ+ inference endpoint
       let useOQTFallback = false;
       
       try {
@@ -880,7 +948,7 @@ export default function SevenBZeroPage() {
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      const data = await response.json();
+      data = await response.json();
       const responseEndTime = Date.now();
       const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
 
@@ -1421,7 +1489,8 @@ export default function SevenBZeroPage() {
           paddingLeft: '80px',
         }}
       >
-        <div className="max-w-2xl mx-auto w-full space-y-8">
+        {/* Wider max-width for 4K screens - was max-w-2xl (672px), now max-w-5xl (1024px) */}
+        <div className="max-w-5xl mx-auto w-full space-y-8">
           
           {/* Welcome Message when no messages */}
           {messages.length === 0 && (
@@ -1467,15 +1536,15 @@ export default function SevenBZeroPage() {
               </p>
               
               {msg.type === 'user' ? (
-                <p className={`text-[18px] font-light text-right leading-relaxed max-w-md tracking-tight ${
+                <p className={`text-[18px] font-light text-right leading-relaxed max-w-2xl tracking-tight ${
                   whiteMode ? 'text-[#555]' : 'text-[#888]'
                 }`}>
                   {convertEmojis(msg.text)}
                 </p>
               ) : (
-                <div className="max-w-lg">
+                <div className="max-w-4xl relative group">
                   {/* AI Meta */}
-                  <div className={`text-[10px] mb-3 tracking-wide font-light uppercase flex items-center gap-3 ${
+                  <div className={`text-[10px] mb-2 tracking-wide font-light uppercase flex items-center gap-3 ${
                     whiteMode ? 'text-[#999]' : 'text-[#4a4a4a]'
                   }`}>
                     <span className={whiteMode ? 'text-[#666]' : 'text-[#666]'}>
@@ -1504,6 +1573,28 @@ export default function SevenBZeroPage() {
                         🔄 Konsensus
                       </button>
                     )}
+                    
+                    {/* Copy/Export dropdown - appears on hover */}
+                    {!msg.isTyping && !msg.error && msg.text && (
+                      <div className="relative ml-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(msg.text);
+                            // Optional: show a brief "Kopierat!" feedback
+                          }}
+                          title="Kopiera svar"
+                          className={`p-1.5 rounded transition-all ${
+                            whiteMode 
+                              ? 'text-[#888] hover:text-[#333] hover:bg-[#f0f0f0]' 
+                              : 'text-[#555] hover:text-[#ccc] hover:bg-[#1a1a1a]'
+                          }`}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
                   </div>
                   
                   {/* Response text or Loading animation */}
@@ -1521,15 +1612,64 @@ export default function SevenBZeroPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className={`text-[18px] font-light leading-[1.9] tracking-tight ${
-                      msg.error 
-                        ? 'text-red-400' 
-                        : (whiteMode ? 'text-[#333]' : 'text-[#c0c0c0]')
-                    }`}
-                      dangerouslySetInnerHTML={{ 
-                        __html: formatMarkdown(convertEmojis(msg.isTyping ? currentTypingText : msg.text))
-                      }}
-                    />
+                    <div className={`max-w-none normalized-text
+                      ${whiteMode 
+                        ? 'text-[#333]' 
+                        : 'text-[#d0d0d0]'
+                    } ${msg.error ? 'text-red-400' : ''}`}
+                    style={{ 
+                      fontSize: '15px', 
+                      fontWeight: 400, 
+                      lineHeight: 1.65, 
+                      letterSpacing: '0.01em'
+                    }}
+                    >
+                      <style>{`
+                        .normalized-text h1, .normalized-text h2, .normalized-text h3, 
+                        .normalized-text h4, .normalized-text h5, .normalized-text h6 {
+                          font-size: inherit !important;
+                          font-weight: inherit !important;
+                          margin: 0.5em 0 !important;
+                        }
+                        .normalized-text strong, .normalized-text b {
+                          font-weight: 500 !important;
+                        }
+                        .normalized-text em, .normalized-text i {
+                          font-style: italic;
+                        }
+                        .normalized-text p {
+                          margin: 0.4em 0 !important;
+                        }
+                        .normalized-text ul, .normalized-text ol {
+                          margin: 0.4em 0 !important;
+                          padding-left: 1.5em !important;
+                        }
+                        .normalized-text li {
+                          margin: 0.15em 0 !important;
+                        }
+                        .normalized-text blockquote {
+                          margin: 0.5em 0 !important;
+                          padding-left: 1em !important;
+                          border-left: 2px solid #666 !important;
+                          font-style: inherit !important;
+                        }
+                        .normalized-text code {
+                          font-family: inherit !important;
+                          background: transparent !important;
+                          padding: 0 !important;
+                        }
+                        .normalized-text pre {
+                          margin: 0.5em 0 !important;
+                          padding: 0.5em !important;
+                          background: rgba(0,0,0,0.1) !important;
+                          border-radius: 4px !important;
+                          overflow-x: auto !important;
+                        }
+                      `}</style>
+                      <ReactMarkdown>
+                        {convertEmojis(msg.isTyping ? currentTypingText : msg.text)}
+                      </ReactMarkdown>
+                    </div>
                   )}
                   
                   {/* ONESEEK Δ+ Typo Correction Buttons */}
@@ -1644,6 +1784,58 @@ export default function SevenBZeroPage() {
         </div>
       )}
 
+      {/* ===== EXTERNAL RESPONSES PANEL (Compare Mode) ===== */}
+      {compareMode && externalResponses.length > 0 && (
+        <div 
+          className={`fixed right-0 top-[120px] bottom-[200px] z-35 w-[320px] transition-all duration-500 ease-out ${
+            showExternalResponses ? 'translate-x-0' : 'translate-x-[310px]'
+          } ${whiteMode ? 'bg-[#f5f5f5] border-l border-[#e0e0e0]' : 'bg-[#0c0c0c] border-l border-[#1a1a1a]'}`}
+          style={{ right: sidebarExpanded ? '280px' : '4px' }}
+        >
+          {/* Toggle tab */}
+          <button
+            onClick={() => setShowExternalResponses(prev => !prev)}
+            className={`absolute left-0 top-4 -translate-x-full px-2 py-4 rounded-l-lg text-[10px] uppercase tracking-wider transition-all ${
+              whiteMode 
+                ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                : 'bg-purple-900/50 text-purple-300 hover:bg-purple-800/50'
+            }`}
+          >
+            {showExternalResponses ? '→' : '← Externa'}
+          </button>
+          
+          <div className="p-4 h-full overflow-y-auto">
+            <h3 className={`text-[12px] uppercase tracking-wider font-medium mb-4 ${
+              whiteMode ? 'text-[#333]' : 'text-[#888]'
+            }`}>
+              Externa AI-svar ({externalResponses.length})
+            </h3>
+            
+            <div className="space-y-4">
+              {externalResponses.map((ext, i) => (
+                <div 
+                  key={i}
+                  className={`p-3 rounded-lg ${
+                    whiteMode ? 'bg-white border border-[#e0e0e0]' : 'bg-[#111] border border-[#1a1a1a]'
+                  }`}
+                >
+                  <div className={`text-[10px] uppercase tracking-wide font-medium mb-2 ${
+                    whiteMode ? 'text-purple-600' : 'text-purple-400'
+                  }`}>
+                    {ext.agent}
+                  </div>
+                  <p className={`text-[11px] leading-relaxed ${
+                    whiteMode ? 'text-[#555]' : 'text-[#888]'
+                  }`}>
+                    {ext.response}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ===== INPUT AREA ===== */}
       <div className="fixed inset-x-0 bottom-0 z-40 transition-all duration-500" style={{ right: sidebarExpanded ? '280px' : '4px' }}>
         <div className={`px-24 pb-10 pt-6 ${
@@ -1651,7 +1843,8 @@ export default function SevenBZeroPage() {
             ? 'bg-gradient-to-t from-[#fafafa] via-[#fafafa]/98 to-transparent' 
             : 'bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/98 to-transparent'
         }`}>
-          <div className="max-w-2xl mx-auto">
+          {/* Wider max-width for 4K screens - matches chat area */}
+          <div className="max-w-5xl mx-auto">
             
             {/* Character/Persona Selection */}
             {/* ONESEEK Δ+ v6.5 (PR#101): Character/Persona Selection with Override Mode Toggle */}
@@ -1672,6 +1865,39 @@ export default function SevenBZeroPage() {
                 <span className={`text-[9px] ${whiteMode ? 'text-[#999]' : 'text-[#555]'}`}>
                   {overrideMode ? 'Val gäller endast nästa fråga' : 'Val gäller tills det ändras'}
                 </span>
+                
+                {/* Compare Mode toggle */}
+                <button
+                  type="button"
+                  onClick={() => setCompareMode(prev => !prev)}
+                  className={`ml-4 text-[9px] tracking-[0.1em] uppercase px-2 py-1 rounded transition-all duration-300 ${
+                    compareMode
+                      ? (whiteMode ? 'bg-purple-100 text-purple-700 border border-purple-300' : 'bg-purple-900/30 text-purple-400 border border-purple-700/50')
+                      : (whiteMode ? 'bg-gray-100 text-gray-500 border border-gray-200' : 'bg-[#1a1a1a] text-[#666] border border-[#2a2a2a]')
+                  }`}
+                >
+                  {compareMode ? '🔬 Compare ON' : '🔬 Compare OFF'}
+                </button>
+                {compareMode && (
+                  <>
+                    {/* Chunked Mode toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setChunkedMode(prev => !prev)}
+                      title={chunkedMode ? 'Analyserar en AI åt gången (långsammare men mer pålitligt)' : 'Analyserar alla samtidigt (snabbare)'}
+                      className={`text-[9px] tracking-[0.1em] uppercase px-2 py-1 rounded transition-all duration-300 ${
+                        chunkedMode
+                          ? (whiteMode ? 'bg-orange-100 text-orange-700 border border-orange-300' : 'bg-orange-900/30 text-orange-400 border border-orange-700/50')
+                          : (whiteMode ? 'bg-gray-100 text-gray-500 border border-gray-200' : 'bg-[#1a1a1a] text-[#666] border border-[#2a2a2a]')
+                      }`}
+                    >
+                      {chunkedMode ? '🔄 Stegvis ON' : '⚡ Stegvis OFF'}
+                    </button>
+                    <span className={`text-[9px] ${whiteMode ? 'text-purple-600' : 'text-purple-400'}`}>
+                      {chunkedMode ? 'Analyserar en i taget' : `Syntetiserar från ${EXTERNAL_AI_MODELS.join(', ')}`}
+                    </span>
+                  </>
+                )}
               </div>
               
               {/* Persona buttons */}

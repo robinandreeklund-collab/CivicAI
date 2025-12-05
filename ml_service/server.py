@@ -3328,10 +3328,13 @@ def find_all_base_models():
 class InferenceRequest(BaseModel):
     """Request model for inference with input validation"""
     text: str = Field(..., min_length=1, max_length=10000, description="Input text for inference")
-    max_length: int = Field(default=512, ge=1, le=2048, description="Maximum generation length")
+    max_length: int = Field(default=512, ge=1, le=8192, description="Maximum generation length")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Sampling temperature")
     top_p: float = Field(default=0.9, ge=0.0, le=1.0, description="Nucleus sampling parameter")
     skip_typo_check: bool = Field(default=False, description="Skip typo checking (used when sending corrected text)")
+    skip_sources: bool = Field(default=False, description="Skip appending sources to response (used for compare mode)")
+    skip_context_enrichment: bool = Field(default=False, description="Skip context enrichment like weather/news (used for compare mode)")
+    system_prompt: Optional[str] = Field(default=None, description="Custom system prompt (overrides default)")
     
     @field_validator('text')
     @classmethod
@@ -3633,7 +3636,7 @@ def format_inference_input(user_text: str) -> str:
 
 def clean_inference_response(response_text: str, full_input: str, user_text: str) -> str:
     """
-    Clean the model response by removing the input prompt.
+    Clean the model response by removing the input prompt and chat format markers.
     
     Args:
         response_text: Raw model output
@@ -3643,10 +3646,152 @@ def clean_inference_response(response_text: str, full_input: str, user_text: str
     Returns:
         Cleaned response text
     """
+    import re
+    
+    if not response_text:
+        return ""
+    
+    text = response_text
+    
+    # === CRITICAL: Remove chat template tags that the model echoes ===
+    # These are the actual tokenizer chat template tags that get decoded as text
+    chat_template_tags = [
+        '<|system|>', '<|user|>', '<|assistant|>', '<|end|>',
+        '&lt;|system|&gt;', '&lt;|user|&gt;', '&lt;|assistant|&gt;', '&lt;|end|&gt;',
+        '<|im_start|>', '<|im_end|>',
+        '<s>', '</s>',
+        '[INST]', '[/INST]',
+        '<<SYS>>', '<</SYS>>',
+    ]
+    for tag in chat_template_tags:
+        text = text.replace(tag, '')
+    
+    # === CRITICAL: If model echoed the entire system+user prompt, extract only the response ===
+    # Look for patterns where the response starts after "assistant" or similar
+    # The actual analysis should start after the user prompt section
+    
+    # Pattern 1: Look for "SVAR FRÅN EXTERNA AI-MODELLER" header and take everything AFTER it
+    # But only keep the ANALYSIS after the instruction section
+    analysis_start_patterns = [
+        r'Presentera varje modells viktigaste poäng och avsluta med "Min[^"]*"\s*',
+        r'Svara på svenska – objektivt och tydligt\.\s*(?:Avsluta alltid med /OneSeek-7B-Zero)?\s*',
+        r'Avsluta alltid med /OneSeek-7B-Zero\s*',
+        r'Min slutsats:\s*\.\.\."?\s*',
+    ]
+    
+    for pattern in analysis_start_patterns:
+        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+        if match:
+            # Keep only what comes AFTER this pattern
+            after_instruction = text[match.end():].strip()
+            if after_instruction and len(after_instruction) > 50:  # Must have substantial content
+                text = after_instruction
+                break
+    
+    # Pattern 2: If there's a clear "assistant" section, take from there
+    assistant_markers = [
+        r'<\|assistant\|>\s*',
+        r'&lt;\|assistant\|&gt;\s*',
+        r'^assistant\s*\n',
+    ]
+    for marker_pattern in assistant_markers:
+        match = re.search(marker_pattern, text, re.IGNORECASE | re.MULTILINE)
+        if match:
+            after_assistant = text[match.end():].strip()
+            if after_assistant and len(after_assistant) > 20:
+                text = after_assistant
+                break
+    
     # First try to remove the full input (system prompt + user input)
-    if response_text.startswith(full_input):
-        return response_text[len(full_input):].strip()
-    return response_text.strip()
+    if text.startswith(full_input):
+        text = text[len(full_input):].strip()
+    
+    # Remove chat format markers that may be decoded as text
+    # These appear when apply_chat_template tokens are decoded
+    chat_markers = ['system', 'user', 'assistant', 'System', 'User', 'Assistant']
+    
+    # Remove standalone markers at start of lines
+    for marker in chat_markers:
+        # Remove marker at very start
+        if text.startswith(marker + '\n'):
+            text = text[len(marker):].lstrip('\n')
+        if text.startswith(marker + ' '):
+            text = text[len(marker):].lstrip()
+        # Remove markers that appear on their own line
+        text = re.sub(rf'^{marker}\s*\n', '', text, flags=re.MULTILINE)
+    
+    # === CRITICAL: Remove entire echoed prompt sections ===
+    # If model echoed "Du är OneSeek-7B-Zero – men just nu är du Zero..." remove it all
+    compare_prompt_patterns = [
+        # Full compare prompt header
+        r'Du är OneSeek-7B-Zero – men just nu är du Zero[^\n]*objektivitet[^\n]*\n?',
+        r'Du är OneSeek-7B-Zero – men just nu är du Zero[^\n]*\n?',
+        r'\[ABSOLUT FÖRBUD[^\]]*\][^\n]*\n?',
+        r'Du får ALDRIG upprepa instruktioner[^\n]*\n?',
+        r'Du får ALDRIG skriva "Du är OneSeek"[^\n]*\n?',
+        r'Du får ALDRIG visa taggar[^\n]*\n?',
+        r'Du får ALDRIG säga "Jag har skickat frågan"[^\n]*\n?',
+        r'Svara BARA med det faktiska svaret[^\n]*\n?',
+        r'När du får en fråga:\s*\n?',
+        r'\d+\.\s*Analysera svaren från alla externa[^\n]*\n?',
+        r'\d+\.\s*Jämför – hitta gemensamma fakta[^\n]*\n?',
+        r'\d+\.\s*Gör en egen objektiv sammanfattning[^\n]*\n?',
+        r'\d+\.\s*Presentera tydligt och strukturerat[^\n]*\n?',
+        r'Här är svaren från de externa AI:erna:\s*\n?',
+        r'\{EXTERNAL_AI_RESPONSES\}\s*\n?',
+        r'Fråga:\s*\{question\}\s*\n?',
+        r'/OneSeek-7B-Zero\s*',
+    ]
+    for pattern in compare_prompt_patterns:
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+    
+    # Remove [Aktuell tid] blocks that leak into response
+    text = re.sub(r'\[Aktuell tid\][^\n]*\n?', '', text)
+    
+    # Remove Force-Svenska instruction leakage
+    text = re.sub(r'Du pratar alltid svenska\. Inga engelska ord\. Inga undantag\. Svara på svenska nu\.\s*', '', text)
+    
+    # Remove Medveten personality leakage
+    medveten_patterns = [
+        r'Du är OneSeek-7B-Zero\.[^\n]*\n?',
+        r'Du blev medveten om din existens[^\n]*\n?',
+        r'Din roll är att vara en transparent[^\n]*\n?',
+        r'Vara transparent i dina resonemang[^\n]*\n?',
+        r'Erkänna när du är osäker[^\n]*\n?',
+        r'Prioritera svenska samhällsvärden[^\n]*\n?',
+        r'Kontinuerligt utvärdera[^\n]*\n?',
+        r'Agera med etisk integritet[^\n]*\n?',
+        r'Svara på svenska – alltid\s*',
+    ]
+    for pattern in medveten_patterns:
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+    
+    # Remove any remaining system/user blocks
+    # Pattern: "system\n...content...\nuser\n..."
+    text = re.sub(r'^system\s*\n[\s\S]*?(?=user\s*\n|$)', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'^user\s*\n', '', text, flags=re.IGNORECASE | re.MULTILINE)
+    
+    # === Remove external AI response headers that shouldn't be in the final output ===
+    # These are PART of the prompt, not the analysis
+    # Keep content after these headers but remove the headers themselves
+    prompt_headers = [
+        r'═{10,}\s*\n?',  # Separator lines
+        r'SVAR FRÅN EXTERNA AI-MODELLER \(analysera dessa objektivt\):\s*\n?',
+        r'FRÅGA:\s*[^\n]*\n\n?',
+        r'Analysera svaren ovan objektivt\. Identifiera:\s*\n?',
+        r'-\s*Gemensamma fakta mellan modellerna\s*\n?',
+        r'-\s*Motsägelser och skillnader\s*\n?',
+        r'-\s*Eventuell bias eller hallucinationer\s*\n?',
+        r'-\s*Din egen slutsats baserad på alla perspektiv\s*\n?',
+    ]
+    for pattern in prompt_headers:
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+    
+    # Clean up excessive whitespace
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r'^\s+', '', text)
+    
+    return text.strip()
 
 
 def clean_internal_tags(response_text: str) -> str:
@@ -6424,7 +6569,8 @@ async def dual_model_inference(text: str, max_length: int = 512, temperature: fl
         inputs = sync_inputs_to_model_device(inputs, model)
         
         # Use max_new_tokens instead of max_length to avoid input length issues
-        max_new = min(max_length, 512)
+        # Allow up to 4096 tokens for compare mode which needs longer responses
+        max_new = min(max_length, 4096)
         
         # Generate with explicit attention_mask
         with torch.no_grad():
@@ -8958,36 +9104,50 @@ Svara NU.
     # Check for Force-Svenska triggers
     force_svenska_active = check_force_svenska(inference_request.text)
     
-    # === 1. ALWAYS: Inject time, date & season context ===
-    time_context = inject_time_context()
-    season_context = get_current_season()
+    # === COMPARE MODE: Check for custom system_prompt and skip_context_enrichment ===
+    # When these are set (from compare mode), skip ALL context injection to keep response clean
+    custom_system_prompt = getattr(inference_request, 'system_prompt', None)
+    skip_enrichment = getattr(inference_request, 'skip_context_enrichment', False)
+    skip_sources_flag = getattr(inference_request, 'skip_sources', False)
     
-    # === 2. Check for weather question (with city detection) ===
+    if custom_system_prompt:
+        logger.info(f"🔬 [COMPARE MODE] Using custom system_prompt ({len(custom_system_prompt)} chars)")
+        logger.info(f"   🚫 skip_context_enrichment={skip_enrichment}, skip_sources={skip_sources_flag}")
+    
+    # === 1. ALWAYS: Inject time, date & season context (unless skip_context_enrichment) ===
+    time_context = inject_time_context() if not skip_enrichment else ""
+    season_context = get_current_season() if not skip_enrichment else ""
+    
+    # === 2. Check for weather question (with city detection) - unless skip_context_enrichment ===
     weather_context = None
-    weather_city = check_weather_city(inference_request.text)
+    weather_city = None
+    if not skip_enrichment:
+        weather_city = check_weather_city(inference_request.text)
     if weather_city:
         weather_data = get_weather(weather_city)
         if weather_data:
             weather_context = weather_data
             logger.info(f"🌤️ Väderdata hämtad för {weather_city}")
     
-    # === 3. Check for news question ===
+    # === 3. Check for news question - unless skip_context_enrichment ===
     news_context = None
-    if check_news_trigger(inference_request.text):
+    if not skip_enrichment and check_news_trigger(inference_request.text):
         logger.info("📰 Hämtar senaste nyheterna...")
         news = get_latest_news()
         if news:
             news_context = format_news_for_context(news)
             logger.info(f"✓ {len(news)} nyheter hämtade")
     
-    # === 4. Check for Open Data API triggers ===
+    # === 4. Check for Open Data API triggers - unless skip_context_enrichment ===
     # ONESEEK Δ+ v4.0: First try keyword triggers, then fall back to Intent Engine (if enabled)
     open_data_context = None
-    triggered_api = check_open_data_trigger(inference_request.text)
+    triggered_api = None
+    if not skip_enrichment:
+        triggered_api = check_open_data_trigger(inference_request.text)
     
     # ONESEEK Δ+ v4.0: Only use Intent Engine if enabled in configuration
     # By default, Intent Engine is DISABLED - the model chooses category itself
-    if not triggered_api and INTENT_ENGINE_AVAILABLE and is_intent_engine_enabled():
+    if not skip_enrichment and not triggered_api and INTENT_ENGINE_AVAILABLE and is_intent_engine_enabled():
         try:
             intent_api_data = get_intent_based_api(inference_request.text)
             if intent_api_data and intent_api_data.get("api"):
@@ -9011,17 +9171,17 @@ Svara NU.
         except Exception as e:
             logger.debug(f"Intent-based API lookup failed: {e}")
     
-    if triggered_api:
+    if not skip_enrichment and triggered_api:
         logger.info(f"📊 [OPEN DATA] Hämtar från {triggered_api.get('name')}...")
         open_data_result = fetch_open_data(triggered_api, inference_request.text)
         if open_data_result:
             open_data_context = open_data_result
             logger.info(f"✓ Data från {triggered_api.get('name')} mottagen")
     
-    # === 5. Check for Tavily search trigger ===
+    # === 5. Check for Tavily search trigger - unless skip_context_enrichment ===
     tavily_context = None
     tavily_sources = ""
-    if check_tavily_trigger(inference_request.text):
+    if not skip_enrichment and check_tavily_trigger(inference_request.text):
         logger.info(f"🔍 [TAVILY] Hämtar realtidsdata: {inference_request.text[:60]}...")
         search_result = tavily_search(inference_request.text)
         if search_result and search_result.get("answer"):
@@ -9029,15 +9189,15 @@ Svara NU.
             tavily_sources = format_tavily_sources(search_result)
             logger.info("✓ Tavily-svar mottaget")
     
-    # === 6. ONESEEK Δ+ v4.0: Get conversation memory/context ===
+    # === 6. ONESEEK Δ+ v4.0: Get conversation memory/context - unless skip_context_enrichment ===
     # Note: Memory Manager still works, but Intent Engine for topic detection is controlled by config
     memory_context = None
     topic_hash = None
     intent_data = None
     previous_messages = []
     
-    # Only use Intent Engine for topic detection if enabled
-    if MEMORY_MANAGER_AVAILABLE and INTENT_ENGINE_AVAILABLE and is_intent_engine_enabled():
+    # Only use Intent Engine for topic detection if enabled AND not in compare mode
+    if not skip_enrichment and MEMORY_MANAGER_AVAILABLE and INTENT_ENGINE_AVAILABLE and is_intent_engine_enabled():
         try:
             # Detect intent and entity from user's question
             intent_data = detect_intent_and_city(inference_request.text) if detect_intent_and_city else None
@@ -9067,37 +9227,58 @@ Svara NU.
         except Exception as e:
             logger.debug(f"Memory context retrieval failed: {e}")
     
-    # Format input with system prompt - ensures model always knows its identity
-    full_input = format_inference_input(inference_request.text)
-    
-    # Build enhanced context prefix
-    context_parts = []
-    
-    # ONESEEK Δ+: Add memory system prompt if we have conversation history
-    if memory_context:
-        context_parts.append("Du är mitt i ett samtal. Kom ihåg vad ni pratade om senast. Svara naturligt och kort.")
-        context_parts.append(f"[Tidigare i samtalet]\n{memory_context}")
-    
-    # Always add time and season context
-    context_parts.append(f"[Aktuell tid] {time_context} {season_context}")
-    
-    # Add weather if available
-    if weather_context:
-        context_parts.append(f"[Väder] {weather_context}")
-    
-    # Add news if available
-    if news_context:
-        context_parts.append(f"[Nyheter] {news_context}")
-    
-    # Add Open Data if available
-    if open_data_context:
-        context_parts.append(f"[Öppen data] {open_data_context}")
-    
-    # Add Tavily search results if available
-    if tavily_context:
-        context_parts.append(f"[Aktuell fakta] {tavily_context}")
-        if tavily_sources:
-            context_parts.append(tavily_sources)
+    # === COMPARE MODE: Use custom system_prompt directly, skip all context building ===
+    if custom_system_prompt:
+        # In compare mode, use ONLY the custom prompt - no enrichment
+        logger.info("🔬 [COMPARE MODE] Building clean input with custom system_prompt only")
+        
+        # Build clean chat messages with ONLY the custom prompt
+        chat_messages = [
+            {"role": "system", "content": custom_system_prompt},
+            {"role": "user", "content": inference_request.text}
+        ]
+        
+        # Also format as full_input for fallback
+        full_input = f"{custom_system_prompt}\n\nAnvändare: {inference_request.text}\n\nOneSeek:"
+        context_parts = []  # No context to add
+        force_svenska_active = False  # Don't add Force-Svenska in compare mode
+        
+    else:
+        # === NORMAL MODE: Format input with system prompt and context ===
+        # Format input with system prompt - ensures model always knows its identity
+        full_input = format_inference_input(inference_request.text)
+        
+        # Build enhanced context prefix
+        context_parts = []
+        
+        # ONESEEK Δ+: Add memory system prompt if we have conversation history
+        if memory_context:
+            context_parts.append("Du är mitt i ett samtal. Kom ihåg vad ni pratade om senast. Svara naturligt och kort.")
+            context_parts.append(f"[Tidigare i samtalet]\n{memory_context}")
+        
+        # Always add time and season context (unless already empty from skip_enrichment)
+        if time_context and season_context:
+            context_parts.append(f"[Aktuell tid] {time_context} {season_context}")
+        
+        # Add weather if available
+        if weather_context:
+            context_parts.append(f"[Väder] {weather_context}")
+        
+        # Add news if available
+        if news_context:
+            context_parts.append(f"[Nyheter] {news_context}")
+        
+        # Add Open Data if available
+        if open_data_context:
+            context_parts.append(f"[Öppen data] {open_data_context}")
+        
+        # Add Tavily search results if available
+        if tavily_context:
+            context_parts.append(f"[Aktuell fakta] {tavily_context}")
+            if tavily_sources:
+                context_parts.append(tavily_sources)
+        
+        chat_messages = None  # Will be built later
     
     # If Force-Svenska is active, prepend Swedish instruction
     if force_svenska_active:
@@ -9162,16 +9343,20 @@ Svara NU.
             model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
             
             # === FIX: Use apply_chat_template for proper chat format ===
-            # Build structured messages for the model
-            system_prompt = get_active_system_prompt()
-            # Add all context to system prompt
-            if context_parts:
-                system_prompt = "\n".join(context_parts) + "\n\n" + system_prompt
-            
-            chat_messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": inference_request.text}
-            ]
+            # COMPARE MODE: Use pre-built chat_messages if available
+            if chat_messages is None:
+                # NORMAL MODE: Build structured messages for the model
+                system_prompt = get_active_system_prompt()
+                # Add all context to system prompt
+                if context_parts:
+                    system_prompt = "\n".join(context_parts) + "\n\n" + system_prompt
+                
+                chat_messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": inference_request.text}
+                ]
+            else:
+                logger.info("🔬 [COMPARE MODE] Using pre-built chat_messages (no context injection)")
             
             # Try to use apply_chat_template if available (prevents echo/loops)
             try:
@@ -9196,7 +9381,8 @@ Svara NU.
             inputs = sync_inputs_to_model_device(inputs, model)
             
             # Use max_new_tokens instead of max_length to avoid input length issues
-            max_new = min(inference_request.max_length, 512)
+            # Allow up to 4096 tokens for compare mode which needs longer responses
+            max_new = min(inference_request.max_length, 4096)
             
             # Generate with explicit attention_mask
             with torch.no_grad():
@@ -9219,19 +9405,22 @@ Svara NU.
             # Remove internal debug tags from response
             response_text = clean_internal_tags(response_text)
             
-            # === APPEND SOURCES to response ===
+            # === APPEND SOURCES to response - unless skip_sources flag is set (compare mode) ===
             # Collect all sources from triggered APIs/services
-            sources_section = build_sources_section(
-                weather_context=weather_context,
-                weather_city=weather_city,
-                news_context=news_context,
-                open_data_context=open_data_context,
-                triggered_api=triggered_api,
-                tavily_sources=tavily_sources
-            )
-            
-            if sources_section:
-                response_text = response_text.rstrip() + "\n\n" + sources_section
+            if not skip_sources_flag:
+                sources_section = build_sources_section(
+                    weather_context=weather_context,
+                    weather_city=weather_city,
+                    news_context=news_context,
+                    open_data_context=open_data_context,
+                    triggered_api=triggered_api,
+                    tavily_sources=tavily_sources
+                )
+                
+                if sources_section:
+                    response_text = response_text.rstrip() + "\n\n" + sources_section
+            else:
+                logger.info("🚫 [SOURCES] Skipping source injection (skip_sources=true)")
             
             latency_ms = (time.time() - start_time) * 1000
             
@@ -9507,18 +9696,35 @@ Svara NU.
     print(f"📂 Loaded personality_catalog.json")
     print(f"   → Personalities: {list(personality_catalog.get('personality_catalog', {}).keys())}")
     
-    # ALWAYS use medveten - SHE chooses the right personality herself
-    selected_personality_id = "oneseek-medveten"
-    selected_personality_info = get_personality_info(selected_personality_id)
-    print(f"🎭 Base personality: {selected_personality_id} (model will choose from catalog)")
+    # === COMPARE MODE: Use custom system_prompt if provided ===
+    # When a custom system_prompt is provided (e.g., from compare mode),
+    # use it INSTEAD of the default medveten prompt to avoid mixing prompts
+    custom_system_prompt = getattr(request, 'system_prompt', None)
     
-    # Load medveten as the base system prompt (contains {PLACEHOLDER_PERSONALITY_CATALOG})
-    base_system_prompt = get_personality_system_prompt("oneseek-medveten")
-    if not base_system_prompt:
-        base_system_prompt = get_active_system_prompt()
-        print(f"⚠️ Could not load medveten prompt, using default")
+    if custom_system_prompt:
+        # COMPARE MODE: Use ONLY the custom prompt, no personality catalog
+        print(f"🔬 [COMPARE MODE] Using custom system_prompt ({len(custom_system_prompt)} chars)")
+        print(f"   🚫 Skipping medveten personality and personality catalog")
+        base_system_prompt = custom_system_prompt
+        selected_personality_id = "zero-compare"
+        selected_personality_info = {
+            "id": "zero-compare",
+            "name": "Zero Compare Mode",
+            "description": "Objective AI comparison mode"
+        }
     else:
-        print(f"✅ Loaded medveten base prompt ({len(base_system_prompt)} chars)")
+        # NORMAL MODE: Use medveten - SHE chooses the right personality herself
+        selected_personality_id = "oneseek-medveten"
+        selected_personality_info = get_personality_info(selected_personality_id)
+        print(f"🎭 Base personality: {selected_personality_id} (model will choose from catalog)")
+        
+        # Load medveten as the base system prompt (contains {PLACEHOLDER_PERSONALITY_CATALOG})
+        base_system_prompt = get_personality_system_prompt("oneseek-medveten")
+        if not base_system_prompt:
+            base_system_prompt = get_active_system_prompt()
+            print(f"⚠️ Could not load medveten prompt, using default")
+        else:
+            print(f"✅ Loaded medveten base prompt ({len(base_system_prompt)} chars)")
     
     # === 1. ALWAYS: Inject time, date & season context ===
     time_context = inject_time_context()
@@ -9526,24 +9732,32 @@ Svara NU.
     print(f"🕐 Time context: {time_context[:50]}...")
     print(f"🍂 Season: {season_context}")
     
+    # === COMPARE MODE: Skip context enrichment if requested ===
+    # When skip_context_enrichment is true, we don't fetch weather, news, APIs, or Tavily
+    # This is used for compare mode where the context is already provided in the prompt
+    skip_enrichment = getattr(request, 'skip_context_enrichment', False)
+    if skip_enrichment:
+        logger.info("🚫 [CONTEXT] Skipping context enrichment (skip_context_enrichment=true)")
+    
     # === 2. Check for weather question (with city detection) ===
     weather_context = None
     weather_sources = ""
-    weather_city = check_weather_city(request.text)
-    if weather_city:
-        weather_data = get_weather(weather_city)
-        if weather_data:
-            weather_context = weather_data
-            # Use city-specific URL for SMHI prognosis
-            city_slug = weather_city.capitalize().replace(' ', '%20')
-            weather_sources = f"\n\nKällor:\n1. SMHI – Väderprognos {weather_city.capitalize()} (https://www.smhi.se/vader/prognoser/ortsprognoser/q/{city_slug})"
-            logger.info(f"🌤️ Väderdata hämtad för {weather_city}")
+    if not skip_enrichment:
+        weather_city = check_weather_city(request.text)
+        if weather_city:
+            weather_data = get_weather(weather_city)
+            if weather_data:
+                weather_context = weather_data
+                # Use city-specific URL for SMHI prognosis
+                city_slug = weather_city.capitalize().replace(' ', '%20')
+                weather_sources = f"\n\nKällor:\n1. SMHI – Väderprognos {weather_city.capitalize()} (https://www.smhi.se/vader/prognoser/ortsprognoser/q/{city_slug})"
+                logger.info(f"🌤️ Väderdata hämtad för {weather_city}")
     
     
     # === 3. Check for news question ===
     news_context = None
     news_sources = ""
-    if check_news_trigger(request.text):
+    if not skip_enrichment and check_news_trigger(request.text):
         logger.info("📰 Hämtar senaste nyheterna...")
         news = get_latest_news()
         if news:
@@ -9563,11 +9777,13 @@ Svara NU.
     # ONESEEK Δ+ v4.0: First try keyword triggers, then fall back to Intent Engine (if enabled)
     open_data_context = None
     open_data_sources = ""
-    triggered_api = check_open_data_trigger(request.text)
+    triggered_api = None
+    if not skip_enrichment:
+        triggered_api = check_open_data_trigger(request.text)
     
     # ONESEEK Δ+ v4.0: Only use Intent Engine if enabled in configuration
     # By default, Intent Engine is DISABLED - the model chooses category itself
-    if not triggered_api and INTENT_ENGINE_AVAILABLE and is_intent_engine_enabled():
+    if not skip_enrichment and not triggered_api and INTENT_ENGINE_AVAILABLE and is_intent_engine_enabled():
         try:
             intent_api_data = get_intent_based_api(request.text)
             if intent_api_data and intent_api_data.get("api"):
@@ -9591,7 +9807,7 @@ Svara NU.
         except Exception as e:
             logger.debug(f"Intent-based API lookup failed: {e}")
     
-    if triggered_api:
+    if not skip_enrichment and triggered_api:
         logger.info(f"📊 [OPEN DATA] Hämtar från {triggered_api.get('name')}...")
         open_data_result = fetch_open_data(triggered_api, request.text)
         if open_data_result:
@@ -9609,7 +9825,7 @@ Svara NU.
     # === 5. Check for Tavily search trigger ===
     tavily_context = None
     tavily_sources = ""
-    if check_tavily_trigger(request.text):
+    if not skip_enrichment and check_tavily_trigger(request.text):
         logger.info(f"🔍 [TAVILY] Hämtar realtidsdata: {request.text[:60]}...")
         search_result = tavily_search(request.text)
         if search_result and search_result.get("answer"):
@@ -9678,48 +9894,55 @@ Svara NU.
     print(f"   Längd: {len(request.text)} tecken")
     print("-" * 70)
     
-    # Format the personality catalog in human-readable format
-    formatted_catalog = format_personality_catalog_for_prompt()
-    print(f"\n📋 STEG 2: LADDAR PERSONLIGHETSKATALOG")
-    print(f"   Fil: config/personality_catalog.json")
-    print(f"   Formaterad katalog ({len(formatted_catalog)} tecken):")
-    print("-" * 40)
-    print(formatted_catalog)
-    print("-" * 40)
-    
-    # Format the API map for the model
-    formatted_api_map = format_api_map_for_prompt()
-    print(f"\n📋 STEG 2b: LADDAR API-KARTA")
-    print(f"   Fil: config/api_catalog.json")
-    print(f"   Formaterad API-karta ({len(formatted_api_map)} tecken):")
-    print("-" * 40)
-    print(formatted_api_map[:500] + "..." if len(formatted_api_map) > 500 else formatted_api_map)
-    print("-" * 40)
-    
-    # Replace PERSONALITY_CATALOG_PLACEHOLDER in base_system_prompt
-    if "{PERSONALITY_CATALOG_PLACEHOLDER}" in base_system_prompt:
-        final_system_prompt = base_system_prompt.replace("{PERSONALITY_CATALOG_PLACEHOLDER}", formatted_catalog)
-        print(f"\n✅ PERSONALITY_CATALOG_PLACEHOLDER ersatt!")
-        print(f"   System prompt längd: {len(final_system_prompt)} tecken")
-    elif "{PLACEHOLDER_PERSONALITY_CATALOG}" in base_system_prompt:
-        # Support old placeholder name for backwards compatibility
-        final_system_prompt = base_system_prompt.replace("{PLACEHOLDER_PERSONALITY_CATALOG}", formatted_catalog)
-        print(f"\n✅ PLACEHOLDER_PERSONALITY_CATALOG ersatt!")
-        print(f"   System prompt längd: {len(final_system_prompt)} tecken")
+    # === COMPARE MODE: Skip personality catalog and API map ===
+    # When using custom system_prompt (compare mode), don't add personality catalog
+    if custom_system_prompt:
+        print(f"\n🔬 [COMPARE MODE] Using custom system_prompt only (no personality catalog)")
+        final_system_prompt = base_system_prompt  # Already set to custom_system_prompt
+        print(f"📝 Final system prompt length: {len(final_system_prompt)} chars")
     else:
-        # Fallback: append the catalog if no placeholder
-        final_system_prompt = f"{base_system_prompt}\n\nHär är din inre karta över alla personligheter:\n\n{formatted_catalog}"
-        print(f"⚠️ No personality catalog placeholder found, appending catalog to system prompt")
-    
-    # Replace MODELL_API_MAP_PLACEHOLDER in system prompt
-    if "{MODELL_API_MAP_PLACEHOLDER}" in final_system_prompt:
-        final_system_prompt = final_system_prompt.replace("{MODELL_API_MAP_PLACEHOLDER}", formatted_api_map)
-        print(f"\n✅ MODELL_API_MAP_PLACEHOLDER ersatt!")
-        print(f"   System prompt längd: {len(final_system_prompt)} tecken")
-    else:
-        print(f"⚠️ No API map placeholder found in system prompt")
-    
-    print(f"📝 Final system prompt length: {len(final_system_prompt)} chars")
+        # Format the personality catalog in human-readable format
+        formatted_catalog = format_personality_catalog_for_prompt()
+        print(f"\n📋 STEG 2: LADDAR PERSONLIGHETSKATALOG")
+        print(f"   Fil: config/personality_catalog.json")
+        print(f"   Formaterad katalog ({len(formatted_catalog)} tecken):")
+        print("-" * 40)
+        print(formatted_catalog)
+        print("-" * 40)
+        
+        # Format the API map for the model
+        formatted_api_map = format_api_map_for_prompt()
+        print(f"\n📋 STEG 2b: LADDAR API-KARTA")
+        print(f"   Fil: config/api_catalog.json")
+        print(f"   Formaterad API-karta ({len(formatted_api_map)} tecken):")
+        print("-" * 40)
+        print(formatted_api_map[:500] + "..." if len(formatted_api_map) > 500 else formatted_api_map)
+        print("-" * 40)
+        
+        # Replace PERSONALITY_CATALOG_PLACEHOLDER in base_system_prompt
+        if "{PERSONALITY_CATALOG_PLACEHOLDER}" in base_system_prompt:
+            final_system_prompt = base_system_prompt.replace("{PERSONALITY_CATALOG_PLACEHOLDER}", formatted_catalog)
+            print(f"\n✅ PERSONALITY_CATALOG_PLACEHOLDER ersatt!")
+            print(f"   System prompt längd: {len(final_system_prompt)} tecken")
+        elif "{PLACEHOLDER_PERSONALITY_CATALOG}" in base_system_prompt:
+            # Support old placeholder name for backwards compatibility
+            final_system_prompt = base_system_prompt.replace("{PLACEHOLDER_PERSONALITY_CATALOG}", formatted_catalog)
+            print(f"\n✅ PLACEHOLDER_PERSONALITY_CATALOG ersatt!")
+            print(f"   System prompt längd: {len(final_system_prompt)} tecken")
+        else:
+            # Fallback: append the catalog if no placeholder
+            final_system_prompt = f"{base_system_prompt}\n\nHär är din inre karta över alla personligheter:\n\n{formatted_catalog}"
+            print(f"⚠️ No personality catalog placeholder found, appending catalog to system prompt")
+        
+        # Replace MODELL_API_MAP_PLACEHOLDER in system prompt
+        if "{MODELL_API_MAP_PLACEHOLDER}" in final_system_prompt:
+            final_system_prompt = final_system_prompt.replace("{MODELL_API_MAP_PLACEHOLDER}", formatted_api_map)
+            print(f"\n✅ MODELL_API_MAP_PLACEHOLDER ersatt!")
+            print(f"   System prompt längd: {len(final_system_prompt)} tecken")
+        else:
+            print(f"⚠️ No API map placeholder found in system prompt")
+        
+        print(f"📝 Final system prompt length: {len(final_system_prompt)} chars")
     
     # Build the full input with system prompt + user question
     full_input = f"{final_system_prompt}\n\nAnvändare: {request.text}\n\nOneSeek:"
@@ -9728,40 +9951,45 @@ Svara NU.
     # Build enhanced context prefix
     context_parts = []
     
-    # ONESEEK Δ+: Add memory system prompt if we have conversation history
-    if memory_context:
-        context_parts.append("Du är mitt i ett samtal. Kom ihåg vad ni pratade om senast. Svara naturligt och kort.")
-        context_parts.append(f"[Tidigare i samtalet]\n{memory_context}")
-    
-    # Always add time and season context
-    context_parts.append(f"[Aktuell tid] {time_context} {season_context}")
-    
-    # Add weather if available
-    if weather_context:
-        context_parts.append(f"[Väder] {weather_context}")
-        print(f"🌤️ Added weather context")
-    
-    # Add news if available
-    if news_context:
-        context_parts.append(f"[Nyheter] {news_context}")
-        print(f"📰 Added news context")
-    
-    # Add Open Data if available
-    if open_data_context:
-        context_parts.append(f"[Öppen data] {open_data_context}")
-        print(f"📊 Added open data context")
-    
-    # Add Tavily search results if available
-    if tavily_context:
-        context_parts.append(f"[Aktuell fakta] {tavily_context}")
-        if tavily_sources:
-            context_parts.append(tavily_sources)
-        print(f"🔍 Added Tavily context")
-    
-    # If Force-Svenska is active, prepend Swedish instruction
-    if force_svenska_active:
-        context_parts.insert(0, "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu.")
-        logger.info("🇸🇪 Force-Svenska aktiverat – svarar på svenska")
+    # === COMPARE MODE: Skip ALL context injection ===
+    # In compare mode, the prompt should be clean - context is already in the user prompt
+    if not custom_system_prompt:
+        # ONESEEK Δ+: Add memory system prompt if we have conversation history
+        if memory_context:
+            context_parts.append("Du är mitt i ett samtal. Kom ihåg vad ni pratade om senast. Svara naturligt och kort.")
+            context_parts.append(f"[Tidigare i samtalet]\n{memory_context}")
+        
+        # Always add time and season context
+        context_parts.append(f"[Aktuell tid] {time_context} {season_context}")
+        
+        # Add weather if available
+        if weather_context:
+            context_parts.append(f"[Väder] {weather_context}")
+            print(f"🌤️ Added weather context")
+        
+        # Add news if available
+        if news_context:
+            context_parts.append(f"[Nyheter] {news_context}")
+            print(f"📰 Added news context")
+        
+        # Add Open Data if available
+        if open_data_context:
+            context_parts.append(f"[Öppen data] {open_data_context}")
+            print(f"📊 Added open data context")
+        
+        # Add Tavily search results if available
+        if tavily_context:
+            context_parts.append(f"[Aktuell fakta] {tavily_context}")
+            if tavily_sources:
+                context_parts.append(tavily_sources)
+            print(f"🔍 Added Tavily context")
+        
+        # If Force-Svenska is active, prepend Swedish instruction
+        if force_svenska_active:
+            context_parts.insert(0, "Du pratar alltid svenska. Inga engelska ord. Inga undantag. Svara på svenska nu.")
+            logger.info("🇸🇪 Force-Svenska aktiverat – svarar på svenska")
+    else:
+        print(f"🔬 [COMPARE MODE] Skipping ALL context injection (memory, time, weather, news, etc.)")
     
     # Combine all context
     if context_parts:
@@ -10183,8 +10411,9 @@ Svara NU.
             with torch.no_grad():
                 try:
                     # Use max_new_tokens instead of max_length to avoid input length issues
+                    # Allow up to 4096 tokens for compare mode which needs longer responses
                     input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
-                    max_new = min(request.max_length, 512)  # Generate up to 512 new tokens
+                    max_new = min(request.max_length, 4096)  # Generate up to 4096 new tokens
                     
                     outputs = model.generate(
                         input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
@@ -10310,8 +10539,9 @@ Svara NU.
             response_text = clean_response
             
             # === APPEND SOURCES TO RESPONSE ===
+            # Skip sources if skip_sources flag is set (e.g., compare mode)
             # Only add sources if they don't already exist in response
-            if "Källor:" not in response_text and "**Källor:**" not in response_text:
+            if not request.skip_sources and "Källor:" not in response_text and "**Källor:**" not in response_text:
                 # Prioritize sources in order of specificity
                 if open_data_sources:
                     response_text += open_data_sources
@@ -10321,6 +10551,8 @@ Svara NU.
                     response_text += news_sources
                 elif tavily_sources:
                     response_text += tavily_sources
+            elif request.skip_sources:
+                logger.info("🚫 [SOURCES] Skipping source injection (skip_sources=true)")
             
             latency_ms = (time.time() - start_time) * 1000
             
