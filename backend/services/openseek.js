@@ -57,15 +57,29 @@ export async function getOpenSeekResponse(question, options = {}) {
     top_p: options.top_p ?? 0.9,
   };
   
-  // Add profile if specified
-  if (options.profileId) {
+  // IMPORTANT: When a custom systemPrompt is provided (e.g., compare mode),
+  // do NOT send profile_id to avoid combining two different personas.
+  // The custom systemPrompt should be the ONLY system-level instruction.
+  if (options.systemPrompt) {
+    // Use custom system prompt ONLY (no profile_id)
+    requestBody.system_prompt = options.systemPrompt;
+    console.log(`   System prompt length: ${options.systemPrompt.length} chars`);
+    console.log(`   ⚠️  Skipping profile_id to avoid prompt mixing`);
+    
+    // COMPARE MODE: Tell Python server to skip adding sources
+    // Sources are injected server-side and pollute compare analysis
+    requestBody.skip_sources = true;
+    requestBody.skip_context_enrichment = true;
+    console.log(`   🚫 skip_sources=true, skip_context_enrichment=true (compare mode)`);
+  } else if (options.profileId) {
+    // No custom prompt, use profile-based persona
     requestBody.profile_id = options.profileId;
   }
   
-  // Add system prompt if specified
-  if (options.systemPrompt) {
-    requestBody.system_prompt = options.systemPrompt;
-    console.log(`   System prompt length: ${options.systemPrompt.length} chars`);
+  // Explicit skip_sources flag from caller
+  if (options.skipSources) {
+    requestBody.skip_sources = true;
+    console.log(`   🚫 skip_sources=true (explicit)`);
   }
   
   // Add context if specified
