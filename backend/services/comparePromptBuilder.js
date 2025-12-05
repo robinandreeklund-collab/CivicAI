@@ -467,11 +467,11 @@ export function buildComparePrompt(characterYamlPath, question, otherResponses, 
     personality_type: 'compare',
   };
   
-  // For the model, we send the full prompt as userPrompt
-  // systemPrompt is empty because everything is in the prompt itself
+  // IMPORTANT: Send as systemPrompt so Python treats it as instructions to follow
+  // userPrompt can just be the original question for cleaner chat format
   return {
-    systemPrompt: '', // Empty - full prompt is in userPrompt
-    userPrompt: fullPrompt,
+    systemPrompt: fullPrompt, // Full prompt with all instructions and data
+    userPrompt: question, // Just the question for the user role
     character,
   };
 }

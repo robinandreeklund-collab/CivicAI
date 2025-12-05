@@ -295,10 +295,10 @@ async function performChunkedAnalysis(question, externalResponses, options = {})
       .replace(/\{response\}/g, cleanedResponse.substring(0, 1500));
 
     try {
-      const result = await getOpenSeekResponse(analysisPrompt, {
+      // Send the analysis prompt as systemPrompt so the model follows it as instructions
+      const result = await getOpenSeekResponse(question, {
         profileId,
-        // systemPrompt is empty - everything is in the prompt itself
-        systemPrompt: '',
+        systemPrompt: analysisPrompt, // Full prompt with instructions
         max_tokens: 256, // Shorter response for individual analysis
         timeout: 60000, // 1 minute per analysis
       });
@@ -387,10 +387,10 @@ async function performChunkedAnalysis(question, externalResponses, options = {})
   }
   
   try {
-    const synthesisResult = await getOpenSeekResponse(synthesisPrompt, {
+    // Send synthesis prompt as systemPrompt so the model follows it as instructions
+    const synthesisResult = await getOpenSeekResponse(question.substring(0, 200), {
       profileId,
-      // systemPrompt is empty - everything is in the prompt itself (from Admin Dashboard)
-      systemPrompt: '',
+      systemPrompt: synthesisPrompt, // Full synthesis prompt with all analyses
       max_tokens: 512,
       timeout: 90000, // 1.5 minutes for synthesis
     });
@@ -594,22 +594,27 @@ async function handleZeroCompareFlow(req, res) {
       console.log(`✅ Prompt built from zero_compare.json (placeholders replaced)`);
       
       // Step 4: Call OpenSeek with the complete prompt
-      // The full prompt (with {EXTERNAL_AI_RESPONSES} and {question} replaced) is in userPrompt
-      // If customSystemPrompt is provided (from Message Builder), use it as systemPrompt
+      // systemPrompt contains the full prompt with AI responses and analysis instructions
+      // userPrompt contains just the question for cleaner chat format
       console.log('\n🤖 Step 4: Calling OpenSeek-7B-Zero...');
       
-      // Determine effective prompts:
-      // - If customSystemPrompt from Message Builder: use it as system, userPrompt as user
-      // - Otherwise: systemPrompt is empty, everything is in userPrompt (from Admin Dashboard)
+      // Determine effective system prompt:
+      // - If customSystemPrompt from Message Builder: use it directly
+      // - Otherwise: use promptResult.systemPrompt (from Admin Dashboard with placeholders replaced)
       const useCustom = customSystemPrompt && customSystemPrompt.trim();
+      const effectiveSystemPrompt = useCustom ? customSystemPrompt : promptResult.systemPrompt;
+      
       if (useCustom) {
         console.log(`   📝 Using custom system prompt from Message Builder`);
+      } else {
+        console.log(`   📝 Using Zero Compare prompt from Admin Dashboard`);
       }
       
       openSeekResult = await getOpenSeekResponse(promptResult.userPrompt, {
         profileId,
-        systemPrompt: useCustom ? customSystemPrompt : promptResult.systemPrompt,
-        // Don't pass context separately - it's already in userPrompt
+        systemPrompt: effectiveSystemPrompt,
+        // systemPrompt contains all instructions + AI responses
+        // userPrompt is just the question
       });
       
       if (openSeekResult.error && !openSeekResult.response) {
