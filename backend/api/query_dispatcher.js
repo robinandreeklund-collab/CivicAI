@@ -169,10 +169,23 @@ function sanitizeResponse(text) {
   // Remove "Vi är mitt i vintern/sommaren/våren/hösten just nu."
   cleaned = cleaned.replace(/Vi är mitt i (vintern|sommaren|våren|hösten) just nu\.\s*/gi, '');
   
+  // ============ REMOVE HTML TAGS ============
+  // Remove empty anchor tags <a></a> or <a href="..."></a>
+  cleaned = cleaned.replace(/<a[^>]*>\s*<\/a>/gi, '');
+  // Remove all anchor tags with or without content
+  cleaned = cleaned.replace(/<a[^>]*>[^<]*<\/a>/gi, '');
+  // Remove any remaining HTML tags
+  cleaned = cleaned.replace(/<[^>]+>/g, '');
+  
   // ============ CLEAN UP FORMATTING ============
-  // Remove orphaned "**" that might be left over
+  // Remove orphaned "**" that might be left over (standalone or with partial content)
   cleaned = cleaned.replace(/^\*\*\s*$/gm, '');
   cleaned = cleaned.replace(/\*\*\s*\n\s*\*\*/g, '');
+  // Remove "Källor**" or similar orphaned patterns
+  cleaned = cleaned.replace(/\bKällor?\*\*\s*/gi, '');
+  cleaned = cleaned.replace(/\*\*\s*Källor?\s*\*\*/gi, '');
+  // Remove any standalone "**" followed by nothing useful
+  cleaned = cleaned.replace(/\*\*\s*(?=\n|$)/g, '');
   
   // Clean up excessive whitespace and newlines
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
