@@ -155,6 +155,7 @@ export default function MessageBuilderPage() {
   
   // Compare Mode toggle - tests Zero compare flow with external AI responses
   const [useCompareMode, setUseCompareMode] = useState(false);
+  const [useChunkedMode, setUseChunkedMode] = useState(false); // Stegvis analys toggle
   const [compareResult, setCompareResult] = useState(null);
   
   // ONESEEK Δ+ v6.2: AI-selected personality (real-time display)
@@ -237,7 +238,7 @@ export default function MessageBuilderPage() {
             preferredModel: 'openseek-7b-zero',
             profileId: 'zero',
             compare: true,
-            chunked: false, // Use batch mode for faster testing
+            chunked: useChunkedMode, // Use stegvis mode toggle
             // Use custom system prompt from the builder if provided
             customSystemPrompt: systemPrompt !== 'Du är OneSeek-7B-Zero, en hjälpsam svensk AI-assistent.' ? systemPrompt : undefined
           })
@@ -594,7 +595,7 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
             </label>
             
             {/* Compare Mode Checkbox - Tests Zero compare flow */}
-            <label className={`flex items-center gap-2 mb-4 p-3 bg-[#0d0d0d] border rounded cursor-pointer hover:border-[#3a3a3a] ${
+            <label className={`flex items-center gap-2 mb-2 p-3 bg-[#0d0d0d] border rounded cursor-pointer hover:border-[#3a3a3a] ${
               useCompareMode ? 'border-blue-700/50' : 'border-[#2a2a2a]'
             }`}>
               <input
@@ -617,6 +618,35 @@ ${allSources.length > 0 ? allSources.map(s => `    - "${s}"`).join('\n') : '    
                 )}
               </div>
             </label>
+            
+            {/* Chunked/Stegvis Mode - Only visible when Compare Mode is enabled */}
+            {useCompareMode && (
+              <label className={`flex items-center gap-2 mb-4 p-3 bg-[#0d0d0d] border rounded cursor-pointer hover:border-[#3a3a3a] ${
+                useChunkedMode ? 'border-green-700/50' : 'border-[#2a2a2a]'
+              }`}>
+                <input
+                  type="checkbox"
+                  checked={useChunkedMode}
+                  onChange={(e) => setUseChunkedMode(e.target.checked)}
+                  className="w-4 h-4 rounded border-[#3a3a3a] bg-[#0a0a0a] text-green-500 focus:ring-0 focus:ring-offset-0"
+                />
+                <div>
+                  <div className="text-xs font-mono text-[#e7e7e7]">
+                    🔄 Stegvis {useChunkedMode ? '(ON)' : '(OFF)'}
+                  </div>
+                  <div className="text-[10px] text-[#555]">
+                    Analysera en AI i taget
+                  </div>
+                  {useChunkedMode && (
+                    <div className="text-[10px] text-green-400 mt-1">
+                      ⏳ Tar längre tid men ger bättre analys
+                    </div>
+                  )}
+                </div>
+              </label>
+            )}
+            
+            {!useCompareMode && <div className="mb-4"></div>}
             
             {/* ONESEEK Δ+ v6.2: AI-Selected Personality Display */}
             <div className={`mb-4 p-3 bg-[#0d0d0d] border rounded transition-all duration-300 ${
