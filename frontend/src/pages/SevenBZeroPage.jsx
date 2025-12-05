@@ -846,6 +846,21 @@ export default function SevenBZeroPage() {
     let tokenCount = 0;
     let metadata = null;
     
+    // Buffering for smooth rendering (requestAnimationFrame pattern)
+    // This prevents DOM updates on every single token, making it smooth like ChatGPT/Claude
+    let pendingUpdate = false;
+    let rafId = null;
+    
+    const scheduleUpdate = () => {
+      if (!pendingUpdate) {
+        pendingUpdate = true;
+        rafId = requestAnimationFrame(() => {
+          setCurrentTypingText(formatAIResponse(accumulatedText));
+          pendingUpdate = false;
+        });
+      }
+    };
+    
     try {
       // Use fetch with ReadableStream for SSE (POST method not supported by EventSource)
       const response = await fetch('/stream', {
@@ -912,12 +927,12 @@ export default function SevenBZeroPage() {
               // Handle different event types properly
               switch (currentEventType) {
                 case 'token':
-                  // Handle token event
+                  // Handle token event - accumulate and schedule batched update
                   if (data.token !== undefined) {
                     accumulatedText += data.token;
                     tokenCount++;
-                    // Update UI with accumulated text
-                    setCurrentTypingText(formatAIResponse(accumulatedText));
+                    // Schedule UI update (batched via requestAnimationFrame)
+                    scheduleUpdate();
                   }
                   break;
                   
@@ -949,7 +964,7 @@ export default function SevenBZeroPage() {
                   if (data.token !== undefined) {
                     accumulatedText += data.token;
                     tokenCount++;
-                    setCurrentTypingText(formatAIResponse(accumulatedText));
+                    scheduleUpdate(); // Use batched update
                   } else if (data.latency_ms !== undefined) {
                     metadata = data;
                     console.log('[7B-Zero Stream] Metadata (fallback):', metadata);
@@ -978,6 +993,11 @@ export default function SevenBZeroPage() {
             }
           }
         }
+      }
+      
+      // Cancel any pending animation frame
+      if (rafId) {
+        cancelAnimationFrame(rafId);
       }
       
       // Finalize the message
@@ -1894,7 +1914,7 @@ export default function SevenBZeroPage() {
                       )}
                     </div>
                   ) : (
-                    <div className={`max-w-none normalized-text
+                    <div className={`max-w-none normalized-text ${msg.isTyping ? 'streaming-text' : ''}
                       ${whiteMode 
                         ? 'text-[#333]' 
                         : 'text-[#d0d0d0]'
@@ -1946,6 +1966,17 @@ export default function SevenBZeroPage() {
                           background: rgba(0,0,0,0.1) !important;
                           border-radius: 4px !important;
                           overflow-x: auto !important;
+                        }
+                        /* Typewriter cursor effect for streaming */
+                        .streaming-text::after {
+                          content: '▋';
+                          display: inline;
+                          color: #646cff;
+                          animation: blink 1s step-end infinite;
+                          margin-left: 2px;
+                        }
+                        @keyframes blink {
+                          50% { opacity: 0; }
                         }
                       `}</style>
                       <ReactMarkdown>

@@ -11232,7 +11232,35 @@ async def generate_sse_tokens(
         previous_decoded = ""  # Track previously decoded text to compute delta
         max_new_tokens = min(max_length, 1024)  # Limit for streaming
         
+        # Token buffering for smoother streaming (sends 3-5 tokens per chunk)
+        token_buffer = ""
+        buffered_count = 0
+        BUFFER_SIZE = 4  # Send every 4 tokens OR on natural breaks
+        
         logger.info(f"🌊 [STREAM] Starting token generation for: {text[:50]}...")
+        
+        async def flush_buffer():
+            """Send buffered tokens as SSE event"""
+            nonlocal token_buffer, buffered_count, tokens_sent
+            if token_buffer:
+                try:
+                    event_data = json.dumps({
+                        "token": token_buffer,
+                        "index": tokens_sent
+                    }, ensure_ascii=False)
+                    tokens_sent += buffered_count
+                    token_buffer = ""
+                    buffered_count = 0
+                    return f"event: token\ndata: {event_data}\n\n"
+                except (TypeError, ValueError) as json_err:
+                    safe_token = token_buffer.encode('unicode_escape').decode('ascii')
+                    event_data = json.dumps({"token": safe_token, "index": tokens_sent})
+                    tokens_sent += buffered_count
+                    token_buffer = ""
+                    buffered_count = 0
+                    logger.warning(f"Token serialization fallback: {json_err}")
+                    return f"event: token\ndata: {event_data}\n\n"
+            return None
         
         with torch.no_grad():
             for i in range(max_new_tokens):
@@ -11254,6 +11282,10 @@ async def generate_sse_tokens(
                 # Check for EOS token
                 if new_token_id.item() == tokenizer.eos_token_id:
                     logger.info(f"🌊 [STREAM] EOS token reached after {tokens_sent} tokens")
+                    # Flush any remaining buffer
+                    flush_event = await flush_buffer()
+                    if flush_event:
+                        yield flush_event
                     break
                 
                 # Decode all generated tokens (from input_length onwards) to preserve spaces
@@ -11268,26 +11300,26 @@ async def generate_sse_tokens(
                 if new_token_text:
                     full_response = current_decoded
                     previous_decoded = current_decoded
-                    tokens_sent += 1
                     
-                    # Send token as SSE event (with safe JSON serialization)
-                    try:
-                        event_data = json.dumps({
-                            "token": new_token_text,
-                            "index": tokens_sent
-                        }, ensure_ascii=False)
-                        yield f"event: token\ndata: {event_data}\n\n"
-                    except (TypeError, ValueError) as json_err:
-                        # Fallback: escape problematic characters
-                        safe_token = new_token_text.encode('unicode_escape').decode('ascii')
-                        event_data = json.dumps({"token": safe_token, "index": tokens_sent})
-                        yield f"event: token\ndata: {event_data}\n\n"
-                        logger.warning(f"Token serialization fallback: {json_err}")
+                    # Add to buffer
+                    token_buffer += new_token_text
+                    buffered_count += 1
                     
-                    # Read delay from admin settings (dynamic!)
-                    delay_ms = _admin_settings.get("token_delay_ms", 30)
-                    if delay_ms > 0:
-                        await asyncio.sleep(delay_ms / 1000.0)
+                    # Check if we should flush (buffer full OR natural break character)
+                    should_flush = (
+                        buffered_count >= BUFFER_SIZE or
+                        new_token_text.endswith((' ', '.', ',', '!', '?', '\n', ':', ';'))
+                    )
+                    
+                    if should_flush:
+                        flush_event = await flush_buffer()
+                        if flush_event:
+                            yield flush_event
+                        
+                        # Read delay from admin settings (dynamic!)
+                        delay_ms = _admin_settings.get("token_delay_ms", 30)
+                        if delay_ms > 0:
+                            await asyncio.sleep(delay_ms / 1000.0)
                 
                 # Update for next iteration
                 generated_ids = outputs
@@ -11295,6 +11327,11 @@ async def generate_sse_tokens(
                     attention_mask,
                     torch.ones((1, 1), device=attention_mask.device, dtype=attention_mask.dtype)
                 ], dim=1)
+        
+        # Flush any remaining tokens in buffer
+        flush_event = await flush_buffer()
+        if flush_event:
+            yield flush_event
         
         # Calculate latency
         latency_ms = (time.time() - start_time) * 1000
