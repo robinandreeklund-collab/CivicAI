@@ -11130,14 +11130,22 @@ async def generate_sse_tokens(
     max_length: int = 512,
     temperature: float = 0.7,
     top_p: float = 0.9
-):
+) -> str:
     """
-    Generator function for Server-Sent Events token streaming.
+    Async generator for Server-Sent Events token streaming.
     
-    Yields SSE-formatted events:
-    - event: token - individual tokens
-    - event: metadata - response metadata
-    - event: done - stream complete
+    Args:
+        text: The user's question/prompt to generate a response for
+        max_length: Maximum number of new tokens to generate (default: 512)
+        temperature: Sampling temperature for response diversity (default: 0.7)
+        top_p: Nucleus sampling probability threshold (default: 0.9)
+    
+    Yields:
+        str: SSE-formatted event strings with the following types:
+        - event: token - {"token": "...", "index": n}
+        - event: metadata - {"tokens": n, "latency_ms": n, "model": "...", ...}
+        - event: done - {"status": "complete", "tokens": n}
+        - event: error - {"error": "..."}
     - event: error - on failure
     
     Token delay is read dynamically from _admin_settings each time,

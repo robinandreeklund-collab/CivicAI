@@ -11,8 +11,23 @@ import { useState, useEffect, useCallback } from 'react';
  * 
  * Used in MonitoringDashboard or as standalone admin control.
  */
+
+// Speed threshold constants for color coding
+const SPEED_THRESHOLDS = {
+  FAST: 10,      // 0-10ms = Fast (green)
+  MEDIUM: 50,    // 11-50ms = Medium (yellow)
+  SLOW: 100,     // 51-100ms = Slow (red)
+};
+
+// Default delay value in milliseconds
+const DEFAULT_DELAY_MS = 30;
+
+// Delay range limits
+const DELAY_MIN = 0;
+const DELAY_MAX = 500;
+
 export default function StreamingControl() {
-  const [tokenDelay, setTokenDelay] = useState(30);
+  const [tokenDelay, setTokenDelay] = useState(DEFAULT_DELAY_MS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -26,7 +41,7 @@ export default function StreamingControl() {
         const response = await fetch('/api/config/token-delay');
         if (response.ok) {
           const data = await response.json();
-          setTokenDelay(data.delay_ms || 30);
+          setTokenDelay(data.delay_ms || DEFAULT_DELAY_MS);
         } else {
           console.error('Failed to fetch token delay');
         }
@@ -80,18 +95,18 @@ export default function StreamingControl() {
     saveTokenDelay(tokenDelay);
   };
 
-  // Get color based on delay value
+  // Get color based on delay value using threshold constants
   const getDelayColor = () => {
-    if (tokenDelay <= 10) return '#22c55e'; // Fast - green
-    if (tokenDelay <= 50) return '#eab308'; // Medium - yellow
+    if (tokenDelay <= SPEED_THRESHOLDS.FAST) return '#22c55e'; // Fast - green
+    if (tokenDelay <= SPEED_THRESHOLDS.MEDIUM) return '#eab308'; // Medium - yellow
     return '#ef4444'; // Slow - red
   };
 
-  // Get speed label
+  // Get speed label using threshold constants
   const getSpeedLabel = () => {
-    if (tokenDelay <= 10) return 'Snabb';
-    if (tokenDelay <= 30) return 'Normal';
-    if (tokenDelay <= 100) return 'Långsam';
+    if (tokenDelay <= SPEED_THRESHOLDS.FAST) return 'Snabb';
+    if (tokenDelay <= DEFAULT_DELAY_MS) return 'Normal';
+    if (tokenDelay <= SPEED_THRESHOLDS.SLOW) return 'Långsam';
     return 'Mycket långsam';
   };
 
@@ -158,8 +173,8 @@ export default function StreamingControl() {
           <div className="relative">
             <input
               type="range"
-              min="0"
-              max="500"
+              min={DELAY_MIN}
+              max={DELAY_MAX}
               step="5"
               value={tokenDelay}
               onChange={handleSliderChange}
@@ -173,12 +188,12 @@ export default function StreamingControl() {
             
             {/* Scale markers */}
             <div className="flex justify-between text-[#555] font-mono text-xs mt-1">
-              <span>0</span>
+              <span>{DELAY_MIN}</span>
               <span>100</span>
               <span>200</span>
               <span>300</span>
               <span>400</span>
-              <span>500</span>
+              <span>{DELAY_MAX}</span>
             </div>
           </div>
         </div>
@@ -190,10 +205,10 @@ export default function StreamingControl() {
           </label>
           <div className="flex gap-2">
             {[
-              { label: 'Instant', value: 0 },
-              { label: 'Fast', value: 10 },
-              { label: 'Normal', value: 30 },
-              { label: 'Slow', value: 100 },
+              { label: 'Instant', value: DELAY_MIN },
+              { label: 'Fast', value: SPEED_THRESHOLDS.FAST },
+              { label: 'Normal', value: DEFAULT_DELAY_MS },
+              { label: 'Slow', value: SPEED_THRESHOLDS.SLOW },
               { label: 'Demo', value: 200 },
             ].map((preset) => (
               <button

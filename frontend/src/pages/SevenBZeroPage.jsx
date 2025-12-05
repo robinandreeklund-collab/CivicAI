@@ -887,12 +887,21 @@ export default function SevenBZeroPage() {
         buffer += decoder.decode(value, { stream: true });
         
         // Process complete SSE events from buffer
+        // SSE format: "event: type\ndata: json\n\n"
         const lines = buffer.split('\n');
         buffer = lines.pop() || ''; // Keep incomplete line in buffer
         
+        let currentEventType = 'message'; // Default SSE event type
+        
         for (const line of lines) {
-          // Skip event type lines (we determine type from data content)
+          // Track event type from event: lines
           if (line.startsWith('event:')) {
+            currentEventType = line.substring(6).trim();
+            continue;
+          }
+          
+          // Skip SSE comment lines (start with :)
+          if (line.startsWith(':')) {
             continue;
           }
           
@@ -900,41 +909,70 @@ export default function SevenBZeroPage() {
             try {
               const data = JSON.parse(line.substring(5).trim());
               
-              // Handle token event
-              if (data.token !== undefined) {
-                accumulatedText += data.token;
-                tokenCount++;
-                
-                // Update UI with accumulated text
-                setCurrentTypingText(formatAIResponse(accumulatedText));
-              }
-              
-              // Handle metadata event
-              if (data.latency_ms !== undefined) {
-                metadata = data;
-                console.log('[7B-Zero Stream] Metadata:', metadata);
-                
-                // Update personality if provided
-                if (metadata.personality) {
-                  setAiSelectedPersonality(metadata.personality);
-                  if (metadata.personality.id) {
-                    setSelectedPersona(metadata.personality.id);
+              // Handle different event types properly
+              switch (currentEventType) {
+                case 'token':
+                  // Handle token event
+                  if (data.token !== undefined) {
+                    accumulatedText += data.token;
+                    tokenCount++;
+                    // Update UI with accumulated text
+                    setCurrentTypingText(formatAIResponse(accumulatedText));
                   }
-                }
+                  break;
+                  
+                case 'metadata':
+                  // Handle metadata event
+                  metadata = data;
+                  console.log('[7B-Zero Stream] Metadata:', metadata);
+                  // Update personality if provided
+                  if (metadata.personality) {
+                    setAiSelectedPersonality(metadata.personality);
+                    if (metadata.personality.id) {
+                      setSelectedPersona(metadata.personality.id);
+                    }
+                  }
+                  break;
+                  
+                case 'done':
+                  // Handle done event
+                  console.log('[7B-Zero Stream] Done event received');
+                  streamActive = false;
+                  break;
+                  
+                case 'error':
+                  // Handle error event
+                  throw new Error(data.error || 'Unknown streaming error');
+                  
+                default:
+                  // Fallback: determine type from data content (backwards compatibility)
+                  if (data.token !== undefined) {
+                    accumulatedText += data.token;
+                    tokenCount++;
+                    setCurrentTypingText(formatAIResponse(accumulatedText));
+                  } else if (data.latency_ms !== undefined) {
+                    metadata = data;
+                    console.log('[7B-Zero Stream] Metadata (fallback):', metadata);
+                    if (metadata.personality) {
+                      setAiSelectedPersonality(metadata.personality);
+                      if (metadata.personality.id) {
+                        setSelectedPersona(metadata.personality.id);
+                      }
+                    }
+                  } else if (data.status === 'complete') {
+                    console.log('[7B-Zero Stream] Done (fallback)');
+                    streamActive = false;
+                  } else if (data.error) {
+                    throw new Error(data.error);
+                  }
               }
               
-              // Handle done event
-              if (data.status === 'complete') {
-                console.log('[7B-Zero Stream] Done event received');
-              }
+              // Reset event type after processing data
+              currentEventType = 'message';
               
-              // Handle error event
-              if (data.error) {
-                throw new Error(data.error);
-              }
             } catch (parseErr) {
               // Ignore parse errors for non-JSON data lines
-              if (line.trim() && !line.startsWith(':')) {
+              if (line.trim()) {
                 console.warn('[7B-Zero Stream] Parse error:', parseErr.message);
               }
             }
