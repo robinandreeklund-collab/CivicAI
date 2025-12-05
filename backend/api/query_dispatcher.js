@@ -260,6 +260,11 @@ function sanitizeResponse(text) {
  * 2. Store each analysis in memory
  * 3. Final call to synthesize all individual analyses
  * 
+ * IMPORTANT: All prompts are fully configurable via Admin Dashboard.
+ * The prompts use placeholders that get replaced:
+ *   Individual: {question}, {agent}, {response}
+ *   Synthesis: {question}, {analyses}
+ * 
  * @param {string} question - The user's question
  * @param {Array} externalResponses - Array of {agent, response, model}
  * @param {Object} options - Configuration options
@@ -272,7 +277,7 @@ async function performChunkedAnalysis(question, externalResponses, options = {})
   console.log('\n🔬 CHUNKED ANALYSIS MODE - Analyzing responses one by one...');
   
   // Get configurable individual analysis prompt from admin dashboard
-  const individualAnalysisPrompt = getChunkedIndividualPrompt();
+  const individualPromptTemplate = getChunkedIndividualPrompt();
 
   // Step 1: Analyze each response individually
   for (let i = 0; i < externalResponses.length; i++) {
@@ -282,17 +287,18 @@ async function performChunkedAnalysis(question, externalResponses, options = {})
     // Sanitize the external response before analysis
     const cleanedResponse = sanitizeResponse(ext.response);
     
-    const analysisPrompt = `FRÅGA SOM STÄLLDES: "${question}"
-
-${ext.agent.toUpperCase()}:s SVAR:
-${cleanedResponse.substring(0, 1500)}
-
-Granska detta svar.`;
+    // Build the full prompt by replacing placeholders
+    // The ENTIRE prompt comes from Admin Dashboard - we just replace placeholders
+    let analysisPrompt = individualPromptTemplate
+      .replace(/\{question\}/g, question)
+      .replace(/\{agent\}/g, ext.agent.toUpperCase())
+      .replace(/\{response\}/g, cleanedResponse.substring(0, 1500));
 
     try {
       const result = await getOpenSeekResponse(analysisPrompt, {
         profileId,
-        systemPrompt: individualAnalysisPrompt,
+        // systemPrompt is empty - everything is in the prompt itself
+        systemPrompt: '',
         max_tokens: 256, // Shorter response for individual analysis
         timeout: 60000, // 1 minute per analysis
       });
@@ -359,25 +365,15 @@ Granska detta svar.`;
       .join('\n\n');
   }
   
-  // Synthesis prompt - combining individual analyses into final verdict
-  const synthesisPrompt = `URSPRUNGLIG FRÅGA: "${question.substring(0, 200)}"
-
-MINA ANALYSER AV VARJE AI:
-${analysisSection}
-
-Baserat på mina granskningar ovan, ge nu en SLUTGILTIG BEDÖMNING:
-
-**Konsensus:** Vad sa alla AI:er ungefär samma sak om?
-**Skillnader:** Var skiljde sig svaren åt?
-**Trovärdighet:** Vilken AI verkade mest pålitlig och varför?
-**Min slutsats:** Vad är det objektiva svaret på frågan?
-
-Svara strukturerat på svenska.`;
-
-  // Get configurable synthesis system prompt from admin dashboard
-  const synthesisSystemPrompt = getChunkedSynthesisPrompt();
+  // Get configurable synthesis prompt from admin dashboard and replace placeholders
+  const synthesisPromptTemplate = getChunkedSynthesisPrompt();
+  const synthesisPrompt = synthesisPromptTemplate
+    .replace(/\{question\}/g, question.substring(0, 200))
+    .replace(/\{analyses\}/g, analysisSection);
 
   // Check total size
+  const totalSize = synthesisPrompt.length;
+  console.log(`   📏 Synthesis prompt size: ${totalSize} chars`);
   const totalSize = synthesisPrompt.length;
   console.log(`   📏 Synthesis prompt size: ${totalSize} chars`);
   
@@ -395,7 +391,8 @@ Svara strukturerat på svenska.`;
   try {
     const synthesisResult = await getOpenSeekResponse(synthesisPrompt, {
       profileId,
-      systemPrompt: synthesisSystemPrompt,
+      // systemPrompt is empty - everything is in the prompt itself (from Admin Dashboard)
+      systemPrompt: '',
       max_tokens: 512,
       timeout: 90000, // 1.5 minutes for synthesis
     });

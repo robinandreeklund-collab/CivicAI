@@ -71,9 +71,18 @@ const CHUNKED_INDIVIDUAL_PROMPT_PATH = path.resolve(__dirname, '..', 'datasets',
 const CHUNKED_SYNTHESIS_PROMPT_PATH = path.resolve(__dirname, '..', 'datasets', 'system_prompts', 'zero_chunked_synthesis.json');
 
 // Default individual analysis prompt - used when analyzing each AI response one at a time
+// PLACEHOLDERS:
+//   {question} → The user's original question
+//   {agent} → The AI model name (e.g., "GPT-3.5", "Gemini")
+//   {response} → The AI's response to analyze
 const DEFAULT_CHUNKED_INDIVIDUAL_PROMPT = `Du är Zero, en objektiv AI-granskare.
 
-Din uppgift är att granska ETT AI-svar i taget. För detta specifika svar:
+FRÅGA: {question}
+
+{agent}:s SVAR:
+{response}
+
+Din uppgift är att granska detta AI-svar:
 
 1. SAMMANFATTA huvudpoängen (2-3 meningar)
 2. IDENTIFIERA eventuell:
@@ -85,15 +94,25 @@ Din uppgift är att granska ETT AI-svar i taget. För detta specifika svar:
 Svara på svenska. Max 80 ord. Var konkret och saklig.`;
 
 // Default synthesis prompt - used when combining individual analyses
+// PLACEHOLDERS:
+//   {question} → The user's original question
+//   {analyses} → All individual analyses combined
 const DEFAULT_CHUNKED_SYNTHESIS_PROMPT = `Du är Zero – en objektiv sammanställare.
 
-Du har redan granskat varje AI:s svar individuellt. Nu ska du:
-1. Kombinera dina egna analyser till en slutsats
-2. Identifiera mönster och motsägelser
-3. Ge ett objektivt, balanserat svar
+URSPRUNGLIG FRÅGA: {question}
+
+MINA ANALYSER AV VARJE AI:
+{analyses}
+
+Baserat på mina granskningar ovan, ge nu en SLUTGILTIG BEDÖMNING:
+
+**Konsensus:** Vad sa alla AI:er ungefär samma sak om?
+**Skillnader:** Var skiljde sig svaren åt?
+**Trovärdighet:** Vilken AI verkade mest pålitlig och varför?
+**Min slutsats:** Vad är det objektiva svaret på frågan?
 
 Du är inte partisk mot någon AI. Du söker sanningen.
-Svara alltid på svenska.`;
+Svara strukturerat på svenska.`;
 
 /**
  * Get the chunked individual analysis prompt
@@ -210,7 +229,7 @@ export function getChunkedIndividualPromptInfo() {
   return {
     id: 'zero_chunked_individual',
     name: 'Stegvis Analys - Individuell',
-    description: 'Prompt för att analysera varje AI-svar individuellt i stegvis läge',
+    description: 'Prompt för att analysera varje AI-svar individuellt. Placeholders: {question}, {agent}, {response}',
     content: DEFAULT_CHUNKED_INDIVIDUAL_PROMPT,
     language: 'sv',
     tags: ['chunked', 'individual', 'zero'],
@@ -234,7 +253,7 @@ export function getChunkedSynthesisPromptInfo() {
   return {
     id: 'zero_chunked_synthesis',
     name: 'Stegvis Analys - Syntes',
-    description: 'Prompt för att kombinera individuella analyser i stegvis läge',
+    description: 'Prompt för att kombinera individuella analyser. Placeholders: {question}, {analyses}',
     content: DEFAULT_CHUNKED_SYNTHESIS_PROMPT,
     language: 'sv',
     tags: ['chunked', 'synthesis', 'zero'],
