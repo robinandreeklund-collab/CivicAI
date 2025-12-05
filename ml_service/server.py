@@ -2746,6 +2746,10 @@ parser.add_argument('--temp', '--temperature', type=float, default=0.7,
                     help='Temperature for sampling (default: 0.7, lower = more deterministic)')
 parser.add_argument('--use-gguf', action='store_true',
                     help='Force using GGUF backend (llama-cpp-python) instead of HuggingFace')
+parser.add_argument('--llama-bin', type=str, default=None,
+                    help='Path to llama.cpp bin directory with pre-built binaries (e.g., C:\\llama.cpp-bin-cuda)')
+parser.add_argument('--llama-server-port', type=int, default=8081,
+                    help='Port for llama-server.exe when using --llama-bin (default: 8081)')
 
 args, unknown = parser.parse_known_args()
 
@@ -3162,6 +3166,239 @@ gguf_models = {}  # Cache for GGUF models loaded via llama-cpp-python
 # Flag to track if using GGUF backend
 USING_GGUF_BACKEND = False
 ACTIVE_GGUF_PATH = None
+
+# Flag to track if using llama-server.exe backend
+USING_LLAMA_SERVER = False
+LLAMA_SERVER_URL = None
+LLAMA_SERVER_PROCESS = None
+
+def find_llama_bin_dir():
+    """
+    Find the llama.cpp bin directory.
+    Checks:
+    1. --llama-bin argument
+    2. LLAMA_BIN_DIR environment variable
+    3. Common locations in the project
+    """
+    # Check command line argument
+    if args.llama_bin and Path(args.llama_bin).exists():
+        return Path(args.llama_bin)
+    
+    # Check environment variable
+    env_path = os.getenv('LLAMA_BIN_DIR')
+    if env_path and Path(env_path).exists():
+        return Path(env_path)
+    
+    # Check common locations
+    common_paths = [
+        PROJECT_ROOT / 'llama.cpp-bin-cuda',
+        PROJECT_ROOT / 'llama-cpp-bin',
+        PROJECT_ROOT / 'llama.cpp' / 'build' / 'bin' / 'Release',
+        Path.home() / 'llama.cpp-bin-cuda',
+    ]
+    
+    for path in common_paths:
+        if path.exists():
+            # Check if llama-server.exe exists
+            server_exe = path / 'llama-server.exe'
+            if server_exe.exists():
+                return path
+    
+    return None
+
+
+def start_llama_server(gguf_path: str):
+    """
+    Start llama-server.exe as a subprocess.
+    This is used when llama-cpp-python fails to install but user has pre-built binaries.
+    
+    Args:
+        gguf_path: Path to the GGUF model file
+        
+    Returns:
+        True if server started successfully, False otherwise
+    """
+    global USING_LLAMA_SERVER, LLAMA_SERVER_URL, LLAMA_SERVER_PROCESS
+    
+    llama_bin = find_llama_bin_dir()
+    if not llama_bin:
+        logger.error("[LLAMA-SERVER] llama.cpp bin directory not found!")
+        logger.error("[LLAMA-SERVER] Download from: https://github.com/ggerganov/llama.cpp/releases")
+        logger.error("[LLAMA-SERVER] Look for: llama-bxxxx-bin-win-cuda-cu12.x.x-x86_64.zip")
+        logger.error("[LLAMA-SERVER] Extract to: CivicAI\\llama.cpp-bin-cuda\\")
+        logger.error("[LLAMA-SERVER] Or set: --llama-bin=C:\\path\\to\\llama-bin")
+        return False
+    
+    server_exe = llama_bin / 'llama-server.exe'
+    if not server_exe.exists():
+        # Try without .exe extension (Linux/Mac)
+        server_exe = llama_bin / 'llama-server'
+        if not server_exe.exists():
+            logger.error(f"[LLAMA-SERVER] llama-server not found in: {llama_bin}")
+            return False
+    
+    port = args.llama_server_port
+    
+    # Build command
+    cmd = [
+        str(server_exe),
+        '-m', str(gguf_path),
+        '-c', str(args.context_size),
+        '-ngl', str(args.n_gpu_layers),
+        '-t', str(args.threads),
+        '--port', str(port),
+        '--host', '127.0.0.1',
+    ]
+    
+    if args.flash_attn:
+        cmd.append('--flash-attn')
+    
+    logger.info(f"[LLAMA-SERVER] Starting llama-server...")
+    logger.info(f"[LLAMA-SERVER] Command: {' '.join(cmd)}")
+    
+    try:
+        import subprocess
+        LLAMA_SERVER_PROCESS = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0,
+        )
+        
+        # Wait for server to start (check health endpoint)
+        LLAMA_SERVER_URL = f"http://127.0.0.1:{port}"
+        
+        logger.info(f"[LLAMA-SERVER] Waiting for server to start on port {port}...")
+        
+        import time
+        for i in range(30):  # Wait up to 30 seconds
+            try:
+                response = requests.get(f"{LLAMA_SERVER_URL}/health", timeout=1)
+                if response.status_code == 200:
+                    logger.info(f"[LLAMA-SERVER] Server started successfully!")
+                    logger.info(f"[LLAMA-SERVER] URL: {LLAMA_SERVER_URL}")
+                    USING_LLAMA_SERVER = True
+                    return True
+            except:
+                pass
+            time.sleep(1)
+            if i % 5 == 0:
+                logger.info(f"[LLAMA-SERVER] Still waiting... ({i}s)")
+        
+        logger.error("[LLAMA-SERVER] Server failed to start within 30 seconds")
+        return False
+        
+    except Exception as e:
+        logger.error(f"[LLAMA-SERVER] Failed to start server: {e}")
+        return False
+
+
+def stop_llama_server():
+    """Stop the llama-server process if running."""
+    global LLAMA_SERVER_PROCESS, USING_LLAMA_SERVER
+    
+    if LLAMA_SERVER_PROCESS:
+        logger.info("[LLAMA-SERVER] Stopping llama-server...")
+        try:
+            LLAMA_SERVER_PROCESS.terminate()
+            LLAMA_SERVER_PROCESS.wait(timeout=5)
+        except:
+            LLAMA_SERVER_PROCESS.kill()
+        LLAMA_SERVER_PROCESS = None
+        USING_LLAMA_SERVER = False
+
+
+def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: float = None):
+    """
+    Generate text using the llama-server HTTP API.
+    
+    Args:
+        prompt: Input prompt
+        max_tokens: Maximum tokens to generate
+        temperature: Sampling temperature
+        
+    Returns:
+        Generated text
+    """
+    if not LLAMA_SERVER_URL:
+        raise RuntimeError("llama-server not running")
+    
+    if temperature is None:
+        temperature = args.temp
+    
+    payload = {
+        "prompt": prompt,
+        "n_predict": max_tokens,
+        "temperature": temperature,
+        "stop": ["</s>", "[/INST]", "User:", "\n\nUser:"],
+    }
+    
+    try:
+        response = requests.post(
+            f"{LLAMA_SERVER_URL}/completion",
+            json=payload,
+            timeout=120,
+        )
+        response.raise_for_status()
+        result = response.json()
+        return result.get('content', '')
+    except Exception as e:
+        logger.error(f"[LLAMA-SERVER] Generation error: {e}")
+        raise
+
+
+def stream_generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: float = None):
+    """
+    Stream generate text using the llama-server HTTP API.
+    
+    Args:
+        prompt: Input prompt
+        max_tokens: Maximum tokens to generate
+        temperature: Sampling temperature
+        
+    Yields:
+        Generated tokens
+    """
+    if not LLAMA_SERVER_URL:
+        raise RuntimeError("llama-server not running")
+    
+    if temperature is None:
+        temperature = args.temp
+    
+    payload = {
+        "prompt": prompt,
+        "n_predict": max_tokens,
+        "temperature": temperature,
+        "stop": ["</s>", "[/INST]", "User:", "\n\nUser:"],
+        "stream": True,
+    }
+    
+    try:
+        response = requests.post(
+            f"{LLAMA_SERVER_URL}/completion",
+            json=payload,
+            stream=True,
+            timeout=120,
+        )
+        response.raise_for_status()
+        
+        for line in response.iter_lines():
+            if line:
+                line = line.decode('utf-8')
+                if line.startswith('data: '):
+                    data = line[6:]
+                    if data.strip() == '[DONE]':
+                        break
+                    try:
+                        chunk = json.loads(data)
+                        content = chunk.get('content', '')
+                        if content:
+                            yield content
+                    except json.JSONDecodeError:
+                        pass
+    except Exception as e:
+        logger.error(f"[LLAMA-SERVER] Streaming error: {e}")
+        raise
 
 def ensure_llama_cpp_python():
     """
@@ -11399,7 +11636,45 @@ async def generate_sse_tokens(
         day_name = weekday_map.get(now.weekday(), "")
         time_context = f"Idag är det {day_name} {now.day} {['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'][now.month-1]} {now.year}, klockan {now.strftime('%H:%M')}."
         
-        # Build messages for the model
+        # Build the prompt for llama-server (doesn't use chat template)
+        full_prompt = f"<|im_start|>system\n{system_prompt}\n\n[Aktuell tid] {time_context}<|im_end|>\n<|im_start|>user\n{text}<|im_end|>\n<|im_start|>assistant\n"
+        
+        # Check if using llama-server.exe backend
+        if USING_LLAMA_SERVER:
+            logger.info(f"🌊 [STREAM] Using llama-server.exe backend for: {text[:50]}...")
+            try:
+                for token in stream_generate_with_llama_server(full_prompt, max_tokens=max_length, temperature=temperature):
+                    if token:
+                        try:
+                            event_data = json.dumps({"token": token, "index": tokens_sent}, ensure_ascii=False)
+                        except (TypeError, ValueError):
+                            safe_token = token.encode('unicode_escape').decode('ascii')
+                            event_data = json.dumps({"token": safe_token, "index": tokens_sent})
+                        tokens_sent += 1
+                        yield f"event: token\ndata: {event_data}\n\n"
+                        
+                        # Apply delay from admin settings
+                        delay_ms = _admin_settings.get("token_delay_ms", 30)
+                        if delay_ms > 0:
+                            await asyncio.sleep(delay_ms / 1000.0)
+                
+                # Send completion event
+                elapsed = (time.time() - start_time) * 1000
+                metadata = {
+                    "tokens": tokens_sent,
+                    "latency_ms": round(elapsed, 2),
+                    "model": "llama-server",
+                    "backend": "llama-server.exe"
+                }
+                yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
+                yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': tokens_sent})}\n\n"
+                return
+            except Exception as e:
+                logger.error(f"🌊 [STREAM] llama-server.exe error: {e}")
+                yield f"event: error\ndata: {json.dumps({'error': f'llama-server error: {str(e)}'})}\n\n"
+                return
+        
+        # Build messages for the HuggingFace model
         structured_messages = [
             {"role": "system", "content": f"{system_prompt}\n\n[Aktuell tid] {time_context}"},
             {"role": "user", "content": text}
@@ -11672,6 +11947,10 @@ async def stream_inference_get(
 
 if __name__ == "__main__":
     import uvicorn
+    import atexit
+    
+    # Register cleanup for llama-server
+    atexit.register(stop_llama_server)
     
     # Check for GGUF mode
     gguf_path = args.gguf
@@ -11682,13 +11961,36 @@ if __name__ == "__main__":
             logger.info(f"[GGUF] Using active GGUF from admin: {gguf_path}")
     
     if gguf_path:
-        try:
-            logger.info(f"[GGUF] Starting with GGUF backend: {gguf_path}")
-            load_gguf_model(gguf_path)
-            logger.info("[GGUF] Model pre-loaded successfully")
-        except Exception as e:
-            logger.error(f"[GGUF] Failed to load GGUF model: {e}")
-            logger.info("[GGUF] Falling back to HuggingFace backend")
+        # First check if user wants to use pre-built llama-server.exe
+        if args.llama_bin or find_llama_bin_dir():
+            logger.info("[GGUF] Using pre-built llama-server.exe backend")
+            if start_llama_server(gguf_path):
+                logger.info("[GGUF] llama-server.exe started successfully!")
+            else:
+                logger.error("[GGUF] Failed to start llama-server.exe")
+                logger.info("[GGUF] Falling back to llama-cpp-python...")
+                try:
+                    load_gguf_model(gguf_path)
+                    logger.info("[GGUF] Model pre-loaded with llama-cpp-python")
+                except Exception as e:
+                    logger.error(f"[GGUF] Failed to load GGUF model: {e}")
+                    logger.info("[GGUF] Falling back to HuggingFace backend")
+        else:
+            # Try llama-cpp-python
+            try:
+                logger.info(f"[GGUF] Starting with GGUF backend: {gguf_path}")
+                load_gguf_model(gguf_path)
+                logger.info("[GGUF] Model pre-loaded successfully")
+            except Exception as e:
+                logger.error(f"[GGUF] Failed to load GGUF model: {e}")
+                logger.info("[GGUF] ")
+                logger.info("[GGUF] === TIP: Use pre-built llama-server.exe ===")
+                logger.info("[GGUF] 1. Download from: https://github.com/ggerganov/llama.cpp/releases")
+                logger.info("[GGUF]    Look for: llama-bxxxx-bin-win-cuda-cu12.x.x-x86_64.zip")
+                logger.info("[GGUF] 2. Extract to: CivicAI\\llama.cpp-bin-cuda\\")
+                logger.info("[GGUF] 3. Restart server - it will auto-detect the binaries!")
+                logger.info("[GGUF] ============================================")
+                logger.info("[GGUF] Falling back to HuggingFace backend")
     
     port = int(os.getenv('ML_SERVICE_PORT', '5000'))
     host = "0.0.0.0" if args.listen else "127.0.0.1"
@@ -11700,6 +12002,8 @@ if __name__ == "__main__":
         logger.info("[Server] Flash Attention: ENABLED")
     if args.use_gguf:
         logger.info("[Server] GGUF Backend: ENABLED")
+    if USING_LLAMA_SERVER:
+        logger.info(f"[Server] llama-server.exe Backend: ENABLED at {LLAMA_SERVER_URL}")
     
     uvicorn.run(
         app,
