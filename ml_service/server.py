@@ -3332,6 +3332,9 @@ class InferenceRequest(BaseModel):
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Sampling temperature")
     top_p: float = Field(default=0.9, ge=0.0, le=1.0, description="Nucleus sampling parameter")
     skip_typo_check: bool = Field(default=False, description="Skip typo checking (used when sending corrected text)")
+    skip_sources: bool = Field(default=False, description="Skip appending sources to response (used for compare mode)")
+    skip_context_enrichment: bool = Field(default=False, description="Skip context enrichment like weather/news (used for compare mode)")
+    system_prompt: Optional[str] = Field(default=None, description="Custom system prompt (overrides default)")
     
     @field_validator('text')
     @classmethod
@@ -9526,24 +9529,32 @@ Svara NU.
     print(f"🕐 Time context: {time_context[:50]}...")
     print(f"🍂 Season: {season_context}")
     
+    # === COMPARE MODE: Skip context enrichment if requested ===
+    # When skip_context_enrichment is true, we don't fetch weather, news, APIs, or Tavily
+    # This is used for compare mode where the context is already provided in the prompt
+    skip_enrichment = getattr(request, 'skip_context_enrichment', False)
+    if skip_enrichment:
+        logger.info("🚫 [CONTEXT] Skipping context enrichment (skip_context_enrichment=true)")
+    
     # === 2. Check for weather question (with city detection) ===
     weather_context = None
     weather_sources = ""
-    weather_city = check_weather_city(request.text)
-    if weather_city:
-        weather_data = get_weather(weather_city)
-        if weather_data:
-            weather_context = weather_data
-            # Use city-specific URL for SMHI prognosis
-            city_slug = weather_city.capitalize().replace(' ', '%20')
-            weather_sources = f"\n\nKällor:\n1. SMHI – Väderprognos {weather_city.capitalize()} (https://www.smhi.se/vader/prognoser/ortsprognoser/q/{city_slug})"
-            logger.info(f"🌤️ Väderdata hämtad för {weather_city}")
+    if not skip_enrichment:
+        weather_city = check_weather_city(request.text)
+        if weather_city:
+            weather_data = get_weather(weather_city)
+            if weather_data:
+                weather_context = weather_data
+                # Use city-specific URL for SMHI prognosis
+                city_slug = weather_city.capitalize().replace(' ', '%20')
+                weather_sources = f"\n\nKällor:\n1. SMHI – Väderprognos {weather_city.capitalize()} (https://www.smhi.se/vader/prognoser/ortsprognoser/q/{city_slug})"
+                logger.info(f"🌤️ Väderdata hämtad för {weather_city}")
     
     
     # === 3. Check for news question ===
     news_context = None
     news_sources = ""
-    if check_news_trigger(request.text):
+    if not skip_enrichment and check_news_trigger(request.text):
         logger.info("📰 Hämtar senaste nyheterna...")
         news = get_latest_news()
         if news:
@@ -9563,11 +9574,13 @@ Svara NU.
     # ONESEEK Δ+ v4.0: First try keyword triggers, then fall back to Intent Engine (if enabled)
     open_data_context = None
     open_data_sources = ""
-    triggered_api = check_open_data_trigger(request.text)
+    triggered_api = None
+    if not skip_enrichment:
+        triggered_api = check_open_data_trigger(request.text)
     
     # ONESEEK Δ+ v4.0: Only use Intent Engine if enabled in configuration
     # By default, Intent Engine is DISABLED - the model chooses category itself
-    if not triggered_api and INTENT_ENGINE_AVAILABLE and is_intent_engine_enabled():
+    if not skip_enrichment and not triggered_api and INTENT_ENGINE_AVAILABLE and is_intent_engine_enabled():
         try:
             intent_api_data = get_intent_based_api(request.text)
             if intent_api_data and intent_api_data.get("api"):
@@ -9591,7 +9604,7 @@ Svara NU.
         except Exception as e:
             logger.debug(f"Intent-based API lookup failed: {e}")
     
-    if triggered_api:
+    if not skip_enrichment and triggered_api:
         logger.info(f"📊 [OPEN DATA] Hämtar från {triggered_api.get('name')}...")
         open_data_result = fetch_open_data(triggered_api, request.text)
         if open_data_result:
@@ -9609,7 +9622,7 @@ Svara NU.
     # === 5. Check for Tavily search trigger ===
     tavily_context = None
     tavily_sources = ""
-    if check_tavily_trigger(request.text):
+    if not skip_enrichment and check_tavily_trigger(request.text):
         logger.info(f"🔍 [TAVILY] Hämtar realtidsdata: {request.text[:60]}...")
         search_result = tavily_search(request.text)
         if search_result and search_result.get("answer"):
@@ -10310,8 +10323,9 @@ Svara NU.
             response_text = clean_response
             
             # === APPEND SOURCES TO RESPONSE ===
+            # Skip sources if skip_sources flag is set (e.g., compare mode)
             # Only add sources if they don't already exist in response
-            if "Källor:" not in response_text and "**Källor:**" not in response_text:
+            if not request.skip_sources and "Källor:" not in response_text and "**Källor:**" not in response_text:
                 # Prioritize sources in order of specificity
                 if open_data_sources:
                     response_text += open_data_sources
@@ -10321,6 +10335,8 @@ Svara NU.
                     response_text += news_sources
                 elif tavily_sources:
                     response_text += tavily_sources
+            elif request.skip_sources:
+                logger.info("🚫 [SOURCES] Skipping source injection (skip_sources=true)")
             
             latency_ms = (time.time() - start_time) * 1000
             
