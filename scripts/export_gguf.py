@@ -299,18 +299,32 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
     
     if convert_result.get('success') and output_path.exists():
         size_mb = output_path.stat().st_size / (1024 * 1024)
-        print(f"[GGUF Export] [OK] Direct conversion successful: {output_path} ({size_mb:.1f} MB)")
+        size_gb = size_mb / 1024
         
-        # Clean up any intermediate files that might have been created
-        cleanup_intermediate_files(output_path.parent, output_path.stem)
-        
-        return {
-            'success': True,
-            'output_path': str(output_path),
-            'quantization': quantization,
-            'size_bytes': output_path.stat().st_size,
-            'method': '1-step direct conversion',
-        }
+        # Verify the output is actually quantized (Q5_K_M ~6.5GB for 7B model, F16 ~14GB)
+        # If size > 10GB, it's likely F16 was created instead of quantized
+        if quantization in ['Q5_K_M', 'Q6_K'] and size_gb > 10:
+            print(f"[GGUF Export] [WARNING] Output file is {size_gb:.1f} GB - too large for {quantization}")
+            print(f"[GGUF Export] Expected ~6-8 GB for Q5_K_M/Q6_K. This appears to be F16.")
+            print(f"[GGUF Export] Deleting and falling back to 2-step method...")
+            try:
+                output_path.unlink()
+            except:
+                pass
+            # Continue to fallback below
+        else:
+            print(f"[GGUF Export] [OK] Direct conversion successful: {output_path} ({size_mb:.1f} MB)")
+            
+            # Clean up any intermediate files that might have been created
+            cleanup_intermediate_files(output_path.parent, output_path.stem)
+            
+            return {
+                'success': True,
+                'output_path': str(output_path),
+                'quantization': quantization,
+                'size_bytes': output_path.stat().st_size,
+                'method': '1-step direct conversion',
+            }
     
     # Fallback to 2-step if direct conversion fails (for older llama.cpp versions)
     print(f"[GGUF Export] Direct conversion failed, falling back to 2-step method...")
@@ -318,6 +332,38 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
     # Find llama.cpp for quantization binary
     llama_cpp_dir = find_llama_cpp()
     quantize_bin = find_quantize_binary(llama_cpp_dir) if llama_cpp_dir else None
+    
+    # If no quantize binary, give instructions and fail early - don't create large F16 file
+    if not quantize_bin:
+        print(f"[GGUF Export] [ERROR] llama-quantize binary not found!")
+        print(f"[GGUF Export] The convert script doesn't support direct {quantization} quantization.")
+        print(f"[GGUF Export] To use {quantization}, you need to install llama.cpp with the quantize binary.")
+        
+        return {
+            'success': False,
+            'error': f'llama-quantize binary not found. Cannot create {quantization} quantization.',
+            'instructions': [
+                'To enable quantization, install llama.cpp:',
+                '',
+                'Windows:',
+                '  1. Download pre-built: https://github.com/ggerganov/llama.cpp/releases',
+                '  2. Or build from source:',
+                '     git clone https://github.com/ggerganov/llama.cpp',
+                '     cd llama.cpp',
+                '     cmake -B build -DLLAMA_CUDA=ON',
+                '     cmake --build build --config Release',
+                '',
+                'Linux/Mac:',
+                '  git clone https://github.com/ggerganov/llama.cpp',
+                '  cd llama.cpp && make LLAMA_CUDA=1',
+                '',
+                f'After installing, run GGUF export again.',
+                '',
+                'Or manually convert using llama.cpp:',
+                f'  python convert_hf_to_gguf.py "{model_path}" --outtype f16 --outfile model.f16.gguf',
+                f'  llama-quantize model.f16.gguf "{output_path}" {quantization}',
+            ],
+        }
     
     # Convert to f16 first
     f16_output = output_path.parent / f"{output_path.stem.replace(f'.{quantization}', '')}.f16.gguf"
@@ -337,36 +383,19 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
     f16_size = f16_output.stat().st_size / (1024 * 1024)
     print(f"[GGUF Export] F16 GGUF created: {f16_output} ({f16_size:.1f} MB)")
     
-    # Try to quantize if binary available
-    if quantize_bin:
-        print(f"[GGUF Export] Step 2/2: Quantizing to {quantization}...")
-        result = run_quantization(f16_output, output_path, quantization, quantize_bin)
-        
-        # Clean up F16 intermediate file after successful quantization
-        if result.get('success') and output_path.exists() and f16_output.exists():
-            print(f"[GGUF Export] Cleaning up intermediate F16 file...")
-            try:
-                f16_output.unlink()
-            except Exception as e:
-                print(f"[GGUF Export] Warning: Could not delete F16 file: {e}")
-        
-        return result
-    else:
-        # No quantize binary - rename f16 to final name
-        print(f"[GGUF Export] Quantize binary not found, using F16 output")
-        final_output = output_path.parent / f"{output_path.stem.replace(f'.{quantization}', '')}.f16.gguf"
-        
-        # If output path differs, move the file
-        if str(final_output) != str(f16_output):
-            shutil.move(str(f16_output), str(final_output))
-        
-        return {
-            'success': True,
-            'output_path': str(final_output),
-            'quantization': 'f16',
-            'size_bytes': final_output.stat().st_size,
-            'note': f'Created F16 GGUF. For {quantization} quantization, install llama.cpp and run: llama-quantize "{final_output}" "{output_path}" {quantization}',
-        }
+    # Quantize to target format
+    print(f"[GGUF Export] Step 2/2: Quantizing to {quantization}...")
+    result = run_quantization(f16_output, output_path, quantization, quantize_bin)
+    
+    # Clean up F16 intermediate file after successful quantization
+    if result.get('success') and output_path.exists() and f16_output.exists():
+        print(f"[GGUF Export] Cleaning up intermediate F16 file...")
+        try:
+            f16_output.unlink()
+        except Exception as e:
+            print(f"[GGUF Export] Warning: Could not delete F16 file: {e}")
+    
+    return result
 
 
 def cleanup_intermediate_files(directory: Path, stem: str):
