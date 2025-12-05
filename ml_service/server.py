@@ -3328,7 +3328,7 @@ def find_all_base_models():
 class InferenceRequest(BaseModel):
     """Request model for inference with input validation"""
     text: str = Field(..., min_length=1, max_length=10000, description="Input text for inference")
-    max_length: int = Field(default=512, ge=1, le=2048, description="Maximum generation length")
+    max_length: int = Field(default=512, ge=1, le=8192, description="Maximum generation length")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Sampling temperature")
     top_p: float = Field(default=0.9, ge=0.0, le=1.0, description="Nucleus sampling parameter")
     skip_typo_check: bool = Field(default=False, description="Skip typo checking (used when sending corrected text)")
