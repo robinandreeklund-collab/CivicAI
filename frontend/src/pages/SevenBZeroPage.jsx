@@ -1612,14 +1612,60 @@ export default function SevenBZeroPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className={`prose prose-sm max-w-none 
-                      prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5 prose-headings:my-2
+                    <div className={`max-w-none normalized-text
                       ${whiteMode 
-                        ? 'prose-gray prose-headings:font-medium prose-p:text-[#444] prose-strong:text-[#222] prose-li:text-[#444] prose-li:marker:text-[#888]' 
-                        : 'prose-invert prose-p:text-[#d0d0d0] prose-headings:text-white prose-headings:font-medium prose-strong:text-white prose-strong:font-semibold prose-li:text-[#d0d0d0] prose-li:marker:text-[#666] prose-blockquote:border-[#444] prose-blockquote:text-[#aaa]'
+                        ? 'text-[#333]' 
+                        : 'text-[#d0d0d0]'
                     } ${msg.error ? 'text-red-400' : ''}`}
-                    style={{ fontSize: '15px', fontWeight: 400, lineHeight: 1.6, letterSpacing: '0.005em' }}
+                    style={{ 
+                      fontSize: '15px', 
+                      fontWeight: 400, 
+                      lineHeight: 1.65, 
+                      letterSpacing: '0.01em'
+                    }}
                     >
+                      <style>{`
+                        .normalized-text h1, .normalized-text h2, .normalized-text h3, 
+                        .normalized-text h4, .normalized-text h5, .normalized-text h6 {
+                          font-size: inherit !important;
+                          font-weight: inherit !important;
+                          margin: 0.5em 0 !important;
+                        }
+                        .normalized-text strong, .normalized-text b {
+                          font-weight: 500 !important;
+                        }
+                        .normalized-text em, .normalized-text i {
+                          font-style: italic;
+                        }
+                        .normalized-text p {
+                          margin: 0.4em 0 !important;
+                        }
+                        .normalized-text ul, .normalized-text ol {
+                          margin: 0.4em 0 !important;
+                          padding-left: 1.5em !important;
+                        }
+                        .normalized-text li {
+                          margin: 0.15em 0 !important;
+                        }
+                        .normalized-text blockquote {
+                          margin: 0.5em 0 !important;
+                          padding-left: 1em !important;
+                          border-left: 2px solid #666 !important;
+                          font-style: inherit !important;
+                        }
+                        .normalized-text code {
+                          font-family: inherit !important;
+                          background: transparent !important;
+                          padding: 0 !important;
+                        }
+                        .normalized-text pre {
+                          margin: 0.5em 0 !important;
+                          padding: 0.5em !important;
+                          background: rgba(0,0,0,0.1) !important;
+                          border-radius: 4px !important;
+                          overflow-x: auto !important;
+                        }
+                      `}</style>
                       <ReactMarkdown>
                         {convertEmojis(msg.isTyping ? currentTypingText : msg.text)}
                       </ReactMarkdown>
