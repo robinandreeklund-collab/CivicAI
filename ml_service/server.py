@@ -11171,7 +11171,14 @@ async def generate_sse_tokens(
         ]
         
         # Check if we have models loaded - attempt to load if not
-        if 'oneseek' not in models or 'oneseek' not in tokenizers:
+        # Model key can be 'oneseek-7b-zero' (from load_model) or 'oneseek' (from dynamic switch)
+        model_key = None
+        if 'oneseek' in models and 'oneseek' in tokenizers:
+            model_key = 'oneseek'
+        elif 'oneseek-7b-zero' in models and 'oneseek-7b-zero' in tokenizers:
+            model_key = 'oneseek-7b-zero'
+        
+        if model_key is None:
             logger.info("🌊 [STREAM] Model not loaded, attempting to load...")
             try:
                 # Attempt to load the model (same pattern as other endpoints)
@@ -11179,19 +11186,21 @@ async def generate_sse_tokens(
                 if loaded_model is None or loaded_tokenizer is None:
                     yield f"event: error\ndata: {json.dumps({'error': 'Failed to load model. Please try again.'})}\n\n"
                     return
+                model_key = 'oneseek-7b-zero'
                 logger.info("🌊 [STREAM] Model loaded successfully!")
             except Exception as load_err:
                 logger.error(f"🌊 [STREAM] Model loading failed: {load_err}")
                 yield f"event: error\ndata: {json.dumps({'error': f'Model loading failed: {str(load_err)}'})}\n\n"
                 return
         
-        # Re-check after loading attempt
-        if 'oneseek' not in models or 'oneseek' not in tokenizers:
+        # Verify we have model available
+        if model_key is None or model_key not in models or model_key not in tokenizers:
             yield f"event: error\ndata: {json.dumps({'error': 'Model not available after loading attempt'})}\n\n"
             return
         
-        model = models['oneseek']
-        tokenizer = tokenizers['oneseek']
+        model = models[model_key]
+        tokenizer = tokenizers[model_key]
+        logger.info(f"🌊 [STREAM] Using model with key: {model_key}")
         
         # Tokenize input using chat template
         try:
