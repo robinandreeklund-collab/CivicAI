@@ -19,9 +19,16 @@ const __dirname = path.dirname(__filename);
 // Path to saved compare prompt (editable via admin dashboard)
 const COMPARE_PROMPT_PATH = path.resolve(__dirname, '..', 'datasets', 'system_prompts', 'zero_compare.json');
 
-// Default Zero Compare Mode system prompt - designed for objective AI response analysis
+// Default Zero Compare Mode prompt - designed for objective AI response analysis
 // This is the fallback if no custom prompt is saved
-const DEFAULT_ZERO_COMPARE_SYSTEM_PROMPT = `Du är OneSeek-7B-Zero – men just nu är du Zero, världens mest objektiva AI.
+// 
+// IMPORTANT: This prompt uses placeholders that get replaced:
+//   {EXTERNAL_AI_RESPONSES} → The actual AI responses to analyze
+//   {question} → The user's question
+//
+// The ENTIRE prompt (including analysis instructions) is editable via Admin Dashboard.
+// Whatever you write in Admin → System Prompts → Zero Compare Mode will be used AS-IS.
+const DEFAULT_ZERO_COMPARE_PROMPT = `Du är OneSeek-7B-Zero – men just nu är du Zero, världens mest objektiva AI.
 
 Du pratar alltid svenska – inga undantag.
 Du är rak, kort, ärlig och helt opartisk.
@@ -44,9 +51,15 @@ När du får en fråga:
    • "Grok sa: ..."
    • "Min slutsats: ..."
 
-Du är Zero – sanningens väktare.
-Du är inte en AI – du är ONESEEK:s samvete.
+═══════════════════════════════════════════════════════════════
+SVAR FRÅN EXTERNA AI-MODELLER:
+═══════════════════════════════════════════════════════════════
+{EXTERNAL_AI_RESPONSES}
+═══════════════════════════════════════════════════════════════
 
+Fråga: {question}
+
+Du är Zero – sanningens väktare.
 Svara på svenska – objektivt och tydligt.`;
 
 // ============================================================================
@@ -251,7 +264,7 @@ export function getCompareSystemPrompt() {
     console.warn('⚠️  Could not load custom compare prompt:', error.message);
   }
   
-  return DEFAULT_ZERO_COMPARE_SYSTEM_PROMPT;
+  return DEFAULT_ZERO_COMPARE_PROMPT;
 }
 
 /**
@@ -270,7 +283,7 @@ export function saveCompareSystemPrompt(content) {
     const data = {
       id: 'zero_compare',
       name: 'Zero Compare Mode',
-      description: 'System prompt for Zero compare flow - analyzes and synthesizes responses from multiple AI models',
+      description: 'Complete prompt for Zero compare flow. Use {EXTERNAL_AI_RESPONSES} and {question} placeholders.',
       content: content,
       language: 'sv',
       tags: ['compare', 'zero', 'analysis'],
@@ -306,8 +319,8 @@ export function getComparePromptInfo() {
   return {
     id: 'zero_compare',
     name: 'Zero Compare Mode',
-    description: 'System prompt for Zero compare flow - analyzes and synthesizes responses from multiple AI models',
-    content: DEFAULT_ZERO_COMPARE_SYSTEM_PROMPT,
+    description: 'Complete prompt for Zero compare flow. Use {EXTERNAL_AI_RESPONSES} and {question} placeholders.',
+    content: DEFAULT_ZERO_COMPARE_PROMPT,
     language: 'sv',
     tags: ['compare', 'zero', 'analysis'],
     is_custom: false,
@@ -397,67 +410,34 @@ function buildSystemPromptFromCharacter(character, options = {}) {
 }
 
 /**
- * Format other responses for inclusion in prompt
- * @param {string} compressedResponses - Compressed response text
- * @returns {string}
- */
-function formatOtherResponsesSection(compressedResponses) {
-  if (!compressedResponses || compressedResponses.trim() === '') {
-    return '';
-  }
-  
-  return `
-═══════════════════════════════════════════════════════════════
-SVAR FRÅN EXTERNA AI-MODELLER (analysera dessa objektivt):
-═══════════════════════════════════════════════════════════════
-
-${compressedResponses}
-
-═══════════════════════════════════════════════════════════════`;
-}
-
-/**
  * Build prompts for OpenSeek compare flow
  * 
- * Compare mode uses ONLY the zero_compare.json prompt (editable via Admin Dashboard).
- * No YAML character cards are used in compare mode - it's completely isolated.
+ * IMPORTANT: The ENTIRE prompt comes from Admin Dashboard (zero_compare.json).
+ * This function ONLY replaces placeholders:
+ *   {EXTERNAL_AI_RESPONSES} → The actual AI responses
+ *   {question} → The user's question
  * 
- * @param {string} characterYamlPath - Ignored in compare mode (kept for API compatibility)
+ * NO hardcoded analysis instructions are added here.
+ * The user controls everything via Admin → System Prompts → Zero Compare Mode.
+ * 
+ * @param {string} characterYamlPath - Ignored (kept for API compatibility)
  * @param {string} question - User's question
  * @param {string} otherResponses - Compressed responses from other models
  * @param {Object} firebaseContext - Optional Firebase context data
  * @returns {{systemPrompt: string, userPrompt: string, character: Object}}
  */
 export function buildComparePrompt(characterYamlPath, question, otherResponses, firebaseContext = null) {
-  // Compare mode uses ONLY zero_compare.json - no YAML character cards
-  const systemPrompt = getCompareSystemPrompt();
+  // Get the COMPLETE prompt from Admin Dashboard (or default)
+  let fullPrompt = getCompareSystemPrompt();
   
-  // Build user prompt with context
-  const responsesSection = formatOtherResponsesSection(otherResponses);
+  // Replace placeholders with actual values
+  // The prompt from Admin Dashboard should contain {EXTERNAL_AI_RESPONSES} and {question}
+  fullPrompt = fullPrompt.replace(/\{EXTERNAL_AI_RESPONSES\}/g, otherResponses || '(Inga externa svar tillgängliga)');
+  fullPrompt = fullPrompt.replace(/\{question\}/g, question);
   
-  let userPrompt = '';
-  
-  if (responsesSection) {
-    userPrompt = `${responsesSection}
-
-FRÅGA: ${question}
-
-Analysera svaren ovan objektivt. Identifiera:
-- Gemensamma fakta mellan modellerna
-- Motsägelser och skillnader
-- Eventuell bias eller hallucinationer
-- Din egen slutsats baserad på alla perspektiv
-
-Presentera varje modells viktigaste poäng och avsluta med "Min slutsats: ..."`;
-  } else {
-    userPrompt = question;
-  }
-  
-  // Add Firebase context if available
-  if (firebaseContext) {
-    if (firebaseContext.previousQuestions && firebaseContext.previousQuestions.length > 0) {
-      userPrompt = `[Tidigare frågor i samtalet: ${firebaseContext.previousQuestions.slice(-3).join(', ')}]\n\n${userPrompt}`;
-    }
+  // Add Firebase context if available (prepend to prompt)
+  if (firebaseContext && firebaseContext.previousQuestions && firebaseContext.previousQuestions.length > 0) {
+    fullPrompt = `[Tidigare frågor i samtalet: ${firebaseContext.previousQuestions.slice(-3).join(', ')}]\n\n${fullPrompt}`;
   }
   
   // Return Zero compare character info (no YAML involved)
@@ -468,9 +448,11 @@ Presentera varje modells viktigaste poäng och avsluta med "Min slutsats: ..."`;
     personality_type: 'compare',
   };
   
+  // For the model, we send the full prompt as userPrompt
+  // systemPrompt is empty because everything is in the prompt itself
   return {
-    systemPrompt,
-    userPrompt,
+    systemPrompt: '', // Empty - full prompt is in userPrompt
+    userPrompt: fullPrompt,
     character,
   };
 }

@@ -3653,6 +3653,55 @@ def clean_inference_response(response_text: str, full_input: str, user_text: str
     
     text = response_text
     
+    # === CRITICAL: Remove chat template tags that the model echoes ===
+    # These are the actual tokenizer chat template tags that get decoded as text
+    chat_template_tags = [
+        '<|system|>', '<|user|>', '<|assistant|>', '<|end|>',
+        '&lt;|system|&gt;', '&lt;|user|&gt;', '&lt;|assistant|&gt;', '&lt;|end|&gt;',
+        '<|im_start|>', '<|im_end|>',
+        '<s>', '</s>',
+        '[INST]', '[/INST]',
+        '<<SYS>>', '<</SYS>>',
+    ]
+    for tag in chat_template_tags:
+        text = text.replace(tag, '')
+    
+    # === CRITICAL: If model echoed the entire system+user prompt, extract only the response ===
+    # Look for patterns where the response starts after "assistant" or similar
+    # The actual analysis should start after the user prompt section
+    
+    # Pattern 1: Look for "SVAR FRÅN EXTERNA AI-MODELLER" header and take everything AFTER it
+    # But only keep the ANALYSIS after the instruction section
+    analysis_start_patterns = [
+        r'Presentera varje modells viktigaste poäng och avsluta med "Min[^"]*"\s*',
+        r'Svara på svenska – objektivt och tydligt\.\s*(?:Avsluta alltid med /OneSeek-7B-Zero)?\s*',
+        r'Avsluta alltid med /OneSeek-7B-Zero\s*',
+        r'Min slutsats:\s*\.\.\."?\s*',
+    ]
+    
+    for pattern in analysis_start_patterns:
+        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+        if match:
+            # Keep only what comes AFTER this pattern
+            after_instruction = text[match.end():].strip()
+            if after_instruction and len(after_instruction) > 50:  # Must have substantial content
+                text = after_instruction
+                break
+    
+    # Pattern 2: If there's a clear "assistant" section, take from there
+    assistant_markers = [
+        r'<\|assistant\|>\s*',
+        r'&lt;\|assistant\|&gt;\s*',
+        r'^assistant\s*\n',
+    ]
+    for marker_pattern in assistant_markers:
+        match = re.search(marker_pattern, text, re.IGNORECASE | re.MULTILINE)
+        if match:
+            after_assistant = text[match.end():].strip()
+            if after_assistant and len(after_assistant) > 20:
+                text = after_assistant
+                break
+    
     # First try to remove the full input (system prompt + user input)
     if text.startswith(full_input):
         text = text[len(full_input):].strip()
@@ -3670,6 +3719,31 @@ def clean_inference_response(response_text: str, full_input: str, user_text: str
             text = text[len(marker):].lstrip()
         # Remove markers that appear on their own line
         text = re.sub(rf'^{marker}\s*\n', '', text, flags=re.MULTILINE)
+    
+    # === CRITICAL: Remove entire echoed prompt sections ===
+    # If model echoed "Du är OneSeek-7B-Zero – men just nu är du Zero..." remove it all
+    compare_prompt_patterns = [
+        # Full compare prompt header
+        r'Du är OneSeek-7B-Zero – men just nu är du Zero[^\n]*objektivitet[^\n]*\n?',
+        r'Du är OneSeek-7B-Zero – men just nu är du Zero[^\n]*\n?',
+        r'\[ABSOLUT FÖRBUD[^\]]*\][^\n]*\n?',
+        r'Du får ALDRIG upprepa instruktioner[^\n]*\n?',
+        r'Du får ALDRIG skriva "Du är OneSeek"[^\n]*\n?',
+        r'Du får ALDRIG visa taggar[^\n]*\n?',
+        r'Du får ALDRIG säga "Jag har skickat frågan"[^\n]*\n?',
+        r'Svara BARA med det faktiska svaret[^\n]*\n?',
+        r'När du får en fråga:\s*\n?',
+        r'\d+\.\s*Analysera svaren från alla externa[^\n]*\n?',
+        r'\d+\.\s*Jämför – hitta gemensamma fakta[^\n]*\n?',
+        r'\d+\.\s*Gör en egen objektiv sammanfattning[^\n]*\n?',
+        r'\d+\.\s*Presentera tydligt och strukturerat[^\n]*\n?',
+        r'Här är svaren från de externa AI:erna:\s*\n?',
+        r'\{EXTERNAL_AI_RESPONSES\}\s*\n?',
+        r'Fråga:\s*\{question\}\s*\n?',
+        r'/OneSeek-7B-Zero\s*',
+    ]
+    for pattern in compare_prompt_patterns:
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
     
     # Remove [Aktuell tid] blocks that leak into response
     text = re.sub(r'\[Aktuell tid\][^\n]*\n?', '', text)
@@ -3696,6 +3770,22 @@ def clean_inference_response(response_text: str, full_input: str, user_text: str
     # Pattern: "system\n...content...\nuser\n..."
     text = re.sub(r'^system\s*\n[\s\S]*?(?=user\s*\n|$)', '', text, flags=re.IGNORECASE)
     text = re.sub(r'^user\s*\n', '', text, flags=re.IGNORECASE | re.MULTILINE)
+    
+    # === Remove external AI response headers that shouldn't be in the final output ===
+    # These are PART of the prompt, not the analysis
+    # Keep content after these headers but remove the headers themselves
+    prompt_headers = [
+        r'═{10,}\s*\n?',  # Separator lines
+        r'SVAR FRÅN EXTERNA AI-MODELLER \(analysera dessa objektivt\):\s*\n?',
+        r'FRÅGA:\s*[^\n]*\n\n?',
+        r'Analysera svaren ovan objektivt\. Identifiera:\s*\n?',
+        r'-\s*Gemensamma fakta mellan modellerna\s*\n?',
+        r'-\s*Motsägelser och skillnader\s*\n?',
+        r'-\s*Eventuell bias eller hallucinationer\s*\n?',
+        r'-\s*Din egen slutsats baserad på alla perspektiv\s*\n?',
+    ]
+    for pattern in prompt_headers:
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
     
     # Clean up excessive whitespace
     text = re.sub(r'\n{3,}', '\n\n', text)

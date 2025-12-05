@@ -587,7 +587,8 @@ async function handleZeroCompareFlow(req, res) {
       console.log(`✅ Compression complete (mode: ${compressionMetadata.mode}, chars: ${compressionMetadata.totalChars})`);
       
       // Step 3: Build prompts using Zero Compare prompt (from Admin Dashboard or default)
-      console.log('\n📝 Step 3: Building prompts...');
+      // The ENTIRE prompt comes from Admin Dashboard - NO hardcoded analysis instructions
+      console.log('\n📝 Step 3: Building prompts from Admin Dashboard...');
       const promptResult = buildComparePrompt(
         null, // No character YAML in compare mode
         question,
@@ -595,19 +596,24 @@ async function handleZeroCompareFlow(req, res) {
         null // Firebase context - skip for now
       );
       character = promptResult.character;
-      console.log(`✅ Using Zero Compare prompt (zero_compare.json)`);
+      console.log(`✅ Prompt built from zero_compare.json (placeholders replaced)`);
       
-      // Step 4: Call OpenSeek with context
-      // Use userPrompt which contains the structured prompt with external responses
-      // If customSystemPrompt is provided (from Message Builder), use it instead
+      // Step 4: Call OpenSeek with the complete prompt
+      // The full prompt (with {EXTERNAL_AI_RESPONSES} and {question} replaced) is in userPrompt
+      // If customSystemPrompt is provided (from Message Builder), use it as systemPrompt
       console.log('\n🤖 Step 4: Calling OpenSeek-7B-Zero...');
-      const effectiveSystemPrompt = customSystemPrompt || promptResult.systemPrompt;
-      if (customSystemPrompt) {
+      
+      // Determine effective prompts:
+      // - If customSystemPrompt from Message Builder: use it as system, userPrompt as user
+      // - Otherwise: systemPrompt is empty, everything is in userPrompt (from Admin Dashboard)
+      const useCustom = customSystemPrompt && customSystemPrompt.trim();
+      if (useCustom) {
         console.log(`   📝 Using custom system prompt from Message Builder`);
       }
+      
       openSeekResult = await getOpenSeekResponse(promptResult.userPrompt, {
         profileId,
-        systemPrompt: effectiveSystemPrompt,
+        systemPrompt: useCustom ? customSystemPrompt : promptResult.systemPrompt,
         // Don't pass context separately - it's already in userPrompt
       });
       
