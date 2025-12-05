@@ -1542,9 +1542,9 @@ export default function SevenBZeroPage() {
                   {convertEmojis(msg.text)}
                 </p>
               ) : (
-                <div className="max-w-4xl">
+                <div className="max-w-4xl relative group">
                   {/* AI Meta */}
-                  <div className={`text-[10px] mb-3 tracking-wide font-light uppercase flex items-center gap-3 ${
+                  <div className={`text-[10px] mb-2 tracking-wide font-light uppercase flex items-center gap-3 ${
                     whiteMode ? 'text-[#999]' : 'text-[#4a4a4a]'
                   }`}>
                     <span className={whiteMode ? 'text-[#666]' : 'text-[#666]'}>
@@ -1573,6 +1573,28 @@ export default function SevenBZeroPage() {
                         🔄 Konsensus
                       </button>
                     )}
+                    
+                    {/* Copy/Export dropdown - appears on hover */}
+                    {!msg.isTyping && !msg.error && msg.text && (
+                      <div className="relative ml-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(msg.text);
+                            // Optional: show a brief "Kopierat!" feedback
+                          }}
+                          title="Kopiera svar"
+                          className={`p-1.5 rounded transition-all ${
+                            whiteMode 
+                              ? 'text-[#888] hover:text-[#333] hover:bg-[#f0f0f0]' 
+                              : 'text-[#555] hover:text-[#ccc] hover:bg-[#1a1a1a]'
+                          }`}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
                   </div>
                   
                   {/* Response text or Loading animation */}
@@ -1590,12 +1612,13 @@ export default function SevenBZeroPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className={`prose prose-lg max-w-none ${
-                      whiteMode 
+                    <div className={`prose prose-sm max-w-none 
+                      prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5 prose-headings:my-2
+                      ${whiteMode 
                         ? 'prose-gray prose-headings:font-medium prose-p:text-[#444] prose-strong:text-[#222] prose-li:text-[#444] prose-li:marker:text-[#888]' 
                         : 'prose-invert prose-p:text-[#d0d0d0] prose-headings:text-white prose-headings:font-medium prose-strong:text-white prose-strong:font-semibold prose-li:text-[#d0d0d0] prose-li:marker:text-[#666] prose-blockquote:border-[#444] prose-blockquote:text-[#aaa]'
                     } ${msg.error ? 'text-red-400' : ''}`}
-                    style={{ fontSize: '17px', fontWeight: 350, lineHeight: 1.85, letterSpacing: '0.01em' }}
+                    style={{ fontSize: '15px', fontWeight: 400, lineHeight: 1.6, letterSpacing: '0.005em' }}
                     >
                       <ReactMarkdown>
                         {convertEmojis(msg.isTyping ? currentTypingText : msg.text)}
