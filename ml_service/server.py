@@ -8961,36 +8961,50 @@ Svara NU.
     # Check for Force-Svenska triggers
     force_svenska_active = check_force_svenska(inference_request.text)
     
-    # === 1. ALWAYS: Inject time, date & season context ===
-    time_context = inject_time_context()
-    season_context = get_current_season()
+    # === COMPARE MODE: Check for custom system_prompt and skip_context_enrichment ===
+    # When these are set (from compare mode), skip ALL context injection to keep response clean
+    custom_system_prompt = getattr(inference_request, 'system_prompt', None)
+    skip_enrichment = getattr(inference_request, 'skip_context_enrichment', False)
+    skip_sources_flag = getattr(inference_request, 'skip_sources', False)
     
-    # === 2. Check for weather question (with city detection) ===
+    if custom_system_prompt:
+        logger.info(f"🔬 [COMPARE MODE] Using custom system_prompt ({len(custom_system_prompt)} chars)")
+        logger.info(f"   🚫 skip_context_enrichment={skip_enrichment}, skip_sources={skip_sources_flag}")
+    
+    # === 1. ALWAYS: Inject time, date & season context (unless skip_context_enrichment) ===
+    time_context = inject_time_context() if not skip_enrichment else ""
+    season_context = get_current_season() if not skip_enrichment else ""
+    
+    # === 2. Check for weather question (with city detection) - unless skip_context_enrichment ===
     weather_context = None
-    weather_city = check_weather_city(inference_request.text)
+    weather_city = None
+    if not skip_enrichment:
+        weather_city = check_weather_city(inference_request.text)
     if weather_city:
         weather_data = get_weather(weather_city)
         if weather_data:
             weather_context = weather_data
             logger.info(f"🌤️ Väderdata hämtad för {weather_city}")
     
-    # === 3. Check for news question ===
+    # === 3. Check for news question - unless skip_context_enrichment ===
     news_context = None
-    if check_news_trigger(inference_request.text):
+    if not skip_enrichment and check_news_trigger(inference_request.text):
         logger.info("📰 Hämtar senaste nyheterna...")
         news = get_latest_news()
         if news:
             news_context = format_news_for_context(news)
             logger.info(f"✓ {len(news)} nyheter hämtade")
     
-    # === 4. Check for Open Data API triggers ===
+    # === 4. Check for Open Data API triggers - unless skip_context_enrichment ===
     # ONESEEK Δ+ v4.0: First try keyword triggers, then fall back to Intent Engine (if enabled)
     open_data_context = None
-    triggered_api = check_open_data_trigger(inference_request.text)
+    triggered_api = None
+    if not skip_enrichment:
+        triggered_api = check_open_data_trigger(inference_request.text)
     
     # ONESEEK Δ+ v4.0: Only use Intent Engine if enabled in configuration
     # By default, Intent Engine is DISABLED - the model chooses category itself
-    if not triggered_api and INTENT_ENGINE_AVAILABLE and is_intent_engine_enabled():
+    if not skip_enrichment and not triggered_api and INTENT_ENGINE_AVAILABLE and is_intent_engine_enabled():
         try:
             intent_api_data = get_intent_based_api(inference_request.text)
             if intent_api_data and intent_api_data.get("api"):
@@ -9014,17 +9028,17 @@ Svara NU.
         except Exception as e:
             logger.debug(f"Intent-based API lookup failed: {e}")
     
-    if triggered_api:
+    if not skip_enrichment and triggered_api:
         logger.info(f"📊 [OPEN DATA] Hämtar från {triggered_api.get('name')}...")
         open_data_result = fetch_open_data(triggered_api, inference_request.text)
         if open_data_result:
             open_data_context = open_data_result
             logger.info(f"✓ Data från {triggered_api.get('name')} mottagen")
     
-    # === 5. Check for Tavily search trigger ===
+    # === 5. Check for Tavily search trigger - unless skip_context_enrichment ===
     tavily_context = None
     tavily_sources = ""
-    if check_tavily_trigger(inference_request.text):
+    if not skip_enrichment and check_tavily_trigger(inference_request.text):
         logger.info(f"🔍 [TAVILY] Hämtar realtidsdata: {inference_request.text[:60]}...")
         search_result = tavily_search(inference_request.text)
         if search_result and search_result.get("answer"):
@@ -9032,15 +9046,15 @@ Svara NU.
             tavily_sources = format_tavily_sources(search_result)
             logger.info("✓ Tavily-svar mottaget")
     
-    # === 6. ONESEEK Δ+ v4.0: Get conversation memory/context ===
+    # === 6. ONESEEK Δ+ v4.0: Get conversation memory/context - unless skip_context_enrichment ===
     # Note: Memory Manager still works, but Intent Engine for topic detection is controlled by config
     memory_context = None
     topic_hash = None
     intent_data = None
     previous_messages = []
     
-    # Only use Intent Engine for topic detection if enabled
-    if MEMORY_MANAGER_AVAILABLE and INTENT_ENGINE_AVAILABLE and is_intent_engine_enabled():
+    # Only use Intent Engine for topic detection if enabled AND not in compare mode
+    if not skip_enrichment and MEMORY_MANAGER_AVAILABLE and INTENT_ENGINE_AVAILABLE and is_intent_engine_enabled():
         try:
             # Detect intent and entity from user's question
             intent_data = detect_intent_and_city(inference_request.text) if detect_intent_and_city else None
@@ -9070,37 +9084,58 @@ Svara NU.
         except Exception as e:
             logger.debug(f"Memory context retrieval failed: {e}")
     
-    # Format input with system prompt - ensures model always knows its identity
-    full_input = format_inference_input(inference_request.text)
-    
-    # Build enhanced context prefix
-    context_parts = []
-    
-    # ONESEEK Δ+: Add memory system prompt if we have conversation history
-    if memory_context:
-        context_parts.append("Du är mitt i ett samtal. Kom ihåg vad ni pratade om senast. Svara naturligt och kort.")
-        context_parts.append(f"[Tidigare i samtalet]\n{memory_context}")
-    
-    # Always add time and season context
-    context_parts.append(f"[Aktuell tid] {time_context} {season_context}")
-    
-    # Add weather if available
-    if weather_context:
-        context_parts.append(f"[Väder] {weather_context}")
-    
-    # Add news if available
-    if news_context:
-        context_parts.append(f"[Nyheter] {news_context}")
-    
-    # Add Open Data if available
-    if open_data_context:
-        context_parts.append(f"[Öppen data] {open_data_context}")
-    
-    # Add Tavily search results if available
-    if tavily_context:
-        context_parts.append(f"[Aktuell fakta] {tavily_context}")
-        if tavily_sources:
-            context_parts.append(tavily_sources)
+    # === COMPARE MODE: Use custom system_prompt directly, skip all context building ===
+    if custom_system_prompt:
+        # In compare mode, use ONLY the custom prompt - no enrichment
+        logger.info("🔬 [COMPARE MODE] Building clean input with custom system_prompt only")
+        
+        # Build clean chat messages with ONLY the custom prompt
+        chat_messages = [
+            {"role": "system", "content": custom_system_prompt},
+            {"role": "user", "content": inference_request.text}
+        ]
+        
+        # Also format as full_input for fallback
+        full_input = f"{custom_system_prompt}\n\nAnvändare: {inference_request.text}\n\nOneSeek:"
+        context_parts = []  # No context to add
+        force_svenska_active = False  # Don't add Force-Svenska in compare mode
+        
+    else:
+        # === NORMAL MODE: Format input with system prompt and context ===
+        # Format input with system prompt - ensures model always knows its identity
+        full_input = format_inference_input(inference_request.text)
+        
+        # Build enhanced context prefix
+        context_parts = []
+        
+        # ONESEEK Δ+: Add memory system prompt if we have conversation history
+        if memory_context:
+            context_parts.append("Du är mitt i ett samtal. Kom ihåg vad ni pratade om senast. Svara naturligt och kort.")
+            context_parts.append(f"[Tidigare i samtalet]\n{memory_context}")
+        
+        # Always add time and season context (unless already empty from skip_enrichment)
+        if time_context and season_context:
+            context_parts.append(f"[Aktuell tid] {time_context} {season_context}")
+        
+        # Add weather if available
+        if weather_context:
+            context_parts.append(f"[Väder] {weather_context}")
+        
+        # Add news if available
+        if news_context:
+            context_parts.append(f"[Nyheter] {news_context}")
+        
+        # Add Open Data if available
+        if open_data_context:
+            context_parts.append(f"[Öppen data] {open_data_context}")
+        
+        # Add Tavily search results if available
+        if tavily_context:
+            context_parts.append(f"[Aktuell fakta] {tavily_context}")
+            if tavily_sources:
+                context_parts.append(tavily_sources)
+        
+        chat_messages = None  # Will be built later
     
     # If Force-Svenska is active, prepend Swedish instruction
     if force_svenska_active:
@@ -9165,16 +9200,20 @@ Svara NU.
             model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
             
             # === FIX: Use apply_chat_template for proper chat format ===
-            # Build structured messages for the model
-            system_prompt = get_active_system_prompt()
-            # Add all context to system prompt
-            if context_parts:
-                system_prompt = "\n".join(context_parts) + "\n\n" + system_prompt
-            
-            chat_messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": inference_request.text}
-            ]
+            # COMPARE MODE: Use pre-built chat_messages if available
+            if chat_messages is None:
+                # NORMAL MODE: Build structured messages for the model
+                system_prompt = get_active_system_prompt()
+                # Add all context to system prompt
+                if context_parts:
+                    system_prompt = "\n".join(context_parts) + "\n\n" + system_prompt
+                
+                chat_messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": inference_request.text}
+                ]
+            else:
+                logger.info("🔬 [COMPARE MODE] Using pre-built chat_messages (no context injection)")
             
             # Try to use apply_chat_template if available (prevents echo/loops)
             try:
@@ -9222,19 +9261,22 @@ Svara NU.
             # Remove internal debug tags from response
             response_text = clean_internal_tags(response_text)
             
-            # === APPEND SOURCES to response ===
+            # === APPEND SOURCES to response - unless skip_sources flag is set (compare mode) ===
             # Collect all sources from triggered APIs/services
-            sources_section = build_sources_section(
-                weather_context=weather_context,
-                weather_city=weather_city,
-                news_context=news_context,
-                open_data_context=open_data_context,
-                triggered_api=triggered_api,
-                tavily_sources=tavily_sources
-            )
-            
-            if sources_section:
-                response_text = response_text.rstrip() + "\n\n" + sources_section
+            if not skip_sources_flag:
+                sources_section = build_sources_section(
+                    weather_context=weather_context,
+                    weather_city=weather_city,
+                    news_context=news_context,
+                    open_data_context=open_data_context,
+                    triggered_api=triggered_api,
+                    tavily_sources=tavily_sources
+                )
+                
+                if sources_section:
+                    response_text = response_text.rstrip() + "\n\n" + sources_section
+            else:
+                logger.info("🚫 [SOURCES] Skipping source injection (skip_sources=true)")
             
             latency_ms = (time.time() - start_time) * 1000
             
