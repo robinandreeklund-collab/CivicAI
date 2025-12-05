@@ -137,26 +137,100 @@ def find_convert_script():
 
 
 def download_convert_script():
-    """Download the llama.cpp convert script from GitHub."""
+    """
+    Download the llama.cpp convert script and its dependencies from GitHub.
+    
+    The convert_hf_to_gguf.py script requires the gguf-py module from llama.cpp,
+    so we need to download and set up both properly.
+    """
     try:
         import urllib.request
+        import zipfile
+        import io
         
         # Create a local directory for llama.cpp scripts
         script_dir = Path(__file__).parent / 'llama_cpp_scripts'
         script_dir.mkdir(exist_ok=True)
         
-        # Download convert_hf_to_gguf.py
-        convert_url = 'https://raw.githubusercontent.com/ggerganov/llama.cpp/master/convert_hf_to_gguf.py'
         convert_path = script_dir / 'convert_hf_to_gguf.py'
+        gguf_py_dir = script_dir / 'gguf-py'
         
-        if not convert_path.exists() or (datetime.now().timestamp() - convert_path.stat().st_mtime > 86400):
-            print(f"[GGUF Export] Downloading convert script from GitHub...")
+        # Check if we need to download (cache for 1 day)
+        needs_download = (
+            not convert_path.exists() or 
+            not gguf_py_dir.exists() or
+            (datetime.now().timestamp() - convert_path.stat().st_mtime > 86400)
+        )
+        
+        if needs_download:
+            print(f"[GGUF Export] Downloading llama.cpp scripts from GitHub...")
+            
+            # Download the main convert script
+            convert_url = 'https://raw.githubusercontent.com/ggerganov/llama.cpp/master/convert_hf_to_gguf.py'
             urllib.request.urlretrieve(convert_url, convert_path)
-            print(f"[GGUF Export] Downloaded to {convert_path}")
+            print(f"[GGUF Export] Downloaded convert_hf_to_gguf.py")
+            
+            # Download gguf-py module as a zip
+            gguf_zip_url = 'https://github.com/ggerganov/llama.cpp/archive/refs/heads/master.zip'
+            print(f"[GGUF Export] Downloading gguf-py module...")
+            
+            try:
+                # Download and extract just gguf-py
+                with urllib.request.urlopen(gguf_zip_url, timeout=120) as response:
+                    zip_data = io.BytesIO(response.read())
+                
+                with zipfile.ZipFile(zip_data, 'r') as zip_ref:
+                    # Extract only gguf-py directory
+                    for member in zip_ref.namelist():
+                        if 'gguf-py/' in member:
+                            # Extract to our script directory
+                            relative_path = member.split('gguf-py/', 1)
+                            if len(relative_path) > 1 and relative_path[1]:
+                                target_path = gguf_py_dir / relative_path[1]
+                                if member.endswith('/'):
+                                    target_path.mkdir(parents=True, exist_ok=True)
+                                else:
+                                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                                    with zip_ref.open(member) as source:
+                                        with open(target_path, 'wb') as target:
+                                            target.write(source.read())
+                
+                print(f"[GGUF Export] Downloaded gguf-py module")
+                
+                # Add gguf-py to Python path via a .pth file
+                pth_file = script_dir / 'gguf_path.pth'
+                with open(pth_file, 'w') as f:
+                    f.write(str(gguf_py_dir) + '\n')
+                    
+            except Exception as e:
+                print(f"[GGUF Export] Could not download gguf-py module: {e}")
+                print(f"[GGUF Export] Will rely on pip gguf package instead")
         
         return convert_path if convert_path.exists() else None
     except Exception as e:
         print(f"[GGUF Export] Failed to download convert script: {e}")
+        return None
+
+
+def try_transformers_gguf_export(model_path: Path, output_path: Path, quantization: str):
+    """
+    Try to use transformers library's built-in GGUF export.
+    Available in transformers >= 4.36.0
+    """
+    try:
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        
+        # Check if GGUF export is available
+        model = AutoModelForCausalLM.from_pretrained(str(model_path), trust_remote_code=True)
+        
+        if hasattr(model, 'save_pretrained') and 'gguf' in str(type(model.save_pretrained)):
+            print(f"[GGUF Export] Using transformers GGUF export...")
+            model.save_pretrained(str(output_path.parent), gguf_file=str(output_path))
+            return {'success': True, 'output_path': str(output_path), 'method': 'transformers'}
+        
+        return None
+    except Exception as e:
+        print(f"[GGUF Export] Transformers GGUF export not available: {e}")
         return None
 
 
@@ -323,12 +397,20 @@ def run_convert_script(convert_script: Path, model_path: Path, output_path: Path
         
         print(f"[GGUF Export] Running: {' '.join(convert_cmd)}")
         
+        # Set up environment with gguf-py in path
+        env = os.environ.copy()
+        gguf_py_dir = Path(__file__).parent / 'llama_cpp_scripts' / 'gguf-py'
+        if gguf_py_dir.exists():
+            existing_path = env.get('PYTHONPATH', '')
+            env['PYTHONPATH'] = f"{gguf_py_dir}{os.pathsep}{existing_path}" if existing_path else str(gguf_py_dir)
+        
         result = subprocess.run(
             convert_cmd,
             capture_output=True,
             text=True,
             timeout=3600,  # 1 hour timeout
             cwd=str(model_path.parent),
+            env=env,
         )
         
         if result.returncode != 0:
@@ -376,12 +458,20 @@ def run_convert_script_direct(convert_script: Path, model_path: Path, output_pat
         
         print(f"[GGUF Export] Running 1-step conversion: {' '.join(convert_cmd)}")
         
+        # Set up environment with gguf-py in path
+        env = os.environ.copy()
+        gguf_py_dir = Path(__file__).parent / 'llama_cpp_scripts' / 'gguf-py'
+        if gguf_py_dir.exists():
+            existing_path = env.get('PYTHONPATH', '')
+            env['PYTHONPATH'] = f"{gguf_py_dir}{os.pathsep}{existing_path}" if existing_path else str(gguf_py_dir)
+        
         result = subprocess.run(
             convert_cmd,
             capture_output=True,
             text=True,
             timeout=3600,  # 1 hour timeout
             cwd=str(model_path.parent),
+            env=env,
         )
         
         if result.returncode != 0:
