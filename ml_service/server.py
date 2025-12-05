@@ -6569,7 +6569,8 @@ async def dual_model_inference(text: str, max_length: int = 512, temperature: fl
         inputs = sync_inputs_to_model_device(inputs, model)
         
         # Use max_new_tokens instead of max_length to avoid input length issues
-        max_new = min(max_length, 512)
+        # Allow up to 2048 tokens for compare mode which needs longer responses
+        max_new = min(max_length, 2048)
         
         # Generate with explicit attention_mask
         with torch.no_grad():
@@ -9380,7 +9381,8 @@ Svara NU.
             inputs = sync_inputs_to_model_device(inputs, model)
             
             # Use max_new_tokens instead of max_length to avoid input length issues
-            max_new = min(inference_request.max_length, 512)
+            # Allow up to 2048 tokens for compare mode which needs longer responses
+            max_new = min(inference_request.max_length, 2048)
             
             # Generate with explicit attention_mask
             with torch.no_grad():
@@ -10409,8 +10411,9 @@ Svara NU.
             with torch.no_grad():
                 try:
                     # Use max_new_tokens instead of max_length to avoid input length issues
+                    # Allow up to 2048 tokens for compare mode which needs longer responses
                     input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
-                    max_new = min(request.max_length, 512)  # Generate up to 512 new tokens
+                    max_new = min(request.max_length, 2048)  # Generate up to 2048 new tokens
                     
                     outputs = model.generate(
                         input_ids=inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids,
