@@ -295,10 +295,11 @@ async function performChunkedAnalysis(question, externalResponses, options = {})
       .replace(/\{response\}/g, cleanedResponse.substring(0, 1500));
 
     try {
-      // Send the analysis prompt as systemPrompt so the model follows it as instructions
-      const result = await getOpenSeekResponse(question, {
+      // Send the full analysis prompt as text (user message)
+      // Use a simple system prompt to ensure the model follows instructions
+      const result = await getOpenSeekResponse(analysisPrompt, {
         profileId,
-        systemPrompt: analysisPrompt, // Full prompt with instructions
+        systemPrompt: 'Du är Zero, en objektiv AI-granskare. Följ instruktionerna exakt.',
         max_tokens: 256, // Shorter response for individual analysis
         timeout: 60000, // 1 minute per analysis
       });
@@ -387,10 +388,11 @@ async function performChunkedAnalysis(question, externalResponses, options = {})
   }
   
   try {
-    // Send synthesis prompt as systemPrompt so the model follows it as instructions
-    const synthesisResult = await getOpenSeekResponse(question.substring(0, 200), {
+    // Send the full synthesis prompt as text (user message)
+    // Use a simple system prompt to ensure the model follows instructions
+    const synthesisResult = await getOpenSeekResponse(synthesisPrompt, {
       profileId,
-      systemPrompt: synthesisPrompt, // Full synthesis prompt with all analyses
+      systemPrompt: 'Du är Zero, en objektiv sammanställare. Följ instruktionerna exakt.',
       max_tokens: 512,
       timeout: 90000, // 1.5 minutes for synthesis
     });
@@ -581,40 +583,46 @@ async function handleZeroCompareFlow(req, res) {
       compressionMetadata = compressionResult.metadata;
       console.log(`✅ Compression complete (mode: ${compressionMetadata.mode}, chars: ${compressionMetadata.totalChars})`);
       
-      // Step 3: Build prompts using Zero Compare prompt (from Admin Dashboard or default)
-      // The ENTIRE prompt comes from Admin Dashboard - NO hardcoded analysis instructions
-      console.log('\n📝 Step 3: Building prompts from Admin Dashboard...');
-      const promptResult = buildComparePrompt(
-        null, // No character YAML in compare mode
-        question,
-        compressionResult.compressed,
-        null // Firebase context - skip for now
-      );
-      character = promptResult.character;
-      console.log(`✅ Prompt built from zero_compare.json (placeholders replaced)`);
+      // Step 3: Build prompts using Zero Compare prompt (from Admin Dashboard or custom)
+      console.log('\n📝 Step 3: Building prompts...');
       
-      // Step 4: Call OpenSeek with the complete prompt
-      // systemPrompt contains the full prompt with AI responses and analysis instructions
-      // userPrompt contains just the question for cleaner chat format
-      console.log('\n🤖 Step 4: Calling OpenSeek-7B-Zero...');
-      
-      // Determine effective system prompt:
-      // - If customSystemPrompt from Message Builder: use it directly
-      // - Otherwise: use promptResult.systemPrompt (from Admin Dashboard with placeholders replaced)
+      // Determine which prompt to use
       const useCustom = customSystemPrompt && customSystemPrompt.trim();
-      const effectiveSystemPrompt = useCustom ? customSystemPrompt : promptResult.systemPrompt;
+      let promptResult;
       
       if (useCustom) {
-        console.log(`   📝 Using custom system prompt from Message Builder`);
+        console.log(`   📝 Using custom prompt from Message Builder`);
+        // Replace placeholders in the custom prompt
+        let customPromptWithData = customSystemPrompt
+          .replace(/\{EXTERNAL_AI_RESPONSES\}/g, compressionResult.compressed)
+          .replace(/\{question\}/g, question);
+        
+        promptResult = {
+          systemPrompt: 'Du är Zero, en objektiv AI-granskare. Följ instruktionerna exakt.',
+          userPrompt: customPromptWithData,
+          character: { name: 'Zero Compare', id: 'zero_compare' },
+        };
       } else {
         console.log(`   📝 Using Zero Compare prompt from Admin Dashboard`);
+        promptResult = buildComparePrompt(
+          null, // No character YAML in compare mode
+          question,
+          compressionResult.compressed,
+          null // Firebase context - skip for now
+        );
       }
+      
+      character = promptResult.character;
+      console.log(`✅ Prompt built (placeholders replaced)`);
+      
+      // Step 4: Call OpenSeek with the complete prompt
+      // userPrompt contains the full prompt with AI responses and analysis instructions
+      // systemPrompt is a simple instruction to follow the format
+      console.log('\n🤖 Step 4: Calling OpenSeek-7B-Zero...');
       
       openSeekResult = await getOpenSeekResponse(promptResult.userPrompt, {
         profileId,
-        systemPrompt: effectiveSystemPrompt,
-        // systemPrompt contains all instructions + AI responses
-        // userPrompt is just the question
+        systemPrompt: promptResult.systemPrompt,
       });
       
       if (openSeekResult.error && !openSeekResult.response) {

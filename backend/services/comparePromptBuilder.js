@@ -467,11 +467,12 @@ export function buildComparePrompt(characterYamlPath, question, otherResponses, 
     personality_type: 'compare',
   };
   
-  // IMPORTANT: Send as systemPrompt so Python treats it as instructions to follow
-  // userPrompt can just be the original question for cleaner chat format
+  // The full prompt (with AI responses and instructions) goes in userPrompt
+  // This is what gets sent as "text" to the model
+  // systemPrompt contains a simple instruction to follow the analysis format
   return {
-    systemPrompt: fullPrompt, // Full prompt with all instructions and data
-    userPrompt: question, // Just the question for the user role
+    systemPrompt: 'Du är Zero, en objektiv AI-granskare. Följ instruktionerna i meddelandet nedan exakt.',
+    userPrompt: fullPrompt, // Full prompt with AI responses and analysis instructions
     character,
   };
 }
