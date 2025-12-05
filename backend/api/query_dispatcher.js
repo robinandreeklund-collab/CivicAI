@@ -134,9 +134,57 @@ function sanitizeResponse(text) {
   // Remove "Läs mer:" sections
   cleaned = cleaned.replace(/Läs mer:[^\n]*\n?/gi, '');
   
+  // ============ REMOVE CHAT TEMPLATE TAGS AND ECHOED PROMPTS ============
+  // CRITICAL: The model is echoing the entire system prompt with <|system|> and <|assistant|> tags
+  // Remove everything from <|system|> up to the actual analysis response
+  
+  // Remove <|system|> ... <|assistant|> block (entire echoed system prompt)
+  cleaned = cleaned.replace(/<\|system\|>[^]*?<\|assistant\|>/gi, '');
+  cleaned = cleaned.replace(/&lt;\|system\|&gt;[^]*?&lt;\|assistant\|&gt;/gi, '');
+  
+  // Remove HTML-encoded versions of tags
+  cleaned = cleaned.replace(/&lt;\|(system|user|assistant)\|&gt;/gi, '');
+  cleaned = cleaned.replace(/<\|(system|user|assistant)\|>/gi, '');
+  
+  // If the response contains "SVAR FRÅN EXTERNA AI-MODELLER" header echoed, 
+  // remove everything before it (that's the prompt being echoed)
+  const externalResponseMarker = /═+\s*\nSVAR FRÅN EXTERNA AI-MODELLER[^═]*═+\s*\n/i;
+  const markerMatch = cleaned.match(externalResponseMarker);
+  if (markerMatch) {
+    // Find the position of this marker and remove everything before it
+    const markerIndex = cleaned.indexOf(markerMatch[0]);
+    if (markerIndex > 0) {
+      cleaned = cleaned.substring(markerIndex + markerMatch[0].length);
+    }
+  }
+  
+  // Also check for "user" followed by the marker line (common pattern)
+  cleaned = cleaned.replace(/\buser\s*\n═+\s*\nSVAR FRÅN EXTERNA AI-MODELLER[^]*?═+\s*\n/gi, '');
+  
   // ============ REMOVE SYSTEM PROMPT LEAKAGE ============
   // Pattern: "system Du pratar alltid..." or "system\n Du pratar..."
   cleaned = cleaned.replace(/\bsystem\s+Du pratar alltid svenska[^]*?(?=\n\n|\buser\b|$)/gi, '');
+  
+  // Remove entire compare prompt if echoed (starts with "Du är OneSeek-7B-Zero – men just nu är du Zero")
+  cleaned = cleaned.replace(/Du är OneSeek-7B-Zero\s*[–-]\s*men just nu är du Zero[^]*?(?=•\s*\w+:|Fråga:|Min slutsats:|$)/gi, '');
+  
+  // Remove "[ABSOLUT FÖRBUD" instruction blocks
+  cleaned = cleaned.replace(/\[ABSOLUT FÖRBUD[^]*?\]/gi, '');
+  
+  // Remove "Svara BARA med det faktiska svaret" instructions
+  cleaned = cleaned.replace(/Svara BARA med det faktiska svaret[^]*?(?=\n\n|$)/gi, '');
+  
+  // Remove "När du får en fråga:" instruction blocks
+  cleaned = cleaned.replace(/När du får en fråga:[^]*?(?=\n\nHär är|Fråga:|$)/gi, '');
+  
+  // Remove "Här är svaren från de externa AI:erna:" header
+  cleaned = cleaned.replace(/Här är svaren från de? externa AI[:\-]?erna:[^\n]*\n?/gi, '');
+  
+  // Remove "{EXTERNAL_AI_RESPONSES}" placeholder if echoed
+  cleaned = cleaned.replace(/\{EXTERNAL_AI_RESPONSES\}/gi, '');
+  
+  // Remove "Fråga: {question}" placeholders
+  cleaned = cleaned.replace(/Fråga:\s*\{question\}/gi, '');
   
   // Remove "[Aktuell tid]" blocks
   cleaned = cleaned.replace(/\[Aktuell tid\][^]*?(?=\n\n|Du är|$)/gi, '');
@@ -152,6 +200,11 @@ function sanitizeResponse(text) {
   
   // Remove "Svara på svenska – alltid user" patterns
   cleaned = cleaned.replace(/Svara på svenska\s*[–-]\s*alltid\s*user\b/gi, '');
+  cleaned = cleaned.replace(/Svara på svenska\s*[–-]\s*(objektivt och tydligt|alltid)[^\n]*\n?/gi, '');
+  
+  // Remove "/OneSeek-7B-Zero" signature if present
+  cleaned = cleaned.replace(/\/OneSeek-7B-Zero\s*$/gi, '');
+  cleaned = cleaned.replace(/Avsluta alltid med \/OneSeek-7B-Zero[^\n]*\n?/gi, '');
   
   // Remove "assistant", "user", and "system" role markers (chat format leakage)
   cleaned = cleaned.replace(/^system\s*\n/gim, '');
