@@ -11,7 +11,7 @@
 
 // Increased timeout for complex compare operations (local ML inference can be slow)
 const DEFAULT_TIMEOUT_MS = parseInt(process.env.OPENSEEK_TIMEOUT_MS) || 180000; // 3 minutes default
-const DEFAULT_MAX_TOKENS = 2048; // Increased for compare mode to allow complete analysis with "Min slutsats"
+const DEFAULT_MAX_TOKENS = 4096; // Increased for compare mode to allow complete analysis
 
 /**
  * Get the configured OpenSeek API URL

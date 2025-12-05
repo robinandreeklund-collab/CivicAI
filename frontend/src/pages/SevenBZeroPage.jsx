@@ -1489,7 +1489,8 @@ export default function SevenBZeroPage() {
           paddingLeft: '80px',
         }}
       >
-        <div className="max-w-2xl mx-auto w-full space-y-8">
+        {/* Wider max-width for 4K screens - was max-w-2xl (672px), now max-w-5xl (1024px) */}
+        <div className="max-w-5xl mx-auto w-full space-y-8">
           
           {/* Welcome Message when no messages */}
           {messages.length === 0 && (
@@ -1535,13 +1536,13 @@ export default function SevenBZeroPage() {
               </p>
               
               {msg.type === 'user' ? (
-                <p className={`text-[18px] font-light text-right leading-relaxed max-w-md tracking-tight ${
+                <p className={`text-[18px] font-light text-right leading-relaxed max-w-2xl tracking-tight ${
                   whiteMode ? 'text-[#555]' : 'text-[#888]'
                 }`}>
                   {convertEmojis(msg.text)}
                 </p>
               ) : (
-                <div className="max-w-lg">
+                <div className="max-w-4xl">
                   {/* AI Meta */}
                   <div className={`text-[10px] mb-3 tracking-wide font-light uppercase flex items-center gap-3 ${
                     whiteMode ? 'text-[#999]' : 'text-[#4a4a4a]'
@@ -1591,10 +1592,10 @@ export default function SevenBZeroPage() {
                   ) : (
                     <div className={`prose prose-lg max-w-none ${
                       whiteMode 
-                        ? 'prose-gray' 
-                        : 'prose-invert prose-p:text-[#c0c0c0] prose-headings:text-white prose-strong:text-white prose-li:text-[#c0c0c0]'
+                        ? 'prose-gray prose-headings:font-medium prose-p:text-[#444] prose-strong:text-[#222] prose-li:text-[#444] prose-li:marker:text-[#888]' 
+                        : 'prose-invert prose-p:text-[#d0d0d0] prose-headings:text-white prose-headings:font-medium prose-strong:text-white prose-strong:font-semibold prose-li:text-[#d0d0d0] prose-li:marker:text-[#666] prose-blockquote:border-[#444] prose-blockquote:text-[#aaa]'
                     } ${msg.error ? 'text-red-400' : ''}`}
-                    style={{ fontSize: '18px', fontWeight: 300, lineHeight: 1.9, letterSpacing: '-0.01em' }}
+                    style={{ fontSize: '17px', fontWeight: 350, lineHeight: 1.85, letterSpacing: '0.01em' }}
                     >
                       <ReactMarkdown>
                         {convertEmojis(msg.isTyping ? currentTypingText : msg.text)}
@@ -1773,7 +1774,8 @@ export default function SevenBZeroPage() {
             ? 'bg-gradient-to-t from-[#fafafa] via-[#fafafa]/98 to-transparent' 
             : 'bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/98 to-transparent'
         }`}>
-          <div className="max-w-2xl mx-auto">
+          {/* Wider max-width for 4K screens - matches chat area */}
+          <div className="max-w-5xl mx-auto">
             
             {/* Character/Persona Selection */}
             {/* ONESEEK Δ+ v6.5 (PR#101): Character/Persona Selection with Override Mode Toggle */}
