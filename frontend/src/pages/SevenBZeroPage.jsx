@@ -984,6 +984,12 @@ export default function SevenBZeroPage() {
       const finalResponseTime = ((Date.now() - responseStartTime) / 1000).toFixed(2);
       const formattedFinalText = formatAIResponse(accumulatedText);
       
+      // Check if we actually received any content
+      if (!accumulatedText || accumulatedText.trim() === '') {
+        console.warn('[7B-Zero Stream] No content received from stream');
+        throw new Error('Ingen text mottagen från strömning. Modellen kan fortfarande laddas.');
+      }
+      
       setMessages(prev => prev.map(msg => 
         msg.id === aiMessageId 
           ? { 

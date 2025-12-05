@@ -11170,9 +11170,24 @@ async def generate_sse_tokens(
             {"role": "user", "content": text}
         ]
         
-        # Check if we have models loaded
+        # Check if we have models loaded - attempt to load if not
         if 'oneseek' not in models or 'oneseek' not in tokenizers:
-            yield f"event: error\ndata: {json.dumps({'error': 'Model not loaded'})}\n\n"
+            logger.info("🌊 [STREAM] Model not loaded, attempting to load...")
+            try:
+                # Attempt to load the model (same pattern as other endpoints)
+                loaded_model, loaded_tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
+                if loaded_model is None or loaded_tokenizer is None:
+                    yield f"event: error\ndata: {json.dumps({'error': 'Failed to load model. Please try again.'})}\n\n"
+                    return
+                logger.info("🌊 [STREAM] Model loaded successfully!")
+            except Exception as load_err:
+                logger.error(f"🌊 [STREAM] Model loading failed: {load_err}")
+                yield f"event: error\ndata: {json.dumps({'error': f'Model loading failed: {str(load_err)}'})}\n\n"
+                return
+        
+        # Re-check after loading attempt
+        if 'oneseek' not in models or 'oneseek' not in tokenizers:
+            yield f"event: error\ndata: {json.dumps({'error': 'Model not available after loading attempt'})}\n\n"
             return
         
         model = models['oneseek']
