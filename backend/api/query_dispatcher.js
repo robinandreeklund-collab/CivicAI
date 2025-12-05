@@ -586,16 +586,16 @@ async function handleZeroCompareFlow(req, res) {
       compressionMetadata = compressionResult.metadata;
       console.log(`✅ Compression complete (mode: ${compressionMetadata.mode}, chars: ${compressionMetadata.totalChars})`);
       
-      // Step 3: Build prompts using character card
-      console.log('\n📝 Step 3: Building prompts with character card...');
+      // Step 3: Build prompts using Zero Compare prompt (from Admin Dashboard or default)
+      console.log('\n📝 Step 3: Building prompts...');
       const promptResult = buildComparePrompt(
-        characterCard,
+        null, // No character YAML in compare mode
         question,
         compressionResult.compressed,
         null // Firebase context - skip for now
       );
       character = promptResult.character;
-      console.log(`✅ Prompts built for character: ${character.name || character.id}`);
+      console.log(`✅ Using Zero Compare prompt (zero_compare.json)`);
       
       // Step 4: Call OpenSeek with context
       // Use userPrompt which contains the structured prompt with external responses

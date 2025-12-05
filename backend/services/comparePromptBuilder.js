@@ -244,7 +244,6 @@ export function getCompareSystemPrompt() {
     if (fs.existsSync(COMPARE_PROMPT_PATH)) {
       const data = JSON.parse(fs.readFileSync(COMPARE_PROMPT_PATH, 'utf8'));
       if (data.content && data.content.trim()) {
-        console.log('📝 Using custom compare prompt from:', COMPARE_PROMPT_PATH);
         return data.content;
       }
     }
@@ -252,7 +251,6 @@ export function getCompareSystemPrompt() {
     console.warn('⚠️  Could not load custom compare prompt:', error.message);
   }
   
-  console.log('📝 Using default compare prompt');
   return DEFAULT_ZERO_COMPARE_SYSTEM_PROMPT;
 }
 
@@ -421,20 +419,18 @@ ${compressedResponses}
 /**
  * Build prompts for OpenSeek compare flow
  * 
- * @param {string} characterYamlPath - Path to character YAML or character ID
+ * Compare mode uses ONLY the zero_compare.json prompt (editable via Admin Dashboard).
+ * No YAML character cards are used in compare mode - it's completely isolated.
+ * 
+ * @param {string} characterYamlPath - Ignored in compare mode (kept for API compatibility)
  * @param {string} question - User's question
  * @param {string} otherResponses - Compressed responses from other models
  * @param {Object} firebaseContext - Optional Firebase context data
  * @returns {{systemPrompt: string, userPrompt: string, character: Object}}
  */
 export function buildComparePrompt(characterYamlPath, question, otherResponses, firebaseContext = null) {
-  console.log(`📝 Building compare prompt for character: ${characterYamlPath}`);
-  
-  // Load or fallback to character
-  const character = findCharacter(characterYamlPath || 'zero');
-  
-  // Build system prompt (uses editable compare prompt)
-  const systemPrompt = buildSystemPromptFromCharacter(character);
+  // Compare mode uses ONLY zero_compare.json - no YAML character cards
+  const systemPrompt = getCompareSystemPrompt();
   
   // Build user prompt with context
   const responsesSection = formatOtherResponsesSection(otherResponses);
@@ -463,6 +459,14 @@ Presentera varje modells viktigaste poäng och avsluta med "Min slutsats: ..."`;
       userPrompt = `[Tidigare frågor i samtalet: ${firebaseContext.previousQuestions.slice(-3).join(', ')}]\n\n${userPrompt}`;
     }
   }
+  
+  // Return Zero compare character info (no YAML involved)
+  const character = {
+    name: 'Zero Compare',
+    id: 'zero_compare',
+    version: '7B-Zero',
+    personality_type: 'compare',
+  };
   
   return {
     systemPrompt,
