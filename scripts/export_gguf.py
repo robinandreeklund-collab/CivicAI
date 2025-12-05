@@ -164,8 +164,8 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
     """
     Convert a HuggingFace model to GGUF format with direct quantization.
     
-    Uses 1-step conversion: HF → quantized GGUF directly.
-    This is 5-10x faster than the 2-step process (HF → F16 → quantized)
+    Uses 1-step conversion: HF -> quantized GGUF directly.
+    This is 5-10x faster than the 2-step process (HF -> F16 -> quantized)
     and avoids creating a large intermediate F16 file (~14GB).
     
     Args:
@@ -180,7 +180,7 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
     print(f"  Model: {model_path}")
     print(f"  Output: {output_path}")
     print(f"  Quantization: {quantization}")
-    print(f"  Method: Direct HF → {quantization} (no intermediate F16)")
+    print(f"  Method: Direct HF -> {quantization} (no intermediate F16)")
     
     # Ensure output directory exists
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -225,7 +225,7 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
     
     if convert_result.get('success') and output_path.exists():
         size_mb = output_path.stat().st_size / (1024 * 1024)
-        print(f"[GGUF Export] ✅ Direct conversion successful: {output_path} ({size_mb:.1f} MB)")
+        print(f"[GGUF Export] [OK] Direct conversion successful: {output_path} ({size_mb:.1f} MB)")
         
         # Clean up any intermediate files that might have been created
         cleanup_intermediate_files(output_path.parent, output_path.stem)
@@ -483,7 +483,7 @@ def run_quantization(f16_path: Path, output_path: Path, quantization: str, quant
             }
         
         size_mb = output_path.stat().st_size / (1024 * 1024)
-        print(f"[GGUF Export] ✅ Quantized GGUF created: {output_path} ({size_mb:.1f} MB)")
+        print(f"[GGUF Export] [OK] Quantized GGUF created: {output_path} ({size_mb:.1f} MB)")
         
         return {
             'success': True,
@@ -549,18 +549,18 @@ def main():
         print(json.dumps(result))
     else:
         if result.get('success'):
-            print(f"\n✅ GGUF export successful!")
+            print(f"\n[OK] GGUF export successful!")
             print(f"   Output: {result.get('output_path')}")
             print(f"   Quantization: {result.get('quantization')}")
             if result.get('size_bytes'):
                 size_mb = result['size_bytes'] / (1024 * 1024)
                 print(f"   Size: {size_mb:.1f} MB")
             if result.get('warning'):
-                print(f"   ⚠️  Warning: {result.get('warning')}")
+                print(f"   [WARNING] {result.get('warning')}")
             if result.get('note'):
-                print(f"   ℹ️  Note: {result.get('note')}")
+                print(f"   [INFO] {result.get('note')}")
         else:
-            print(f"\n❌ GGUF export failed: {result.get('error')}")
+            print(f"\n[ERROR] GGUF export failed: {result.get('error')}")
             if result.get('instructions'):
                 print("\nManual steps required:")
                 for instruction in result['instructions']:
