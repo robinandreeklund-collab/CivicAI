@@ -283,7 +283,8 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
     print(f"[GGUF Export] Using convert script: {convert_script}")
     
     # Map quantization types to llama.cpp outtype format
-    # The convert script supports direct quantization via --outtype
+    # The convert script supports these directly: f32, f16, bf16, q8_0, tq1_0, tq2_0, auto
+    # Q5_K_M and Q6_K are NOT supported directly - they require llama-quantize binary
     outtype_map = {
         'Q5_K_M': 'q5_k_m',
         'Q6_K': 'q6_k',
@@ -293,7 +294,25 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
     
     outtype = outtype_map.get(quantization, 'q5_k_m')
     
-    # Try direct conversion first (1-step, faster, no intermediate file)
+    # Q8_0 is directly supported by the convert script - use it directly
+    if quantization == 'Q8_0':
+        print(f"[GGUF Export] Q8_0 is directly supported by convert script - using 1-step conversion...")
+        q8_result = run_convert_script_direct(convert_script, model_path, output_path, 'q8_0')
+        
+        if q8_result.get('success') and output_path.exists():
+            size_mb = output_path.stat().st_size / (1024 * 1024)
+            print(f"[GGUF Export] [OK] Q8_0 conversion successful: {output_path} ({size_mb:.1f} MB)")
+            
+            return {
+                'success': True,
+                'output_path': str(output_path),
+                'quantization': 'Q8_0',
+                'size_bytes': output_path.stat().st_size,
+                'method': '1-step direct Q8_0',
+            }
+    
+    # For Q5_K_M and Q6_K, we need to use llama-quantize binary
+    # First try direct conversion (some versions might support it)
     print(f"[GGUF Export] Converting directly to {quantization} (1-step)...")
     convert_result = run_convert_script_direct(convert_script, model_path, output_path, outtype)
     
@@ -333,92 +352,92 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
     llama_cpp_dir = find_llama_cpp()
     quantize_bin = find_quantize_binary(llama_cpp_dir)
     
-    # If no quantize binary, offer Q8_0 as alternative or give instructions
-    if not quantize_bin:
-        print(f"[GGUF Export] [ERROR] llama-quantize binary not found!")
-        print(f"[GGUF Export] The convert script doesn't support direct {quantization} quantization.")
+    if quantize_bin:
+        # Convert to f16 first
+        f16_output = output_path.parent / f"{output_path.stem.replace(f'.{quantization}', '')}.f16.gguf"
         
-        # Q8_0 IS supported by the convert script - offer as alternative
-        if quantization in ['Q5_K_M', 'Q6_K']:
-            print(f"[GGUF Export] [INFO] Falling back to Q8_0 quantization (supported by convert script)")
-            print(f"[GGUF Export] Q8_0 is ~7.5GB for 7B model (slightly larger than Q5_K_M's ~6.5GB)")
+        print(f"[GGUF Export] Step 1/2: Converting to F16 GGUF...")
+        convert_result = run_convert_script(convert_script, model_path, f16_output)
+        
+        if not convert_result.get('success'):
+            # F16 conversion failed - fall back to Q8_0
+            print(f"[GGUF Export] F16 conversion failed, trying Q8_0 fallback...")
+        elif not f16_output.exists():
+            print(f"[GGUF Export] F16 GGUF file was not created, trying Q8_0 fallback...")
+        else:
+            f16_size = f16_output.stat().st_size / (1024 * 1024)
+            print(f"[GGUF Export] F16 GGUF created: {f16_output} ({f16_size:.1f} MB)")
             
-            # Try Q8_0 which IS supported
-            q8_result = run_convert_script_direct(convert_script, model_path, output_path, 'q8_0')
+            # Quantize to target format
+            print(f"[GGUF Export] Step 2/2: Quantizing to {quantization}...")
+            result = run_quantization(f16_output, output_path, quantization, quantize_bin)
             
-            if q8_result.get('success') and output_path.exists():
-                size_mb = output_path.stat().st_size / (1024 * 1024)
-                print(f"[GGUF Export] [OK] Q8_0 conversion successful: {output_path} ({size_mb:.1f} MB)")
+            if result.get('success') and output_path.exists():
+                # Clean up F16 intermediate file after successful quantization
+                print(f"[GGUF Export] Cleaning up intermediate F16 file...")
+                try:
+                    f16_output.unlink()
+                except Exception as e:
+                    print(f"[GGUF Export] Warning: Could not delete F16 file: {e}")
                 
-                return {
-                    'success': True,
-                    'output_path': str(output_path),
-                    'quantization': 'Q8_0',
-                    'requested_quantization': quantization,
-                    'size_bytes': output_path.stat().st_size,
-                    'method': '1-step Q8_0 fallback',
-                    'note': f'Used Q8_0 instead of {quantization} (llama-quantize not available). Quality is slightly better, size is ~15% larger.',
-                }
-        
-        print(f"[GGUF Export] To use {quantization}, you need to install llama.cpp with the quantize binary.")
+                return result
+            
+            # Quantization failed - clean up F16 and fall through to Q8_0 fallback
+            print(f"[GGUF Export] Quantization with llama-quantize failed, trying Q8_0 fallback...")
+            if f16_output.exists():
+                try:
+                    f16_output.unlink()
+                    print(f"[GGUF Export] Cleaned up F16 intermediate file")
+                except:
+                    pass
+    
+    # If we got here, either:
+    # 1. No quantize binary found
+    # 2. 2-step quantization failed
+    # Fall back to Q8_0 which is ALWAYS supported by the convert script
+    
+    print(f"[GGUF Export] [INFO] Falling back to Q8_0 quantization (natively supported by convert script)")
+    print(f"[GGUF Export] Q8_0 is ~7.5GB for 7B model (slightly larger than Q5_K_M's ~6.5GB)")
+    print(f"[GGUF Export] Q8_0 provides excellent quality - very close to full precision.")
+    
+    # Try Q8_0 which IS supported natively
+    q8_result = run_convert_script_direct(convert_script, model_path, output_path, 'q8_0')
+    
+    if q8_result.get('success') and output_path.exists():
+        size_mb = output_path.stat().st_size / (1024 * 1024)
+        print(f"[GGUF Export] [OK] Q8_0 conversion successful: {output_path} ({size_mb:.1f} MB)")
         
         return {
-            'success': False,
-            'error': f'llama-quantize binary not found. Cannot create {quantization} quantization.',
-            'instructions': [
-                'To enable quantization, install llama.cpp:',
-                '',
-                'Windows:',
-                '  1. Download pre-built: https://github.com/ggerganov/llama.cpp/releases',
-                '  2. Or build from source:',
-                '     git clone https://github.com/ggerganov/llama.cpp',
-                '     cd llama.cpp',
-                '     cmake -B build -DLLAMA_CUDA=ON',
-                '     cmake --build build --config Release',
-                '',
-                'Linux/Mac:',
-                '  git clone https://github.com/ggerganov/llama.cpp',
-                '  cd llama.cpp && make LLAMA_CUDA=1',
-                '',
-                f'After installing, run GGUF export again.',
-                '',
-                'Or manually convert using llama.cpp:',
-                f'  python convert_hf_to_gguf.py "{model_path}" --outtype f16 --outfile model.f16.gguf',
-                f'  llama-quantize model.f16.gguf "{output_path}" {quantization}',
-            ],
+            'success': True,
+            'output_path': str(output_path),
+            'quantization': 'Q8_0',
+            'requested_quantization': quantization,
+            'size_bytes': output_path.stat().st_size,
+            'method': '1-step Q8_0 fallback',
+            'note': f'Used Q8_0 instead of {quantization} (external llama-quantize failed or unavailable). Q8_0 provides excellent quality with ~15% larger file size.',
         }
     
-    # Convert to f16 first
-    f16_output = output_path.parent / f"{output_path.stem.replace(f'.{quantization}', '')}.f16.gguf"
+    # Q8_0 also failed - this is a real error
+    print(f"[GGUF Export] [ERROR] Even Q8_0 fallback failed!")
     
-    print(f"[GGUF Export] Step 1/2: Converting to F16 GGUF...")
-    convert_result = run_convert_script(convert_script, model_path, f16_output)
-    
-    if not convert_result.get('success'):
-        return convert_result
-    
-    if not f16_output.exists():
-        return {
-            'success': False,
-            'error': 'F16 GGUF file was not created',
-        }
-    
-    f16_size = f16_output.stat().st_size / (1024 * 1024)
-    print(f"[GGUF Export] F16 GGUF created: {f16_output} ({f16_size:.1f} MB)")
-    
-    # Quantize to target format
-    print(f"[GGUF Export] Step 2/2: Quantizing to {quantization}...")
-    result = run_quantization(f16_output, output_path, quantization, quantize_bin)
-    
-    # Clean up F16 intermediate file after successful quantization
-    if result.get('success') and output_path.exists() and f16_output.exists():
-        print(f"[GGUF Export] Cleaning up intermediate F16 file...")
-        try:
-            f16_output.unlink()
-        except Exception as e:
-            print(f"[GGUF Export] Warning: Could not delete F16 file: {e}")
-    
-    return result
+    return {
+        'success': False,
+        'error': f'All conversion methods failed. Could not create {quantization} or Q8_0 quantization.',
+        'instructions': [
+            'Conversion failed with all methods:',
+            f'  - Direct {quantization}: Not supported by this convert script version',
+            '  - 2-step with llama-quantize: Binary not working or not found',
+            '  - Q8_0 fallback: Also failed',
+            '',
+            'Please try:',
+            '  1. Delete scripts/llama_cpp_scripts folder and run export again',
+            '  2. Make sure you have enough disk space (~15GB for conversion)',
+            '  3. Check that your model files are not corrupted',
+            '',
+            'Manual conversion:',
+            f'  python convert_hf_to_gguf.py "{model_path}" --outtype q8_0 --outfile "{output_path}"',
+        ],
+    }
 
 
 def cleanup_intermediate_files(directory: Path, stem: str):
