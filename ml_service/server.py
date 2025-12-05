@@ -3167,6 +3167,9 @@ def ensure_llama_cpp_python():
     """
     Ensure llama-cpp-python is installed. Auto-installs if missing.
     Returns True if available, False if installation failed.
+    
+    For CUDA GPUs (like RTX 2080 Ti), uses:
+    CMAKE_ARGS="-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on"
     """
     try:
         import llama_cpp
@@ -3182,17 +3185,22 @@ def ensure_llama_cpp_python():
             
             if cuda_available:
                 logger.info("[GGUF] CUDA detected, installing llama-cpp-python with GPU support...")
-                logger.info("[GGUF] This may take a few minutes...")
+                logger.info("[GGUF] This may take 5-10 minutes to compile...")
                 
-                # Set environment for CUDA build
+                # Set environment for CUDA build with optimal flags for RTX cards
+                # LLAMA_CUDA=on: Enable CUDA
+                # LLAMA_CUDA_F16=ON: Enable FP16 for RTX cards with Tensor Cores
+                # LLAMA_CUBLAS=on: Enable cuBLAS acceleration
                 env = os.environ.copy()
-                env['CMAKE_ARGS'] = '-DGGML_CUDA=on'
+                env['CMAKE_ARGS'] = '-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on'
+                
+                logger.info(f"[GGUF] CMAKE_ARGS: {env['CMAKE_ARGS']}")
                 
                 result = subprocess.run(
-                    [sys.executable, '-m', 'pip', 'install', 'llama-cpp-python', '--upgrade', '--no-cache-dir'],
+                    [sys.executable, '-m', 'pip', 'install', 'llama-cpp-python', '--force-reinstall', '--no-cache-dir'],
                     capture_output=True,
                     text=True,
-                    timeout=600,  # 10 minute timeout for compilation
+                    timeout=900,  # 15 minute timeout for compilation
                     env=env,
                 )
                 
@@ -3200,28 +3208,36 @@ def ensure_llama_cpp_python():
                     logger.info("[GGUF] llama-cpp-python with CUDA installed successfully!")
                     return True
                 else:
-                    logger.warning(f"[GGUF] CUDA build failed, trying CPU-only version...")
-                    logger.debug(f"[GGUF] Error: {result.stderr}")
-            
-            # Fall back to CPU-only version (pre-built, faster to install)
-            logger.info("[GGUF] Installing llama-cpp-python (CPU version)...")
-            result = subprocess.run(
-                [sys.executable, '-m', 'pip', 'install', 'llama-cpp-python', '--upgrade'],
-                capture_output=True,
-                text=True,
-                timeout=300,
-            )
-            
-            if result.returncode == 0:
-                logger.info("[GGUF] llama-cpp-python installed successfully!")
-                return True
+                    logger.error(f"[GGUF] CUDA build failed!")
+                    logger.error(f"[GGUF] Error: {result.stderr[:500] if result.stderr else 'No error output'}")
+                    logger.error("[GGUF] ")
+                    logger.error("[GGUF] === MANUAL INSTALLATION REQUIRED ===")
+                    logger.error("[GGUF] Run this in your venv:")
+                    logger.error("[GGUF] ")
+                    logger.error("[GGUF]   # Activate venv first")
+                    logger.error("[GGUF]   # Windows:")
+                    logger.error("[GGUF]   .\\venv\\Scripts\\activate")
+                    logger.error("[GGUF]   # or for backend venv:")
+                    logger.error("[GGUF]   .\\backend\\python_services\\venv\\Scripts\\activate")
+                    logger.error("[GGUF] ")
+                    logger.error("[GGUF]   # Then install with CUDA (PowerShell):")
+                    logger.error('[GGUF]   $env:CMAKE_ARGS="-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on"')
+                    logger.error("[GGUF]   pip install llama-cpp-python --force-reinstall --no-cache-dir")
+                    logger.error("[GGUF] ")
+                    logger.error("[GGUF]   # Or CMD:")
+                    logger.error('[GGUF]   set CMAKE_ARGS=-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on')
+                    logger.error("[GGUF]   pip install llama-cpp-python --force-reinstall --no-cache-dir")
+                    logger.error("[GGUF] ===================================")
+                    return False
             else:
-                logger.error(f"[GGUF] Failed to install llama-cpp-python: {result.stderr}")
+                logger.error("[GGUF] No CUDA detected. GGUF requires a GPU for acceptable performance.")
+                logger.error("[GGUF] CPU-only mode is not supported as it would be too slow.")
                 return False
                 
         except subprocess.TimeoutExpired:
-            logger.error("[GGUF] Installation timed out. Please install manually:")
-            logger.error("[GGUF]   pip install llama-cpp-python")
+            logger.error("[GGUF] Installation timed out (15 min). Please install manually:")
+            logger.error('[GGUF]   $env:CMAKE_ARGS="-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on"')
+            logger.error("[GGUF]   pip install llama-cpp-python --force-reinstall --no-cache-dir")
             return False
         except Exception as e:
             logger.error(f"[GGUF] Installation error: {e}")
