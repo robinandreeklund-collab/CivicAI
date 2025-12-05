@@ -420,6 +420,7 @@ async function handleZeroCompareFlow(req, res) {
     runPipeline = false,
     firebaseDocId,
     chunked = false, // NEW: Enable chunked analysis mode
+    customSystemPrompt, // NEW: Allow custom system prompt from Message Builder
   } = req.body;
   
   const analysisMode = chunked ? 'CHUNKED' : 'STANDARD';
@@ -430,7 +431,9 @@ async function handleZeroCompareFlow(req, res) {
   console.log(`📝 Question: ${question.substring(0, 60)}${question.length > 60 ? '...' : ''}`);
   console.log(`👤 Profile: ${profileId}, Character: ${characterCard}`);
   console.log(`📊 Analysis Mode: ${analysisMode}${chunked ? ' (one-by-one)' : ' (all at once)'}`);
-  
+  if (customSystemPrompt) {
+    console.log(`📝 Custom System Prompt: ${customSystemPrompt.substring(0, 50)}...`);
+  }
   // Log audit event
   logAuditEvent(AuditEventType.QUESTION_ASKED, {
     question: question.substring(0, 100),
@@ -540,10 +543,15 @@ async function handleZeroCompareFlow(req, res) {
       
       // Step 4: Call OpenSeek with context
       // Use userPrompt which contains the structured prompt with external responses
+      // If customSystemPrompt is provided (from Message Builder), use it instead
       console.log('\n🤖 Step 4: Calling OpenSeek-7B-Zero...');
+      const effectiveSystemPrompt = customSystemPrompt || promptResult.systemPrompt;
+      if (customSystemPrompt) {
+        console.log(`   📝 Using custom system prompt from Message Builder`);
+      }
       openSeekResult = await getOpenSeekResponse(promptResult.userPrompt, {
         profileId,
-        systemPrompt: promptResult.systemPrompt,
+        systemPrompt: effectiveSystemPrompt,
         // Don't pass context separately - it's already in userPrompt
       });
       
