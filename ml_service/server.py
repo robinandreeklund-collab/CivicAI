@@ -3258,20 +3258,58 @@ def start_llama_server(gguf_path: str):
     
     try:
         import subprocess
+        import threading
+        
+        # Start process with pipes for stdout/stderr
         LLAMA_SERVER_PROCESS = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0,
+            text=True,
+            bufsize=1,
         )
+        
+        # Create a thread to read and log stderr output
+        def log_stderr():
+            try:
+                for line in LLAMA_SERVER_PROCESS.stderr:
+                    line = line.strip()
+                    if line:
+                        logger.info(f"[LLAMA-SERVER] {line}")
+            except:
+                pass
+        
+        # Create a thread to read and log stdout output
+        def log_stdout():
+            try:
+                for line in LLAMA_SERVER_PROCESS.stdout:
+                    line = line.strip()
+                    if line:
+                        logger.info(f"[LLAMA-SERVER] {line}")
+            except:
+                pass
+        
+        stderr_thread = threading.Thread(target=log_stderr, daemon=True)
+        stdout_thread = threading.Thread(target=log_stdout, daemon=True)
+        stderr_thread.start()
+        stdout_thread.start()
         
         # Wait for server to start (check health endpoint)
         LLAMA_SERVER_URL = f"http://127.0.0.1:{port}"
         
         logger.info(f"[LLAMA-SERVER] Waiting for server to start on port {port}...")
+        logger.info(f"[LLAMA-SERVER] Check the output above for any errors...")
         
         import time
-        for i in range(30):  # Wait up to 30 seconds
+        for i in range(60):  # Wait up to 60 seconds (model loading can take time)
+            # Check if process has exited
+            poll = LLAMA_SERVER_PROCESS.poll()
+            if poll is not None:
+                logger.error(f"[LLAMA-SERVER] Process exited with code: {poll}")
+                logger.error("[LLAMA-SERVER] Check the output above for error details")
+                return False
+            
             try:
                 response = requests.get(f"{LLAMA_SERVER_URL}/health", timeout=1)
                 if response.status_code == 200:
@@ -3282,14 +3320,21 @@ def start_llama_server(gguf_path: str):
             except:
                 pass
             time.sleep(1)
-            if i % 5 == 0:
-                logger.info(f"[LLAMA-SERVER] Still waiting... ({i}s)")
+            if i % 10 == 0 and i > 0:
+                logger.info(f"[LLAMA-SERVER] Still loading model... ({i}s)")
         
-        logger.error("[LLAMA-SERVER] Server failed to start within 30 seconds")
+        logger.error("[LLAMA-SERVER] Server failed to start within 60 seconds")
+        logger.error("[LLAMA-SERVER] Possible causes:")
+        logger.error("[LLAMA-SERVER]   - Missing CUDA DLLs (try adding cuda\\bin to PATH)")
+        logger.error("[LLAMA-SERVER]   - Wrong CUDA version (check you have CUDA 12.x)")
+        logger.error("[LLAMA-SERVER]   - Model too large for GPU VRAM")
+        logger.error("[LLAMA-SERVER]   - Check Windows Event Viewer for DLL errors")
         return False
         
     except Exception as e:
         logger.error(f"[LLAMA-SERVER] Failed to start server: {e}")
+        import traceback
+        logger.error(f"[LLAMA-SERVER] Traceback: {traceback.format_exc()}")
         return False
 
 
