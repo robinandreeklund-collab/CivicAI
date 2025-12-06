@@ -9486,6 +9486,39 @@ async def infer(request: Request, inference_request: InferenceRequest):
     """
     start_time = time.time()
     
+    # === GGUF/LLAMA-SERVER BACKEND CHECK ===
+    # If llama-server.exe is running, use it instead of HuggingFace model
+    if USING_LLAMA_SERVER:
+        logger.info(f"[GGUF] Using llama-server.exe for /infer request: {inference_request.text[:50]}...")
+        try:
+            # Build the prompt in ChatML format for llama-server
+            now = datetime.now()
+            weekday_map = {0: "måndag", 1: "tisdag", 2: "onsdag", 3: "torsdag", 4: "fredag", 5: "lördag", 6: "söndag"}
+            day_name = weekday_map.get(now.weekday(), "")
+            time_context = f"Idag är det {day_name} {now.day} {['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'][now.month-1]} {now.year}, klockan {now.strftime('%H:%M')}."
+            
+            system_prompt = get_active_system_prompt()
+            full_prompt = f"<|im_start|>system\n{system_prompt}\n\n[Aktuell tid] {time_context}<|im_end|>\n<|im_start|>user\n{inference_request.text}<|im_end|>\n<|im_start|>assistant\n"
+            
+            response_text = generate_with_llama_server(
+                full_prompt, 
+                max_tokens=inference_request.max_length,
+                temperature=inference_request.temperature
+            )
+            
+            latency_ms = (time.time() - start_time) * 1000
+            tokens = len(response_text.split())  # Approximate token count
+            
+            return InferenceResponse(
+                response=response_text.strip(),
+                model="oneseek-7b-zero (llama-server.exe)",
+                tokens=tokens,
+                latency_ms=latency_ms
+            )
+        except Exception as e:
+            logger.error(f"[GGUF] llama-server.exe error, falling back to HuggingFace: {e}")
+            # Continue with HuggingFace fallback below
+    
     # === ONESEEK Δ+ v4.0: TYPO CHECKING (LanguageTool Self-Hosted) ===
     # DISABLED by default in v4.0 - the model understands typos itself
     typo_corrected = False
@@ -10046,6 +10079,39 @@ async def oneseek_inference(request: InferenceRequest):
     """
     import time
     start_time = time.time()
+    
+    # === GGUF/LLAMA-SERVER BACKEND CHECK ===
+    # If llama-server.exe is running, use it instead of HuggingFace model
+    if USING_LLAMA_SERVER:
+        logger.info(f"[GGUF] Using llama-server.exe for /inference/oneseek: {request.text[:50]}...")
+        try:
+            # Build the prompt in ChatML format for llama-server
+            now = datetime.now()
+            weekday_map = {0: "måndag", 1: "tisdag", 2: "onsdag", 3: "torsdag", 4: "fredag", 5: "lördag", 6: "söndag"}
+            day_name = weekday_map.get(now.weekday(), "")
+            time_context = f"Idag är det {day_name} {now.day} {['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'][now.month-1]} {now.year}, klockan {now.strftime('%H:%M')}."
+            
+            system_prompt = get_active_system_prompt()
+            full_prompt = f"<|im_start|>system\n{system_prompt}\n\n[Aktuell tid] {time_context}<|im_end|>\n<|im_start|>user\n{request.text}<|im_end|>\n<|im_start|>assistant\n"
+            
+            response_text = generate_with_llama_server(
+                full_prompt, 
+                max_tokens=request.max_length,
+                temperature=request.temperature
+            )
+            
+            latency_ms = (time.time() - start_time) * 1000
+            tokens = len(response_text.split())  # Approximate token count
+            
+            return InferenceResponse(
+                response=response_text.strip(),
+                model="oneseek-7b-zero (llama-server.exe)",
+                tokens=tokens,
+                latency_ms=latency_ms
+            )
+        except Exception as e:
+            logger.error(f"[GGUF] llama-server.exe error, falling back to HuggingFace: {e}")
+            # Continue with HuggingFace fallback below
     
     # === ONESEEK Δ+: CACHE CHECK ===
     cache_hit = False
