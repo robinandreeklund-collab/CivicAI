@@ -211,3 +211,6 @@ ui-debug.log
 # Firebase Functions runtime config (may contain sensitive URLs)
 functions/.runtimeconfig.json
 functions/.env
+
+# Downloaded llama.cpp scripts (auto-downloaded for GGUF export)
+scripts/llama_cpp_scripts/

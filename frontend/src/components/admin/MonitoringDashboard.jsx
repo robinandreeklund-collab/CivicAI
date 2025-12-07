@@ -10,6 +10,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
+import StreamingControl from './StreamingControl';
 
 // Register Chart.js components
 ChartJS.register(
@@ -197,6 +198,9 @@ export default function MonitoringDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Streaming Control - NEW for /7B-Zero page */}
+      <StreamingControl />
+
       {/* Notifications */}
       {notifications.length > 0 && (
         <div className="border border-[#2a2a2a] bg-[#111] p-6 rounded">

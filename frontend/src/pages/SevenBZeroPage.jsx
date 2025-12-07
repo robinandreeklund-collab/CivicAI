@@ -165,6 +165,12 @@ export default function SevenBZeroPage() {
   const [responseStartTime, setResponseStartTime] = useState(null);
   const [currentResponseTime, setCurrentResponseTime] = useState(0);
   
+  // Streaming state - SSE token-by-token streaming from backend
+  // This replaces the fake typing animation with real-time tokens
+  const [streamingEnabled, setStreamingEnabled] = useState(true);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const streamAbortRef = useRef(null);
+  
   // ONESEEK Δ+ Typo suggestion state
   const [typoSuggestion, setTypoSuggestion] = useState(null);
   const typoCheckTimeoutRef = useRef(null);
@@ -790,7 +796,7 @@ export default function SevenBZeroPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Typing animation for AI responses
+  // Typing animation for AI responses (fallback when streaming is disabled)
   const animateTyping = (fullText, messageId) => {
     // Format the AI response before displaying
     const formattedText = formatAIResponse(fullText);
@@ -813,6 +819,279 @@ export default function SevenBZeroPage() {
         ));
       }
     }, 20);
+  };
+
+  /**
+   * SSE Streaming function - Real token-by-token streaming from backend
+   * 
+   * Uses Server-Sent Events to receive tokens as they are generated.
+   * Token delay is controlled from Admin Dashboard.
+   * 
+   * Features:
+   * - Real-time token display
+   * - Shows "ONESEEK skriver..." until first token
+   * - Error handling with fallback
+   * - Stream abort capability
+   */
+  const streamResponse = async (question, aiMessageId) => {
+    setIsStreaming(true);
+    setIsTyping(true);
+    setCurrentTypingText('');
+    
+    // Create abort controller for stream cancellation
+    const abortController = new AbortController();
+    streamAbortRef.current = abortController;
+    
+    let accumulatedText = '';
+    let tokenCount = 0;
+    let metadata = null;
+    
+    // Buffering for smooth rendering (requestAnimationFrame pattern)
+    // This prevents DOM updates on every single token, making it smooth like ChatGPT/Claude
+    let pendingUpdate = false;
+    let rafId = null;
+    
+    const scheduleUpdate = () => {
+      if (!pendingUpdate) {
+        pendingUpdate = true;
+        rafId = requestAnimationFrame(() => {
+          setCurrentTypingText(formatAIResponse(accumulatedText));
+          pendingUpdate = false;
+        });
+      }
+    };
+    
+    try {
+      // Use fetch with ReadableStream for SSE (POST method not supported by EventSource)
+      const response = await fetch('/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+        },
+        body: JSON.stringify({
+          text: question,
+          max_length: 512,
+          temperature: 0.7,
+          top_p: 0.9,
+        }),
+        signal: abortController.signal,
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let streamActive = true;
+      
+      console.log('[7B-Zero Stream] Starting SSE stream...');
+      
+      while (streamActive) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          console.log('[7B-Zero Stream] Stream complete');
+          streamActive = false;
+          break;
+        }
+        
+        // Decode chunk and add to buffer
+        buffer += decoder.decode(value, { stream: true });
+        
+        // Process complete SSE events from buffer
+        // SSE format: "event: type\ndata: json\n\n"
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+        
+        let currentEventType = 'message'; // Default SSE event type
+        
+        for (const line of lines) {
+          // Track event type from event: lines
+          if (line.startsWith('event:')) {
+            currentEventType = line.substring(6).trim();
+            continue;
+          }
+          
+          // Skip SSE comment lines (start with :)
+          if (line.startsWith(':')) {
+            continue;
+          }
+          
+          if (line.startsWith('data:')) {
+            try {
+              const data = JSON.parse(line.substring(5).trim());
+              
+              // Handle different event types properly
+              switch (currentEventType) {
+                case 'token':
+                  // Handle token event - accumulate and schedule batched update
+                  if (data.token !== undefined) {
+                    accumulatedText += data.token;
+                    tokenCount++;
+                    // Schedule UI update (batched via requestAnimationFrame)
+                    scheduleUpdate();
+                  }
+                  break;
+                  
+                case 'metadata':
+                  // Handle metadata event
+                  metadata = data;
+                  console.log('[7B-Zero Stream] Metadata:', metadata);
+                  // Update personality if provided
+                  if (metadata.personality) {
+                    setAiSelectedPersonality(metadata.personality);
+                    if (metadata.personality.id) {
+                      setSelectedPersona(metadata.personality.id);
+                    }
+                  }
+                  break;
+                  
+                case 'done':
+                  // Handle done event
+                  console.log('[7B-Zero Stream] Done event received');
+                  streamActive = false;
+                  break;
+                  
+                case 'error':
+                  // Handle error event
+                  throw new Error(data.error || 'Unknown streaming error');
+                  
+                default:
+                  // Fallback: determine type from data content (backwards compatibility)
+                  if (data.token !== undefined) {
+                    accumulatedText += data.token;
+                    tokenCount++;
+                    scheduleUpdate(); // Use batched update
+                  } else if (data.latency_ms !== undefined) {
+                    metadata = data;
+                    console.log('[7B-Zero Stream] Metadata (fallback):', metadata);
+                    if (metadata.personality) {
+                      setAiSelectedPersonality(metadata.personality);
+                      if (metadata.personality.id) {
+                        setSelectedPersona(metadata.personality.id);
+                      }
+                    }
+                  } else if (data.status === 'complete') {
+                    console.log('[7B-Zero Stream] Done (fallback)');
+                    streamActive = false;
+                  } else if (data.error) {
+                    throw new Error(data.error);
+                  }
+              }
+              
+              // Reset event type after processing data
+              currentEventType = 'message';
+              
+            } catch (parseErr) {
+              // Ignore parse errors for non-JSON data lines
+              if (line.trim()) {
+                console.warn('[7B-Zero Stream] Parse error:', parseErr.message);
+              }
+            }
+          }
+        }
+      }
+      
+      // Cancel any pending animation frame
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+      
+      // Finalize the message
+      const finalResponseTime = ((Date.now() - responseStartTime) / 1000).toFixed(2);
+      const formattedFinalText = formatAIResponse(accumulatedText);
+      
+      // Check if we actually received any content
+      if (!accumulatedText || accumulatedText.trim() === '') {
+        console.warn('[7B-Zero Stream] No content received from stream');
+        throw new Error('Ingen text mottagen från strömning. Modellen kan fortfarande laddas.');
+      }
+      
+      setMessages(prev => prev.map(msg => 
+        msg.id === aiMessageId 
+          ? { 
+              ...msg, 
+              text: formattedFinalText,
+              isTyping: false,
+              responseTime: finalResponseTime,
+              confidence: metadata?.confidence_score || 0.85,
+              version: metadata?.model || 'OneSeek-Δ+ (Streaming)',
+              tokens: tokenCount,
+              personality: metadata?.personality || null,
+            }
+          : msg
+      ));
+      
+      console.log(`[7B-Zero Stream] Complete: ${tokenCount} tokens in ${finalResponseTime}s`);
+      
+      // Update microtraining status
+      setMicrotrainingQueue(prev => prev + 1);
+      setMicrotrainingActive(true);
+      
+      // Add new block to DNA chain
+      setDnaChain(prev => {
+        const newBlock = {
+          id: prev.length + 1,
+          block: `Block ${100 + prev.length}`,
+          time: new Date().toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }),
+          hash: `0x${Math.random().toString(16).slice(2, 10)}`,
+          status: 'pending',
+          action: 'Query: ' + question.substring(0, 20) + '...',
+        };
+        return [...prev.map(b => ({ ...b, status: 'verified' })), newBlock];
+      });
+      
+    } catch (err) {
+      // Handle abort
+      if (err.name === 'AbortError') {
+        console.log('[7B-Zero Stream] Stream aborted by user');
+        setMessages(prev => prev.map(msg => 
+          msg.id === aiMessageId 
+            ? { 
+                ...msg, 
+                text: accumulatedText || 'Avbruten.',
+                isTyping: false,
+                aborted: true,
+              }
+            : msg
+        ));
+      } else {
+        console.error('[7B-Zero Stream] Error:', err);
+        
+        // Fallback to non-streaming if stream fails
+        console.log('[7B-Zero Stream] Falling back to non-streaming...');
+        setStreamingEnabled(false);
+        
+        setMessages(prev => prev.map(msg => 
+          msg.id === aiMessageId 
+            ? { 
+                ...msg, 
+                text: `Streaming misslyckades: ${err.message}. Använder fallback.`,
+                error: true,
+                isTyping: false,
+              }
+            : msg
+        ));
+      }
+    } finally {
+      setIsStreaming(false);
+      setIsTyping(false);
+      streamAbortRef.current = null;
+    }
+  };
+
+  /**
+   * Abort current streaming response
+   * Called when user wants to stop receiving tokens
+   */
+  const abortStream = () => {
+    if (streamAbortRef.current) {
+      streamAbortRef.current.abort();
+      console.log('[7B-Zero Stream] Abort requested');
+    }
   };
 
   // Handle message submission
@@ -906,7 +1185,17 @@ export default function SevenBZeroPage() {
         return;
       }
       
-      // Standard flow - use ONESEEK Δ+ inference endpoint
+      // === SSE STREAMING MODE ===
+      // Use real token-by-token streaming when enabled (default)
+      // Falls back to standard API if streaming is disabled or fails
+      if (streamingEnabled && !compareMode) {
+        console.log('[7B-Zero] Using SSE streaming mode...');
+        await streamResponse(currentQuestion, aiMessageId);
+        return;
+      }
+      
+      // Standard flow - use ONESEEK Δ+ inference endpoint (fallback when streaming disabled)
+      console.log('[7B-Zero] Using standard (non-streaming) mode...');
       let useOQTFallback = false;
       
       try {
@@ -1603,16 +1892,29 @@ export default function SevenBZeroPage() {
                       <div className={`text-[14px] font-light tracking-wide loading-pulse ${
                         whiteMode ? 'text-[#666]' : 'text-[#666]'
                       }`}>
-                        Tänker
+                        {isStreaming ? 'ONESEEK skriver' : 'Tänker'}
                       </div>
                       <div className="flex items-center gap-1">
                         <span className={`w-2 h-2 rounded-full loading-dot-1 ${whiteMode ? 'bg-[#333]' : 'bg-white'}`} />
                         <span className={`w-2 h-2 rounded-full loading-dot-2 ${whiteMode ? 'bg-[#333]' : 'bg-white'}`} />
                         <span className={`w-2 h-2 rounded-full loading-dot-3 ${whiteMode ? 'bg-[#333]' : 'bg-white'}`} />
                       </div>
+                      {/* Abort button when streaming */}
+                      {isStreaming && (
+                        <button
+                          onClick={abortStream}
+                          className={`ml-2 px-2 py-1 text-[10px] uppercase tracking-wider rounded transition-colors ${
+                            whiteMode 
+                              ? 'text-red-600 hover:bg-red-100 border border-red-200' 
+                              : 'text-red-400 hover:bg-red-900/30 border border-red-800/50'
+                          }`}
+                        >
+                          Avbryt
+                        </button>
+                      )}
                     </div>
                   ) : (
-                    <div className={`max-w-none normalized-text
+                    <div className={`max-w-none normalized-text ${msg.isTyping ? 'streaming-text' : ''}
                       ${whiteMode 
                         ? 'text-[#333]' 
                         : 'text-[#d0d0d0]'
@@ -1664,6 +1966,17 @@ export default function SevenBZeroPage() {
                           background: rgba(0,0,0,0.1) !important;
                           border-radius: 4px !important;
                           overflow-x: auto !important;
+                        }
+                        /* Typewriter cursor effect for streaming */
+                        .streaming-text::after {
+                          content: '▋';
+                          display: inline;
+                          color: #646cff;
+                          animation: blink 1s step-end infinite;
+                          margin-left: 2px;
+                        }
+                        @keyframes blink {
+                          50% { opacity: 0; }
                         }
                       `}</style>
                       <ReactMarkdown>
@@ -1865,6 +2178,20 @@ export default function SevenBZeroPage() {
                 <span className={`text-[9px] ${whiteMode ? 'text-[#999]' : 'text-[#555]'}`}>
                   {overrideMode ? 'Val gäller endast nästa fråga' : 'Val gäller tills det ändras'}
                 </span>
+                
+                {/* Streaming Mode toggle */}
+                <button
+                  type="button"
+                  onClick={() => setStreamingEnabled(prev => !prev)}
+                  title={streamingEnabled ? 'Använder äkta SSE token-streaming (realtid)' : 'Använder standard API + animerad text'}
+                  className={`ml-4 text-[9px] tracking-[0.1em] uppercase px-2 py-1 rounded transition-all duration-300 ${
+                    streamingEnabled
+                      ? (whiteMode ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-green-900/30 text-green-400 border border-green-700/50')
+                      : (whiteMode ? 'bg-gray-100 text-gray-500 border border-gray-200' : 'bg-[#1a1a1a] text-[#666] border border-[#2a2a2a]')
+                  }`}
+                >
+                  {streamingEnabled ? '🌊 Streaming ON' : '📝 Streaming OFF'}
+                </button>
                 
                 {/* Compare Mode toggle */}
                 <button

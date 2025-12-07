@@ -282,12 +282,21 @@ router.get('/gguf', async (req, res) => {
           const filePath = path.join(ggufDir, file);
           const stats = await fs.stat(filePath);
           
+          // Extract quantization from filename (e.g., "model.Q5_K_M.gguf" -> "Q5_K_M")
+          let quantization = null;
+          const quantMatch = file.match(/\.(Q[0-9A-Z_]+)\.gguf$/i);
+          if (quantMatch) {
+            quantization = quantMatch[1];
+          }
+          
           exports.push({
             name: file,
             path: filePath,
             size: stats.size,
             sizeFormatted: formatFileSize(stats.size),
             createdAt: stats.mtime.toISOString(),
+            status: 'completed',  // Mark actual .gguf files as completed
+            quantization: quantization,
           });
         } else if (file.endsWith('.manifest.json')) {
           // Include manifest for pending exports

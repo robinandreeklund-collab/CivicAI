@@ -33,7 +33,8 @@ except (ImportError, AttributeError):
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+import asyncio
 from pydantic import BaseModel, Field, field_validator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -48,7 +49,7 @@ import argparse
 import json
 import uuid
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, AsyncGenerator
 import requests  # For Tavily API and SMHI weather
 
 # =============================================================================
@@ -2721,7 +2722,7 @@ parser.add_argument('--load-in-4bit', action='store_true',
                     help='Load model in 4-bit quantization for memory efficiency')
 parser.add_argument('--load-in-8bit', action='store_true',
                     help='Load model in 8-bit quantization')
-parser.add_argument('--n-gpu-layers', type=int, default=40,
+parser.add_argument('--n-gpu-layers', '-ngl', type=int, default=40,
                     help='Number of layers to offload to GPU (default: 40, use 99 for all layers)')
 parser.add_argument('--gpu-memory', type=float, default=16.0,
                     help='GPU memory allocation in GB (default: 16.0)')
@@ -2731,6 +2732,25 @@ parser.add_argument('--listen', action='store_true',
                     help='Listen on all network interfaces (0.0.0.0) instead of localhost')
 parser.add_argument('--api', action='store_true',
                     help='Enable API mode (currently always enabled, for compatibility)')
+
+# GGUF-specific flags (for use with llama.cpp backend)
+parser.add_argument('--gguf', type=str, default=None,
+                    help='Path to GGUF model file to load instead of HuggingFace model')
+parser.add_argument('--context-size', '-c', type=int, default=4096,
+                    help='Context size (default: 4096, max: 32768)')
+parser.add_argument('--flash-attn', action='store_true',
+                    help='Enable Flash Attention for faster inference (requires compatible GPU)')
+parser.add_argument('--threads', '-t', type=int, default=8,
+                    help='Number of CPU threads to use (default: 8)')
+parser.add_argument('--temp', '--temperature', type=float, default=0.7,
+                    help='Temperature for sampling (default: 0.7, lower = more deterministic)')
+parser.add_argument('--use-gguf', action='store_true',
+                    help='Force using GGUF backend (llama-cpp-python) instead of HuggingFace')
+parser.add_argument('--llama-bin', type=str, default=None,
+                    help='Path to llama.cpp bin directory with pre-built binaries (e.g., C:\\llama.cpp-bin-cuda)')
+parser.add_argument('--llama-server-port', type=int, default=8081,
+                    help='Port for llama-server.exe when using --llama-bin (default: 8081)')
+
 args, unknown = parser.parse_known_args()
 
 # Setup logging with DEBUG support
@@ -3141,6 +3161,747 @@ def sync_inputs_to_model_device(inputs, model):
 # Model cache
 models = {}
 tokenizers = {}
+gguf_models = {}  # Cache for GGUF models loaded via llama-cpp-python
+
+# Flag to track if using GGUF backend
+USING_GGUF_BACKEND = False
+ACTIVE_GGUF_PATH = None
+
+# Flag to track if using llama-server.exe backend
+USING_LLAMA_SERVER = False
+LLAMA_SERVER_URL = None
+LLAMA_SERVER_PROCESS = None
+
+# Windows error codes for better error messages
+STATUS_DLL_NOT_FOUND = 0xC0000135  # 3221225781 - Missing DLL dependencies
+STATUS_ACCESS_VIOLATION = 0xC0000005  # 3221225477 - Memory access violation/crash
+
+def get_installed_cuda_version():
+    """
+    Detect the installed CUDA Toolkit version from environment variables.
+    Returns tuple (major, minor) or None if not found.
+    """
+    # Check CUDA_PATH environment variable (set by CUDA Toolkit installer)
+    cuda_path = os.getenv('CUDA_PATH')
+    if cuda_path:
+        # Extract version from path like "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0"
+        import re
+        match = re.search(r'v(\d+)\.(\d+)', cuda_path)
+        if match:
+            return (int(match.group(1)), int(match.group(2)))
+    
+    # Check versioned CUDA_PATH variables (e.g., CUDA_PATH_V13_0)
+    for key, value in os.environ.items():
+        if key.startswith('CUDA_PATH_V'):
+            # Extract version from variable name like CUDA_PATH_V13_0
+            import re
+            match = re.search(r'CUDA_PATH_V(\d+)_(\d+)', key)
+            if match:
+                return (int(match.group(1)), int(match.group(2)))
+    
+    # Try to get version from torch
+    try:
+        cuda_ver = torch.version.cuda
+        if cuda_ver:
+            parts = cuda_ver.split('.')
+            if len(parts) >= 2:
+                return (int(parts[0]), int(parts[1]))
+    except:
+        pass
+    
+    return None
+
+
+def find_llama_bin_dir():
+    """
+    Find the llama.cpp bin directory.
+    Checks:
+    1. --llama-bin argument
+    2. LLAMA_BIN_DIR environment variable
+    3. Common locations in the project
+    """
+    # Check command line argument
+    if args.llama_bin and Path(args.llama_bin).exists():
+        return Path(args.llama_bin)
+    
+    # Check environment variable
+    env_path = os.getenv('LLAMA_BIN_DIR')
+    if env_path and Path(env_path).exists():
+        return Path(env_path)
+    
+    # Check common locations
+    common_paths = [
+        PROJECT_ROOT / 'llama.cpp-bin-cuda',
+        PROJECT_ROOT / 'llama-cpp-bin',
+        PROJECT_ROOT / 'llama.cpp' / 'build' / 'bin' / 'Release',
+        Path.home() / 'llama.cpp-bin-cuda',
+    ]
+    
+    for path in common_paths:
+        if path.exists():
+            # Check if llama-server.exe exists
+            server_exe = path / 'llama-server.exe'
+            if server_exe.exists():
+                return path
+    
+    return None
+
+
+def start_llama_server(gguf_path: str):
+    """
+    Start llama-server.exe as a subprocess.
+    This is used when llama-cpp-python fails to install but user has pre-built binaries.
+    
+    Args:
+        gguf_path: Path to the GGUF model file
+        
+    Returns:
+        True if server started successfully, False otherwise
+    """
+    global USING_LLAMA_SERVER, LLAMA_SERVER_URL, LLAMA_SERVER_PROCESS
+    
+    llama_bin = find_llama_bin_dir()
+    if not llama_bin:
+        logger.error("[LLAMA-SERVER] llama.cpp bin directory not found!")
+        logger.error("[LLAMA-SERVER] Download from: https://github.com/ggerganov/llama.cpp/releases")
+        logger.error("[LLAMA-SERVER] Look for: llama-bxxxx-bin-win-cuda-cu12.x.x-x86_64.zip")
+        logger.error("[LLAMA-SERVER] Extract to: CivicAI\\llama.cpp-bin-cuda\\")
+        logger.error("[LLAMA-SERVER] Or set: --llama-bin=C:\\path\\to\\llama-bin")
+        return False
+    
+    server_exe = llama_bin / 'llama-server.exe'
+    if not server_exe.exists():
+        # Try without .exe extension (Linux/Mac)
+        server_exe = llama_bin / 'llama-server'
+        if not server_exe.exists():
+            logger.error(f"[LLAMA-SERVER] llama-server not found in: {llama_bin}")
+            return False
+    
+    port = args.llama_server_port
+    
+    # Build command
+    cmd = [
+        str(server_exe),
+        '-m', str(gguf_path),
+        '-c', str(args.context_size),
+        '-ngl', str(args.n_gpu_layers),
+        '-t', str(args.threads),
+        '--port', str(port),
+        '--host', '127.0.0.1',
+    ]
+    
+    if args.flash_attn:
+        cmd.append('--flash-attn')
+    
+    logger.info(f"[LLAMA-SERVER] Starting llama-server...")
+    logger.info(f"[LLAMA-SERVER] Command: {' '.join(cmd)}")
+    
+    try:
+        import subprocess
+        import threading
+        
+        # Start process with pipes for stdout/stderr
+        LLAMA_SERVER_PROCESS = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0,
+            text=True,
+            bufsize=1,
+        )
+        
+        # Create a thread to read and log stderr output
+        def log_stderr():
+            try:
+                for line in LLAMA_SERVER_PROCESS.stderr:
+                    line = line.strip()
+                    if line:
+                        logger.info(f"[LLAMA-SERVER] {line}")
+            except:
+                pass
+        
+        # Create a thread to read and log stdout output
+        def log_stdout():
+            try:
+                for line in LLAMA_SERVER_PROCESS.stdout:
+                    line = line.strip()
+                    if line:
+                        logger.info(f"[LLAMA-SERVER] {line}")
+            except:
+                pass
+        
+        stderr_thread = threading.Thread(target=log_stderr, daemon=True)
+        stdout_thread = threading.Thread(target=log_stdout, daemon=True)
+        stderr_thread.start()
+        stdout_thread.start()
+        
+        # Wait for server to start (check health endpoint)
+        LLAMA_SERVER_URL = f"http://127.0.0.1:{port}"
+        
+        logger.info(f"[LLAMA-SERVER] Waiting for server to start on port {port}...")
+        logger.info(f"[LLAMA-SERVER] Check the output above for any errors...")
+        
+        import time
+        for i in range(60):  # Wait up to 60 seconds (model loading can take time)
+            # Check if process has exited
+            poll = LLAMA_SERVER_PROCESS.poll()
+            if poll is not None:
+                logger.error(f"[LLAMA-SERVER] Process exited with code: {poll}")
+                
+                # Decode common Windows exit codes (check both unsigned and signed representations)
+                is_dll_not_found = poll == STATUS_DLL_NOT_FOUND or poll == (STATUS_DLL_NOT_FOUND - 0x100000000)
+                is_access_violation = poll == STATUS_ACCESS_VIOLATION or poll == (STATUS_ACCESS_VIOLATION - 0x100000000)
+                
+                if is_dll_not_found:
+                    logger.error("")
+                    logger.error("=" * 70)
+                    logger.error("[LLAMA-SERVER] ERROR: Missing DLL dependencies!")
+                    logger.error("=" * 70)
+                    logger.error("")
+                    
+                    # Check installed CUDA version
+                    installed_cuda = get_installed_cuda_version()
+                    if installed_cuda:
+                        cuda_major, cuda_minor = installed_cuda
+                        logger.error(f"Detected installed CUDA Toolkit: v{cuda_major}.{cuda_minor}")
+                        
+                        if cuda_major >= 13:
+                            logger.error("")
+                            logger.error("IMPORTANT: You have CUDA 13.x but pre-built binaries require CUDA 12.x!")
+                            logger.error("The pre-built llama-server.exe is compiled for CUDA 12.x.")
+                            logger.error("")
+                            logger.error("FIX: Build llama-cpp-python from source instead.")
+                            logger.error("This will compile against your installed CUDA 13.x:")
+                            logger.error("")
+                            logger.error("  PowerShell:")
+                            logger.error('    $env:CMAKE_ARGS="-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on"')
+                            logger.error("    pip install llama-cpp-python --force-reinstall --no-cache-dir")
+                            logger.error("")
+                            logger.error("  OR CMD:")
+                            logger.error('    set CMAKE_ARGS=-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on')
+                            logger.error("    pip install llama-cpp-python --force-reinstall --no-cache-dir")
+                            logger.error("")
+                            logger.error("After building, restart the server WITHOUT llama-server.exe in llama.cpp-bin-cuda/")
+                            logger.error("=" * 70)
+                        else:
+                            logger.error("")
+                            logger.error("CUDA Toolkit is installed but DLLs are not in PATH.")
+                            logger.error("")
+                            logger.error("FIX: Add CUDA bin to PATH:")
+                            logger.error(f"  1. Open System Properties > Environment Variables")
+                            logger.error(f"  2. Add to PATH: C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v{cuda_major}.{cuda_minor}\\bin")
+                            logger.error("  3. Restart your terminal")
+                            logger.error("=" * 70)
+                    else:
+                        logger.error("The CUDA version of llama-server.exe requires CUDA runtime DLLs.")
+                        logger.error("")
+                        logger.error("FIX OPTION 1 - Install CUDA Toolkit (Recommended):")
+                        logger.error("  1. Download CUDA 12.x from: https://developer.nvidia.com/cuda-downloads")
+                        logger.error("  2. Install with default options")
+                        logger.error("  3. Restart your computer")
+                        logger.error("  4. Try again")
+                        logger.error("")
+                        logger.error("FIX OPTION 2 - Use CPU version instead:")
+                        logger.error("  1. Download: llama-bxxxx-bin-win-avx2-x64.zip (NOT cuda)")
+                        logger.error("     From: https://github.com/ggerganov/llama.cpp/releases")
+                        logger.error("  2. Extract to: CivicAI\\llama.cpp-bin-cuda\\ (replace existing)")
+                        logger.error("  3. Try again (will be slower but works without CUDA)")
+                        logger.error("=" * 70)
+                elif is_access_violation:
+                    logger.error("[LLAMA-SERVER] ERROR: Access violation (crash)")
+                    logger.error("[LLAMA-SERVER] This often means GPU VRAM is insufficient")
+                    logger.error("[LLAMA-SERVER] Try reducing -ngl (GPU layers) or -c (context size)")
+                else:
+                    logger.error("[LLAMA-SERVER] Check the output above for error details")
+                return False
+            
+            try:
+                response = requests.get(f"{LLAMA_SERVER_URL}/health", timeout=1)
+                if response.status_code == 200:
+                    logger.info(f"[LLAMA-SERVER] Server started successfully!")
+                    logger.info(f"[LLAMA-SERVER] URL: {LLAMA_SERVER_URL}")
+                    USING_LLAMA_SERVER = True
+                    return True
+            except:
+                pass
+            time.sleep(1)
+            if i % 10 == 0 and i > 0:
+                logger.info(f"[LLAMA-SERVER] Still loading model... ({i}s)")
+        
+        logger.error("[LLAMA-SERVER] Server failed to start within 60 seconds")
+        logger.error("[LLAMA-SERVER] Possible causes:")
+        logger.error("[LLAMA-SERVER]   - Missing CUDA DLLs (try adding cuda\\bin to PATH)")
+        logger.error("[LLAMA-SERVER]   - Wrong CUDA version (check you have CUDA 12.x)")
+        logger.error("[LLAMA-SERVER]   - Model too large for GPU VRAM")
+        logger.error("[LLAMA-SERVER]   - Check Windows Event Viewer for DLL errors")
+        return False
+        
+    except Exception as e:
+        logger.error(f"[LLAMA-SERVER] Failed to start server: {e}")
+        import traceback
+        logger.error(f"[LLAMA-SERVER] Traceback: {traceback.format_exc()}")
+        return False
+
+
+def stop_llama_server():
+    """Stop the llama-server process if running."""
+    global LLAMA_SERVER_PROCESS, USING_LLAMA_SERVER
+    
+    if LLAMA_SERVER_PROCESS:
+        logger.info("[LLAMA-SERVER] Stopping llama-server...")
+        try:
+            LLAMA_SERVER_PROCESS.terminate()
+            LLAMA_SERVER_PROCESS.wait(timeout=5)
+        except:
+            LLAMA_SERVER_PROCESS.kill()
+        LLAMA_SERVER_PROCESS = None
+        USING_LLAMA_SERVER = False
+
+
+def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: float = None):
+    """
+    Generate text using the llama-server HTTP API.
+    
+    Args:
+        prompt: Input prompt
+        max_tokens: Maximum tokens to generate
+        temperature: Sampling temperature
+        
+    Returns:
+        Generated text
+    """
+    if not LLAMA_SERVER_URL:
+        raise RuntimeError("llama-server not running")
+    
+    if temperature is None:
+        temperature = args.temp
+    
+    payload = {
+        "prompt": prompt,
+        "n_predict": max_tokens,
+        "temperature": temperature,
+        "stop": ["</s>", "[/INST]", "User:", "\n\nUser:"],
+    }
+    
+    try:
+        response = requests.post(
+            f"{LLAMA_SERVER_URL}/completion",
+            json=payload,
+            timeout=120,
+        )
+        response.raise_for_status()
+        result = response.json()
+        return result.get('content', '')
+    except Exception as e:
+        logger.error(f"[LLAMA-SERVER] Generation error: {e}")
+        raise
+
+
+def stream_generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: float = None):
+    """
+    Stream generate text using the llama-server HTTP API.
+    
+    Args:
+        prompt: Input prompt
+        max_tokens: Maximum tokens to generate
+        temperature: Sampling temperature
+        
+    Yields:
+        Generated tokens
+    """
+    if not LLAMA_SERVER_URL:
+        raise RuntimeError("llama-server not running")
+    
+    if temperature is None:
+        temperature = args.temp
+    
+    payload = {
+        "prompt": prompt,
+        "n_predict": max_tokens,
+        "temperature": temperature,
+        "stop": ["</s>", "[/INST]", "User:", "\n\nUser:"],
+        "stream": True,
+    }
+    
+    try:
+        response = requests.post(
+            f"{LLAMA_SERVER_URL}/completion",
+            json=payload,
+            stream=True,
+            timeout=120,
+        )
+        response.raise_for_status()
+        
+        for line in response.iter_lines():
+            if line:
+                line = line.decode('utf-8')
+                if line.startswith('data: '):
+                    data = line[6:]
+                    if data.strip() == '[DONE]':
+                        break
+                    try:
+                        chunk = json.loads(data)
+                        content = chunk.get('content', '')
+                        if content:
+                            yield content
+                    except json.JSONDecodeError:
+                        pass
+    except Exception as e:
+        logger.error(f"[LLAMA-SERVER] Streaming error: {e}")
+        raise
+
+def ensure_llama_cpp_python():
+    """
+    Ensure llama-cpp-python is installed. Auto-installs if missing.
+    Returns True if available, False if installation failed.
+    
+    Installation priority:
+    1. If CUDA 13.x installed: Go directly to source build (pre-built wheels are for CUDA 12.x)
+    2. Otherwise: Try pre-built CUDA wheels from llama-cpp-python-cuda (no compilation!)
+    3. Fallback: Try building from source with CMAKE_ARGS
+    
+    For CUDA GPUs (like RTX 2080 Ti), uses:
+    CMAKE_ARGS="-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on"
+    """
+    try:
+        import llama_cpp
+        return True
+    except ImportError:
+        logger.info("[GGUF] llama-cpp-python not found, installing automatically...")
+        import subprocess
+        
+        # Check if CUDA is available
+        cuda_available = torch.cuda.is_available()
+        
+        if not cuda_available:
+            logger.error("[GGUF] No CUDA detected. GGUF requires a GPU for acceptable performance.")
+            logger.error("[GGUF] CPU-only mode is not supported as it would be too slow.")
+            return False
+        
+        # Get installed CUDA Toolkit version (from environment variables)
+        # This is more accurate than torch.version.cuda which just shows what PyTorch was compiled with
+        installed_cuda = get_installed_cuda_version()
+        skip_prebuilt_wheels = False
+        
+        if installed_cuda:
+            cuda_major, cuda_minor = installed_cuda
+            logger.info(f"[GGUF] Detected installed CUDA Toolkit: v{cuda_major}.{cuda_minor}")
+            
+            if cuda_major >= 13:
+                logger.warning(f"[GGUF] You have CUDA {cuda_major}.{cuda_minor} - pre-built wheels are for CUDA 12.x")
+                logger.info("[GGUF] Will build from source to compile against your CUDA 13.x")
+                skip_prebuilt_wheels = True
+        
+        # Get CUDA version for wheel selection (fallback to PyTorch's CUDA version)
+        cuda_version = None
+        if not skip_prebuilt_wheels:
+            try:
+                cuda_version = torch.version.cuda
+                logger.info(f"[GGUF] PyTorch CUDA version: {cuda_version}")
+            except:
+                cuda_version = "12.1"  # Default assumption
+                logger.info(f"[GGUF] Could not detect CUDA version, assuming {cuda_version}")
+        
+        # STEP 1: Try pre-built CUDA wheels (SKIP if CUDA 13.x detected)
+        if skip_prebuilt_wheels:
+            logger.info("[GGUF] Skipping pre-built wheels (CUDA 13.x requires source build)...")
+        else:
+            # These are pre-compiled wheels that don't require Visual Studio or CUDA Toolkit
+            logger.info("[GGUF] Trying pre-built CUDA wheel (fastest, no compilation)...")
+        
+            # The llama-cpp-python-cuda package provides pre-built wheels
+            # See: https://github.com/jllllll/llama-cpp-python-cuBLAS-wheels
+            cuda_wheel_urls = []
+            
+            # Determine Python version for wheel
+            py_version = f"cp{sys.version_info.major}{sys.version_info.minor}"
+            
+            # Try CUDA 12.x wheels first, then 11.x
+            if cuda_version and cuda_version.startswith("12"):
+                cuda_wheel_urls = [
+                    f"https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.2/llama_cpp_python-0.3.2-{py_version}-{py_version}-win_amd64.whl",
+                    "llama-cpp-python-cuda",  # Try the cuda package from PyPI
+                ]
+            else:
+                cuda_wheel_urls = [
+                    "llama-cpp-python-cuda",
+                ]
+            
+            # Try each pre-built option
+            for wheel_url in cuda_wheel_urls:
+                try:
+                    logger.info(f"[GGUF] Trying: {wheel_url}")
+                    
+                    if wheel_url.startswith("http"):
+                        # Direct wheel URL
+                        result = subprocess.run(
+                            [sys.executable, '-m', 'pip', 'install', wheel_url, '--force-reinstall'],
+                            capture_output=True,
+                            text=True,
+                            timeout=120,
+                        )
+                    else:
+                        # PyPI package name
+                        result = subprocess.run(
+                            [sys.executable, '-m', 'pip', 'install', wheel_url, '--force-reinstall', '--no-cache-dir'],
+                            capture_output=True,
+                            text=True,
+                            timeout=120,
+                        )
+                    
+                    if result.returncode == 0:
+                        # Verify it imports correctly
+                        try:
+                            import importlib
+                            if 'llama_cpp' in sys.modules:
+                                del sys.modules['llama_cpp']
+                            import llama_cpp
+                            logger.info("[GGUF] Pre-built CUDA wheel installed successfully!")
+                            return True
+                        except ImportError:
+                            logger.warning("[GGUF] Wheel installed but import failed, trying next option...")
+                            continue
+                except Exception as e:
+                    logger.warning(f"[GGUF] Pre-built wheel failed: {e}")
+                    continue
+        
+        # STEP 2: Try building from source with CMAKE_ARGS
+        logger.info("[GGUF] Pre-built wheels not available, building from source...")
+        logger.info("[GGUF] Requires: Visual Studio Build Tools + CUDA Toolkit")
+        logger.info("[GGUF] This will take 5-15 minutes to compile...")
+        
+        try:
+            # Set environment for CUDA build with optimal flags for RTX cards
+            env = os.environ.copy()
+            
+            # Full CMAKE_ARGS for CUDA support on RTX 2080 Ti and similar cards
+            cmake_args = '-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on'
+            env['CMAKE_ARGS'] = cmake_args
+            env['FORCE_CMAKE'] = '1'
+            
+            # On Windows, also set these to help find Visual Studio
+            if sys.platform == 'win32':
+                # Ensure cl.exe and nvcc can be found
+                env['CMAKE_GENERATOR'] = 'Visual Studio 17 2022'  # VS2022
+                env['CMAKE_GENERATOR_PLATFORM'] = 'x64'
+            
+            logger.info(f"[GGUF] CMAKE_ARGS: {cmake_args}")
+            logger.info("[GGUF] Starting pip install with source compilation...")
+            
+            # Run pip install with real-time output
+            process = subprocess.Popen(
+                [sys.executable, '-m', 'pip', 'install', 'llama-cpp-python', 
+                 '--force-reinstall', '--no-cache-dir', '--verbose'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                env=env,
+                bufsize=1,
+            )
+            
+            # Stream output in real-time
+            output_lines = []
+            last_log_time = time.time()
+            while True:
+                line = process.stdout.readline()
+                if not line and process.poll() is not None:
+                    break
+                if line:
+                    output_lines.append(line)
+                    # Log progress every 30 seconds
+                    if time.time() - last_log_time > 30:
+                        logger.info("[GGUF] Still compiling... please wait")
+                        last_log_time = time.time()
+                    # Log important lines immediately
+                    line_lower = line.lower()
+                    if 'error' in line_lower or 'failed' in line_lower:
+                        logger.error(f"[GGUF] {line.strip()}")
+                    elif 'building' in line_lower or 'installing' in line_lower:
+                        logger.info(f"[GGUF] {line.strip()}")
+            
+            returncode = process.wait(timeout=900)  # 15 minute max
+            
+            if returncode == 0:
+                # Verify installation
+                try:
+                    import importlib
+                    if 'llama_cpp' in sys.modules:
+                        del sys.modules['llama_cpp']
+                    import llama_cpp
+                    logger.info("[GGUF] llama-cpp-python with CUDA installed successfully!")
+                    return True
+                except ImportError as e:
+                    logger.error(f"[GGUF] Install succeeded but import failed: {e}")
+            else:
+                logger.error(f"[GGUF] CUDA build failed with exit code: {returncode}")
+                # Show last 20 lines of output for debugging
+                if output_lines:
+                    logger.error("[GGUF] Last 20 lines of build output:")
+                    for line in output_lines[-20:]:
+                        logger.error(f"[GGUF]   {line.strip()}")
+                    
+        except subprocess.TimeoutExpired:
+            logger.error("[GGUF] Compilation timed out (15 min)")
+        except Exception as e:
+            logger.error(f"[GGUF] Build error: {e}")
+        
+        # All methods failed - show manual instructions
+        logger.error("[GGUF] ")
+        logger.error("[GGUF] === MANUAL INSTALLATION REQUIRED ===")
+        logger.error("[GGUF] ")
+        logger.error("[GGUF] Option 1: Install Visual Studio Build Tools + CUDA Toolkit, then run:")
+        logger.error("[GGUF] ")
+        logger.error("[GGUF]   # PowerShell:")
+        logger.error('[GGUF]   $env:CMAKE_ARGS="-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on"')
+        logger.error("[GGUF]   pip install llama-cpp-python --force-reinstall --no-cache-dir")
+        logger.error("[GGUF] ")
+        logger.error("[GGUF]   # Or CMD:")
+        logger.error('[GGUF]   set CMAKE_ARGS=-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on')
+        logger.error("[GGUF]   pip install llama-cpp-python --force-reinstall --no-cache-dir")
+        logger.error("[GGUF] ")
+        logger.error("[GGUF] Option 2: Use pre-built llama-server.exe instead (recommended):")
+        logger.error("[GGUF]   1. Download AVX2 version from: https://github.com/ggerganov/llama.cpp/releases")
+        logger.error("[GGUF]      Look for: llama-bXXXX-bin-win-avx2-x64.zip")
+        logger.error("[GGUF]   2. Extract to: CivicAI/llama.cpp-bin-cuda/")
+        logger.error("[GGUF]   3. Restart server.py")
+        logger.error("[GGUF] ")
+        logger.error("[GGUF] ===================================")
+        return False
+
+
+def load_gguf_model(gguf_path: str):
+    """
+    Load a GGUF model using llama-cpp-python for fast inference.
+    Auto-installs llama-cpp-python if not available.
+    
+    Args:
+        gguf_path: Path to the .gguf model file
+        
+    Returns:
+        Llama model instance
+    """
+    global USING_GGUF_BACKEND, ACTIVE_GGUF_PATH
+    
+    if gguf_path in gguf_models:
+        logger.info(f"[GGUF] Using cached model: {gguf_path}")
+        return gguf_models[gguf_path]
+    
+    # Ensure llama-cpp-python is installed
+    if not ensure_llama_cpp_python():
+        raise ImportError("llama-cpp-python could not be installed automatically. Please install manually: pip install llama-cpp-python")
+    
+    try:
+        from llama_cpp import Llama
+        
+        logger.info(f"[GGUF] Loading model: {gguf_path}")
+        logger.info(f"[GGUF] Parameters: n_gpu_layers={args.n_gpu_layers}, n_ctx={args.context_size}, n_threads={args.threads}")
+        
+        # Build model kwargs from command line arguments
+        model_kwargs = {
+            'model_path': gguf_path,
+            'n_gpu_layers': args.n_gpu_layers,
+            'n_ctx': args.context_size,
+            'n_threads': args.threads,
+            'verbose': DEBUG_MODE,
+        }
+        
+        # Add flash attention if supported and requested
+        if args.flash_attn:
+            model_kwargs['flash_attn'] = True
+            logger.info("[GGUF] Flash Attention enabled")
+        
+        # Load the model
+        model = Llama(**model_kwargs)
+        
+        # Cache it
+        gguf_models[gguf_path] = model
+        USING_GGUF_BACKEND = True
+        ACTIVE_GGUF_PATH = gguf_path
+        
+        logger.info(f"[GGUF] Model loaded successfully!")
+        return model
+        
+    except ImportError:
+        logger.error("[GGUF] llama-cpp-python import failed after installation attempt")
+        raise
+    except Exception as e:
+        logger.error(f"[GGUF] Failed to load model: {e}")
+        raise
+
+
+def generate_with_gguf(model, prompt: str, max_tokens: int = 512, temperature: float = None, top_p: float = 0.9):
+    """
+    Generate text using a GGUF model.
+    
+    Args:
+        model: Llama model instance
+        prompt: Input prompt
+        max_tokens: Maximum tokens to generate
+        temperature: Sampling temperature (uses args.temp if None)
+        top_p: Top-p sampling parameter
+        
+    Returns:
+        Generated text
+    """
+    if temperature is None:
+        temperature = args.temp
+    
+    output = model(
+        prompt,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        top_p=top_p,
+        echo=False,
+    )
+    
+    return output['choices'][0]['text']
+
+
+def stream_generate_with_gguf(model, prompt: str, max_tokens: int = 512, temperature: float = None, top_p: float = 0.9):
+    """
+    Stream generate text using a GGUF model.
+    
+    Args:
+        model: Llama model instance
+        prompt: Input prompt
+        max_tokens: Maximum tokens to generate
+        temperature: Sampling temperature (uses args.temp if None)
+        top_p: Top-p sampling parameter
+        
+    Yields:
+        Generated tokens
+    """
+    if temperature is None:
+        temperature = args.temp
+    
+    for output in model(
+        prompt,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        top_p=top_p,
+        echo=False,
+        stream=True,
+    ):
+        yield output['choices'][0]['text']
+
+
+def get_active_gguf_path():
+    """Get the path to the currently active GGUF model from config."""
+    try:
+        active_file = PROJECT_ROOT / 'models' / 'gguf' / 'active.json'
+        if active_file.exists():
+            with open(active_file, 'r') as f:
+                data = json.load(f)
+                gguf_name = data.get('activeGguf')
+                if gguf_name:
+                    gguf_path = PROJECT_ROOT / 'models' / 'gguf' / gguf_name
+                    if gguf_path.exists():
+                        return str(gguf_path)
+                    logger.warning(f"[GGUF] Active GGUF file not found: {gguf_path}")
+        return None
+    except Exception as e:
+        logger.warning(f"[GGUF] Could not read active GGUF config: {e}")
+        return None
 
 # Single-model configuration for OneSeek-7B-Zero
 # Set to False to use only the active certified model (recommended)
@@ -8968,6 +9729,39 @@ async def infer(request: Request, inference_request: InferenceRequest):
     """
     start_time = time.time()
     
+    # === GGUF/LLAMA-SERVER BACKEND CHECK ===
+    # If llama-server.exe is running, use it instead of HuggingFace model
+    if USING_LLAMA_SERVER:
+        logger.info(f"[GGUF] Using llama-server.exe for /infer request: {inference_request.text[:50]}...")
+        try:
+            # Build the prompt in ChatML format for llama-server
+            now = datetime.now()
+            weekday_map = {0: "måndag", 1: "tisdag", 2: "onsdag", 3: "torsdag", 4: "fredag", 5: "lördag", 6: "söndag"}
+            day_name = weekday_map.get(now.weekday(), "")
+            time_context = f"Idag är det {day_name} {now.day} {['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'][now.month-1]} {now.year}, klockan {now.strftime('%H:%M')}."
+            
+            system_prompt = get_active_system_prompt()
+            full_prompt = f"<|im_start|>system\n{system_prompt}\n\n[Aktuell tid] {time_context}<|im_end|>\n<|im_start|>user\n{inference_request.text}<|im_end|>\n<|im_start|>assistant\n"
+            
+            response_text = generate_with_llama_server(
+                full_prompt, 
+                max_tokens=inference_request.max_length,
+                temperature=inference_request.temperature
+            )
+            
+            latency_ms = (time.time() - start_time) * 1000
+            tokens = len(response_text.split())  # Approximate token count
+            
+            return InferenceResponse(
+                response=response_text.strip(),
+                model="oneseek-7b-zero (llama-server.exe)",
+                tokens=tokens,
+                latency_ms=latency_ms
+            )
+        except Exception as e:
+            logger.error(f"[GGUF] llama-server.exe error, falling back to HuggingFace: {e}")
+            # Continue with HuggingFace fallback below
+    
     # === ONESEEK Δ+ v4.0: TYPO CHECKING (LanguageTool Self-Hosted) ===
     # DISABLED by default in v4.0 - the model understands typos itself
     typo_corrected = False
@@ -9528,6 +10322,39 @@ async def oneseek_inference(request: InferenceRequest):
     """
     import time
     start_time = time.time()
+    
+    # === GGUF/LLAMA-SERVER BACKEND CHECK ===
+    # If llama-server.exe is running, use it instead of HuggingFace model
+    if USING_LLAMA_SERVER:
+        logger.info(f"[GGUF] Using llama-server.exe for /inference/oneseek: {request.text[:50]}...")
+        try:
+            # Build the prompt in ChatML format for llama-server
+            now = datetime.now()
+            weekday_map = {0: "måndag", 1: "tisdag", 2: "onsdag", 3: "torsdag", 4: "fredag", 5: "lördag", 6: "söndag"}
+            day_name = weekday_map.get(now.weekday(), "")
+            time_context = f"Idag är det {day_name} {now.day} {['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'][now.month-1]} {now.year}, klockan {now.strftime('%H:%M')}."
+            
+            system_prompt = get_active_system_prompt()
+            full_prompt = f"<|im_start|>system\n{system_prompt}\n\n[Aktuell tid] {time_context}<|im_end|>\n<|im_start|>user\n{request.text}<|im_end|>\n<|im_start|>assistant\n"
+            
+            response_text = generate_with_llama_server(
+                full_prompt, 
+                max_tokens=request.max_length,
+                temperature=request.temperature
+            )
+            
+            latency_ms = (time.time() - start_time) * 1000
+            tokens = len(response_text.split())  # Approximate token count
+            
+            return InferenceResponse(
+                response=response_text.strip(),
+                model="oneseek-7b-zero (llama-server.exe)",
+                tokens=tokens,
+                latency_ms=latency_ms
+            )
+        except Exception as e:
+            logger.error(f"[GGUF] llama-server.exe error, falling back to HuggingFace: {e}")
+            # Continue with HuggingFace fallback below
     
     # === ONESEEK Δ+: CACHE CHECK ===
     cache_hit = False
@@ -11025,16 +11852,549 @@ async def get_all_settings():
                 "description": "Aktiverar stavningskontroll i /7B-Zero chatten",
                 "type": "boolean",
                 "current": _admin_settings.get("typo_check_enabled", True)
+            },
+            {
+                "key": "token_delay_ms",
+                "name": "Token Delay",
+                "description": "Fördröjning mellan tokens vid streaming (ms)",
+                "type": "number",
+                "min": 0,
+                "max": 500,
+                "current": _admin_settings.get("token_delay_ms", 30)
             }
         ]
     }
 
 
+# =============================================================================
+# STREAMING CONFIGURATION AND SSE ENDPOINT
+# =============================================================================
+# Token-by-token streaming for /7B-Zero page with configurable delay
+# Admin Dashboard can control token delay in real-time via /api/config/token-delay
+#
+# SSE Events:
+# - token: Single token content
+# - done: Stream finished
+# - error: Error occurred
+# - metadata: Response metadata (personality, confidence, etc.)
+
+# Add token_delay_ms to admin settings if not present
+if "token_delay_ms" not in _admin_settings:
+    _admin_settings["token_delay_ms"] = 30  # Default 30ms between tokens
+
+
+@app.get("/api/config/token-delay")
+async def get_token_delay():
+    """
+    Get current token streaming delay in milliseconds.
+    
+    Used by Admin Dashboard to display current setting.
+    """
+    return {
+        "delay_ms": _admin_settings.get("token_delay_ms", 30),
+        "description": "Fördröjning mellan tokens vid streaming (ms)",
+        "min": 0,
+        "max": 500
+    }
+
+
+@app.post("/api/config/token-delay")
+async def set_token_delay(request: Request):
+    """
+    Set token streaming delay in milliseconds.
+    
+    Called from Admin Dashboard slider control.
+    Value is applied immediately to new streaming requests.
+    
+    Request body:
+    - delay_ms: Integer between 0 and 500
+    """
+    try:
+        data = await request.json()
+        delay_ms = data.get("delay_ms", 30)
+        
+        # Validate range
+        if not isinstance(delay_ms, (int, float)):
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "error": "delay_ms must be a number"}
+            )
+        
+        delay_ms = int(delay_ms)
+        if delay_ms < 0:
+            delay_ms = 0
+        if delay_ms > 500:
+            delay_ms = 500
+        
+        _admin_settings["token_delay_ms"] = delay_ms
+        logger.info(f"🎛️ Token delay updated to {delay_ms}ms")
+        
+        return {
+            "success": True,
+            "delay_ms": delay_ms,
+            "message": f"Token delay satt till {delay_ms}ms"
+        }
+    except Exception as e:
+        logger.error(f"Error setting token delay: {e}")
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": str(e)}
+        )
+
+
+class StreamRequest(BaseModel):
+    """Request model for streaming inference."""
+    text: str = Field(..., description="User's question/prompt")
+    max_length: int = Field(default=512, ge=10, le=4096)
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    top_p: float = Field(default=0.9, ge=0.0, le=1.0)
+    skip_typo_check: bool = Field(default=False)
+
+
+async def generate_sse_tokens(
+    text: str,
+    max_length: int = 512,
+    temperature: float = 0.7,
+    top_p: float = 0.9
+) -> AsyncGenerator[str, None]:
+    """
+    Async generator for Server-Sent Events token streaming.
+    
+    Args:
+        text: The user's question/prompt to generate a response for
+        max_length: Maximum number of new tokens to generate (default: 512)
+        temperature: Sampling temperature for response diversity (default: 0.7)
+        top_p: Nucleus sampling probability threshold (default: 0.9)
+    
+    Yields:
+        str: SSE-formatted event strings with the following types:
+        - event: token - {"token": "...", "index": n}
+        - event: metadata - {"tokens": n, "latency_ms": n, "model": "...", ...}
+        - event: done - {"status": "complete", "tokens": n}
+        - event: error - {"error": "..."}
+    
+    Token delay is read dynamically from _admin_settings each time,
+    allowing real-time control from Admin Dashboard.
+    """
+    start_time = time.time()
+    tokens_sent = 0
+    
+    try:
+        # Get the active system prompt
+        system_prompt = get_active_system_prompt()
+        
+        # Get current time context
+        now = datetime.now()
+        time_context = now.strftime("%Y-%m-%d %H:%M:%S")
+        weekday_map = {0: "måndag", 1: "tisdag", 2: "onsdag", 3: "torsdag", 4: "fredag", 5: "lördag", 6: "söndag"}
+        day_name = weekday_map.get(now.weekday(), "")
+        time_context = f"Idag är det {day_name} {now.day} {['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'][now.month-1]} {now.year}, klockan {now.strftime('%H:%M')}."
+        
+        # Build the prompt for llama-server (doesn't use chat template)
+        full_prompt = f"<|im_start|>system\n{system_prompt}\n\n[Aktuell tid] {time_context}<|im_end|>\n<|im_start|>user\n{text}<|im_end|>\n<|im_start|>assistant\n"
+        
+        # Check if using llama-server.exe backend
+        if USING_LLAMA_SERVER:
+            logger.info(f"🌊 [STREAM] Using llama-server.exe backend for: {text[:50]}...")
+            try:
+                for token in stream_generate_with_llama_server(full_prompt, max_tokens=max_length, temperature=temperature):
+                    if token:
+                        try:
+                            event_data = json.dumps({"token": token, "index": tokens_sent}, ensure_ascii=False)
+                        except (TypeError, ValueError):
+                            safe_token = token.encode('unicode_escape').decode('ascii')
+                            event_data = json.dumps({"token": safe_token, "index": tokens_sent})
+                        tokens_sent += 1
+                        yield f"event: token\ndata: {event_data}\n\n"
+                        
+                        # Apply delay from admin settings
+                        delay_ms = _admin_settings.get("token_delay_ms", 30)
+                        if delay_ms > 0:
+                            await asyncio.sleep(delay_ms / 1000.0)
+                
+                # Send completion event
+                elapsed = (time.time() - start_time) * 1000
+                metadata = {
+                    "tokens": tokens_sent,
+                    "latency_ms": round(elapsed, 2),
+                    "model": "llama-server",
+                    "backend": "llama-server.exe"
+                }
+                yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
+                yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': tokens_sent})}\n\n"
+                return
+            except Exception as e:
+                logger.error(f"🌊 [STREAM] llama-server.exe error: {e}")
+                yield f"event: error\ndata: {json.dumps({'error': f'llama-server error: {str(e)}'})}\n\n"
+                return
+        
+        # Build messages for the HuggingFace model
+        structured_messages = [
+            {"role": "system", "content": f"{system_prompt}\n\n[Aktuell tid] {time_context}"},
+            {"role": "user", "content": text}
+        ]
+        
+        # Check if we have models loaded - attempt to load if not
+        # Model key can be 'oneseek-7b-zero' (from load_model) or 'oneseek' (from dynamic switch)
+        model_key = None
+        if 'oneseek' in models and 'oneseek' in tokenizers:
+            model_key = 'oneseek'
+        elif 'oneseek-7b-zero' in models and 'oneseek-7b-zero' in tokenizers:
+            model_key = 'oneseek-7b-zero'
+        
+        if model_key is None:
+            logger.info("🌊 [STREAM] Model not loaded, attempting to load...")
+            try:
+                # Attempt to load the model (same pattern as other endpoints)
+                loaded_model, loaded_tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
+                if loaded_model is None or loaded_tokenizer is None:
+                    yield f"event: error\ndata: {json.dumps({'error': 'Failed to load model. Please try again.'})}\n\n"
+                    return
+                model_key = 'oneseek-7b-zero'
+                logger.info("🌊 [STREAM] Model loaded successfully!")
+            except Exception as load_err:
+                logger.error(f"🌊 [STREAM] Model loading failed: {load_err}")
+                yield f"event: error\ndata: {json.dumps({'error': f'Model loading failed: {str(load_err)}'})}\n\n"
+                return
+        
+        # Verify we have model available
+        if model_key is None or model_key not in models or model_key not in tokenizers:
+            yield f"event: error\ndata: {json.dumps({'error': 'Model not available after loading attempt'})}\n\n"
+            return
+        
+        model = models[model_key]
+        tokenizer = tokenizers[model_key]
+        logger.info(f"🌊 [STREAM] Using model with key: {model_key}")
+        
+        # Tokenize input using chat template
+        try:
+            if hasattr(tokenizer, 'apply_chat_template'):
+                tokenized_input = tokenizer.apply_chat_template(
+                    structured_messages,
+                    tokenize=True,
+                    add_generation_prompt=True,
+                    return_tensors="pt"
+                )
+                inputs = {"input_ids": tokenized_input, "attention_mask": torch.ones_like(tokenized_input)}
+            else:
+                full_input = f"{system_prompt}\n\nAnvändare: {text}\n\nOneSeek:"
+                inputs = tokenizer(full_input, return_tensors="pt", padding=True)
+        except Exception as e:
+            yield f"event: error\ndata: {json.dumps({'error': f'Tokenization failed: {str(e)}'})}\n\n"
+            return
+        
+        # Sync inputs to model device
+        inputs = sync_inputs_to_model_device(inputs, model)
+        input_length = inputs['input_ids'].shape[1] if isinstance(inputs, dict) else inputs.input_ids.shape[1]
+        
+        # Generate tokens one by one using generate with max_new_tokens=1 in a loop
+        # This approach streams tokens as they are generated
+        generated_ids = inputs['input_ids'] if isinstance(inputs, dict) else inputs.input_ids
+        attention_mask = inputs['attention_mask'] if isinstance(inputs, dict) else inputs.attention_mask
+        
+        full_response = ""
+        previous_decoded = ""  # Track previously decoded text to compute delta
+        max_new_tokens = min(max_length, 1024)  # Limit for streaming
+        
+        # Token buffering for smoother streaming (sends 3-5 tokens per chunk)
+        token_buffer = ""
+        buffered_count = 0
+        BUFFER_SIZE = 4  # Send every 4 tokens OR on natural breaks
+        
+        logger.info(f"🌊 [STREAM] Starting token generation for: {text[:50]}...")
+        
+        async def flush_buffer():
+            """Send buffered tokens as SSE event"""
+            nonlocal token_buffer, buffered_count, tokens_sent
+            if token_buffer:
+                try:
+                    event_data = json.dumps({
+                        "token": token_buffer,
+                        "index": tokens_sent
+                    }, ensure_ascii=False)
+                    tokens_sent += buffered_count
+                    token_buffer = ""
+                    buffered_count = 0
+                    return f"event: token\ndata: {event_data}\n\n"
+                except (TypeError, ValueError) as json_err:
+                    safe_token = token_buffer.encode('unicode_escape').decode('ascii')
+                    event_data = json.dumps({"token": safe_token, "index": tokens_sent})
+                    tokens_sent += buffered_count
+                    token_buffer = ""
+                    buffered_count = 0
+                    logger.warning(f"Token serialization fallback: {json_err}")
+                    return f"event: token\ndata: {event_data}\n\n"
+            return None
+        
+        with torch.no_grad():
+            for i in range(max_new_tokens):
+                # Generate just one token at a time
+                outputs = model.generate(
+                    input_ids=generated_ids,
+                    attention_mask=attention_mask,
+                    max_new_tokens=1,
+                    temperature=temperature,
+                    top_p=top_p,
+                    do_sample=True,
+                    pad_token_id=tokenizer.eos_token_id,
+                    return_dict_in_generate=False
+                )
+                
+                # Get the new token
+                new_token_id = outputs[0, -1:]
+                
+                # Check for EOS token
+                if new_token_id.item() == tokenizer.eos_token_id:
+                    logger.info(f"🌊 [STREAM] EOS token reached after {tokens_sent} tokens")
+                    # Flush any remaining buffer
+                    flush_event = await flush_buffer()
+                    if flush_event:
+                        yield flush_event
+                    break
+                
+                # Decode all generated tokens (from input_length onwards) to preserve spaces
+                # This is the key fix: decode the full sequence, not individual tokens
+                generated_tokens_only = outputs[0, input_length:]
+                current_decoded = tokenizer.decode(generated_tokens_only, skip_special_tokens=True)
+                
+                # Compute the delta (new text since last decode)
+                new_token_text = current_decoded[len(previous_decoded):]
+                
+                # Skip if no new text (empty delta)
+                if new_token_text:
+                    full_response = current_decoded
+                    previous_decoded = current_decoded
+                    
+                    # Add to buffer
+                    token_buffer += new_token_text
+                    buffered_count += 1
+                    
+                    # Check if we should flush (buffer full OR natural break character)
+                    should_flush = (
+                        buffered_count >= BUFFER_SIZE or
+                        new_token_text.endswith((' ', '.', ',', '!', '?', '\n', ':', ';'))
+                    )
+                    
+                    if should_flush:
+                        flush_event = await flush_buffer()
+                        if flush_event:
+                            yield flush_event
+                        
+                        # Read delay from admin settings (dynamic!)
+                        delay_ms = _admin_settings.get("token_delay_ms", 30)
+                        if delay_ms > 0:
+                            await asyncio.sleep(delay_ms / 1000.0)
+                
+                # Update for next iteration
+                generated_ids = outputs
+                attention_mask = torch.cat([
+                    attention_mask,
+                    torch.ones((1, 1), device=attention_mask.device, dtype=attention_mask.dtype)
+                ], dim=1)
+        
+        # Flush any remaining tokens in buffer
+        flush_event = await flush_buffer()
+        if flush_event:
+            yield flush_event
+        
+        # Calculate latency
+        latency_ms = (time.time() - start_time) * 1000
+        
+        # Parse personality tag from response
+        detected_personality_id, clean_response = parse_personality_tag(full_response)
+        personality_info = get_personality_info(detected_personality_id) if detected_personality_id != "oneseek-medveten" else None
+        
+        # Send metadata event
+        metadata = {
+            "tokens": tokens_sent,
+            "latency_ms": round(latency_ms, 2),
+            "model": "OneSeek-7B-Zero.v1.1",
+            "personality": personality_info,
+            "full_response": clean_response  # Send clean response for fallback
+        }
+        yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
+        
+        # Send done event
+        yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': tokens_sent})}\n\n"
+        
+        logger.info(f"🌊 [STREAM] Complete: {tokens_sent} tokens in {latency_ms:.0f}ms")
+        
+    except Exception as e:
+        logger.error(f"🌊 [STREAM] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+
+
+@app.post("/stream")
+async def stream_inference(request: StreamRequest):
+    """
+    SSE streaming endpoint for token-by-token inference.
+    
+    Returns Server-Sent Events with tokens as they are generated.
+    Token delay is controlled via /api/config/token-delay.
+    
+    Events:
+    - token: {"token": "...", "index": n}
+    - metadata: {"tokens": n, "latency_ms": n, "model": "...", "personality": {...}}
+    - done: {"status": "complete", "tokens": n}
+    - error: {"error": "..."}
+    
+    Usage from frontend:
+    ```javascript
+    const eventSource = new EventSource('/stream', {method: 'POST', body: JSON.stringify({text: 'Fråga'})});
+    // Note: EventSource doesn't support POST, use fetch with ReadableStream instead
+    ```
+    """
+    logger.info(f"🌊 [STREAM] Request: {request.text[:50]}...")
+    
+    return StreamingResponse(
+        generate_sse_tokens(
+            text=request.text,
+            max_length=request.max_length,
+            temperature=request.temperature,
+            top_p=request.top_p
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable nginx buffering
+        }
+    )
+
+
+@app.get("/stream")
+async def stream_inference_get(
+    text: str,
+    max_length: int = 512,
+    temperature: float = 0.7,
+    top_p: float = 0.9
+):
+    """
+    SSE streaming endpoint (GET version for EventSource compatibility).
+    
+    Use this endpoint with browser EventSource:
+    ```javascript
+    const eventSource = new EventSource(`/stream?text=${encodeURIComponent('Fråga')}`);
+    eventSource.addEventListener('token', (e) => {...});
+    eventSource.addEventListener('done', (e) => {...});
+    ```
+    """
+    logger.info(f"🌊 [STREAM/GET] Request: {text[:50]}...")
+    
+    return StreamingResponse(
+        generate_sse_tokens(
+            text=text,
+            max_length=max_length,
+            temperature=temperature,
+            top_p=top_p
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
 if __name__ == "__main__":
     import uvicorn
+    import atexit
+    
+    # Register cleanup for llama-server
+    atexit.register(stop_llama_server)
+    
+    # Check for GGUF mode
+    gguf_path = args.gguf
+    if not gguf_path and args.use_gguf:
+        # Check for active GGUF from admin dashboard
+        gguf_path = get_active_gguf_path()
+        if gguf_path:
+            logger.info(f"[GGUF] Using active GGUF from admin: {gguf_path}")
+    
+    if gguf_path:
+        # Check installed CUDA version
+        installed_cuda = get_installed_cuda_version()
+        skip_llama_server = False
+        
+        if installed_cuda:
+            cuda_major, cuda_minor = installed_cuda
+            logger.info(f"[GGUF] Detected installed CUDA Toolkit: v{cuda_major}.{cuda_minor}")
+            
+            if cuda_major >= 13:
+                logger.warning(f"[GGUF] You have CUDA {cuda_major}.{cuda_minor} but pre-built binaries need CUDA 12.x")
+                logger.info("[GGUF] Skipping pre-built llama-server.exe, will use llama-cpp-python source build")
+                skip_llama_server = True
+        
+        # First check if user wants to use pre-built llama-server.exe
+        if not skip_llama_server and (args.llama_bin or find_llama_bin_dir()):
+            logger.info("[GGUF] Using pre-built llama-server.exe backend")
+            if start_llama_server(gguf_path):
+                logger.info("[GGUF] llama-server.exe started successfully!")
+            else:
+                logger.error("[GGUF] Failed to start llama-server.exe")
+                
+                # If CUDA 13.x detected, suggest source build
+                if installed_cuda and installed_cuda[0] >= 13:
+                    logger.info("[GGUF] ")
+                    logger.info("[GGUF] Since you have CUDA 13.x, falling back to llama-cpp-python source build...")
+                    skip_llama_server = True  # Will trigger llama-cpp-python below
+                else:
+                    logger.error("[GGUF] Please fix the issue above before continuing.")
+                    logger.info("[GGUF] ")
+                    logger.info("[GGUF] QUICK FIX: Use the AVX2/CPU version instead of CUDA:")
+                    logger.info("[GGUF]   1. Download: llama-bxxxx-bin-win-avx2-x64.zip")
+                    logger.info("[GGUF]      From: https://github.com/ggerganov/llama.cpp/releases")
+                    logger.info("[GGUF]   2. Extract to: CivicAI\\llama.cpp-bin-cuda\\ (replace existing)")
+                    logger.info("[GGUF]   3. Restart server")
+                    logger.info("[GGUF] ")
+                    logger.info("[GGUF] Falling back to HuggingFace backend (will use your original model)")
+        
+        # Try llama-cpp-python if llama-server.exe was skipped or failed with CUDA 13.x
+        if skip_llama_server or not (args.llama_bin or find_llama_bin_dir()):
+            # Try llama-cpp-python
+            try:
+                logger.info(f"[GGUF] Starting with GGUF backend (llama-cpp-python): {gguf_path}")
+                load_gguf_model(gguf_path)
+                logger.info("[GGUF] Model pre-loaded successfully")
+            except Exception as e:
+                logger.error(f"[GGUF] Failed to load GGUF model: {e}")
+                logger.info("[GGUF] ")
+                if installed_cuda and installed_cuda[0] >= 13:
+                    logger.info("[GGUF] === CUDA 13.x detected - Manual build required ===")
+                    logger.info("[GGUF] The automatic build may have failed. Try manually:")
+                    logger.info("[GGUF] ")
+                    logger.info("[GGUF]   PowerShell:")
+                    logger.info('[GGUF]     $env:CMAKE_ARGS="-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on"')
+                    logger.info("[GGUF]     pip install llama-cpp-python --force-reinstall --no-cache-dir")
+                    logger.info("[GGUF] ")
+                    logger.info("[GGUF]   CMD:")
+                    logger.info('[GGUF]     set CMAKE_ARGS=-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on')
+                    logger.info("[GGUF]     pip install llama-cpp-python --force-reinstall --no-cache-dir")
+                    logger.info("[GGUF] ================================================")
+                else:
+                    logger.info("[GGUF] === TIP: Use pre-built llama-server.exe ===")
+                    logger.info("[GGUF] 1. Download from: https://github.com/ggerganov/llama.cpp/releases")
+                    logger.info("[GGUF]    Look for: llama-bxxxx-bin-win-cuda-cu12.x.x-x86_64.zip")
+                    logger.info("[GGUF] 2. Extract to: CivicAI\\llama.cpp-bin-cuda\\")
+                    logger.info("[GGUF] 3. Restart server - it will auto-detect the binaries!")
+                    logger.info("[GGUF] ============================================")
+                logger.info("[GGUF] Falling back to HuggingFace backend")
     
     port = int(os.getenv('ML_SERVICE_PORT', '5000'))
     host = "0.0.0.0" if args.listen else "127.0.0.1"
+    
+    # Log startup configuration
+    logger.info(f"[Server] Starting on {host}:{port}")
+    logger.info(f"[Server] Flags: --n-gpu-layers={args.n_gpu_layers}, --context-size={args.context_size}, --threads={args.threads}, --temp={args.temp}")
+    if args.flash_attn:
+        logger.info("[Server] Flash Attention: ENABLED")
+    if args.use_gguf:
+        logger.info("[Server] GGUF Backend: ENABLED")
+    if USING_LLAMA_SERVER:
+        logger.info(f"[Server] llama-server.exe Backend: ENABLED at {LLAMA_SERVER_URL}")
     
     uvicorn.run(
         app,

@@ -7,8 +7,23 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
+      // ONESEEK Streaming API (SSE token streaming)
+      '/stream': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
       // ONESEEK Δ+ ML Service API (Intent Engine, Typo Checker, etc.)
       '/api/ml': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+      // ONESEEK Δ+ Config API (token delay, etc.)
+      '/api/config': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+      // ONESEEK Δ+ Settings API (typo check toggle, etc.)
+      '/api/settings': {
         target: 'http://localhost:5000',
         changeOrigin: true,
       },
