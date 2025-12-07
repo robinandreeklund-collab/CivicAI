@@ -9,6 +9,7 @@ affecting the user interface or API contracts.
 
 import json
 import os
+import typing
 from pathlib import Path
 from typing import Dict, Optional, Literal
 from dataclasses import dataclass, asdict
@@ -34,7 +35,7 @@ class RuntimeConfig:
     runpod_timeout: int = 300  # seconds
     runpod_max_retries: int = 3
     
-    def validate(self) -> tuple[bool, Optional[str]]:
+    def validate(self) -> typing.Tuple[bool, Optional[str]]:
         """
         Validate the configuration.
         
@@ -114,7 +115,7 @@ class ConfigManager:
             self._load_config()
         return self._config
     
-    def update_config(self, **kwargs) -> tuple[bool, Optional[str]]:
+    def update_config(self, **kwargs) -> typing.Tuple[bool, Optional[str]]:
         """
         Update configuration with new values.
         
@@ -139,7 +140,7 @@ class ConfigManager:
         self._save_config()
         return True, None
     
-    def set_mode(self, mode: ExecutionMode) -> tuple[bool, Optional[str]]:
+    def set_mode(self, mode: ExecutionMode) -> typing.Tuple[bool, Optional[str]]:
         """
         Set execution mode.
         
@@ -151,7 +152,7 @@ class ConfigManager:
         """
         return self.update_config(mode=mode)
     
-    def set_runpod_credentials(self, api_key: str, endpoint_url: str) -> tuple[bool, Optional[str]]:
+    def set_runpod_credentials(self, api_key: str, endpoint_url: str) -> typing.Tuple[bool, Optional[str]]:
         """
         Set RunPod credentials.
         

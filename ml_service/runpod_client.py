@@ -9,6 +9,7 @@ handling authentication, retries, and error conditions.
 import requests
 import time
 import logging
+import typing
 from typing import Dict, Optional, List, Any
 from dataclasses import dataclass
 
@@ -272,7 +273,7 @@ class RunPodClient:
         logger.debug("Performing health check")
         return self._make_request("GET", "/health")
     
-    def test_connection(self) -> tuple[bool, Optional[str]]:
+    def test_connection(self) -> typing.Tuple[bool, Optional[str]]:
         """
         Test connection to RunPod endpoint.
         

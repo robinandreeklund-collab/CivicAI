@@ -104,8 +104,12 @@ class UnifiedTrainer:
         logger.info("Starting LOCAL training")
         
         try:
-            # Import local training module
-            from ml.training.pytorch_trainer import write_live_metrics
+            # Import local training module (optional - only needed for metrics)
+            try:
+                from ml.training.pytorch_trainer import write_live_metrics
+            except ImportError:
+                logger.warning("pytorch_trainer not available, metrics will not be logged")
+                write_live_metrics = None
             
             # Determine output directory
             if output_dir is None:

@@ -9,6 +9,7 @@ via configuration without affecting end users.
 
 import logging
 import sys
+import os
 from pathlib import Path
 from typing import Dict, Optional, Any, AsyncGenerator
 import json
@@ -142,17 +143,29 @@ class ModelInterface:
             
             # Determine model path
             if model_path is None:
-                # Default to OneSeek certified model if available
-                default_path = Path(__file__).parent.parent / "models" / "oneseek-certified"
-                if default_path.exists():
-                    # Find the most recent run
-                    runs = sorted([d for d in default_path.iterdir() if d.is_dir()], reverse=True)
-                    if runs:
-                        model_path = str(runs[0])
-                    else:
-                        raise ValueError("No certified models found")
+                # Try to get from config first
+                config_model_path = os.getenv('LOCAL_MODEL_PATH')
+                if config_model_path:
+                    model_path = config_model_path
                 else:
-                    raise ValueError("Model path must be specified in local mode")
+                    # Fallback: Try OneSeek certified model
+                    default_path = Path(__file__).parent.parent / "models" / "oneseek-certified"
+                    if default_path.exists():
+                        # Find the most recent run
+                        runs = sorted([d for d in default_path.iterdir() if d.is_dir()], reverse=True)
+                        if runs:
+                            model_path = str(runs[0])
+                            logger.info(f"Using most recent certified model: {model_path}")
+                        else:
+                            raise ValueError(
+                                "No models found. Set LOCAL_MODEL_PATH environment variable "
+                                "or provide model_path parameter"
+                            )
+                    else:
+                        raise ValueError(
+                            "No models found. Set LOCAL_MODEL_PATH environment variable "
+                            "or provide model_path parameter"
+                        )
             
             # Load model if not already loaded
             if self._local_model is None:
