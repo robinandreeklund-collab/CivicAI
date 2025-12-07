@@ -369,6 +369,22 @@ except ImportError:
         get_matching_apis = None
         reload_api_catalog = None
 
+# =============================================================================
+# RUNPOD INTEGRATION - Model Interface for Local/RunPod Switching
+# =============================================================================
+# Unified interface that routes inference to local or RunPod based on config
+try:
+    from .model_interface import get_model_interface, reload_model_interface
+    MODEL_INTERFACE_AVAILABLE = True
+except ImportError:
+    try:
+        from model_interface import get_model_interface, reload_model_interface
+        MODEL_INTERFACE_AVAILABLE = True
+    except ImportError:
+        MODEL_INTERFACE_AVAILABLE = False
+        get_model_interface = None
+        reload_model_interface = None
+
 # Global cache enabled flag (can be toggled from admin dashboard)
 GLOBAL_CACHE_ENABLED = True
 
@@ -11864,6 +11880,105 @@ async def get_all_settings():
             }
         ]
     }
+
+
+# =============================================================================
+# RUNTIME CONFIGURATION API - Local/RunPod Environment Switching
+# =============================================================================
+# Admin-controlled switching between local and RunPod execution environments
+# Transparent to end users - same API, different backend
+
+@app.get("/api/runtime/config")
+async def get_runtime_config():
+    """
+    Get current runtime configuration (local vs RunPod mode).
+    Admin-only endpoint.
+    """
+    if not MODEL_INTERFACE_AVAILABLE:
+        return {
+            "error": "Runtime configuration not available",
+            "mode": "local",
+            "fallback": True
+        }
+    
+    try:
+        # Import here to avoid circular imports
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from config.runtime_config import get_config_manager
+        
+        config_manager = get_config_manager()
+        config_info = config_manager.get_display_info()
+        
+        # Get model interface status
+        model_interface = get_model_interface()
+        status = model_interface.get_status()
+        
+        return {
+            "config": config_info,
+            "status": status,
+            "available": True
+        }
+    except Exception as e:
+        logger.error(f"Error getting runtime config: {e}")
+        return {
+            "error": str(e),
+            "mode": "local",
+            "fallback": True
+        }
+
+
+@app.post("/api/runtime/reload")
+async def reload_runtime_config():
+    """
+    Reload runtime configuration after admin changes.
+    Useful after switching modes via admin CLI.
+    """
+    if not MODEL_INTERFACE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Runtime configuration not available")
+    
+    try:
+        reload_model_interface()
+        
+        # Get updated status
+        model_interface = get_model_interface()
+        status = model_interface.get_status()
+        
+        return {
+            "success": True,
+            "message": "Runtime configuration reloaded",
+            "status": status
+        }
+    except Exception as e:
+        logger.error(f"Error reloading runtime config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/runtime/status")
+async def get_runtime_status():
+    """
+    Get runtime environment status.
+    Shows which mode is active and whether it's ready.
+    """
+    if not MODEL_INTERFACE_AVAILABLE:
+        return {
+            "mode": "local",
+            "is_ready": True,
+            "message": "Using legacy local inference (runtime config not available)"
+        }
+    
+    try:
+        model_interface = get_model_interface()
+        status = model_interface.get_status()
+        return status
+    except Exception as e:
+        logger.error(f"Error getting runtime status: {e}")
+        return {
+            "error": str(e),
+            "mode": "unknown",
+            "is_ready": False
+        }
 
 
 # =============================================================================
