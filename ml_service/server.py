@@ -3307,7 +3307,40 @@ def start_llama_server(gguf_path: str):
             poll = LLAMA_SERVER_PROCESS.poll()
             if poll is not None:
                 logger.error(f"[LLAMA-SERVER] Process exited with code: {poll}")
-                logger.error("[LLAMA-SERVER] Check the output above for error details")
+                
+                # Decode common Windows exit codes
+                if poll == 3221225781 or poll == -1073741515:  # 0xC0000135 = STATUS_DLL_NOT_FOUND
+                    logger.error("")
+                    logger.error("=" * 70)
+                    logger.error("[LLAMA-SERVER] ERROR: Missing DLL dependencies!")
+                    logger.error("=" * 70)
+                    logger.error("")
+                    logger.error("The CUDA version of llama-server.exe requires CUDA runtime DLLs.")
+                    logger.error("")
+                    logger.error("FIX OPTION 1 - Install CUDA Toolkit (Recommended):")
+                    logger.error("  1. Download CUDA 12.x from: https://developer.nvidia.com/cuda-downloads")
+                    logger.error("  2. Install with default options")
+                    logger.error("  3. Restart your computer")
+                    logger.error("  4. Try again")
+                    logger.error("")
+                    logger.error("FIX OPTION 2 - Use CPU version instead:")
+                    logger.error("  1. Download: llama-bxxxx-bin-win-avx2-x64.zip (NOT cuda)")
+                    logger.error("     From: https://github.com/ggerganov/llama.cpp/releases")
+                    logger.error("  2. Extract to: CivicAI\\llama.cpp-bin-cuda\\ (replace existing)")
+                    logger.error("  3. Try again (will be slower but works without CUDA)")
+                    logger.error("")
+                    logger.error("FIX OPTION 3 - Add CUDA DLLs to PATH:")
+                    logger.error("  If CUDA is installed but DLLs not found:")
+                    logger.error("  1. Open System Properties > Environment Variables")
+                    logger.error("  2. Add to PATH: C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.x\\bin")
+                    logger.error("  3. Restart your terminal")
+                    logger.error("=" * 70)
+                elif poll == 3221225501 or poll == -1073741795:  # 0xC0000005 = Access Violation
+                    logger.error("[LLAMA-SERVER] ERROR: Access violation (crash)")
+                    logger.error("[LLAMA-SERVER] This often means GPU VRAM is insufficient")
+                    logger.error("[LLAMA-SERVER] Try reducing -ngl (GPU layers) or -c (context size)")
+                else:
+                    logger.error("[LLAMA-SERVER] Check the output above for error details")
                 return False
             
             try:
@@ -12079,13 +12112,16 @@ if __name__ == "__main__":
                 logger.info("[GGUF] llama-server.exe started successfully!")
             else:
                 logger.error("[GGUF] Failed to start llama-server.exe")
-                logger.info("[GGUF] Falling back to llama-cpp-python...")
-                try:
-                    load_gguf_model(gguf_path)
-                    logger.info("[GGUF] Model pre-loaded with llama-cpp-python")
-                except Exception as e:
-                    logger.error(f"[GGUF] Failed to load GGUF model: {e}")
-                    logger.info("[GGUF] Falling back to HuggingFace backend")
+                logger.error("[GGUF] Please fix the issue above before continuing.")
+                logger.error("[GGUF] NOT falling back to llama-cpp-python (requires compilation)")
+                logger.info("[GGUF] ")
+                logger.info("[GGUF] QUICK FIX: Use the AVX2/CPU version instead of CUDA:")
+                logger.info("[GGUF]   1. Download: llama-bxxxx-bin-win-avx2-x64.zip")
+                logger.info("[GGUF]      From: https://github.com/ggerganov/llama.cpp/releases")
+                logger.info("[GGUF]   2. Extract to: CivicAI\\llama.cpp-bin-cuda\\ (replace existing)")
+                logger.info("[GGUF]   3. Restart server")
+                logger.info("[GGUF] ")
+                logger.info("[GGUF] Falling back to HuggingFace backend (will use your original model)")
         else:
             # Try llama-cpp-python
             try:
