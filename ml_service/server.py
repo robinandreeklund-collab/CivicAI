@@ -3176,6 +3176,42 @@ LLAMA_SERVER_PROCESS = None
 STATUS_DLL_NOT_FOUND = 0xC0000135  # 3221225781 - Missing DLL dependencies
 STATUS_ACCESS_VIOLATION = 0xC0000005  # 3221225477 - Memory access violation/crash
 
+def get_installed_cuda_version():
+    """
+    Detect the installed CUDA Toolkit version from environment variables.
+    Returns tuple (major, minor) or None if not found.
+    """
+    # Check CUDA_PATH environment variable (set by CUDA Toolkit installer)
+    cuda_path = os.getenv('CUDA_PATH')
+    if cuda_path:
+        # Extract version from path like "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0"
+        import re
+        match = re.search(r'v(\d+)\.(\d+)', cuda_path)
+        if match:
+            return (int(match.group(1)), int(match.group(2)))
+    
+    # Check versioned CUDA_PATH variables (e.g., CUDA_PATH_V13_0)
+    for key, value in os.environ.items():
+        if key.startswith('CUDA_PATH_V'):
+            # Extract version from variable name like CUDA_PATH_V13_0
+            import re
+            match = re.search(r'CUDA_PATH_V(\d+)_(\d+)', key)
+            if match:
+                return (int(match.group(1)), int(match.group(2)))
+    
+    # Try to get version from torch
+    try:
+        cuda_ver = torch.version.cuda
+        if cuda_ver:
+            parts = cuda_ver.split('.')
+            if len(parts) >= 2:
+                return (int(parts[0]), int(parts[1]))
+    except:
+        pass
+    
+    return None
+
+
 def find_llama_bin_dir():
     """
     Find the llama.cpp bin directory.
@@ -3322,26 +3358,55 @@ def start_llama_server(gguf_path: str):
                     logger.error("[LLAMA-SERVER] ERROR: Missing DLL dependencies!")
                     logger.error("=" * 70)
                     logger.error("")
-                    logger.error("The CUDA version of llama-server.exe requires CUDA runtime DLLs.")
-                    logger.error("")
-                    logger.error("FIX OPTION 1 - Install CUDA Toolkit (Recommended):")
-                    logger.error("  1. Download CUDA 12.x from: https://developer.nvidia.com/cuda-downloads")
-                    logger.error("  2. Install with default options")
-                    logger.error("  3. Restart your computer")
-                    logger.error("  4. Try again")
-                    logger.error("")
-                    logger.error("FIX OPTION 2 - Use CPU version instead:")
-                    logger.error("  1. Download: llama-bxxxx-bin-win-avx2-x64.zip (NOT cuda)")
-                    logger.error("     From: https://github.com/ggerganov/llama.cpp/releases")
-                    logger.error("  2. Extract to: CivicAI\\llama.cpp-bin-cuda\\ (replace existing)")
-                    logger.error("  3. Try again (will be slower but works without CUDA)")
-                    logger.error("")
-                    logger.error("FIX OPTION 3 - Add CUDA DLLs to PATH:")
-                    logger.error("  If CUDA is installed but DLLs not found:")
-                    logger.error("  1. Open System Properties > Environment Variables")
-                    logger.error("  2. Add to PATH: C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.x\\bin")
-                    logger.error("  3. Restart your terminal")
-                    logger.error("=" * 70)
+                    
+                    # Check installed CUDA version
+                    installed_cuda = get_installed_cuda_version()
+                    if installed_cuda:
+                        cuda_major, cuda_minor = installed_cuda
+                        logger.error(f"Detected installed CUDA Toolkit: v{cuda_major}.{cuda_minor}")
+                        
+                        if cuda_major >= 13:
+                            logger.error("")
+                            logger.error("IMPORTANT: You have CUDA 13.x but pre-built binaries require CUDA 12.x!")
+                            logger.error("The pre-built llama-server.exe is compiled for CUDA 12.x.")
+                            logger.error("")
+                            logger.error("FIX: Build llama-cpp-python from source instead.")
+                            logger.error("This will compile against your installed CUDA 13.x:")
+                            logger.error("")
+                            logger.error("  PowerShell:")
+                            logger.error('    $env:CMAKE_ARGS="-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on"')
+                            logger.error("    pip install llama-cpp-python --force-reinstall --no-cache-dir")
+                            logger.error("")
+                            logger.error("  OR CMD:")
+                            logger.error('    set CMAKE_ARGS=-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on')
+                            logger.error("    pip install llama-cpp-python --force-reinstall --no-cache-dir")
+                            logger.error("")
+                            logger.error("After building, restart the server WITHOUT llama-server.exe in llama.cpp-bin-cuda/")
+                            logger.error("=" * 70)
+                        else:
+                            logger.error("")
+                            logger.error("CUDA Toolkit is installed but DLLs are not in PATH.")
+                            logger.error("")
+                            logger.error("FIX: Add CUDA bin to PATH:")
+                            logger.error(f"  1. Open System Properties > Environment Variables")
+                            logger.error(f"  2. Add to PATH: C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v{cuda_major}.{cuda_minor}\\bin")
+                            logger.error("  3. Restart your terminal")
+                            logger.error("=" * 70)
+                    else:
+                        logger.error("The CUDA version of llama-server.exe requires CUDA runtime DLLs.")
+                        logger.error("")
+                        logger.error("FIX OPTION 1 - Install CUDA Toolkit (Recommended):")
+                        logger.error("  1. Download CUDA 12.x from: https://developer.nvidia.com/cuda-downloads")
+                        logger.error("  2. Install with default options")
+                        logger.error("  3. Restart your computer")
+                        logger.error("  4. Try again")
+                        logger.error("")
+                        logger.error("FIX OPTION 2 - Use CPU version instead:")
+                        logger.error("  1. Download: llama-bxxxx-bin-win-avx2-x64.zip (NOT cuda)")
+                        logger.error("     From: https://github.com/ggerganov/llama.cpp/releases")
+                        logger.error("  2. Extract to: CivicAI\\llama.cpp-bin-cuda\\ (replace existing)")
+                        logger.error("  3. Try again (will be slower but works without CUDA)")
+                        logger.error("=" * 70)
                 elif is_access_violation:
                     logger.error("[LLAMA-SERVER] ERROR: Access violation (crash)")
                     logger.error("[LLAMA-SERVER] This often means GPU VRAM is insufficient")
@@ -12231,38 +12296,72 @@ if __name__ == "__main__":
             logger.info(f"[GGUF] Using active GGUF from admin: {gguf_path}")
     
     if gguf_path:
+        # Check installed CUDA version
+        installed_cuda = get_installed_cuda_version()
+        skip_llama_server = False
+        
+        if installed_cuda:
+            cuda_major, cuda_minor = installed_cuda
+            logger.info(f"[GGUF] Detected installed CUDA Toolkit: v{cuda_major}.{cuda_minor}")
+            
+            if cuda_major >= 13:
+                logger.warning(f"[GGUF] You have CUDA {cuda_major}.{cuda_minor} but pre-built binaries need CUDA 12.x")
+                logger.info("[GGUF] Skipping pre-built llama-server.exe, will use llama-cpp-python source build")
+                skip_llama_server = True
+        
         # First check if user wants to use pre-built llama-server.exe
-        if args.llama_bin or find_llama_bin_dir():
+        if not skip_llama_server and (args.llama_bin or find_llama_bin_dir()):
             logger.info("[GGUF] Using pre-built llama-server.exe backend")
             if start_llama_server(gguf_path):
                 logger.info("[GGUF] llama-server.exe started successfully!")
             else:
                 logger.error("[GGUF] Failed to start llama-server.exe")
-                logger.error("[GGUF] Please fix the issue above before continuing.")
-                logger.error("[GGUF] NOT falling back to llama-cpp-python (requires compilation)")
-                logger.info("[GGUF] ")
-                logger.info("[GGUF] QUICK FIX: Use the AVX2/CPU version instead of CUDA:")
-                logger.info("[GGUF]   1. Download: llama-bxxxx-bin-win-avx2-x64.zip")
-                logger.info("[GGUF]      From: https://github.com/ggerganov/llama.cpp/releases")
-                logger.info("[GGUF]   2. Extract to: CivicAI\\llama.cpp-bin-cuda\\ (replace existing)")
-                logger.info("[GGUF]   3. Restart server")
-                logger.info("[GGUF] ")
-                logger.info("[GGUF] Falling back to HuggingFace backend (will use your original model)")
-        else:
+                
+                # If CUDA 13.x detected, suggest source build
+                if installed_cuda and installed_cuda[0] >= 13:
+                    logger.info("[GGUF] ")
+                    logger.info("[GGUF] Since you have CUDA 13.x, falling back to llama-cpp-python source build...")
+                    skip_llama_server = True  # Will trigger llama-cpp-python below
+                else:
+                    logger.error("[GGUF] Please fix the issue above before continuing.")
+                    logger.info("[GGUF] ")
+                    logger.info("[GGUF] QUICK FIX: Use the AVX2/CPU version instead of CUDA:")
+                    logger.info("[GGUF]   1. Download: llama-bxxxx-bin-win-avx2-x64.zip")
+                    logger.info("[GGUF]      From: https://github.com/ggerganov/llama.cpp/releases")
+                    logger.info("[GGUF]   2. Extract to: CivicAI\\llama.cpp-bin-cuda\\ (replace existing)")
+                    logger.info("[GGUF]   3. Restart server")
+                    logger.info("[GGUF] ")
+                    logger.info("[GGUF] Falling back to HuggingFace backend (will use your original model)")
+        
+        # Try llama-cpp-python if llama-server.exe was skipped or failed with CUDA 13.x
+        if skip_llama_server or not (args.llama_bin or find_llama_bin_dir()):
             # Try llama-cpp-python
             try:
-                logger.info(f"[GGUF] Starting with GGUF backend: {gguf_path}")
+                logger.info(f"[GGUF] Starting with GGUF backend (llama-cpp-python): {gguf_path}")
                 load_gguf_model(gguf_path)
                 logger.info("[GGUF] Model pre-loaded successfully")
             except Exception as e:
                 logger.error(f"[GGUF] Failed to load GGUF model: {e}")
                 logger.info("[GGUF] ")
-                logger.info("[GGUF] === TIP: Use pre-built llama-server.exe ===")
-                logger.info("[GGUF] 1. Download from: https://github.com/ggerganov/llama.cpp/releases")
-                logger.info("[GGUF]    Look for: llama-bxxxx-bin-win-cuda-cu12.x.x-x86_64.zip")
-                logger.info("[GGUF] 2. Extract to: CivicAI\\llama.cpp-bin-cuda\\")
-                logger.info("[GGUF] 3. Restart server - it will auto-detect the binaries!")
-                logger.info("[GGUF] ============================================")
+                if installed_cuda and installed_cuda[0] >= 13:
+                    logger.info("[GGUF] === CUDA 13.x detected - Manual build required ===")
+                    logger.info("[GGUF] The automatic build may have failed. Try manually:")
+                    logger.info("[GGUF] ")
+                    logger.info("[GGUF]   PowerShell:")
+                    logger.info('[GGUF]     $env:CMAKE_ARGS="-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on"')
+                    logger.info("[GGUF]     pip install llama-cpp-python --force-reinstall --no-cache-dir")
+                    logger.info("[GGUF] ")
+                    logger.info("[GGUF]   CMD:")
+                    logger.info('[GGUF]     set CMAKE_ARGS=-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on')
+                    logger.info("[GGUF]     pip install llama-cpp-python --force-reinstall --no-cache-dir")
+                    logger.info("[GGUF] ================================================")
+                else:
+                    logger.info("[GGUF] === TIP: Use pre-built llama-server.exe ===")
+                    logger.info("[GGUF] 1. Download from: https://github.com/ggerganov/llama.cpp/releases")
+                    logger.info("[GGUF]    Look for: llama-bxxxx-bin-win-cuda-cu12.x.x-x86_64.zip")
+                    logger.info("[GGUF] 2. Extract to: CivicAI\\llama.cpp-bin-cuda\\")
+                    logger.info("[GGUF] 3. Restart server - it will auto-detect the binaries!")
+                    logger.info("[GGUF] ============================================")
                 logger.info("[GGUF] Falling back to HuggingFace backend")
     
     port = int(os.getenv('ML_SERVICE_PORT', '5000'))
