@@ -56,15 +56,14 @@ import requests  # For Tavily API and SMHI weather
 # ONESEEK Δ+ MODULE IMPORTS
 # =============================================================================
 # Intent Engine, Typo Checker, Confidence Calculator, Delta Compare, Cache Manager, Memory Manager
-# Note: We try relative imports first (when running as a package), then absolute imports (when running as a script)
 try:
-    from intent_engine import get_intent_engine, process_user_input, generate_topic_hash, detect_intent_and_city, get_spacy_info
+    from .intent_engine import get_intent_engine, process_user_input, generate_topic_hash, detect_intent_and_city, get_spacy_info
     INTENT_ENGINE_AVAILABLE = True
 except ImportError:
     try:
-        from .intent_engine import get_intent_engine, process_user_input, generate_topic_hash, detect_intent_and_city, get_spacy_info
+        from intent_engine import get_intent_engine, process_user_input, generate_topic_hash, detect_intent_and_city, get_spacy_info
         INTENT_ENGINE_AVAILABLE = True
-    except (ImportError, SystemError):
+    except ImportError:
         INTENT_ENGINE_AVAILABLE = False
         get_intent_engine = None
         process_user_input = None
@@ -74,7 +73,7 @@ except ImportError:
 
 # Memory Manager for topic-based conversation history
 try:
-    from memory_manager import (
+    from .memory_manager import (
         save_message_with_memory, 
         get_topic_context, 
         get_user_topics,
@@ -84,7 +83,7 @@ try:
     MEMORY_MANAGER_AVAILABLE = True
 except ImportError:
     try:
-        from .memory_manager import (
+        from memory_manager import (
             save_message_with_memory, 
             get_topic_context, 
             get_user_topics,
@@ -92,7 +91,7 @@ except ImportError:
             group_messages_by_topic
         )
         MEMORY_MANAGER_AVAILABLE = True
-    except (ImportError, SystemError):
+    except ImportError:
         MEMORY_MANAGER_AVAILABLE = False
         save_message_with_memory = None
         get_topic_context = None
@@ -102,13 +101,13 @@ except ImportError:
 
 # ONESEEK Δ+: Typo Checker - now using LanguageTool-based typo_checker.py
 try:
-    from typo_checker import get_typo_checker, check_spelling, get_checker_status
+    from .typo_checker import get_typo_checker, check_spelling, get_checker_status
     TYPO_CHECKER_AVAILABLE = True
 except ImportError:
     try:
-        from .typo_checker import get_typo_checker, check_spelling, get_checker_status
+        from typo_checker import get_typo_checker, check_spelling, get_checker_status
         TYPO_CHECKER_AVAILABLE = True
-    except (ImportError, SystemError):
+    except ImportError:
         TYPO_CHECKER_AVAILABLE = False
         get_typo_checker = None
         check_spelling = None
@@ -116,7 +115,7 @@ except ImportError:
 
 # ONESEEK Δ+: LanguageTool client for context-aware spell checking
 try:
-    from language_tool import (
+    from .language_tool import (
         check_text as lt_check_text,
         is_server_available as lt_is_available,
         get_server_status as lt_get_status
@@ -124,13 +123,13 @@ try:
     LANGUAGETOOL_AVAILABLE = True
 except ImportError:
     try:
-        from .language_tool import (
+        from language_tool import (
             check_text as lt_check_text,
             is_server_available as lt_is_available,
             get_server_status as lt_get_status
         )
         LANGUAGETOOL_AVAILABLE = True
-    except (ImportError, SystemError):
+    except ImportError:
         LANGUAGETOOL_AVAILABLE = False
         lt_check_text = None
         lt_is_available = None
@@ -138,49 +137,49 @@ except ImportError:
 
 # ONESEEK Δ+ Alignment: Stavfel Dataset Manager
 try:
-    from stavfel_dataset import get_stavfel_dataset, save_typo_pair
+    from .stavfel_dataset import get_stavfel_dataset, save_typo_pair
     STAVFEL_DATASET_AVAILABLE = True
 except ImportError:
     try:
-        from .stavfel_dataset import get_stavfel_dataset, save_typo_pair
+        from stavfel_dataset import get_stavfel_dataset, save_typo_pair
         STAVFEL_DATASET_AVAILABLE = True
-    except (ImportError, SystemError):
+    except ImportError:
         STAVFEL_DATASET_AVAILABLE = False
         get_stavfel_dataset = None
         save_typo_pair = None
 
 try:
-    from calculate_confidence import get_confidence_calculator, calculate_confidence
+    from .calculate_confidence import get_confidence_calculator, calculate_confidence
     CONFIDENCE_CALC_AVAILABLE = True
 except ImportError:
     try:
-        from .calculate_confidence import get_confidence_calculator, calculate_confidence
+        from calculate_confidence import get_confidence_calculator, calculate_confidence
         CONFIDENCE_CALC_AVAILABLE = True
-    except (ImportError, SystemError):
+    except ImportError:
         CONFIDENCE_CALC_AVAILABLE = False
         get_confidence_calculator = None
         calculate_confidence = None
 
 try:
-    from delta_compare import get_delta_compare, create_response_hash
+    from .delta_compare import get_delta_compare, create_response_hash
     DELTA_COMPARE_AVAILABLE = True
 except ImportError:
     try:
-        from .delta_compare import get_delta_compare, create_response_hash
+        from delta_compare import get_delta_compare, create_response_hash
         DELTA_COMPARE_AVAILABLE = True
-    except (ImportError, SystemError):
+    except ImportError:
         DELTA_COMPARE_AVAILABLE = False
         get_delta_compare = None
         create_response_hash = None
 
 try:
-    from cache_manager import get_cache_manager, cache_get, cache_set
+    from .cache_manager import get_cache_manager, cache_get, cache_set
     CACHE_MANAGER_AVAILABLE = True
 except ImportError:
     try:
-        from .cache_manager import get_cache_manager, cache_get, cache_set
+        from cache_manager import get_cache_manager, cache_get, cache_set
         CACHE_MANAGER_AVAILABLE = True
-    except (ImportError, SystemError):
+    except ImportError:
         CACHE_MANAGER_AVAILABLE = False
         get_cache_manager = None
         cache_get = None
@@ -188,7 +187,7 @@ except ImportError:
 
 # ONESEEK Δ+: Svenska kärnpromptar (förhindrar engelskt läckage)
 try:
-    from prompts.swedish_core import (
+    from .prompts.swedish_core import (
         FORCE_SWEDISH_STRICT,
         AUTOCORRECT_PERSONALITY_PROMPT,
         MEMORY_PROMPT,
@@ -200,7 +199,7 @@ try:
     SWEDISH_PROMPTS_AVAILABLE = True
 except ImportError:
     try:
-        from .prompts.swedish_core import (
+        from prompts.swedish_core import (
             FORCE_SWEDISH_STRICT,
             AUTOCORRECT_PERSONALITY_PROMPT,
             MEMORY_PROMPT,
@@ -210,7 +209,7 @@ except ImportError:
             translate_to_swedish
         )
         SWEDISH_PROMPTS_AVAILABLE = True
-    except (ImportError, SystemError):
+    except ImportError:
         SWEDISH_PROMPTS_AVAILABLE = False
         FORCE_SWEDISH_STRICT = "Du pratar alltid svenska. Inga engelska ord."
         get_swedish_label = lambda x: x
@@ -218,7 +217,7 @@ except ImportError:
 
 # ONESEEK Δ+: Message Builder for real-time prompt testing
 try:
-    from message_builder import (
+    from .message_builder import (
         get_structure_templates,
         get_default_structure,
         save_default_structure,
@@ -229,7 +228,7 @@ try:
     MESSAGE_BUILDER_AVAILABLE = True
 except ImportError:
     try:
-        from .message_builder import (
+        from message_builder import (
             get_structure_templates,
             get_default_structure,
             save_default_structure,
@@ -238,7 +237,7 @@ except ImportError:
             compare_structures
         )
         MESSAGE_BUILDER_AVAILABLE = True
-    except (ImportError, SystemError):
+    except ImportError:
         MESSAGE_BUILDER_AVAILABLE = False
         get_structure_templates = None
         get_default_structure = None
@@ -256,7 +255,7 @@ except ImportError:
 # =============================================================================
 # Separate module for API integrations to keep server.py clean
 try:
-    from api_integrations import (
+    from .api_integrations import (
         fetch_riksdagen_ledamoter,
         get_api_registry,
         get_api_integration,
@@ -306,7 +305,7 @@ try:
     API_INTEGRATIONS_AVAILABLE = True
 except ImportError:
     try:
-        from .api_integrations import (
+        from api_integrations import (
             fetch_riksdagen_ledamoter,
             get_api_registry,
             get_api_integration,
@@ -354,7 +353,7 @@ except ImportError:
             fetch_open_data,
         )
         API_INTEGRATIONS_AVAILABLE = True
-    except (ImportError, SystemError):
+    except ImportError:
         API_INTEGRATIONS_AVAILABLE = False
         fetch_riksdagen_ledamoter = None
         get_api_registry = None
