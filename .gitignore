@@ -214,3 +214,6 @@ functions/.env
 
 # Downloaded llama.cpp scripts (auto-downloaded for GGUF export)
 scripts/llama_cpp_scripts/
+
+# Runtime configuration (may contain sensitive API keys)
+config/runtime_settings.json
