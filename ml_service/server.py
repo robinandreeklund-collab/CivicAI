@@ -3556,8 +3556,9 @@ def ensure_llama_cpp_python():
     Returns True if available, False if installation failed.
     
     Installation priority:
-    1. Try pre-built CUDA wheels from llama-cpp-python-cuda (no compilation!)
-    2. Try building from source with CMAKE_ARGS
+    1. If CUDA 13.x installed: Go directly to source build (pre-built wheels are for CUDA 12.x)
+    2. Otherwise: Try pre-built CUDA wheels from llama-cpp-python-cuda (no compilation!)
+    3. Fallback: Try building from source with CMAKE_ARGS
     
     For CUDA GPUs (like RTX 2080 Ti), uses:
     CMAKE_ARGS="-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on"
@@ -3577,74 +3578,92 @@ def ensure_llama_cpp_python():
             logger.error("[GGUF] CPU-only mode is not supported as it would be too slow.")
             return False
         
-        # Get CUDA version for wheel selection
+        # Get installed CUDA Toolkit version (from environment variables)
+        # This is more accurate than torch.version.cuda which just shows what PyTorch was compiled with
+        installed_cuda = get_installed_cuda_version()
+        skip_prebuilt_wheels = False
+        
+        if installed_cuda:
+            cuda_major, cuda_minor = installed_cuda
+            logger.info(f"[GGUF] Detected installed CUDA Toolkit: v{cuda_major}.{cuda_minor}")
+            
+            if cuda_major >= 13:
+                logger.warning(f"[GGUF] You have CUDA {cuda_major}.{cuda_minor} - pre-built wheels are for CUDA 12.x")
+                logger.info("[GGUF] Will build from source to compile against your CUDA 13.x")
+                skip_prebuilt_wheels = True
+        
+        # Get CUDA version for wheel selection (fallback to PyTorch's CUDA version)
         cuda_version = None
-        try:
-            cuda_version = torch.version.cuda
-            logger.info(f"[GGUF] Detected CUDA version: {cuda_version}")
-        except:
-            cuda_version = "12.1"  # Default assumption
-            logger.info(f"[GGUF] Could not detect CUDA version, assuming {cuda_version}")
-        
-        # STEP 1: Try pre-built CUDA wheels from llama-cpp-python-cuda
-        # These are pre-compiled wheels that don't require Visual Studio or CUDA Toolkit
-        logger.info("[GGUF] Trying pre-built CUDA wheel (fastest, no compilation)...")
-        
-        # The llama-cpp-python-cuda package provides pre-built wheels
-        # See: https://github.com/jllllll/llama-cpp-python-cuBLAS-wheels
-        cuda_wheel_urls = []
-        
-        # Determine Python version for wheel
-        py_version = f"cp{sys.version_info.major}{sys.version_info.minor}"
-        
-        # Try CUDA 12.x wheels first, then 11.x
-        if cuda_version and cuda_version.startswith("12"):
-            cuda_wheel_urls = [
-                f"https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.2/llama_cpp_python-0.3.2-{py_version}-{py_version}-win_amd64.whl",
-                "llama-cpp-python-cuda",  # Try the cuda package from PyPI
-            ]
-        else:
-            cuda_wheel_urls = [
-                "llama-cpp-python-cuda",
-            ]
-        
-        # Try each pre-built option
-        for wheel_url in cuda_wheel_urls:
+        if not skip_prebuilt_wheels:
             try:
-                logger.info(f"[GGUF] Trying: {wheel_url}")
-                
-                if wheel_url.startswith("http"):
-                    # Direct wheel URL
-                    result = subprocess.run(
-                        [sys.executable, '-m', 'pip', 'install', wheel_url, '--force-reinstall'],
-                        capture_output=True,
-                        text=True,
-                        timeout=120,
-                    )
-                else:
-                    # PyPI package name
-                    result = subprocess.run(
-                        [sys.executable, '-m', 'pip', 'install', wheel_url, '--force-reinstall', '--no-cache-dir'],
-                        capture_output=True,
-                        text=True,
-                        timeout=120,
-                    )
-                
-                if result.returncode == 0:
-                    # Verify it imports correctly
-                    try:
-                        import importlib
-                        if 'llama_cpp' in sys.modules:
-                            del sys.modules['llama_cpp']
-                        import llama_cpp
-                        logger.info("[GGUF] Pre-built CUDA wheel installed successfully!")
-                        return True
-                    except ImportError:
-                        logger.warning("[GGUF] Wheel installed but import failed, trying next option...")
-                        continue
-            except Exception as e:
-                logger.warning(f"[GGUF] Pre-built wheel failed: {e}")
-                continue
+                cuda_version = torch.version.cuda
+                logger.info(f"[GGUF] PyTorch CUDA version: {cuda_version}")
+            except:
+                cuda_version = "12.1"  # Default assumption
+                logger.info(f"[GGUF] Could not detect CUDA version, assuming {cuda_version}")
+        
+        # STEP 1: Try pre-built CUDA wheels (SKIP if CUDA 13.x detected)
+        if skip_prebuilt_wheels:
+            logger.info("[GGUF] Skipping pre-built wheels (CUDA 13.x requires source build)...")
+        else:
+            # These are pre-compiled wheels that don't require Visual Studio or CUDA Toolkit
+            logger.info("[GGUF] Trying pre-built CUDA wheel (fastest, no compilation)...")
+        
+            # The llama-cpp-python-cuda package provides pre-built wheels
+            # See: https://github.com/jllllll/llama-cpp-python-cuBLAS-wheels
+            cuda_wheel_urls = []
+            
+            # Determine Python version for wheel
+            py_version = f"cp{sys.version_info.major}{sys.version_info.minor}"
+            
+            # Try CUDA 12.x wheels first, then 11.x
+            if cuda_version and cuda_version.startswith("12"):
+                cuda_wheel_urls = [
+                    f"https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.2/llama_cpp_python-0.3.2-{py_version}-{py_version}-win_amd64.whl",
+                    "llama-cpp-python-cuda",  # Try the cuda package from PyPI
+                ]
+            else:
+                cuda_wheel_urls = [
+                    "llama-cpp-python-cuda",
+                ]
+            
+            # Try each pre-built option
+            for wheel_url in cuda_wheel_urls:
+                try:
+                    logger.info(f"[GGUF] Trying: {wheel_url}")
+                    
+                    if wheel_url.startswith("http"):
+                        # Direct wheel URL
+                        result = subprocess.run(
+                            [sys.executable, '-m', 'pip', 'install', wheel_url, '--force-reinstall'],
+                            capture_output=True,
+                            text=True,
+                            timeout=120,
+                        )
+                    else:
+                        # PyPI package name
+                        result = subprocess.run(
+                            [sys.executable, '-m', 'pip', 'install', wheel_url, '--force-reinstall', '--no-cache-dir'],
+                            capture_output=True,
+                            text=True,
+                            timeout=120,
+                        )
+                    
+                    if result.returncode == 0:
+                        # Verify it imports correctly
+                        try:
+                            import importlib
+                            if 'llama_cpp' in sys.modules:
+                                del sys.modules['llama_cpp']
+                            import llama_cpp
+                            logger.info("[GGUF] Pre-built CUDA wheel installed successfully!")
+                            return True
+                        except ImportError:
+                            logger.warning("[GGUF] Wheel installed but import failed, trying next option...")
+                            continue
+                except Exception as e:
+                    logger.warning(f"[GGUF] Pre-built wheel failed: {e}")
+                    continue
         
         # STEP 2: Try building from source with CMAKE_ARGS
         logger.info("[GGUF] Pre-built wheels not available, building from source...")
