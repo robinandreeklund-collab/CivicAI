@@ -3582,33 +3582,79 @@ def ensure_llama_cpp_python():
                 continue
         
         # STEP 2: Try building from source with CMAKE_ARGS
-        logger.info("[GGUF] Pre-built wheels not available, trying source build...")
-        logger.info("[GGUF] This requires Visual Studio Build Tools and CUDA Toolkit...")
-        logger.info("[GGUF] This may take 5-10 minutes to compile...")
+        logger.info("[GGUF] Pre-built wheels not available, building from source...")
+        logger.info("[GGUF] Requires: Visual Studio Build Tools + CUDA Toolkit")
+        logger.info("[GGUF] This will take 5-15 minutes to compile...")
         
         try:
             # Set environment for CUDA build with optimal flags for RTX cards
             env = os.environ.copy()
-            env['CMAKE_ARGS'] = '-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on'
+            
+            # Full CMAKE_ARGS for CUDA support on RTX 2080 Ti and similar cards
+            cmake_args = '-DLLAMA_CUDA=on -DLLAMA_CUDA_F16=ON -DLLAMA_CUBLAS=on'
+            env['CMAKE_ARGS'] = cmake_args
             env['FORCE_CMAKE'] = '1'
             
-            logger.info(f"[GGUF] CMAKE_ARGS: {env['CMAKE_ARGS']}")
+            # On Windows, also set these to help find Visual Studio
+            if sys.platform == 'win32':
+                # Ensure cl.exe and nvcc can be found
+                env['CMAKE_GENERATOR'] = 'Visual Studio 17 2022'  # VS2022
+                env['CMAKE_GENERATOR_PLATFORM'] = 'x64'
             
-            result = subprocess.run(
-                [sys.executable, '-m', 'pip', 'install', 'llama-cpp-python', '--force-reinstall', '--no-cache-dir'],
-                capture_output=True,
+            logger.info(f"[GGUF] CMAKE_ARGS: {cmake_args}")
+            logger.info("[GGUF] Starting pip install with source compilation...")
+            
+            # Run pip install with real-time output
+            process = subprocess.Popen(
+                [sys.executable, '-m', 'pip', 'install', 'llama-cpp-python', 
+                 '--force-reinstall', '--no-cache-dir', '--verbose'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
-                timeout=900,  # 15 minute timeout for compilation
                 env=env,
+                bufsize=1,
             )
             
-            if result.returncode == 0:
-                logger.info("[GGUF] llama-cpp-python with CUDA installed successfully!")
-                return True
+            # Stream output in real-time
+            output_lines = []
+            last_log_time = time.time()
+            while True:
+                line = process.stdout.readline()
+                if not line and process.poll() is not None:
+                    break
+                if line:
+                    output_lines.append(line)
+                    # Log progress every 30 seconds
+                    if time.time() - last_log_time > 30:
+                        logger.info("[GGUF] Still compiling... please wait")
+                        last_log_time = time.time()
+                    # Log important lines immediately
+                    line_lower = line.lower()
+                    if 'error' in line_lower or 'failed' in line_lower:
+                        logger.error(f"[GGUF] {line.strip()}")
+                    elif 'building' in line_lower or 'installing' in line_lower:
+                        logger.info(f"[GGUF] {line.strip()}")
+            
+            returncode = process.wait(timeout=900)  # 15 minute max
+            
+            if returncode == 0:
+                # Verify installation
+                try:
+                    import importlib
+                    if 'llama_cpp' in sys.modules:
+                        del sys.modules['llama_cpp']
+                    import llama_cpp
+                    logger.info("[GGUF] llama-cpp-python with CUDA installed successfully!")
+                    return True
+                except ImportError as e:
+                    logger.error(f"[GGUF] Install succeeded but import failed: {e}")
             else:
-                logger.error(f"[GGUF] CUDA build failed!")
-                if result.stderr:
-                    logger.error(f"[GGUF] Error: {result.stderr[:1000]}")
+                logger.error(f"[GGUF] CUDA build failed with exit code: {returncode}")
+                # Show last 20 lines of output for debugging
+                if output_lines:
+                    logger.error("[GGUF] Last 20 lines of build output:")
+                    for line in output_lines[-20:]:
+                        logger.error(f"[GGUF]   {line.strip()}")
                     
         except subprocess.TimeoutExpired:
             logger.error("[GGUF] Compilation timed out (15 min)")
