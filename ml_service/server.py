@@ -3172,6 +3172,10 @@ USING_LLAMA_SERVER = False
 LLAMA_SERVER_URL = None
 LLAMA_SERVER_PROCESS = None
 
+# Windows error codes for better error messages
+STATUS_DLL_NOT_FOUND = 0xC0000135  # 3221225781 - Missing DLL dependencies
+STATUS_ACCESS_VIOLATION = 0xC0000005  # 3221225477 - Memory access violation/crash
+
 def find_llama_bin_dir():
     """
     Find the llama.cpp bin directory.
@@ -3308,8 +3312,11 @@ def start_llama_server(gguf_path: str):
             if poll is not None:
                 logger.error(f"[LLAMA-SERVER] Process exited with code: {poll}")
                 
-                # Decode common Windows exit codes
-                if poll == 3221225781 or poll == -1073741515:  # 0xC0000135 = STATUS_DLL_NOT_FOUND
+                # Decode common Windows exit codes (check both unsigned and signed representations)
+                is_dll_not_found = poll == STATUS_DLL_NOT_FOUND or poll == (STATUS_DLL_NOT_FOUND - 0x100000000)
+                is_access_violation = poll == STATUS_ACCESS_VIOLATION or poll == (STATUS_ACCESS_VIOLATION - 0x100000000)
+                
+                if is_dll_not_found:
                     logger.error("")
                     logger.error("=" * 70)
                     logger.error("[LLAMA-SERVER] ERROR: Missing DLL dependencies!")
@@ -3335,7 +3342,7 @@ def start_llama_server(gguf_path: str):
                     logger.error("  2. Add to PATH: C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.x\\bin")
                     logger.error("  3. Restart your terminal")
                     logger.error("=" * 70)
-                elif poll == 3221225501 or poll == -1073741795:  # 0xC0000005 = Access Violation
+                elif is_access_violation:
                     logger.error("[LLAMA-SERVER] ERROR: Access violation (crash)")
                     logger.error("[LLAMA-SERVER] This often means GPU VRAM is insufficient")
                     logger.error("[LLAMA-SERVER] Try reducing -ngl (GPU layers) or -c (context size)")
