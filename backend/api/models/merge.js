@@ -20,11 +20,12 @@ const __dirname = dirname(__filename);
 
 const router = express.Router();
 
-// GGUF quantization options
+// GGUF quantization options - using two-step export with Q5 variants
 const QUANTIZATION_TYPES = {
-  'Q5_K_M': { description: 'Medium quality, good balance of size/quality', bits: 5 },
-  'Q6_K': { description: 'High quality, larger size', bits: 6 },
-  'Q8_0': { description: 'Best quality, largest size', bits: 8 },
+  'Q5_K_M': { description: 'Medium quality Q5, best balance of size/quality (recommended)', bits: 5 },
+  'Q5_K_S': { description: 'Small Q5, smaller size with minimal quality loss', bits: 5 },
+  'Q5_K': { description: 'Q5 K-quant (alias for Q5_K_M)', bits: 5 },
+  'Q5_0': { description: 'Original Q5 format (older, larger)', bits: 5 },
 };
 
 /**
@@ -417,16 +418,17 @@ router.post('/gguf/export', async (req, res) => {
       // File doesn't exist, proceed with export
     }
     
-    // Run the export script
-    const scriptPath = path.join(process.cwd(), '..', 'scripts', 'export_gguf.py');
+    // Use the new two-step GGUF export script (export_gguf_q5.py)
+    // This is more reliable than the old export_gguf.py which uses llama-cpp-python
+    const scriptPath = path.join(process.cwd(), '..', 'scripts', 'export_gguf_q5.py');
     
-    // Determine Python command - MUST use project venv for llama-cpp-python
+    // Determine Python command
     let pythonCommand = 'python3';
     if (process.platform === 'win32') {
       pythonCommand = 'python';
     }
     
-    // Check for project root venv (CivicAI/venv)
+    // Check for project root venv (CivicAI/venv) - optional for new scripts
     const projectRoot = path.join(process.cwd(), '..');
     const venvPath = path.join(projectRoot, 'venv');
     const venvPythonWin = path.join(venvPath, 'Scripts', 'python.exe');
@@ -461,15 +463,14 @@ router.post('/gguf/export', async (req, res) => {
       
       if (!foundVenv) {
         console.log(`[GGUF Export] No venv found, using system Python: ${pythonCommand}`);
-        console.log(`[GGUF Export] WARNING: llama-cpp-python may not be installed in system Python!`);
       }
     }
     
     const args = [
       scriptPath,
-      '--model-path', resolvedModelPath,
-      '--output', ggufPath,
-      '--quantization', validQuantization,
+      '--src', resolvedModelPath,
+      '--out', ggufPath,
+      '--type', validQuantization,
       '--json-output',
     ];
     
@@ -478,14 +479,15 @@ router.post('/gguf/export', async (req, res) => {
     // Send initial response that export is starting
     res.json({
       success: true,
-      message: 'GGUF export started',
+      message: 'GGUF export started (two-step: F16 → Q5)',
       status: 'running',
       modelPath: resolvedModelPath,
       ggufPath: ggufPath,
       outputName: ggufFileName,
       quantization: validQuantization,
       pythonUsed: pythonCommand,
-      note: 'Export is running in background. Check GGUF Exports tab for status.',
+      exportMethod: 'two-step',
+      note: 'Export is running in background using two-step process (F16 → Q5). Check GGUF Exports tab for status.',
     });
     
     // Run export in background with proper environment
@@ -559,10 +561,18 @@ router.post('/gguf/export', async (req, res) => {
         createdAt: new Date().toISOString(),
         error: error.message,
         instructions: [
-          '1. Install llama.cpp: git clone https://github.com/ggerganov/llama.cpp',
-          '2. Build: cd llama.cpp && make',
-          `3. Convert: python llama.cpp/convert_hf_to_gguf.py "${resolvedModelPath}" --outtype f16 --outfile "${ggufDir}/${dnaName}.f16.gguf"`,
-          `4. Quantize: ./llama.cpp/quantize "${ggufDir}/${dnaName}.f16.gguf" "${ggufPath}" ${validQuantization}`,
+          'GGUF export failed. You can export manually using the two-step process:',
+          '',
+          '1. Download llama.cpp binaries from: https://github.com/ggerganov/llama.cpp/releases',
+          `2. Extract to: %USERPROFILE%\\Documents\\GitHub\\CivicAI\\llama.cpp-bin-cuda\\`,
+          '3. Or set environment variable: LLAMA_QUANTIZE_PATH=C:\\path\\to\\llama-quantize.exe',
+          '',
+          'Then run from project root:',
+          `  python scripts/export_gguf_q5.py --src "${resolvedModelPath}" --out "${ggufPath}"`,
+          '',
+          'Or manually do two-step export:',
+          `  Step 1: python scripts/export_gguf_f16.py --src "${resolvedModelPath}" --out "${ggufDir}/${dnaName}.f16.gguf"`,
+          `  Step 2: python scripts/quantize_q5.py --src "${ggufDir}/${dnaName}.f16.gguf" --out "${ggufPath}"`,
         ],
       };
       
