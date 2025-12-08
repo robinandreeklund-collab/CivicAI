@@ -1253,9 +1253,24 @@ export default function ModelManagement() {
                       onChange={(e) => setGgufQuantization(e.target.value)}
                       className="w-full bg-[#111] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444]"
                     >
-                      <option value="Q5_K_M">Q5_K_M (Medium quality, balanced)</option>
-                      <option value="Q6_K">Q6_K (High quality, larger)</option>
-                      <option value="Q8_0">Q8_0 (Best quality, largest)</option>
+                      <optgroup label="Q4 - Smaller Size">
+                        <option value="Q4_K_M">Q4_K_M (Medium Q4, compact)</option>
+                        <option value="Q4_K_S">Q4_K_S (Small Q4, smallest)</option>
+                        <option value="Q4_0">Q4_0 (Legacy Q4)</option>
+                      </optgroup>
+                      <optgroup label="Q5 - Balanced (Recommended)">
+                        <option value="Q5_K_M">Q5_K_M (Medium Q5, recommended)</option>
+                        <option value="Q5_K_S">Q5_K_S (Small Q5)</option>
+                        <option value="Q5_K">Q5_K (Alias for Q5_K_M)</option>
+                        <option value="Q5_0">Q5_0 (Legacy Q5)</option>
+                      </optgroup>
+                      <optgroup label="Q6 - Higher Quality">
+                        <option value="Q6_K">Q6_K (High quality, larger)</option>
+                        <option value="Q6_0">Q6_0 (Legacy Q6)</option>
+                      </optgroup>
+                      <optgroup label="Q8 - Best Quality">
+                        <option value="Q8_0">Q8_0 (Best quality, largest)</option>
+                      </optgroup>
                     </select>
                   </div>
                 )}
@@ -1319,12 +1334,27 @@ export default function ModelManagement() {
                   onChange={(e) => setGgufQuantization(e.target.value)}
                   className="w-full bg-[#0a0a0a] border border-[#2a2a2a] text-[#888] font-mono text-sm p-2 rounded focus:outline-none focus:border-[#444]"
                 >
-                  <option value="Q5_K_M">Q5_K_M (Medium quality, balanced)</option>
-                  <option value="Q6_K">Q6_K (High quality, larger)</option>
-                  <option value="Q8_0">Q8_0 (Best quality, largest)</option>
+                  <optgroup label="Q4 - Smaller Size">
+                    <option value="Q4_K_M">Q4_K_M (Medium Q4, compact)</option>
+                    <option value="Q4_K_S">Q4_K_S (Small Q4, smallest)</option>
+                    <option value="Q4_0">Q4_0 (Legacy Q4)</option>
+                  </optgroup>
+                  <optgroup label="Q5 - Balanced (Recommended)">
+                    <option value="Q5_K_M">Q5_K_M (Medium Q5, recommended)</option>
+                    <option value="Q5_K_S">Q5_K_S (Small Q5)</option>
+                    <option value="Q5_K">Q5_K (Alias for Q5_K_M)</option>
+                    <option value="Q5_0">Q5_0 (Legacy Q5)</option>
+                  </optgroup>
+                  <optgroup label="Q6 - Higher Quality">
+                    <option value="Q6_K">Q6_K (High quality, larger)</option>
+                    <option value="Q6_0">Q6_0 (Legacy Q6)</option>
+                  </optgroup>
+                  <optgroup label="Q8 - Best Quality">
+                    <option value="Q8_0">Q8_0 (Best quality, largest)</option>
+                  </optgroup>
                 </select>
                 <p className="text-[#555] font-mono text-xs mt-1">
-                  Q5_K_M is recommended for most use cases
+                  Q5_K_M is recommended for most use cases. Try Q4 for smaller size or Q6 for higher quality.
                 </p>
               </div>
               
