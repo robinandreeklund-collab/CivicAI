@@ -3310,11 +3310,6 @@ def start_llama_server(gguf_path: str):
         '-t', str(args.threads),
         '--port', str(port),
         '--host', '127.0.0.1',
-        # CRITICAL: Disable embedded chat template to prevent it from overriding our system prompts
-        # The GGUF metadata contains "You are a helpful assistant" which causes the model to ignore
-        # our platform prompts. By disabling the chat template, we force llama-server to use
-        # only the messages we provide via /v1/chat/completions API.
-        '--no-chat-template',
     ]
     
     if args.flash_attn:
@@ -3585,6 +3580,9 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
         "max_tokens": max_tokens,
         "temperature": temperature,
         "stop": ["</s>", "[/INST]", "User:", "\n\nUser:", "Användare:"],
+        # Disable automatic chat template application - tell llama-server to use messages as-is
+        # This prevents GGUF's embedded "You are a helpful assistant" from overriding our prompts
+        "add_generation_prompt": False,
     }
     
     logger.debug(f"[GGUF] Full payload being sent: {payload}")
@@ -3713,6 +3711,9 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
         "temperature": temperature,
         "stop": ["</s>", "[/INST]", "User:", "\n\nUser:", "Användare:"],
         "stream": True,
+        # Disable automatic chat template application - tell llama-server to use messages as-is
+        # This prevents GGUF's embedded "You are a helpful assistant" from overriding our prompts
+        "add_generation_prompt": False,
     }
     
     try:
