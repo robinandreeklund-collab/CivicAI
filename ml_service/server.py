@@ -3590,7 +3590,7 @@ def format_system_prompt_with_placeholders(system_prompt: str) -> str:
     return final_prompt
 
 
-def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: float = None, user_message: str = None):
+def generate_with_llama_server(prompt: str, max_tokens: int = 256, temperature: float = None, user_message: str = None):
     """
     Generate text using the llama-server HTTP API with /completion endpoint.
     
@@ -3639,11 +3639,21 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
         logger.info(f"[GGUF-DEBUG] Using legacy format ({len(formatted_prompt)} chars)")
     
     # Use /completion endpoint with manually formatted ChatML prompt
+    # Enhanced stop tokens to prevent conversation format leakage
     payload = {
         "prompt": formatted_prompt,
         "n_predict": max_tokens,
         "temperature": temperature,
-        "stop": ["<|im_end|>", "<|im_start|>user", "</s>"],
+        "stop": [
+            "<|im_end|>",           # ChatML end token
+            "<|im_start|>user",     # Next user turn
+            "</s>",                  # EOS token
+            "User:",                 # Conversation format
+            "\nUser:",               # Newline before user
+            "Assistant:",            # Conversation format
+            "\nAssistant:",          # Newline before assistant
+            "\n\n"                   # Double newline (conversation boundary)
+        ],
         "stream": False
     }
     
@@ -3690,7 +3700,7 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
         raise RuntimeError(f"GGUF server error: {e}")
 
 
-def stream_generate_with_llama_server(enriched_system_prompt: str, user_message: str, max_tokens: int = 512, temperature: float = None):
+def stream_generate_with_llama_server(enriched_system_prompt: str, user_message: str, max_tokens: int = 256, temperature: float = None):
     """
     Stream generate text using the llama-server HTTP API with /completion endpoint.
     
@@ -3734,11 +3744,21 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
     logger.info(f"[GGUF-STREAM-DEBUG] ===============================================")
     
     # Use /completion endpoint with manually formatted ChatML prompt
+    # Enhanced stop tokens to prevent conversation format leakage
     payload = {
         "prompt": formatted_prompt,
         "n_predict": max_tokens,
         "temperature": temperature,
-        "stop": ["<|im_end|>", "<|im_start|>user", "</s>"],
+        "stop": [
+            "<|im_end|>",           # ChatML end token
+            "<|im_start|>user",     # Next user turn
+            "</s>",                  # EOS token
+            "User:",                 # Conversation format
+            "\nUser:",               # Newline before user
+            "Assistant:",            # Conversation format
+            "\nAssistant:",          # Newline before assistant
+            "\n\n"                   # Double newline (conversation boundary)
+        ],
         "stream": True,
     }
     
