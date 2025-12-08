@@ -22,19 +22,20 @@ import tempfile
 import os
 from pathlib import Path
 
+# Import the two-step functions
+sys.path.insert(0, os.path.dirname(__file__))
+
+from export_gguf_f16 import convert_to_f16_gguf
+from quantize_q5 import find_quantize_binary, quantize_to_q5
+
 # Ensure stdout/stderr use UTF-8 encoding on Windows to handle Unicode characters
+# (Must be after imports to avoid interference with module loading)
 if sys.platform == 'win32':
     import codecs
     if sys.stdout.encoding != 'utf-8':
         sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'replace')
     if sys.stderr.encoding != 'utf-8':
         sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'replace')
-
-# Import the two-step functions
-sys.path.insert(0, os.path.dirname(__file__))
-
-from export_gguf_f16 import convert_to_f16_gguf
-from quantize_q5 import find_quantize_binary, quantize_to_q5
 
 
 def export_gguf_q5(model_path: Path, output_path: Path, quantization_type: str = 'Q5_K_M', 
