@@ -3561,6 +3561,9 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
     if temperature is None:
         temperature = args.temp
     
+    # Use LLAMA_SERVER_URL if available (auto-started server), otherwise use GGUF_SERVER_BASE (external server)
+    server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+    
     # Build messages array with system prompt injection
     messages = _build_gguf_messages(user_message, prompt)
     
@@ -3581,7 +3584,7 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
     try:
         # Try /v1/chat/completions first (OpenAI-compatible)
         response = requests.post(
-            f"{GGUF_SERVER_BASE}/v1/chat/completions",
+            f"{server_url}/v1/chat/completions",
             json=payload,
             timeout=120,
         )
@@ -3624,7 +3627,7 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
         }
         try:
             response = requests.post(
-                f"{GGUF_SERVER_BASE}/completion",
+                f"{server_url}/completion",
                 json=fallback_payload,
                 timeout=120,
             )
@@ -3675,6 +3678,9 @@ def stream_generate_with_llama_server(prompt: str, max_tokens: int = 512, temper
     if temperature is None:
         temperature = args.temp
     
+    # Use LLAMA_SERVER_URL if available (auto-started server), otherwise use GGUF_SERVER_BASE (external server)
+    server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+    
     # Build messages array with system prompt injection
     messages = _build_gguf_messages(user_message, prompt)
     
@@ -3696,7 +3702,7 @@ def stream_generate_with_llama_server(prompt: str, max_tokens: int = 512, temper
     try:
         # Try /v1/chat/completions first (OpenAI-compatible)
         response = requests.post(
-            f"{GGUF_SERVER_BASE}/v1/chat/completions",
+            f"{server_url}/v1/chat/completions",
             json=payload,
             stream=True,
             timeout=120,
@@ -3754,7 +3760,7 @@ def stream_generate_with_llama_server(prompt: str, max_tokens: int = 512, temper
         }
         try:
             response = requests.post(
-                f"{GGUF_SERVER_BASE}/completion",
+                f"{server_url}/completion",
                 json=fallback_payload,
                 stream=True,
                 timeout=120,
