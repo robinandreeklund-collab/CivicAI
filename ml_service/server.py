@@ -3596,6 +3596,23 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
         else:
             logger.error(f"[GGUF] Unexpected response format: {result}")
             return result.get('content', '')
+    except requests.exceptions.ConnectionError as e:
+        # Connection error - server not running
+        error_msg = (
+            f"[GGUF] Cannot connect to GGUF server at {GGUF_SERVER_BASE}\n"
+            f"[GGUF] \n"
+            f"[GGUF] Please ensure one of the following:\n"
+            f"[GGUF]   1. Start llama-server.exe manually:\n"
+            f"[GGUF]      llama-server.exe -m path/to/model.gguf --port 8080\n"
+            f"[GGUF]   2. Provide GGUF model path to auto-start:\n"
+            f"[GGUF]      python ml_service/server.py --use-gguf --gguf path/to/model.gguf\n"
+            f"[GGUF]   3. Set GGUF_SERVER_BASE to your running server:\n"
+            f"[GGUF]      set GGUF_SERVER_BASE=http://localhost:YOUR_PORT\n"
+            f"[GGUF] \n"
+            f"[GGUF] Original error: {e}"
+        )
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
     except requests.exceptions.RequestException as e:
         logger.warning(f"[GGUF] /v1/chat/completions failed, falling back to /completion: {e}")
         # Fallback to legacy completion endpoint
@@ -3614,6 +3631,23 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
             response.raise_for_status()
             result = response.json()
             return result.get('content', '')
+        except requests.exceptions.ConnectionError as conn_e:
+            # Connection error on fallback - provide detailed help
+            error_msg = (
+                f"[GGUF] Cannot connect to GGUF server at {GGUF_SERVER_BASE}\n"
+                f"[GGUF] \n"
+                f"[GGUF] Please ensure one of the following:\n"
+                f"[GGUF]   1. Start llama-server.exe manually:\n"
+                f"[GGUF]      llama-server.exe -m path/to/model.gguf --port 8080\n"
+                f"[GGUF]   2. Provide GGUF model path to auto-start:\n"
+                f"[GGUF]      python ml_service/server.py --use-gguf --gguf path/to/model.gguf\n"
+                f"[GGUF]   3. Set GGUF_SERVER_BASE to your running server:\n"
+                f"[GGUF]      set GGUF_SERVER_BASE=http://localhost:YOUR_PORT\n"
+                f"[GGUF] \n"
+                f"[GGUF] Original error: {conn_e}"
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
         except Exception as fallback_e:
             logger.error(f"[GGUF] Both endpoints failed: {fallback_e}")
             raise
@@ -3691,6 +3725,23 @@ def stream_generate_with_llama_server(prompt: str, max_tokens: int = 512, temper
                                 yield content
                     except json.JSONDecodeError:
                         pass
+    except requests.exceptions.ConnectionError as e:
+        # Connection error - server not running
+        error_msg = (
+            f"[GGUF] Cannot connect to GGUF server at {GGUF_SERVER_BASE}\n"
+            f"[GGUF] \n"
+            f"[GGUF] Please ensure one of the following:\n"
+            f"[GGUF]   1. Start llama-server.exe manually:\n"
+            f"[GGUF]      llama-server.exe -m path/to/model.gguf --port 8080\n"
+            f"[GGUF]   2. Provide GGUF model path to auto-start:\n"
+            f"[GGUF]      python ml_service/server.py --use-gguf --gguf path/to/model.gguf\n"
+            f"[GGUF]   3. Set GGUF_SERVER_BASE to your running server:\n"
+            f"[GGUF]      set GGUF_SERVER_BASE=http://localhost:YOUR_PORT\n"
+            f"[GGUF] \n"
+            f"[GGUF] Original error: {e}"
+        )
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
     except requests.exceptions.RequestException as e:
         logger.warning(f"[GGUF] /v1/chat/completions streaming failed, falling back to /completion: {e}")
         # Fallback to legacy completion endpoint
@@ -3724,6 +3775,23 @@ def stream_generate_with_llama_server(prompt: str, max_tokens: int = 512, temper
                                 yield content
                         except json.JSONDecodeError:
                             pass
+        except requests.exceptions.ConnectionError as conn_e:
+            # Connection error on fallback - provide detailed help
+            error_msg = (
+                f"[GGUF] Cannot connect to GGUF server at {GGUF_SERVER_BASE}\n"
+                f"[GGUF] \n"
+                f"[GGUF] Please ensure one of the following:\n"
+                f"[GGUF]   1. Start llama-server.exe manually:\n"
+                f"[GGUF]      llama-server.exe -m path/to/model.gguf --port 8080\n"
+                f"[GGUF]   2. Provide GGUF model path to auto-start:\n"
+                f"[GGUF]      python ml_service/server.py --use-gguf --gguf path/to/model.gguf\n"
+                f"[GGUF]   3. Set GGUF_SERVER_BASE to your running server:\n"
+                f"[GGUF]      set GGUF_SERVER_BASE=http://localhost:YOUR_PORT\n"
+                f"[GGUF] \n"
+                f"[GGUF] Original error: {conn_e}"
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
         except Exception as fallback_e:
             logger.error(f"[GGUF] Both streaming endpoints failed: {fallback_e}")
             raise
