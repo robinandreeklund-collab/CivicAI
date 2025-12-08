@@ -572,11 +572,11 @@ router.post('/gguf/export', async (req, res) => {
             : '3. Or set environment variable: export LLAMA_QUANTIZE_PATH=/path/to/llama-quantize',
           '',
           'Then run from project root:',
-          `  python scripts/export_gguf_q5.py --src "${resolvedModelPath}" --out "${ggufPath}"`,
+          `  python scripts/export_gguf_q5.py --src "${resolvedModelPath}" --out "${ggufPath}" --type ${validQuantization}`,
           '',
           'Or manually do two-step export:',
           `  Step 1: python scripts/export_gguf_f16.py --src "${resolvedModelPath}" --out "${ggufDir}/${dnaName}.f16.gguf"`,
-          `  Step 2: python scripts/quantize_q5.py --src "${ggufDir}/${dnaName}.f16.gguf" --out "${ggufPath}"`,
+          `  Step 2: python scripts/quantize_q5.py --src "${ggufDir}/${dnaName}.f16.gguf" --out "${ggufPath}" --type ${validQuantization}`,
         ],
       };
       
