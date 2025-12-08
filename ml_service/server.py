@@ -3659,18 +3659,18 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
             raise
 
 
-def stream_generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: float = None, user_message: str = None):
+def stream_generate_with_llama_server(enriched_system_prompt: str, user_message: str, max_tokens: int = 512, temperature: float = None):
     """
     Stream generate text using the llama-server HTTP API with chat completions endpoint.
     
-    GGUF Fix: Uses /v1/chat/completions with role-based messages to ensure
-    the platform system prompt is respected instead of the GGUF default.
+    GGUF Fix: Accepts enriched system prompt directly to ensure platform prompt + time context + data
+    is properly injected, not overridden by environment variables or defaults.
     
     Args:
-        prompt: Full formatted prompt (legacy, will be parsed if user_message not provided)
+        enriched_system_prompt: Full enriched system prompt (platform prompt + time + data)
+        user_message: User's question
         max_tokens: Maximum tokens to generate
         temperature: Sampling temperature
-        user_message: User's question (if provided, prompt will be used as system prompt)
         
     Yields:
         Generated tokens
@@ -3684,13 +3684,21 @@ def stream_generate_with_llama_server(prompt: str, max_tokens: int = 512, temper
     # Use LLAMA_SERVER_URL if available (auto-started server), otherwise use GGUF_SERVER_BASE (external server)
     server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
     
-    # Build messages array with system prompt injection
-    messages = _build_gguf_messages(user_message, prompt)
+    # Build messages array directly with enriched system prompt
+    # DO NOT use _build_gguf_messages() as it would fetch a different system prompt
+    messages = [
+        {
+            "role": "system",
+            "content": enriched_system_prompt
+        },
+        {
+            "role": "user",
+            "content": user_message
+        }
+    ]
     
-    if not messages:
-        raise ValueError("Failed to build messages array")
-    
-    logger.info(f"[GGUF] Streaming from /v1/chat/completions with system prompt ({len(messages[0]['content'])} chars)")
+    logger.info(f"[GGUF] Streaming from /v1/chat/completions with enriched system prompt ({len(enriched_system_prompt)} chars)")
+    logger.info(f"[GGUF] System prompt preview: {enriched_system_prompt[:200]}...")
     logger.debug(f"[GGUF] Messages: {[{'role': m['role'], 'content': m['content'][:50]+'...'} for m in messages]}")
     
     # Use OpenAI-compatible chat completions endpoint with streaming
@@ -12464,15 +12472,20 @@ async def generate_sse_tokens(
         day_name = weekday_map.get(now.weekday(), "")
         time_context = f"Idag är det {day_name} {now.day} {['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'][now.month-1]} {now.year}, klockan {now.strftime('%H:%M')}."
         
-        # Build the prompt for llama-server (doesn't use chat template)
-        full_prompt = f"<|im_start|>system\n{system_prompt}\n\n[Aktuell tid] {time_context}<|im_end|>\n<|im_start|>user\n{text}<|im_end|>\n<|im_start|>assistant\n"
+        # Build enriched system prompt with time context
+        enriched_system_prompt = f"{system_prompt}\n\n[Aktuell tid] {time_context}"
         
         # Check if using llama-server.exe backend
         if USING_LLAMA_SERVER:
             logger.info(f"🌊 [STREAM] Using llama-server.exe backend for: {text[:50]}...")
             try:
-                # GGUF Fix: Pass user message directly for proper system prompt injection
-                for token in stream_generate_with_llama_server(full_prompt, max_tokens=max_length, temperature=temperature, user_message=text):
+                # GGUF Fix: Pass enriched system prompt directly
+                for token in stream_generate_with_llama_server(
+                    enriched_system_prompt=enriched_system_prompt,
+                    user_message=text,
+                    max_tokens=max_length,
+                    temperature=temperature
+                ):
                     if token:
                         try:
                             event_data = json.dumps({"token": token, "index": tokens_sent}, ensure_ascii=False)
