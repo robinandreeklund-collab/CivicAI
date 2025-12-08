@@ -25,17 +25,8 @@ from pathlib import Path
 # Import the two-step functions
 sys.path.insert(0, os.path.dirname(__file__))
 
-from export_gguf_f16 import convert_to_f16_gguf
+from export_gguf_f16 import convert_to_f16_gguf, setup_utf8_encoding
 from quantize_q5 import find_quantize_binary, quantize_to_q5
-
-# Ensure stdout/stderr use UTF-8 encoding on Windows to handle Unicode characters
-# (Must be after imports to avoid interference with module loading)
-if sys.platform == 'win32':
-    import codecs
-    if sys.stdout.encoding != 'utf-8':
-        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'replace')
-    if sys.stderr.encoding != 'utf-8':
-        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'replace')
 
 
 def export_gguf_q5(model_path: Path, output_path: Path, quantization_type: str = 'Q5_K_M', 
@@ -156,6 +147,9 @@ def export_gguf_q5(model_path: Path, output_path: Path, quantization_type: str =
 
 
 def main():
+    # Setup UTF-8 encoding when run as main script
+    setup_utf8_encoding()
+    
     parser = argparse.ArgumentParser(
         description='Export HuggingFace model to Q5 GGUF (2-step process)',
         formatter_class=argparse.RawDescriptionHelpFormatter,

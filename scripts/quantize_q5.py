@@ -30,13 +30,15 @@ import subprocess
 import shutil
 from pathlib import Path
 
-# Ensure stdout/stderr use UTF-8 encoding on Windows to handle Unicode characters
-if sys.platform == 'win32':
-    import codecs
-    if sys.stdout.encoding != 'utf-8':
-        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'replace')
-    if sys.stderr.encoding != 'utf-8':
-        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'replace')
+
+def setup_utf8_encoding():
+    """Setup UTF-8 encoding on Windows to handle Unicode characters."""
+    if sys.platform == 'win32':
+        import codecs
+        if sys.stdout.encoding != 'utf-8':
+            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'replace')
+        if sys.stderr.encoding != 'utf-8':
+            sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'replace')
 
 
 def find_quantize_binary():
@@ -246,6 +248,9 @@ def quantize_to_q5(f16_path: Path, output_path: Path, quantization_type: str, qu
 
 
 def main():
+    # Setup UTF-8 encoding when run as main script
+    setup_utf8_encoding()
+    
     parser = argparse.ArgumentParser(
         description='Quantize F16 GGUF to Q5 using llama-quantize (Step 2 of 2)',
         formatter_class=argparse.RawDescriptionHelpFormatter,

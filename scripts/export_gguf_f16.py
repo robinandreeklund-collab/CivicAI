@@ -28,13 +28,15 @@ import io
 from pathlib import Path
 from datetime import datetime
 
-# Ensure stdout/stderr use UTF-8 encoding on Windows to handle Unicode characters
-if sys.platform == 'win32':
-    import codecs
-    if sys.stdout.encoding != 'utf-8':
-        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'replace')
-    if sys.stderr.encoding != 'utf-8':
-        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'replace')
+
+def setup_utf8_encoding():
+    """Setup UTF-8 encoding on Windows to handle Unicode characters."""
+    if sys.platform == 'win32':
+        import codecs
+        if sys.stdout.encoding != 'utf-8':
+            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'replace')
+        if sys.stderr.encoding != 'utf-8':
+            sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'replace')
 
 
 def ensure_gguf_package():
@@ -257,6 +259,9 @@ def convert_to_f16_gguf(model_path: Path, output_path: Path):
 
 
 def main():
+    # Setup UTF-8 encoding when run as main script
+    setup_utf8_encoding()
+    
     parser = argparse.ArgumentParser(
         description='Export HuggingFace model to F16 GGUF format (Step 1 of 2)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
