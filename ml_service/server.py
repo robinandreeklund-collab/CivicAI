@@ -9808,16 +9808,47 @@ async def test_message_structure(request: MessageBuilderRequest):
         if USING_LLAMA_SERVER:
             logging.info(f"[GGUF] Using llama-server.exe for Message Builder: {request.user_message[:50]}...")
             try:
-                # Build the prompt in ChatML format for llama-server
-                full_prompt = f"<|im_start|>system\n{enriched_system_prompt}<|im_end|>\n<|im_start|>user\n{request.user_message}<|im_end|>\n<|im_start|>assistant\n"
+                # Build messages array directly with enriched system prompt
+                # DO NOT use _build_gguf_messages() here as it would fetch a different system prompt
+                gguf_messages = [
+                    {
+                        "role": "system",
+                        "content": enriched_system_prompt
+                    },
+                    {
+                        "role": "user",
+                        "content": request.user_message
+                    }
+                ]
                 
-                # GGUF Fix: Pass user message directly for proper system prompt injection
-                response_text = generate_with_llama_server(
-                    full_prompt, 
-                    max_tokens=256,
-                    temperature=0.7,
-                    user_message=request.user_message
+                logging.info(f"[GGUF] Message Builder sending enriched system prompt ({len(enriched_system_prompt)} chars)")
+                logging.info(f"[GGUF] System prompt preview: {enriched_system_prompt[:200]}...")
+                
+                # Send directly to GGUF server
+                server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                payload = {
+                    "messages": gguf_messages,
+                    "max_tokens": 256,
+                    "temperature": 0.7,
+                    "stop": ["</s>", "[/INST]", "User:", "\n\nUser:", "Användare:"],
+                }
+                
+                response = requests.post(
+                    f"{server_url}/v1/chat/completions",
+                    json=payload,
+                    timeout=120,
                 )
+                response.raise_for_status()
+                result = response.json()
+                
+                # Extract response from OpenAI-style format
+                if 'choices' in result and len(result['choices']) > 0:
+                    response_text = result['choices'][0].get('message', {}).get('content', '')
+                else:
+                    response_text = result.get('content', '')
+                
+                response_text = response_text.strip()
+                
                 
                 latency_ms = (time.time() - start_time) * 1000
                 token_count = len(response_text.split())  # Approximate token count
@@ -10040,22 +10071,56 @@ async def infer(request: Request, inference_request: InferenceRequest):
     if USING_LLAMA_SERVER:
         logger.info(f"[GGUF] Using llama-server.exe for /infer request: {inference_request.text[:50]}...")
         try:
-            # Build the prompt in ChatML format for llama-server
+            # Build time context
             now = datetime.now()
             weekday_map = {0: "måndag", 1: "tisdag", 2: "onsdag", 3: "torsdag", 4: "fredag", 5: "lördag", 6: "söndag"}
             day_name = weekday_map.get(now.weekday(), "")
             time_context = f"Idag är det {day_name} {now.day} {['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'][now.month-1]} {now.year}, klockan {now.strftime('%H:%M')}."
             
+            # Get system prompt and enrich with time context
             system_prompt = get_active_system_prompt()
-            full_prompt = f"<|im_start|>system\n{system_prompt}\n\n[Aktuell tid] {time_context}<|im_end|>\n<|im_start|>user\n{inference_request.text}<|im_end|>\n<|im_start|>assistant\n"
+            enriched_system_prompt = f"{system_prompt}\n\n[Aktuell tid] {time_context}"
             
-            # GGUF Fix: Pass user message directly for proper system prompt injection
-            response_text = generate_with_llama_server(
-                full_prompt, 
-                max_tokens=inference_request.max_length,
-                temperature=inference_request.temperature,
-                user_message=inference_request.text
+            # Build messages array directly with enriched system prompt
+            gguf_messages = [
+                {
+                    "role": "system",
+                    "content": enriched_system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": inference_request.text
+                }
+            ]
+            
+            logger.info(f"[GGUF] Sending enriched system prompt ({len(enriched_system_prompt)} chars)")
+            logger.info(f"[GGUF] System prompt preview: {enriched_system_prompt[:200]}...")
+            
+            # Send directly to GGUF server
+            server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+            payload = {
+                "messages": gguf_messages,
+                "max_tokens": inference_request.max_length,
+                "temperature": inference_request.temperature,
+                "stop": ["</s>", "[/INST]", "User:", "\n\nUser:", "Användare:"],
+            }
+            
+            response = requests.post(
+                f"{server_url}/v1/chat/completions",
+                json=payload,
+                timeout=120,
             )
+            response.raise_for_status()
+            result = response.json()
+            
+            # Extract response from OpenAI-style format
+            if 'choices' in result and len(result['choices']) > 0:
+                response_text = result['choices'][0].get('message', {}).get('content', '')
+            else:
+                response_text = result.get('content', '')
+            
+            response_text = response_text.strip()
+            
             
             latency_ms = (time.time() - start_time) * 1000
             tokens = len(response_text.split())  # Approximate token count
