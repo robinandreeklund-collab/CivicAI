@@ -3555,14 +3555,17 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
     Returns:
         Generated text
     """
-    if not LLAMA_SERVER_URL:
-        raise RuntimeError("llama-server not running")
+    if not LLAMA_SERVER_URL and not GGUF_SERVER_BASE:
+        raise RuntimeError("llama-server or GGUF server not running")
     
     if temperature is None:
         temperature = args.temp
     
     # Build messages array with system prompt injection
     messages = _build_gguf_messages(user_message, prompt)
+    
+    if not messages:
+        raise ValueError("Failed to build messages array")
     
     logger.info(f"[GGUF] Sending to /v1/chat/completions with system prompt ({len(messages[0]['content'])} chars)")
     logger.debug(f"[GGUF] Messages: {[{'role': m['role'], 'content': m['content'][:50]+'...'} for m in messages]}")
@@ -3632,14 +3635,17 @@ def stream_generate_with_llama_server(prompt: str, max_tokens: int = 512, temper
     Yields:
         Generated tokens
     """
-    if not LLAMA_SERVER_URL:
-        raise RuntimeError("llama-server not running")
+    if not LLAMA_SERVER_URL and not GGUF_SERVER_BASE:
+        raise RuntimeError("llama-server or GGUF server not running")
     
     if temperature is None:
         temperature = args.temp
     
     # Build messages array with system prompt injection
     messages = _build_gguf_messages(user_message, prompt)
+    
+    if not messages:
+        raise ValueError("Failed to build messages array")
     
     logger.info(f"[GGUF] Streaming from /v1/chat/completions with system prompt ({len(messages[0]['content'])} chars)")
     logger.debug(f"[GGUF] Messages: {[{'role': m['role'], 'content': m['content'][:50]+'...'} for m in messages]}")

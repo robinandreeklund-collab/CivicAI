@@ -5,7 +5,15 @@
 
 // Backend selection from environment variable
 // Can be 'gguf' or 'bin'
-export const MODEL_BACKEND = import.meta.env.VITE_MODEL_BACKEND || 'bin';
+const rawBackend = import.meta.env.VITE_MODEL_BACKEND || 'bin';
+
+// Validate MODEL_BACKEND value
+if (rawBackend !== 'gguf' && rawBackend !== 'bin') {
+  console.error(`[Config] Invalid MODEL_BACKEND: "${rawBackend}". Must be 'gguf' or 'bin'. Defaulting to 'bin'.`);
+  throw new Error(`Invalid MODEL_BACKEND: "${rawBackend}". Must be 'gguf' or 'bin'.`);
+}
+
+export const MODEL_BACKEND = rawBackend;
 
 // GGUF Server Base URL (for llama-server/llama.cpp)
 export const GGUF_SERVER_BASE = import.meta.env.VITE_GGUF_SERVER_BASE || 'http://localhost:8080';
