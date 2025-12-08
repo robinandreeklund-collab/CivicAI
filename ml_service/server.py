@@ -3188,6 +3188,12 @@ USING_LLAMA_SERVER = False
 LLAMA_SERVER_URL = None
 LLAMA_SERVER_PROCESS = None
 
+# GGUF Server configuration
+# Base URL for GGUF backend (llama-server or llama.cpp server)
+GGUF_SERVER_BASE = os.getenv('GGUF_SERVER_BASE', 'http://localhost:8080')
+# Fallback system prompt for GGUF mode if platform prompt not available
+PLATFORM_SYSTEM_PROMPT = os.getenv('PLATFORM_SYSTEM_PROMPT', None)
+
 # Windows error codes for better error messages
 STATUS_DLL_NOT_FOUND = 0xC0000135  # 3221225781 - Missing DLL dependencies
 STATUS_ACCESS_VIOLATION = 0xC0000005  # 3221225477 - Memory access violation/crash
@@ -3474,14 +3480,18 @@ def stop_llama_server():
         USING_LLAMA_SERVER = False
 
 
-def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: float = None):
+def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: float = None, user_message: str = None):
     """
-    Generate text using the llama-server HTTP API.
+    Generate text using the llama-server HTTP API with chat completions endpoint.
+    
+    GGUF Fix: Uses /v1/chat/completions with role-based messages to ensure
+    the platform system prompt is respected instead of the GGUF default.
     
     Args:
-        prompt: Input prompt
+        prompt: Full formatted prompt (legacy, will be parsed if user_message not provided)
         max_tokens: Maximum tokens to generate
         temperature: Sampling temperature
+        user_message: User's question (if provided, prompt will be used as system prompt)
         
     Returns:
         Generated text
@@ -3492,35 +3502,117 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
     if temperature is None:
         temperature = args.temp
     
+    # Get the platform system prompt
+    system_prompt = get_active_system_prompt()
+    
+    # Override with environment variable if set
+    if PLATFORM_SYSTEM_PROMPT:
+        system_prompt = PLATFORM_SYSTEM_PROMPT
+        logger.info(f"[GGUF] Using PLATFORM_SYSTEM_PROMPT from environment")
+    
+    # Build messages array with explicit system role
+    messages = []
+    
+    # CRITICAL: Inject system prompt as first message with role=system
+    # This prevents the GGUF backend from using its default "You are a helpful assistant"
+    messages.append({
+        "role": "system",
+        "content": system_prompt
+    })
+    
+    # Add user message
+    if user_message:
+        messages.append({
+            "role": "user", 
+            "content": user_message
+        })
+    else:
+        # Parse prompt to extract user message (legacy support)
+        # Typically format: "[system]\n\nAnvändare: [user]\n\nOneSeek:"
+        if "Användare:" in prompt or "user" in prompt.lower():
+            parts = prompt.split("Användare:")
+            if len(parts) > 1:
+                user_part = parts[1].split("OneSeek:")[0].strip()
+                messages.append({
+                    "role": "user",
+                    "content": user_part
+                })
+            else:
+                # Fallback: use entire prompt as user message
+                messages.append({
+                    "role": "user",
+                    "content": prompt
+                })
+        else:
+            messages.append({
+                "role": "user",
+                "content": prompt
+            })
+    
+    logger.info(f"[GGUF] Sending to /v1/chat/completions with system prompt ({len(system_prompt)} chars)")
+    logger.debug(f"[GGUF] Messages: {[{'role': m['role'], 'content': m['content'][:50]+'...'} for m in messages]}")
+    
+    # Use OpenAI-compatible chat completions endpoint
     payload = {
-        "prompt": prompt,
-        "n_predict": max_tokens,
+        "messages": messages,
+        "max_tokens": max_tokens,
         "temperature": temperature,
-        "stop": ["</s>", "[/INST]", "User:", "\n\nUser:"],
+        "stop": ["</s>", "[/INST]", "User:", "\n\nUser:", "Användare:"],
     }
     
     try:
+        # Try /v1/chat/completions first (OpenAI-compatible)
         response = requests.post(
-            f"{LLAMA_SERVER_URL}/completion",
+            f"{GGUF_SERVER_BASE}/v1/chat/completions",
             json=payload,
             timeout=120,
         )
         response.raise_for_status()
         result = response.json()
-        return result.get('content', '')
-    except Exception as e:
-        logger.error(f"[LLAMA-SERVER] Generation error: {e}")
-        raise
+        
+        # Extract response from OpenAI-style format
+        if 'choices' in result and len(result['choices']) > 0:
+            content = result['choices'][0].get('message', {}).get('content', '')
+            logger.info(f"[GGUF] Response received ({len(content)} chars)")
+            return content
+        else:
+            logger.error(f"[GGUF] Unexpected response format: {result}")
+            return result.get('content', '')
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"[GGUF] /v1/chat/completions failed, falling back to /completion: {e}")
+        # Fallback to legacy completion endpoint
+        fallback_payload = {
+            "prompt": prompt,
+            "n_predict": max_tokens,
+            "temperature": temperature,
+            "stop": ["</s>", "[/INST]", "User:", "\n\nUser:"],
+        }
+        try:
+            response = requests.post(
+                f"{LLAMA_SERVER_URL}/completion",
+                json=fallback_payload,
+                timeout=120,
+            )
+            response.raise_for_status()
+            result = response.json()
+            return result.get('content', '')
+        except Exception as fallback_e:
+            logger.error(f"[LLAMA-SERVER] Both endpoints failed: {fallback_e}")
+            raise
 
 
-def stream_generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: float = None):
+def stream_generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: float = None, user_message: str = None):
     """
-    Stream generate text using the llama-server HTTP API.
+    Stream generate text using the llama-server HTTP API with chat completions endpoint.
+    
+    GGUF Fix: Uses /v1/chat/completions with role-based messages to ensure
+    the platform system prompt is respected instead of the GGUF default.
     
     Args:
-        prompt: Input prompt
+        prompt: Full formatted prompt (legacy, will be parsed if user_message not provided)
         max_tokens: Maximum tokens to generate
         temperature: Sampling temperature
+        user_message: User's question (if provided, prompt will be used as system prompt)
         
     Yields:
         Generated tokens
@@ -3531,17 +3623,66 @@ def stream_generate_with_llama_server(prompt: str, max_tokens: int = 512, temper
     if temperature is None:
         temperature = args.temp
     
+    # Get the platform system prompt
+    system_prompt = get_active_system_prompt()
+    
+    # Override with environment variable if set
+    if PLATFORM_SYSTEM_PROMPT:
+        system_prompt = PLATFORM_SYSTEM_PROMPT
+        logger.info(f"[GGUF] Using PLATFORM_SYSTEM_PROMPT from environment")
+    
+    # Build messages array with explicit system role
+    messages = []
+    
+    # CRITICAL: Inject system prompt as first message with role=system
+    messages.append({
+        "role": "system",
+        "content": system_prompt
+    })
+    
+    # Add user message
+    if user_message:
+        messages.append({
+            "role": "user", 
+            "content": user_message
+        })
+    else:
+        # Parse prompt to extract user message (legacy support)
+        if "Användare:" in prompt or "user" in prompt.lower():
+            parts = prompt.split("Användare:")
+            if len(parts) > 1:
+                user_part = parts[1].split("OneSeek:")[0].strip()
+                messages.append({
+                    "role": "user",
+                    "content": user_part
+                })
+            else:
+                messages.append({
+                    "role": "user",
+                    "content": prompt
+                })
+        else:
+            messages.append({
+                "role": "user",
+                "content": prompt
+            })
+    
+    logger.info(f"[GGUF] Streaming from /v1/chat/completions with system prompt ({len(system_prompt)} chars)")
+    logger.debug(f"[GGUF] Messages: {[{'role': m['role'], 'content': m['content'][:50]+'...'} for m in messages]}")
+    
+    # Use OpenAI-compatible chat completions endpoint with streaming
     payload = {
-        "prompt": prompt,
-        "n_predict": max_tokens,
+        "messages": messages,
+        "max_tokens": max_tokens,
         "temperature": temperature,
-        "stop": ["</s>", "[/INST]", "User:", "\n\nUser:"],
+        "stop": ["</s>", "[/INST]", "User:", "\n\nUser:", "Användare:"],
         "stream": True,
     }
     
     try:
+        # Try /v1/chat/completions first (OpenAI-compatible)
         response = requests.post(
-            f"{LLAMA_SERVER_URL}/completion",
+            f"{GGUF_SERVER_BASE}/v1/chat/completions",
             json=payload,
             stream=True,
             timeout=120,
@@ -3557,14 +3698,55 @@ def stream_generate_with_llama_server(prompt: str, max_tokens: int = 512, temper
                         break
                     try:
                         chunk = json.loads(data)
-                        content = chunk.get('content', '')
-                        if content:
-                            yield content
+                        # OpenAI format: choices[0].delta.content
+                        if 'choices' in chunk and len(chunk['choices']) > 0:
+                            delta = chunk['choices'][0].get('delta', {})
+                            content = delta.get('content', '')
+                            if content:
+                                yield content
+                        else:
+                            # Fallback format
+                            content = chunk.get('content', '')
+                            if content:
+                                yield content
                     except json.JSONDecodeError:
                         pass
-    except Exception as e:
-        logger.error(f"[LLAMA-SERVER] Streaming error: {e}")
-        raise
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"[GGUF] /v1/chat/completions streaming failed, falling back to /completion: {e}")
+        # Fallback to legacy completion endpoint
+        fallback_payload = {
+            "prompt": prompt,
+            "n_predict": max_tokens,
+            "temperature": temperature,
+            "stop": ["</s>", "[/INST]", "User:", "\n\nUser:"],
+            "stream": True,
+        }
+        try:
+            response = requests.post(
+                f"{LLAMA_SERVER_URL}/completion",
+                json=fallback_payload,
+                stream=True,
+                timeout=120,
+            )
+            response.raise_for_status()
+            
+            for line in response.iter_lines():
+                if line:
+                    line = line.decode('utf-8')
+                    if line.startswith('data: '):
+                        data = line[6:]
+                        if data.strip() == '[DONE]':
+                            break
+                        try:
+                            chunk = json.loads(data)
+                            content = chunk.get('content', '')
+                            if content:
+                                yield content
+                        except json.JSONDecodeError:
+                            pass
+        except Exception as fallback_e:
+            logger.error(f"[LLAMA-SERVER] Both streaming endpoints failed: {fallback_e}")
+            raise
 
 def ensure_llama_cpp_python():
     """
@@ -9759,10 +9941,12 @@ async def infer(request: Request, inference_request: InferenceRequest):
             system_prompt = get_active_system_prompt()
             full_prompt = f"<|im_start|>system\n{system_prompt}\n\n[Aktuell tid] {time_context}<|im_end|>\n<|im_start|>user\n{inference_request.text}<|im_end|>\n<|im_start|>assistant\n"
             
+            # GGUF Fix: Pass user message directly for proper system prompt injection
             response_text = generate_with_llama_server(
                 full_prompt, 
                 max_tokens=inference_request.max_length,
-                temperature=inference_request.temperature
+                temperature=inference_request.temperature,
+                user_message=inference_request.text
             )
             
             latency_ms = (time.time() - start_time) * 1000
@@ -10353,10 +10537,12 @@ async def oneseek_inference(request: InferenceRequest):
             system_prompt = get_active_system_prompt()
             full_prompt = f"<|im_start|>system\n{system_prompt}\n\n[Aktuell tid] {time_context}<|im_end|>\n<|im_start|>user\n{request.text}<|im_end|>\n<|im_start|>assistant\n"
             
+            # GGUF Fix: Pass user message directly for proper system prompt injection
             response_text = generate_with_llama_server(
                 full_prompt, 
                 max_tokens=request.max_length,
-                temperature=request.temperature
+                temperature=request.temperature,
+                user_message=request.text
             )
             
             latency_ms = (time.time() - start_time) * 1000
@@ -12112,7 +12298,8 @@ async def generate_sse_tokens(
         if USING_LLAMA_SERVER:
             logger.info(f"🌊 [STREAM] Using llama-server.exe backend for: {text[:50]}...")
             try:
-                for token in stream_generate_with_llama_server(full_prompt, max_tokens=max_length, temperature=temperature):
+                # GGUF Fix: Pass user message directly for proper system prompt injection
+                for token in stream_generate_with_llama_server(full_prompt, max_tokens=max_length, temperature=temperature, user_message=text):
                     if token:
                         try:
                             event_data = json.dumps({"token": token, "index": tokens_sent}, ensure_ascii=False)
