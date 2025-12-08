@@ -3569,12 +3569,19 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
     if user_message:
         # System + User format (like .bin with apply_chat_template)
         formatted_prompt = f"<|im_start|>system\n{prompt}<|im_end|>\n<|im_start|>user\n{user_message}<|im_end|>\n<|im_start|>assistant\n"
-        logger.info(f"[GGUF] Formatted prompt with chat template - system: {len(prompt)} chars, user: {len(user_message)} chars")
-        logger.info(f"[GGUF] System prompt preview: {prompt[:200]}...")
+        logger.info(f"[GGUF-DEBUG] ========== PROMPT FORMATTING ==========")
+        logger.info(f"[GGUF-DEBUG] System prompt length: {len(prompt)} chars")
+        logger.info(f"[GGUF-DEBUG] User message length: {len(user_message)} chars")
+        logger.info(f"[GGUF-DEBUG] Formatted prompt length: {len(formatted_prompt)} chars")
+        logger.info(f"[GGUF-DEBUG] System prompt (first 500 chars):\n{prompt[:500]}")
+        logger.info(f"[GGUF-DEBUG] User message:\n{user_message}")
+        logger.info(f"[GGUF-DEBUG] Full formatted prompt being sent:\n{formatted_prompt}")
+        logger.info(f"[GGUF-DEBUG] ======================================")
     else:
         # Legacy format - use as-is
         formatted_prompt = prompt
-        logger.info(f"[GGUF] Using legacy prompt format ({len(prompt)} chars)")
+        logger.info(f"[GGUF-DEBUG] Using legacy prompt format ({len(prompt)} chars)")
+        logger.info(f"[GGUF-DEBUG] Legacy prompt:\n{prompt}")
     
     # Use /completion endpoint with formatted prompt (not /v1/chat/completions)
     # This bypasses the GGUF's embedded chat template entirely
@@ -3585,7 +3592,11 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
         "stop": ["</s>", "<|im_end|>", "[/INST]", "User:", "\n\nUser:", "Användare:", "<|im_start|>user"],
     }
     
-    logger.debug(f"[GGUF] Full payload being sent to /completion: {payload}")
+    logger.info(f"[GGUF-DEBUG] Payload details:")
+    logger.info(f"[GGUF-DEBUG]   - n_predict: {max_tokens}")
+    logger.info(f"[GGUF-DEBUG]   - temperature: {temperature}")
+    logger.info(f"[GGUF-DEBUG]   - stop tokens: {payload['stop']}")
+    logger.info(f"[GGUF-DEBUG]   - endpoint: {server_url}/completion")
     
     try:
         # Use /completion endpoint directly (bypasses GGUF's chat template)
@@ -3599,7 +3610,10 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
         
         # Extract content from completion response
         content = result.get('content', '')
-        logger.info(f"[GGUF] Response received ({len(content)} chars)")
+        logger.info(f"[GGUF-DEBUG] Response received:")
+        logger.info(f"[GGUF-DEBUG]   - Content length: {len(content)} chars")
+        logger.info(f"[GGUF-DEBUG]   - Full response:\n{content}")
+        logger.info(f"[GGUF-DEBUG]   - Raw result keys: {list(result.keys())}")
         return content
     except requests.exceptions.ConnectionError as e:
         # Connection error - server not running
@@ -3652,8 +3666,14 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
     # This mimics tokenizer.apply_chat_template() behavior for consistency
     formatted_prompt = f"<|im_start|>system\n{enriched_system_prompt}<|im_end|>\n<|im_start|>user\n{user_message}<|im_end|>\n<|im_start|>assistant\n"
     
-    logger.info(f"[GGUF] Streaming with chat template format - system: {len(enriched_system_prompt)} chars, user: {len(user_message)} chars")
-    logger.info(f"[GGUF] System prompt preview: {enriched_system_prompt[:200]}...")
+    logger.info(f"[GGUF-STREAM-DEBUG] ========== STREAMING PROMPT FORMATTING ==========")
+    logger.info(f"[GGUF-STREAM-DEBUG] System prompt length: {len(enriched_system_prompt)} chars")
+    logger.info(f"[GGUF-STREAM-DEBUG] User message length: {len(user_message)} chars")
+    logger.info(f"[GGUF-STREAM-DEBUG] Formatted prompt length: {len(formatted_prompt)} chars")
+    logger.info(f"[GGUF-STREAM-DEBUG] System prompt (first 500 chars):\n{enriched_system_prompt[:500]}")
+    logger.info(f"[GGUF-STREAM-DEBUG] User message:\n{user_message}")
+    logger.info(f"[GGUF-STREAM-DEBUG] Full formatted prompt being sent:\n{formatted_prompt}")
+    logger.info(f"[GGUF-STREAM-DEBUG] ================================================")
     
     # Use /completion endpoint with formatted prompt (bypasses GGUF's embedded template)
     payload = {
@@ -3663,6 +3683,12 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
         "stop": ["</s>", "<|im_end|>", "[/INST]", "User:", "\n\nUser:", "Användare:", "<|im_start|>user"],
         "stream": True,
     }
+    
+    logger.info(f"[GGUF-STREAM-DEBUG] Payload details:")
+    logger.info(f"[GGUF-STREAM-DEBUG]   - n_predict: {max_tokens}")
+    logger.info(f"[GGUF-STREAM-DEBUG]   - temperature: {temperature}")
+    logger.info(f"[GGUF-STREAM-DEBUG]   - stop tokens: {payload['stop']}")
+    logger.info(f"[GGUF-STREAM-DEBUG]   - endpoint: {server_url}/completion")
     
     try:
         # Use /completion endpoint directly (bypasses GGUF's chat template)
@@ -3675,18 +3701,26 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
         response.raise_for_status()
         
         # Parse streaming completion response
+        chunk_count = 0
+        total_content = ""
         for line in response.iter_lines():
             if line:
                 line = line.decode('utf-8')
                 if line.startswith('data: '):
                     data = line[6:]
                     if data.strip() == '[DONE]':
+                        logger.info(f"[GGUF-STREAM-DEBUG] Stream completed - total chunks: {chunk_count}, total content length: {len(total_content)} chars")
+                        logger.info(f"[GGUF-STREAM-DEBUG] Final complete response:\n{total_content}")
                         break
                     try:
                         chunk = json.loads(data)
                         # llama.cpp completion format
                         content = chunk.get('content', '')
                         if content:
+                            chunk_count += 1
+                            total_content += content
+                            if chunk_count <= 5:  # Log first 5 chunks for debugging
+                                logger.info(f"[GGUF-STREAM-DEBUG] Chunk {chunk_count}: {repr(content)}")
                             yield content
                     except json.JSONDecodeError:
                         pass
