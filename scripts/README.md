@@ -81,6 +81,93 @@ if (!validateSchema('ai_interactions', interaction)) {
 - `ledger_blocks`
 - `change_events`
 
+### GGUF Export Scripts
+
+#### `export_gguf_f16.py` / `.ps1` / `.sh`
+Exports HuggingFace model to F16 GGUF format (Step 1 of 2-step process).
+
+**Usage:**
+```bash
+# Windows
+.\scripts\export_gguf_f16.ps1 -Src "models\model" -Out "models\model_f16.gguf"
+
+# Linux/macOS
+./scripts/export_gguf_f16.sh --src models/model --out models/model_f16.gguf
+
+# Python (cross-platform)
+python scripts/export_gguf_f16.py --src models/model --out models/model_f16.gguf
+```
+
+**Output:** F16 GGUF file (~14 GB for 7B model)
+
+#### `quantize_q5.py` / `.ps1` / `.sh`
+Quantizes F16 GGUF to Q5 using llama-quantize (Step 2 of 2-step process).
+
+**Usage:**
+```bash
+# Windows
+.\scripts\quantize_q5.ps1 -Src "models\model_f16.gguf" -Out "models\model_q5.gguf" [-Type Q5_K_M]
+
+# Linux/macOS
+./scripts/quantize_q5.sh --src models/model_f16.gguf --out models/model_q5.gguf --type Q5_K_M
+
+# Python
+python scripts/quantize_q5.py --src models/model_f16.gguf --out models/model_q5.gguf --type Q5_K_M
+```
+
+**Quantization types:**
+- `Q5_K_M` (default) - Medium quality, best balance
+- `Q5_K_S` - Small variant, smaller size
+- `Q5_K` - Alias for Q5_K_M
+- `Q5_0` - Original Q5 format
+
+**Requirements:** llama-quantize binary from llama.cpp
+
+**Output:** Q5 quantized GGUF (~6-7 GB for 7B model, ~50% reduction)
+
+#### `export_gguf_q5.py` / `.ps1` / `.sh`
+Combined script that performs both F16 export and Q5 quantization.
+
+**Usage:**
+```bash
+# Windows
+.\scripts\export_gguf_q5.ps1 -Src "models\model" -Out "models\model_q5.gguf" [-Type Q5_K_M] [-KeepF16]
+
+# Linux/macOS
+./scripts/export_gguf_q5.sh --src models/model --out models/model_q5.gguf --type Q5_K_M --keep-f16
+
+# Python
+python scripts/export_gguf_q5.py --src models/model --out models/model_q5.gguf --type Q5_K_M --keep-f16
+```
+
+**Options:**
+- `--keep-f16`: Keep intermediate F16 file for multiple quantization attempts
+- `--type`: Quantization type (default: Q5_K_M)
+
+**Output:** Q5 quantized GGUF file, optionally with F16 intermediate file
+
+#### `run_gguf_server_cuda.ps1` / `.sh`
+Starts llama.cpp server with GGUF model and CUDA support.
+
+**Usage:**
+```bash
+# Windows
+.\scripts\run_gguf_server_cuda.ps1 -Model "models\model_q5.gguf" -Port 8080 -Layers 32
+
+# Linux/macOS
+./scripts/run_gguf_server_cuda.sh --model models/model_q5.gguf --port 8080 --layers 32
+```
+
+**Options:**
+- `-Port/--port`: Server port (default: 8080)
+- `-Layers/--layers`: GPU layers (default: 32, 0 for CPU-only)
+- `-Context/--context`: Context size (default: 4096)
+- `-Threads/--threads`: CPU threads (default: auto)
+
+**Requirements:** llama-server binary from llama.cpp
+
+**See also:** [docs/gguf-export.md](../docs/gguf-export.md) for complete GGUF export guide
+
 ## Future Scripts
 
 The following scripts are planned for implementation:
