@@ -428,7 +428,7 @@ router.post('/gguf/export', async (req, res) => {
       pythonCommand = 'python';
     }
     
-    // Check for project root venv (CivicAI/venv) - optional for new scripts
+    // Check for project root venv (CivicAI/venv) - optional, new scripts work with system Python
     const projectRoot = path.join(process.cwd(), '..');
     const venvPath = path.join(projectRoot, 'venv');
     const venvPythonWin = path.join(venvPath, 'Scripts', 'python.exe');
@@ -564,8 +564,12 @@ router.post('/gguf/export', async (req, res) => {
           'GGUF export failed. You can export manually using the two-step process:',
           '',
           '1. Download llama.cpp binaries from: https://github.com/ggerganov/llama.cpp/releases',
-          `2. Extract to: %USERPROFILE%\\Documents\\GitHub\\CivicAI\\llama.cpp-bin-cuda\\`,
-          '3. Or set environment variable: LLAMA_QUANTIZE_PATH=C:\\path\\to\\llama-quantize.exe',
+          process.platform === 'win32' 
+            ? `2. Extract to: %USERPROFILE%\\Documents\\GitHub\\CivicAI\\llama.cpp-bin-cuda\\`
+            : `2. Extract to: ~/Documents/GitHub/CivicAI/llama.cpp-bin-cuda/`,
+          process.platform === 'win32'
+            ? '3. Or set environment variable: LLAMA_QUANTIZE_PATH=C:\\path\\to\\llama-quantize.exe'
+            : '3. Or set environment variable: export LLAMA_QUANTIZE_PATH=/path/to/llama-quantize',
           '',
           'Then run from project root:',
           `  python scripts/export_gguf_q5.py --src "${resolvedModelPath}" --out "${ggufPath}"`,
