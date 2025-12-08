@@ -3310,6 +3310,11 @@ def start_llama_server(gguf_path: str):
         '-t', str(args.threads),
         '--port', str(port),
         '--host', '127.0.0.1',
+        # CRITICAL: Disable embedded chat template to prevent it from overriding our system prompts
+        # The GGUF metadata contains "You are a helpful assistant" which causes the model to ignore
+        # our platform prompts. By disabling the chat template, we force llama-server to use
+        # only the messages we provide via /v1/chat/completions API.
+        '--no-chat-template',
     ]
     
     if args.flash_attn:
