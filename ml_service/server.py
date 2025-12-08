@@ -3541,13 +3541,13 @@ def _build_gguf_messages(user_message: str, prompt: str = None) -> list:
 
 def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: float = None, user_message: str = None):
     """
-    Generate text using the llama-server HTTP API with chat completions endpoint.
+    Generate text using the llama-server HTTP API with completion endpoint.
     
-    GGUF Fix: Uses /v1/chat/completions with role-based messages to ensure
-    the platform system prompt is respected instead of the GGUF default.
+    GGUF Fix: Formats the prompt using the same chat template structure as the .bin version
+    to ensure consistent behavior and proper system prompt adherence.
     
     Args:
-        prompt: Full formatted prompt (legacy, will be parsed if user_message not provided)
+        prompt: Full formatted prompt or system prompt (if user_message provided)
         max_tokens: Maximum tokens to generate
         temperature: Sampling temperature
         user_message: User's question (if provided, prompt will be used as system prompt)
@@ -3564,47 +3564,43 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
     # Use LLAMA_SERVER_URL if available (auto-started server), otherwise use GGUF_SERVER_BASE (external server)
     server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
     
-    # Build messages array with system prompt injection
-    messages = _build_gguf_messages(user_message, prompt)
+    # Format the prompt using the same chat template structure as .bin version
+    # This mimics tokenizer.apply_chat_template() behavior for consistency
+    if user_message:
+        # System + User format (like .bin with apply_chat_template)
+        formatted_prompt = f"<|im_start|>system\n{prompt}<|im_end|>\n<|im_start|>user\n{user_message}<|im_end|>\n<|im_start|>assistant\n"
+        logger.info(f"[GGUF] Formatted prompt with chat template - system: {len(prompt)} chars, user: {len(user_message)} chars")
+        logger.info(f"[GGUF] System prompt preview: {prompt[:200]}...")
+    else:
+        # Legacy format - use as-is
+        formatted_prompt = prompt
+        logger.info(f"[GGUF] Using legacy prompt format ({len(prompt)} chars)")
     
-    if not messages:
-        raise ValueError("Failed to build messages array")
-    
-    logger.info(f"[GGUF] Sending to /v1/chat/completions with system prompt ({len(messages[0]['content'])} chars)")
-    logger.debug(f"[GGUF] Messages: {[{'role': m['role'], 'content': m['content'][:50]+'...'} for m in messages]}")
-    logger.info(f"[GGUF] System prompt preview: {messages[0]['content'][:200]}...")
-    
-    # Use OpenAI-compatible chat completions endpoint
+    # Use /completion endpoint with formatted prompt (not /v1/chat/completions)
+    # This bypasses the GGUF's embedded chat template entirely
     payload = {
-        "messages": messages,
-        "max_tokens": max_tokens,
+        "prompt": formatted_prompt,
+        "n_predict": max_tokens,
         "temperature": temperature,
-        "stop": ["</s>", "[/INST]", "User:", "\n\nUser:", "Användare:"],
-        # Disable automatic chat template application - tell llama-server to use messages as-is
-        # This prevents GGUF's embedded "You are a helpful assistant" from overriding our prompts
-        "add_generation_prompt": False,
+        "stop": ["</s>", "<|im_end|>", "[/INST]", "User:", "\n\nUser:", "Användare:", "<|im_start|>user"],
     }
     
-    logger.debug(f"[GGUF] Full payload being sent: {payload}")
+    logger.debug(f"[GGUF] Full payload being sent to /completion: {payload}")
     
     try:
-        # Try /v1/chat/completions first (OpenAI-compatible)
+        # Use /completion endpoint directly (bypasses GGUF's chat template)
         response = requests.post(
-            f"{server_url}/v1/chat/completions",
+            f"{server_url}/completion",
             json=payload,
             timeout=120,
         )
         response.raise_for_status()
         result = response.json()
         
-        # Extract response from OpenAI-style format
-        if 'choices' in result and len(result['choices']) > 0:
-            content = result['choices'][0].get('message', {}).get('content', '')
-            logger.info(f"[GGUF] Response received ({len(content)} chars)")
-            return content
-        else:
-            logger.error(f"[GGUF] Unexpected response format: {result}")
-            return result.get('content', '')
+        # Extract content from completion response
+        content = result.get('content', '')
+        logger.info(f"[GGUF] Response received ({len(content)} chars)")
+        return content
     except requests.exceptions.ConnectionError as e:
         # Connection error - server not running
         error_msg = (
@@ -3623,51 +3619,16 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
         logger.error(error_msg)
         raise RuntimeError(error_msg)
     except requests.exceptions.RequestException as e:
-        logger.warning(f"[GGUF] /v1/chat/completions failed, falling back to /completion: {e}")
-        # Fallback to legacy completion endpoint
-        fallback_payload = {
-            "prompt": prompt,
-            "n_predict": max_tokens,
-            "temperature": temperature,
-            "stop": ["</s>", "[/INST]", "User:", "\n\nUser:"],
-        }
-        try:
-            response = requests.post(
-                f"{server_url}/completion",
-                json=fallback_payload,
-                timeout=120,
-            )
-            response.raise_for_status()
-            result = response.json()
-            return result.get('content', '')
-        except requests.exceptions.ConnectionError as conn_e:
-            # Connection error on fallback - provide detailed help
-            error_msg = (
-                f"[GGUF] Cannot connect to GGUF server at {GGUF_SERVER_BASE}\n"
-                f"[GGUF] \n"
-                f"[GGUF] Please ensure one of the following:\n"
-                f"[GGUF]   1. Start llama-server.exe manually:\n"
-                f"[GGUF]      llama-server.exe -m path/to/model.gguf --port 8080\n"
-                f"[GGUF]   2. Provide GGUF model path to auto-start:\n"
-                f"[GGUF]      python ml_service/server.py --use-gguf --gguf path/to/model.gguf\n"
-                f"[GGUF]   3. Set GGUF_SERVER_BASE to your running server:\n"
-                f"[GGUF]      set GGUF_SERVER_BASE=http://localhost:YOUR_PORT\n"
-                f"[GGUF] \n"
-                f"[GGUF] Original error: {conn_e}"
-            )
-            logger.error(error_msg)
-            raise RuntimeError(error_msg)
-        except Exception as fallback_e:
-            logger.error(f"[GGUF] Both endpoints failed: {fallback_e}")
-            raise
+        logger.error(f"[GGUF] /completion failed: {e}")
+        raise RuntimeError(f"GGUF server error: {e}")
 
 
 def stream_generate_with_llama_server(enriched_system_prompt: str, user_message: str, max_tokens: int = 512, temperature: float = None):
     """
-    Stream generate text using the llama-server HTTP API with chat completions endpoint.
+    Stream generate text using the llama-server HTTP API with completion endpoint.
     
-    GGUF Fix: Accepts enriched system prompt directly to ensure platform prompt + time context + data
-    is properly injected, not overridden by environment variables or defaults.
+    GGUF Fix: Formats the prompt using the same chat template structure as the .bin version
+    to ensure consistent behavior and proper system prompt adherence.
     
     Args:
         enriched_system_prompt: Full enriched system prompt (platform prompt + time + data)
@@ -3676,7 +3637,7 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
         temperature: Sampling temperature
         
     Yields:
-        Generated tokens
+        Generated text chunks
     """
     if not LLAMA_SERVER_URL and not GGUF_SERVER_BASE:
         raise RuntimeError("llama-server or GGUF server not running")
@@ -3687,45 +3648,33 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
     # Use LLAMA_SERVER_URL if available (auto-started server), otherwise use GGUF_SERVER_BASE (external server)
     server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
     
-    # Build messages array directly with enriched system prompt
-    # DO NOT use _build_gguf_messages() as it would fetch a different system prompt
-    messages = [
-        {
-            "role": "system",
-            "content": enriched_system_prompt
-        },
-        {
-            "role": "user",
-            "content": user_message
-        }
-    ]
+    # Format the prompt using the same chat template structure as .bin version
+    # This mimics tokenizer.apply_chat_template() behavior for consistency
+    formatted_prompt = f"<|im_start|>system\n{enriched_system_prompt}<|im_end|>\n<|im_start|>user\n{user_message}<|im_end|>\n<|im_start|>assistant\n"
     
-    logger.info(f"[GGUF] Streaming from /v1/chat/completions with enriched system prompt ({len(enriched_system_prompt)} chars)")
+    logger.info(f"[GGUF] Streaming with chat template format - system: {len(enriched_system_prompt)} chars, user: {len(user_message)} chars")
     logger.info(f"[GGUF] System prompt preview: {enriched_system_prompt[:200]}...")
-    logger.debug(f"[GGUF] Messages: {[{'role': m['role'], 'content': m['content'][:50]+'...'} for m in messages]}")
     
-    # Use OpenAI-compatible chat completions endpoint with streaming
+    # Use /completion endpoint with formatted prompt (bypasses GGUF's embedded template)
     payload = {
-        "messages": messages,
-        "max_tokens": max_tokens,
+        "prompt": formatted_prompt,
+        "n_predict": max_tokens,
         "temperature": temperature,
-        "stop": ["</s>", "[/INST]", "User:", "\n\nUser:", "Användare:"],
+        "stop": ["</s>", "<|im_end|>", "[/INST]", "User:", "\n\nUser:", "Användare:", "<|im_start|>user"],
         "stream": True,
-        # Disable automatic chat template application - tell llama-server to use messages as-is
-        # This prevents GGUF's embedded "You are a helpful assistant" from overriding our prompts
-        "add_generation_prompt": False,
     }
     
     try:
-        # Try /v1/chat/completions first (OpenAI-compatible)
+        # Use /completion endpoint directly (bypasses GGUF's chat template)
         response = requests.post(
-            f"{server_url}/v1/chat/completions",
+            f"{server_url}/completion",
             json=payload,
             stream=True,
             timeout=120,
         )
         response.raise_for_status()
         
+        # Parse streaming completion response
         for line in response.iter_lines():
             if line:
                 line = line.decode('utf-8')
@@ -3735,17 +3684,10 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
                         break
                     try:
                         chunk = json.loads(data)
-                        # OpenAI format: choices[0].delta.content
-                        if 'choices' in chunk and len(chunk['choices']) > 0:
-                            delta = chunk['choices'][0].get('delta', {})
-                            content = delta.get('content', '')
-                            if content:
-                                yield content
-                        else:
-                            # Fallback format
-                            content = chunk.get('content', '')
-                            if content:
-                                yield content
+                        # llama.cpp completion format
+                        content = chunk.get('content', '')
+                        if content:
+                            yield content
                     except json.JSONDecodeError:
                         pass
     except requests.exceptions.ConnectionError as e:
@@ -3766,58 +3708,8 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
         logger.error(error_msg)
         raise RuntimeError(error_msg)
     except requests.exceptions.RequestException as e:
-        logger.warning(f"[GGUF] /v1/chat/completions streaming failed, falling back to /completion: {e}")
-        # Fallback to legacy completion endpoint
-        fallback_payload = {
-            "prompt": prompt,
-            "n_predict": max_tokens,
-            "temperature": temperature,
-            "stop": ["</s>", "[/INST]", "User:", "\n\nUser:"],
-            "stream": True,
-        }
-        try:
-            response = requests.post(
-                f"{server_url}/completion",
-                json=fallback_payload,
-                stream=True,
-                timeout=120,
-            )
-            response.raise_for_status()
-            
-            for line in response.iter_lines():
-                if line:
-                    line = line.decode('utf-8')
-                    if line.startswith('data: '):
-                        data = line[6:]
-                        if data.strip() == '[DONE]':
-                            break
-                        try:
-                            chunk = json.loads(data)
-                            content = chunk.get('content', '')
-                            if content:
-                                yield content
-                        except json.JSONDecodeError:
-                            pass
-        except requests.exceptions.ConnectionError as conn_e:
-            # Connection error on fallback - provide detailed help
-            error_msg = (
-                f"[GGUF] Cannot connect to GGUF server at {GGUF_SERVER_BASE}\n"
-                f"[GGUF] \n"
-                f"[GGUF] Please ensure one of the following:\n"
-                f"[GGUF]   1. Start llama-server.exe manually:\n"
-                f"[GGUF]      llama-server.exe -m path/to/model.gguf --port 8080\n"
-                f"[GGUF]   2. Provide GGUF model path to auto-start:\n"
-                f"[GGUF]      python ml_service/server.py --use-gguf --gguf path/to/model.gguf\n"
-                f"[GGUF]   3. Set GGUF_SERVER_BASE to your running server:\n"
-                f"[GGUF]      set GGUF_SERVER_BASE=http://localhost:YOUR_PORT\n"
-                f"[GGUF] \n"
-                f"[GGUF] Original error: {conn_e}"
-            )
-            logger.error(error_msg)
-            raise RuntimeError(error_msg)
-        except Exception as fallback_e:
-            logger.error(f"[GGUF] Both streaming endpoints failed: {fallback_e}")
-            raise
+        logger.error(f"[GGUF] Streaming /completion failed: {e}")
+        raise RuntimeError(f"GGUF streaming error: {e}")
 
 def ensure_llama_cpp_python():
     """
