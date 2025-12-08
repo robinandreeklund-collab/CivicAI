@@ -3572,6 +3572,7 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
     
     logger.info(f"[GGUF] Sending to /v1/chat/completions with system prompt ({len(messages[0]['content'])} chars)")
     logger.debug(f"[GGUF] Messages: {[{'role': m['role'], 'content': m['content'][:50]+'...'} for m in messages]}")
+    logger.info(f"[GGUF] System prompt preview: {messages[0]['content'][:200]}...")
     
     # Use OpenAI-compatible chat completions endpoint
     payload = {
@@ -3580,6 +3581,8 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
         "temperature": temperature,
         "stop": ["</s>", "[/INST]", "User:", "\n\nUser:", "Användare:"],
     }
+    
+    logger.debug(f"[GGUF] Full payload being sent: {payload}")
     
     try:
         # Try /v1/chat/completions first (OpenAI-compatible)
