@@ -1,0 +1,7 @@
+{
+  "mode": "local",
+  "runpod_api_key": null,
+  "runpod_endpoint_url": null,
+  "runpod_timeout": 300,
+  "runpod_max_retries": 3
+}
