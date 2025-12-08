@@ -22,6 +22,14 @@ import tempfile
 import os
 from pathlib import Path
 
+# Ensure stdout/stderr use UTF-8 encoding on Windows to handle Unicode characters
+if sys.platform == 'win32':
+    import codecs
+    if sys.stdout.encoding != 'utf-8':
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'replace')
+    if sys.stderr.encoding != 'utf-8':
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'replace')
+
 # Import the two-step functions
 sys.path.insert(0, os.path.dirname(__file__))
 

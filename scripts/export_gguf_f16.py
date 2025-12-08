@@ -28,6 +28,14 @@ import io
 from pathlib import Path
 from datetime import datetime
 
+# Ensure stdout/stderr use UTF-8 encoding on Windows to handle Unicode characters
+if sys.platform == 'win32':
+    import codecs
+    if sys.stdout.encoding != 'utf-8':
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'replace')
+    if sys.stderr.encoding != 'utf-8':
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'replace')
+
 
 def ensure_gguf_package():
     """Ensure gguf package is installed."""
@@ -197,6 +205,8 @@ def convert_to_f16_gguf(model_path: Path, output_path: Path):
             convert_cmd,
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',  # Replace characters that can't be encoded
             timeout=3600,  # 1 hour timeout
             env=env,
         )
