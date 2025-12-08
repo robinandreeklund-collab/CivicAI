@@ -3480,6 +3480,65 @@ def stop_llama_server():
         USING_LLAMA_SERVER = False
 
 
+
+def _build_gguf_messages(user_message: str, prompt: str = None) -> list:
+    """
+    Build messages array for GGUF chat completions endpoint.
+    
+    Args:
+        user_message: User's question (if provided)
+        prompt: Full formatted prompt (legacy, will be parsed if user_message not provided)
+        
+    Returns:
+        List of message dicts with role and content
+    """
+    # Get the platform system prompt
+    system_prompt = get_active_system_prompt()
+    
+    # Override with environment variable if set
+    if PLATFORM_SYSTEM_PROMPT:
+        system_prompt = PLATFORM_SYSTEM_PROMPT
+        logger.info(f"[GGUF] Using PLATFORM_SYSTEM_PROMPT from environment")
+    
+    # Build messages array with explicit system role
+    messages = []
+    
+    # CRITICAL: Inject system prompt as first message with role=system
+    messages.append({
+        "role": "system",
+        "content": system_prompt
+    })
+    
+    # Add user message
+    if user_message:
+        messages.append({
+            "role": "user", 
+            "content": user_message
+        })
+    else:
+        # Parse prompt to extract user message (legacy support)
+        if prompt and ("Användare:" in prompt or "user" in prompt.lower()):
+            parts = prompt.split("Användare:")
+            if len(parts) > 1:
+                user_part = parts[1].split("OneSeek:")[0].strip()
+                messages.append({
+                    "role": "user",
+                    "content": user_part
+                })
+            else:
+                messages.append({
+                    "role": "user",
+                    "content": prompt
+                })
+        else:
+            messages.append({
+                "role": "user",
+                "content": prompt or ""
+            })
+    
+    return messages
+
+
 def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: float = None, user_message: str = None):
     """
     Generate text using the llama-server HTTP API with chat completions endpoint.
@@ -3502,54 +3561,10 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
     if temperature is None:
         temperature = args.temp
     
-    # Get the platform system prompt
-    system_prompt = get_active_system_prompt()
+    # Build messages array with system prompt injection
+    messages = _build_gguf_messages(user_message, prompt)
     
-    # Override with environment variable if set
-    if PLATFORM_SYSTEM_PROMPT:
-        system_prompt = PLATFORM_SYSTEM_PROMPT
-        logger.info(f"[GGUF] Using PLATFORM_SYSTEM_PROMPT from environment")
-    
-    # Build messages array with explicit system role
-    messages = []
-    
-    # CRITICAL: Inject system prompt as first message with role=system
-    # This prevents the GGUF backend from using its default "You are a helpful assistant"
-    messages.append({
-        "role": "system",
-        "content": system_prompt
-    })
-    
-    # Add user message
-    if user_message:
-        messages.append({
-            "role": "user", 
-            "content": user_message
-        })
-    else:
-        # Parse prompt to extract user message (legacy support)
-        # Typically format: "[system]\n\nAnvändare: [user]\n\nOneSeek:"
-        if "Användare:" in prompt or "user" in prompt.lower():
-            parts = prompt.split("Användare:")
-            if len(parts) > 1:
-                user_part = parts[1].split("OneSeek:")[0].strip()
-                messages.append({
-                    "role": "user",
-                    "content": user_part
-                })
-            else:
-                # Fallback: use entire prompt as user message
-                messages.append({
-                    "role": "user",
-                    "content": prompt
-                })
-        else:
-            messages.append({
-                "role": "user",
-                "content": prompt
-            })
-    
-    logger.info(f"[GGUF] Sending to /v1/chat/completions with system prompt ({len(system_prompt)} chars)")
+    logger.info(f"[GGUF] Sending to /v1/chat/completions with system prompt ({len(messages[0]['content'])} chars)")
     logger.debug(f"[GGUF] Messages: {[{'role': m['role'], 'content': m['content'][:50]+'...'} for m in messages]}")
     
     # Use OpenAI-compatible chat completions endpoint
@@ -3589,7 +3604,7 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
         }
         try:
             response = requests.post(
-                f"{LLAMA_SERVER_URL}/completion",
+                f"{GGUF_SERVER_BASE}/completion",
                 json=fallback_payload,
                 timeout=120,
             )
@@ -3597,7 +3612,7 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
             result = response.json()
             return result.get('content', '')
         except Exception as fallback_e:
-            logger.error(f"[LLAMA-SERVER] Both endpoints failed: {fallback_e}")
+            logger.error(f"[GGUF] Both endpoints failed: {fallback_e}")
             raise
 
 
@@ -3623,51 +3638,10 @@ def stream_generate_with_llama_server(prompt: str, max_tokens: int = 512, temper
     if temperature is None:
         temperature = args.temp
     
-    # Get the platform system prompt
-    system_prompt = get_active_system_prompt()
+    # Build messages array with system prompt injection
+    messages = _build_gguf_messages(user_message, prompt)
     
-    # Override with environment variable if set
-    if PLATFORM_SYSTEM_PROMPT:
-        system_prompt = PLATFORM_SYSTEM_PROMPT
-        logger.info(f"[GGUF] Using PLATFORM_SYSTEM_PROMPT from environment")
-    
-    # Build messages array with explicit system role
-    messages = []
-    
-    # CRITICAL: Inject system prompt as first message with role=system
-    messages.append({
-        "role": "system",
-        "content": system_prompt
-    })
-    
-    # Add user message
-    if user_message:
-        messages.append({
-            "role": "user", 
-            "content": user_message
-        })
-    else:
-        # Parse prompt to extract user message (legacy support)
-        if "Användare:" in prompt or "user" in prompt.lower():
-            parts = prompt.split("Användare:")
-            if len(parts) > 1:
-                user_part = parts[1].split("OneSeek:")[0].strip()
-                messages.append({
-                    "role": "user",
-                    "content": user_part
-                })
-            else:
-                messages.append({
-                    "role": "user",
-                    "content": prompt
-                })
-        else:
-            messages.append({
-                "role": "user",
-                "content": prompt
-            })
-    
-    logger.info(f"[GGUF] Streaming from /v1/chat/completions with system prompt ({len(system_prompt)} chars)")
+    logger.info(f"[GGUF] Streaming from /v1/chat/completions with system prompt ({len(messages[0]['content'])} chars)")
     logger.debug(f"[GGUF] Messages: {[{'role': m['role'], 'content': m['content'][:50]+'...'} for m in messages]}")
     
     # Use OpenAI-compatible chat completions endpoint with streaming
@@ -3723,7 +3697,7 @@ def stream_generate_with_llama_server(prompt: str, max_tokens: int = 512, temper
         }
         try:
             response = requests.post(
-                f"{LLAMA_SERVER_URL}/completion",
+                f"{GGUF_SERVER_BASE}/completion",
                 json=fallback_payload,
                 stream=True,
                 timeout=120,
@@ -3745,7 +3719,7 @@ def stream_generate_with_llama_server(prompt: str, max_tokens: int = 512, temper
                         except json.JSONDecodeError:
                             pass
         except Exception as fallback_e:
-            logger.error(f"[LLAMA-SERVER] Both streaming endpoints failed: {fallback_e}")
+            logger.error(f"[GGUF] Both streaming endpoints failed: {fallback_e}")
             raise
 
 def ensure_llama_cpp_python():
