@@ -3539,6 +3539,49 @@ def _build_gguf_messages(user_message: str, prompt: str = None) -> list:
     return messages
 
 
+def format_system_prompt_with_placeholders(system_prompt: str) -> str:
+    """
+    Replace placeholders in system prompt with actual content (personality catalog, API map).
+    This matches the exact behavior of the /infer endpoint to ensure GGUF gets the same
+    enriched prompts as .bin models.
+    
+    Args:
+        system_prompt: Raw system prompt that may contain placeholders
+        
+    Returns:
+        System prompt with all placeholders replaced
+    """
+    # Format the personality catalog in human-readable format
+    formatted_catalog = format_personality_catalog_for_prompt()
+    
+    # Format the API map for the model
+    formatted_api_map = format_api_map_for_prompt()
+    
+    final_prompt = system_prompt
+    
+    # Replace PERSONALITY_CATALOG_PLACEHOLDER
+    if "{PERSONALITY_CATALOG_PLACEHOLDER}" in final_prompt:
+        final_prompt = final_prompt.replace("{PERSONALITY_CATALOG_PLACEHOLDER}", formatted_catalog)
+        logger.debug(f"[GGUF] Replaced PERSONALITY_CATALOG_PLACEHOLDER ({len(formatted_catalog)} chars)")
+    elif "{PLACEHOLDER_PERSONALITY_CATALOG}" in final_prompt:
+        # Support old placeholder name for backwards compatibility
+        final_prompt = final_prompt.replace("{PLACEHOLDER_PERSONALITY_CATALOG}", formatted_catalog)
+        logger.debug(f"[GGUF] Replaced PLACEHOLDER_PERSONALITY_CATALOG ({len(formatted_catalog)} chars)")
+    else:
+        # If no placeholder found, append the catalog
+        final_prompt = f"{final_prompt}\n\nHär är din inre karta över alla personligheter:\n\n{formatted_catalog}"
+        logger.debug(f"[GGUF] No personality catalog placeholder found, appending catalog")
+    
+    # Replace MODELL_API_MAP_PLACEHOLDER
+    if "{MODELL_API_MAP_PLACEHOLDER}" in final_prompt:
+        final_prompt = final_prompt.replace("{MODELL_API_MAP_PLACEHOLDER}", formatted_api_map)
+        logger.debug(f"[GGUF] Replaced MODELL_API_MAP_PLACEHOLDER ({len(formatted_api_map)} chars)")
+    else:
+        logger.debug(f"[GGUF] No API map placeholder found in system prompt")
+    
+    return final_prompt
+
+
 def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: float = None, user_message: str = None):
     """
     Generate text using the llama-server HTTP API with completion endpoint.
@@ -3563,6 +3606,11 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
     
     # Use LLAMA_SERVER_URL if available (auto-started server), otherwise use GGUF_SERVER_BASE (external server)
     server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+    
+    # Replace placeholders in system prompt before formatting
+    # This ensures GGUF gets the same enriched prompt as .bin (with personality catalog, API map, etc.)
+    if user_message:
+        prompt = format_system_prompt_with_placeholders(prompt)
     
     # Format the prompt using the same chat template structure as .bin version
     # This mimics tokenizer.apply_chat_template() behavior for consistency
@@ -3661,6 +3709,10 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
     
     # Use LLAMA_SERVER_URL if available (auto-started server), otherwise use GGUF_SERVER_BASE (external server)
     server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+    
+    # Replace placeholders in enriched system prompt before formatting
+    # This ensures GGUF gets the same enriched prompt as .bin (with personality catalog, API map, etc.)
+    enriched_system_prompt = format_system_prompt_with_placeholders(enriched_system_prompt)
     
     # Format the prompt using the same chat template structure as .bin version
     # This mimics tokenizer.apply_chat_template() behavior for consistency
