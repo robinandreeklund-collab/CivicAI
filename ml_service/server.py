@@ -3304,6 +3304,8 @@ def start_llama_server(gguf_path: str):
     # Build command with custom chat template
     # Use OneSeek-specific ChatML template to match .bin tokenizer behavior
     template_path = Path(__file__).parent.parent / 'templates' / 'oneseek.jinja'
+    # Resolve to absolute path to ensure llama-server can find it
+    template_path = template_path.resolve()
     
     cmd = [
         str(server_exe),
@@ -3317,8 +3319,10 @@ def start_llama_server(gguf_path: str):
     
     # Add custom chat template if it exists
     if template_path.exists():
-        cmd.extend(['--chat-template', str(template_path)])
-        logger.info(f"[LLAMA-SERVER] Using custom chat template: {template_path}")
+        # Use absolute path for llama-server
+        cmd.extend(['--chat-template', str(template_path.absolute())])
+        logger.info(f"[LLAMA-SERVER] Using custom chat template: {template_path.absolute()}")
+        logger.info(f"[LLAMA-SERVER] Template file exists: {template_path.exists()}, size: {template_path.stat().st_size} bytes")
     else:
         logger.warning(f"[LLAMA-SERVER] Custom chat template not found: {template_path}")
         logger.warning(f"[LLAMA-SERVER] Will use GGUF's embedded template (may cause prompt issues)")
