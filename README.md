@@ -689,6 +689,51 @@ npm run build
 # - Ledger integrity issues
 ```
 
+### Step 12: Export to GGUF Format (Optional)
+
+Export your trained model to GGUF format for efficient inference with llama.cpp.
+
+**Quick Start - Complete 2-step export:**
+
+```bash
+# Windows
+.\scripts\export_gguf_q5.ps1 -Src "models\oneseek-7b-zero\weights" -Out "models\oneseek-q5.gguf"
+
+# Linux/macOS
+./scripts/export_gguf_q5.sh --src models/oneseek-7b-zero/weights --out models/oneseek-q5.gguf
+
+# Python (cross-platform)
+python scripts/export_gguf_q5.py --src models/oneseek-7b-zero/weights --out models/oneseek-q5.gguf
+```
+
+**Two-step process:**
+
+1. **Export to F16 GGUF** (~14 GB for 7B model)
+   ```bash
+   python scripts/export_gguf_f16.py --src models/oneseek-7b-zero/weights --out models/oneseek-f16.gguf
+   ```
+
+2. **Quantize to Q5** (~6-7 GB for 7B model)
+   ```bash
+   python scripts/quantize_q5.py --src models/oneseek-f16.gguf --out models/oneseek-q5.gguf
+   ```
+
+**Requirements:**
+- `llama-quantize` binary from [llama.cpp releases](https://github.com/ggerganov/llama.cpp/releases)
+- Windows: Place at `%USERPROFILE%\Documents\GitHub\CivicAI\llama.cpp-bin-cuda\llama-quantize.exe`
+- Linux/macOS: Install via package manager or build from source
+
+**Run GGUF server:**
+```bash
+# Windows
+.\scripts\run_gguf_server_cuda.ps1 -Model "models\oneseek-q5.gguf" -Port 8080
+
+# Linux/macOS
+./scripts/run_gguf_server_cuda.sh --model models/oneseek-q5.gguf --port 8080
+```
+
+📖 **Full documentation:** [docs/gguf-export.md](docs/gguf-export.md)
+
 ### Troubleshooting
 
 **Problem: Out of memory during training**
