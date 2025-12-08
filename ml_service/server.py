@@ -3301,7 +3301,10 @@ def start_llama_server(gguf_path: str):
     
     port = args.llama_server_port
     
-    # Build command
+    # Build command with custom chat template
+    # Use OneSeek-specific ChatML template to match .bin tokenizer behavior
+    template_path = Path(__file__).parent.parent / 'templates' / 'oneseek.jinja'
+    
     cmd = [
         str(server_exe),
         '-m', str(gguf_path),
@@ -3311,6 +3314,14 @@ def start_llama_server(gguf_path: str):
         '--port', str(port),
         '--host', '127.0.0.1',
     ]
+    
+    # Add custom chat template if it exists
+    if template_path.exists():
+        cmd.extend(['--chat-template', str(template_path)])
+        logger.info(f"[LLAMA-SERVER] Using custom chat template: {template_path}")
+    else:
+        logger.warning(f"[LLAMA-SERVER] Custom chat template not found: {template_path}")
+        logger.warning(f"[LLAMA-SERVER] Will use GGUF's embedded template (may cause prompt issues)")
     
     if args.flash_attn:
         cmd.append('--flash-attn')
@@ -3584,10 +3595,11 @@ def format_system_prompt_with_placeholders(system_prompt: str) -> str:
 
 def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: float = None, user_message: str = None):
     """
-    Generate text using the llama-server HTTP API with completion endpoint.
+    Generate text using the llama-server HTTP API with /v1/chat/completions endpoint.
     
-    GGUF Fix: Formats the prompt using the same chat template structure as the .bin version
-    to ensure consistent behavior and proper system prompt adherence.
+    GGUF Fix: Uses custom Jinja2 chat template (templates/oneseek.jinja) that matches
+    .bin tokenizer.apply_chat_template() behavior. The template is loaded via --chat-template
+    flag when starting llama-server, ensuring consistent ChatML formatting.
     
     Args:
         prompt: Full formatted prompt or system prompt (if user_message provided)
@@ -3607,57 +3619,58 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
     # Use LLAMA_SERVER_URL if available (auto-started server), otherwise use GGUF_SERVER_BASE (external server)
     server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
     
-    # Replace placeholders in system prompt before formatting
+    # Replace placeholders in system prompt before sending
     # This ensures GGUF gets the same enriched prompt as .bin (with personality catalog, API map, etc.)
     if user_message:
         prompt = format_system_prompt_with_placeholders(prompt)
     
-    # Format the prompt using the same chat template structure as .bin version
-    # This mimics tokenizer.apply_chat_template() behavior for consistency
+    # Build messages array for /v1/chat/completions
+    # The custom Jinja template will format these into proper ChatML
     if user_message:
-        # System + User format (like .bin with apply_chat_template)
-        formatted_prompt = f"<|im_start|>system\n{prompt}<|im_end|>\n<|im_start|>user\n{user_message}<|im_end|>\n<|im_start|>assistant\n"
-        logger.info(f"[GGUF-DEBUG] ========== PROMPT FORMATTING ==========")
+        messages = [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": user_message}
+        ]
+        logger.info(f"[GGUF-DEBUG] ========== CHAT MESSAGES ==========")
         logger.info(f"[GGUF-DEBUG] System prompt length: {len(prompt)} chars")
         logger.info(f"[GGUF-DEBUG] User message length: {len(user_message)} chars")
-        logger.info(f"[GGUF-DEBUG] Formatted prompt length: {len(formatted_prompt)} chars")
         logger.info(f"[GGUF-DEBUG] System prompt (first 500 chars):\n{prompt[:500]}")
         logger.info(f"[GGUF-DEBUG] User message:\n{user_message}")
-        logger.info(f"[GGUF-DEBUG] Full formatted prompt being sent:\n{formatted_prompt}")
-        logger.info(f"[GGUF-DEBUG] ======================================")
+        logger.info(f"[GGUF-DEBUG] Messages will be formatted by custom Jinja template")
+        logger.info(f"[GGUF-DEBUG] ===================================")
     else:
-        # Legacy format - use as-is
-        formatted_prompt = prompt
-        logger.info(f"[GGUF-DEBUG] Using legacy prompt format ({len(prompt)} chars)")
-        logger.info(f"[GGUF-DEBUG] Legacy prompt:\n{prompt}")
+        # Legacy format - treat as single user message
+        messages = [{"role": "user", "content": prompt}]
+        logger.info(f"[GGUF-DEBUG] Using legacy format ({len(prompt)} chars)")
     
-    # Use /completion endpoint with formatted prompt (not /v1/chat/completions)
-    # This bypasses the GGUF's embedded chat template entirely
+    # Use /v1/chat/completions with custom template
+    # The Jinja template (templates/oneseek.jinja) will format messages into ChatML
     payload = {
-        "prompt": formatted_prompt,
-        "n_predict": max_tokens,
+        "messages": messages,
+        "max_tokens": max_tokens,
         "temperature": temperature,
-        "stop": ["</s>", "<|im_end|>", "[/INST]", "User:", "\n\nUser:", "Användare:", "<|im_start|>user"],
+        "stop": ["<|im_end|>", "<|im_start|>user", "</s>"],
+        "stream": False
     }
     
     logger.info(f"[GGUF-DEBUG] Payload details:")
-    logger.info(f"[GGUF-DEBUG]   - n_predict: {max_tokens}")
+    logger.info(f"[GGUF-DEBUG]   - max_tokens: {max_tokens}")
     logger.info(f"[GGUF-DEBUG]   - temperature: {temperature}")
     logger.info(f"[GGUF-DEBUG]   - stop tokens: {payload['stop']}")
-    logger.info(f"[GGUF-DEBUG]   - endpoint: {server_url}/completion")
+    logger.info(f"[GGUF-DEBUG]   - endpoint: {server_url}/v1/chat/completions")
     
     try:
-        # Use /completion endpoint directly (bypasses GGUF's chat template)
+        # Use /v1/chat/completions with custom template
         response = requests.post(
-            f"{server_url}/completion",
+            f"{server_url}/v1/chat/completions",
             json=payload,
             timeout=120,
         )
         response.raise_for_status()
         result = response.json()
         
-        # Extract content from completion response
-        content = result.get('content', '')
+        # Extract content from chat completions response
+        content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
         logger.info(f"[GGUF-DEBUG] Response received:")
         logger.info(f"[GGUF-DEBUG]   - Content length: {len(content)} chars")
         logger.info(f"[GGUF-DEBUG]   - Full response:\n{content}")
@@ -3666,11 +3679,11 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
     except requests.exceptions.ConnectionError as e:
         # Connection error - server not running
         error_msg = (
-            f"[GGUF] Cannot connect to GGUF server at {GGUF_SERVER_BASE}\n"
+            f"[GGUF] Cannot connect to GGUF server at {server_url}\n"
             f"[GGUF] \n"
             f"[GGUF] Please ensure one of the following:\n"
-            f"[GGUF]   1. Start llama-server.exe manually:\n"
-            f"[GGUF]      llama-server.exe -m path/to/model.gguf --port 8080\n"
+            f"[GGUF]   1. Start llama-server with custom template manually:\n"
+            f"[GGUF]      llama-server -m path/to/model.gguf --chat-template templates/oneseek.jinja --port 8080\n"
             f"[GGUF]   2. Provide GGUF model path to auto-start:\n"
             f"[GGUF]      python ml_service/server.py --use-gguf --gguf path/to/model.gguf\n"
             f"[GGUF]   3. Set GGUF_SERVER_BASE to your running server:\n"
@@ -3681,16 +3694,17 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: 
         logger.error(error_msg)
         raise RuntimeError(error_msg)
     except requests.exceptions.RequestException as e:
-        logger.error(f"[GGUF] /completion failed: {e}")
+        logger.error(f"[GGUF] /v1/chat/completions failed: {e}")
         raise RuntimeError(f"GGUF server error: {e}")
 
 
 def stream_generate_with_llama_server(enriched_system_prompt: str, user_message: str, max_tokens: int = 512, temperature: float = None):
     """
-    Stream generate text using the llama-server HTTP API with completion endpoint.
+    Stream generate text using the llama-server HTTP API with /v1/chat/completions endpoint.
     
-    GGUF Fix: Formats the prompt using the same chat template structure as the .bin version
-    to ensure consistent behavior and proper system prompt adherence.
+    GGUF Fix: Uses custom Jinja2 chat template (templates/oneseek.jinja) that matches
+    .bin tokenizer.apply_chat_template() behavior. The template is loaded via --chat-template
+    flag when starting llama-server, ensuring consistent ChatML formatting.
     
     Args:
         enriched_system_prompt: Full enriched system prompt (platform prompt + time + data)
@@ -3710,49 +3724,51 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
     # Use LLAMA_SERVER_URL if available (auto-started server), otherwise use GGUF_SERVER_BASE (external server)
     server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
     
-    # Replace placeholders in enriched system prompt before formatting
+    # Replace placeholders in enriched system prompt before sending
     # This ensures GGUF gets the same enriched prompt as .bin (with personality catalog, API map, etc.)
     enriched_system_prompt = format_system_prompt_with_placeholders(enriched_system_prompt)
     
-    # Format the prompt using the same chat template structure as .bin version
-    # This mimics tokenizer.apply_chat_template() behavior for consistency
-    formatted_prompt = f"<|im_start|>system\n{enriched_system_prompt}<|im_end|>\n<|im_start|>user\n{user_message}<|im_end|>\n<|im_start|>assistant\n"
+    # Build messages array for /v1/chat/completions
+    # The custom Jinja template will format these into proper ChatML
+    messages = [
+        {"role": "system", "content": enriched_system_prompt},
+        {"role": "user", "content": user_message}
+    ]
     
-    logger.info(f"[GGUF-STREAM-DEBUG] ========== STREAMING PROMPT FORMATTING ==========")
+    logger.info(f"[GGUF-STREAM-DEBUG] ========== STREAMING CHAT MESSAGES ==========")
     logger.info(f"[GGUF-STREAM-DEBUG] System prompt length: {len(enriched_system_prompt)} chars")
     logger.info(f"[GGUF-STREAM-DEBUG] User message length: {len(user_message)} chars")
-    logger.info(f"[GGUF-STREAM-DEBUG] Formatted prompt length: {len(formatted_prompt)} chars")
     logger.info(f"[GGUF-STREAM-DEBUG] System prompt (first 500 chars):\n{enriched_system_prompt[:500]}")
     logger.info(f"[GGUF-STREAM-DEBUG] User message:\n{user_message}")
-    logger.info(f"[GGUF-STREAM-DEBUG] Full formatted prompt being sent:\n{formatted_prompt}")
-    logger.info(f"[GGUF-STREAM-DEBUG] ================================================")
+    logger.info(f"[GGUF-STREAM-DEBUG] Messages will be formatted by custom Jinja template")
+    logger.info(f"[GGUF-STREAM-DEBUG] ==============================================")
     
-    # Use /completion endpoint with formatted prompt (bypasses GGUF's embedded template)
+    # Use /v1/chat/completions with custom template for streaming
     payload = {
-        "prompt": formatted_prompt,
-        "n_predict": max_tokens,
+        "messages": messages,
+        "max_tokens": max_tokens,
         "temperature": temperature,
-        "stop": ["</s>", "<|im_end|>", "[/INST]", "User:", "\n\nUser:", "Användare:", "<|im_start|>user"],
+        "stop": ["<|im_end|>", "<|im_start|>user", "</s>"],
         "stream": True,
     }
     
     logger.info(f"[GGUF-STREAM-DEBUG] Payload details:")
-    logger.info(f"[GGUF-STREAM-DEBUG]   - n_predict: {max_tokens}")
+    logger.info(f"[GGUF-STREAM-DEBUG]   - max_tokens: {max_tokens}")
     logger.info(f"[GGUF-STREAM-DEBUG]   - temperature: {temperature}")
     logger.info(f"[GGUF-STREAM-DEBUG]   - stop tokens: {payload['stop']}")
-    logger.info(f"[GGUF-STREAM-DEBUG]   - endpoint: {server_url}/completion")
+    logger.info(f"[GGUF-STREAM-DEBUG]   - endpoint: {server_url}/v1/chat/completions")
     
     try:
-        # Use /completion endpoint directly (bypasses GGUF's chat template)
+        # Use /v1/chat/completions with custom template for streaming
         response = requests.post(
-            f"{server_url}/completion",
+            f"{server_url}/v1/chat/completions",
             json=payload,
             stream=True,
             timeout=120,
         )
         response.raise_for_status()
         
-        # Parse streaming completion response
+        # Parse streaming chat completions response
         chunk_count = 0
         total_content = ""
         for line in response.iter_lines():
@@ -3766,8 +3782,9 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
                         break
                     try:
                         chunk = json.loads(data)
-                        # llama.cpp completion format
-                        content = chunk.get('content', '')
+                        # OpenAI-style chat completions format
+                        delta = chunk.get('choices', [{}])[0].get('delta', {})
+                        content = delta.get('content', '')
                         if content:
                             chunk_count += 1
                             total_content += content
@@ -3779,11 +3796,11 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
     except requests.exceptions.ConnectionError as e:
         # Connection error - server not running
         error_msg = (
-            f"[GGUF] Cannot connect to GGUF server at {GGUF_SERVER_BASE}\n"
+            f"[GGUF] Cannot connect to GGUF server at {server_url}\n"
             f"[GGUF] \n"
             f"[GGUF] Please ensure one of the following:\n"
-            f"[GGUF]   1. Start llama-server.exe manually:\n"
-            f"[GGUF]      llama-server.exe -m path/to/model.gguf --port 8080\n"
+            f"[GGUF]   1. Start llama-server with custom template manually:\n"
+            f"[GGUF]      llama-server -m path/to/model.gguf --chat-template templates/oneseek.jinja --port 8080\n"
             f"[GGUF]   2. Provide GGUF model path to auto-start:\n"
             f"[GGUF]      python ml_service/server.py --use-gguf --gguf path/to/model.gguf\n"
             f"[GGUF]   3. Set GGUF_SERVER_BASE to your running server:\n"
@@ -3794,7 +3811,7 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
         logger.error(error_msg)
         raise RuntimeError(error_msg)
     except requests.exceptions.RequestException as e:
-        logger.error(f"[GGUF] Streaming /completion failed: {e}")
+        logger.error(f"[GGUF] Streaming /v1/chat/completions failed: {e}")
         raise RuntimeError(f"GGUF streaming error: {e}")
 
 def ensure_llama_cpp_python():
