@@ -64,8 +64,8 @@ if ($env:LLAMA_SERVER_PATH -and (Test-Path $env:LLAMA_SERVER_PATH)) {
 } else {
     # Check common locations
     $PossiblePaths = @(
-        "C:\Users\robin\Documents\GitHub\CivicAI\llama.cpp-bin-cuda\llama-server.exe",
-        "C:\Users\robin\Documents\GitHub\CivicAI\llama.cpp-bin-cuda\server.exe",
+        "$env:USERPROFILE\Documents\GitHub\CivicAI\llama.cpp-bin-cuda\llama-server.exe",
+        "$env:USERPROFILE\Documents\GitHub\CivicAI\llama.cpp-bin-cuda\server.exe",
         ".\llama.cpp-bin-cuda\llama-server.exe",
         ".\llama.cpp-bin-cuda\server.exe",
         ".\llama.cpp\build\bin\Release\llama-server.exe",

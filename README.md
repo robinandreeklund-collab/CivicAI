@@ -720,7 +720,7 @@ python scripts/export_gguf_q5.py --src models/oneseek-7b-zero/weights --out mode
 
 **Requirements:**
 - `llama-quantize` binary from [llama.cpp releases](https://github.com/ggerganov/llama.cpp/releases)
-- Windows: Place at `C:\Users\robin\Documents\GitHub\CivicAI\llama.cpp-bin-cuda\llama-quantize.exe`
+- Windows: Place at `%USERPROFILE%\Documents\GitHub\CivicAI\llama.cpp-bin-cuda\llama-quantize.exe`
 - Linux/macOS: Install via package manager or build from source
 
 **Run GGUF server:**

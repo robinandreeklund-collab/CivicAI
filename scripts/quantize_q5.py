@@ -51,9 +51,10 @@ def find_quantize_binary():
         else:
             print(f"[Q5 Quantize] Warning: LLAMA_QUANTIZE_PATH set but file not found: {env_path}")
     
-    # Windows default path (from problem statement)
+    # Windows default path
     if os.name == 'nt':
-        windows_default = Path('C:/Users/robin/Documents/GitHub/CivicAI/llama.cpp-bin-cuda/llama-quantize.exe')
+        username = os.environ.get('USERNAME', 'user')
+        windows_default = Path(f'C:/Users/{username}/Documents/GitHub/CivicAI/llama.cpp-bin-cuda/llama-quantize.exe')
         if windows_default.exists():
             print(f"[Q5 Quantize] Using llama-quantize from default Windows path: {windows_default}")
             return windows_default
@@ -289,7 +290,7 @@ Examples:
                 '',
                 'Windows users:',
                 f'  1. Download pre-built llama.cpp CUDA binaries',
-                f'  2. Extract to C:\\Users\\robin\\Documents\\GitHub\\CivicAI\\llama.cpp-bin-cuda\\',
+                f'  2. Extract to %USERPROFILE%\\Documents\\GitHub\\CivicAI\\llama.cpp-bin-cuda\\',
                 f'  3. Or set LLAMA_QUANTIZE_PATH environment variable to binary location',
                 '',
                 'Linux/macOS users:',

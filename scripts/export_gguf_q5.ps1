@@ -54,7 +54,7 @@ if ($JsonOutput) {
 
 # Check for llama-quantize binary if not set
 if (-not $env:LLAMA_QUANTIZE_PATH) {
-    $DefaultPath = "C:\Users\robin\Documents\GitHub\CivicAI\llama.cpp-bin-cuda\llama-quantize.exe"
+    $DefaultPath = "$env:USERPROFILE\Documents\GitHub\CivicAI\llama.cpp-bin-cuda\llama-quantize.exe"
     if (Test-Path $DefaultPath) {
         Write-Host "Using default llama-quantize path: $DefaultPath" -ForegroundColor Cyan
     } else {

@@ -19,11 +19,10 @@ import argparse
 import json
 import sys
 import tempfile
+import os
 from pathlib import Path
 
 # Import the two-step functions
-import sys
-import os
 sys.path.insert(0, os.path.dirname(__file__))
 
 from export_gguf_f16 import convert_to_f16_gguf
@@ -102,7 +101,7 @@ def export_gguf_q5(model_path: Path, output_path: Path, quantization_type: str =
                 'llama-quantize binary is required for Q5 quantization.',
                 '',
                 'Windows: Set LLAMA_QUANTIZE_PATH or place binary at:',
-                '  C:\\Users\\robin\\Documents\\GitHub\\CivicAI\\llama.cpp-bin-cuda\\llama-quantize.exe',
+                '  %USERPROFILE%\\Documents\\GitHub\\CivicAI\\llama.cpp-bin-cuda\\llama-quantize.exe',
                 '',
                 'Linux/macOS: Install llama.cpp and add to PATH or set LLAMA_QUANTIZE_PATH',
                 '',

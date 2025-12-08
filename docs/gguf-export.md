@@ -48,7 +48,7 @@ The two-step process is more reliable than direct quantization because:
 #### Windows
 
 1. Download pre-built binaries from [llama.cpp releases](https://github.com/ggerganov/llama.cpp/releases)
-2. Extract to: `C:\Users\robin\Documents\GitHub\CivicAI\llama.cpp-bin-cuda\`
+2. Extract to: `%USERPROFILE%\Documents\GitHub\CivicAI\llama.cpp-bin-cuda\`
 3. Or set `LLAMA_QUANTIZE_PATH` environment variable:
    ```powershell
    $env:LLAMA_QUANTIZE_PATH = "C:\path\to\llama-quantize.exe"
