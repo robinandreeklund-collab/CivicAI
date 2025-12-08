@@ -9800,7 +9800,58 @@ async def test_message_structure(request: MessageBuilderRequest):
         # Format messages for model input using the shared helper (for display/fallback)
         full_input = format_messages_for_model(messages)
         
-        # Run inference
+        # === GGUF/LLAMA-SERVER BACKEND CHECK ===
+        # If llama-server.exe is running, use it instead of HuggingFace model
+        if USING_LLAMA_SERVER:
+            logging.info(f"[GGUF] Using llama-server.exe for Message Builder: {request.user_message[:50]}...")
+            try:
+                # Build the prompt in ChatML format for llama-server
+                full_prompt = f"<|im_start|>system\n{enriched_system_prompt}<|im_end|>\n<|im_start|>user\n{request.user_message}<|im_end|>\n<|im_start|>assistant\n"
+                
+                # GGUF Fix: Pass user message directly for proper system prompt injection
+                response_text = generate_with_llama_server(
+                    full_prompt, 
+                    max_tokens=256,
+                    temperature=0.7,
+                    user_message=request.user_message
+                )
+                
+                latency_ms = (time.time() - start_time) * 1000
+                token_count = len(response_text.split())  # Approximate token count
+                
+                # Analyze the response
+                analysis = analyze_response(response_text)
+                
+                # Build response data
+                response_data = {
+                    "success": True,
+                    "structure_name": request.structure_name,
+                    "messages": messages,
+                    "response": response_text.strip(),
+                    "tokens": token_count,
+                    "latency_ms": latency_ms,
+                    "analysis": analysis,
+                    # New intent/source fields
+                    "intent_info": intent_info,
+                    "sources_used": sources_used,
+                    "data_context": data_context,
+                    "topic_id": request.topic_id,
+                    "api_fetch_log": api_fetch_log,
+                    "model": "oneseek-7b-zero (llama-server.exe)"
+                }
+                
+                print("=" * 70)
+                print(f"  ✅ RESPONSE (GGUF): {response_text[:100]}{'...' if len(response_text) > 100 else ''}")
+                print(f"  📊 Latency: {latency_ms:.0f}ms | Tokens: {token_count}")
+                print("=" * 70 + "\n")
+                
+                return response_data
+                
+            except Exception as e:
+                logging.error(f"[GGUF] llama-server.exe error in Message Builder, falling back to HuggingFace: {e}")
+                # Continue with HuggingFace fallback below
+        
+        # Run inference (HuggingFace fallback or when GGUF not active)
         try:
             model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
             
