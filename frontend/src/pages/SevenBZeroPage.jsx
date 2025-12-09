@@ -165,6 +165,10 @@ export default function SevenBZeroPage() {
   const [responseStartTime, setResponseStartTime] = useState(null);
   const [currentResponseTime, setCurrentResponseTime] = useState(0);
   
+  // Conversation history for multi-turn support
+  // Format: [{"role": "user"|"assistant", "content": "..."}]
+  const [conversationHistory, setConversationHistory] = useState([]);
+  
   // Streaming state - SSE token-by-token streaming from backend
   // This replaces the fake typing animation with real-time tokens
   const [streamingEnabled, setStreamingEnabled] = useState(true);
@@ -874,6 +878,7 @@ export default function SevenBZeroPage() {
           max_length: 512,
           temperature: 0.7,
           top_p: 0.9,
+          history: conversationHistory,  // Send conversation history for context
         }),
         signal: abortController.signal,
       });
@@ -1028,6 +1033,16 @@ export default function SevenBZeroPage() {
       ));
       
       console.log(`[7B-Zero Stream] Complete: ${tokenCount} tokens in ${finalResponseTime}s`);
+      
+      // Update conversation history for multi-turn support
+      // Add the user's question and the assistant's response
+      setConversationHistory(prev => [
+        ...prev,
+        { role: 'user', content: question },
+        { role: 'assistant', content: formattedFinalText }
+      ]);
+      
+      console.log('[7B-Zero] Conversation history updated:', conversationHistory.length + 2, 'messages');
       
       // Update microtraining status
       setMicrotrainingQueue(prev => prev + 1);
@@ -2333,6 +2348,33 @@ export default function SevenBZeroPage() {
                     Nej
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Conversation History Indicator */}
+            {conversationHistory.length > 0 && (
+              <div className={`mb-3 flex items-center justify-between px-2 ${
+                whiteMode ? 'text-[#666]' : 'text-[#888]'
+              }`}>
+                <div className="flex items-center gap-2 text-[11px]">
+                  <span className="opacity-60">💬</span>
+                  <span>{conversationHistory.length / 2} {conversationHistory.length / 2 === 1 ? 'tidigare meddelande' : 'tidigare meddelanden'} i kontext</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConversationHistory([]);
+                    console.log('[7B-Zero] Conversation history cleared');
+                  }}
+                  className={`text-[10px] px-2 py-1 rounded transition-all ${
+                    whiteMode
+                      ? 'hover:bg-[#f0f0f0] text-[#999] hover:text-[#666]'
+                      : 'hover:bg-[#1a1a1a] text-[#666] hover:text-[#aaa]'
+                  }`}
+                  title="Rensa konversationshistorik"
+                >
+                  Rensa historik
+                </button>
               </div>
             )}
 
