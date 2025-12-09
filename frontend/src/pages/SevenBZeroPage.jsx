@@ -1024,8 +1024,10 @@ export default function SevenBZeroPage() {
               responseTime: finalResponseTime,
               confidence: metadata?.confidence_score || 0.85,
               version: metadata?.model || 'OneSeek-Δ+ (Streaming)',
-              tokens: tokenCount,
+              tokens: metadata?.output_tokens || tokenCount,
               tokensPerSecond: metadata?.tokens_per_second || null,
+              promptTokens: metadata?.prompt_tokens || null,
+              outputTokens: metadata?.output_tokens || tokenCount,
               thinkingChain: metadata?.thinking_chain || null,
               personality: metadata?.personality || null,
             }
@@ -2024,22 +2026,45 @@ export default function SevenBZeroPage() {
                     </details>
                   )}
                   
-                  {/* Token Metrics - Minimalist view */}
-                  {(msg.tokens || msg.tokensPerSecond) && !msg.isTyping && (
-                    <div className={`mt-2 flex items-center gap-4 text-[10px] ${
+                  {/* Token Metrics - Minimalist view matching llama frontend */}
+                  {(msg.tokens || msg.tokensPerSecond || msg.promptTokens) && !msg.isTyping && (
+                    <div className={`mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] ${
                       whiteMode ? 'text-[#999]' : 'text-[#555]'
                     }`}>
-                      {msg.tokens && (
-                        <span className="flex items-center gap-1">
-                          <span className="opacity-60">tokens:</span>
-                          <span className="font-medium">{msg.tokens}</span>
-                        </span>
-                      )}
-                      {msg.tokensPerSecond && (
-                        <span className="flex items-center gap-1">
-                          <span className="opacity-60">tokens/s:</span>
-                          <span className="font-medium">{msg.tokensPerSecond}</span>
-                        </span>
+                      {/* First row: tokens and tokens/s */}
+                      <div className="flex items-center gap-4">
+                        {msg.tokens && (
+                          <span className="flex items-center gap-1">
+                            <span className="opacity-60">tokens:</span>
+                            <span className="font-medium">{msg.tokens}</span>
+                          </span>
+                        )}
+                        {msg.tokensPerSecond && (
+                          <span className="flex items-center gap-1">
+                            <span className="opacity-60">tokens/s:</span>
+                            <span className="font-medium">{msg.tokensPerSecond}</span>
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Second row: Context and Output (if available) */}
+                      {(msg.promptTokens || msg.outputTokens) && (
+                        <div className="flex items-center gap-4">
+                          {msg.promptTokens && (
+                            <span className="flex items-center gap-1">
+                              <span className="opacity-60">Context:</span>
+                              <span className="font-medium">
+                                {msg.promptTokens}/{msg.contextWindow || 8192} ({Math.round((msg.promptTokens / (msg.contextWindow || 8192)) * 100)}%)
+                              </span>
+                            </span>
+                          )}
+                          {msg.outputTokens && (
+                            <span className="flex items-center gap-1">
+                              <span className="opacity-60">Output:</span>
+                              <span className="font-medium">{msg.outputTokens}/∞</span>
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}

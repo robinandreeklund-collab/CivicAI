@@ -3756,8 +3756,15 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 256, temperature: 
             content = clean_chatml_response(content)
             logger.debug(f"[CHATML] Cleaned ChatML artifacts from response")
         
+        # Extract token usage information from llama-server response
+        timings = result.get('timings', {})
+        prompt_tokens = timings.get('prompt_n', 0) or result.get('tokens_evaluated', 0)
+        output_tokens = timings.get('predicted_n', 0) or result.get('tokens_predicted', 0)
+        
         logger.info(f"[GGUF-DEBUG] Response received:")
         logger.info(f"[GGUF-DEBUG]   - Content length: {len(content)} chars")
+        logger.info(f"[GGUF-DEBUG]   - Prompt tokens: {prompt_tokens}")
+        logger.info(f"[GGUF-DEBUG]   - Output tokens: {output_tokens}")
         logger.info(f"[GGUF-DEBUG]   - Full response:\n{content}")
         logger.info(f"[GGUF-DEBUG]   - Raw result keys: {list(result.keys())}")
         return content
@@ -3877,6 +3884,8 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
         # Parse streaming completion response
         chunk_count = 0
         total_content = ""
+        final_timings = None
+        
         for line in response.iter_lines():
             if line:
                 line = line.decode('utf-8')
@@ -3888,6 +3897,12 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
                         break
                     try:
                         chunk = json.loads(data)
+                        
+                        # Extract timings from final chunk (llama-server sends this)
+                        if 'timings' in chunk:
+                            final_timings = chunk['timings']
+                            logger.info(f"[GGUF-STREAM-DEBUG] Received timings: {final_timings}")
+                        
                         # Completion format
                         content = chunk.get('content', '')
                         if content:
@@ -3896,9 +3911,14 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
                             
                             if chunk_count <= 5:  # Log first 5 chunks for debugging
                                 logger.info(f"[GGUF-STREAM-DEBUG] Chunk {chunk_count}: {repr(content)}")
-                            yield content
+                            yield ('token', content, None)  # Yield token with no timings yet
                     except json.JSONDecodeError:
                         pass
+        
+        # Yield final timings as last item
+        if final_timings:
+            yield ('timings', None, final_timings)
+            
     except requests.exceptions.ConnectionError as e:
         # Connection error - server not running
         error_msg = (
@@ -12630,28 +12650,34 @@ async def generate_sse_tokens(
             logger.info(f"🌊 [STREAM] Using llama-server.exe backend for: {text[:50]}...")
             try:
                 full_response_llama = ""  # Track full response for thinking extraction
+                llama_timings = None  # Store timings from llama-server
+                
                 # Use ChatML formatter with conversation history support
-                for token in stream_generate_with_llama_server(
+                for item in stream_generate_with_llama_server(
                     enriched_system_prompt=enriched_system_prompt,
                     user_message=text,
                     max_tokens=max_length,
                     temperature=temperature,
                     history=history  # Pass conversation history to formatter
                 ):
-                    if token:
-                        full_response_llama += token  # Accumulate full response
-                        try:
-                            event_data = json.dumps({"token": token, "index": tokens_sent}, ensure_ascii=False)
-                        except (TypeError, ValueError):
-                            safe_token = token.encode('unicode_escape').decode('ascii')
-                            event_data = json.dumps({"token": safe_token, "index": tokens_sent})
-                        tokens_sent += 1
-                        yield f"event: token\ndata: {event_data}\n\n"
-                        
-                        # Apply delay from admin settings
-                        delay_ms = _admin_settings.get("token_delay_ms", 30)
-                        if delay_ms > 0:
-                            await asyncio.sleep(delay_ms / 1000.0)
+                    if item[0] == 'token':
+                        token = item[1]
+                        if token:
+                            full_response_llama += token  # Accumulate full response
+                            try:
+                                event_data = json.dumps({"token": token, "index": tokens_sent}, ensure_ascii=False)
+                            except (TypeError, ValueError):
+                                safe_token = token.encode('unicode_escape').decode('ascii')
+                                event_data = json.dumps({"token": safe_token, "index": tokens_sent})
+                            tokens_sent += 1
+                            yield f"event: token\ndata: {event_data}\n\n"
+                            
+                            # Apply delay from admin settings
+                            delay_ms = _admin_settings.get("token_delay_ms", 30)
+                            if delay_ms > 0:
+                                await asyncio.sleep(delay_ms / 1000.0)
+                    elif item[0] == 'timings':
+                        llama_timings = item[2]
                 
                 # Send completion event
                 elapsed = (time.time() - start_time) * 1000
@@ -12659,23 +12685,40 @@ async def generate_sse_tokens(
                 # Extract thinking chain from llama-server response
                 thinking_chain, clean_response_llama = extract_thinking_chain(full_response_llama)
                 
-                # Calculate tokens per second
-                tokens_per_second = round(tokens_sent / (elapsed / 1000.0), 2) if elapsed > 0 else 0
+                # Extract token counts from llama-server timings
+                prompt_tokens = 0
+                output_tokens = tokens_sent
+                actual_tokens_per_second = 0
+                
+                if llama_timings:
+                    prompt_tokens = llama_timings.get('prompt_n', 0)
+                    output_tokens = llama_timings.get('predicted_n', tokens_sent)
+                    # Use llama-server's actual generation speed
+                    actual_tokens_per_second = round(llama_timings.get('predicted_per_second', 0), 2)
+                    logger.info(f"[GGUF-STREAM] Actual llama-server speed: {actual_tokens_per_second} tokens/s (prompt: {prompt_tokens}, output: {output_tokens})")
+                
+                # Calculate frontend display speed (includes delay)
+                display_tokens_per_second = round(tokens_sent / (elapsed / 1000.0), 2) if elapsed > 0 else 0
+                
+                # Use actual llama-server speed if available, otherwise use display speed
+                tokens_per_second = actual_tokens_per_second if actual_tokens_per_second > 0 else display_tokens_per_second
                 
                 metadata = {
-                    "tokens": tokens_sent,
+                    "tokens": output_tokens,
                     "latency_ms": round(elapsed, 2),
                     "tokens_per_second": tokens_per_second,
+                    "prompt_tokens": prompt_tokens,
+                    "output_tokens": output_tokens,
                     "model": "llama-server",
                     "backend": "llama-server.exe",
                     "thinking_chain": thinking_chain
                 }
                 yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
-                yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': tokens_sent})}\n\n"
+                yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': output_tokens})}\n\n"
                 
                 if thinking_chain:
                     logger.info(f"🧠 [THINKING] Extracted thinking chain from llama-server ({len(thinking_chain)} chars)")
-                logger.info(f"🌊 [STREAM/LLAMA] Complete: {tokens_sent} tokens in {elapsed:.0f}ms ({tokens_per_second} tokens/s)")
+                logger.info(f"🌊 [STREAM/LLAMA] Complete: {output_tokens} tokens in {elapsed:.0f}ms ({tokens_per_second} tokens/s)")
                 return
             except Exception as e:
                 logger.error(f"🌊 [STREAM] llama-server.exe error: {e}")
