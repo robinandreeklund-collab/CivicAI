@@ -3301,6 +3301,12 @@ def start_llama_server(gguf_path: str):
     
     port = args.llama_server_port
     
+    # Check for tokenizer config directory next to GGUF file
+    # This directory is created by export_gguf.py and export_gguf_q5.py
+    # It contains: special_tokens_map.json, chat_template.jinja, generation_config.json, etc.
+    gguf_path_obj = Path(gguf_path)
+    tokenizer_dir = gguf_path_obj.parent / f"{gguf_path_obj.stem}_tokenizer"
+    
     # Build command WITHOUT --chat-template flag
     # We manually format prompts with ChatML in Python instead of relying on llama-server's template system
     # This is because --chat-template is not supported in all llama-server versions
@@ -3313,6 +3319,19 @@ def start_llama_server(gguf_path: str):
         '--port', str(port),
         '--host', '127.0.0.1',
     ]
+    
+    # Add --hf-repo flag if tokenizer config directory exists
+    # This tells llama-server to load tokenizer config files from the directory
+    # Fixes BOS/EOS token handling and eliminates looping behavior
+    if tokenizer_dir.exists() and tokenizer_dir.is_dir():
+        logger.info(f"[LLAMA-SERVER] Found tokenizer config directory: {tokenizer_dir}")
+        logger.info(f"[LLAMA-SERVER] Using --hf-repo flag to load tokenizer configuration")
+        logger.info(f"[LLAMA-SERVER] This will load: special_tokens_map.json, chat_template.jinja, generation_config.json, etc.")
+        cmd.extend(['--hf-repo', str(tokenizer_dir)])
+    else:
+        logger.warning(f"[LLAMA-SERVER] Tokenizer config directory not found: {tokenizer_dir}")
+        logger.warning(f"[LLAMA-SERVER] Using GGUF embedded tokenizer (may cause looping behavior)")
+        logger.warning(f"[LLAMA-SERVER] To fix: Re-export GGUF model from admin dashboard to create tokenizer directory")
     
     # NOTE: NOT using --chat-template flag
     # llama-server shows "Chat format: Content-only" indicating the flag is not supported or not working
