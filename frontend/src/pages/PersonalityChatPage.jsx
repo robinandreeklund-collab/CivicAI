@@ -206,6 +206,8 @@ export default function PersonalityChatPage() {
                 }
               }}
               placeholder="Ställ en fråga..."
+              aria-label="Skriv din fråga här"
+              aria-describedby="chat-input-hint"
               className="flex-1 resize-none bg-transparent border-0 focus:ring-0 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
               rows={1}
               disabled={isLoading}

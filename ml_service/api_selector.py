@@ -17,6 +17,9 @@ def parse_api_selection(model_response: str) -> Optional[Dict]:
     """
     Parse the model's JSON response to extract API selection.
     
+    Note: This is intentionally synchronous as it only performs JSON parsing
+    without any I/O operations. Called from async context but doesn't need await.
+    
     Expected format:
     {
         "apis": [

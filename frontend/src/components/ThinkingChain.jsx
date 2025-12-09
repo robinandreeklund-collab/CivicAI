@@ -36,6 +36,7 @@ function ThinkingStepItem({ step, index }) {
         </p>
         {step.data && Object.keys(step.data).length > 0 && (
           <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 font-mono bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-auto max-h-32">
+            {/* Display as read-only JSON. Data comes from backend and is not user-controlled. */}
             <pre className="whitespace-pre-wrap break-words">
               {JSON.stringify(step.data, null, 2)}
             </pre>
