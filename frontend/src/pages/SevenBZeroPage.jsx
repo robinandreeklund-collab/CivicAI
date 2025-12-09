@@ -1309,9 +1309,6 @@ export default function SevenBZeroPage() {
         // Already handled by personality endpoint
         return;
       }
-
-        useOQTFallback = true;
-      }
       
       // Fallback to OQT endpoint if Δ+ fails
       if (useOQTFallback) {
