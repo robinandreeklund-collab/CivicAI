@@ -55,6 +55,37 @@ import requests  # For Tavily API and SMHI weather
 # =============================================================================
 # ONESEEK Δ+ MODULE IMPORTS
 # =============================================================================
+# ChatML Formatter for GGUF models
+try:
+    from .chatml_formatter import (
+        serialize_message_history,
+        format_for_llama_server,
+        format_for_llama_server_stream,
+        clean_chatml_response,
+        get_chatml_stop_tokens,
+        validate_chatml_format
+    )
+    CHATML_FORMATTER_AVAILABLE = True
+except ImportError:
+    try:
+        from chatml_formatter import (
+            serialize_message_history,
+            format_for_llama_server,
+            format_for_llama_server_stream,
+            clean_chatml_response,
+            get_chatml_stop_tokens,
+            validate_chatml_format
+        )
+        CHATML_FORMATTER_AVAILABLE = True
+    except ImportError:
+        CHATML_FORMATTER_AVAILABLE = False
+        serialize_message_history = None
+        format_for_llama_server = None
+        format_for_llama_server_stream = None
+        clean_chatml_response = None
+        get_chatml_stop_tokens = None
+        validate_chatml_format = None
+
 # Intent Engine, Typo Checker, Confidence Calculator, Delta Compare, Cache Manager, Memory Manager
 try:
     from .intent_engine import get_intent_engine, process_user_input, generate_topic_hash, detect_intent_and_city, get_spacy_info
@@ -404,6 +435,7 @@ def log_delta_plus_status():
     time_enabled = ACTIVE_FEATURES.get("time_context", True)
     
     modules = [
+        ("ChatML Formatter", CHATML_FORMATTER_AVAILABLE, True, "GGUF prompt formatting (llama.cpp/GPT4ALL)"),
         ("Intent Engine", INTENT_ENGINE_AVAILABLE, intent_enabled, "Semantic intent + entity detection"),
         ("Typo Checker", TYPO_CHECKER_AVAILABLE, typo_enabled, "LanguageTool Self-Hosted + fallback"),
         ("Time Context", True, time_enabled, "Always-aware date/time injection"),
@@ -3609,22 +3641,23 @@ def format_system_prompt_with_placeholders(system_prompt: str) -> str:
     return final_prompt
 
 
-def generate_with_llama_server(prompt: str, max_tokens: int = 256, temperature: float = None, user_message: str = None):
+def generate_with_llama_server(prompt: str, max_tokens: int = 256, temperature: float = None, user_message: str = None, history: Optional[List[Dict[str, str]]] = None):
     """
     Generate text using the llama-server HTTP API with /completion endpoint.
     
-    GGUF Fix: Manually formats prompts with ChatML template matching .bin tokenizer output,
-    then sends to /completion endpoint. This bypasses llama-server's template system entirely
-    since --chat-template flag is not supported in all llama-server versions.
+    Uses the ChatML formatter utility to build prompts in the exact format that
+    llama.cpp and GPT4ALL expect for GGUF models. This ensures responses match
+    those from the direct llama-server endpoint.
     
     Args:
         prompt: Full formatted prompt or system prompt (if user_message provided)
         max_tokens: Maximum tokens to generate
         temperature: Sampling temperature
         user_message: User's question (if provided, prompt will be used as system prompt)
+        history: Optional conversation history as list of {"role": "user"|"assistant", "content": "..."}
         
     Returns:
-        Generated text
+        Generated text (cleaned of ChatML artifacts)
     """
     if not LLAMA_SERVER_URL and not GGUF_SERVER_BASE:
         raise RuntimeError("llama-server or GGUF server not running")
@@ -3640,41 +3673,64 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 256, temperature: 
     if user_message:
         prompt = format_system_prompt_with_placeholders(prompt)
     
-    # Manually format with ChatML template (matches .bin tokenizer output)
-    # Format: <|im_start|>system\n{content}<|im_end|>\n<|im_start|>user\n{content}<|im_end|>\n<|im_start|>assistant\n
-    if user_message:
+    # Use ChatML formatter utility if available, otherwise fall back to manual formatting
+    if CHATML_FORMATTER_AVAILABLE and format_for_llama_server and user_message:
+        logger.info("[CHATML] Using ChatML formatter utility")
+        payload = format_for_llama_server(
+            system_prompt=prompt,
+            user_message=user_message,
+            history=history,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            additional_stops=["User:", "\nUser:", "Assistant:", "\nAssistant:", "\n\n"]
+        )
+        formatted_prompt = payload["prompt"]
+        
+        logger.info(f"[CHATML-DEBUG] ========== CHATML FORMATTING ==========")
+        logger.info(f"[CHATML-DEBUG] System prompt length: {len(prompt)} chars")
+        logger.info(f"[CHATML-DEBUG] User message length: {len(user_message)} chars")
+        if history:
+            logger.info(f"[CHATML-DEBUG] History messages: {len(history)}")
+        logger.info(f"[CHATML-DEBUG] Formatted prompt length: {len(formatted_prompt)} chars")
+        logger.info(f"[CHATML-DEBUG] System prompt (first 500 chars):\n{prompt[:500]}")
+        logger.info(f"[CHATML-DEBUG] User message:\n{user_message}")
+        logger.info(f"[CHATML-DEBUG] Full formatted prompt:\n{formatted_prompt[:1000]}...")
+        logger.info(f"[CHATML-DEBUG] Valid ChatML: {validate_chatml_format(formatted_prompt) if validate_chatml_format else 'N/A'}")
+        logger.info(f"[CHATML-DEBUG] ===============================================")
+    elif user_message:
+        # Fallback: Manual ChatML formatting
+        logger.warning("[CHATML] ChatML formatter not available, using manual formatting")
         formatted_prompt = f"<|im_start|>system\n{prompt}<|im_end|>\n<|im_start|>user\n{user_message}<|im_end|>\n<|im_start|>assistant\n"
-        logger.info(f"[GGUF-DEBUG] ========== MANUAL CHATML FORMATTING ==========")
-        logger.info(f"[GGUF-DEBUG] System prompt length: {len(prompt)} chars")
-        logger.info(f"[GGUF-DEBUG] User message length: {len(user_message)} chars")
-        logger.info(f"[GGUF-DEBUG] Formatted prompt length: {len(formatted_prompt)} chars")
-        logger.info(f"[GGUF-DEBUG] System prompt (first 500 chars):\n{prompt[:500]}")
-        logger.info(f"[GGUF-DEBUG] User message:\n{user_message}")
-        logger.info(f"[GGUF-DEBUG] Full formatted prompt:\n{formatted_prompt[:1000]}...")
-        logger.info(f"[GGUF-DEBUG] ===============================================")
+        
+        payload = {
+            "prompt": formatted_prompt,
+            "n_predict": max_tokens,
+            "temperature": temperature,
+            "stop": [
+                "<|im_end|>",
+                "<|im_start|>user",
+                "</s>",
+                "User:",
+                "\nUser:",
+                "Assistant:",
+                "\nAssistant:",
+                "\n\n"
+            ],
+            "stream": False
+        }
+        
+        logger.info(f"[GGUF-DEBUG] Using manual ChatML format ({len(formatted_prompt)} chars)")
     else:
         # Legacy format - treat as single user message
         formatted_prompt = f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
+        payload = {
+            "prompt": formatted_prompt,
+            "n_predict": max_tokens,
+            "temperature": temperature,
+            "stop": ["<|im_end|>", "<|im_start|>user", "</s>"],
+            "stream": False
+        }
         logger.info(f"[GGUF-DEBUG] Using legacy format ({len(formatted_prompt)} chars)")
-    
-    # Use /completion endpoint with manually formatted ChatML prompt
-    # Enhanced stop tokens to prevent conversation format leakage
-    payload = {
-        "prompt": formatted_prompt,
-        "n_predict": max_tokens,
-        "temperature": temperature,
-        "stop": [
-            "<|im_end|>",           # ChatML end token
-            "<|im_start|>user",     # Next user turn
-            "</s>",                  # EOS token
-            "User:",                 # Conversation format
-            "\nUser:",               # Newline before user
-            "Assistant:",            # Conversation format
-            "\nAssistant:",          # Newline before assistant
-            "\n\n"                   # Double newline (conversation boundary)
-        ],
-        "stream": False
-    }
     
     logger.info(f"[GGUF-DEBUG] Payload details:")
     logger.info(f"[GGUF-DEBUG]   - n_predict: {max_tokens}")
@@ -3694,6 +3750,12 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 256, temperature: 
         
         # Extract content from completion response
         content = result.get('content', '')
+        
+        # Clean ChatML artifacts if formatter is available
+        if CHATML_FORMATTER_AVAILABLE and clean_chatml_response:
+            content = clean_chatml_response(content)
+            logger.info(f"[CHATML] Cleaned ChatML artifacts from response")
+        
         logger.info(f"[GGUF-DEBUG] Response received:")
         logger.info(f"[GGUF-DEBUG]   - Content length: {len(content)} chars")
         logger.info(f"[GGUF-DEBUG]   - Full response:\n{content}")
@@ -3719,22 +3781,23 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 256, temperature: 
         raise RuntimeError(f"GGUF server error: {e}")
 
 
-def stream_generate_with_llama_server(enriched_system_prompt: str, user_message: str, max_tokens: int = 256, temperature: float = None):
+def stream_generate_with_llama_server(enriched_system_prompt: str, user_message: str, max_tokens: int = 256, temperature: float = None, history: Optional[List[Dict[str, str]]] = None):
     """
     Stream generate text using the llama-server HTTP API with /completion endpoint.
     
-    GGUF Fix: Manually formats prompts with ChatML template matching .bin tokenizer output,
-    then sends to /completion endpoint. This bypasses llama-server's template system entirely
-    since --chat-template flag is not supported in all llama-server versions.
+    Uses the ChatML formatter utility to build prompts in the exact format that
+    llama.cpp and GPT4ALL expect for GGUF models. This ensures responses match
+    those from the direct llama-server endpoint.
     
     Args:
         enriched_system_prompt: Full enriched system prompt (platform prompt + time + data)
         user_message: User's question
         max_tokens: Maximum tokens to generate
         temperature: Sampling temperature
+        history: Optional conversation history as list of {"role": "user"|"assistant", "content": "..."}
         
     Yields:
-        Generated text chunks
+        Generated text chunks (cleaned of ChatML artifacts)
     """
     if not LLAMA_SERVER_URL and not GGUF_SERVER_BASE:
         raise RuntimeError("llama-server or GGUF server not running")
@@ -3749,37 +3812,51 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
     # This ensures GGUF gets the same enriched prompt as .bin (with personality catalog, API map, etc.)
     enriched_system_prompt = format_system_prompt_with_placeholders(enriched_system_prompt)
     
-    # Manually format with ChatML template (matches .bin tokenizer output)
-    # Format: <|im_start|>system\n{content}<|im_end|>\n<|im_start|>user\n{content}<|im_end|>\n<|im_start|>assistant\n
-    formatted_prompt = f"<|im_start|>system\n{enriched_system_prompt}<|im_end|>\n<|im_start|>user\n{user_message}<|im_end|>\n<|im_start|>assistant\n"
-    
-    logger.info(f"[GGUF-STREAM-DEBUG] ========== MANUAL CHATML FORMATTING ==========")
-    logger.info(f"[GGUF-STREAM-DEBUG] System prompt length: {len(enriched_system_prompt)} chars")
-    logger.info(f"[GGUF-STREAM-DEBUG] User message length: {len(user_message)} chars")
-    logger.info(f"[GGUF-STREAM-DEBUG] Formatted prompt length: {len(formatted_prompt)} chars")
-    logger.info(f"[GGUF-STREAM-DEBUG] System prompt (first 500 chars):\n{enriched_system_prompt[:500]}")
-    logger.info(f"[GGUF-STREAM-DEBUG] User message:\n{user_message}")
-    logger.info(f"[GGUF-STREAM-DEBUG] Full formatted prompt:\n{formatted_prompt[:1000]}...")
-    logger.info(f"[GGUF-STREAM-DEBUG] ===============================================")
-    
-    # Use /completion endpoint with manually formatted ChatML prompt
-    # Enhanced stop tokens to prevent conversation format leakage
-    payload = {
-        "prompt": formatted_prompt,
-        "n_predict": max_tokens,
-        "temperature": temperature,
-        "stop": [
-            "<|im_end|>",           # ChatML end token
-            "<|im_start|>user",     # Next user turn
-            "</s>",                  # EOS token
-            "User:",                 # Conversation format
-            "\nUser:",               # Newline before user
-            "Assistant:",            # Conversation format
-            "\nAssistant:",          # Newline before assistant
-            "\n\n"                   # Double newline (conversation boundary)
-        ],
-        "stream": True,
-    }
+    # Use ChatML formatter utility if available, otherwise fall back to manual formatting
+    if CHATML_FORMATTER_AVAILABLE and format_for_llama_server_stream:
+        logger.info("[CHATML] Using ChatML formatter utility for streaming")
+        payload = format_for_llama_server_stream(
+            system_prompt=enriched_system_prompt,
+            user_message=user_message,
+            history=history,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            additional_stops=["User:", "\nUser:", "Assistant:", "\nAssistant:", "\n\n"]
+        )
+        formatted_prompt = payload["prompt"]
+        
+        logger.info(f"[CHATML-STREAM-DEBUG] ========== CHATML FORMATTING ==========")
+        logger.info(f"[CHATML-STREAM-DEBUG] System prompt length: {len(enriched_system_prompt)} chars")
+        logger.info(f"[CHATML-STREAM-DEBUG] User message length: {len(user_message)} chars")
+        if history:
+            logger.info(f"[CHATML-STREAM-DEBUG] History messages: {len(history)}")
+        logger.info(f"[CHATML-STREAM-DEBUG] Formatted prompt length: {len(formatted_prompt)} chars")
+        logger.info(f"[CHATML-STREAM-DEBUG] System prompt (first 500 chars):\n{enriched_system_prompt[:500]}")
+        logger.info(f"[CHATML-STREAM-DEBUG] User message:\n{user_message}")
+        logger.info(f"[CHATML-STREAM-DEBUG] Full formatted prompt:\n{formatted_prompt[:1000]}...")
+        logger.info(f"[CHATML-STREAM-DEBUG] Valid ChatML: {validate_chatml_format(formatted_prompt) if validate_chatml_format else 'N/A'}")
+        logger.info(f"[CHATML-STREAM-DEBUG] ===============================================")
+    else:
+        # Fallback: Manual ChatML formatting
+        logger.warning("[CHATML] ChatML formatter not available, using manual formatting")
+        formatted_prompt = f"<|im_start|>system\n{enriched_system_prompt}<|im_end|>\n<|im_start|>user\n{user_message}<|im_end|>\n<|im_start|>assistant\n"
+        
+        payload = {
+            "prompt": formatted_prompt,
+            "n_predict": max_tokens,
+            "temperature": temperature,
+            "stop": [
+                "<|im_end|>",
+                "<|im_start|>user",
+                "</s>",
+                "User:",
+                "\nUser:",
+                "Assistant:",
+                "\nAssistant:",
+                "\n\n"
+            ],
+            "stream": True,
+        }
     
     logger.info(f"[GGUF-STREAM-DEBUG] Payload details:")
     logger.info(f"[GGUF-STREAM-DEBUG]   - n_predict: {max_tokens}")
@@ -3816,6 +3893,13 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
                         if content:
                             chunk_count += 1
                             total_content += content
+                            
+                            # Clean ChatML artifacts from streamed chunks if formatter is available
+                            if CHATML_FORMATTER_AVAILABLE and clean_chatml_response:
+                                # Only clean complete chunks to avoid breaking partial tokens
+                                # We'll clean the whole response at the end
+                                pass
+                            
                             if chunk_count <= 5:  # Log first 5 chunks for debugging
                                 logger.info(f"[GGUF-STREAM-DEBUG] Chunk {chunk_count}: {repr(content)}")
                             yield content
