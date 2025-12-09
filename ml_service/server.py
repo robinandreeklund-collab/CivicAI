@@ -3641,6 +3641,29 @@ def format_system_prompt_with_placeholders(system_prompt: str) -> str:
     return final_prompt
 
 
+def get_llama_server_props():
+    """
+    Get llama-server properties including context window size.
+    
+    Returns:
+        dict: Server properties including n_ctx (context window size), or None if unavailable
+    """
+    if not LLAMA_SERVER_URL and not GGUF_SERVER_BASE:
+        return None
+    
+    server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+    
+    try:
+        response = requests.get(f"{server_url}/props", timeout=5)
+        response.raise_for_status()
+        props = response.json()
+        logger.info(f"[LLAMA-SERVER] Retrieved props: n_ctx={props.get('n_ctx', 'unknown')}")
+        return props
+    except Exception as e:
+        logger.warning(f"[LLAMA-SERVER] Could not get props: {e}")
+        return None
+
+
 def generate_with_llama_server(prompt: str, max_tokens: int = 256, temperature: float = None, user_message: str = None, history: Optional[List[Dict[str, str]]] = None):
     """
     Generate text using the llama-server HTTP API with /completion endpoint.
@@ -12652,6 +12675,11 @@ async def generate_sse_tokens(
                 full_response_llama = ""  # Track full response for thinking extraction
                 llama_timings = None  # Store timings from llama-server
                 
+                # Get llama-server properties to fetch actual context window size
+                llama_props = get_llama_server_props()
+                context_window = llama_props.get('n_ctx', 8192) if llama_props else 8192
+                logger.info(f"[LLAMA-SERVER] Context window: {context_window}")
+                
                 # Use ChatML formatter with conversation history support
                 for item in stream_generate_with_llama_server(
                     enriched_system_prompt=enriched_system_prompt,
@@ -12709,6 +12737,7 @@ async def generate_sse_tokens(
                     "tokens_per_second": tokens_per_second,
                     "prompt_tokens": prompt_tokens,
                     "output_tokens": output_tokens,
+                    "context_window": context_window,  # Actual context window from llama-server
                     "model": "llama-server",
                     "backend": "llama-server.exe",
                     "thinking_chain": thinking_chain

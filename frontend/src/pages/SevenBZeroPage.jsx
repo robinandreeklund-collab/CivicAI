@@ -1028,6 +1028,7 @@ export default function SevenBZeroPage() {
               tokensPerSecond: metadata?.tokens_per_second || null,
               promptTokens: metadata?.prompt_tokens || null,
               outputTokens: metadata?.output_tokens || tokenCount,
+              contextWindow: metadata?.context_window || 8192,  // Use actual context window from llama-server
               thinkingChain: metadata?.thinking_chain || null,
               personality: metadata?.personality || null,
             }
