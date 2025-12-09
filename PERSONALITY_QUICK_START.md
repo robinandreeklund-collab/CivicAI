@@ -17,36 +17,44 @@ Kontrollera startup-loggen för:
 
 ```bash
 cd frontend
+npm install  # Installera dependencies (inkl. lucide-react)
 npm run dev
 ```
 
-## Steg 3: Öppna Demo-sidan
+## Steg 3: Öppna 7B-Zero Sidan
 
-Navigera till: `http://localhost:5173/personality-chat`
+Navigera till den befintliga 7B-Zero sidan: `http://localhost:3000/7b-zero`
+
+**OBS:** Funktionaliteten är nu integrerad i den befintliga 7B-Zero chatten, inte en separat sida.
 
 ## Steg 4: Testa olika frågor
 
-### Test 1: Väderfråga (ska välja Metrologen)
+### Test 1: Väderfråga (ska välja Metrologen + SMHI API)
 ```
 Vad är vädret imorgon i Stockholm?
 ```
 
 **Förväntat resultat**:
-- Personlighet: Metrologen
-- Tankekedja visar API-val och datahämtning
+- Personlighet väljs automatiskt: Metrologen
+- Tankekedja (klickbar) visar:
+  - Analyserar frågan...
+  - Valde personlighet: Metrologen
+  - Hämtar väderdata...
+  - Bygger svar...
+- Källor visas som badges: "SMHI"
 - Svar inkluderar väderdata
 
-### Test 2: Bokfråga (ska välja Bibliotekarien)
+### Test 2: Bokfråga (ska välja Bibliotekarien + Libris)
 ```
 Vad handlar Röda Rummet om?
 ```
 
 **Förväntat resultat**:
 - Personlighet: Bibliotekarien
-- API: Libris XL
+- Källor: "Libris XL"
 - Svar om boken med källa
 
-### Test 3: Allmän fråga (ska välja Medveten)
+### Test 3: Allmän fråga (ska välja Medveten, inga APIs)
 ```
 Hej, vem är du?
 ```
@@ -56,22 +64,25 @@ Hej, vem är du?
 - Ingen API-data
 - Generell presentation
 
-## Steg 5: Testa manuell personlighetsval
-
-1. Klicka på personlighetsknappen (högst upp till höger)
-2. Välj "Metrologen" manuellt
-3. Ställ en allmän fråga som "Hur mår du?"
-4. Verifiera att svaret kommer från Metrologen trots att frågan inte är väderrelaterad
-
-## Steg 6: Granska tankekedjan
+## Steg 5: Utforska Tankekedjan
 
 För varje svar:
-1. Klicka på "Tankekedja ▼"
-2. Se alla steg i processen
-3. Kontrollera att:
-   - Personlighetsval har rätt confidence
-   - API:er väljs korrekt
-   - Data hämtas framgångsrikt
+1. Leta efter "🧠 Tankekedja" under svaret (klickbar sektion)
+2. Klicka för att expandera
+3. Se alla steg i processen:
+   - ✅ Analyserar frågan...
+   - ✅ Valde personlighet: [namn] (confidence: X.XX)
+   - ✅ Skapade API-karta med X kategorier
+   - ✅ Valde X API:er
+   - ✅ Hämtade data från X/X API:er
+   - ✅ Bygger svar...
+
+## Steg 6: Kontrollera API-källor
+
+Under svaret ser du badges med källor, t.ex.:
+- [SMHI] (grön = lyckad)
+- [Yr.no] (grön = lyckad)
+- [API-namn] (röd = misslyckad, om något gick fel)
 
 ## Felsökning
 
@@ -81,19 +92,26 @@ För varje svar:
 pip install sentence-transformers
 ```
 
-### Problem: API-data visas inte
-**Orsak**: llama-server.exe kanske inte returnerar korrekt JSON för API-val
-
+### Problem: Personality endpoint svarar inte
 **Lösning**: 
-- Kontrollera att modellen är laddad
-- Se i backend-loggen vad modellen returnerade
-- Justera temperature till 0.3 för mer strukturerad output
+Systemet faller automatiskt tillbaka på standard-endpoint. Kontrollera att:
+- Backend körs på port 8000
+- `/api/ml/inference/personality` är tillgänglig
 
-### Problem: Frontend visar "Service Unavailable"
+### Problem: Ingen Tankekedja visas
+**Orsak**: Endpoint kanske inte använder personality-baserad inferens
+
 **Lösning**:
-- Kontrollera att ml_service/server.py körs på port 8000
-- Verifiera CORS-inställningar
-- Kontrollera att modulerna laddades korrekt vid startup
+- Kontrollera att backend är korrekt konfigurerad
+- Se i nätverkstrafiken att `/api/ml/inference/personality` anropas
+- Verifiera att `thinking_chain` finns i API-svaret
+
+### Problem: Frontend visar "lucide-react" import error
+**Lösning**:
+```bash
+cd frontend
+npm install
+```
 
 ## API-testning med curl
 
@@ -104,7 +122,8 @@ curl -X POST http://localhost:8000/inference/personality \
   -d '{
     "text": "Vad är vädret imorgon?",
     "max_length": 512,
-    "temperature": 0.7
+    "temperature": 0.7,
+    "stream_thinking": true
   }'
 ```
 
@@ -116,7 +135,7 @@ curl http://localhost:8000/api/ml/personality/current
 ### Byt personlighet manuellt
 ```bash
 curl -X POST http://localhost:8000/api/ml/personality/override \
-  -H "Content-Type: application/json" \
+  -H "Content-Type": application/json" \
   -d '{"personality_id": "oneseek-metrolog"}'
 ```
 
@@ -126,8 +145,24 @@ curl -X POST http://localhost:8000/api/ml/personality/reset \
   -H "Content-Type: application/json"
 ```
 
+## Integration med befintlig funktionalitet
+
+Personality-based API routing är nu **integrerat i den befintliga 7B-Zero sidan** och arbetar tillsammans med:
+- ✅ Befintlig personlighetsväljare (manuell override fungerar fortfarande)
+- ✅ Admin dashboard sync
+- ✅ Streaming mode
+- ✅ Typo checking
+- ✅ Compare mode
+- ✅ Conversation history
+
+Systemet väljer automatiskt vilket endpoint som ska användas:
+1. **Personality endpoint** (primär) - För automatisk personlighetsval + API routing
+2. **Standard ONESEEK Δ+** (fallback) - Om personality endpoint misslyckas
+3. **OQT endpoint** (final fallback) - För äldre kompatibilitet
+
 ## Nästa steg
 
 - Redigera `config/personality_catalog.json` för att lägga till nya personligheter
 - Redigera `config/api_catalog.json` för att lägga till nya API:er
 - Testa live-reload genom att ändra en fil och anropa `/api/ml/personality/catalog/reload`
+- Utforska olika frågor och se hur systemet väljer personlighet och API:er automatiskt
