@@ -55,6 +55,37 @@ import requests  # For Tavily API and SMHI weather
 # =============================================================================
 # ONESEEK Δ+ MODULE IMPORTS
 # =============================================================================
+# ChatML Formatter for GGUF models
+try:
+    from .chatml_formatter import (
+        serialize_message_history,
+        format_for_llama_server,
+        format_for_llama_server_stream,
+        clean_chatml_response,
+        get_chatml_stop_tokens,
+        validate_chatml_format
+    )
+    CHATML_FORMATTER_AVAILABLE = True
+except ImportError:
+    try:
+        from chatml_formatter import (
+            serialize_message_history,
+            format_for_llama_server,
+            format_for_llama_server_stream,
+            clean_chatml_response,
+            get_chatml_stop_tokens,
+            validate_chatml_format
+        )
+        CHATML_FORMATTER_AVAILABLE = True
+    except ImportError:
+        CHATML_FORMATTER_AVAILABLE = False
+        serialize_message_history = None
+        format_for_llama_server = None
+        format_for_llama_server_stream = None
+        clean_chatml_response = None
+        get_chatml_stop_tokens = None
+        validate_chatml_format = None
+
 # Intent Engine, Typo Checker, Confidence Calculator, Delta Compare, Cache Manager, Memory Manager
 try:
     from .intent_engine import get_intent_engine, process_user_input, generate_topic_hash, detect_intent_and_city, get_spacy_info
@@ -404,6 +435,7 @@ def log_delta_plus_status():
     time_enabled = ACTIVE_FEATURES.get("time_context", True)
     
     modules = [
+        ("ChatML Formatter", CHATML_FORMATTER_AVAILABLE, True, "GGUF prompt formatting (llama.cpp/GPT4ALL)"),
         ("Intent Engine", INTENT_ENGINE_AVAILABLE, intent_enabled, "Semantic intent + entity detection"),
         ("Typo Checker", TYPO_CHECKER_AVAILABLE, typo_enabled, "LanguageTool Self-Hosted + fallback"),
         ("Time Context", True, time_enabled, "Always-aware date/time injection"),
@@ -3609,22 +3641,46 @@ def format_system_prompt_with_placeholders(system_prompt: str) -> str:
     return final_prompt
 
 
-def generate_with_llama_server(prompt: str, max_tokens: int = 256, temperature: float = None, user_message: str = None):
+def get_llama_server_props():
+    """
+    Get llama-server properties including context window size.
+    
+    Returns:
+        dict: Server properties including n_ctx (context window size), or None if unavailable
+    """
+    if not LLAMA_SERVER_URL and not GGUF_SERVER_BASE:
+        return None
+    
+    server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+    
+    try:
+        response = requests.get(f"{server_url}/props", timeout=5)
+        response.raise_for_status()
+        props = response.json()
+        logger.info(f"[LLAMA-SERVER] Retrieved props: n_ctx={props.get('n_ctx', 'unknown')}")
+        return props
+    except Exception as e:
+        logger.warning(f"[LLAMA-SERVER] Could not get props: {e}")
+        return None
+
+
+def generate_with_llama_server(prompt: str, max_tokens: int = 256, temperature: float = None, user_message: str = None, history: Optional[List[Dict[str, str]]] = None):
     """
     Generate text using the llama-server HTTP API with /completion endpoint.
     
-    GGUF Fix: Manually formats prompts with ChatML template matching .bin tokenizer output,
-    then sends to /completion endpoint. This bypasses llama-server's template system entirely
-    since --chat-template flag is not supported in all llama-server versions.
+    Uses the ChatML formatter utility to build prompts in the exact format that
+    llama.cpp and GPT4ALL expect for GGUF models. This ensures responses match
+    those from the direct llama-server endpoint.
     
     Args:
         prompt: Full formatted prompt or system prompt (if user_message provided)
         max_tokens: Maximum tokens to generate
         temperature: Sampling temperature
         user_message: User's question (if provided, prompt will be used as system prompt)
+        history: Optional conversation history as list of {"role": "user"|"assistant", "content": "..."}
         
     Returns:
-        Generated text
+        Generated text (cleaned of ChatML artifacts)
     """
     if not LLAMA_SERVER_URL and not GGUF_SERVER_BASE:
         raise RuntimeError("llama-server or GGUF server not running")
@@ -3640,41 +3696,64 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 256, temperature: 
     if user_message:
         prompt = format_system_prompt_with_placeholders(prompt)
     
-    # Manually format with ChatML template (matches .bin tokenizer output)
-    # Format: <|im_start|>system\n{content}<|im_end|>\n<|im_start|>user\n{content}<|im_end|>\n<|im_start|>assistant\n
-    if user_message:
+    # Use ChatML formatter utility if available, otherwise fall back to manual formatting
+    if CHATML_FORMATTER_AVAILABLE and format_for_llama_server and user_message:
+        logger.info("[CHATML] Using ChatML formatter utility")
+        payload = format_for_llama_server(
+            system_prompt=prompt,
+            user_message=user_message,
+            history=history,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            additional_stops=["User:", "\nUser:", "Assistant:", "\nAssistant:", "\n\n"]
+        )
+        formatted_prompt = payload["prompt"]
+        
+        logger.info(f"[CHATML-DEBUG] ========== CHATML FORMATTING ==========")
+        logger.info(f"[CHATML-DEBUG] System prompt length: {len(prompt)} chars")
+        logger.info(f"[CHATML-DEBUG] User message length: {len(user_message)} chars")
+        if history:
+            logger.info(f"[CHATML-DEBUG] History messages: {len(history)}")
+        logger.info(f"[CHATML-DEBUG] Formatted prompt length: {len(formatted_prompt)} chars")
+        logger.info(f"[CHATML-DEBUG] System prompt (first 500 chars):\n{prompt[:500]}")
+        logger.info(f"[CHATML-DEBUG] User message:\n{user_message}")
+        logger.info(f"[CHATML-DEBUG] Full formatted prompt:\n{formatted_prompt[:1000]}...")
+        logger.info(f"[CHATML-DEBUG] Valid ChatML: {validate_chatml_format(formatted_prompt) if validate_chatml_format else 'N/A'}")
+        logger.info(f"[CHATML-DEBUG] ===============================================")
+    elif user_message:
+        # Fallback: Manual ChatML formatting
+        logger.warning("[CHATML] ChatML formatter not available, using manual formatting")
         formatted_prompt = f"<|im_start|>system\n{prompt}<|im_end|>\n<|im_start|>user\n{user_message}<|im_end|>\n<|im_start|>assistant\n"
-        logger.info(f"[GGUF-DEBUG] ========== MANUAL CHATML FORMATTING ==========")
-        logger.info(f"[GGUF-DEBUG] System prompt length: {len(prompt)} chars")
-        logger.info(f"[GGUF-DEBUG] User message length: {len(user_message)} chars")
-        logger.info(f"[GGUF-DEBUG] Formatted prompt length: {len(formatted_prompt)} chars")
-        logger.info(f"[GGUF-DEBUG] System prompt (first 500 chars):\n{prompt[:500]}")
-        logger.info(f"[GGUF-DEBUG] User message:\n{user_message}")
-        logger.info(f"[GGUF-DEBUG] Full formatted prompt:\n{formatted_prompt[:1000]}...")
-        logger.info(f"[GGUF-DEBUG] ===============================================")
+        
+        payload = {
+            "prompt": formatted_prompt,
+            "n_predict": max_tokens,
+            "temperature": temperature,
+            "stop": [
+                "<|im_end|>",
+                "<|im_start|>user",
+                "</s>",
+                "User:",
+                "\nUser:",
+                "Assistant:",
+                "\nAssistant:",
+                "\n\n"
+            ],
+            "stream": False
+        }
+        
+        logger.info(f"[GGUF-DEBUG] Using manual ChatML format ({len(formatted_prompt)} chars)")
     else:
         # Legacy format - treat as single user message
         formatted_prompt = f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
+        payload = {
+            "prompt": formatted_prompt,
+            "n_predict": max_tokens,
+            "temperature": temperature,
+            "stop": ["<|im_end|>", "<|im_start|>user", "</s>"],
+            "stream": False
+        }
         logger.info(f"[GGUF-DEBUG] Using legacy format ({len(formatted_prompt)} chars)")
-    
-    # Use /completion endpoint with manually formatted ChatML prompt
-    # Enhanced stop tokens to prevent conversation format leakage
-    payload = {
-        "prompt": formatted_prompt,
-        "n_predict": max_tokens,
-        "temperature": temperature,
-        "stop": [
-            "<|im_end|>",           # ChatML end token
-            "<|im_start|>user",     # Next user turn
-            "</s>",                  # EOS token
-            "User:",                 # Conversation format
-            "\nUser:",               # Newline before user
-            "Assistant:",            # Conversation format
-            "\nAssistant:",          # Newline before assistant
-            "\n\n"                   # Double newline (conversation boundary)
-        ],
-        "stream": False
-    }
     
     logger.info(f"[GGUF-DEBUG] Payload details:")
     logger.info(f"[GGUF-DEBUG]   - n_predict: {max_tokens}")
@@ -3694,8 +3773,21 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 256, temperature: 
         
         # Extract content from completion response
         content = result.get('content', '')
+        
+        # Clean ChatML artifacts if formatter is available
+        if CHATML_FORMATTER_AVAILABLE:
+            content = clean_chatml_response(content)
+            logger.debug(f"[CHATML] Cleaned ChatML artifacts from response")
+        
+        # Extract token usage information from llama-server response
+        timings = result.get('timings', {})
+        prompt_tokens = timings.get('prompt_n', 0) or result.get('tokens_evaluated', 0)
+        output_tokens = timings.get('predicted_n', 0) or result.get('tokens_predicted', 0)
+        
         logger.info(f"[GGUF-DEBUG] Response received:")
         logger.info(f"[GGUF-DEBUG]   - Content length: {len(content)} chars")
+        logger.info(f"[GGUF-DEBUG]   - Prompt tokens: {prompt_tokens}")
+        logger.info(f"[GGUF-DEBUG]   - Output tokens: {output_tokens}")
         logger.info(f"[GGUF-DEBUG]   - Full response:\n{content}")
         logger.info(f"[GGUF-DEBUG]   - Raw result keys: {list(result.keys())}")
         return content
@@ -3719,22 +3811,23 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 256, temperature: 
         raise RuntimeError(f"GGUF server error: {e}")
 
 
-def stream_generate_with_llama_server(enriched_system_prompt: str, user_message: str, max_tokens: int = 256, temperature: float = None):
+def stream_generate_with_llama_server(enriched_system_prompt: str, user_message: str, max_tokens: int = 256, temperature: float = None, history: Optional[List[Dict[str, str]]] = None):
     """
     Stream generate text using the llama-server HTTP API with /completion endpoint.
     
-    GGUF Fix: Manually formats prompts with ChatML template matching .bin tokenizer output,
-    then sends to /completion endpoint. This bypasses llama-server's template system entirely
-    since --chat-template flag is not supported in all llama-server versions.
+    Uses the ChatML formatter utility to build prompts in the exact format that
+    llama.cpp and GPT4ALL expect for GGUF models. This ensures responses match
+    those from the direct llama-server endpoint.
     
     Args:
         enriched_system_prompt: Full enriched system prompt (platform prompt + time + data)
         user_message: User's question
         max_tokens: Maximum tokens to generate
         temperature: Sampling temperature
+        history: Optional conversation history as list of {"role": "user"|"assistant", "content": "..."}
         
     Yields:
-        Generated text chunks
+        Generated text chunks (cleaned of ChatML artifacts)
     """
     if not LLAMA_SERVER_URL and not GGUF_SERVER_BASE:
         raise RuntimeError("llama-server or GGUF server not running")
@@ -3749,37 +3842,51 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
     # This ensures GGUF gets the same enriched prompt as .bin (with personality catalog, API map, etc.)
     enriched_system_prompt = format_system_prompt_with_placeholders(enriched_system_prompt)
     
-    # Manually format with ChatML template (matches .bin tokenizer output)
-    # Format: <|im_start|>system\n{content}<|im_end|>\n<|im_start|>user\n{content}<|im_end|>\n<|im_start|>assistant\n
-    formatted_prompt = f"<|im_start|>system\n{enriched_system_prompt}<|im_end|>\n<|im_start|>user\n{user_message}<|im_end|>\n<|im_start|>assistant\n"
-    
-    logger.info(f"[GGUF-STREAM-DEBUG] ========== MANUAL CHATML FORMATTING ==========")
-    logger.info(f"[GGUF-STREAM-DEBUG] System prompt length: {len(enriched_system_prompt)} chars")
-    logger.info(f"[GGUF-STREAM-DEBUG] User message length: {len(user_message)} chars")
-    logger.info(f"[GGUF-STREAM-DEBUG] Formatted prompt length: {len(formatted_prompt)} chars")
-    logger.info(f"[GGUF-STREAM-DEBUG] System prompt (first 500 chars):\n{enriched_system_prompt[:500]}")
-    logger.info(f"[GGUF-STREAM-DEBUG] User message:\n{user_message}")
-    logger.info(f"[GGUF-STREAM-DEBUG] Full formatted prompt:\n{formatted_prompt[:1000]}...")
-    logger.info(f"[GGUF-STREAM-DEBUG] ===============================================")
-    
-    # Use /completion endpoint with manually formatted ChatML prompt
-    # Enhanced stop tokens to prevent conversation format leakage
-    payload = {
-        "prompt": formatted_prompt,
-        "n_predict": max_tokens,
-        "temperature": temperature,
-        "stop": [
-            "<|im_end|>",           # ChatML end token
-            "<|im_start|>user",     # Next user turn
-            "</s>",                  # EOS token
-            "User:",                 # Conversation format
-            "\nUser:",               # Newline before user
-            "Assistant:",            # Conversation format
-            "\nAssistant:",          # Newline before assistant
-            "\n\n"                   # Double newline (conversation boundary)
-        ],
-        "stream": True,
-    }
+    # Use ChatML formatter utility if available, otherwise fall back to manual formatting
+    if CHATML_FORMATTER_AVAILABLE and format_for_llama_server_stream:
+        logger.info("[CHATML] Using ChatML formatter utility for streaming")
+        payload = format_for_llama_server_stream(
+            system_prompt=enriched_system_prompt,
+            user_message=user_message,
+            history=history,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            additional_stops=["User:", "\nUser:", "Assistant:", "\nAssistant:", "\n\n"]
+        )
+        formatted_prompt = payload["prompt"]
+        
+        logger.info(f"[CHATML-STREAM-DEBUG] ========== CHATML FORMATTING ==========")
+        logger.info(f"[CHATML-STREAM-DEBUG] System prompt length: {len(enriched_system_prompt)} chars")
+        logger.info(f"[CHATML-STREAM-DEBUG] User message length: {len(user_message)} chars")
+        if history:
+            logger.info(f"[CHATML-STREAM-DEBUG] History messages: {len(history)}")
+        logger.info(f"[CHATML-STREAM-DEBUG] Formatted prompt length: {len(formatted_prompt)} chars")
+        logger.info(f"[CHATML-STREAM-DEBUG] System prompt (first 500 chars):\n{enriched_system_prompt[:500]}")
+        logger.info(f"[CHATML-STREAM-DEBUG] User message:\n{user_message}")
+        logger.info(f"[CHATML-STREAM-DEBUG] Full formatted prompt:\n{formatted_prompt[:1000]}...")
+        logger.info(f"[CHATML-STREAM-DEBUG] Valid ChatML: {validate_chatml_format(formatted_prompt) if validate_chatml_format else 'N/A'}")
+        logger.info(f"[CHATML-STREAM-DEBUG] ===============================================")
+    else:
+        # Fallback: Manual ChatML formatting
+        logger.warning("[CHATML] ChatML formatter not available, using manual formatting")
+        formatted_prompt = f"<|im_start|>system\n{enriched_system_prompt}<|im_end|>\n<|im_start|>user\n{user_message}<|im_end|>\n<|im_start|>assistant\n"
+        
+        payload = {
+            "prompt": formatted_prompt,
+            "n_predict": max_tokens,
+            "temperature": temperature,
+            "stop": [
+                "<|im_end|>",
+                "<|im_start|>user",
+                "</s>",
+                "User:",
+                "\nUser:",
+                "Assistant:",
+                "\nAssistant:",
+                "\n\n"
+            ],
+            "stream": True,
+        }
     
     logger.info(f"[GGUF-STREAM-DEBUG] Payload details:")
     logger.info(f"[GGUF-STREAM-DEBUG]   - n_predict: {max_tokens}")
@@ -3800,6 +3907,8 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
         # Parse streaming completion response
         chunk_count = 0
         total_content = ""
+        final_timings = None
+        
         for line in response.iter_lines():
             if line:
                 line = line.decode('utf-8')
@@ -3811,16 +3920,28 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
                         break
                     try:
                         chunk = json.loads(data)
+                        
+                        # Extract timings from final chunk (llama-server sends this)
+                        if 'timings' in chunk:
+                            final_timings = chunk['timings']
+                            logger.info(f"[GGUF-STREAM-DEBUG] Received timings: {final_timings}")
+                        
                         # Completion format
                         content = chunk.get('content', '')
                         if content:
                             chunk_count += 1
                             total_content += content
+                            
                             if chunk_count <= 5:  # Log first 5 chunks for debugging
                                 logger.info(f"[GGUF-STREAM-DEBUG] Chunk {chunk_count}: {repr(content)}")
-                            yield content
+                            yield ('token', content, None)  # Yield token with no timings yet
                     except json.JSONDecodeError:
                         pass
+        
+        # Yield final timings as last item
+        if final_timings:
+            yield ('timings', None, final_timings)
+            
     except requests.exceptions.ConnectionError as e:
         # Connection error - server not running
         error_msg = (
@@ -4386,6 +4507,7 @@ class InferenceRequest(BaseModel):
     skip_sources: bool = Field(default=False, description="Skip appending sources to response (used for compare mode)")
     skip_context_enrichment: bool = Field(default=False, description="Skip context enrichment like weather/news (used for compare mode)")
     system_prompt: Optional[str] = Field(default=None, description="Custom system prompt (overrides default)")
+    history: Optional[List[Dict[str, str]]] = Field(default=None, description="Conversation history as list of {role, content} dicts")
     
     @field_validator('text')
     @classmethod
@@ -4843,6 +4965,42 @@ def clean_inference_response(response_text: str, full_input: str, user_text: str
     text = re.sub(r'^\s+', '', text)
     
     return text.strip()
+
+
+def extract_thinking_chain(response_text: str) -> tuple:
+    """
+    Extract the model's thinking process from <think> tags in the response.
+    
+    DeepSeek and some other models output their internal reasoning within <think></think> tags.
+    This function extracts that thinking and returns both the thinking and the clean response.
+    
+    Args:
+        response_text: The model's response text potentially containing <think> tags
+        
+    Returns:
+        Tuple of (thinking_text, clean_response_text)
+        - thinking_text: Content inside <think> tags, or None if no thinking found
+        - clean_response_text: Response with <think> tags removed
+    """
+    import re
+    
+    if not response_text:
+        return None, response_text
+    
+    # Match <think>...</think> tags (case insensitive, can span multiple lines)
+    think_pattern = r'<think>(.*?)</think>'
+    matches = re.findall(think_pattern, response_text, flags=re.DOTALL | re.IGNORECASE)
+    
+    if matches:
+        # Concatenate all thinking blocks if there are multiple
+        thinking_text = '\n\n'.join(match.strip() for match in matches)
+        # Remove all <think> tags from the response
+        clean_response = re.sub(think_pattern, '', response_text, flags=re.DOTALL | re.IGNORECASE)
+        # Clean up any extra whitespace left behind
+        clean_response = re.sub(r'\n{3,}', '\n\n', clean_response).strip()
+        return thinking_text, clean_response
+    
+    return None, response_text
 
 
 def clean_internal_tags(response_text: str) -> str:
@@ -10736,25 +10894,28 @@ async def oneseek_inference(request: InferenceRequest):
     if USING_LLAMA_SERVER:
         logger.info(f"[GGUF] Using llama-server.exe for /inference/oneseek: {request.text[:50]}...")
         try:
-            # Build the prompt in ChatML format for llama-server
+            # Build the system prompt with time context
             now = datetime.now()
             weekday_map = {0: "måndag", 1: "tisdag", 2: "onsdag", 3: "torsdag", 4: "fredag", 5: "lördag", 6: "söndag"}
             day_name = weekday_map.get(now.weekday(), "")
             time_context = f"Idag är det {day_name} {now.day} {['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'][now.month-1]} {now.year}, klockan {now.strftime('%H:%M')}."
             
             system_prompt = get_active_system_prompt()
-            full_prompt = f"<|im_start|>system\n{system_prompt}\n\n[Aktuell tid] {time_context}<|im_end|>\n<|im_start|>user\n{request.text}<|im_end|>\n<|im_start|>assistant\n"
+            enriched_system_prompt = f"{system_prompt}\n\n[Aktuell tid] {time_context}"
             
-            # GGUF Fix: Pass user message directly for proper system prompt injection
+            # Use ChatML formatter to build the request with conversation history
             response_text = generate_with_llama_server(
-                full_prompt, 
+                prompt=enriched_system_prompt,  # System prompt
+                user_message=request.text,      # Current user question
+                history=request.history,         # Optional conversation history
                 max_tokens=request.max_length,
-                temperature=request.temperature,
-                user_message=request.text
+                temperature=request.temperature
             )
             
             latency_ms = (time.time() - start_time) * 1000
             tokens = len(response_text.split())  # Approximate token count
+            
+            logger.info(f"[GGUF] Response generated in {latency_ms:.0f}ms, {tokens} tokens")
             
             return InferenceResponse(
                 response=response_text.strip(),
@@ -10764,6 +10925,8 @@ async def oneseek_inference(request: InferenceRequest):
             )
         except Exception as e:
             logger.error(f"[GGUF] llama-server.exe error, falling back to HuggingFace: {e}")
+            import traceback
+            traceback.print_exc()
             # Continue with HuggingFace fallback below
     
     # === ONESEEK Δ+: CACHE CHECK ===
@@ -12458,13 +12621,15 @@ class StreamRequest(BaseModel):
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     top_p: float = Field(default=0.9, ge=0.0, le=1.0)
     skip_typo_check: bool = Field(default=False)
+    history: Optional[List[Dict[str, str]]] = Field(default=None, description="Conversation history as list of {role, content} dicts")
 
 
 async def generate_sse_tokens(
     text: str,
     max_length: int = 512,
     temperature: float = 0.7,
-    top_p: float = 0.9
+    top_p: float = 0.9,
+    history: Optional[List[Dict[str, str]]] = None
 ) -> AsyncGenerator[str, None]:
     """
     Async generator for Server-Sent Events token streaming.
@@ -12474,6 +12639,7 @@ async def generate_sse_tokens(
         max_length: Maximum number of new tokens to generate (default: 512)
         temperature: Sampling temperature for response diversity (default: 0.7)
         top_p: Nucleus sampling probability threshold (default: 0.9)
+        history: Optional conversation history as list of {role, content} dicts
     
     Yields:
         str: SSE-formatted event strings with the following types:
@@ -12506,37 +12672,82 @@ async def generate_sse_tokens(
         if USING_LLAMA_SERVER:
             logger.info(f"🌊 [STREAM] Using llama-server.exe backend for: {text[:50]}...")
             try:
-                # GGUF Fix: Pass enriched system prompt directly
-                for token in stream_generate_with_llama_server(
+                full_response_llama = ""  # Track full response for thinking extraction
+                llama_timings = None  # Store timings from llama-server
+                
+                # Get llama-server properties to fetch actual context window size
+                llama_props = get_llama_server_props()
+                context_window = llama_props.get('n_ctx', 8192) if llama_props else 8192
+                logger.info(f"[LLAMA-SERVER] Context window: {context_window}")
+                
+                # Use ChatML formatter with conversation history support
+                for item in stream_generate_with_llama_server(
                     enriched_system_prompt=enriched_system_prompt,
                     user_message=text,
                     max_tokens=max_length,
-                    temperature=temperature
+                    temperature=temperature,
+                    history=history  # Pass conversation history to formatter
                 ):
-                    if token:
-                        try:
-                            event_data = json.dumps({"token": token, "index": tokens_sent}, ensure_ascii=False)
-                        except (TypeError, ValueError):
-                            safe_token = token.encode('unicode_escape').decode('ascii')
-                            event_data = json.dumps({"token": safe_token, "index": tokens_sent})
-                        tokens_sent += 1
-                        yield f"event: token\ndata: {event_data}\n\n"
-                        
-                        # Apply delay from admin settings
-                        delay_ms = _admin_settings.get("token_delay_ms", 30)
-                        if delay_ms > 0:
-                            await asyncio.sleep(delay_ms / 1000.0)
+                    if item[0] == 'token':
+                        token = item[1]
+                        if token:
+                            full_response_llama += token  # Accumulate full response
+                            try:
+                                event_data = json.dumps({"token": token, "index": tokens_sent}, ensure_ascii=False)
+                            except (TypeError, ValueError):
+                                safe_token = token.encode('unicode_escape').decode('ascii')
+                                event_data = json.dumps({"token": safe_token, "index": tokens_sent})
+                            tokens_sent += 1
+                            yield f"event: token\ndata: {event_data}\n\n"
+                            
+                            # Apply delay from admin settings
+                            delay_ms = _admin_settings.get("token_delay_ms", 30)
+                            if delay_ms > 0:
+                                await asyncio.sleep(delay_ms / 1000.0)
+                    elif item[0] == 'timings':
+                        llama_timings = item[2]
                 
                 # Send completion event
                 elapsed = (time.time() - start_time) * 1000
+                
+                # Extract thinking chain from llama-server response
+                thinking_chain, clean_response_llama = extract_thinking_chain(full_response_llama)
+                
+                # Extract token counts from llama-server timings
+                prompt_tokens = 0
+                output_tokens = tokens_sent
+                actual_tokens_per_second = 0
+                
+                if llama_timings:
+                    prompt_tokens = llama_timings.get('prompt_n', 0)
+                    output_tokens = llama_timings.get('predicted_n', tokens_sent)
+                    # Use llama-server's actual generation speed
+                    actual_tokens_per_second = round(llama_timings.get('predicted_per_second', 0), 2)
+                    logger.info(f"[GGUF-STREAM] Actual llama-server speed: {actual_tokens_per_second} tokens/s (prompt: {prompt_tokens}, output: {output_tokens})")
+                
+                # Calculate frontend display speed (includes delay)
+                display_tokens_per_second = round(tokens_sent / (elapsed / 1000.0), 2) if elapsed > 0 else 0
+                
+                # Use actual llama-server speed if available, otherwise use display speed
+                tokens_per_second = actual_tokens_per_second if actual_tokens_per_second > 0 else display_tokens_per_second
+                
                 metadata = {
-                    "tokens": tokens_sent,
+                    "tokens": output_tokens,
                     "latency_ms": round(elapsed, 2),
+                    "tokens_per_second": tokens_per_second,
+                    "prompt_tokens": prompt_tokens,
+                    "output_tokens": output_tokens,
+                    "context_window": context_window,  # Actual context window from llama-server
                     "model": "llama-server",
-                    "backend": "llama-server.exe"
+                    "backend": "llama-server.exe",
+                    "thinking_chain": thinking_chain
                 }
                 yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
-                yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': tokens_sent})}\n\n"
+                yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': output_tokens})}\n\n"
+                
+                if thinking_chain:
+                    logger.info(f"🧠 [THINKING] Extracted thinking chain from llama-server ({len(thinking_chain)} chars)")
+                logger.info(f"🌊 [STREAM/LLAMA] Complete: {output_tokens} tokens in {elapsed:.0f}ms ({tokens_per_second} tokens/s)")
                 return
             except Exception as e:
                 logger.error(f"🌊 [STREAM] llama-server.exe error: {e}")
@@ -12544,10 +12755,17 @@ async def generate_sse_tokens(
                 return
         
         # Build messages for the HuggingFace model
+        # Include history if provided
         structured_messages = [
-            {"role": "system", "content": f"{system_prompt}\n\n[Aktuell tid] {time_context}"},
-            {"role": "user", "content": text}
+            {"role": "system", "content": f"{system_prompt}\n\n[Aktuell tid] {time_context}"}
         ]
+        
+        # Add history messages
+        if history:
+            structured_messages.extend(history)
+        
+        # Add current user message
+        structured_messages.append({"role": "user", "content": text})
         
         # Check if we have models loaded - attempt to load if not
         # Model key can be 'oneseek-7b-zero' (from load_model) or 'oneseek' (from dynamic switch)
@@ -12715,16 +12933,24 @@ async def generate_sse_tokens(
         # Calculate latency
         latency_ms = (time.time() - start_time) * 1000
         
+        # Extract thinking chain from response
+        thinking_chain, clean_response = extract_thinking_chain(full_response)
+        
         # Parse personality tag from response
-        detected_personality_id, clean_response = parse_personality_tag(full_response)
+        detected_personality_id, clean_response = parse_personality_tag(clean_response)
         personality_info = get_personality_info(detected_personality_id) if detected_personality_id != "oneseek-medveten" else None
+        
+        # Calculate tokens per second
+        tokens_per_second = round(tokens_sent / (latency_ms / 1000.0), 2) if latency_ms > 0 else 0
         
         # Send metadata event
         metadata = {
             "tokens": tokens_sent,
             "latency_ms": round(latency_ms, 2),
+            "tokens_per_second": tokens_per_second,
             "model": "OneSeek-7B-Zero.v1.1",
             "personality": personality_info,
+            "thinking_chain": thinking_chain,  # Add thinking chain to metadata
             "full_response": clean_response  # Send clean response for fallback
         }
         yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
@@ -12732,7 +12958,9 @@ async def generate_sse_tokens(
         # Send done event
         yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': tokens_sent})}\n\n"
         
-        logger.info(f"🌊 [STREAM] Complete: {tokens_sent} tokens in {latency_ms:.0f}ms")
+        logger.info(f"🌊 [STREAM] Complete: {tokens_sent} tokens in {latency_ms:.0f}ms ({tokens_per_second} tokens/s)")
+        if thinking_chain:
+            logger.info(f"🧠 [THINKING] Extracted thinking chain ({len(thinking_chain)} chars)")
         
     except Exception as e:
         logger.error(f"🌊 [STREAM] Error: {e}")
@@ -12768,7 +12996,8 @@ async def stream_inference(request: StreamRequest):
             text=request.text,
             max_length=request.max_length,
             temperature=request.temperature,
-            top_p=request.top_p
+            top_p=request.top_p,
+            history=request.history  # Pass conversation history
         ),
         media_type="text/event-stream",
         headers={

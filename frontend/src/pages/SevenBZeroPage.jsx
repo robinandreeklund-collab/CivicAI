@@ -165,6 +165,10 @@ export default function SevenBZeroPage() {
   const [responseStartTime, setResponseStartTime] = useState(null);
   const [currentResponseTime, setCurrentResponseTime] = useState(0);
   
+  // Conversation history for multi-turn support
+  // Format: [{"role": "user"|"assistant", "content": "..."}]
+  const [conversationHistory, setConversationHistory] = useState([]);
+  
   // Streaming state - SSE token-by-token streaming from backend
   // This replaces the fake typing animation with real-time tokens
   const [streamingEnabled, setStreamingEnabled] = useState(true);
@@ -874,6 +878,7 @@ export default function SevenBZeroPage() {
           max_length: 512,
           temperature: 0.7,
           top_p: 0.9,
+          history: conversationHistory,  // Send conversation history for context
         }),
         signal: abortController.signal,
       });
@@ -1019,13 +1024,28 @@ export default function SevenBZeroPage() {
               responseTime: finalResponseTime,
               confidence: metadata?.confidence_score || 0.85,
               version: metadata?.model || 'OneSeek-Δ+ (Streaming)',
-              tokens: tokenCount,
+              tokens: metadata?.output_tokens || tokenCount,
+              tokensPerSecond: metadata?.tokens_per_second || null,
+              promptTokens: metadata?.prompt_tokens || null,
+              outputTokens: metadata?.output_tokens || tokenCount,
+              contextWindow: metadata?.context_window || 8192,  // Use actual context window from llama-server
+              thinkingChain: metadata?.thinking_chain || null,
               personality: metadata?.personality || null,
             }
           : msg
       ));
       
       console.log(`[7B-Zero Stream] Complete: ${tokenCount} tokens in ${finalResponseTime}s`);
+      
+      // Update conversation history for multi-turn support
+      // Add the user's question and the assistant's response
+      setConversationHistory(prev => [
+        ...prev,
+        { role: 'user', content: question },
+        { role: 'assistant', content: formattedFinalText }
+      ]);
+      
+      console.log('[7B-Zero] Conversation history updated:', conversationHistory.length + 2, 'messages');
       
       // Update microtraining status
       setMicrotrainingQueue(prev => prev + 1);
@@ -1985,6 +2005,189 @@ export default function SevenBZeroPage() {
                     </div>
                   )}
                   
+                  {/* Thinking Chain - Collapsible section */}
+                  {msg.thinkingChain && !msg.isTyping && (
+                    <details className={`mt-4 ${whiteMode ? 'bg-[#f8f8f8]' : 'bg-[#0a0a0a]'} rounded-lg overflow-hidden`}>
+                      <summary className={`px-4 py-2 cursor-pointer text-[11px] font-medium uppercase tracking-wider flex items-center gap-2 ${
+                        whiteMode ? 'text-[#666] hover:bg-[#f0f0f0]' : 'text-[#888] hover:bg-[#151515]'
+                      } transition-colors`}>
+                        <span>🧠</span>
+                        <span>Tankekedja</span>
+                        <span className={`ml-auto text-[10px] ${whiteMode ? 'text-[#999]' : 'text-[#555]'}`}>
+                          ({msg.thinkingChain.length} tecken)
+                        </span>
+                      </summary>
+                      <div className={`px-4 py-3 text-[13px] font-light leading-relaxed border-t ${
+                        whiteMode ? 'text-[#555] border-[#e0e0e0]' : 'text-[#999] border-[#222]'
+                      }`}>
+                        <pre className={`whitespace-pre-wrap font-mono text-[12px] ${
+                          whiteMode ? 'text-[#444]' : 'text-[#aaa]'
+                        }`}>{msg.thinkingChain}</pre>
+                      </div>
+                    </details>
+                  )}
+                  
+                  {/* Token Metrics - Minimalist view matching llama frontend */}
+                  {(msg.tokens || msg.tokensPerSecond || msg.promptTokens) && !msg.isTyping && (
+                    <div className={`mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] ${
+                      whiteMode ? 'text-[#999]' : 'text-[#555]'
+                    }`}>
+                      {/* First row: tokens and tokens/s */}
+                      <div className="flex items-center gap-4">
+                        {msg.tokens && (
+                          <span className="flex items-center gap-1">
+                            <span className="opacity-60">tokens:</span>
+                            <span className="font-medium">{msg.tokens}</span>
+                          </span>
+                        )}
+                        {msg.tokensPerSecond && (
+                          <span className="flex items-center gap-1">
+                            <span className="opacity-60">tokens/s:</span>
+                            <span className="font-medium">{msg.tokensPerSecond}</span>
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Second row: Context and Output (if available) */}
+                      {(msg.promptTokens || msg.outputTokens) && (
+                        <div className="flex items-center gap-4">
+                          {msg.promptTokens && (
+                            <span className="flex items-center gap-1">
+                              <span className="opacity-60">Context:</span>
+                              <span className="font-medium">
+                                {msg.promptTokens}/{msg.contextWindow || 8192} ({Math.round((msg.promptTokens / (msg.contextWindow || 8192)) * 100)}%)
+                              </span>
+                            </span>
+                          )}
+                          {msg.outputTokens && (
+                            <span className="flex items-center gap-1">
+                              <span className="opacity-60">Output:</span>
+                              <span className="font-medium">{msg.outputTokens}/∞</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Action Buttons - Copy, Edit, Regenerate, Continue, Delete */}
+                  {!msg.isTyping && !msg.error && msg.text && (
+                    <div className={`mt-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200`}>
+                      {/* Copy */}
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(msg.text);
+                          // Optional: show brief feedback
+                        }}
+                        title="Kopiera svar"
+                        className={`p-1.5 rounded transition-all ${
+                          whiteMode 
+                            ? 'text-[#888] hover:text-[#333] hover:bg-[#f0f0f0]' 
+                            : 'text-[#555] hover:text-[#ccc] hover:bg-[#1a1a1a]'
+                        }`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                      
+                      {/* Edit */}
+                      <button
+                        onClick={() => {
+                          // Set the message text as input for editing
+                          setMessageInput(msg.text);
+                          // Optional: scroll to input
+                        }}
+                        title="Redigera och skicka igen"
+                        className={`p-1.5 rounded transition-all ${
+                          whiteMode 
+                            ? 'text-[#888] hover:text-[#333] hover:bg-[#f0f0f0]' 
+                            : 'text-[#555] hover:text-[#ccc] hover:bg-[#1a1a1a]'
+                        }`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      
+                      {/* Regenerate */}
+                      <button
+                        onClick={() => {
+                          // Find the user message that triggered this response
+                          const msgIndex = messages.findIndex(m => m.id === msg.id);
+                          if (msgIndex > 0) {
+                            const userMsg = messages[msgIndex - 1];
+                            if (userMsg && userMsg.type === 'user') {
+                              // Resend the user's question
+                              setMessageInput(userMsg.text);
+                              // Trigger send
+                              setTimeout(() => {
+                                const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+                                document.querySelector('form')?.dispatchEvent(submitEvent);
+                              }, 100);
+                            }
+                          }
+                        }}
+                        title="Regenerera svar"
+                        className={`p-1.5 rounded transition-all ${
+                          whiteMode 
+                            ? 'text-[#888] hover:text-[#333] hover:bg-[#f0f0f0]' 
+                            : 'text-[#555] hover:text-[#ccc] hover:bg-[#1a1a1a]'
+                        }`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </button>
+                      
+                      {/* Continue */}
+                      <button
+                        onClick={() => {
+                          // Add the current response text to input and let user continue
+                          setMessageInput(`Fortsätt från: "${msg.text.slice(-50)}..."`);
+                        }}
+                        title="Fortsätt svaret"
+                        className={`p-1.5 rounded transition-all ${
+                          whiteMode 
+                            ? 'text-[#888] hover:text-[#333] hover:bg-[#f0f0f0]' 
+                            : 'text-[#555] hover:text-[#ccc] hover:bg-[#1a1a1a]'
+                        }`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                      
+                      {/* Delete */}
+                      <button
+                        onClick={() => {
+                          // Remove this message and potentially the user message before it
+                          const msgIndex = messages.findIndex(m => m.id === msg.id);
+                          setMessages(prev => {
+                            const updated = [...prev];
+                            // Remove AI message
+                            updated.splice(msgIndex, 1);
+                            // Also remove the user message if it's right before
+                            if (msgIndex > 0 && updated[msgIndex - 1]?.type === 'user') {
+                              updated.splice(msgIndex - 1, 1);
+                            }
+                            return updated;
+                          });
+                        }}
+                        title="Ta bort meddelande"
+                        className={`p-1.5 rounded transition-all ${
+                          whiteMode 
+                            ? 'text-[#888] hover:text-red-600 hover:bg-[#f0f0f0]' 
+                            : 'text-[#555] hover:text-red-400 hover:bg-[#1a1a1a]'
+                        }`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                  
                   {/* ONESEEK Δ+ Typo Correction Buttons */}
                   {msg.showTypoButtons && msg.typoCorrection && (
                     <div className={`mt-4 flex gap-3 ${whiteMode ? '' : ''}`}>
@@ -2289,6 +2492,33 @@ export default function SevenBZeroPage() {
                     Nej
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Conversation History Indicator */}
+            {conversationHistory.length > 0 && (
+              <div className={`mb-3 flex items-center justify-between px-2 ${
+                whiteMode ? 'text-[#666]' : 'text-[#888]'
+              }`}>
+                <div className="flex items-center gap-2 text-[11px]">
+                  <span className="opacity-60">💬</span>
+                  <span>{conversationHistory.length / 2} {conversationHistory.length / 2 === 1 ? 'tidigare meddelande' : 'tidigare meddelanden'} i kontext</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConversationHistory([]);
+                    console.log('[7B-Zero] Conversation history cleared');
+                  }}
+                  className={`text-[10px] px-2 py-1 rounded transition-all ${
+                    whiteMode
+                      ? 'hover:bg-[#f0f0f0] text-[#999] hover:text-[#666]'
+                      : 'hover:bg-[#1a1a1a] text-[#666] hover:text-[#aaa]'
+                  }`}
+                  title="Rensa konversationshistorik"
+                >
+                  Rensa historik
+                </button>
               </div>
             )}
 
