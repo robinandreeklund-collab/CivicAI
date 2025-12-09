@@ -4470,6 +4470,7 @@ class InferenceRequest(BaseModel):
     skip_sources: bool = Field(default=False, description="Skip appending sources to response (used for compare mode)")
     skip_context_enrichment: bool = Field(default=False, description="Skip context enrichment like weather/news (used for compare mode)")
     system_prompt: Optional[str] = Field(default=None, description="Custom system prompt (overrides default)")
+    history: Optional[List[Dict[str, str]]] = Field(default=None, description="Conversation history as list of {role, content} dicts")
     
     @field_validator('text')
     @classmethod
@@ -10820,25 +10821,28 @@ async def oneseek_inference(request: InferenceRequest):
     if USING_LLAMA_SERVER:
         logger.info(f"[GGUF] Using llama-server.exe for /inference/oneseek: {request.text[:50]}...")
         try:
-            # Build the prompt in ChatML format for llama-server
+            # Build the system prompt with time context
             now = datetime.now()
             weekday_map = {0: "måndag", 1: "tisdag", 2: "onsdag", 3: "torsdag", 4: "fredag", 5: "lördag", 6: "söndag"}
             day_name = weekday_map.get(now.weekday(), "")
             time_context = f"Idag är det {day_name} {now.day} {['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'][now.month-1]} {now.year}, klockan {now.strftime('%H:%M')}."
             
             system_prompt = get_active_system_prompt()
-            full_prompt = f"<|im_start|>system\n{system_prompt}\n\n[Aktuell tid] {time_context}<|im_end|>\n<|im_start|>user\n{request.text}<|im_end|>\n<|im_start|>assistant\n"
+            enriched_system_prompt = f"{system_prompt}\n\n[Aktuell tid] {time_context}"
             
-            # GGUF Fix: Pass user message directly for proper system prompt injection
+            # Use ChatML formatter to build the request with conversation history
             response_text = generate_with_llama_server(
-                full_prompt, 
+                prompt=enriched_system_prompt,  # System prompt
+                user_message=request.text,      # Current user question
+                history=request.history,         # Optional conversation history
                 max_tokens=request.max_length,
-                temperature=request.temperature,
-                user_message=request.text
+                temperature=request.temperature
             )
             
             latency_ms = (time.time() - start_time) * 1000
             tokens = len(response_text.split())  # Approximate token count
+            
+            logger.info(f"[GGUF] Response generated in {latency_ms:.0f}ms, {tokens} tokens")
             
             return InferenceResponse(
                 response=response_text.strip(),
@@ -10848,6 +10852,8 @@ async def oneseek_inference(request: InferenceRequest):
             )
         except Exception as e:
             logger.error(f"[GGUF] llama-server.exe error, falling back to HuggingFace: {e}")
+            import traceback
+            traceback.print_exc()
             # Continue with HuggingFace fallback below
     
     # === ONESEEK Δ+: CACHE CHECK ===
@@ -12542,13 +12548,15 @@ class StreamRequest(BaseModel):
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     top_p: float = Field(default=0.9, ge=0.0, le=1.0)
     skip_typo_check: bool = Field(default=False)
+    history: Optional[List[Dict[str, str]]] = Field(default=None, description="Conversation history as list of {role, content} dicts")
 
 
 async def generate_sse_tokens(
     text: str,
     max_length: int = 512,
     temperature: float = 0.7,
-    top_p: float = 0.9
+    top_p: float = 0.9,
+    history: Optional[List[Dict[str, str]]] = None
 ) -> AsyncGenerator[str, None]:
     """
     Async generator for Server-Sent Events token streaming.
@@ -12558,6 +12566,7 @@ async def generate_sse_tokens(
         max_length: Maximum number of new tokens to generate (default: 512)
         temperature: Sampling temperature for response diversity (default: 0.7)
         top_p: Nucleus sampling probability threshold (default: 0.9)
+        history: Optional conversation history as list of {role, content} dicts
     
     Yields:
         str: SSE-formatted event strings with the following types:
@@ -12590,12 +12599,13 @@ async def generate_sse_tokens(
         if USING_LLAMA_SERVER:
             logger.info(f"🌊 [STREAM] Using llama-server.exe backend for: {text[:50]}...")
             try:
-                # GGUF Fix: Pass enriched system prompt directly
+                # Use ChatML formatter with conversation history support
                 for token in stream_generate_with_llama_server(
                     enriched_system_prompt=enriched_system_prompt,
                     user_message=text,
                     max_tokens=max_length,
-                    temperature=temperature
+                    temperature=temperature,
+                    history=history  # Pass conversation history to formatter
                 ):
                     if token:
                         try:
@@ -12628,10 +12638,17 @@ async def generate_sse_tokens(
                 return
         
         # Build messages for the HuggingFace model
+        # Include history if provided
         structured_messages = [
-            {"role": "system", "content": f"{system_prompt}\n\n[Aktuell tid] {time_context}"},
-            {"role": "user", "content": text}
+            {"role": "system", "content": f"{system_prompt}\n\n[Aktuell tid] {time_context}"}
         ]
+        
+        # Add history messages
+        if history:
+            structured_messages.extend(history)
+        
+        # Add current user message
+        structured_messages.append({"role": "user", "content": text})
         
         # Check if we have models loaded - attempt to load if not
         # Model key can be 'oneseek-7b-zero' (from load_model) or 'oneseek' (from dynamic switch)
@@ -12852,7 +12869,8 @@ async def stream_inference(request: StreamRequest):
             text=request.text,
             max_length=request.max_length,
             temperature=request.temperature,
-            top_p=request.top_p
+            top_p=request.top_p,
+            history=request.history  # Pass conversation history
         ),
         media_type="text/event-stream",
         headers={
