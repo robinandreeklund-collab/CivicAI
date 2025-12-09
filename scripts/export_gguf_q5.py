@@ -5,6 +5,7 @@ Combined GGUF Q5 Export Script (2-step process)
 Performs complete export from HuggingFace model to Q5 quantized GGUF:
   Step 1: Convert HF model to F16 GGUF
   Step 2: Quantize F16 GGUF to Q5
+  Step 3: Copy tokenizer configuration files to sidecar directory
 
 Usage:
     python scripts/export_gguf_q5.py --src <model-path> --out <output-q5-gguf>
@@ -20,6 +21,7 @@ import json
 import sys
 import tempfile
 import os
+import shutil
 from pathlib import Path
 
 # Import the two-step functions
@@ -27,6 +29,73 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from export_gguf_f16 import convert_to_f16_gguf, setup_utf8_encoding
 from quantize_q5 import find_quantize_binary, quantize_to_q5
+
+
+def copy_tokenizer_files(model_path: Path, output_path: Path):
+    """
+    Copy all tokenizer configuration files from source model to GGUF output directory.
+    
+    Critical for GGUF models to have correct tokenizer behavior matching the source .bin model.
+    Files include: added_tokens.json, special_tokens_map.json, chat_template.jinja,
+    generation_config.json, tokenizer_config.json, config.json
+    
+    Args:
+        model_path: Path to source model directory (contains tokenizer files)
+        output_path: Path to output GGUF file
+    
+    Returns:
+        dict with success status and list of copied files
+    """
+    # Create tokenizer directory next to GGUF file
+    # Format: {model_name}_tokenizer/
+    tokenizer_dir = output_path.parent / f"{output_path.stem}_tokenizer"
+    tokenizer_dir.mkdir(parents=True, exist_ok=True)
+    
+    # List of tokenizer files to copy
+    tokenizer_files = [
+        'added_tokens.json',
+        'special_tokens_map.json',
+        'chat_template.jinja',
+        'generation_config.json',
+        'tokenizer_config.json',
+        'config.json',
+        'tokenizer.json',
+        'tokenizer.model',
+    ]
+    
+    copied_files = []
+    missing_files = []
+    
+    for filename in tokenizer_files:
+        source_file = model_path / filename
+        if source_file.exists():
+            dest_file = tokenizer_dir / filename
+            try:
+                shutil.copy2(source_file, dest_file)
+                copied_files.append(filename)
+                print(f"  ✓ Copied {filename}")
+            except Exception as e:
+                print(f"  ✗ Failed to copy {filename}: {e}")
+                missing_files.append(filename)
+        else:
+            missing_files.append(filename)
+    
+    # Check if critical files were copied
+    critical_files = ['special_tokens_map.json', 'tokenizer_config.json', 'config.json']
+    missing_critical = [f for f in critical_files if f in missing_files]
+    
+    if missing_critical:
+        print(f"\n⚠ Warning: Missing critical tokenizer files: {', '.join(missing_critical)}")
+        print(f"  This may cause GGUF model to use default tokenizer settings")
+        print(f"  Source directory: {model_path}")
+    
+    return {
+        'success': len(copied_files) > 0,
+        'tokenizer_dir': str(tokenizer_dir),
+        'copied_files': copied_files,
+        'missing_files': missing_files,
+        'has_critical_files': len(missing_critical) == 0
+    }
 
 
 def export_gguf_q5(model_path: Path, output_path: Path, quantization_type: str = 'Q5_K_M', 
@@ -44,7 +113,7 @@ def export_gguf_q5(model_path: Path, output_path: Path, quantization_type: str =
         dict with success status and details
     """
     print("="*60)
-    print("TWO-STEP GGUF Q5 EXPORT")
+    print("THREE-STEP GGUF Q5 EXPORT")
     print("="*60)
     print(f"Source: {model_path}")
     print(f"Output: {output_path}")
@@ -133,6 +202,19 @@ def export_gguf_q5(model_path: Path, output_path: Path, quantization_type: str =
     
     print(f"\n✓ Step 2 complete: Q5 GGUF created ({q5_result['output_size_gb']:.2f} GB)")
     
+    # Step 3: Copy tokenizer files
+    print(f"\n[Step 3/3] Copying tokenizer configuration files...")
+    print("-" * 60)
+    
+    tokenizer_result = copy_tokenizer_files(model_path, output_path)
+    
+    if tokenizer_result['success']:
+        print(f"\n✓ Step 3 complete: {len(tokenizer_result['copied_files'])} tokenizer files copied")
+        print(f"  Tokenizer directory: {tokenizer_result['tokenizer_dir']}")
+    else:
+        print(f"\n⚠ Warning: No tokenizer files were copied")
+        print(f"  GGUF model may use default tokenizer settings")
+    
     # Success
     return {
         'success': True,
@@ -143,6 +225,9 @@ def export_gguf_q5(model_path: Path, output_path: Path, quantization_type: str =
         'reduction_percent': q5_result['reduction_percent'],
         'f16_kept': keep_f16,
         'f16_path': str(f16_path) if keep_f16 and f16_path.exists() else None,
+        'tokenizer_files_copied': tokenizer_result['copied_files'],
+        'tokenizer_dir': tokenizer_result['tokenizer_dir'],
+        'has_critical_tokenizer_files': tokenizer_result['has_critical_files'],
     }
 
 
@@ -154,11 +239,13 @@ def main():
         description='Export HuggingFace model to Q5 GGUF (2-step process)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-This script performs a complete 2-step export:
+This script performs a complete 3-step export:
   1. Convert HuggingFace model to F16 GGUF (~14 GB for 7B model)
   2. Quantize F16 GGUF to Q5 (~6-7 GB for 7B model)
+  3. Copy tokenizer configuration files to sidecar directory
 
 The intermediate F16 file is automatically deleted unless --keep-f16 is specified.
+Tokenizer files are copied to {model_name}_tokenizer/ directory next to GGUF file.
 
 Quantization Types:
   Q5_K_M - Q5 K-quant, medium (default, best balance)
@@ -215,6 +302,11 @@ Examples:
             print(f"Type: {result['quantization_type']}")
             if result['f16_kept']:
                 print(f"F16 file kept: {result['f16_path']}")
+            if result.get('tokenizer_files_copied'):
+                print(f"\nTokenizer files: {len(result['tokenizer_files_copied'])} copied")
+                print(f"Tokenizer directory: {result['tokenizer_dir']}")
+                if not result.get('has_critical_tokenizer_files'):
+                    print("⚠ Warning: Some critical tokenizer files are missing")
             print("\n✓ Your Q5 GGUF model is ready to use!")
         else:
             print("✗ Q5 GGUF EXPORT FAILED")
