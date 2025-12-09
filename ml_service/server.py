@@ -12440,8 +12440,8 @@ async def personality_based_inference(request: Request, inference_request: Perso
                     
                     logger.info(f"[Personality] Model API selection: {api_selection_text[:200]}...")
                     
-                    # Parse API selection
-                    api_selection = await parse_api_selection(api_selection_text)
+                    # Parse API selection (synchronous function)
+                    api_selection = parse_api_selection(api_selection_text)
                     
                     if api_selection and api_selection.get('apis'):
                         selected_apis = api_selection.get('apis', [])

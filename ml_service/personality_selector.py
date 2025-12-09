@@ -224,8 +224,9 @@ def select_personality(
         
         # Apply recent personality boost
         if boost_recent and _last_personality == personality_id and combined_score > 0:
-            # Apply boost only if there's some relevance
-            combined_score = min(1.0, combined_score * (1 + recent_boost_factor))
+            # Apply boost proportionally without exceeding 1.0
+            boost_amount = combined_score * recent_boost_factor
+            combined_score = min(1.0, combined_score + boost_amount)
             logger.info(f"Applied {recent_boost_factor*100}% boost to recent personality: {personality_id}")
         
         scores[personality_id] = {

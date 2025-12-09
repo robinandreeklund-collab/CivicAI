@@ -13,7 +13,7 @@ import aiohttp
 logger = logging.getLogger(__name__)
 
 
-async def parse_api_selection(model_response: str) -> Optional[Dict]:
+def parse_api_selection(model_response: str) -> Optional[Dict]:
     """
     Parse the model's JSON response to extract API selection.
     
@@ -33,28 +33,38 @@ async def parse_api_selection(model_response: str) -> Optional[Dict]:
     """
     try:
         # Try to find JSON in the response
-        # Look for { ... } pattern
-        start_idx = model_response.find('{')
-        end_idx = model_response.rfind('}')
+        # Look for { ... } pattern - find the first complete JSON object
+        json_start = -1
+        brace_count = 0
         
-        if start_idx == -1 or end_idx == -1:
-            logger.error("No JSON found in model response")
-            return None
+        for i, char in enumerate(model_response):
+            if char == '{':
+                if json_start == -1:
+                    json_start = i
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                if brace_count == 0 and json_start != -1:
+                    # Found complete JSON object
+                    json_str = model_response[json_start:i+1]
+                    try:
+                        api_selection = json.loads(json_str)
+                        
+                        # Validate structure
+                        if 'apis' not in api_selection:
+                            logger.error("Missing 'apis' key in API selection")
+                            return None
+                        
+                        logger.info(f"Parsed API selection: {len(api_selection['apis'])} APIs selected")
+                        return api_selection
+                    except json.JSONDecodeError:
+                        # Try next JSON object if this one is invalid
+                        json_start = -1
+                        continue
         
-        json_str = model_response[start_idx:end_idx+1]
-        api_selection = json.loads(json_str)
-        
-        # Validate structure
-        if 'apis' not in api_selection:
-            logger.error("Missing 'apis' key in API selection")
-            return None
-        
-        logger.info(f"Parsed API selection: {len(api_selection['apis'])} APIs selected")
-        return api_selection
-        
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse JSON from model response: {e}")
+        logger.error("No valid JSON found in model response")
         return None
+        
     except Exception as e:
         logger.error(f"Error parsing API selection: {e}")
         return None
@@ -285,8 +295,5 @@ if __name__ == "__main__":
     }
     '''
     
-    async def test():
-        selection = await parse_api_selection(test_response)
-        print(f"Parsed selection: {selection}")
-    
-    asyncio.run(test())
+    selection = parse_api_selection(test_response)
+    print(f"Parsed selection: {selection}")
