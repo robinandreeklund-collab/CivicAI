@@ -47,6 +47,12 @@ def run_gguf_inference():
         print(f"User prompt: {PROMPT}")
         print(f"{'='*60}\n")
         
+        # Check for tokenizer config directory next to GGUF file
+        model_path_obj = Path(model_path)
+        model_name = model_path_obj.stem  # Filename without extension
+        model_dir = model_path_obj.parent
+        tokenizer_dir = model_dir / f"{model_name}_tokenizer"
+        
         # Start llama-server
         print("Starting llama-server.exe...")
         server_cmd = [
@@ -58,6 +64,17 @@ def run_gguf_inference():
             "-ngl", "99",
             "-t", "8"
         ]
+        
+        # Add --hf-repo flag if tokenizer directory exists
+        if tokenizer_dir.exists() and tokenizer_dir.is_dir():
+            print(f"✓ Found tokenizer config directory: {tokenizer_dir}")
+            print("  Using --hf-repo flag to load tokenizer configuration")
+            print("  This will load: special_tokens_map.json, chat_template.jinja, generation_config.json, etc.")
+            server_cmd.extend(["--hf-repo", str(tokenizer_dir)])
+        else:
+            print(f"⚠ Tokenizer config directory not found: {tokenizer_dir}")
+            print("  Using GGUF embedded tokenizer (may cause looping)")
+            print("  Re-export GGUF from admin dashboard to get tokenizer config")
         
         server_process = subprocess.Popen(
             server_cmd,
@@ -122,6 +139,10 @@ def run_gguf_inference():
             f.write("GGUF MODEL INFERENCE RESULTS\n")
             f.write("="*60 + "\n\n")
             f.write(f"Model: {model_path}\n")
+            if tokenizer_dir.exists() and tokenizer_dir.is_dir():
+                f.write(f"Tokenizer config: {tokenizer_dir} (LOADED)\n")
+            else:
+                f.write(f"Tokenizer config: NOT FOUND (using GGUF embedded)\n")
             f.write(f"System prompt: {SYSTEM_PROMPT}\n")
             f.write(f"User prompt: {PROMPT}\n\n")
             f.write("-"*60 + "\n")
