@@ -1020,6 +1020,8 @@ export default function SevenBZeroPage() {
               confidence: metadata?.confidence_score || 0.85,
               version: metadata?.model || 'OneSeek-Δ+ (Streaming)',
               tokens: tokenCount,
+              tokensPerSecond: metadata?.tokens_per_second || null,
+              thinkingChain: metadata?.thinking_chain || null,
               personality: metadata?.personality || null,
             }
           : msg
@@ -1982,6 +1984,48 @@ export default function SevenBZeroPage() {
                       <ReactMarkdown>
                         {convertEmojis(msg.isTyping ? currentTypingText : msg.text)}
                       </ReactMarkdown>
+                    </div>
+                  )}
+                  
+                  {/* Thinking Chain - Collapsible section */}
+                  {msg.thinkingChain && !msg.isTyping && (
+                    <details className={`mt-4 ${whiteMode ? 'bg-[#f8f8f8]' : 'bg-[#0a0a0a]'} rounded-lg overflow-hidden`}>
+                      <summary className={`px-4 py-2 cursor-pointer text-[11px] font-medium uppercase tracking-wider flex items-center gap-2 ${
+                        whiteMode ? 'text-[#666] hover:bg-[#f0f0f0]' : 'text-[#888] hover:bg-[#151515]'
+                      } transition-colors`}>
+                        <span>🧠</span>
+                        <span>Tankekedja</span>
+                        <span className={`ml-auto text-[10px] ${whiteMode ? 'text-[#999]' : 'text-[#555]'}`}>
+                          ({msg.thinkingChain.length} tecken)
+                        </span>
+                      </summary>
+                      <div className={`px-4 py-3 text-[13px] font-light leading-relaxed border-t ${
+                        whiteMode ? 'text-[#555] border-[#e0e0e0]' : 'text-[#999] border-[#222]'
+                      }`}>
+                        <pre className={`whitespace-pre-wrap font-mono text-[12px] ${
+                          whiteMode ? 'text-[#444]' : 'text-[#aaa]'
+                        }`}>{msg.thinkingChain}</pre>
+                      </div>
+                    </details>
+                  )}
+                  
+                  {/* Token Metrics - Minimalist view */}
+                  {(msg.tokens || msg.tokensPerSecond) && !msg.isTyping && (
+                    <div className={`mt-2 flex items-center gap-4 text-[10px] ${
+                      whiteMode ? 'text-[#999]' : 'text-[#555]'
+                    }`}>
+                      {msg.tokens && (
+                        <span className="flex items-center gap-1">
+                          <span className="opacity-60">tokens:</span>
+                          <span className="font-medium">{msg.tokens}</span>
+                        </span>
+                      )}
+                      {msg.tokensPerSecond && (
+                        <span className="flex items-center gap-1">
+                          <span className="opacity-60">tokens/s:</span>
+                          <span className="font-medium">{msg.tokensPerSecond}</span>
+                        </span>
+                      )}
                     </div>
                   )}
                   

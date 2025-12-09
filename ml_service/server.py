@@ -4924,6 +4924,42 @@ def clean_inference_response(response_text: str, full_input: str, user_text: str
     return text.strip()
 
 
+def extract_thinking_chain(response_text: str) -> tuple:
+    """
+    Extract the model's thinking process from <think> tags in the response.
+    
+    DeepSeek and some other models output their internal reasoning within <think></think> tags.
+    This function extracts that thinking and returns both the thinking and the clean response.
+    
+    Args:
+        response_text: The model's response text potentially containing <think> tags
+        
+    Returns:
+        Tuple of (thinking_text, clean_response_text)
+        - thinking_text: Content inside <think> tags, or None if no thinking found
+        - clean_response_text: Response with <think> tags removed
+    """
+    import re
+    
+    if not response_text:
+        return None, response_text
+    
+    # Match <think>...</think> tags (case insensitive, can span multiple lines)
+    think_pattern = r'<think>(.*?)</think>'
+    matches = re.findall(think_pattern, response_text, flags=re.DOTALL | re.IGNORECASE)
+    
+    if matches:
+        # Concatenate all thinking blocks if there are multiple
+        thinking_text = '\n\n'.join(match.strip() for match in matches)
+        # Remove all <think> tags from the response
+        clean_response = re.sub(think_pattern, '', response_text, flags=re.DOTALL | re.IGNORECASE)
+        # Clean up any extra whitespace left behind
+        clean_response = re.sub(r'\n{3,}', '\n\n', clean_response).strip()
+        return thinking_text, clean_response
+    
+    return None, response_text
+
+
 def clean_internal_tags(response_text: str) -> str:
     """
     Remove internal debug tags from model responses before sending to user.
@@ -12593,6 +12629,7 @@ async def generate_sse_tokens(
         if USING_LLAMA_SERVER:
             logger.info(f"🌊 [STREAM] Using llama-server.exe backend for: {text[:50]}...")
             try:
+                full_response_llama = ""  # Track full response for thinking extraction
                 # Use ChatML formatter with conversation history support
                 for token in stream_generate_with_llama_server(
                     enriched_system_prompt=enriched_system_prompt,
@@ -12602,6 +12639,7 @@ async def generate_sse_tokens(
                     history=history  # Pass conversation history to formatter
                 ):
                     if token:
+                        full_response_llama += token  # Accumulate full response
                         try:
                             event_data = json.dumps({"token": token, "index": tokens_sent}, ensure_ascii=False)
                         except (TypeError, ValueError):
@@ -12617,14 +12655,27 @@ async def generate_sse_tokens(
                 
                 # Send completion event
                 elapsed = (time.time() - start_time) * 1000
+                
+                # Extract thinking chain from llama-server response
+                thinking_chain, clean_response_llama = extract_thinking_chain(full_response_llama)
+                
+                # Calculate tokens per second
+                tokens_per_second = round(tokens_sent / (elapsed / 1000.0), 2) if elapsed > 0 else 0
+                
                 metadata = {
                     "tokens": tokens_sent,
                     "latency_ms": round(elapsed, 2),
+                    "tokens_per_second": tokens_per_second,
                     "model": "llama-server",
-                    "backend": "llama-server.exe"
+                    "backend": "llama-server.exe",
+                    "thinking_chain": thinking_chain
                 }
                 yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
                 yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': tokens_sent})}\n\n"
+                
+                if thinking_chain:
+                    logger.info(f"🧠 [THINKING] Extracted thinking chain from llama-server ({len(thinking_chain)} chars)")
+                logger.info(f"🌊 [STREAM/LLAMA] Complete: {tokens_sent} tokens in {elapsed:.0f}ms ({tokens_per_second} tokens/s)")
                 return
             except Exception as e:
                 logger.error(f"🌊 [STREAM] llama-server.exe error: {e}")
@@ -12810,16 +12861,24 @@ async def generate_sse_tokens(
         # Calculate latency
         latency_ms = (time.time() - start_time) * 1000
         
+        # Extract thinking chain from response
+        thinking_chain, clean_response = extract_thinking_chain(full_response)
+        
         # Parse personality tag from response
-        detected_personality_id, clean_response = parse_personality_tag(full_response)
+        detected_personality_id, clean_response = parse_personality_tag(clean_response)
         personality_info = get_personality_info(detected_personality_id) if detected_personality_id != "oneseek-medveten" else None
+        
+        # Calculate tokens per second
+        tokens_per_second = round(tokens_sent / (latency_ms / 1000.0), 2) if latency_ms > 0 else 0
         
         # Send metadata event
         metadata = {
             "tokens": tokens_sent,
             "latency_ms": round(latency_ms, 2),
+            "tokens_per_second": tokens_per_second,
             "model": "OneSeek-7B-Zero.v1.1",
             "personality": personality_info,
+            "thinking_chain": thinking_chain,  # Add thinking chain to metadata
             "full_response": clean_response  # Send clean response for fallback
         }
         yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
@@ -12827,7 +12886,9 @@ async def generate_sse_tokens(
         # Send done event
         yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': tokens_sent})}\n\n"
         
-        logger.info(f"🌊 [STREAM] Complete: {tokens_sent} tokens in {latency_ms:.0f}ms")
+        logger.info(f"🌊 [STREAM] Complete: {tokens_sent} tokens in {latency_ms:.0f}ms ({tokens_per_second} tokens/s)")
+        if thinking_chain:
+            logger.info(f"🧠 [THINKING] Extracted thinking chain ({len(thinking_chain)} chars)")
         
     except Exception as e:
         logger.error(f"🌊 [STREAM] Error: {e}")
