@@ -44,3 +44,13 @@ spacy>=3.5.0
 # Optional: Swedish spaCy model (install separately)
 # python -m spacy download sv_core_news_lg
 # OR for smaller model: python -m spacy download sv_core_news_sm
+
+# =============================================================================
+# ONESEEK Δ+ v6.2 PERSONALITY-BASED API ROUTING
+# =============================================================================
+
+# Sentence transformers for embedding-based personality matching
+sentence-transformers>=2.2.0
+
+# Async HTTP client for parallel API fetching
+aiohttp>=3.9.0
