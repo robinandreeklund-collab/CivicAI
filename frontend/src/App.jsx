@@ -5,6 +5,7 @@ import Sidebar from './components/Sidebar';
 import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
 import ChatV2Page from './pages/ChatV2Page';
+import PersonalityChatPage from './pages/PersonalityChatPage';
 import PolicyQuestionBankPage from './pages/PolicyQuestionBankPage';
 import AuditTrailPage from './pages/AuditTrailPage';
 import AboutPage from './pages/AboutPage';
@@ -140,6 +141,7 @@ function AppContent() {
           <Route path="/ledger" element={<LedgerPage />} />
           <Route path="/design-demos" element={<DemoIndex />} />
           <Route path="/chat-v2" element={<ChatV2Page />} />
+          <Route path="/personality-chat" element={<PersonalityChatPage />} />
           <Route path="/7b-zero" element={<SevenBZeroPage />} />
         </Routes>
       </div>

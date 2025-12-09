@@ -102,6 +102,169 @@ export async function sendChatMessage(message, options = {}) {
   }
 }
 
+/**
+ * Send a chat message using personality-based inference
+ * 
+ * @param {string} message - User's message
+ * @param {Object} options - Additional options
+ * @param {string} options.overridePersonality - Manual personality ID override (optional)
+ * @param {Array} options.history - Conversation history (optional)
+ * @param {number} options.maxTokens - Max tokens to generate (default: 512)
+ * @param {number} options.temperature - Temperature for sampling (default: 0.7)
+ * @param {boolean} options.streamThinking - Stream thinking steps (default: true)
+ * @returns {Promise<Object>} Response with personality info and thinking chain
+ */
+export async function sendPersonalityChatMessage(message, options = {}) {
+  const {
+    overridePersonality = null,
+    history = null,
+    maxTokens = 512,
+    temperature = 0.7,
+    streamThinking = true,
+  } = options;
+
+  const baseUrl = getMLServiceURL();
+  const endpoint = `${baseUrl}/inference/personality`;
+  
+  const payload = {
+    text: message,
+    max_length: maxTokens,
+    temperature,
+    stream_thinking: streamThinking,
+  };
+  
+  if (overridePersonality) {
+    payload.override_personality = overridePersonality;
+  }
+  
+  if (history) {
+    payload.history = history;
+  }
+  
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('[ChatService] Personality inference error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get current personality
+ * 
+ * @returns {Promise<Object>} Current personality info
+ */
+export async function getCurrentPersonality() {
+  const baseUrl = getMLServiceURL();
+  const endpoint = `${baseUrl}/api/ml/personality/current`;
+  
+  try {
+    const response = await fetch(endpoint);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('[ChatService] Get personality error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Override personality selection
+ * 
+ * @param {string} personalityId - Personality ID to use
+ * @returns {Promise<Object>} Success status
+ */
+export async function overridePersonality(personalityId) {
+  const baseUrl = getMLServiceURL();
+  const endpoint = `${baseUrl}/api/ml/personality/override`;
+  
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ personality_id: personalityId }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('[ChatService] Override personality error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Reset personality selection
+ * 
+ * @returns {Promise<Object>} Success status
+ */
+export async function resetPersonality() {
+  const baseUrl = getMLServiceURL();
+  const endpoint = `${baseUrl}/api/ml/personality/reset`;
+  
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('[ChatService] Reset personality error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get personality catalog
+ * 
+ * @returns {Promise<Object>} Full personality catalog
+ */
+export async function getPersonalityCatalog() {
+  const baseUrl = getMLServiceURL();
+  const endpoint = `${baseUrl}/api/ml/personality/catalog`;
+  
+  try {
+    const response = await fetch(endpoint);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('[ChatService] Get catalog error:', error);
+    throw error;
+  }
+}
+
 export default {
   sendChatMessage,
+  sendPersonalityChatMessage,
+  getCurrentPersonality,
+  overridePersonality,
+  resetPersonality,
+  getPersonalityCatalog,
 };

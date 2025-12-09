@@ -8,6 +8,7 @@ import json
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
+from datetime import datetime
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -318,7 +319,7 @@ def create_character_api_map(
     character_api = {
         'personality': personality_data.get('name'),
         'personality_id': personality_id,
-        'timestamp': str(np.datetime64('now')),
+        'timestamp': datetime.now().isoformat(),
         'api_categories': filtered_apis,
         'system_prompt': personality_data.get('prompt', '')
     }
