@@ -1223,7 +1223,7 @@ export default function SevenBZeroPage() {
       // Try personality-based endpoint first (with thinking chain and automatic API routing)
       if (usePersonalityEndpoint) {
         try {
-          response = await fetch('/api/ml/inference/personality', {
+          response = await fetch('/api/inference/personality', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
