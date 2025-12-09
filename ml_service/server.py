@@ -416,6 +416,70 @@ except ImportError:
         get_model_interface = None
         reload_model_interface = None
 
+# =============================================================================
+# ONESEEK Δ+ v6.2: PERSONALITY SELECTOR & API ROUTER
+# =============================================================================
+# Automatic personality selection using embeddings and dynamic API routing
+try:
+    from .personality_selector import (
+        select_personality,
+        create_character_api_map,
+        override_personality,
+        get_current_personality,
+        reset_personality,
+        load_personality_catalog,
+        load_api_catalog
+    )
+    PERSONALITY_SELECTOR_AVAILABLE = True
+except ImportError:
+    try:
+        from personality_selector import (
+            select_personality,
+            create_character_api_map,
+            override_personality,
+            get_current_personality,
+            reset_personality,
+            load_personality_catalog,
+            load_api_catalog
+        )
+        PERSONALITY_SELECTOR_AVAILABLE = True
+    except ImportError:
+        PERSONALITY_SELECTOR_AVAILABLE = False
+        select_personality = None
+        create_character_api_map = None
+        override_personality = None
+        get_current_personality = None
+        reset_personality = None
+        load_personality_catalog = None
+        load_api_catalog = None
+
+try:
+    from .api_selector import (
+        parse_api_selection,
+        call_api as call_single_api,
+        fetch_apis_parallel,
+        format_api_data_for_model,
+        create_api_selection_prompt
+    )
+    API_SELECTOR_AVAILABLE = True
+except ImportError:
+    try:
+        from api_selector import (
+            parse_api_selection,
+            call_single_api,
+            fetch_apis_parallel,
+            format_api_data_for_model,
+            create_api_selection_prompt
+        )
+        API_SELECTOR_AVAILABLE = True
+    except ImportError:
+        API_SELECTOR_AVAILABLE = False
+        parse_api_selection = None
+        call_single_api = None
+        fetch_apis_parallel = None
+        format_api_data_for_model = None
+        create_api_selection_prompt = None
+
 # Global cache enabled flag (can be toggled from admin dashboard)
 GLOBAL_CACHE_ENABLED = True
 
@@ -447,6 +511,8 @@ def log_delta_plus_status():
         ("Cache Manager", CACHE_MANAGER_AVAILABLE, True, "7-day TTL hash-based cache"),
         ("Svenska Promptar", SWEDISH_PROMPTS_AVAILABLE, True, "100% svenska – inga engelska läckage"),
         ("Message Builder", MESSAGE_BUILDER_AVAILABLE, True, "Real-time prompt structure testing"),
+        ("Personality Selector", PERSONALITY_SELECTOR_AVAILABLE, True, "Embedding-based personality matching"),
+        ("API Selector", API_SELECTOR_AVAILABLE, True, "Dynamic API routing with parallel fetch"),
     ]
     
     for name, available, enabled, description in modules:
@@ -4537,6 +4603,47 @@ class ErrorResponse(BaseModel):
     error: str
     detail: str
     migration_guide: str = None
+
+
+# =============================================================================
+# ONESEEK Δ+ v6.2: PERSONALITY-BASED INFERENCE REQUEST/RESPONSE MODELS
+# =============================================================================
+
+class PersonalityInferenceRequest(BaseModel):
+    """Request model for personality-based inference with automatic API routing"""
+    text: str = Field(..., min_length=1, max_length=10000, description="User's query")
+    max_length: int = Field(default=512, ge=1, le=8192, description="Maximum generation length")
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Sampling temperature")
+    override_personality: Optional[str] = Field(default=None, description="Manual personality override (personality ID)")
+    history: Optional[List[Dict[str, str]]] = Field(default=None, description="Conversation history")
+    stream_thinking: bool = Field(default=True, description="Stream thinking process steps to client")
+    
+    @field_validator('text')
+    @classmethod
+    def validate_text(cls, v: str) -> str:
+        """Validate and sanitize input text"""
+        if not v or not v.strip():
+            raise ValueError("Input text cannot be empty")
+        v = v.replace('\x00', '')
+        return v.strip()
+
+
+class ThinkingStep(BaseModel):
+    """Model for individual thinking steps"""
+    step: str = Field(..., description="Step identifier (e.g., 'analyzing', 'selecting_personality')")
+    message: str = Field(..., description="Human-readable message in Swedish")
+    data: Optional[Dict[str, Any]] = Field(default=None, description="Additional step data")
+
+
+class PersonalityInferenceResponse(BaseModel):
+    """Response model for personality-based inference"""
+    response: str = Field(..., description="Final response text")
+    model: str = Field(..., description="Model name used")
+    tokens: int = Field(..., description="Approximate token count")
+    latency_ms: float = Field(..., description="Total latency in milliseconds")
+    personality: Dict[str, Any] = Field(..., description="Selected personality information")
+    thinking_chain: List[ThinkingStep] = Field(default_factory=list, description="Thinking process steps")
+    api_data: Optional[List[Dict[str, Any]]] = Field(default=None, description="API data fetched")
 
 
 # =============================================================================
@@ -8856,6 +8963,125 @@ async def reset_integration_stats(request: dict = None):
 
 
 # =============================================================================
+# ONESEEK Δ+ v6.2: PERSONALITY MANAGEMENT API ENDPOINTS
+# =============================================================================
+
+@app.get("/api/ml/personality/current")
+async def get_current_personality_endpoint():
+    """
+    Get the currently selected personality.
+    
+    Returns:
+        Current personality ID or null if not set
+    """
+    if not PERSONALITY_SELECTOR_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Personality selector not available")
+    
+    current = get_current_personality()
+    
+    if current:
+        catalog = load_personality_catalog()
+        personality_data = catalog.get('personality_catalog', {}).get(current)
+        return {
+            "personality_id": current,
+            "personality_name": personality_data.get('name') if personality_data else current,
+            "personality_data": personality_data
+        }
+    else:
+        return {
+            "personality_id": None,
+            "personality_name": None,
+            "personality_data": None
+        }
+
+
+@app.post("/api/ml/personality/override")
+async def override_personality_endpoint(request: dict):
+    """
+    Manually override the personality selection.
+    
+    Args:
+        request: {"personality_id": "oneseek-metrolog"}
+        
+    Returns:
+        Success status with selected personality info
+    """
+    if not PERSONALITY_SELECTOR_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Personality selector not available")
+    
+    personality_id = request.get("personality_id")
+    if not personality_id:
+        raise HTTPException(status_code=400, detail="personality_id is required")
+    
+    personality_data = override_personality(personality_id)
+    
+    if not personality_data:
+        raise HTTPException(status_code=404, detail=f"Personality '{personality_id}' not found")
+    
+    return {
+        "success": True,
+        "personality_id": personality_id,
+        "personality_name": personality_data.get('name'),
+        "personality_data": personality_data
+    }
+
+
+@app.post("/api/ml/personality/reset")
+async def reset_personality_endpoint():
+    """
+    Reset personality selection (clears the last personality).
+    
+    Returns:
+        Success status
+    """
+    if not PERSONALITY_SELECTOR_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Personality selector not available")
+    
+    reset_personality()
+    
+    return {
+        "success": True,
+        "message": "Personality selection reset"
+    }
+
+
+@app.get("/api/ml/personality/catalog")
+async def get_personality_catalog_endpoint():
+    """
+    Get the full personality catalog.
+    
+    Returns:
+        Complete personality catalog with all personalities
+    """
+    if not PERSONALITY_SELECTOR_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Personality selector not available")
+    
+    catalog = load_personality_catalog()
+    
+    return catalog
+
+
+@app.post("/api/ml/personality/catalog/reload")
+async def reload_personality_catalog_endpoint():
+    """
+    Reload the personality catalog from disk (for live updates).
+    
+    Returns:
+        Success status with updated catalog
+    """
+    if not PERSONALITY_SELECTOR_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Personality selector not available")
+    
+    catalog = load_personality_catalog()
+    
+    return {
+        "success": True,
+        "message": "Personality catalog reloaded",
+        "personality_count": len(catalog.get('personality_catalog', {}))
+    }
+
+
+# =============================================================================
 # ONESEEK Δ+ MEMORY MANAGER API ENDPOINTS
 # Topic-gruppering + Semantisk historik
 # =============================================================================
@@ -12068,6 +12294,296 @@ Svara NU.
         import traceback
         logger.error(f"Traceback:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# ONESEEK Δ+ v6.2: PERSONALITY-BASED INFERENCE WITH AUTOMATIC API ROUTING
+# =============================================================================
+
+@app.post("/inference/personality", response_model=PersonalityInferenceResponse)
+async def personality_based_inference(request: Request, inference_request: PersonalityInferenceRequest):
+    """
+    ONESEEK Δ+ v6.2: Intelligent personality-based inference with automatic API routing.
+    
+    This endpoint implements the 9-step process:
+    1. User asks question
+    2. Embedding-based personality selection (with 40% boost to recent)
+    3. Build dynamic API map for selected personality
+    4. Model selects which APIs to use (returns JSON)
+    5. Fetch data from APIs in parallel
+    6. Model generates final response with personality + data
+    7. Frontend displays response with thinking chain
+    
+    Features:
+    - Automatic personality selection using sentence-transformers embeddings
+    - Manual personality override support
+    - Dynamic API routing based on personality tags
+    - Parallel API fetching for real-time data
+    - Live thinking process streaming (optional)
+    - Clickable thought chain in response
+    """
+    start_time = time.time()
+    thinking_chain = []
+    
+    # Check if required modules are available
+    if not PERSONALITY_SELECTOR_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Personality selector module not available. Please install sentence-transformers."
+        )
+    
+    if not API_SELECTOR_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="API selector module not available."
+        )
+    
+    try:
+        # Step 1: User query received
+        user_query = inference_request.text
+        logger.info(f"[Personality] Received query: {user_query[:100]}...")
+        
+        thinking_chain.append(ThinkingStep(
+            step="received",
+            message="Analyserar frågan...",
+            data={"query_length": len(user_query)}
+        ))
+        
+        # Step 2: Select personality
+        if inference_request.override_personality:
+            # Manual override
+            logger.info(f"[Personality] Manual override: {inference_request.override_personality}")
+            personality_data = override_personality(inference_request.override_personality)
+            if not personality_data:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Personality '{inference_request.override_personality}' not found"
+                )
+            personality_id = inference_request.override_personality
+            personality_name = personality_data.get('name', personality_id)
+            confidence = 1.0
+            
+            thinking_chain.append(ThinkingStep(
+                step="personality_override",
+                message=f"Använder manuellt vald personlighet: {personality_name}",
+                data={"personality_id": personality_id, "manual": True}
+            ))
+        else:
+            # Automatic selection with embedding matching
+            personality_id, personality_name, confidence, personality_data = select_personality(
+                user_query,
+                boost_recent=True,
+                recent_boost_factor=0.4
+            )
+            
+            logger.info(f"[Personality] Selected: {personality_name} (confidence: {confidence:.3f})")
+            
+            thinking_chain.append(ThinkingStep(
+                step="personality_selected",
+                message=f"Valde personlighet: {personality_name}",
+                data={
+                    "personality_id": personality_id,
+                    "confidence": round(confidence, 3),
+                    "manual": False
+                }
+            ))
+        
+        # Step 3: Build API map for selected personality
+        logger.info(f"[Personality] Building API map for {personality_name}...")
+        character_api_map = create_character_api_map(personality_data)
+        
+        api_count = len(character_api_map.get('api_categories', {}))
+        thinking_chain.append(ThinkingStep(
+            step="api_map_created",
+            message=f"Skapade API-karta med {api_count} kategorier",
+            data={"api_categories": api_count}
+        ))
+        
+        # Step 4: Ask model to select APIs (if any available)
+        api_results = []
+        if api_count > 0:
+            thinking_chain.append(ThinkingStep(
+                step="selecting_apis",
+                message="Väljer vilka API:er som behövs...",
+                data={}
+            ))
+            
+            # Create prompt for API selection
+            api_selection_prompt = create_api_selection_prompt(user_query, character_api_map)
+            
+            # Call model to get API selection (using llama-server if available)
+            if USING_LLAMA_SERVER:
+                try:
+                    server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                    payload = {
+                        "messages": [
+                            {"role": "system", "content": "Du är OneSeek-7B-Zero och väljer API:er baserat på användarens fråga."},
+                            {"role": "user", "content": api_selection_prompt}
+                        ],
+                        "max_tokens": 256,
+                        "temperature": 0.3,  # Low temperature for structured output
+                        "stop": ["\n\n", "Användare:"],
+                    }
+                    
+                    response = requests.post(
+                        f"{server_url}/v1/chat/completions",
+                        json=payload,
+                        timeout=30,
+                    )
+                    response.raise_for_status()
+                    result = response.json()
+                    
+                    if 'choices' in result and len(result['choices']) > 0:
+                        api_selection_text = result['choices'][0].get('message', {}).get('content', '')
+                    else:
+                        api_selection_text = result.get('content', '')
+                    
+                    logger.info(f"[Personality] Model API selection: {api_selection_text[:200]}...")
+                    
+                    # Parse API selection
+                    api_selection = await parse_api_selection(api_selection_text)
+                    
+                    if api_selection and api_selection.get('apis'):
+                        selected_apis = api_selection.get('apis', [])
+                        thinking_chain.append(ThinkingStep(
+                            step="apis_selected",
+                            message=f"Valde {len(selected_apis)} API:er",
+                            data={"apis": [api.get('name') for api in selected_apis]}
+                        ))
+                        
+                        # Step 5: Fetch data from APIs in parallel
+                        thinking_chain.append(ThinkingStep(
+                            step="fetching_data",
+                            message="Hämtar realtidsdata...",
+                            data={}
+                        ))
+                        
+                        api_results = await fetch_apis_parallel(
+                            api_selection,
+                            character_api_map
+                        )
+                        
+                        successful_apis = [r for r in api_results if r.get('success')]
+                        thinking_chain.append(ThinkingStep(
+                            step="data_fetched",
+                            message=f"Hämtade data från {len(successful_apis)}/{len(api_results)} API:er",
+                            data={"successful": len(successful_apis), "total": len(api_results)}
+                        ))
+                    else:
+                        thinking_chain.append(ThinkingStep(
+                            step="no_apis_needed",
+                            message="Inga API:er behövs för denna fråga",
+                            data={}
+                        ))
+                    
+                except Exception as e:
+                    logger.error(f"[Personality] API selection error: {e}")
+                    thinking_chain.append(ThinkingStep(
+                        step="api_selection_error",
+                        message="Kunde inte välja API:er, fortsätter utan externa data",
+                        data={"error": str(e)}
+                    ))
+        
+        # Step 6: Generate final response with personality + data
+        thinking_chain.append(ThinkingStep(
+            step="generating_response",
+            message="Bygger svar...",
+            data={}
+        ))
+        
+        # Build final prompt with personality and API data
+        personality_prompt = personality_data.get('prompt', '')
+        api_data_str = format_api_data_for_model(api_results) if api_results else ""
+        
+        # Build time context
+        now = datetime.now()
+        weekday_map = {0: "måndag", 1: "tisdag", 2: "onsdag", 3: "torsdag", 4: "fredag", 5: "lördag", 6: "söndag"}
+        day_name = weekday_map.get(now.weekday(), "")
+        time_context = f"Idag är det {day_name} {now.day} {['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'][now.month-1]} {now.year}, klockan {now.strftime('%H:%M')}."
+        
+        # Combine system prompt
+        final_system_prompt = f"""{personality_prompt}
+
+[Aktuell tid] {time_context}"""
+        
+        if api_data_str:
+            final_system_prompt += f"\n\n[Realtidsdata från API:er]\n{api_data_str}"
+        
+        # Generate final response
+        if USING_LLAMA_SERVER:
+            server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+            
+            # Build conversation history
+            messages = [
+                {"role": "system", "content": final_system_prompt}
+            ]
+            
+            # Add history if provided
+            if inference_request.history:
+                messages.extend(inference_request.history)
+            
+            # Add current query
+            messages.append({"role": "user", "content": user_query})
+            
+            payload = {
+                "messages": messages,
+                "max_tokens": inference_request.max_length,
+                "temperature": inference_request.temperature,
+                "stop": ["</s>", "[/INST]", "User:", "\n\nUser:", "Användare:"],
+            }
+            
+            response = requests.post(
+                f"{server_url}/v1/chat/completions",
+                json=payload,
+                timeout=120,
+            )
+            response.raise_for_status()
+            result = response.json()
+            
+            if 'choices' in result and len(result['choices']) > 0:
+                final_response = result['choices'][0].get('message', {}).get('content', '')
+            else:
+                final_response = result.get('content', '')
+            
+            final_response = final_response.strip()
+        else:
+            # Fallback: simple response if no llama-server
+            final_response = f"[Personality: {personality_name}] Response för: {user_query}"
+        
+        # Calculate latency
+        latency_ms = (time.time() - start_time) * 1000
+        tokens = len(final_response.split())
+        
+        # Build response
+        return PersonalityInferenceResponse(
+            response=final_response,
+            model="oneseek-7b-zero",
+            tokens=tokens,
+            latency_ms=latency_ms,
+            personality={
+                "id": personality_id,
+                "name": personality_name,
+                "confidence": round(confidence, 3),
+                "prompt": personality_prompt[:200] + "..." if len(personality_prompt) > 200 else personality_prompt
+            },
+            thinking_chain=thinking_chain,
+            api_data=[{
+                "api": r.get('api_name'),
+                "source": r.get('source'),
+                "success": r.get('success'),
+                "data": r.get('data') if r.get('success') else None,
+                "error": r.get('error')
+            } for r in api_results] if api_results else None
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[Personality] Error in personality-based inference: {e}")
+        import traceback
+        logger.error(f"Traceback:\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/inference/llama", response_model=InferenceResponse)
 async def llama_inference(request: InferenceRequest):
