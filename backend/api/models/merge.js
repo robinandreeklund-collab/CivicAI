@@ -20,12 +20,25 @@ const __dirname = dirname(__filename);
 
 const router = express.Router();
 
-// GGUF quantization options - using two-step export with Q5 variants
+// GGUF quantization options - using two-step export with multiple variants
 const QUANTIZATION_TYPES = {
+  // Q4 variants - smaller size, lower quality
+  'Q4_K_M': { description: 'Medium quality Q4, smaller size', bits: 4 },
+  'Q4_K_S': { description: 'Small Q4, smallest size', bits: 4 },
+  'Q4_0': { description: 'Original Q4 format (legacy)', bits: 4 },
+  
+  // Q5 variants - balanced size and quality
   'Q5_K_M': { description: 'Medium quality Q5, best balance of size/quality (recommended)', bits: 5 },
   'Q5_K_S': { description: 'Small Q5, smaller size with minimal quality loss', bits: 5 },
   'Q5_K': { description: 'Q5 K-quant (alias for Q5_K_M)', bits: 5 },
   'Q5_0': { description: 'Original Q5 format (older, larger)', bits: 5 },
+  
+  // Q6 variants - higher quality, larger size
+  'Q6_K': { description: 'High quality Q6, larger size', bits: 6 },
+  'Q6_0': { description: 'Original Q6 format (legacy)', bits: 6 },
+  
+  // Q8 variant - highest quality
+  'Q8_0': { description: 'Best quality Q8, largest size', bits: 8 },
 };
 
 /**

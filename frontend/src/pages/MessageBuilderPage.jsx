@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { getMLServiceURL } from '../config/backend';
 
 /**
  * Message Builder Page
@@ -7,16 +8,21 @@ import { Link } from 'react-router-dom';
  * 
  * Clean design matching /api-docs style
  * Now with Live Topic Sidebar for memory testing and intent tracking
+ * 
+ * GGUF Fix: Uses backend configuration to route to correct ML service
  */
 
 // Helper to generate topic ID
 const generateTopicId = () => `topic_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-// Helper to try multiple endpoints
+// Get the ML service base URL from configuration
+const ML_SERVICE_BASE = getMLServiceURL();
+
+// Helper to try multiple endpoints (with GGUF/bin backend awareness)
 const fetchWithFallback = async (path, options = {}) => {
   const endpoints = [
     `/api/ml${path}`,
-    `http://localhost:5000/api/ml${path}`
+    `${ML_SERVICE_BASE}/api/ml${path}`
   ];
   
   for (const endpoint of endpoints) {

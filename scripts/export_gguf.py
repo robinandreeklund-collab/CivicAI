@@ -234,6 +234,75 @@ def try_transformers_gguf_export(model_path: Path, output_path: Path, quantizati
         return None
 
 
+def copy_tokenizer_files(model_path: Path, output_path: Path):
+    """
+    Copy all tokenizer configuration files from source model to GGUF output directory.
+    
+    Critical for GGUF models to have correct tokenizer behavior matching the source .bin model.
+    Files include: added_tokens.json, special_tokens_map.json, chat_template.jinja,
+    generation_config.json, tokenizer_config.json, config.json
+    
+    Args:
+        model_path: Path to source model directory (contains tokenizer files)
+        output_path: Path to output GGUF file
+    
+    Returns:
+        dict with success status and list of copied files
+    """
+    print(f"[GGUF Export] Copying tokenizer configuration files...")
+    
+    # Create sidecar directory for tokenizer files
+    # Place them in a directory with same name as GGUF file (without .gguf extension)
+    tokenizer_dir = output_path.parent / f"{output_path.stem}_tokenizer"
+    tokenizer_dir.mkdir(parents=True, exist_ok=True)
+    
+    # List of critical tokenizer files to copy
+    tokenizer_files = [
+        'added_tokens.json',
+        'special_tokens_map.json',
+        'tokenizer_config.json',
+        'config.json',
+        'generation_config.json',
+        'chat_template.jinja',
+        'tokenizer.json',
+        'tokenizer.model',  # For SentencePiece tokenizers
+    ]
+    
+    copied_files = []
+    missing_files = []
+    
+    for filename in tokenizer_files:
+        source_file = model_path / filename
+        if source_file.exists():
+            dest_file = tokenizer_dir / filename
+            try:
+                shutil.copy2(source_file, dest_file)
+                copied_files.append(filename)
+                print(f"[GGUF Export]   ✓ Copied {filename}")
+            except Exception as e:
+                print(f"[GGUF Export]   ✗ Failed to copy {filename}: {e}")
+                missing_files.append(filename)
+        else:
+            # Only warn about truly critical files
+            if filename in ['special_tokens_map.json', 'tokenizer_config.json', 'config.json']:
+                print(f"[GGUF Export]   ⚠ Missing critical file: {filename}")
+                missing_files.append(filename)
+    
+    if copied_files:
+        print(f"[GGUF Export] ✓ Copied {len(copied_files)} tokenizer files to {tokenizer_dir}")
+    
+    # Verify critical files are present
+    critical_files = ['special_tokens_map.json', 'tokenizer_config.json']
+    has_critical = all((tokenizer_dir / f).exists() for f in critical_files)
+    
+    return {
+        'success': has_critical,
+        'tokenizer_dir': str(tokenizer_dir),
+        'copied_files': copied_files,
+        'missing_files': missing_files,
+    }
+
+
 def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5_K_M'):
     """
     Convert a HuggingFace model to GGUF format with direct quantization.
@@ -241,6 +310,9 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
     Uses 1-step conversion: HF -> quantized GGUF directly.
     This is 5-10x faster than the 2-step process (HF -> F16 -> quantized)
     and avoids creating a large intermediate F16 file (~14GB).
+    
+    CRITICAL: Also copies all tokenizer configuration files from source model
+    to ensure GGUF has identical tokenizer behavior (BOS/EOS tokens, chat template, etc.)
     
     Args:
         model_path: Path to the merged model directory
@@ -258,6 +330,24 @@ def convert_to_gguf(model_path: Path, output_path: Path, quantization: str = 'Q5
     
     # Ensure output directory exists
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # CRITICAL FIX: Copy tokenizer files from source model
+    # This ensures GGUF has correct BOS/EOS tokens, chat template, etc.
+    print(f"\n[GGUF Export] ========================================")
+    print(f"[GGUF Export] STEP 1: Preserving Tokenizer Configuration")
+    print(f"[GGUF Export] ========================================")
+    tokenizer_result = copy_tokenizer_files(model_path, output_path)
+    
+    if not tokenizer_result['success']:
+        print(f"[GGUF Export] ⚠ WARNING: Some critical tokenizer files are missing!")
+        print(f"[GGUF Export] Missing: {tokenizer_result.get('missing_files', [])}")
+        print(f"[GGUF Export] This may cause GGUF model to behave differently than source .bin model")
+    else:
+        print(f"[GGUF Export] ✓ Tokenizer configuration preserved")
+    
+    print(f"\n[GGUF Export] ========================================")
+    print(f"[GGUF Export] STEP 2: Converting to GGUF Format")
+    print(f"[GGUF Export] ========================================")
     
     # Clean up any leftover intermediate files from previous runs
     cleanup_intermediate_files(output_path.parent, output_path.stem)

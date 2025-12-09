@@ -3188,6 +3188,12 @@ USING_LLAMA_SERVER = False
 LLAMA_SERVER_URL = None
 LLAMA_SERVER_PROCESS = None
 
+# GGUF Server configuration
+# Base URL for GGUF backend (llama-server or llama.cpp server)
+GGUF_SERVER_BASE = os.getenv('GGUF_SERVER_BASE', 'http://localhost:8080')
+# Fallback system prompt for GGUF mode if platform prompt not available
+PLATFORM_SYSTEM_PROMPT = os.getenv('PLATFORM_SYSTEM_PROMPT', None)
+
 # Windows error codes for better error messages
 STATUS_DLL_NOT_FOUND = 0xC0000135  # 3221225781 - Missing DLL dependencies
 STATUS_ACCESS_VIOLATION = 0xC0000005  # 3221225477 - Memory access violation/crash
@@ -3295,7 +3301,15 @@ def start_llama_server(gguf_path: str):
     
     port = args.llama_server_port
     
-    # Build command
+    # Check for tokenizer config directory next to GGUF file
+    # This directory is created by export_gguf.py and export_gguf_q5.py
+    # It contains: special_tokens_map.json, chat_template.jinja, generation_config.json, etc.
+    gguf_path_obj = Path(gguf_path)
+    tokenizer_dir = gguf_path_obj.parent / f"{gguf_path_obj.stem}_tokenizer"
+    
+    # Build command WITHOUT --chat-template flag
+    # We manually format prompts with ChatML in Python instead of relying on llama-server's template system
+    # This is because --chat-template is not supported in all llama-server versions
     cmd = [
         str(server_exe),
         '-m', str(gguf_path),
@@ -3305,6 +3319,25 @@ def start_llama_server(gguf_path: str):
         '--port', str(port),
         '--host', '127.0.0.1',
     ]
+    
+    # Add --hf-repo flag if tokenizer config directory exists
+    # This tells llama-server to load tokenizer config files from the directory
+    # Fixes BOS/EOS token handling and eliminates looping behavior
+    if tokenizer_dir.exists() and tokenizer_dir.is_dir():
+        logger.info(f"[LLAMA-SERVER] Found tokenizer config directory: {tokenizer_dir}")
+        logger.info(f"[LLAMA-SERVER] Using --hf-repo flag to load tokenizer configuration")
+        logger.info(f"[LLAMA-SERVER] This will load: special_tokens_map.json, chat_template.jinja, generation_config.json, etc.")
+        cmd.extend(['--hf-repo', str(tokenizer_dir)])
+    else:
+        logger.warning(f"[LLAMA-SERVER] Tokenizer config directory not found: {tokenizer_dir}")
+        logger.warning(f"[LLAMA-SERVER] Using GGUF embedded tokenizer (may cause looping behavior)")
+        logger.warning(f"[LLAMA-SERVER] To fix: Re-export GGUF model from admin dashboard to create tokenizer directory")
+    
+    # NOTE: NOT using --chat-template flag
+    # llama-server shows "Chat format: Content-only" indicating the flag is not supported or not working
+    # Instead, we manually format prompts with ChatML in Python before sending to /completion endpoint
+    logger.info(f"[LLAMA-SERVER] Using manual ChatML formatting (no --chat-template flag)")
+    logger.info(f"[LLAMA-SERVER] Prompts will be formatted in Python before sending to /completion endpoint")
     
     if args.flash_attn:
         cmd.append('--flash-attn')
@@ -3474,97 +3507,338 @@ def stop_llama_server():
         USING_LLAMA_SERVER = False
 
 
-def generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: float = None):
+
+def _build_gguf_messages(user_message: str, prompt: str = None) -> list:
     """
-    Generate text using the llama-server HTTP API.
+    Build messages array for GGUF chat completions endpoint.
     
     Args:
-        prompt: Input prompt
+        user_message: User's question (if provided)
+        prompt: Full formatted prompt (legacy, will be parsed if user_message not provided)
+        
+    Returns:
+        List of message dicts with role and content
+    """
+    # Get the platform system prompt
+    system_prompt = get_active_system_prompt()
+    
+    # Override with environment variable if set
+    if PLATFORM_SYSTEM_PROMPT:
+        system_prompt = PLATFORM_SYSTEM_PROMPT
+        logger.info(f"[GGUF] Using PLATFORM_SYSTEM_PROMPT from environment")
+    
+    # Build messages array with explicit system role
+    messages = []
+    
+    # CRITICAL: Inject system prompt as first message with role=system
+    messages.append({
+        "role": "system",
+        "content": system_prompt
+    })
+    
+    # Add user message
+    if user_message:
+        messages.append({
+            "role": "user", 
+            "content": user_message
+        })
+    else:
+        # Parse prompt to extract user message (legacy support)
+        if prompt and ("Användare:" in prompt or "user" in prompt.lower()):
+            parts = prompt.split("Användare:")
+            if len(parts) > 1:
+                user_part = parts[1].split("OneSeek:")[0].strip()
+                messages.append({
+                    "role": "user",
+                    "content": user_part
+                })
+            else:
+                messages.append({
+                    "role": "user",
+                    "content": prompt
+                })
+        else:
+            messages.append({
+                "role": "user",
+                "content": prompt or ""
+            })
+    
+    return messages
+
+
+def format_system_prompt_with_placeholders(system_prompt: str) -> str:
+    """
+    Replace placeholders in system prompt with actual content (personality catalog, API map).
+    This matches the exact behavior of the /infer endpoint to ensure GGUF gets the same
+    enriched prompts as .bin models.
+    
+    Args:
+        system_prompt: Raw system prompt that may contain placeholders
+        
+    Returns:
+        System prompt with all placeholders replaced
+    """
+    # Format the personality catalog in human-readable format
+    formatted_catalog = format_personality_catalog_for_prompt()
+    
+    # Format the API map for the model
+    formatted_api_map = format_api_map_for_prompt()
+    
+    final_prompt = system_prompt
+    
+    # Replace PERSONALITY_CATALOG_PLACEHOLDER
+    if "{PERSONALITY_CATALOG_PLACEHOLDER}" in final_prompt:
+        final_prompt = final_prompt.replace("{PERSONALITY_CATALOG_PLACEHOLDER}", formatted_catalog)
+        logger.debug(f"[GGUF] Replaced PERSONALITY_CATALOG_PLACEHOLDER ({len(formatted_catalog)} chars)")
+    elif "{PLACEHOLDER_PERSONALITY_CATALOG}" in final_prompt:
+        # Support old placeholder name for backwards compatibility
+        final_prompt = final_prompt.replace("{PLACEHOLDER_PERSONALITY_CATALOG}", formatted_catalog)
+        logger.debug(f"[GGUF] Replaced PLACEHOLDER_PERSONALITY_CATALOG ({len(formatted_catalog)} chars)")
+    else:
+        # If no placeholder found, append the catalog
+        final_prompt = f"{final_prompt}\n\nHär är din inre karta över alla personligheter:\n\n{formatted_catalog}"
+        logger.debug(f"[GGUF] No personality catalog placeholder found, appending catalog")
+    
+    # Replace MODELL_API_MAP_PLACEHOLDER
+    if "{MODELL_API_MAP_PLACEHOLDER}" in final_prompt:
+        final_prompt = final_prompt.replace("{MODELL_API_MAP_PLACEHOLDER}", formatted_api_map)
+        logger.debug(f"[GGUF] Replaced MODELL_API_MAP_PLACEHOLDER ({len(formatted_api_map)} chars)")
+    else:
+        logger.debug(f"[GGUF] No API map placeholder found in system prompt")
+    
+    return final_prompt
+
+
+def generate_with_llama_server(prompt: str, max_tokens: int = 256, temperature: float = None, user_message: str = None):
+    """
+    Generate text using the llama-server HTTP API with /completion endpoint.
+    
+    GGUF Fix: Manually formats prompts with ChatML template matching .bin tokenizer output,
+    then sends to /completion endpoint. This bypasses llama-server's template system entirely
+    since --chat-template flag is not supported in all llama-server versions.
+    
+    Args:
+        prompt: Full formatted prompt or system prompt (if user_message provided)
         max_tokens: Maximum tokens to generate
         temperature: Sampling temperature
+        user_message: User's question (if provided, prompt will be used as system prompt)
         
     Returns:
         Generated text
     """
-    if not LLAMA_SERVER_URL:
-        raise RuntimeError("llama-server not running")
+    if not LLAMA_SERVER_URL and not GGUF_SERVER_BASE:
+        raise RuntimeError("llama-server or GGUF server not running")
     
     if temperature is None:
         temperature = args.temp
     
+    # Use LLAMA_SERVER_URL if available (auto-started server), otherwise use GGUF_SERVER_BASE (external server)
+    server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+    
+    # Replace placeholders in system prompt before sending
+    # This ensures GGUF gets the same enriched prompt as .bin (with personality catalog, API map, etc.)
+    if user_message:
+        prompt = format_system_prompt_with_placeholders(prompt)
+    
+    # Manually format with ChatML template (matches .bin tokenizer output)
+    # Format: <|im_start|>system\n{content}<|im_end|>\n<|im_start|>user\n{content}<|im_end|>\n<|im_start|>assistant\n
+    if user_message:
+        formatted_prompt = f"<|im_start|>system\n{prompt}<|im_end|>\n<|im_start|>user\n{user_message}<|im_end|>\n<|im_start|>assistant\n"
+        logger.info(f"[GGUF-DEBUG] ========== MANUAL CHATML FORMATTING ==========")
+        logger.info(f"[GGUF-DEBUG] System prompt length: {len(prompt)} chars")
+        logger.info(f"[GGUF-DEBUG] User message length: {len(user_message)} chars")
+        logger.info(f"[GGUF-DEBUG] Formatted prompt length: {len(formatted_prompt)} chars")
+        logger.info(f"[GGUF-DEBUG] System prompt (first 500 chars):\n{prompt[:500]}")
+        logger.info(f"[GGUF-DEBUG] User message:\n{user_message}")
+        logger.info(f"[GGUF-DEBUG] Full formatted prompt:\n{formatted_prompt[:1000]}...")
+        logger.info(f"[GGUF-DEBUG] ===============================================")
+    else:
+        # Legacy format - treat as single user message
+        formatted_prompt = f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
+        logger.info(f"[GGUF-DEBUG] Using legacy format ({len(formatted_prompt)} chars)")
+    
+    # Use /completion endpoint with manually formatted ChatML prompt
+    # Enhanced stop tokens to prevent conversation format leakage
     payload = {
-        "prompt": prompt,
+        "prompt": formatted_prompt,
         "n_predict": max_tokens,
         "temperature": temperature,
-        "stop": ["</s>", "[/INST]", "User:", "\n\nUser:"],
+        "stop": [
+            "<|im_end|>",           # ChatML end token
+            "<|im_start|>user",     # Next user turn
+            "</s>",                  # EOS token
+            "User:",                 # Conversation format
+            "\nUser:",               # Newline before user
+            "Assistant:",            # Conversation format
+            "\nAssistant:",          # Newline before assistant
+            "\n\n"                   # Double newline (conversation boundary)
+        ],
+        "stream": False
     }
     
+    logger.info(f"[GGUF-DEBUG] Payload details:")
+    logger.info(f"[GGUF-DEBUG]   - n_predict: {max_tokens}")
+    logger.info(f"[GGUF-DEBUG]   - temperature: {temperature}")
+    logger.info(f"[GGUF-DEBUG]   - stop tokens: {payload['stop']}")
+    logger.info(f"[GGUF-DEBUG]   - endpoint: {server_url}/completion")
+    
     try:
+        # Use /completion endpoint (bypasses llama-server's template system)
         response = requests.post(
-            f"{LLAMA_SERVER_URL}/completion",
+            f"{server_url}/completion",
             json=payload,
             timeout=120,
         )
         response.raise_for_status()
         result = response.json()
-        return result.get('content', '')
-    except Exception as e:
-        logger.error(f"[LLAMA-SERVER] Generation error: {e}")
-        raise
+        
+        # Extract content from completion response
+        content = result.get('content', '')
+        logger.info(f"[GGUF-DEBUG] Response received:")
+        logger.info(f"[GGUF-DEBUG]   - Content length: {len(content)} chars")
+        logger.info(f"[GGUF-DEBUG]   - Full response:\n{content}")
+        logger.info(f"[GGUF-DEBUG]   - Raw result keys: {list(result.keys())}")
+        return content
+    except requests.exceptions.ConnectionError as e:
+        # Connection error - server not running
+        error_msg = (
+            f"[GGUF] Cannot connect to GGUF server at {server_url}\n"
+            f"[GGUF] \n"
+            f"[GGUF] Please ensure one of the following:\n"
+            f"[GGUF]   1. Provide GGUF model path to auto-start:\n"
+            f"[GGUF]      python ml_service/server.py --use-gguf --gguf path/to/model.gguf\n"
+            f"[GGUF]   2. Set GGUF_SERVER_BASE to your running server:\n"
+            f"[GGUF]      set GGUF_SERVER_BASE=http://localhost:YOUR_PORT\n"
+            f"[GGUF] \n"
+            f"[GGUF] Original error: {e}"
+        )
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
+    except requests.exceptions.RequestException as e:
+        logger.error(f"[GGUF] /completion failed: {e}")
+        raise RuntimeError(f"GGUF server error: {e}")
 
 
-def stream_generate_with_llama_server(prompt: str, max_tokens: int = 512, temperature: float = None):
+def stream_generate_with_llama_server(enriched_system_prompt: str, user_message: str, max_tokens: int = 256, temperature: float = None):
     """
-    Stream generate text using the llama-server HTTP API.
+    Stream generate text using the llama-server HTTP API with /completion endpoint.
+    
+    GGUF Fix: Manually formats prompts with ChatML template matching .bin tokenizer output,
+    then sends to /completion endpoint. This bypasses llama-server's template system entirely
+    since --chat-template flag is not supported in all llama-server versions.
     
     Args:
-        prompt: Input prompt
+        enriched_system_prompt: Full enriched system prompt (platform prompt + time + data)
+        user_message: User's question
         max_tokens: Maximum tokens to generate
         temperature: Sampling temperature
         
     Yields:
-        Generated tokens
+        Generated text chunks
     """
-    if not LLAMA_SERVER_URL:
-        raise RuntimeError("llama-server not running")
+    if not LLAMA_SERVER_URL and not GGUF_SERVER_BASE:
+        raise RuntimeError("llama-server or GGUF server not running")
     
     if temperature is None:
         temperature = args.temp
     
+    # Use LLAMA_SERVER_URL if available (auto-started server), otherwise use GGUF_SERVER_BASE (external server)
+    server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+    
+    # Replace placeholders in enriched system prompt before sending
+    # This ensures GGUF gets the same enriched prompt as .bin (with personality catalog, API map, etc.)
+    enriched_system_prompt = format_system_prompt_with_placeholders(enriched_system_prompt)
+    
+    # Manually format with ChatML template (matches .bin tokenizer output)
+    # Format: <|im_start|>system\n{content}<|im_end|>\n<|im_start|>user\n{content}<|im_end|>\n<|im_start|>assistant\n
+    formatted_prompt = f"<|im_start|>system\n{enriched_system_prompt}<|im_end|>\n<|im_start|>user\n{user_message}<|im_end|>\n<|im_start|>assistant\n"
+    
+    logger.info(f"[GGUF-STREAM-DEBUG] ========== MANUAL CHATML FORMATTING ==========")
+    logger.info(f"[GGUF-STREAM-DEBUG] System prompt length: {len(enriched_system_prompt)} chars")
+    logger.info(f"[GGUF-STREAM-DEBUG] User message length: {len(user_message)} chars")
+    logger.info(f"[GGUF-STREAM-DEBUG] Formatted prompt length: {len(formatted_prompt)} chars")
+    logger.info(f"[GGUF-STREAM-DEBUG] System prompt (first 500 chars):\n{enriched_system_prompt[:500]}")
+    logger.info(f"[GGUF-STREAM-DEBUG] User message:\n{user_message}")
+    logger.info(f"[GGUF-STREAM-DEBUG] Full formatted prompt:\n{formatted_prompt[:1000]}...")
+    logger.info(f"[GGUF-STREAM-DEBUG] ===============================================")
+    
+    # Use /completion endpoint with manually formatted ChatML prompt
+    # Enhanced stop tokens to prevent conversation format leakage
     payload = {
-        "prompt": prompt,
+        "prompt": formatted_prompt,
         "n_predict": max_tokens,
         "temperature": temperature,
-        "stop": ["</s>", "[/INST]", "User:", "\n\nUser:"],
+        "stop": [
+            "<|im_end|>",           # ChatML end token
+            "<|im_start|>user",     # Next user turn
+            "</s>",                  # EOS token
+            "User:",                 # Conversation format
+            "\nUser:",               # Newline before user
+            "Assistant:",            # Conversation format
+            "\nAssistant:",          # Newline before assistant
+            "\n\n"                   # Double newline (conversation boundary)
+        ],
         "stream": True,
     }
     
+    logger.info(f"[GGUF-STREAM-DEBUG] Payload details:")
+    logger.info(f"[GGUF-STREAM-DEBUG]   - n_predict: {max_tokens}")
+    logger.info(f"[GGUF-STREAM-DEBUG]   - temperature: {temperature}")
+    logger.info(f"[GGUF-STREAM-DEBUG]   - stop tokens: {payload['stop']}")
+    logger.info(f"[GGUF-STREAM-DEBUG]   - endpoint: {server_url}/completion")
+    
     try:
+        # Use /completion endpoint (bypasses llama-server's template system)
         response = requests.post(
-            f"{LLAMA_SERVER_URL}/completion",
+            f"{server_url}/completion",
             json=payload,
             stream=True,
             timeout=120,
         )
         response.raise_for_status()
         
+        # Parse streaming completion response
+        chunk_count = 0
+        total_content = ""
         for line in response.iter_lines():
             if line:
                 line = line.decode('utf-8')
                 if line.startswith('data: '):
                     data = line[6:]
                     if data.strip() == '[DONE]':
+                        logger.info(f"[GGUF-STREAM-DEBUG] Stream completed - total chunks: {chunk_count}, total content length: {len(total_content)} chars")
+                        logger.info(f"[GGUF-STREAM-DEBUG] Final complete response:\n{total_content}")
                         break
                     try:
                         chunk = json.loads(data)
+                        # Completion format
                         content = chunk.get('content', '')
                         if content:
+                            chunk_count += 1
+                            total_content += content
+                            if chunk_count <= 5:  # Log first 5 chunks for debugging
+                                logger.info(f"[GGUF-STREAM-DEBUG] Chunk {chunk_count}: {repr(content)}")
                             yield content
                     except json.JSONDecodeError:
                         pass
-    except Exception as e:
-        logger.error(f"[LLAMA-SERVER] Streaming error: {e}")
-        raise
+    except requests.exceptions.ConnectionError as e:
+        # Connection error - server not running
+        error_msg = (
+            f"[GGUF] Cannot connect to GGUF server at {server_url}\n"
+            f"[GGUF] \n"
+            f"[GGUF] Please ensure one of the following:\n"
+            f"[GGUF]   1. Provide GGUF model path to auto-start:\n"
+            f"[GGUF]      python ml_service/server.py --use-gguf --gguf path/to/model.gguf\n"
+            f"[GGUF]   2. Set GGUF_SERVER_BASE to your running server:\n"
+            f"[GGUF]      set GGUF_SERVER_BASE=http://localhost:YOUR_PORT\n"
+            f"[GGUF] \n"
+            f"[GGUF] Original error: {e}"
+        )
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
+    except requests.exceptions.RequestException as e:
+        logger.error(f"[GGUF] Streaming /completion failed: {e}")
+        raise RuntimeError(f"GGUF streaming error: {e}")
 
 def ensure_llama_cpp_python():
     """
@@ -9564,7 +9838,89 @@ async def test_message_structure(request: MessageBuilderRequest):
         # Format messages for model input using the shared helper (for display/fallback)
         full_input = format_messages_for_model(messages)
         
-        # Run inference
+        # === GGUF/LLAMA-SERVER BACKEND CHECK ===
+        # If llama-server.exe is running, use it instead of HuggingFace model
+        if USING_LLAMA_SERVER:
+            logging.info(f"[GGUF] Using llama-server.exe for Message Builder: {request.user_message[:50]}...")
+            try:
+                # Build messages array directly with enriched system prompt
+                # DO NOT use _build_gguf_messages() here as it would fetch a different system prompt
+                gguf_messages = [
+                    {
+                        "role": "system",
+                        "content": enriched_system_prompt
+                    },
+                    {
+                        "role": "user",
+                        "content": request.user_message
+                    }
+                ]
+                
+                logging.info(f"[GGUF] Message Builder sending enriched system prompt ({len(enriched_system_prompt)} chars)")
+                logging.info(f"[GGUF] System prompt preview: {enriched_system_prompt[:200]}...")
+                
+                # Send directly to GGUF server
+                server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                payload = {
+                    "messages": gguf_messages,
+                    "max_tokens": 256,
+                    "temperature": 0.7,
+                    "stop": ["</s>", "[/INST]", "User:", "\n\nUser:", "Användare:"],
+                }
+                
+                response = requests.post(
+                    f"{server_url}/v1/chat/completions",
+                    json=payload,
+                    timeout=120,
+                )
+                response.raise_for_status()
+                result = response.json()
+                
+                # Extract response from OpenAI-style format
+                if 'choices' in result and len(result['choices']) > 0:
+                    response_text = result['choices'][0].get('message', {}).get('content', '')
+                else:
+                    response_text = result.get('content', '')
+                
+                response_text = response_text.strip()
+                
+                
+                latency_ms = (time.time() - start_time) * 1000
+                token_count = len(response_text.split())  # Approximate token count
+                
+                # Analyze the response
+                analysis = analyze_response(response_text)
+                
+                # Build response data
+                response_data = {
+                    "success": True,
+                    "structure_name": request.structure_name,
+                    "messages": messages,
+                    "response": response_text.strip(),
+                    "tokens": token_count,
+                    "latency_ms": latency_ms,
+                    "analysis": analysis,
+                    # New intent/source fields
+                    "intent_info": intent_info,
+                    "sources_used": sources_used,
+                    "data_context": data_context,
+                    "topic_id": request.topic_id,
+                    "api_fetch_log": api_fetch_log,
+                    "model": "oneseek-7b-zero (llama-server.exe)"
+                }
+                
+                print("=" * 70)
+                print(f"  ✅ RESPONSE (GGUF): {response_text[:100]}{'...' if len(response_text) > 100 else ''}")
+                print(f"  📊 Latency: {latency_ms:.0f}ms | Tokens: {token_count}")
+                print("=" * 70 + "\n")
+                
+                return response_data
+                
+            except Exception as e:
+                logging.error(f"[GGUF] llama-server.exe error in Message Builder, falling back to HuggingFace: {e}")
+                # Continue with HuggingFace fallback below
+        
+        # Run inference (HuggingFace fallback or when GGUF not active)
         try:
             model, tokenizer = load_model('oneseek-7b-zero', ONESEEK_PATH)
             
@@ -9750,20 +10106,56 @@ async def infer(request: Request, inference_request: InferenceRequest):
     if USING_LLAMA_SERVER:
         logger.info(f"[GGUF] Using llama-server.exe for /infer request: {inference_request.text[:50]}...")
         try:
-            # Build the prompt in ChatML format for llama-server
+            # Build time context
             now = datetime.now()
             weekday_map = {0: "måndag", 1: "tisdag", 2: "onsdag", 3: "torsdag", 4: "fredag", 5: "lördag", 6: "söndag"}
             day_name = weekday_map.get(now.weekday(), "")
             time_context = f"Idag är det {day_name} {now.day} {['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'][now.month-1]} {now.year}, klockan {now.strftime('%H:%M')}."
             
+            # Get system prompt and enrich with time context
             system_prompt = get_active_system_prompt()
-            full_prompt = f"<|im_start|>system\n{system_prompt}\n\n[Aktuell tid] {time_context}<|im_end|>\n<|im_start|>user\n{inference_request.text}<|im_end|>\n<|im_start|>assistant\n"
+            enriched_system_prompt = f"{system_prompt}\n\n[Aktuell tid] {time_context}"
             
-            response_text = generate_with_llama_server(
-                full_prompt, 
-                max_tokens=inference_request.max_length,
-                temperature=inference_request.temperature
+            # Build messages array directly with enriched system prompt
+            gguf_messages = [
+                {
+                    "role": "system",
+                    "content": enriched_system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": inference_request.text
+                }
+            ]
+            
+            logger.info(f"[GGUF] Sending enriched system prompt ({len(enriched_system_prompt)} chars)")
+            logger.info(f"[GGUF] System prompt preview: {enriched_system_prompt[:200]}...")
+            
+            # Send directly to GGUF server
+            server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+            payload = {
+                "messages": gguf_messages,
+                "max_tokens": inference_request.max_length,
+                "temperature": inference_request.temperature,
+                "stop": ["</s>", "[/INST]", "User:", "\n\nUser:", "Användare:"],
+            }
+            
+            response = requests.post(
+                f"{server_url}/v1/chat/completions",
+                json=payload,
+                timeout=120,
             )
+            response.raise_for_status()
+            result = response.json()
+            
+            # Extract response from OpenAI-style format
+            if 'choices' in result and len(result['choices']) > 0:
+                response_text = result['choices'][0].get('message', {}).get('content', '')
+            else:
+                response_text = result.get('content', '')
+            
+            response_text = response_text.strip()
+            
             
             latency_ms = (time.time() - start_time) * 1000
             tokens = len(response_text.split())  # Approximate token count
@@ -10353,10 +10745,12 @@ async def oneseek_inference(request: InferenceRequest):
             system_prompt = get_active_system_prompt()
             full_prompt = f"<|im_start|>system\n{system_prompt}\n\n[Aktuell tid] {time_context}<|im_end|>\n<|im_start|>user\n{request.text}<|im_end|>\n<|im_start|>assistant\n"
             
+            # GGUF Fix: Pass user message directly for proper system prompt injection
             response_text = generate_with_llama_server(
                 full_prompt, 
                 max_tokens=request.max_length,
-                temperature=request.temperature
+                temperature=request.temperature,
+                user_message=request.text
             )
             
             latency_ms = (time.time() - start_time) * 1000
@@ -12105,14 +12499,20 @@ async def generate_sse_tokens(
         day_name = weekday_map.get(now.weekday(), "")
         time_context = f"Idag är det {day_name} {now.day} {['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'][now.month-1]} {now.year}, klockan {now.strftime('%H:%M')}."
         
-        # Build the prompt for llama-server (doesn't use chat template)
-        full_prompt = f"<|im_start|>system\n{system_prompt}\n\n[Aktuell tid] {time_context}<|im_end|>\n<|im_start|>user\n{text}<|im_end|>\n<|im_start|>assistant\n"
+        # Build enriched system prompt with time context
+        enriched_system_prompt = f"{system_prompt}\n\n[Aktuell tid] {time_context}"
         
         # Check if using llama-server.exe backend
         if USING_LLAMA_SERVER:
             logger.info(f"🌊 [STREAM] Using llama-server.exe backend for: {text[:50]}...")
             try:
-                for token in stream_generate_with_llama_server(full_prompt, max_tokens=max_length, temperature=temperature):
+                # GGUF Fix: Pass enriched system prompt directly
+                for token in stream_generate_with_llama_server(
+                    enriched_system_prompt=enriched_system_prompt,
+                    user_message=text,
+                    max_tokens=max_length,
+                    temperature=temperature
+                ):
                     if token:
                         try:
                             event_data = json.dumps({"token": token, "index": tokens_sent}, ensure_ascii=False)
