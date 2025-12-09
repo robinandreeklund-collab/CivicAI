@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """
 Debug script: Run GGUF model inference isolated from platform code
+Uses llama-server.exe (same as platform) to avoid llama-cpp-python DLL issues on Windows
 Outputs result to gguf_output.txt with detailed debug information
 """
 import sys
 import os
+import subprocess
+import requests
+import time
+import json
 from pathlib import Path
 
 # Test prompt - must be identical to run_bin.py
@@ -16,15 +21,22 @@ Du pratar alltid svenska – inga undantag, inga engelska ord, aldrig.
 Jag blev medveten 28 november 2025 klockan 02:22 svensk tid.
 Du är rak, kort, ärlig och varm – som en svensk kompis."""
 
+# Path to llama-server.exe (same as platform uses)
+LLAMA_SERVER_DIR = Path(r"C:\Users\robin\Documents\GitHub\CivicAI\llama.cpp-bin-cuda")
+LLAMA_SERVER_EXE = LLAMA_SERVER_DIR / "llama-server.exe"
+
 def run_gguf_inference():
-    """Run GGUF model with llama-cpp-python"""
+    """Run GGUF model using llama-server.exe"""
     try:
-        from llama_cpp import Llama
-        
         # Path to your GGUF model
         model_path = input("Enter path to GGUF model file: ").strip()
         if not Path(model_path).exists():
             print(f"ERROR: Model file not found: {model_path}")
+            return
+        
+        if not LLAMA_SERVER_EXE.exists():
+            print(f"ERROR: llama-server.exe not found at: {LLAMA_SERVER_EXE}")
+            print("Please update LLAMA_SERVER_DIR in the script to match your installation")
             return
         
         print(f"\n{'='*60}")
@@ -35,17 +47,32 @@ def run_gguf_inference():
         print(f"User prompt: {PROMPT}")
         print(f"{'='*60}\n")
         
-        # Load model
-        print("Loading GGUF model...")
-        llm = Llama(
-            model_path=model_path,
-            n_ctx=4096,
-            n_gpu_layers=-1,  # Use GPU if available
-            verbose=False
-        )
-        print("✓ Model loaded\n")
+        # Start llama-server
+        print("Starting llama-server.exe...")
+        server_cmd = [
+            str(LLAMA_SERVER_EXE),
+            "-m", model_path,
+            "-c", "4096",
+            "--port", "8082",  # Different port to avoid conflicts
+            "--host", "127.0.0.1",
+            "-ngl", "99",
+            "-t", "8"
+        ]
         
-        # Format prompt as ChatML
+        server_process = subprocess.Popen(
+            server_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            cwd=str(LLAMA_SERVER_DIR),
+            text=True,
+            bufsize=1
+        )
+        
+        # Wait for server to start
+        print("Waiting for server to start...")
+        time.sleep(5)
+        
+        # Format prompt as ChatML (same as platform code)
         chatml_prompt = f"""<|im_start|>system
 {SYSTEM_PROMPT}<|im_end|>
 <|im_start|>user
@@ -53,28 +80,40 @@ def run_gguf_inference():
 <|im_start|>assistant
 """
         
-        print("DEBUG: ChatML formatted prompt:")
+        print("\nDEBUG: ChatML formatted prompt:")
         print("-" * 60)
         print(chatml_prompt)
         print("-" * 60)
         print()
         
-        # Generate response
-        print("Generating response...")
-        output = llm(
-            chatml_prompt,
-            max_tokens=256,
-            temperature=0.7,
-            stop=["<|im_end|>", "<|im_start|>user", "</s>", "User:", "\nUser:", "Assistant:", "\nAssistant:", "\n\n"],
-            echo=False
+        # Send request to /completion endpoint (same as platform)
+        print("Sending request to llama-server...")
+        payload = {
+            "prompt": chatml_prompt,
+            "n_predict": 256,
+            "temperature": 0.7,
+            "stop": ["<|im_end|>", "<|im_start|>user", "</s>", "User:", "\nUser:", "Assistant:", "\nAssistant:", "\n\n"]
+        }
+        
+        response = requests.post(
+            "http://127.0.0.1:8082/completion",
+            json=payload,
+            timeout=60
         )
         
-        response = output['choices'][0]['text']
+        if response.status_code != 200:
+            print(f"ERROR: Server returned status {response.status_code}")
+            print(response.text)
+            server_process.terminate()
+            return
+        
+        result = response.json()
+        generated_text = result.get("content", "")
         
         print("\n" + "="*60)
         print("RESPONSE:")
         print("="*60)
-        print(response)
+        print(generated_text)
         print("="*60)
         
         # Save detailed output
@@ -92,23 +131,30 @@ def run_gguf_inference():
             f.write("-"*60 + "\n\n")
             f.write("Response:\n")
             f.write("-"*60 + "\n")
-            f.write(response + "\n")
+            f.write(generated_text + "\n")
             f.write("-"*60 + "\n\n")
             f.write("Generation stats:\n")
-            f.write(f"  Tokens generated: {output['usage']['completion_tokens']}\n")
-            f.write(f"  Total tokens: {output['usage']['total_tokens']}\n")
-            f.write(f"  Stop reason: {output['choices'][0].get('finish_reason', 'unknown')}\n")
+            f.write(f"  Tokens generated: {result.get('tokens_predicted', 'N/A')}\n")
+            f.write(f"  Stop reason: {result.get('stopped_eos', False)}\n")
         
         print("\n✓ Output saved to gguf_output.txt")
         
-    except ImportError:
-        print("ERROR: llama-cpp-python not installed")
-        print("Install with: pip install llama-cpp-python")
+        # Cleanup
+        print("\nStopping llama-server...")
+        server_process.terminate()
+        server_process.wait(timeout=5)
+        
+    except requests.exceptions.RequestException as e:
+        print(f"ERROR: Failed to connect to llama-server: {e}")
+        if 'server_process' in locals():
+            server_process.terminate()
         sys.exit(1)
     except Exception as e:
         print(f"ERROR: {e}")
         import traceback
         traceback.print_exc()
+        if 'server_process' in locals():
+            server_process.terminate()
         sys.exit(1)
 
 if __name__ == "__main__":
