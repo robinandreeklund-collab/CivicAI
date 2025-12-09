@@ -3752,9 +3752,9 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 256, temperature: 
         content = result.get('content', '')
         
         # Clean ChatML artifacts if formatter is available
-        if CHATML_FORMATTER_AVAILABLE and clean_chatml_response:
+        if CHATML_FORMATTER_AVAILABLE:
             content = clean_chatml_response(content)
-            logger.info(f"[CHATML] Cleaned ChatML artifacts from response")
+            logger.debug(f"[CHATML] Cleaned ChatML artifacts from response")
         
         logger.info(f"[GGUF-DEBUG] Response received:")
         logger.info(f"[GGUF-DEBUG]   - Content length: {len(content)} chars")
@@ -3893,12 +3893,6 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
                         if content:
                             chunk_count += 1
                             total_content += content
-                            
-                            # Clean ChatML artifacts from streamed chunks if formatter is available
-                            if CHATML_FORMATTER_AVAILABLE and clean_chatml_response:
-                                # Only clean complete chunks to avoid breaking partial tokens
-                                # We'll clean the whole response at the end
-                                pass
                             
                             if chunk_count <= 5:  # Log first 5 chunks for debugging
                                 logger.info(f"[GGUF-STREAM-DEBUG] Chunk {chunk_count}: {repr(content)}")

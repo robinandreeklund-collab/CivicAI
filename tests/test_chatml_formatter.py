@@ -176,7 +176,7 @@ def test_validate_format():
 
 def test_llama_server_payload():
     """Test creating a complete llama-server payload."""
-    print("\n=== Test: LLama Server Payload ===")
+    print("\n=== Test: Llama Server Payload ===")
     
     payload = format_for_llama_server(
         system_prompt="You are helpful.",
@@ -204,12 +204,12 @@ def test_llama_server_payload():
     # Validate the prompt format
     assert validate_chatml_format(payload["prompt"])
     
-    print("✓ LLama server payload creation works correctly")
+    print("✓ Llama server payload creation works correctly")
 
 
 def test_llama_server_stream_payload():
     """Test creating a streaming llama-server payload."""
-    print("\n=== Test: LLama Server Streaming Payload ===")
+    print("\n=== Test: Llama Server Streaming Payload ===")
     
     payload = format_for_llama_server_stream(
         system_prompt="You are helpful.",
@@ -229,7 +229,7 @@ def test_llama_server_stream_payload():
     assert "<|im_start|>assistant\nHello!<|im_end|>" in payload["prompt"]
     assert "<|im_start|>user\nCount to 10.<|im_end|>" in payload["prompt"]
     
-    print("✓ LLama server streaming payload creation works correctly")
+    print("✓ Llama server streaming payload creation works correctly")
 
 
 def test_real_world_scenario():

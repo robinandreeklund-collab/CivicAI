@@ -280,7 +280,9 @@ def format_for_llama_server(
         ...     max_tokens=256,
         ...     temperature=0.7
         ... )
-        >>> # Send to server: requests.post(url + "/completion", json=payload)
+        >>> import requests
+        >>> # Send to server
+        >>> response = requests.post("http://localhost:8081/completion", json=payload)
     """
     prompt = serialize_message_history(
         system_prompt=system_prompt,
