@@ -13814,11 +13814,6 @@ Exempel:
         # Load the actual character card system prompt based on selected personality
         system_prompt = None
         if personality_id:
-        # Step 4: Load character card system prompt for SECOND INFERENCE
-        print(f"\n📝 Step 4: Loading system prompt for final answer...")
-        # Load the actual character card system prompt based on selected personality
-        system_prompt = None
-        if personality_id:
             # Build card file path based on personality ID
             card_filename = f"OneSeek-{personality_id.title()}.yaml"
             card_path = PROJECT_ROOT / "frontend/public/characters" / card_filename
