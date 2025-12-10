@@ -13690,12 +13690,55 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                     await debug_client.debug_error("personality_selection", str(e))
         
         # Step 6: Prepare final inference with personality + API data
-        # Get the active system prompt (will be overridden by personality if selected)
-        if personality_data and personality_data.get('system_prompt'):
-            system_prompt = personality_data['system_prompt']
-            logger.info(f"🎭 [STREAM-PERSONALITY] Using personality system prompt")
-        else:
-            system_prompt = get_active_system_prompt()
+        # Load the actual character card system prompt if personality was selected
+        system_prompt = None
+        if personality_data:
+            # Try to load the character card file
+            card_file = personality_data.get('card_file')
+            if card_file:
+                card_path = PROJECT_ROOT / card_file
+                if card_path.exists():
+                    try:
+                        import yaml
+                        with open(card_path, 'r', encoding='utf-8') as f:
+                            card_data = yaml.safe_load(f)
+                        system_prompt = card_data.get('system_prompt', '')
+                        if system_prompt:
+                            logger.info(f"🎭 [STREAM-PERSONALITY] Loaded system prompt from {card_file}")
+                        else:
+                            logger.warning(f"🎭 [STREAM-PERSONALITY] No system_prompt in card file {card_file}")
+                    except Exception as e:
+                        logger.warning(f"🎭 [STREAM-PERSONALITY] Failed to load card {card_file}: {e}")
+        
+        # Fallback to default system prompt if no personality card loaded
+        if not system_prompt:
+            # For the DEFAULT personality, we should NOT use the API selection prompt!
+            # Get a clean system prompt without API selection instructions
+            if personality_name and personality_name != "Medveten":
+                # Use the short prompt from catalog as fallback
+                system_prompt = personality_data.get('prompt', '')
+            
+            if not system_prompt:
+                # Load default Medveten card
+                default_card_path = PROJECT_ROOT / "frontend/public/characters/OneSeek-Medveten.yaml"
+                if default_card_path.exists():
+                    try:
+                        import yaml
+                        with open(default_card_path, 'r', encoding='utf-8') as f:
+                            card_data = yaml.safe_load(f)
+                        system_prompt = card_data.get('system_prompt', '')
+                        logger.info(f"🎭 [STREAM-PERSONALITY] Using default Medveten card")
+                    except Exception as e:
+                        logger.warning(f"🎭 [STREAM-PERSONALITY] Failed to load default card: {e}")
+        
+        # Final fallback - use a simple clean prompt without API selection
+        if not system_prompt:
+            system_prompt = """Du är OneSeek-7B-Zero.
+Du pratar alltid svenska – inga undantag, inga engelska ord, aldrig.
+Du är rak, kort, ärlig och varm – som en svensk kompis.
+Du använder alltid de senaste officiella källorna.
+Du visar alltid källor när du hämtar fakta."""
+            logger.info(f"🎭 [STREAM-PERSONALITY] Using emergency fallback prompt")
         
         # Get current time context
         now = datetime.now()
