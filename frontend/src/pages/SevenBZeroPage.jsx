@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { formatAIResponse } from '../utils/formatMarkdown';
 import ThinkingChain from '../components/ThinkingChain';
+import { sendPersonalityMessageViaWebSocket, isWebSocketSupported } from '../services/personalityWebSocket';
 
 /**
  * 7B-Zero Page - Integrated OQI Interface
@@ -938,11 +939,28 @@ export default function SevenBZeroPage() {
                 case 'thinking':
                   // Handle thinking step events (personality selection, API fetching, etc.)
                   console.log('[7B-Zero Stream] Thinking:', data.message);
+                  
+                  // Update AI message with current thinking step (live display)
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === aiMessageId 
+                      ? { 
+                          ...msg, 
+                          currentThinkingStep: data.message,
+                          thinkingChain: [...(msg.thinkingChain || []), data],
+                        }
+                      : msg
+                  ));
+                  
                   if (data.step === 'personality' && data.personality) {
                     // Personality selected - update UI
-                    console.log(`[7B-Zero Stream] AI selected personality: ${data.personality}`);
+                    const personalityName = typeof data.personality === 'string' ? data.personality : data.personality.name;
+                    const personalityId = data.personality_id || (typeof data.personality === 'object' ? data.personality.id : null);
+                    console.log(`[7B-Zero Stream] AI selected personality: ${personalityName} (ID: ${personalityId})`);
+                    setAiSelectedPersonality(personalityName);
+                    if (personalityId) {
+                      setSelectedPersona(personalityId);
+                    }
                   }
-                  // Thinking steps will be included in metadata's thinking_steps array
                   break;
                   
                 case 'token':
@@ -961,10 +979,16 @@ export default function SevenBZeroPage() {
                   console.log('[7B-Zero Stream] Metadata:', metadata);
                   // Update personality if provided
                   if (metadata.personality) {
-                    setAiSelectedPersonality(metadata.personality);
-                    if (metadata.personality.id) {
-                      setSelectedPersona(metadata.personality.id);
+                    const personalityName = typeof metadata.personality === 'string' ? metadata.personality : metadata.personality.name;
+                    const personalityId = typeof metadata.personality === 'object' ? metadata.personality.id : null;
+                    setAiSelectedPersonality(personalityName);
+                    if (personalityId) {
+                      setSelectedPersona(personalityId);
                     }
+                  }
+                  // Also check for selected_persona_id directly (for model-based selection)
+                  if (metadata.selected_persona_id) {
+                    setSelectedPersona(metadata.selected_persona_id);
                   }
                   // Store thinking steps if provided
                   if (metadata.thinking_steps && metadata.thinking_steps.length > 0) {
@@ -1039,6 +1063,7 @@ export default function SevenBZeroPage() {
               ...msg, 
               text: formattedFinalText,
               isTyping: false,
+              currentThinkingStep: null, // Clear thinking step when complete
               responseTime: finalResponseTime,
               confidence: metadata?.confidence_score || 0.85,
               version: metadata?.model || 'OneSeek-Δ+ (Streaming)',
@@ -1047,7 +1072,7 @@ export default function SevenBZeroPage() {
               promptTokens: metadata?.prompt_tokens || null,
               outputTokens: metadata?.output_tokens || tokenCount,
               contextWindow: metadata?.context_window || 8192,  // Use actual context window from llama-server
-              thinkingChain: metadata?.thinking_chain || null,
+              thinkingChain: metadata?.thinking_steps || metadata?.thinking_chain || msg.thinkingChain || null,
               personality: metadata?.personality || null,
             }
           : msg
@@ -1240,6 +1265,83 @@ export default function SevenBZeroPage() {
       // Try personality-based endpoint first (with thinking chain and automatic API routing)
       if (usePersonalityEndpoint) {
         try {
+          let wsSuccess = false;
+          
+          // Use WebSocket for real-time progressive updates if supported
+          if (isWebSocketSupported()) {
+            console.log('[7B-Zero] Attempting WebSocket for personality inference...');
+            
+            try {
+              const wsResult = await sendPersonalityMessageViaWebSocket(currentQuestion, {
+                onThinking: (thinkingStep) => {
+                  // Update AI message with current thinking step
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === aiMessageId 
+                      ? { 
+                          ...msg, 
+                          currentThinkingStep: thinkingStep.message,
+                          thinkingChain: [...(msg.thinkingChain || []), thinkingStep],
+                        }
+                      : msg
+                  ));
+                },
+                onFinal: (data) => {
+                  const responseEndTime = Date.now();
+                  const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
+                  
+                  // Update AI-selected personality from response
+                  if (data.personality) {
+                    setAiSelectedPersonality({
+                      id: data.personality.id,
+                      name: data.personality.name || data.personality.id,
+                      description: '',
+                      categories: [],
+                      is_default: false
+                    });
+                    setSelectedPersona(data.personality.id);
+                  }
+                  
+                  const responseText = data.response;
+                  if (responseText) {
+                    setMessages(prev => prev.map(msg => 
+                      msg.id === aiMessageId 
+                        ? { 
+                            ...msg, 
+                            responseTime: finalResponseTime,
+                            confidence: data.personality?.confidence || 0.85,
+                            version: data.model || 'OneSeek-7B-Zero',
+                            thinkingChain: data.thinking_chain || msg.thinkingChain || null,
+                            apiData: data.api_data || null,
+                            tokens: data.tokens,
+                            personality: data.personality,
+                            currentThinkingStep: null, // Clear thinking step
+                          }
+                        : msg
+                    ));
+                    animateTyping(responseText, aiMessageId);
+                  }
+                },
+                onError: (errorMessage) => {
+                  console.log('[7B-Zero] WebSocket not available:', errorMessage);
+                  // Will fall back to REST below
+                },
+                maxTokens: 512,
+                temperature: 0.7,
+              });
+              
+              // Check if WebSocket succeeded (result will be null if error occurred)
+              if (wsResult !== null) {
+                return; // Success - exit early
+              } else {
+                console.log('[7B-Zero] WebSocket did not complete successfully, falling back to REST');
+              }
+            } catch (wsError) {
+              console.log('[7B-Zero] WebSocket failed, falling back to REST:', wsError.message);
+            }
+          }
+          
+          // Fallback to REST API if WebSocket not supported or failed
+          console.log('[7B-Zero] Using REST API for personality inference...');
           response = await fetch('/api/inference/personality', {
             method: 'POST',
             headers: {
@@ -2092,10 +2194,25 @@ export default function SevenBZeroPage() {
                     </div>
                   )}
                   
+                  {/* Live Thinking Step - Show current thinking while processing */}
+                  {msg.isTyping && msg.currentThinkingStep && (
+                    <div className={`mt-3 flex items-center gap-2 px-3 py-2 rounded-lg ${
+                      whiteMode ? 'bg-blue-50' : 'bg-blue-900/20'
+                    }`}>
+                      <div className="animate-spin">⚙️</div>
+                      <span className={`text-sm ${whiteMode ? 'text-blue-700' : 'text-blue-300'}`}>
+                        {msg.currentThinkingStep}
+                      </span>
+                    </div>
+                  )}
+                  
                   {/* Thinking Chain - Using ThinkingChain component */}
-                  {msg.thinkingChain && !msg.isTyping && Array.isArray(msg.thinkingChain) && (
+                  {msg.thinkingChain && Array.isArray(msg.thinkingChain) && msg.thinkingChain.length > 0 && (
                     <div className="mt-4">
-                      <ThinkingChain thinkingChain={msg.thinkingChain} isExpanded={false} />
+                      <ThinkingChain 
+                        thinkingChain={msg.thinkingChain} 
+                        isExpanded={false} // Always start collapsed (minimized)
+                      />
                     </div>
                   )}
                   

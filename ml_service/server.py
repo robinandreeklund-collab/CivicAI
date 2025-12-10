@@ -31,7 +31,7 @@ except (ImportError, AttributeError):
 # ==============================
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Request, APIRouter
+from fastapi import FastAPI, HTTPException, Request, APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 import asyncio
@@ -3773,7 +3773,7 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 256, temperature: 
             history=history,
             max_tokens=max_tokens,
             temperature=temperature,
-            additional_stops=["User:", "\nUser:", "Assistant:", "\nAssistant:", "\n\n"]
+            additional_stops=["User:", "\nUser:"]  # Removed aggressive stops that break lists/code
         )
         formatted_prompt = payload["prompt"]
         
@@ -3919,7 +3919,7 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
             history=history,
             max_tokens=max_tokens,
             temperature=temperature,
-            additional_stops=["User:", "\nUser:", "Assistant:", "\nAssistant:", "\n\n"]
+            additional_stops=["User:", "\nUser:"]  # Removed aggressive stops that break lists/code
         )
         formatted_prompt = payload["prompt"]
         
@@ -12305,71 +12305,159 @@ Svara NU.
 @app.post("/inference/personality", response_model=PersonalityInferenceResponse)
 async def personality_based_inference(request: Request, inference_request: PersonalityInferenceRequest):
     """
-    ONESEEK Δ+ v6.2: Intelligent personality-based inference with automatic API routing.
+    ONESEEK Δ+ v6.2: Intelligent personality-based inference with three-stage model-driven selection.
     
-    This endpoint implements the 9-step process:
-    1. User asks question
-    2. Embedding-based personality selection (with 40% boost to recent)
-    3. Build dynamic API map for selected personality
-    4. Model selects which APIs to use (returns JSON)
-    5. Fetch data from APIs in parallel
-    6. Model generates final response with personality + data
-    7. Frontend displays response with thinking chain
+    This endpoint implements the 3-stage process:
+    1. STAGE 1: Model selects personality from personality_catalog.json
+    2. Build dynamic character_api.json filtered by personality tags
+    3. STAGE 2: Model selects APIs and extracts entities (stad → coordinates)
+    4. Fetch data from selected APIs in parallel
+    5. Load character card for selected personality
+    6. STAGE 3: Model generates final response with personality + data
+    7. Frontend displays response with full thinking chain
     
     Features:
-    - Automatic personality selection using sentence-transformers embeddings
-    - Manual personality override support
-    - Dynamic API routing based on personality tags
+    - Model-based personality selection (not embeddings)
+    - Automatic entity extraction (natural language → API params)
+    - Dynamic API filtering by personality tags (scales to 100+ APIs)
     - Parallel API fetching for real-time data
-    - Live thinking process streaming (optional)
-    - Clickable thought chain in response
+    - Complete reasoning transparency at every step
+    - Full thinking chain with API details
     """
-    start_time = time.time()
-    thinking_chain = []
+    try:
+        user_query = inference_request.text
+        logger.info(f"[Personality/Non-Stream] Received query: {user_query[:100]}...")
+        
+        # Use three-stage inference pipeline (non-streaming version)
+        result = await generate_personality_response(
+            text=user_query,
+            max_length=inference_request.max_tokens,
+            temperature=inference_request.temperature,
+            top_p=0.9
+        )
+        
+        # Convert thinking_steps format to ThinkingStep objects
+        thinking_chain = []
+        for step in result.get('thinking_chain', []):
+            thinking_chain.append(ThinkingStep(
+                step=step.get('step', 'unknown'),
+                message=step.get('message', step.get('reasoning', '')),
+                data={"reasoning": step.get('reasoning', '')} if step.get('reasoning') else {}
+            ))
+        
+        # Build response in expected format
+        personality_info = result.get('personality', {})
+        metadata = result.get('metadata', {})
+        
+        return PersonalityInferenceResponse(
+            response=result.get('text', ''),
+            model="oneseek-7b-zero-3stage",
+            tokens=metadata.get('tokens', 0),
+            latency_ms=metadata.get('latency_ms', 0),
+            personality={
+                "id": personality_info.get('id', 'medveten'),
+                "name": personality_info.get('name', 'Medveten'),
+                "confidence": 1.0,  # Model-based selection is 100% confident in its choice
+                "prompt": ""  # Not needed in response
+            },
+            thinking_chain=thinking_chain,
+            api_data=None  # API data is included in thinking chain
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[Personality/Non-Stream] Error: {e}")
+        import traceback
+        logger.error(f"Traceback:\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# ONESEEK Δ+ v6.2: PERSONALITY-BASED INFERENCE WITH WEBSOCKET STREAMING
+# =============================================================================
+
+@app.websocket("/ws/personality")
+async def websocket_personality_inference(websocket: WebSocket):
+    """
+    WebSocket endpoint for personality-based inference with real-time streaming.
+    
+    Sends progressive updates for each step:
+    1. Analyzing query...
+    2. Selected personality: [name]
+    3. Building API map...
+    4. Selecting APIs...
+    5. Fetching real-time data...
+    6. Building final response...
+    7. Final response
+    
+    Message format:
+    {
+        "type": "thinking" | "final" | "error",
+        "step": "analyzing" | "personality_selected" | "api_map_created" | ...,
+        "message": "[tänker...] Swedish message",
+        "data": {...}  // Optional metadata
+    }
+    """
+    await websocket.accept()
     
     # Check if required modules are available
-    if not PERSONALITY_SELECTOR_AVAILABLE:
-        raise HTTPException(
-            status_code=503,
-            detail="Personality selector module not available. Please install sentence-transformers."
-        )
-    
-    if not API_SELECTOR_AVAILABLE:
-        raise HTTPException(
-            status_code=503,
-            detail="API selector module not available."
-        )
+    if not PERSONALITY_SELECTOR_AVAILABLE or not API_SELECTOR_AVAILABLE:
+        await websocket.send_json({
+            "type": "error",
+            "message": "Personality selector or API selector module not available"
+        })
+        await websocket.close()
+        return
     
     try:
-        # Step 1: User query received
-        user_query = inference_request.text
-        logger.info(f"[Personality] Received query: {user_query[:100]}...")
+        # Receive initial request
+        request_data = await websocket.receive_json()
         
-        thinking_chain.append(ThinkingStep(
-            step="received",
-            message="Analyserar frågan...",
-            data={"query_length": len(user_query)}
-        ))
+        user_query = request_data.get('text', '')
+        max_length = request_data.get('max_length', 512)
+        temperature = request_data.get('temperature', 0.7)
+        override_personality_id = request_data.get('override_personality', None)
+        history = request_data.get('history', None)
+        
+        if not user_query or not user_query.strip():
+            await websocket.send_json({
+                "type": "error",
+                "message": "Ingen fråga angiven"
+            })
+            await websocket.close()
+            return
+        
+        start_time = time.time()
+        thinking_chain = []
+        
+        # Step 1: Query received - analyzing
+        await websocket.send_json({
+            "type": "thinking",
+            "step": "analyzing",
+            "message": "[tänker...] Analyserar frågan..."
+        })
+        
+        thinking_chain.append({
+            "step": "received",
+            "message": "Analyserar frågan...",
+            "data": {"query_length": len(user_query)}
+        })
         
         # Step 2: Select personality
-        if inference_request.override_personality:
-            # Manual override
-            logger.info(f"[Personality] Manual override: {inference_request.override_personality}")
-            personality_data = override_personality(inference_request.override_personality)
+        if override_personality_id:
+            logger.info(f"[WS-Personality] Manual override: {override_personality_id}")
+            personality_data = override_personality(override_personality_id)
             if not personality_data:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Personality '{inference_request.override_personality}' not found"
-                )
-            personality_id = inference_request.override_personality
+                await websocket.send_json({
+                    "type": "error",
+                    "message": f"Personlighet '{override_personality_id}' hittades inte"
+                })
+                await websocket.close()
+                return
+            personality_id = override_personality_id
             personality_name = personality_data.get('name', personality_id)
             confidence = 1.0
-            
-            thinking_chain.append(ThinkingStep(
-                step="personality_override",
-                message=f"Använder manuellt vald personlighet: {personality_name}",
-                data={"personality_id": personality_id, "manual": True}
-            ))
         else:
             # Automatic selection with embedding matching
             personality_id, personality_name, confidence, personality_data = select_personality(
@@ -12377,38 +12465,60 @@ async def personality_based_inference(request: Request, inference_request: Perso
                 boost_recent=True,
                 recent_boost_factor=0.4
             )
-            
-            logger.info(f"[Personality] Selected: {personality_name} (confidence: {confidence:.3f})")
-            
-            thinking_chain.append(ThinkingStep(
-                step="personality_selected",
-                message=f"Valde personlighet: {personality_name}",
-                data={
-                    "personality_id": personality_id,
-                    "confidence": round(confidence, 3),
-                    "manual": False
-                }
-            ))
+        
+        logger.info(f"[WS-Personality] Selected: {personality_name} (confidence: {confidence:.3f})")
+        
+        await websocket.send_json({
+            "type": "thinking",
+            "step": "personality_selected",
+            "message": f"[tänker...] Valde personlighet: {personality_name}",
+            "data": {
+                "personality_id": personality_id,
+                "personality_name": personality_name,
+                "confidence": round(confidence, 3)
+            }
+        })
+        
+        thinking_chain.append({
+            "step": "personality_selected",
+            "message": f"Valde personlighet: {personality_name}",
+            "data": {
+                "personality_id": personality_id,
+                "confidence": round(confidence, 3)
+            }
+        })
         
         # Step 3: Build API map for selected personality
-        logger.info(f"[Personality] Building API map for {personality_name}...")
+        await websocket.send_json({
+            "type": "thinking",
+            "step": "building_api_map",
+            "message": "[tänker...] Bygger API-karta..."
+        })
+        
+        logger.info(f"[WS-Personality] Building API map for {personality_name}...")
         character_api_map = create_character_api_map(personality_data)
         
         api_count = len(character_api_map.get('api_categories', {}))
-        thinking_chain.append(ThinkingStep(
-            step="api_map_created",
-            message=f"Skapade API-karta med {api_count} kategorier",
-            data={"api_categories": api_count}
-        ))
+        thinking_chain.append({
+            "step": "api_map_created",
+            "message": f"Skapade API-karta med {api_count} kategorier",
+            "data": {"api_categories": api_count}
+        })
         
         # Step 4: Ask model to select APIs (if any available)
         api_results = []
         if api_count > 0:
-            thinking_chain.append(ThinkingStep(
-                step="selecting_apis",
-                message="Väljer vilka API:er som behövs...",
-                data={}
-            ))
+            await websocket.send_json({
+                "type": "thinking",
+                "step": "selecting_apis",
+                "message": "[tänker...] Väljer API:er..."
+            })
+            
+            thinking_chain.append({
+                "step": "selecting_apis",
+                "message": "Väljer vilka API:er som behövs...",
+                "data": {}
+            })
             
             # Create prompt for API selection
             api_selection_prompt = create_api_selection_prompt(user_query, character_api_map)
@@ -12440,25 +12550,31 @@ async def personality_based_inference(request: Request, inference_request: Perso
                     else:
                         api_selection_text = result.get('content', '')
                     
-                    logger.info(f"[Personality] Model API selection: {api_selection_text[:200]}...")
+                    logger.info(f"[WS-Personality] Model API selection: {api_selection_text[:200]}...")
                     
                     # Parse API selection (synchronous function)
                     api_selection = parse_api_selection(api_selection_text)
                     
                     if api_selection and api_selection.get('apis'):
                         selected_apis = api_selection.get('apis', [])
-                        thinking_chain.append(ThinkingStep(
-                            step="apis_selected",
-                            message=f"Valde {len(selected_apis)} API:er",
-                            data={"apis": [api.get('name') for api in selected_apis]}
-                        ))
+                        thinking_chain.append({
+                            "step": "apis_selected",
+                            "message": f"Valde {len(selected_apis)} API:er",
+                            "data": {"apis": [api.get('name') for api in selected_apis]}
+                        })
                         
                         # Step 5: Fetch data from APIs in parallel
-                        thinking_chain.append(ThinkingStep(
-                            step="fetching_data",
-                            message="Hämtar realtidsdata...",
-                            data={}
-                        ))
+                        await websocket.send_json({
+                            "type": "thinking",
+                            "step": "fetching_data",
+                            "message": "[tänker...] Hämtar realtidsdata..."
+                        })
+                        
+                        thinking_chain.append({
+                            "step": "fetching_data",
+                            "message": "Hämtar realtidsdata...",
+                            "data": {}
+                        })
                         
                         api_results = await fetch_apis_parallel(
                             api_selection,
@@ -12466,32 +12582,38 @@ async def personality_based_inference(request: Request, inference_request: Perso
                         )
                         
                         successful_apis = [r for r in api_results if r.get('success')]
-                        thinking_chain.append(ThinkingStep(
-                            step="data_fetched",
-                            message=f"Hämtade data från {len(successful_apis)}/{len(api_results)} API:er",
-                            data={"successful": len(successful_apis), "total": len(api_results)}
-                        ))
+                        thinking_chain.append({
+                            "step": "data_fetched",
+                            "message": f"Hämtade data från {len(successful_apis)}/{len(api_results)} API:er",
+                            "data": {"successful": len(successful_apis), "total": len(api_results)}
+                        })
                     else:
-                        thinking_chain.append(ThinkingStep(
-                            step="no_apis_needed",
-                            message="Inga API:er behövs för denna fråga",
-                            data={}
-                        ))
+                        thinking_chain.append({
+                            "step": "no_apis_needed",
+                            "message": "Inga API:er behövs för denna fråga",
+                            "data": {}
+                        })
                     
                 except Exception as e:
-                    logger.error(f"[Personality] API selection error: {e}")
-                    thinking_chain.append(ThinkingStep(
-                        step="api_selection_error",
-                        message="Kunde inte välja API:er, fortsätter utan externa data",
-                        data={"error": str(e)}
-                    ))
+                    logger.error(f"[WS-Personality] API selection error: {e}")
+                    thinking_chain.append({
+                        "step": "api_selection_error",
+                        "message": "Kunde inte välja API:er, fortsätter utan externa data",
+                        "data": {"error": str(e)}
+                    })
         
         # Step 6: Generate final response with personality + data
-        thinking_chain.append(ThinkingStep(
-            step="generating_response",
-            message="Bygger svar...",
-            data={}
-        ))
+        await websocket.send_json({
+            "type": "thinking",
+            "step": "generating_response",
+            "message": "[tänker...] Bygger slutligt svar..."
+        })
+        
+        thinking_chain.append({
+            "step": "generating_response",
+            "message": "Bygger svar...",
+            "data": {}
+        })
         
         # Build final prompt with personality and API data
         personality_prompt = personality_data.get('prompt', '')
@@ -12521,16 +12643,16 @@ async def personality_based_inference(request: Request, inference_request: Perso
             ]
             
             # Add history if provided
-            if inference_request.history:
-                messages.extend(inference_request.history)
+            if history:
+                messages.extend(history)
             
             # Add current query
             messages.append({"role": "user", "content": user_query})
             
             payload = {
                 "messages": messages,
-                "max_tokens": inference_request.max_length,
-                "temperature": inference_request.temperature,
+                "max_tokens": max_length,
+                "temperature": temperature,
                 "stop": ["</s>", "[/INST]", "User:", "\n\nUser:", "Användare:"],
             }
             
@@ -12556,35 +12678,48 @@ async def personality_based_inference(request: Request, inference_request: Perso
         latency_ms = (time.time() - start_time) * 1000
         tokens = len(final_response.split())
         
-        # Build response
-        return PersonalityInferenceResponse(
-            response=final_response,
-            model="oneseek-7b-zero",
-            tokens=tokens,
-            latency_ms=latency_ms,
-            personality={
+        # Send final response
+        await websocket.send_json({
+            "type": "final",
+            "response": final_response,
+            "model": "oneseek-7b-zero",
+            "tokens": tokens,
+            "latency_ms": latency_ms,
+            "personality": {
                 "id": personality_id,
                 "name": personality_name,
                 "confidence": round(confidence, 3),
                 "prompt": personality_prompt[:200] + "..." if len(personality_prompt) > 200 else personality_prompt
             },
-            thinking_chain=thinking_chain,
-            api_data=[{
+            "thinking_chain": thinking_chain,
+            "api_data": [{
                 "api": r.get('api_name'),
                 "source": r.get('source'),
                 "success": r.get('success'),
                 "data": r.get('data') if r.get('success') else None,
                 "error": r.get('error')
             } for r in api_results] if api_results else None
-        )
+        })
         
-    except HTTPException:
-        raise
+        await websocket.close()
+        
+    except WebSocketDisconnect:
+        logger.info("[WS-Personality] Client disconnected")
     except Exception as e:
-        logger.error(f"[Personality] Error in personality-based inference: {e}")
+        logger.error(f"[WS-Personality] Error: {e}")
         import traceback
         logger.error(f"Traceback:\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": str(e)
+            })
+        except:
+            pass
+        try:
+            await websocket.close()
+        except:
+            pass
 
 
 @app.post("/inference/llama", response_model=InferenceResponse)
@@ -13142,6 +13277,469 @@ class StreamRequest(BaseModel):
     history: Optional[List[Dict[str, str]]] = Field(default=None, description="Conversation history as list of {role, content} dicts")
 
 
+def parse_personality_and_api_tags(text: str) -> tuple:
+    """
+    Parse [PERSONLIGHET: xxx] and [API: yyy] tags from model response.
+    
+    Args:
+        text: Model's response text containing tags
+        
+    Returns:
+        tuple: (personality_id, api_list, clean_text)
+        - personality_id: str or None - extracted personality ID
+        - api_list: list - list of API names (empty if none)
+        - clean_text: str - text with tags removed
+        
+    Examples:
+        >>> parse_personality_and_api_tags("[PERSONLIGHET: bibliotekarie] [API: libris_search] Answer")
+        ('bibliotekarie', ['libris_search'], 'Answer')
+        
+        >>> parse_personality_and_api_tags("[PERSONLIGHET: metrolog] [API: smhi, yr] Weather")
+        ('metrolog', ['smhi', 'yr'], 'Weather')
+    """
+    import re
+    
+    personality_id = None
+    api_list = []
+    
+    # Extract personality tag (case-insensitive)
+    personality_match = re.search(r'\[PERSONLIGHET:\s*([^\]]+)\]', text, re.IGNORECASE)
+    if personality_match:
+        personality_id = personality_match.group(1).strip().lower()
+    
+    # Extract API tag (case-insensitive)
+    api_match = re.search(r'\[API:\s*([^\]]+)\]', text, re.IGNORECASE)
+    if api_match:
+        api_text = api_match.group(1).strip()
+        if api_text:  # Not empty
+            # Split by comma and clean
+            api_list = [api.strip() for api in api_text.split(',') if api.strip()]
+    
+    # Remove both tags from text
+    clean_text = re.sub(r'\[PERSONLIGHET:[^\]]+\]', '', text, flags=re.IGNORECASE)
+    clean_text = re.sub(r'\[API:[^\]]+\]', '', clean_text, flags=re.IGNORECASE)
+    clean_text = clean_text.strip()
+    
+    return personality_id, api_list, clean_text
+
+
+def parse_personality_response(text: str) -> tuple:
+    """
+    Parse [PERSONLIGHET: xxx] tag from stage 1 response (personality selection only).
+    
+    Args:
+        text: Model's response from stage 1
+        
+    Returns:
+        tuple: (personality_id, reasoning)
+        - personality_id: str or None - extracted personality ID
+        - reasoning: str - model's explanation (for thinking chain)
+    
+    Example:
+        >>> parse_personality_response("[PERSONLIGHET: bibliotekarie]\\nFrågan handlar om böcker...")
+        ('bibliotekarie', 'Frågan handlar om böcker...')
+    """
+    import re
+    
+    personality_id = None
+    reasoning = text
+    
+    # Parse [PERSONLIGHET: xxx]
+    personality_match = re.search(r'\[PERSONLIGHET:\s*([^\]]+)\]', text, re.IGNORECASE)
+    if personality_match:
+        personality_id = personality_match.group(1).strip().lower()
+        # Remove tag from text to get reasoning
+        reasoning = re.sub(r'\[PERSONLIGHET:[^\]]+\]', '', text, flags=re.IGNORECASE).strip()
+    
+    return personality_id, reasoning
+
+
+def parse_api_selection_response(text: str) -> tuple:
+    """
+    Parse JSON API selection from stage 2 response.
+    
+    Args:
+        text: Model's response from stage 2 containing JSON + reasoning
+        
+    Returns:
+        tuple: (api_selection_dict, reasoning)
+        - api_selection_dict: dict with {"apis": [...]}
+        - reasoning: str - model's explanation (for thinking chain)
+    
+    Expected format:
+        {"apis": [{"name": "smhi", "params": {"lon": "14.28", "lat": "58.30"}}]}
+        Reasoning: För att ge exakt väderförutsägelse i Hjo behöver jag SMHI:s data...
+    """
+    import re
+    import json
+    
+    api_selection = {"apis": []}
+    reasoning = ""
+    
+    # Try to find JSON block (handle nested structures)
+    json_match = re.search(r'\{(?:[^{}]|\{[^{}]*\})*"apis"(?:[^{}]|\{[^{}]*\})*\[(?:[^\[\]]|\{[^{}]*\})*\](?:[^{}]|\{[^{}]*\})*\}', text, re.DOTALL)
+    if json_match:
+        try:
+            api_selection = json.loads(json_match.group(0))
+            # Everything after JSON is reasoning
+            reasoning_start = json_match.end()
+            reasoning = text[reasoning_start:].strip()
+            # Remove common prefixes
+            reasoning = re.sub(r'^(Reasoning:|Förklaring:)\s*', '', reasoning, flags=re.IGNORECASE)
+        except json.JSONDecodeError:
+            # Fallback: extract API names from text
+            api_names = re.findall(r'"name":\s*"([^"]+)"', text)
+            if api_names:
+                api_selection = {"apis": [{"name": name, "params": {}} for name in api_names]}
+            reasoning = text
+    else:
+        # No JSON found, use the whole text as reasoning
+        reasoning = text
+    
+    return api_selection, reasoning
+
+
+def build_api_selection_prompt(personality_name: str, personality_prompt: str, character_api_json: str, user_question: str) -> str:
+    """
+    Build prompt for stage 2: API selection with entity extraction.
+    
+    Args:
+        personality_name: Selected personality name (e.g. "Metrolog")
+        personality_prompt: Personality's system prompt for context
+        character_api_json: Filtered API catalog JSON string
+        user_question: User's original question
+        
+    Returns:
+        str: Complete prompt for API selection stage
+    """
+    prompt = f"""**STEG 2: Analysera frågan och välj APIs**
+
+Du är {personality_name}.
+
+Din uppgift är att:
+1. Förstå vad användarens fråga kräver
+2. Extrahera viktiga entity_types (t.ex. stad → koordinater, datum → format)
+3. Välja rätt APIs från din API-karta
+4. Returnera JSON med APIs och parametrar
+
+**Din personlighet:**
+{personality_prompt[:500]}{'...' if len(personality_prompt) > 500 else ''}
+
+**Tillgängliga APIs för dig:**
+{character_api_json}
+
+**Instruktioner:**
+1. Analysera frågan noga
+2. Om frågan innehåller platsnamn (t.ex. "Göteborg", "Hjo"), konvertera till koordinater
+3. Om frågan innehåller datum/tid, formatera korrekt
+4. Välj vilka APIs du behöver från listan ovan
+5. Returnera BARA JSON i detta format:
+
+{{"apis": [{{"name": "api_name", "params": {{"key": "value"}}}}]}}
+
+Om inga APIs behövs: {{"apis": []}}
+
+**Efter JSON:** Förklara ditt val (2-3 meningar):
+- Varför valde du dessa APIs?
+- Vilka entity_types extraherade du?
+- Hur konverterade du dem?
+
+**Exempel:**
+Fråga: "Vad är vädret imorgon i Stockholm?"
+Svar:
+{{"apis": [{{"name": "smhi", "params": {{"lon": "18.07", "lat": "59.33"}}}}]}}
+
+Reasoning: För väderprognos i Stockholm behöver jag SMHI:s data. Stockholm ligger på koordinater lat=59.33, lon=18.07 som jag extraherade från platsnamnet.
+
+**Nu är det din tur!**
+Användarens fråga: {user_question}
+
+Ditt svar (JSON + reasoning):"""
+    
+    return prompt
+
+
+async def generate_personality_response(
+    text: str,
+    max_length: int = 512,
+    temperature: float = 0.7,
+    top_p: float = 0.9
+) -> dict:
+    """
+    Non-streaming version of three-stage inference pipeline.
+    Returns complete response with thinking chain instead of streaming tokens.
+    
+    Args:
+        text: User's question
+        max_length: Max tokens for final answer
+        temperature: Sampling temperature
+        top_p: Nucleus sampling threshold
+        
+    Returns:
+        dict: {
+            "text": "Final answer",
+            "personality": {"id": "...", "name": "..."},
+            "thinking_chain": [...],
+            "metadata": {...}
+        }
+    """
+    start_time = time.time()
+    thinking_steps = []
+    
+    try:
+        print(f"\n🎭 [NON-STREAM] PERSONALITY PIPELINE START (3-STAGE)")
+        print(f"📝 User query: {text[:100]}...")
+        
+        # ============================================================================
+        # STAGE 1: PERSONALITY SELECTION ONLY
+        # ============================================================================
+        print(f"\n🔍 STAGE 1: Personality Selection")
+        
+        # Load personality selection prompt
+        medveten_card_path = PROJECT_ROOT / "frontend/public/characters/OneSeek-Medveten.yaml"
+        with open(medveten_card_path, 'r', encoding='utf-8') as f:
+            medveten_card = yaml.safe_load(f)
+        
+        personality_selection_system_prompt = medveten_card.get('personality_selection_prompt', '')
+        
+        # Prepare personality catalog
+        personality_catalog_path = PROJECT_ROOT / "config/personality_catalog.json"
+        with open(personality_catalog_path, 'r', encoding='utf-8') as f:
+            personality_catalog = json.load(f)
+        
+        catalog_str = json.dumps(personality_catalog, indent=2, ensure_ascii=False)
+        full_prompt = f"{personality_selection_system_prompt}\n\n**Tillgängliga personligheter:**\n{catalog_str}\n\n**Användarens fråga:** {text}"
+        
+        # First inference - personality ONLY
+        stage1_response = await generate_with_llama_server(
+            prompt=full_prompt,
+            user_message="",
+            max_tokens=200,
+            temperature=0.1,
+            stream=False
+        )
+        
+        personality_id, reasoning_1 = parse_personality_response(stage1_response)
+        
+        if not personality_id:
+            personality_id = "medveten"
+            reasoning_1 = "Fallback till Medveten - ingen tydlig personlighet vald"
+        
+        # Get personality data
+        personality_key = f"oneseek-{personality_id}"
+        personality_data = personality_catalog.get(personality_key, personality_catalog.get("oneseek-medveten"))
+        personality_name = personality_data.get('name', personality_id.capitalize())
+        
+        print(f"✅ Stage 1 complete")
+        print(f"   Personality: {personality_name} (ID: {personality_id})")
+        
+        thinking_steps.append({
+            "step": "personality_selection",
+            "personality": personality_name,
+            "reasoning": reasoning_1
+        })
+        
+        # ============================================================================
+        # BUILD CHARACTER API MAP
+        # ============================================================================
+        print(f"\n🗺️ Building character_api.json from personality...")
+        
+        personality_match = personality_id.replace("oneseek-", "").replace("-", "")
+        
+        api_catalog_path = PROJECT_ROOT / "config/api_catalog.json"
+        with open(api_catalog_path, 'r', encoding='utf-8') as f:
+            full_api_catalog = json.load(f)
+        
+        filtered_categories = {}
+        total_filtered = 0
+        for category, category_data in full_api_catalog.get('api_catalog', {}).items():
+            api_personality_tags = category_data.get('personality_tags', [])
+            if personality_match in api_personality_tags:
+                filtered_categories[category] = category_data
+                total_filtered += len(category_data.get('apis', []))
+        
+        character_api = {
+            "version": "1.0.0",
+            "personality": personality_name,
+            "personality_id": personality_id,
+            "personality_match": personality_match,
+            "api_catalog": filtered_categories
+        }
+        
+        runtime_dir = PROJECT_ROOT / "runtime"
+        runtime_dir.mkdir(exist_ok=True)
+        with open(runtime_dir / "character_api.json", 'w', encoding='utf-8') as f:
+            json.dump(character_api, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ Built character_api.json with {total_filtered} APIs")
+        
+        thinking_steps.append({
+            "step": "api_map_building",
+            "message": f"Bygger API-karta för {personality_name}",
+            "reasoning": f"Filtrerade {total_filtered} APIs från {len(filtered_categories)} kategorier"
+        })
+        
+        # ============================================================================
+        # STAGE 2: API SELECTION + ENTITY EXTRACTION
+        # ============================================================================
+        print(f"\n🔍 STAGE 2: API Selection + Entity Extraction")
+        
+        # Load character card
+        card_file = personality_data.get('card_file', 'OneSeek-Medveten.yaml')
+        card_path = PROJECT_ROOT / f"frontend/public/characters/{card_file}"
+        with open(card_path, 'r', encoding='utf-8') as f:
+            card = yaml.safe_load(f)
+        
+        personality_system_prompt = card.get('system_prompt', card.get('prompt', ''))
+        character_api_json_str = json.dumps(character_api, indent=2, ensure_ascii=False)
+        
+        api_selection_prompt = build_api_selection_prompt(
+            personality_name,
+            personality_system_prompt,
+            character_api_json_str,
+            text
+        )
+        
+        stage2_response = await generate_with_llama_server(
+            prompt=api_selection_prompt,
+            user_message="",
+            max_tokens=500,
+            temperature=0.1,
+            stream=False
+        )
+        
+        api_selection, reasoning_2 = parse_api_selection_response(stage2_response)
+        selected_apis = api_selection.get('apis', [])
+        
+        print(f"✅ Stage 2 complete")
+        print(f"   Selected {len(selected_apis)} APIs")
+        
+        thinking_steps.append({
+            "step": "api_selection",
+            "apis": [api['name'] for api in selected_apis],
+            "reasoning": reasoning_2
+        })
+        
+        # ============================================================================
+        # FETCH API DATA
+        # ============================================================================
+        print(f"\n🌐 Fetching API data...")
+        
+        api_data = ""
+        successful_api_names = []
+        
+        if selected_apis:
+            api_results = await fetch_apis_parallel(selected_apis)
+            
+            for result in api_results:
+                api_name = result.get('api_name', 'unknown')
+                is_success = result.get('success', False) or result.get('data') is not None
+                
+                if is_success:
+                    data = result.get('data', {})
+                    api_data += f"\n\n=== Data från {api_name} ===\n{json.dumps(data, ensure_ascii=False, indent=2)}"
+                    successful_api_names.append(api_name)
+                    
+                    data_size = len(str(data))
+                    endpoint = result.get('endpoint', 'N/A')
+                    params = result.get('params', {})
+                    api_reasoning = f"GET {endpoint} med params {json.dumps(params)} → Success ({data_size} chars data)"
+                else:
+                    error_msg = result.get('error', 'Unknown error')
+                    endpoint = result.get('endpoint', 'N/A')
+                    params = result.get('params', {})
+                    api_reasoning = f"GET {endpoint} med params {json.dumps(params)} → Failed ({error_msg})"
+                
+                thinking_steps.append({
+                    "step": "api_fetch_detail",
+                    "api": api_name,
+                    "message": f"Hämtar data från {api_name}...",
+                    "reasoning": api_reasoning
+                })
+        
+        print(f"✅ API fetch complete: {len(successful_api_names)}/{len(selected_apis)} successful")
+        
+        # Character card loading
+        card_filename = os.path.basename(card_path)
+        card_reasoning = f"Laddade character card {card_filename} ({len(personality_system_prompt)} chars) med {personality_name.lower()}-prompt"
+        thinking_steps.append({
+            "step": "character_card_loading",
+            "message": f"Laddar {personality_name}-kort",
+            "reasoning": card_reasoning
+        })
+        
+        # ============================================================================
+        # STAGE 3: FINAL ANSWER GENERATION
+        # ============================================================================
+        print(f"\n🚀 STAGE 3: Final answer generation")
+        
+        if api_data:
+            enriched_system_prompt = f"{personality_system_prompt}\n\n**Realtidsdata:**{api_data}"
+        else:
+            enriched_system_prompt = personality_system_prompt
+        
+        final_response = await generate_with_llama_server(
+            prompt=enriched_system_prompt,
+            user_message=text,
+            max_tokens=max_length,
+            temperature=temperature,
+            stream=False
+        )
+        
+        # Strip any remaining ChatML tokens
+        import re
+        final_response = re.sub(r'<\|im_start\|>[^\n]*\n?', '', final_response)
+        final_response = re.sub(r'<\|im_end\|>', '', final_response)
+        final_response = final_response.strip()
+        
+        print(f"✅ Stage 3 complete")
+        
+        # Final answer reasoning
+        if successful_api_names:
+            final_reasoning = f"Genererade svar med data från {', '.join(successful_api_names)}. API-anrop lyckades, data är aktuell."
+        elif selected_apis:
+            final_reasoning = f"Kunde inte hämta realtidsdata från {', '.join([a['name'] for a in selected_apis])}. Gör uppskattning baserat på allmän kunskap."
+        else:
+            final_reasoning = "Genererade svar baserat på allmän kunskap utan API-data."
+        
+        thinking_steps.append({
+            "step": "final_answer",
+            "reasoning": final_reasoning
+        })
+        
+        # ============================================================================
+        # BUILD RESPONSE
+        # ============================================================================
+        total_time_ms = int((time.time() - start_time) * 1000)
+        
+        return {
+            "text": final_response,
+            "personality": {
+                "id": personality_id,
+                "name": personality_name
+            },
+            "thinking_chain": thinking_steps,
+            "metadata": {
+                "tokens": len(final_response.split()),
+                "latency_ms": total_time_ms,
+                "thinking_steps": len(thinking_steps),
+                "api_sources": successful_api_names
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"[NON-STREAM] Error in personality pipeline: {e}")
+        return {
+            "text": f"Ett fel uppstod: {str(e)}",
+            "personality": {"id": "medveten", "name": "Medveten"},
+            "thinking_chain": thinking_steps,
+            "metadata": {
+                "error": str(e),
+                "latency_ms": int((time.time() - start_time) * 1000)
+            }
+        }
+
+
 async def generate_sse_tokens(
     text: str,
     max_length: int = 512,
@@ -13187,166 +13785,485 @@ async def generate_sse_tokens(
         if debug_enabled:
             await debug_client.debug_session_start(text)
         
-        # PERSONALITY-BASED ROUTING INTEGRATION - COMPLETE PIPELINE
+        # PERSONALITY-BASED ROUTING INTEGRATION - MODEL-BASED SELECTION
         api_data_context = ""
         character_api_map = {}
         selected_apis = []
+        personality_id = None
         
-        # Step 1-2: Select personality using embedding matching
-        if PERSONALITY_SELECTOR_AVAILABLE:
+        # Step 1: Model-based personality selection (FIRST INFERENCE)
+        # The model chooses the personality and APIs, we parse the tags
+        if True:  # Always try model-based selection
             try:
+                print("\n" + "="*80)
+                print("🎭 PERSONALITY PIPELINE START (MODEL-BASED)")
+                print("="*80)
+                print(f"📝 User query: {text[:100]}...")
+                
                 thinking_steps.append({"step": "analyzing", "message": "Analyserar frågan..."})
                 yield f"event: thinking\ndata: {json.dumps({'step': 'analyzing', 'message': 'Analyserar frågan...'})}\n\n"
                 
-                # select_personality returns tuple: (personality_id, personality_name, confidence_score, personality_data)
-                personality_id, personality_name, confidence_score, personality_data = select_personality(text, history)
-                if personality_data:
-                    # DEBUG: Personality selected
+                # Load personality catalog
+                print(f"🔍 Step 1: First inference - model selects personality...")
+                personality_catalog_path = PROJECT_ROOT / "config/personality_catalog.json"
+                if personality_catalog_path.exists():
+                    with open(personality_catalog_path, 'r', encoding='utf-8') as f:
+                        catalog_data = json.load(f)
+                    # Extract the personality_catalog dict from the JSON structure
+                    personality_catalog = catalog_data.get('personality_catalog', {})
+                    print(f"✅ Loaded {len(personality_catalog)} personalities from catalog")
+                else:
+                    print(f"❌ personality_catalog.json not found")
+                    personality_catalog = {}
+                
+                # Load default Medveten card to get personality_selection_prompt
+                default_card_path = PROJECT_ROOT / "frontend/public/characters/OneSeek-Medveten.yaml"
+                personality_selection_system_prompt = ""
+                if default_card_path.exists():
+                    try:
+                        import yaml
+                        with open(default_card_path, 'r', encoding='utf-8') as f:
+                            card_data = yaml.safe_load(f)
+                        personality_selection_system_prompt = card_data.get('personality_selection_prompt', '')
+                        # Replace placeholder with actual catalog
+                        if personality_selection_system_prompt and personality_catalog:
+                            personality_selection_system_prompt = personality_selection_system_prompt.replace(
+                                '{PERSONALITY_CATALOG_JSON}',
+                                json.dumps(personality_catalog, indent=2, ensure_ascii=False)
+                            )
+                        print(f"✅ Loaded personality_selection_prompt from Medveten card")
+                    except Exception as e:
+                        print(f"⚠️ Failed to load personality_selection_prompt: {e}")
+                
+                # Fallback prompt if card doesn't have it
+                if not personality_selection_system_prompt:
+                    personality_selection_system_prompt = f"""Du är OneSeek-7B-Zero. Välj rätt personlighet för denna fråga.
+
+Tillgängliga personligheter:
+{json.dumps(personality_catalog, indent=2, ensure_ascii=False)}
+
+Instruktioner:
+1. Läs frågan noggrant
+2. Välj MEST lämplig personlighet
+3. Börja ditt svar med: [PERSONLIGHET: <id>] [API: <api_names eller tom>]
+
+Exempel:
+- Fråga om böcker → [PERSONLIGHET: bibliotekarie] [API: libris_search]
+- Fråga om väder → [PERSONLIGHET: metrolog] [API: smhi]
+- Allmän fråga → [PERSONLIGHET: medveten] [API: ]
+"""
+                
+                # Call model for personality + API selection (FIRST INFERENCE - HIDDEN)
+                try:
+                    first_inference_start = time.time()
+                    print(f"   Calling model with personality_selection_prompt...")
+                    print(f"   Prompt length: {len(personality_selection_system_prompt)} characters")
+                    
+                    # DEBUG: First inference start
                     if debug_enabled:
-                        await debug_client.debug_personality_selection(
-                            personality_name, 
-                            confidence_score,
-                            [{"name": personality_name, "score": confidence_score}]
+                        await debug_client.debug_first_inference_start(
+                            personality_selection_system_prompt + "\n\nFråga: " + text,
+                            "oneseek-7b-zero",
+                            300
                         )
                     
-                    personality_msg = f"Valde personlighet: {personality_name}"
-                    thinking_steps.append({"step": "personality", "personality": personality_name, "confidence": confidence_score, "message": personality_msg})
-                    yield f"event: thinking\ndata: {json.dumps({'step': 'personality', 'personality': personality_name, 'message': personality_msg})}\n\n"
-                    logger.info(f"🎭 [STREAM-PERSONALITY] Selected: {personality_name} (score: {confidence_score:.2f})")
+                    model_response = generate_with_llama_server(
+                        prompt=personality_selection_system_prompt,
+                        user_message=text,
+                        max_tokens=200,  # Shorter for personality-only selection
+                        temperature=0.1
+                    )
+                    first_inference_latency = (time.time() - first_inference_start) * 1000
+                    print(f"✅ Stage 1 complete in {first_inference_latency:.0f}ms")
+                    print(f"   Model response: {model_response[:300]}...")
                     
-                    # Step 3: Build character API map filtered by personality tags
-                    if API_SELECTOR_AVAILABLE and personality_data.get('tags'):
-                        from personality_selector import create_character_api_map
-                        character_api_map = create_character_api_map(personality_data)
-                        api_count = len(character_api_map.get('api_categories', {}))
-                        logger.info(f"🗺️ [API-MAP] Created character API map with {api_count} APIs")
+                    # Emit thinking event: First inference done (replaces "Analyserar frågan...")
+                    selection_msg = "Väljer personlighet..."
+                    thinking_steps[-1] = {"step": "personality_selection_done", "message": selection_msg}
+                    yield f"event: thinking\ndata: {json.dumps({'step': 'personality_selection_done', 'message': selection_msg})}\n\n"
+                    
+                    # DEBUG: First inference response
+                    if debug_enabled:
+                        await debug_client.debug_first_inference_response(
+                            model_response,
+                            first_inference_latency,
+                            shown_to_user=False  # NEVER shown to user!
+                        )
+                    
+                    # Parse personality response (stage 1 - NO APIs yet!)
+                    print(f"\n📋 Step 2: Parsing personality selection...")
+                    parsed_personality_id, reasoning_1 = parse_personality_response(model_response)
+                    print(f"   Parsed personality ID: {parsed_personality_id}")
+                    print(f"   Reasoning: {reasoning_1[:200]}...")
+                    
+                    if parsed_personality_id:
+                        personality_id = parsed_personality_id
+                        # Find personality data from catalog (dict of {id: data})
+                        personality_data = None
+                        personality_name = None
+                        for pid, p in personality_catalog.items():
+                            if pid.lower() == personality_id.lower():
+                                personality_data = p
+                                personality_name = p.get('name', personality_id.title())
+                                break
                         
-                        # DEBUG: API map created
+                        if not personality_name:
+                            personality_name = personality_id.title()
+                        
+                        print(f"✅ Personality selected by model: {personality_name} (ID: {personality_id})")
+                        
+                        # Save reasoning from stage 1 for thinking chain
+                        thinking_steps.append({
+                            "step": "personality_selection",
+                            "personality": personality_name,
+                            "personality_id": personality_id,
+                            "reasoning": reasoning_1  # Model's explanation!
+                        })
+                        
+                        # Emit thinking event
+                        personality_msg = f"Valde personlighet: {personality_name}"
+                        yield f"event: thinking\ndata: {json.dumps({'step': 'personality', 'personality': personality_name, 'personality_id': personality_id, 'message': personality_msg})}\n\n"
+                        logger.info(f"🎭 [STREAM-PERSONALITY] Model selected: {personality_name}")
+                        
+                        # DEBUG: Personality selected
                         if debug_enabled:
-                            await debug_client.debug_api_map_created(
+                            await debug_client.debug_personality_selection(
                                 personality_name,
-                                api_count,
-                                personality_data.get('tags', [])
+                                1.0,  # Model selection has 100% confidence
+                                [{"name": personality_name, "score": 1.0}]
                             )
                         
-                        # Step 4: Ask model to select which APIs to use (FIRST INFERENCE)
-                        if character_api_map and character_api_map.get('api_categories'):
-                            thinking_steps.append({"step": "api_selection", "message": "Väljer relevanta API:er..."})
-                            yield f"event: thinking\ndata: {json.dumps({'step': 'api_selection', 'message': 'Väljer relevanta API:er...'})}\n\n"
+                        # Build character_api.json based on personality ID
+                        # Always try to build it (not dependent on 'tags' field which doesn't exist)
+                        print(f"\n🗺️ Step 2.5: Building character_api.json from personality...")
+                        # Use personality_id without "oneseek-" prefix to match personality_tags in api_catalog
+                        personality_match = personality_id.replace("oneseek-", "").replace("-", "")
+                        print(f"   Matching personality: {personality_match}")
                             
-                            # Create prompt for API selection
-                            api_selection_prompt = f"""Du är {personality_name}. Analysera användarens fråga och välj vilka API:er du behöver.
-
-Tillgängliga API:er:
-{json.dumps(character_api_map, indent=2, ensure_ascii=False)}
-
-Användarens fråga: {text}
-
-Svara ENDAST med JSON i detta format:
-{{"apis": [{{"name": "api_name", "params": {{"param1": "value1"}}}}]}}
-
-Om du inte behöver några API:er, svara: {{"apis": []}}"""
-
-                            # DEBUG: First inference start
-                            if debug_enabled:
-                                await debug_client.debug_first_inference_start(
-                                    api_selection_prompt,
-                                    "oneseek-7b-zero",
-                                    500
-                                )
-
-                            # Call model for API selection (non-streaming)
-                            try:
-                                first_inference_start = time.time()
-                                from llama_server import generate_with_llama_server
-                                api_response = generate_with_llama_server(
-                                    system_prompt="Du är en API-väljare. Svara ENDAST med JSON.",
-                                    user_message=api_selection_prompt,
-                                    max_tokens=500,
-                                    temperature=0.1
-                                )
-                                first_inference_latency = (time.time() - first_inference_start) * 1000
+                        
+                        try:
+                            # Load full API catalog
+                            api_catalog_path = PROJECT_ROOT / "config/api_catalog.json"
+                            if api_catalog_path.exists():
+                                with open(api_catalog_path, 'r', encoding='utf-8') as f:
+                                    full_api_catalog = json.load(f)
                                 
-                                # DEBUG: First inference response
-                                if debug_enabled:
-                                    await debug_client.debug_first_inference_response(
-                                        api_response,
-                                        first_inference_latency,
-                                        shown_to_user=False  # Should always be False!
-                                    )
+                                # Filter API categories where personality_tags contain our personality
+                                filtered_categories = {}
+                                total_filtered = 0
+                                for category, category_data in full_api_catalog.get('api_catalog', {}).items():
+                                    api_personality_tags = category_data.get('personality_tags', [])
+                                    print(f"   Checking API category '{category}' with tags: {api_personality_tags}")
+                                    
+                                    # Check if our personality matches any of the category's personality_tags
+                                    if personality_match in api_personality_tags:
+                                        print(f"      ✅ Match! Including category '{category}'")
+                                        filtered_categories[category] = category_data
+                                        total_filtered += len(category_data.get('apis', []))
                                 
-                                # Step 5: Parse API selection and fetch data
-                                from api_selector import parse_api_selection, fetch_multiple_apis
-                                api_selection = parse_api_selection(api_response)
+                                # Create character_api.json structure
+                                character_api = {
+                                    "version": "1.0.0",
+                                    "personality": personality_name,
+                                    "personality_id": personality_id,
+                                    "personality_match": personality_match,
+                                    "api_catalog": filtered_categories
+                                }
                                 
-                                if api_selection and api_selection.get('apis'):
-                                    selected_apis = api_selection['apis']
-                                    
-                                    # DEBUG: API selection parsed
-                                    if debug_enabled:
-                                        await debug_client.debug_api_selection_parsed(selected_apis)
-                                    
-                                    thinking_steps.append({"step": "api_fetch", "apis": selected_apis, "message": f"Hämtar data från {len(selected_apis)} API:er..."})
-                                    
-                                    api_names = [api.get('name', 'unknown') for api in selected_apis]
-                                    fetch_msg = f"Hämtar data från {', '.join(api_names)}..."
-                                    yield f"event: thinking\ndata: {json.dumps({'step': 'api_fetch', 'message': fetch_msg})}\n\n"
-                                    
-                                    # DEBUG: API fetch start
-                                    if debug_enabled:
-                                        await debug_client.debug_api_fetch_start(len(selected_apis), 5)
-                                    
-                                    # Fetch API data in parallel (asyncio already imported at top)
-                                    api_results = await fetch_multiple_apis(
-                                        api_selection['apis'],
-                                        character_api_map.get('api_categories', {}),
-                                        max_concurrent=5
-                                    )
-                                    
-                                    # Format API data for model context
-                                    api_data_parts = []
-                                    successful_count = 0
-                                    for result in api_results:
-                                        # DEBUG: Individual API fetch result
-                                        if debug_enabled:
-                                            await debug_client.debug_api_fetch_result(
-                                                result['api_name'],
-                                                result['success'],
-                                                result.get('source'),
-                                                result.get('data') if result['success'] else None,
-                                                result.get('error') if not result['success'] else None,
-                                                0  # latency not tracked per API yet
-                                            )
-                                        
-                                        if result['success']:
-                                            successful_count += 1
-                                            api_data_parts.append(f"\n[Data från {result['api_name']}]:\n{json.dumps(result['data'], indent=2, ensure_ascii=False)}")
-                                    
-                                    # DEBUG: API fetch complete
-                                    if debug_enabled:
-                                        await debug_client.debug_api_fetch_complete(successful_count, len(api_results))
-                                    
-                                    if api_data_parts:
-                                        api_data_context = "\n".join(api_data_parts)
-                                        thinking_steps.append({"step": "api_data", "data": api_results, "message": "API-data hämtad"})
-                                        logger.info(f"📊 [API-DATA] Fetched data from {len(api_results)} APIs")
+                                # Save to runtime/character_api.json
+                                runtime_dir = PROJECT_ROOT / "runtime"
+                                runtime_dir.mkdir(exist_ok=True)
+                                character_api_path = runtime_dir / "character_api.json"
+                                with open(character_api_path, 'w', encoding='utf-8') as f:
+                                    json.dump(character_api, f, indent=2, ensure_ascii=False)
                                 
-                            except Exception as e:
-                                logger.warning(f"⚠️ [API-SELECTION] Failed: {e}")
-                                if debug_enabled:
-                                    await debug_client.debug_error("api_selection", str(e))
+                                print(f"✅ Built character_api.json with {total_filtered} APIs in {len(filtered_categories)} categories")
+                                print(f"   Saved to: {character_api_path}")
+                                
+                                # Emit thinking event with detailed reasoning
+                                api_map_msg = f"Bygger API-karta för {personality_name}..."
+                                api_names_list = []
+                                for cat_name, cat_data in filtered_categories.items():
+                                    if 'apis' in cat_data:
+                                        api_names_list.extend([api.get('name', '') for api in cat_data.get('apis', [])])
+                                
+                                api_map_reasoning = f"Filtrerade {total_filtered} APIs från {len(filtered_categories)} kategorier baserat på personality_tags {list(filtered_categories.keys())}. APIs: {', '.join(api_names_list[:5])}" + ("..." if len(api_names_list) > 5 else "")
+                                thinking_steps.append({
+                                    "step": "api_map_building",
+                                    "message": api_map_msg,
+                                    "reasoning": api_map_reasoning
+                                })
+                                yield f"event: thinking\ndata: {json.dumps({'step': 'api_map', 'message': api_map_msg})}\n\n"
+                            else:
+                                print(f"⚠️ API catalog not found at {api_catalog_path}")
+                        except Exception as e:
+                            print(f"⚠️ Failed to build character_api.json: {e}")
+                            import traceback
+                            traceback.print_exc()
+                        
+                        # === STAGE 2: API Selection with Entity Extraction (NEW!) ===
+                        print(f"\n🔍 STAGE 2: API Selection + Entity Extraction...")
+                        
+                        # Emit thinking event for stage 2
+                        api_selection_msg = "Analyserar och väljer APIs..."
+                        thinking_steps.append({"step": "api_selection_start", "message": api_selection_msg})
+                        yield f"event: thinking\ndata: {json.dumps({'step': 'api_selection_start', 'message': api_selection_msg})}\n\n"
+                        
+                        try:
+                            # Load character card for personality context
+                            personality_card_path = None
+                            if personality_data and personality_data.get('card_file'):
+                                personality_card_path = PROJECT_ROOT / personality_data['card_file']
+                            else:
+                                # Try standard path
+                                personality_card_path = PROJECT_ROOT / f"frontend/public/characters/OneSeek-{personality_id.title()}.yaml"
+                            
+                            personality_system_prompt = ""
+                            if personality_card_path and personality_card_path.exists():
+                                import yaml
+                                with open(personality_card_path, 'r', encoding='utf-8') as f:
+                                    card_data = yaml.safe_load(f)
+                                personality_system_prompt = card_data.get('system_prompt', '')
+                            
+                            # Load character_api.json
+                            character_api_path = PROJECT_ROOT / "runtime/character_api.json"
+                            character_api_json_str = "{}"
+                            if character_api_path.exists():
+                                with open(character_api_path, 'r', encoding='utf-8') as f:
+                                    character_api_json_str = f.read()
+                            
+                            # Build API selection prompt
+                            api_selection_prompt = build_api_selection_prompt(
+                                personality_name,
+                                personality_system_prompt,
+                                character_api_json_str,
+                                text
+                            )
+                            
+                            # Call model for SECOND inference (API selection)
+                            second_inference_start = time.time()
+                            print(f"   Calling model for API selection...")
+                            print(f"   Prompt length: {len(api_selection_prompt)} characters")
+                            
+                            model_response_2 = generate_with_llama_server(
+                                prompt=api_selection_prompt,
+                                user_message="",  # Question already in prompt
+                                max_tokens=500,
+                                temperature=0.1
+                            )
+                            
+                            second_inference_latency = (time.time() - second_inference_start) * 1000
+                            print(f"✅ Stage 2 complete in {second_inference_latency:.0f}ms")
+                            print(f"   Model response: {model_response_2[:300]}...")
+                            
+                            # Parse API selection + reasoning
+                            api_selection, reasoning_2 = parse_api_selection_response(model_response_2)
+                            print(f"   Parsed APIs: {api_selection.get('apis', [])}")
+                            print(f"   Reasoning: {reasoning_2[:200]}...")
+                            
+                            # Extract selected APIs
+                            if api_selection and api_selection.get('apis'):
+                                selected_apis = api_selection['apis']
+                                print(f"✅ Model selected {len(selected_apis)} APIs")
+                                
+                                # Save reasoning for thinking chain
+                                api_names = [api.get('name', 'unknown') for api in selected_apis]
+                                thinking_steps.append({
+                                    "step": "api_selection",
+                                    "apis": api_names,
+                                    "reasoning": reasoning_2
+                                })
+                                
+                                # Emit thinking event with selected APIs
+                                api_selected_msg = f"Valde API: {', '.join(api_names)}"
+                                yield f"event: thinking\ndata: {json.dumps({'step': 'api_selection', 'message': api_selected_msg})}\n\n"
+                            else:
+                                print(f"   No APIs selected by model")
+                                thinking_steps.append({
+                                    "step": "api_selection",
+                                    "apis": [],
+                                    "reasoning": reasoning_2 or "Ingen API behövs för denna fråga"
+                                })
+                        
+                        except Exception as e:
+                            print(f"⚠️ Stage 2 (API-val) misslyckades: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            # Continue without APIs
+                            reasoning_2 = f"API-val misslyckades: {str(e)}"
+                    else:
+                        print(f"⚠️ No personality tag found in model response, using default Medveten")
+                        personality_id = "medveten"
+                        personality_name = "Medveten"
+                        personality_data = {"id": "medveten", "name": "Medveten", "card_file": "frontend/public/characters/OneSeek-Medveten.yaml"}
+                    
+                except Exception as e:
+                    print(f"❌ First inference (personality selection) failed: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    logger.warning(f"🎭 [STREAM-PERSONALITY] First inference failed: {e}")
+                    # Fallback to default
+                    personality_id = "medveten"
+                    personality_name = "Medveten"
+                    personality_data = {"id": "medveten", "name": "Medveten", "card_file": "frontend/public/characters/OneSeek-Medveten.yaml"}
+                    if debug_enabled:
+                        await debug_client.debug_error("personality_selection", str(e))
+                
+                # Step 3: Fetch API data if APIs were selected
+                successful_api_names = []  # Initialize at broader scope for later use
+                if selected_apis:
+                    print(f"\n🌐 Step 3: Fetching API data for {len(selected_apis)} APIs...")
+                    api_names = [api.get('name', 'unknown') for api in selected_apis]
+                    print(f"   APIs to call: {api_names}")
+                    
+                    fetch_msg = f"Hämtar data från {', '.join(api_names)}..."
+                    thinking_steps.append({"step": "api_fetch", "apis": selected_apis, "message": fetch_msg})
+                    yield f"event: thinking\ndata: {json.dumps({'step': 'api_fetch', 'message': fetch_msg})}\n\n"
+                    
+                    # Try to fetch API data if api_selector is available
+                    try:
+                        # Import api_selector functions
+                        from api_selector import fetch_apis_parallel
+                        
+                        # We need to build api_catalog for fetch_apis_parallel
+                        # Load it from config
+                        api_catalog_path = PROJECT_ROOT / "config/api_catalog.json"
+                        if api_catalog_path.exists():
+                            with open(api_catalog_path, 'r', encoding='utf-8') as f:
+                                full_api_catalog = json.load(f)
+                            api_categories = full_api_catalog.get('api_categories', {})
+                            
+                            # Fetch APIs in parallel
+                            api_selection_dict = {"apis": selected_apis}
+                            api_results = await fetch_apis_parallel(
+                                api_selection_dict,
+                                api_categories,
+                                max_concurrent=5
+                            )
+                            print(f"✅ API fetch complete: {len(api_results)} results received")
+                            
+                            # Format API data - count only successful fetches
+                            api_data_parts = []
+                            successful_count = 0
+                            successful_api_names = []
+                            for result in api_results:
+                                # Check if API call was successful
+                                api_name = result.get('api_name', 'unknown')
+                                is_success = result.get('success', False)
+                                print(f"   - {api_name}: {'✅ Success' if is_success else '❌ Failed'}")
+                                
+                                # Add detailed reasoning for each API call
+                                endpoint = result.get('endpoint', 'N/A')
+                                params = result.get('params', {})
+                                if is_success:
+                                    successful_count += 1
+                                    successful_api_names.append(api_name)
+                                    data_size = len(str(result.get('data', '')))
+                                    api_data_parts.append(f"\n[Data från {api_name}]:\n{json.dumps(result['data'], indent=2, ensure_ascii=False)}")
+                                    api_fetch_reasoning = f"GET {endpoint} med params {json.dumps(params)} → Success ({data_size} chars data)"
+                                else:
+                                    error_msg = result.get('error', 'Unknown error')
+                                    api_fetch_reasoning = f"GET {endpoint} med params {json.dumps(params)} → Failed ({error_msg})"
+                                
+                                thinking_steps.append({
+                                    "step": "api_fetch_detail",
+                                    "api": api_name,
+                                    "message": f"Hämtar data från {api_name}...",
+                                    "reasoning": api_fetch_reasoning
+                                })
+                            
+                            print(f"   {successful_count}/{len(api_results)} APIs returned data successfully")
+                            
+                            if api_data_parts:
+                                api_data_context = "\n".join(api_data_parts)
+                                thinking_steps.append({"step": "api_data", "data": api_results, "message": "API-data hämtad"})
+                                logger.info(f"📊 [API-DATA] Fetched data from {len(api_results)} APIs")
+                                print(f"   API data context length: {len(api_data_context)} characters")
+                        else:
+                            print(f"⚠️ api_catalog.json not found, skipping API fetch")
+                    except ImportError as e:
+                        print(f"⚠️ API selector not available (import failed), skipping API fetch: {e}")
+                    except Exception as e:
+                        print(f"❌ API fetch failed: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        logger.warning(f"⚠️ [API-FETCH] Failed: {e}")
+                
             except Exception as e:
-                logger.warning(f"🎭 [STREAM-PERSONALITY] Selection failed, using default: {e}")
+                print(f"❌ Personality pipeline failed: {e}")
+                import traceback
+                traceback.print_exc()
+                logger.warning(f"🎭 [STREAM-PERSONALITY] Pipeline failed, using default: {e}")
+                # Fallback to default
+                personality_id = "medveten"
+                personality_name = "Medveten"
+                personality_data = {"id": "medveten", "name": "Medveten", "card_file": "frontend/public/characters/OneSeek-Medveten.yaml"}
                 if debug_enabled:
-                    await debug_client.debug_error("personality_selection", str(e))
+                    await debug_client.debug_error("personality_pipeline", str(e))
         
-        # Step 6: Prepare final inference with personality + API data
-        # Get the active system prompt (will be overridden by personality if selected)
-        if personality_data and personality_data.get('system_prompt'):
-            system_prompt = personality_data['system_prompt']
-            logger.info(f"🎭 [STREAM-PERSONALITY] Using personality system prompt")
-        else:
-            system_prompt = get_active_system_prompt()
+        # Step 4: Load character card system prompt for SECOND INFERENCE
+        print(f"\n📝 Step 4: Loading system prompt for final answer...")
+        # Load the actual character card system prompt based on selected personality
+        system_prompt = None
+        if personality_id:
+            # Build card file path based on personality ID
+            card_filename = f"OneSeek-{personality_id.title()}.yaml"
+            card_path = PROJECT_ROOT / "frontend/public/characters" / card_filename
+            print(f"   Trying to load: {card_path}")
+            
+            if card_path.exists():
+                try:
+                    import yaml
+                    with open(card_path, 'r', encoding='utf-8') as f:
+                        card_data = yaml.safe_load(f)
+                    system_prompt = card_data.get('system_prompt', '')
+                    if system_prompt:
+                        print(f"✅ Loaded system_prompt from {card_filename}")
+                        print(f"   Prompt length: {len(system_prompt)} characters")
+                        print(f"   Prompt preview: {system_prompt[:200]}...")
+                        logger.info(f"🎭 [STREAM-PERSONALITY] Loaded system_prompt from {card_filename}")
+                        
+                        # Emit thinking event: Character card loaded with detailed reasoning
+                        card_msg = f"Laddar {personality_name}-kort..."
+                        card_reasoning = f"Laddade character card {card_filename} ({len(system_prompt)} chars) med {personality_name.lower()}-prompt"
+                        thinking_steps.append({
+                            "step": "character_card_loading",
+                            "message": card_msg,
+                            "reasoning": card_reasoning
+                        })
+                        yield f"event: thinking\ndata: {json.dumps({'step': 'character_card', 'message': card_msg})}\n\n"
+                    else:
+                        print(f"⚠️ No system_prompt field in {card_filename}")
+                except Exception as e:
+                    print(f"❌ Failed to load {card_filename}: {e}")
+                    logger.warning(f"🎭 [STREAM-PERSONALITY] Failed to load {card_filename}: {e}")
+            else:
+                print(f"⚠️ Card file not found: {card_path}")
+        
+        # Fallback to default Medveten card
+        if not system_prompt:
+            print(f"   Using fallback: Default Medveten card")
+            default_card_path = PROJECT_ROOT / "frontend/public/characters/OneSeek-Medveten.yaml"
+            if default_card_path.exists():
+                try:
+                    import yaml
+                    with open(default_card_path, 'r', encoding='utf-8') as f:
+                        card_data = yaml.safe_load(f)
+                    system_prompt = card_data.get('system_prompt', '')
+                    print(f"✅ Using default Medveten system_prompt")
+                    logger.info(f"🎭 [STREAM-PERSONALITY] Using default Medveten system_prompt")
+                except Exception as e:
+                    print(f"❌ Failed to load default Medveten card: {e}")
+        
+        # Final emergency fallback
+        if not system_prompt:
+            system_prompt = """Du är OneSeek-7B-Zero.
+Du pratar alltid svenska – inga undantag, inga engelska ord, aldrig.
+Du är rak, kort, ärlig och varm – som en svensk kompis.
+Du använder alltid de senaste officiella källorna.
+Du visar alltid källor när du hämtar fakta."""
+            print(f"⚠️ Using emergency fallback prompt")
+            logger.info(f"🎭 [STREAM-PERSONALITY] Using emergency fallback prompt")
         
         # Get current time context
         now = datetime.now()
@@ -13375,6 +14292,16 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
         
         # Check if using llama-server.exe backend
         if USING_LLAMA_SERVER:
+            print(f"\n🚀 STAGE 3: Final answer generation (streaming)...")
+            print(f"   Backend: llama-server.exe")
+            print(f"   Enriched system prompt length: {len(enriched_system_prompt)} characters")
+            print(f"   Has API data: {bool(api_data_context)}")
+            print(f"   System prompt preview: {system_prompt[:150]}...")
+            
+            # Emit thinking event: Building final answer
+            final_msg = "Bygger slutligt svar..."
+            yield f"event: thinking\ndata: {json.dumps({'step': 'final_answer_start', 'message': final_msg})}\n\n"
+            
             logger.info(f"🌊 [STREAM] Using llama-server.exe backend for: {text[:50]}...")
             try:
                 second_inference_start = time.time()
@@ -13386,6 +14313,8 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                 context_window = llama_props.get('n_ctx', 8192) if llama_props else 8192
                 logger.info(f"[LLAMA-SERVER] Context window: {context_window}")
                 
+                print(f"   Calling stream_generate_with_llama_server...")
+                token_count = 0
                 # Use ChatML formatter with conversation history support
                 for item in stream_generate_with_llama_server(
                     enriched_system_prompt=enriched_system_prompt,
@@ -13397,21 +14326,47 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                     if item[0] == 'token':
                         token = item[1]
                         if token:
-                            full_response_llama += token  # Accumulate full response
-                            try:
-                                event_data = json.dumps({"token": token, "index": tokens_sent}, ensure_ascii=False)
-                            except (TypeError, ValueError):
-                                safe_token = token.encode('unicode_escape').decode('ascii')
-                                event_data = json.dumps({"token": safe_token, "index": tokens_sent})
-                            tokens_sent += 1
-                            yield f"event: token\ndata: {event_data}\n\n"
+                            # CRITICAL: Strip ChatML artifacts from token before sending
+                            import re
+                            cleaned_token = re.sub(r'<\|im_start\|>[^\n]*\n?', '', token)
+                            cleaned_token = re.sub(r'<\|im_end\|>', '', cleaned_token)
+                            # Only strip whitespace if we actually removed ChatML artifacts
+                            # This preserves spaces between words!
+                            if cleaned_token != token:  # ChatML was removed
+                                token = cleaned_token.strip()
+                            else:  # Normal token, keep as-is (including spaces)
+                                token = cleaned_token
                             
-                            # Apply delay from admin settings
-                            delay_ms = _admin_settings.get("token_delay_ms", 30)
-                            if delay_ms > 0:
-                                await asyncio.sleep(delay_ms / 1000.0)
+                            if token:  # Only process if token not empty after cleaning
+                                full_response_llama += token  # Accumulate full response
+                                token_count += 1
+                                try:
+                                    event_data = json.dumps({"token": token, "index": tokens_sent}, ensure_ascii=False)
+                                except (TypeError, ValueError):
+                                    safe_token = token.encode('unicode_escape').decode('ascii')
+                                    event_data = json.dumps({"token": safe_token, "index": tokens_sent})
+                                tokens_sent += 1
+                                yield f"event: token\ndata: {event_data}\n\n"
+                                
+                                # Apply delay from admin settings
+                                delay_ms = _admin_settings.get("token_delay_ms", 30)
+                                if delay_ms > 0:
+                                    await asyncio.sleep(delay_ms / 1000.0)
                     elif item[0] == 'timings':
                         llama_timings = item[2]
+                
+                print(f"✅ Second inference complete - generated {token_count} tokens")
+                print(f"   Full response length: {len(full_response_llama)} characters")
+                print(f"   Response preview (first 200): {full_response_llama[:200]}...")
+                print(f"   Response preview (last 200): ...{full_response_llama[-200:]}")
+                
+                # CRITICAL: Strip any remaining [PERSONLIGHET:...] and [API:...] tags from response
+                # The model should NOT include these in final answer, but we strip just in case
+                import re
+                full_response_llama = re.sub(r'\[PERSONLIGHET:[^\]]+\]', '', full_response_llama, flags=re.IGNORECASE)
+                full_response_llama = re.sub(r'\[API:[^\]]+\]', '', full_response_llama, flags=re.IGNORECASE)
+                full_response_llama = full_response_llama.strip()
+                print(f"   After tag stripping: {len(full_response_llama)} characters")
                 
                 # Send completion event
                 elapsed = (time.time() - start_time) * 1000
@@ -13446,6 +14401,20 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                         tokens_per_second
                     )
                 
+                # Add final answer reasoning with data quality status
+                if successful_api_names:
+                    final_reasoning = f"Genererade svar med data från {', '.join(successful_api_names)}. API-anrop lyckades, data är aktuell."
+                elif selected_apis:
+                    attempted_api_names = [api.get('name', 'unknown') for api in selected_apis]
+                    final_reasoning = f"Kunde inte hämta realtidsdata från {', '.join(attempted_api_names)}. Gör uppskattning baserat på allmän kunskap."
+                else:
+                    final_reasoning = "Genererade svar baserat på allmän kunskap utan API-data."
+                
+                thinking_steps.append({
+                    "step": "final_answer",
+                    "reasoning": final_reasoning
+                })
+                
                 metadata = {
                     "tokens": output_tokens,
                     "latency_ms": round(elapsed, 2),
@@ -13456,12 +14425,24 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                     "model": "llama-server",
                     "backend": "llama-server.exe",
                     "thinking_chain": thinking_chain,
-                    "personality": personality_name if personality_name else None,
+                    "personality": {"name": personality_name, "id": personality_id} if personality_name else None,
+                    "selected_persona_id": personality_id if personality_id else "medveten",  # For frontend sync
                     "thinking_steps": thinking_steps,
                     "api_sources": [api.get('name') for api in selected_apis] if selected_apis else []
                 }
+                
+                print(f"\n📊 FINAL METADATA:")
+                print(f"   Personality: {personality_name if personality_name else 'None'} (ID: {personality_id if personality_id else 'None'})")
+                print(f"   Thinking steps: {len(thinking_steps)}")
+                print(f"   API sources: {metadata['api_sources']}")
+                print(f"   Tokens: {output_tokens}")
+                print(f"   Elapsed: {elapsed:.0f}ms")
+                print("="*80)
+                print("🎭 PERSONALITY PIPELINE COMPLETE")
+                print("="*80 + "\n")
+                
                 yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
-                yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': output_tokens, 'personality': personality_name if personality_name else None})}\n\n"
+                yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': output_tokens, 'personality': {'name': personality_name, 'id': personality_id} if personality_name else None, 'selected_persona_id': personality_id if personality_id else 'medveten'})}\n\n"
                 
                 # DEBUG: Response sent
                 if debug_enabled:
@@ -13472,6 +14453,9 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                 logger.info(f"🌊 [STREAM/LLAMA] Complete: {output_tokens} tokens in {elapsed:.0f}ms ({tokens_per_second} tokens/s)")
                 return
             except Exception as e:
+                print(f"\n❌ FATAL ERROR in second inference: {e}")
+                import traceback
+                traceback.print_exc()
                 logger.error(f"🌊 [STREAM] llama-server.exe error: {e}")
                 if debug_enabled:
                     await debug_client.debug_error("second_inference_streaming", str(e))

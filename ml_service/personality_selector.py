@@ -249,11 +249,12 @@ def select_personality(
     # Check minimum confidence threshold
     min_confidence = catalog.get('selection_rules', {}).get('min_keyword_confidence', 0.6)
     
-    if best_score['score'] < min_confidence:
+    # Use <= for threshold to be inclusive (score must exceed threshold to be accepted)
+    if best_score['score'] <= min_confidence:
         # Use default/fallback personality
         default_id = catalog.get('selection_rules', {}).get('fallback', 'oneseek-medveten')
         default_data = personalities.get(default_id, {})
-        logger.info(f"Score below threshold ({best_score['score']:.2f} < {min_confidence}), using fallback: {default_id}")
+        logger.info(f"Score at or below threshold ({best_score['score']:.2f} <= {min_confidence}), using fallback: {default_id}")
         _last_personality = default_id
         return (default_id, default_data.get('name', 'Medveten'), best_score['score'], default_data)
     

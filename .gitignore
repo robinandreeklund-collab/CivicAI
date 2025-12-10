@@ -217,3 +217,6 @@ scripts/llama_cpp_scripts/
 
 # Runtime configuration (may contain sensitive API keys)
 config/runtime_settings.json
+
+# Runtime generated files
+runtime/

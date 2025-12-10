@@ -25,17 +25,48 @@ function ThinkingStepItem({ step, index }) {
     }
   };
 
+  // Get step title based on step type
+  const getStepTitle = () => {
+    if (step.step === 'personality_selection') {
+      return `Steg 1 - Valde personlighet: ${step.personality || 'Okänd'}`;
+    } else if (step.step === 'api_selection') {
+      const apiList = step.apis ? step.apis.join(', ') : 'Inga APIs';
+      return `Steg 2 - Valde API: ${apiList}`;
+    } else if (step.step === 'final_answer_start' || step.step === 'final_answer') {
+      return 'Steg 3 - Slutligt svar';
+    } else {
+      return step.message || 'Bearbetar...';
+    }
+  };
+
   return (
-    <div className="flex items-start gap-3 py-2 px-3 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors">
+    <div className="flex items-start gap-3 py-3 px-4 hover:bg-[#151515] dark:hover:bg-[#151515] transition-colors border-b border-[#1a1a1a] dark:border-[#1a1a1a] last:border-0">
       <div className="mt-0.5">
         {getStepIcon()}
       </div>
       <div className="flex-1">
-        <p className="text-sm text-gray-700 dark:text-gray-300">
-          {step.message}
+        <p className="text-sm font-medium text-[#ddd] dark:text-[#ddd]">
+          {getStepTitle()}
         </p>
+        
+        {/* Display reasoning if available (from three-stage pipeline) */}
+        {step.reasoning && (
+          <div className="mt-2 text-sm text-[#888] dark:text-[#888] italic pl-4 border-l-2 border-[#333] dark:border-[#333]">
+            <span className="text-[#999] dark:text-[#999] font-medium">Reasoning: </span>
+            {step.reasoning}
+          </div>
+        )}
+        
+        {/* Legacy: display message if no reasoning */}
+        {!step.reasoning && step.message && step.step !== 'personality_selection' && step.step !== 'api_selection' && (
+          <p className="mt-1 text-xs text-[#777] dark:text-[#777]">
+            {step.message}
+          </p>
+        )}
+        
+        {/* Display data if available (legacy compatibility) */}
         {step.data && Object.keys(step.data).length > 0 && (
-          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 font-mono bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-auto max-h-32">
+          <div className="mt-2 text-xs text-[#888] dark:text-[#888] font-mono bg-[#151515] dark:bg-[#151515] p-2 rounded overflow-auto max-h-32 border border-[#222]">
             {/* Display as read-only JSON. Data comes from backend and is not user-controlled. */}
             <pre className="whitespace-pre-wrap break-words">
               {JSON.stringify(step.data, null, 2)}
@@ -51,7 +82,7 @@ function ThinkingStepItem({ step, index }) {
  * Main thinking chain component
  */
 export default function ThinkingChain({ thinkingChain = [], isExpanded = false, onToggle = null }) {
-  const [expanded, setExpanded] = useState(isExpanded);
+  const [expanded, setExpanded] = useState(false); // Always start collapsed
 
   const handleToggle = () => {
     const newExpanded = !expanded;
@@ -62,8 +93,11 @@ export default function ThinkingChain({ thinkingChain = [], isExpanded = false, 
   };
 
   if (!thinkingChain || thinkingChain.length === 0) {
+    console.log('[ThinkingChain] No thinking chain data to display');
     return null;
   }
+
+  console.log('[ThinkingChain] Rendering with', thinkingChain.length, 'steps:', thinkingChain);
 
   const lastStep = thinkingChain[thinkingChain.length - 1];
   const isProcessing = lastStep?.step === 'received' || 
@@ -71,44 +105,48 @@ export default function ThinkingChain({ thinkingChain = [], isExpanded = false, 
                        lastStep?.step?.includes('ing');
 
   return (
-    <div className="mt-3 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-      {/* Toggle button */}
-      <button
-        onClick={handleToggle}
-        className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+    <details 
+      open={expanded}
+      className="mt-3 rounded-lg overflow-hidden bg-[#0a0a0a] dark:bg-[#0a0a0a] border border-[#222] dark:border-[#222]"
+    >
+      {/* Toggle summary */}
+      <summary 
+        className="flex items-center justify-between px-4 py-2.5 cursor-pointer hover:bg-[#151515] dark:hover:bg-[#151515] transition-colors list-none"
+        onClick={(e) => {
+          e.preventDefault();
+          handleToggle();
+        }}
       >
         <div className="flex items-center gap-2">
-          <Brain className="w-4 h-4 text-purple-500" />
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <Brain className="w-4 h-4 text-[#646cff]" />
+          <span className="text-sm font-medium text-[#888] dark:text-[#888]">
             Tankekedja
           </span>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
+          <span className="text-xs text-[#666] dark:text-[#666]">
             ({thinkingChain.length} steg)
           </span>
           {isProcessing && (
-            <span className="text-xs text-blue-600 dark:text-blue-400 animate-pulse">
+            <span className="text-xs text-[#646cff] dark:text-[#646cff] animate-pulse">
               Bearbetar...
             </span>
           )}
         </div>
         <div>
           {expanded ? (
-            <ChevronUp className="w-4 h-4 text-gray-500" />
+            <ChevronUp className="w-4 h-4 text-[#666]" />
           ) : (
-            <ChevronDown className="w-4 h-4 text-gray-500" />
+            <ChevronDown className="w-4 h-4 text-[#666]" />
           )}
         </div>
-      </button>
+      </summary>
 
-      {/* Expanded content */}
-      {expanded && (
-        <div className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800">
-          {thinkingChain.map((step, index) => (
-            <ThinkingStepItem key={index} step={step} index={index} />
-          ))}
-        </div>
-      )}
-    </div>
+      {/* Expanded content - always rendered, visibility controlled by details[open] */}
+      <div className="bg-[#0a0a0a] dark:bg-[#0a0a0a] divide-y divide-[#1a1a1a] dark:divide-[#1a1a1a] border-t border-[#222]">
+        {thinkingChain.map((step, index) => (
+          <ThinkingStepItem key={index} step={step} index={index} />
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -124,7 +162,7 @@ export function LiveThinkingIndicator({ currentStep = null }) {
     <div className="flex items-center gap-2 py-2 px-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
       <Loader className="w-4 h-4 animate-spin text-blue-500" />
       <span className="text-sm text-blue-700 dark:text-blue-300">
-        [tänker...] {currentStep}
+        {currentStep}
       </span>
     </div>
   );
