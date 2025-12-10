@@ -26,16 +26,16 @@ function ThinkingStepItem({ step, index }) {
   };
 
   return (
-    <div className="flex items-start gap-3 py-2 px-3 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-colors">
+    <div className="flex items-start gap-3 py-2 px-3 hover:bg-[#151515] dark:hover:bg-[#151515] transition-colors">
       <div className="mt-0.5">
         {getStepIcon()}
       </div>
       <div className="flex-1">
-        <p className="text-sm text-gray-700 dark:text-gray-300">
+        <p className="text-sm text-[#ccc] dark:text-[#ccc]">
           {step.message}
         </p>
         {step.data && Object.keys(step.data).length > 0 && (
-          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 font-mono bg-gray-100 dark:bg-gray-800 p-2 rounded overflow-auto max-h-32">
+          <div className="mt-1 text-xs text-[#888] dark:text-[#888] font-mono bg-[#151515] dark:bg-[#151515] p-2 rounded overflow-auto max-h-32 border border-[#222]">
             {/* Display as read-only JSON. Data comes from backend and is not user-controlled. */}
             <pre className="whitespace-pre-wrap break-words">
               {JSON.stringify(step.data, null, 2)}
@@ -51,7 +51,7 @@ function ThinkingStepItem({ step, index }) {
  * Main thinking chain component
  */
 export default function ThinkingChain({ thinkingChain = [], isExpanded = false, onToggle = null }) {
-  const [expanded, setExpanded] = useState(isExpanded);
+  const [expanded, setExpanded] = useState(false); // Always start collapsed
 
   const handleToggle = () => {
     const newExpanded = !expanded;
@@ -71,44 +71,47 @@ export default function ThinkingChain({ thinkingChain = [], isExpanded = false, 
                        lastStep?.step?.includes('ing');
 
   return (
-    <div className="mt-3 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-      {/* Toggle button */}
-      <button
-        onClick={handleToggle}
-        className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+    <details className="mt-3 rounded-lg overflow-hidden bg-[#0a0a0a] dark:bg-[#0a0a0a] border border-[#222] dark:border-[#222]">
+      {/* Toggle summary */}
+      <summary 
+        className="flex items-center justify-between px-4 py-2.5 cursor-pointer hover:bg-[#151515] dark:hover:bg-[#151515] transition-colors list-none"
+        onClick={(e) => {
+          e.preventDefault();
+          handleToggle();
+        }}
       >
         <div className="flex items-center gap-2">
-          <Brain className="w-4 h-4 text-purple-500" />
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <Brain className="w-4 h-4 text-[#646cff]" />
+          <span className="text-sm font-medium text-[#888] dark:text-[#888]">
             Tankekedja
           </span>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
+          <span className="text-xs text-[#666] dark:text-[#666]">
             ({thinkingChain.length} steg)
           </span>
           {isProcessing && (
-            <span className="text-xs text-blue-600 dark:text-blue-400 animate-pulse">
+            <span className="text-xs text-[#646cff] dark:text-[#646cff] animate-pulse">
               Bearbetar...
             </span>
           )}
         </div>
         <div>
           {expanded ? (
-            <ChevronUp className="w-4 h-4 text-gray-500" />
+            <ChevronUp className="w-4 h-4 text-[#666]" />
           ) : (
-            <ChevronDown className="w-4 h-4 text-gray-500" />
+            <ChevronDown className="w-4 h-4 text-[#666]" />
           )}
         </div>
-      </button>
+      </summary>
 
       {/* Expanded content */}
       {expanded && (
-        <div className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800">
+        <div className="bg-[#0a0a0a] dark:bg-[#0a0a0a] divide-y divide-[#1a1a1a] dark:divide-[#1a1a1a] border-t border-[#222]">
           {thinkingChain.map((step, index) => (
             <ThinkingStepItem key={index} step={step} index={index} />
           ))}
         </div>
       )}
-    </div>
+    </details>
   );
 }
 

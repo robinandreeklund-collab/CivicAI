@@ -13574,8 +13574,8 @@ async def generate_sse_tokens(
                         )
                     
                     personality_msg = f"Valde personlighet: {personality_name}"
-                    thinking_steps.append({"step": "personality", "personality": personality_name, "confidence": confidence_score, "message": personality_msg})
-                    yield f"event: thinking\ndata: {json.dumps({'step': 'personality', 'personality': personality_name, 'message': personality_msg})}\n\n"
+                    thinking_steps.append({"step": "personality", "personality": personality_name, "personality_id": personality_id, "confidence": confidence_score, "message": personality_msg})
+                    yield f"event: thinking\ndata: {json.dumps({'step': 'personality', 'personality': personality_name, 'personality_id': personality_id, 'confidence': confidence_score, 'message': personality_msg})}\n\n"
                     logger.info(f"🎭 [STREAM-PERSONALITY] Selected: {personality_name} (score: {confidence_score:.2f})")
                     
                     # Step 3: Build character API map filtered by personality tags
@@ -13924,13 +13924,13 @@ Du visar alltid källor när du hämtar fakta."""
                     "model": "llama-server",
                     "backend": "llama-server.exe",
                     "thinking_chain": thinking_chain,
-                    "personality": personality_name if personality_name else None,
+                    "personality": {"name": personality_name, "id": personality_id} if personality_name else None,
                     "thinking_steps": thinking_steps,
                     "api_sources": [api.get('name') for api in selected_apis] if selected_apis else []
                 }
                 
                 print(f"\n📊 FINAL METADATA:")
-                print(f"   Personality: {personality_name if personality_name else 'None'}")
+                print(f"   Personality: {personality_name if personality_name else 'None'} (ID: {personality_id if personality_id else 'None'})")
                 print(f"   Thinking steps: {len(thinking_steps)}")
                 print(f"   API sources: {metadata['api_sources']}")
                 print(f"   Tokens: {output_tokens}")
@@ -13940,7 +13940,7 @@ Du visar alltid källor när du hämtar fakta."""
                 print("="*80 + "\n")
                 
                 yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
-                yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': output_tokens, 'personality': personality_name if personality_name else None})}\n\n"
+                yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': output_tokens, 'personality': {'name': personality_name, 'id': personality_id} if personality_name else None})}\n\n"
                 
                 # DEBUG: Response sent
                 if debug_enabled:

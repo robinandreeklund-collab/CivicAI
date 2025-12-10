@@ -953,8 +953,13 @@ export default function SevenBZeroPage() {
                   
                   if (data.step === 'personality' && data.personality) {
                     // Personality selected - update UI
-                    console.log(`[7B-Zero Stream] AI selected personality: ${data.personality}`);
-                    setAiSelectedPersonality(data.personality);
+                    const personalityName = typeof data.personality === 'string' ? data.personality : data.personality.name;
+                    const personalityId = data.personality_id || (typeof data.personality === 'object' ? data.personality.id : null);
+                    console.log(`[7B-Zero Stream] AI selected personality: ${personalityName} (ID: ${personalityId})`);
+                    setAiSelectedPersonality(personalityName);
+                    if (personalityId) {
+                      setSelectedPersona(personalityId);
+                    }
                   }
                   break;
                   
@@ -974,9 +979,11 @@ export default function SevenBZeroPage() {
                   console.log('[7B-Zero Stream] Metadata:', metadata);
                   // Update personality if provided
                   if (metadata.personality) {
-                    setAiSelectedPersonality(metadata.personality);
-                    if (metadata.personality.id) {
-                      setSelectedPersona(metadata.personality.id);
+                    const personalityName = typeof metadata.personality === 'string' ? metadata.personality : metadata.personality.name;
+                    const personalityId = typeof metadata.personality === 'object' ? metadata.personality.id : null;
+                    setAiSelectedPersonality(personalityName);
+                    if (personalityId) {
+                      setSelectedPersona(personalityId);
                     }
                   }
                   // Store thinking steps if provided
@@ -2200,7 +2207,7 @@ export default function SevenBZeroPage() {
                     <div className="mt-4">
                       <ThinkingChain 
                         thinkingChain={msg.thinkingChain} 
-                        isExpanded={msg.isTyping} // Auto-expand while processing
+                        isExpanded={false} // Always start collapsed (minimized)
                       />
                     </div>
                   )}
