@@ -4033,6 +4033,8 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
         raise RuntimeError(error_msg)
     except requests.exceptions.RequestException as e:
         logger.error(f"[GGUF] Streaming /completion failed: {e}")
+        if "400" in str(e):
+            logger.error(f"[GGUF] 400 Bad Request - Prompt may be too large. Prompt length: {len(formatted_prompt)} chars")
         raise RuntimeError(f"GGUF streaming error: {e}")
 
 def ensure_llama_cpp_python():
@@ -14167,8 +14169,14 @@ Exempel:
                                 if is_success:
                                     successful_count += 1
                                     successful_api_names.append(api_name)
-                                    data_size = len(str(result.get('data', '')))
-                                    api_data_parts.append(f"\n[Data från {api_name}]:\n{json.dumps(result['data'], indent=2, ensure_ascii=False)}")
+                                    # Truncate large API responses to prevent context overflow
+                                    data_str = json.dumps(result['data'], indent=2, ensure_ascii=False)
+                                    data_size = len(data_str)
+                                    max_data_size = 2000  # Max chars per API response
+                                    if len(data_str) > max_data_size:
+                                        data_str = data_str[:max_data_size] + "\n... (data truncated for context window)"
+                                        print(f"   ⚠️ Truncated {api_name} data from {data_size} to {max_data_size} chars")
+                                    api_data_parts.append(f"\n[Data från {api_name}]:\n{data_str}")
                                     api_fetch_reasoning = f"GET {endpoint} med params {json.dumps(params)} → Success ({data_size} chars data)"
                                 else:
                                     error_msg = result.get('error', 'Unknown error')
