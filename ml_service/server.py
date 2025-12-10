@@ -13590,8 +13590,8 @@ def parse_api_selection_response(text: str) -> tuple:
     api_selection = {"apis": []}
     reasoning = ""
     
-    # Try to find JSON block
-    json_match = re.search(r'\{[^{}]*"apis"[^{}]*\[[^\]]*\][^{}]*\}', text, re.DOTALL)
+    # Try to find JSON block (handle nested structures)
+    json_match = re.search(r'\{(?:[^{}]|\{[^{}]*\})*"apis"(?:[^{}]|\{[^{}]*\})*\[(?:[^\[\]]|\{[^{}]*\})*\](?:[^{}]|\{[^{}]*\})*\}', text, re.DOTALL)
     if json_match:
         try:
             api_selection = json.loads(json_match.group(0))
@@ -13637,7 +13637,7 @@ Din uppgift är att:
 4. Returnera JSON med APIs och parametrar
 
 **Din personlighet:**
-{personality_prompt[:500]}...
+{personality_prompt[:500]}{'...' if len(personality_prompt) > 500 else ''}
 
 **Tillgängliga APIs för dig:**
 {character_api_json}
@@ -14009,11 +14009,11 @@ Exempel:
                                 })
                         
                         except Exception as e:
-                            print(f"⚠️ Stage 2 (API selection) failed: {e}")
+                            print(f"⚠️ Stage 2 (API-val) misslyckades: {e}")
                             import traceback
                             traceback.print_exc()
                             # Continue without APIs
-                            reasoning_2 = f"API selection misslyckades: {str(e)}"
+                            reasoning_2 = f"API-val misslyckades: {str(e)}"
                     else:
                         print(f"⚠️ No personality tag found in model response, using default Medveten")
                         personality_id = "medveten"
