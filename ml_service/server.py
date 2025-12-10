@@ -13674,6 +13674,10 @@ Exempel:
                     print(f"✅ First inference complete in {first_inference_latency:.0f}ms")
                     print(f"   Model response: {model_response[:300]}...")
                     
+                    # Emit thinking event: First inference done
+                    thinking_steps.append({"step": "personality_selection_done", "message": "Väljer personlighet (modellen beslutar)..."})
+                    yield f"event: thinking\ndata: {json.dumps({'step': 'personality_selection_done', 'message': 'Väljer personlighet (modellen beslutar)...'})}\n\n"
+                    
                     # DEBUG: First inference response
                     if debug_enabled:
                         await debug_client.debug_first_inference_response(
@@ -13754,50 +13758,52 @@ Exempel:
                     yield f"event: thinking\ndata: {json.dumps({'step': 'api_fetch', 'message': fetch_msg})}\n\n"
                     
                     # Try to fetch API data if api_selector is available
-                    if API_SELECTOR_AVAILABLE:
-                        try:
-                            # We need to build api_catalog for fetch_apis_parallel
-                            # Load it from config
-                            api_catalog_path = PROJECT_ROOT / "config/api_catalog.json"
-                            if api_catalog_path.exists():
-                                with open(api_catalog_path, 'r', encoding='utf-8') as f:
-                                    full_api_catalog = json.load(f)
-                                api_categories = full_api_catalog.get('api_categories', {})
-                                
-                                # Fetch APIs in parallel
-                                api_selection_dict = {"apis": selected_apis}
-                                api_results = await fetch_apis_parallel(
-                                    api_selection_dict,
-                                    api_categories,
-                                    max_concurrent=5
-                                )
-                                print(f"✅ API fetch complete: {len(api_results)} results received")
-                                
-                                # Format API data
-                                api_data_parts = []
-                                successful_count = 0
-                                for result in api_results:
-                                    print(f"   - {result['api_name']}: {'✅ Success' if result['success'] else '❌ Failed'}")
-                                    if result['success']:
-                                        successful_count += 1
-                                        api_data_parts.append(f"\n[Data från {result['api_name']}]:\n{json.dumps(result['data'], indent=2, ensure_ascii=False)}")
-                                
-                                print(f"   {successful_count}/{len(api_results)} APIs returned data successfully")
-                                
-                                if api_data_parts:
-                                    api_data_context = "\n".join(api_data_parts)
-                                    thinking_steps.append({"step": "api_data", "data": api_results, "message": "API-data hämtad"})
-                                    logger.info(f"📊 [API-DATA] Fetched data from {len(api_results)} APIs")
-                                    print(f"   API data context length: {len(api_data_context)} characters")
-                            else:
-                                print(f"⚠️ api_catalog.json not found, skipping API fetch")
-                        except Exception as e:
-                            print(f"❌ API fetch failed: {e}")
-                            import traceback
-                            traceback.print_exc()
-                            logger.warning(f"⚠️ [API-FETCH] Failed: {e}")
-                    else:
-                        print(f"⚠️ API selector not available, skipping API fetch")
+                    try:
+                        # Import api_selector functions
+                        from api_selector import fetch_apis_parallel
+                        
+                        # We need to build api_catalog for fetch_apis_parallel
+                        # Load it from config
+                        api_catalog_path = PROJECT_ROOT / "config/api_catalog.json"
+                        if api_catalog_path.exists():
+                            with open(api_catalog_path, 'r', encoding='utf-8') as f:
+                                full_api_catalog = json.load(f)
+                            api_categories = full_api_catalog.get('api_categories', {})
+                            
+                            # Fetch APIs in parallel
+                            api_selection_dict = {"apis": selected_apis}
+                            api_results = await fetch_apis_parallel(
+                                api_selection_dict,
+                                api_categories,
+                                max_concurrent=5
+                            )
+                            print(f"✅ API fetch complete: {len(api_results)} results received")
+                            
+                            # Format API data
+                            api_data_parts = []
+                            successful_count = 0
+                            for result in api_results:
+                                print(f"   - {result['api_name']}: {'✅ Success' if result['success'] else '❌ Failed'}")
+                                if result['success']:
+                                    successful_count += 1
+                                    api_data_parts.append(f"\n[Data från {result['api_name']}]:\n{json.dumps(result['data'], indent=2, ensure_ascii=False)}")
+                            
+                            print(f"   {successful_count}/{len(api_results)} APIs returned data successfully")
+                            
+                            if api_data_parts:
+                                api_data_context = "\n".join(api_data_parts)
+                                thinking_steps.append({"step": "api_data", "data": api_results, "message": "API-data hämtad"})
+                                logger.info(f"📊 [API-DATA] Fetched data from {len(api_results)} APIs")
+                                print(f"   API data context length: {len(api_data_context)} characters")
+                        else:
+                            print(f"⚠️ api_catalog.json not found, skipping API fetch")
+                    except ImportError as e:
+                        print(f"⚠️ API selector not available (import failed), skipping API fetch: {e}")
+                    except Exception as e:
+                        print(f"❌ API fetch failed: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        logger.warning(f"⚠️ [API-FETCH] Failed: {e}")
                 
             except Exception as e:
                 print(f"❌ Personality pipeline failed: {e}")
@@ -13832,6 +13838,11 @@ Exempel:
                         print(f"   Prompt length: {len(system_prompt)} characters")
                         print(f"   Prompt preview: {system_prompt[:200]}...")
                         logger.info(f"🎭 [STREAM-PERSONALITY] Loaded system_prompt from {card_filename}")
+                        
+                        # Emit thinking event: Character card loaded
+                        card_msg = f"Laddar {personality_name}-kort..."
+                        thinking_steps.append({"step": "character_card", "message": card_msg})
+                        yield f"event: thinking\ndata: {json.dumps({'step': 'character_card', 'message': card_msg})}\n\n"
                     else:
                         print(f"⚠️ No system_prompt field in {card_filename}")
                 except Exception as e:
@@ -13897,6 +13908,12 @@ Du visar alltid källor när du hämtar fakta."""
             print(f"   Enriched system prompt length: {len(enriched_system_prompt)} characters")
             print(f"   Has API data: {bool(api_data_context)}")
             print(f"   System prompt preview: {system_prompt[:150]}...")
+            
+            # Emit thinking event: Building final answer
+            final_msg = "Bygger slutligt svar..."
+            thinking_steps.append({"step": "final_answer", "message": final_msg})
+            yield f"event: thinking\ndata: {json.dumps({'step': 'final_answer', 'message': final_msg})}\n\n"
+            
             logger.info(f"🌊 [STREAM] Using llama-server.exe backend for: {text[:50]}...")
             try:
                 second_inference_start = time.time()
@@ -13994,6 +14011,7 @@ Du visar alltid källor när du hämtar fakta."""
                     "backend": "llama-server.exe",
                     "thinking_chain": thinking_chain,
                     "personality": {"name": personality_name, "id": personality_id} if personality_name else None,
+                    "selected_persona_id": personality_id if personality_id else "medveten",  # For frontend sync
                     "thinking_steps": thinking_steps,
                     "api_sources": [api.get('name') for api in selected_apis] if selected_apis else []
                 }
