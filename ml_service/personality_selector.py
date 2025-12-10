@@ -104,6 +104,7 @@ def resolve_catalog_refs(catalog: Dict, config_dir: Path) -> Dict:
                     ref_data = json.load(f)
                 
                 logger.info(f"Resolved $ref for category '{category_name}' from {ref_file}")
+                print(f"   ✓ Resolved $ref: {ref_file} → {len(ref_data.get('apis', []))} APIs, tags: {ref_data.get('personality_tags', [])}")
                 
                 # Replace the $ref with the actual data
                 # Keep the structure compatible with existing code

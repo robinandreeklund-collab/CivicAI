@@ -13548,11 +13548,13 @@ async def generate_personality_response(
         
         # Load API catalog with $ref resolution
         full_api_catalog = load_api_catalog()
+        print(f"   Loaded catalog: version={full_api_catalog.get('version')}, categories={list(full_api_catalog.get('api_catalog', {}).keys())}")
         
         filtered_categories = {}
         total_filtered = 0
         for category, category_data in full_api_catalog.get('api_catalog', {}).items():
             api_personality_tags = category_data.get('personality_tags', [])
+            print(f"   Checking API category '{category}' with tags: {api_personality_tags}")
             if personality_match in api_personality_tags:
                 filtered_categories[category] = category_data
                 total_filtered += len(category_data.get('apis', []))
@@ -13945,6 +13947,7 @@ Exempel:
                         try:
                             # Load full API catalog with $ref resolution
                             full_api_catalog = load_api_catalog()
+                            print(f"   Loaded catalog: version={full_api_catalog.get('version')}, categories={list(full_api_catalog.get('api_catalog', {}).keys())}")
                             
                             if full_api_catalog:
                                 # Filter API categories where personality_tags contain our personality
