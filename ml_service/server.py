@@ -13913,9 +13913,19 @@ Exempel:
                                 print(f"✅ Built character_api.json with {total_filtered} APIs in {len(filtered_categories)} categories")
                                 print(f"   Saved to: {character_api_path}")
                                 
-                                # Emit thinking event
+                                # Emit thinking event with detailed reasoning
                                 api_map_msg = f"Bygger API-karta för {personality_name}..."
-                                thinking_steps.append({"step": "api_map", "message": api_map_msg})
+                                api_names_list = []
+                                for cat_name, cat_data in filtered_categories.items():
+                                    if 'apis' in cat_data:
+                                        api_names_list.extend([api.get('name', '') for api in cat_data.get('apis', [])])
+                                
+                                api_map_reasoning = f"Filtrerade {total_filtered} APIs från {len(filtered_categories)} kategorier baserat på personality_tags {list(filtered_categories.keys())}. APIs: {', '.join(api_names_list[:5])}" + ("..." if len(api_names_list) > 5 else "")
+                                thinking_steps.append({
+                                    "step": "api_map_building",
+                                    "message": api_map_msg,
+                                    "reasoning": api_map_reasoning
+                                })
                                 yield f"event: thinking\ndata: {json.dumps({'step': 'api_map', 'message': api_map_msg})}\n\n"
                             else:
                                 print(f"⚠️ API catalog not found at {api_catalog_path}")
@@ -14033,6 +14043,7 @@ Exempel:
                         await debug_client.debug_error("personality_selection", str(e))
                 
                 # Step 3: Fetch API data if APIs were selected
+                successful_api_names = []  # Initialize at broader scope for later use
                 if selected_apis:
                     print(f"\n🌐 Step 3: Fetching API data for {len(selected_apis)} APIs...")
                     api_names = [api.get('name', 'unknown') for api in selected_apis]
@@ -14067,12 +14078,32 @@ Exempel:
                             # Format API data - count only successful fetches
                             api_data_parts = []
                             successful_count = 0
+                            successful_api_names = []
                             for result in api_results:
                                 # Check if API call was successful
-                                print(f"   - {result['api_name']}: {'✅ Success' if result.get('success') else '❌ Failed'}")
-                                if result.get('success'):
+                                api_name = result.get('api_name', 'unknown')
+                                is_success = result.get('success', False)
+                                print(f"   - {api_name}: {'✅ Success' if is_success else '❌ Failed'}")
+                                
+                                # Add detailed reasoning for each API call
+                                endpoint = result.get('endpoint', 'N/A')
+                                params = result.get('params', {})
+                                if is_success:
                                     successful_count += 1
-                                    api_data_parts.append(f"\n[Data från {result['api_name']}]:\n{json.dumps(result['data'], indent=2, ensure_ascii=False)}")
+                                    successful_api_names.append(api_name)
+                                    data_size = len(str(result.get('data', '')))
+                                    api_data_parts.append(f"\n[Data från {api_name}]:\n{json.dumps(result['data'], indent=2, ensure_ascii=False)}")
+                                    api_fetch_reasoning = f"GET {endpoint} med params {json.dumps(params)} → Success ({data_size} chars data)"
+                                else:
+                                    error_msg = result.get('error', 'Unknown error')
+                                    api_fetch_reasoning = f"GET {endpoint} med params {json.dumps(params)} → Failed ({error_msg})"
+                                
+                                thinking_steps.append({
+                                    "step": "api_fetch_detail",
+                                    "api": api_name,
+                                    "message": f"Hämtar data från {api_name}...",
+                                    "reasoning": api_fetch_reasoning
+                                })
                             
                             print(f"   {successful_count}/{len(api_results)} APIs returned data successfully")
                             
@@ -14125,9 +14156,14 @@ Exempel:
                         print(f"   Prompt preview: {system_prompt[:200]}...")
                         logger.info(f"🎭 [STREAM-PERSONALITY] Loaded system_prompt from {card_filename}")
                         
-                        # Emit thinking event: Character card loaded
+                        # Emit thinking event: Character card loaded with detailed reasoning
                         card_msg = f"Laddar {personality_name}-kort..."
-                        thinking_steps.append({"step": "character_card", "message": card_msg})
+                        card_reasoning = f"Laddade character card {card_filename} ({len(system_prompt)} chars) med {personality_name.lower()}-prompt"
+                        thinking_steps.append({
+                            "step": "character_card_loading",
+                            "message": card_msg,
+                            "reasoning": card_reasoning
+                        })
                         yield f"event: thinking\ndata: {json.dumps({'step': 'character_card', 'message': card_msg})}\n\n"
                     else:
                         print(f"⚠️ No system_prompt field in {card_filename}")
@@ -14297,6 +14333,20 @@ Du visar alltid källor när du hämtar fakta."""
                         second_inference_latency,
                         tokens_per_second
                     )
+                
+                # Add final answer reasoning with data quality status
+                if successful_api_names:
+                    final_reasoning = f"Genererade svar med data från {', '.join(successful_api_names)}. API-anrop lyckades, data är aktuell."
+                elif selected_apis:
+                    attempted_api_names = [api.get('name', 'unknown') for api in selected_apis]
+                    final_reasoning = f"Kunde inte hämta realtidsdata från {', '.join(attempted_api_names)}. Gör uppskattning baserat på allmän kunskap."
+                else:
+                    final_reasoning = "Genererade svar baserat på allmän kunskap utan API-data."
+                
+                thinking_steps.append({
+                    "step": "final_answer",
+                    "reasoning": final_reasoning
+                })
                 
                 metadata = {
                     "tokens": output_tokens,
