@@ -13554,7 +13554,13 @@ async def generate_sse_tokens(
                 
                 print(f"🔍 Step 1: Calling select_personality()...")
                 # select_personality returns tuple: (personality_id, personality_name, confidence_score, personality_data)
-                personality_id, personality_name, confidence_score, personality_data = select_personality(text, history)
+                # Note: Pass None as personality_catalog to let it load from config
+                personality_id, personality_name, confidence_score, personality_data = select_personality(
+                    query=text,
+                    personality_catalog=None,  # Load from config
+                    boost_recent=True,
+                    recent_boost_factor=0.4
+                )
                 print(f"✅ Personality selected: {personality_name} (ID: {personality_id}, confidence: {confidence_score:.2f})")
                 print(f"📊 Personality data keys: {list(personality_data.keys()) if personality_data else 'None'}")
                 
