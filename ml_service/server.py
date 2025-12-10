@@ -13674,9 +13674,10 @@ Exempel:
                     print(f"✅ First inference complete in {first_inference_latency:.0f}ms")
                     print(f"   Model response: {model_response[:300]}...")
                     
-                    # Emit thinking event: First inference done
-                    thinking_steps.append({"step": "personality_selection_done", "message": "Väljer personlighet (modellen beslutar)..."})
-                    yield f"event: thinking\ndata: {json.dumps({'step': 'personality_selection_done', 'message': 'Väljer personlighet (modellen beslutar)...'})}\n\n"
+                    # Emit thinking event: First inference done (replaces "Analyserar frågan...")
+                    selection_msg = "Väljer personlighet (modellen beslutar)..."
+                    thinking_steps[-1] = {"step": "personality_selection_done", "message": selection_msg}  # Replace last step
+                    yield f"event: thinking\ndata: {json.dumps({'step': 'personality_selection_done', 'message': selection_msg})}\n\n"
                     
                     # DEBUG: First inference response
                     if debug_enabled:
@@ -13779,12 +13780,13 @@ Exempel:
                             )
                             print(f"✅ API fetch complete: {len(api_results)} results received")
                             
-                            # Format API data
+                            # Format API data - count only successful fetches
                             api_data_parts = []
                             successful_count = 0
                             for result in api_results:
-                                print(f"   - {result['api_name']}: {'✅ Success' if result['success'] else '❌ Failed'}")
-                                if result['success']:
+                                # Check if API call was successful
+                                print(f"   - {result['api_name']}: {'✅ Success' if result.get('success') else '❌ Failed'}")
+                                if result.get('success'):
                                     successful_count += 1
                                     api_data_parts.append(f"\n[Data från {result['api_name']}]:\n{json.dumps(result['data'], indent=2, ensure_ascii=False)}")
                             
@@ -13938,20 +13940,27 @@ Du visar alltid källor när du hämtar fakta."""
                     if item[0] == 'token':
                         token = item[1]
                         if token:
-                            full_response_llama += token  # Accumulate full response
-                            token_count += 1
-                            try:
-                                event_data = json.dumps({"token": token, "index": tokens_sent}, ensure_ascii=False)
-                            except (TypeError, ValueError):
-                                safe_token = token.encode('unicode_escape').decode('ascii')
-                                event_data = json.dumps({"token": safe_token, "index": tokens_sent})
-                            tokens_sent += 1
-                            yield f"event: token\ndata: {event_data}\n\n"
+                            # CRITICAL: Strip ChatML artifacts from token before sending
+                            import re
+                            token = re.sub(r'<\|im_start\|>[^\n]*\n?', '', token)
+                            token = re.sub(r'<\|im_end\|>', '', token)
+                            token = token.strip()
                             
-                            # Apply delay from admin settings
-                            delay_ms = _admin_settings.get("token_delay_ms", 30)
-                            if delay_ms > 0:
-                                await asyncio.sleep(delay_ms / 1000.0)
+                            if token:  # Only process if token not empty after stripping
+                                full_response_llama += token  # Accumulate full response
+                                token_count += 1
+                                try:
+                                    event_data = json.dumps({"token": token, "index": tokens_sent}, ensure_ascii=False)
+                                except (TypeError, ValueError):
+                                    safe_token = token.encode('unicode_escape').decode('ascii')
+                                    event_data = json.dumps({"token": safe_token, "index": tokens_sent})
+                                tokens_sent += 1
+                                yield f"event: token\ndata: {event_data}\n\n"
+                                
+                                # Apply delay from admin settings
+                                delay_ms = _admin_settings.get("token_delay_ms", 30)
+                                if delay_ms > 0:
+                                    await asyncio.sleep(delay_ms / 1000.0)
                     elif item[0] == 'timings':
                         llama_timings = item[2]
                 
@@ -14027,7 +14036,7 @@ Du visar alltid källor när du hämtar fakta."""
                 print("="*80 + "\n")
                 
                 yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
-                yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': output_tokens, 'personality': {'name': personality_name, 'id': personality_id} if personality_name else None})}\n\n"
+                yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': output_tokens, 'personality': {'name': personality_name, 'id': personality_id} if personality_name else None, 'selected_persona_id': personality_id if personality_id else 'medveten'})}\n\n"
                 
                 # DEBUG: Response sent
                 if debug_enabled:
