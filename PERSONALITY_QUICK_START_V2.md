@@ -20,8 +20,8 @@ python ml_service/server.py
 cd frontend && npm run dev
 ```
 
-### 3. Open Demo Page
-Navigate to: `http://localhost:5173/personality-chat`
+### 3. Open Main Chat Page
+Navigate to: `http://localhost:3000/7B-Zero`
 
 ### 4. Try These Queries
 ```

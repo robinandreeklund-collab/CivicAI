@@ -2,30 +2,30 @@
 
 ## ✅ IMPLEMENTATION STATUS: COMPLETE
 
-This document describes the **fully implemented** personality-based API routing architecture with real-time WebSocket streaming. All components from PR #108 have been integrated and connected into a working E2E pipeline.
+This document describes the **fully implemented** personality-based API routing architecture with real-time WebSocket streaming, integrated into **SevenBZeroPage.jsx** (the main chat interface at http://localhost:3000/7B-Zero).
 
 ---
 
 ## 🎯 COMPLETE E2E FLOW
 
-### User Experience Flow
+### User Experience Flow (in SevenBZeroPage)
 
-1. **User submits question** → Frontend sends to backend via WebSocket
+1. **User submits question** at /7B-Zero → Frontend sends to backend via WebSocket
 2. **[tänker...] Analyserar frågan...** → Personality selection begins
-3. **[tänker...] Valde personlighet: [Namn]** → Shows selected personality
+3. **[tänker...] Valde personlighet: [Namn]** → Shows selected personality  
 4. **[tänker...] Bygger API-karta...** → Dynamic API filtering
 5. **[tänker...] Väljer API:er...** → Model selects needed APIs
 6. **[tänker...] Hämtar realtidsdata...** → Parallel API fetching
 7. **[tänker...] Bygger slutligt svar...** → Final response generation
 8. **Final Response** → Clean, formatted Swedish answer with sources
 
-### Live Visual Updates
+### Live Visual Updates (in SevenBZeroPage)
 
 - ✅ Progressive "[tänker...]" indicators appear in real-time
-- ✅ Thinking chain builds step-by-step as processing happens
+- ✅ Thinking chain builds step-by-step as processing happens (auto-expanded)
 - ✅ Each step shows with icon (spinner → checkmark)
 - ✅ Final response displays with personality info and API sources
-- ✅ Collapsible thinking chain shows full detail
+- ✅ Thinking chain collapses after completion for cleaner view
 
 ---
 
@@ -145,22 +145,27 @@ sendPersonalityMessageViaWebSocket(message, {
 })
 ```
 
-#### 2. **PersonalityChatPage**: Main UI Component
-**Location**: `frontend/src/pages/PersonalityChatPage.jsx`
+#### 2. **SevenBZeroPage**: Main Chat Interface
+**Location**: `frontend/src/pages/SevenBZeroPage.jsx`
+**URL**: `http://localhost:3000/7B-Zero`
 
 **Features**:
-- WebSocket-first with REST fallback
-- Live thinking step display
-- Real-time thinking chain building
+- WebSocket-first with REST fallback for personality inference
+- Live thinking step display with spinner icon
+- Real-time thinking chain building (auto-expanded while processing)
 - Message history with personality info
 - Error handling UI
+- Integration with existing chat features (streaming, compare mode, etc.)
 
 **State Management**:
 ```javascript
-const [messages, setMessages] = useState([]);
-const [currentThinkingStep, setCurrentThinkingStep] = useState(null);
-const [liveThinkingChain, setLiveThinkingChain] = useState([]);
-const [isLoading, setIsLoading] = useState(false);
+// Messages now include:
+{
+  currentThinkingStep: "[tänker...] message",  // Live step
+  thinkingChain: [...],  // Builds in real-time
+  personality: {...},
+  apiData: [...]
+}
 ```
 
 #### 3. **ThinkingChain Component**: Collapsible Step Display
@@ -453,6 +458,9 @@ python ml_service/server.py
 cd frontend
 npm run dev
 ```
+
+### Access the Application
+Navigate to: `http://localhost:3000/7B-Zero`
 
 ### Production Notes
 - WebSocket requires ws:// (or wss:// for HTTPS)
