@@ -13546,9 +13546,8 @@ async def generate_personality_response(
         
         personality_match = personality_id.replace("oneseek-", "").replace("-", "")
         
-        api_catalog_path = PROJECT_ROOT / "config/api_catalog.json"
-        with open(api_catalog_path, 'r', encoding='utf-8') as f:
-            full_api_catalog = json.load(f)
+        # Load API catalog with $ref resolution
+        full_api_catalog = load_api_catalog()
         
         filtered_categories = {}
         total_filtered = 0
@@ -13629,7 +13628,9 @@ async def generate_personality_response(
         successful_api_names = []
         
         if selected_apis:
-            api_results = await fetch_apis_parallel(selected_apis)
+            # Pass the resolved catalog to fetch_apis_parallel
+            api_selection_dict = {"apis": selected_apis}
+            api_results = await fetch_apis_parallel(api_selection_dict, character_api)
             
             for result in api_results:
                 api_name = result.get('api_name', 'unknown')
@@ -13942,12 +13943,10 @@ Exempel:
                             
                         
                         try:
-                            # Load full API catalog
-                            api_catalog_path = PROJECT_ROOT / "config/api_catalog.json"
-                            if api_catalog_path.exists():
-                                with open(api_catalog_path, 'r', encoding='utf-8') as f:
-                                    full_api_catalog = json.load(f)
-                                
+                            # Load full API catalog with $ref resolution
+                            full_api_catalog = load_api_catalog()
+                            
+                            if full_api_catalog:
                                 # Filter API categories where personality_tags contain our personality
                                 filtered_categories = {}
                                 total_filtered = 0
@@ -13995,7 +13994,7 @@ Exempel:
                                 })
                                 yield f"event: thinking\ndata: {json.dumps({'step': 'api_map', 'message': api_map_msg})}\n\n"
                             else:
-                                print(f"⚠️ API catalog not found at {api_catalog_path}")
+                                print(f"⚠️ Failed to load API catalog")
                         except Exception as e:
                             print(f"⚠️ Failed to build character_api.json: {e}")
                             import traceback
@@ -14125,13 +14124,12 @@ Exempel:
                         # Import api_selector functions
                         from api_selector import fetch_apis_parallel
                         
-                        # We need to build api_catalog for fetch_apis_parallel
-                        # Load it from config
-                        api_catalog_path = PROJECT_ROOT / "config/api_catalog.json"
-                        if api_catalog_path.exists():
-                            with open(api_catalog_path, 'r', encoding='utf-8') as f:
-                                full_api_catalog = json.load(f)
-                            api_categories = full_api_catalog.get('api_categories', {})
+                        # Load API catalog with $ref resolution
+                        full_api_catalog = load_api_catalog()
+                        
+                        if full_api_catalog:
+                            # Use the resolved catalog
+                            api_categories = full_api_catalog.get('api_catalog', {})
                             
                             # Fetch APIs in parallel
                             api_selection_dict = {"apis": selected_apis}
