@@ -13169,10 +13169,31 @@ async def generate_sse_tokens(
     """
     start_time = time.time()
     tokens_sent = 0
+    selected_personality = None
+    thinking_steps = []
     
     try:
-        # Get the active system prompt
-        system_prompt = get_active_system_prompt()
+        # PERSONALITY-BASED ROUTING INTEGRATION
+        # Step 1: Use personality selector to choose best personality
+        if PERSONALITY_SELECTOR_AVAILABLE:
+            try:
+                thinking_steps.append({"step": "analyzing", "message": "Analyserar frågan..."})
+                yield f"event: thinking\ndata: {json.dumps({'step': 'analyzing', 'message': 'Analyserar frågan...'})}\n\n"
+                
+                selected_personality = select_personality(text, history)
+                if selected_personality:
+                    thinking_steps.append({"step": "personality", "message": f"Valde personlighet: {selected_personality['name']}"})
+                    yield f"event: thinking\ndata: {json.dumps({'step': 'personality', 'personality': selected_personality['name'], 'message': f\"Valde personlighet: {selected_personality['name']}\"})}\n\n"
+                    logger.info(f"🎭 [STREAM-PERSONALITY] Selected: {selected_personality['name']} (score: {selected_personality.get('score', 0):.2f})")
+            except Exception as e:
+                logger.warning(f"🎭 [STREAM-PERSONALITY] Selection failed, using default: {e}")
+        
+        # Get the active system prompt (will be overridden by personality if selected)
+        if selected_personality and selected_personality.get('system_prompt'):
+            system_prompt = selected_personality['system_prompt']
+            logger.info(f"🎭 [STREAM-PERSONALITY] Using personality system prompt")
+        else:
+            system_prompt = get_active_system_prompt()
         
         # Get current time context
         now = datetime.now()
@@ -13256,10 +13277,12 @@ async def generate_sse_tokens(
                     "context_window": context_window,  # Actual context window from llama-server
                     "model": "llama-server",
                     "backend": "llama-server.exe",
-                    "thinking_chain": thinking_chain
+                    "thinking_chain": thinking_chain,
+                    "personality": selected_personality if selected_personality else None,
+                    "thinking_steps": thinking_steps
                 }
                 yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
-                yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': output_tokens})}\n\n"
+                yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': output_tokens, 'personality': selected_personality['name'] if selected_personality else None})}\n\n"
                 
                 if thinking_chain:
                     logger.info(f"🧠 [THINKING] Extracted thinking chain from llama-server ({len(thinking_chain)} chars)")

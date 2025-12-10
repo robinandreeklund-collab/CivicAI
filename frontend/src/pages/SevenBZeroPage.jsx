@@ -932,6 +932,16 @@ export default function SevenBZeroPage() {
               
               // Handle different event types properly
               switch (currentEventType) {
+                case 'thinking':
+                  // Handle thinking step events (personality selection, API fetching, etc.)
+                  console.log('[7B-Zero Stream] Thinking:', data.message);
+                  if (data.step === 'personality' && data.personality) {
+                    // Personality selected - update UI
+                    console.log(`[7B-Zero Stream] AI selected personality: ${data.personality}`);
+                  }
+                  // Thinking steps will be included in metadata's thinking_steps array
+                  break;
+                  
                 case 'token':
                   // Handle token event - accumulate and schedule batched update
                   if (data.token !== undefined) {
@@ -952,6 +962,10 @@ export default function SevenBZeroPage() {
                     if (metadata.personality.id) {
                       setSelectedPersona(metadata.personality.id);
                     }
+                  }
+                  // Store thinking steps if provided
+                  if (metadata.thinking_steps && metadata.thinking_steps.length > 0) {
+                    setThinkingChain(metadata.thinking_steps);
                   }
                   break;
                   
