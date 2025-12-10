@@ -13724,6 +13724,62 @@ Exempel:
                                 [{"name": personality_name, "score": 1.0}]
                             )
                         
+                        # Build character_api.json based on personality tags
+                        if personality_data and personality_data.get('tags'):
+                            print(f"\n🗺️ Step 2.5: Building character_api.json from personality tags...")
+                            personality_tags = personality_data.get('tags', [])
+                            print(f"   Personality tags: {personality_tags}")
+                            
+                            try:
+                                # Load full API catalog
+                                api_catalog_path = PROJECT_ROOT / "config/api_catalog.json"
+                                if api_catalog_path.exists():
+                                    with open(api_catalog_path, 'r', encoding='utf-8') as f:
+                                        full_api_catalog = json.load(f)
+                                    
+                                    # Filter APIs matching personality tags
+                                    filtered_apis = {}
+                                    total_filtered = 0
+                                    for category, apis in full_api_catalog.get('api_categories', {}).items():
+                                        for api_name, api_config in apis.items():
+                                            api_personality_tags = api_config.get('personality_tags', [])
+                                            # Check if any personality tag matches
+                                            if any(tag in personality_tags for tag in api_personality_tags):
+                                                if category not in filtered_apis:
+                                                    filtered_apis[category] = {}
+                                                filtered_apis[category][api_name] = api_config
+                                                total_filtered += 1
+                                    
+                                    # Create character_api.json structure
+                                    character_api = {
+                                        "version": "1.0.0",
+                                        "personality": personality_name,
+                                        "personality_id": personality_id,
+                                        "tags": personality_tags,
+                                        "api_categories": filtered_apis
+                                    }
+                                    
+                                    # Save to runtime/character_api.json
+                                    runtime_dir = PROJECT_ROOT / "runtime"
+                                    runtime_dir.mkdir(exist_ok=True)
+                                    character_api_path = runtime_dir / "character_api.json"
+                                    with open(character_api_path, 'w', encoding='utf-8') as f:
+                                        json.dump(character_api, f, indent=2, ensure_ascii=False)
+                                    
+                                    print(f"✅ Built character_api.json with {total_filtered} APIs in {len(filtered_apis)} categories")
+                                    print(f"   Saved to: {character_api_path}")
+                                    
+                                    # Emit thinking event
+                                    api_map_msg = f"Bygger API-karta för {personality_name}..."
+                                    thinking_steps.append({"step": "api_map", "message": api_map_msg})
+                                    yield f"event: thinking\ndata: {json.dumps({'step': 'api_map', 'message': api_map_msg})}\n\n"
+                                else:
+                                    print(f"⚠️ API catalog not found at {api_catalog_path}")
+                            except Exception as e:
+                                print(f"⚠️ Failed to build character_api.json: {e}")
+                                import traceback
+                                traceback.print_exc()
+                        
                         # If model selected APIs, add them to selected_apis
                         if parsed_api_list:
                             print(f"✅ Model also selected APIs: {parsed_api_list}")

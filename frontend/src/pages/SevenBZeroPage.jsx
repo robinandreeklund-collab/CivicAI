@@ -986,6 +986,10 @@ export default function SevenBZeroPage() {
                       setSelectedPersona(personalityId);
                     }
                   }
+                  // Also check for selected_persona_id directly (for model-based selection)
+                  if (metadata.selected_persona_id) {
+                    setSelectedPersona(metadata.selected_persona_id);
+                  }
                   // Store thinking steps if provided
                   if (metadata.thinking_steps && metadata.thinking_steps.length > 0) {
                     setThinkingChain(metadata.thinking_steps);
