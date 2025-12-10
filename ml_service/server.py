@@ -3773,7 +3773,7 @@ def generate_with_llama_server(prompt: str, max_tokens: int = 256, temperature: 
             history=history,
             max_tokens=max_tokens,
             temperature=temperature,
-            additional_stops=["User:", "\nUser:", "Assistant:", "\nAssistant:", "\n\n"]
+            additional_stops=["User:", "\nUser:"]  # Removed aggressive stops that break lists/code
         )
         formatted_prompt = payload["prompt"]
         
@@ -3919,7 +3919,7 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
             history=history,
             max_tokens=max_tokens,
             temperature=temperature,
-            additional_stops=["User:", "\nUser:", "Assistant:", "\nAssistant:", "\n\n"]
+            additional_stops=["User:", "\nUser:"]  # Removed aggressive stops that break lists/code
         )
         formatted_prompt = payload["prompt"]
         
