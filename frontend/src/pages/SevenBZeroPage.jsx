@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { formatAIResponse } from '../utils/formatMarkdown';
 import ThinkingChain from '../components/ThinkingChain';
+import { sendPersonalityMessageViaWebSocket, isWebSocketSupported } from '../services/personalityWebSocket';
 
 /**
  * 7B-Zero Page - Integrated OQI Interface
@@ -1240,6 +1241,72 @@ export default function SevenBZeroPage() {
       // Try personality-based endpoint first (with thinking chain and automatic API routing)
       if (usePersonalityEndpoint) {
         try {
+          // Use WebSocket for real-time progressive updates if supported
+          if (isWebSocketSupported()) {
+            console.log('[7B-Zero] Using WebSocket for personality inference...');
+            
+            await sendPersonalityMessageViaWebSocket(currentQuestion, {
+              onThinking: (thinkingStep) => {
+                // Update AI message with current thinking step
+                setMessages(prev => prev.map(msg => 
+                  msg.id === aiMessageId 
+                    ? { 
+                        ...msg, 
+                        currentThinkingStep: thinkingStep.message,
+                        thinkingChain: [...(msg.thinkingChain || []), thinkingStep],
+                      }
+                    : msg
+                ));
+              },
+              onFinal: (data) => {
+                const responseEndTime = Date.now();
+                const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
+                
+                // Update AI-selected personality from response
+                if (data.personality) {
+                  setAiSelectedPersonality({
+                    id: data.personality.id,
+                    name: data.personality.name || data.personality.id,
+                    description: '',
+                    categories: [],
+                    is_default: false
+                  });
+                  setSelectedPersona(data.personality.id);
+                }
+                
+                const responseText = data.response;
+                if (responseText) {
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === aiMessageId 
+                      ? { 
+                          ...msg, 
+                          responseTime: finalResponseTime,
+                          confidence: data.personality?.confidence || 0.85,
+                          version: data.model || 'OneSeek-7B-Zero',
+                          thinkingChain: data.thinking_chain || msg.thinkingChain || null,
+                          apiData: data.api_data || null,
+                          tokens: data.tokens,
+                          personality: data.personality,
+                          currentThinkingStep: null, // Clear thinking step
+                        }
+                      : msg
+                  ));
+                  animateTyping(responseText, aiMessageId);
+                }
+              },
+              onError: (errorMessage) => {
+                console.error('[7B-Zero] WebSocket personality error:', errorMessage);
+                // Fall back to REST
+                throw new Error(errorMessage);
+              },
+              maxTokens: 512,
+              temperature: 0.7,
+            });
+            return; // Success - exit early
+          }
+          
+          // Fallback to REST API if WebSocket not supported
+          console.log('[7B-Zero] Using REST API for personality inference (WebSocket not supported)...');
           response = await fetch('/api/inference/personality', {
             method: 'POST',
             headers: {
@@ -2092,10 +2159,25 @@ export default function SevenBZeroPage() {
                     </div>
                   )}
                   
+                  {/* Live Thinking Step - Show current thinking while processing */}
+                  {msg.isTyping && msg.currentThinkingStep && (
+                    <div className={`mt-3 flex items-center gap-2 px-3 py-2 rounded-lg ${
+                      whiteMode ? 'bg-blue-50' : 'bg-blue-900/20'
+                    }`}>
+                      <div className="animate-spin">⚙️</div>
+                      <span className={`text-sm ${whiteMode ? 'text-blue-700' : 'text-blue-300'}`}>
+                        {msg.currentThinkingStep}
+                      </span>
+                    </div>
+                  )}
+                  
                   {/* Thinking Chain - Using ThinkingChain component */}
-                  {msg.thinkingChain && !msg.isTyping && Array.isArray(msg.thinkingChain) && (
+                  {msg.thinkingChain && Array.isArray(msg.thinkingChain) && msg.thinkingChain.length > 0 && (
                     <div className="mt-4">
-                      <ThinkingChain thinkingChain={msg.thinkingChain} isExpanded={false} />
+                      <ThinkingChain 
+                        thinkingChain={msg.thinkingChain} 
+                        isExpanded={msg.isTyping} // Auto-expand while processing
+                      />
                     </div>
                   )}
                   
