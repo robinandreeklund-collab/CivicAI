@@ -14124,18 +14124,20 @@ Exempel:
                         # Import api_selector functions
                         from api_selector import fetch_apis_parallel
                         
-                        # Load API catalog with $ref resolution
-                        full_api_catalog = load_api_catalog()
+                        # Use the character_api that was built earlier (filtered for personality)
+                        # Read it from runtime/character_api.json
+                        runtime_dir = PROJECT_ROOT / "runtime"
+                        character_api_path = runtime_dir / "character_api.json"
                         
-                        if full_api_catalog:
-                            # Use the resolved catalog
-                            api_categories = full_api_catalog.get('api_catalog', {})
+                        if character_api_path.exists():
+                            with open(character_api_path, 'r', encoding='utf-8') as f:
+                                character_api = json.load(f)
                             
-                            # Fetch APIs in parallel
+                            # Fetch APIs in parallel using character_api
                             api_selection_dict = {"apis": selected_apis}
                             api_results = await fetch_apis_parallel(
                                 api_selection_dict,
-                                api_categories,
+                                character_api,
                                 max_concurrent=5
                             )
                             print(f"✅ API fetch complete: {len(api_results)} results received")
@@ -14178,7 +14180,7 @@ Exempel:
                                 logger.info(f"📊 [API-DATA] Fetched data from {len(api_results)} APIs")
                                 print(f"   API data context length: {len(api_data_context)} characters")
                         else:
-                            print(f"⚠️ api_catalog.json not found, skipping API fetch")
+                            print(f"⚠️ character_api.json not found, skipping API fetch")
                     except ImportError as e:
                         print(f"⚠️ API selector not available (import failed), skipping API fetch: {e}")
                     except Exception as e:
