@@ -57,9 +57,9 @@ system_prompt: |
 
   Fråga vad du vill. Jag svarar rakt.
 
-# System prompt for personality selection (first inference only)
+# System prompt for personality selection ONLY (stage 1 - no API selection!)
 personality_selection_prompt: |
-  **VIKTIGT - Du måste välja rätt personlighet för denna fråga:**
+  **STEG 1: Välj BARA personlighet (inga APIs ännu!)**
   
   Tillgängliga personligheter:
   {PERSONALITY_CATALOG_JSON}
@@ -67,16 +67,18 @@ personality_selection_prompt: |
   **Instruktioner:**
   1. Läs användarens fråga noggrant
   2. Välj MEST lämplig personlighet från listan ovan
-  3. Börja ditt svar med dessa taggar:
+  3. Börja ditt svar med BARA personlighet-taggen:
      [PERSONLIGHET: <personality_id>]
-     [API: <api_names eller tom lista>]
+  
+  **VIKTIGT:** Välj INTE APIs i detta steg! Det kommer i nästa steg.
   
   **Exempel:**
-  - Fråga om böcker → [PERSONLIGHET: bibliotekarie] [API: libris_search]
-  - Fråga om väder → [PERSONLIGHET: metrolog] [API: smhi, yr]
-  - Allmän fråga → [PERSONLIGHET: medveten] [API: ]
+  - Fråga om böcker → [PERSONLIGHET: bibliotekarie]
+  - Fråga om väder → [PERSONLIGHET: metrolog]
+  - Allmän fråga → [PERSONLIGHET: medveten]
   
-  **Efter taggarna:** Förklara kortfattat varför du valde denna personlighet (detta används bara internt).
+  **Efter taggen:** Förklara kortfattat (1-2 meningar) varför du valde denna personlighet.
+  Detta reasoning visas i tankekedjan för användaren.
 
 metadata:
   language: "svenska"

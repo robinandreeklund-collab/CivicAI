@@ -13537,6 +13537,82 @@ def parse_personality_and_api_tags(text: str) -> tuple:
     return personality_id, api_list, clean_text
 
 
+def parse_personality_response(text: str) -> tuple:
+    """
+    Parse [PERSONLIGHET: xxx] tag from stage 1 response (personality selection only).
+    
+    Args:
+        text: Model's response from stage 1
+        
+    Returns:
+        tuple: (personality_id, reasoning)
+        - personality_id: str or None - extracted personality ID
+        - reasoning: str - model's explanation (for thinking chain)
+    
+    Example:
+        >>> parse_personality_response("[PERSONLIGHET: bibliotekarie]\\nFrågan handlar om böcker...")
+        ('bibliotekarie', 'Frågan handlar om böcker...')
+    """
+    import re
+    
+    personality_id = None
+    reasoning = text
+    
+    # Parse [PERSONLIGHET: xxx]
+    personality_match = re.search(r'\[PERSONLIGHET:\s*([^\]]+)\]', text, re.IGNORECASE)
+    if personality_match:
+        personality_id = personality_match.group(1).strip().lower()
+        # Remove tag from text to get reasoning
+        reasoning = re.sub(r'\[PERSONLIGHET:[^\]]+\]', '', text, flags=re.IGNORECASE).strip()
+    
+    return personality_id, reasoning
+
+
+def parse_api_selection_response(text: str) -> tuple:
+    """
+    Parse JSON API selection from stage 2 response.
+    
+    Args:
+        text: Model's response from stage 2 containing JSON + reasoning
+        
+    Returns:
+        tuple: (api_selection_dict, reasoning)
+        - api_selection_dict: dict with {"apis": [...]}
+        - reasoning: str - model's explanation (for thinking chain)
+    
+    Expected format:
+        {"apis": [{"name": "smhi", "params": {"lon": "14.28", "lat": "58.30"}}]}
+        Reasoning: För att ge exakt väderförutsägelse i Hjo behöver jag SMHI:s data...
+    """
+    import re
+    import json
+    
+    api_selection = {"apis": []}
+    reasoning = ""
+    
+    # Try to find JSON block
+    json_match = re.search(r'\{[^{}]*"apis"[^{}]*\[[^\]]*\][^{}]*\}', text, re.DOTALL)
+    if json_match:
+        try:
+            api_selection = json.loads(json_match.group(0))
+            # Everything after JSON is reasoning
+            reasoning_start = json_match.end()
+            reasoning = text[reasoning_start:].strip()
+            # Remove common prefixes
+            reasoning = re.sub(r'^(Reasoning:|Förklaring:)\s*', '', reasoning, flags=re.IGNORECASE)
+        except json.JSONDecodeError:
+            # Fallback: extract API names from text
+            api_names = re.findall(r'"name":\s*"([^"]+)"', text)
+            if api_names:
+                api_selection = {"apis": [{"name": name, "params": {}} for name in api_names]}
+            reasoning = text
+    else:
+        # No JSON found, use the whole text as reasoning
+        reasoning = text
+    
+    return api_selection, reasoning
+
+
 async def generate_sse_tokens(
     text: str,
     max_length: int = 512,
