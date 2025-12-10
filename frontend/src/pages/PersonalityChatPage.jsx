@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { Send, Loader } from 'lucide-react';
 import ThinkingChain, { LiveThinkingIndicator } from '../components/ThinkingChain';
 import PersonalitySelector from '../components/PersonalitySelector';
+import { sendPersonalityMessageViaWebSocket, isWebSocketSupported } from '../services/personalityWebSocket';
 import { sendPersonalityChatMessage } from '../services/chat';
 
 export default function PersonalityChatPage() {
@@ -16,6 +17,7 @@ export default function PersonalityChatPage() {
   const [question, setQuestion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [currentThinkingStep, setCurrentThinkingStep] = useState(null);
+  const [liveThinkingChain, setLiveThinkingChain] = useState([]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,28 +36,73 @@ export default function PersonalityChatPage() {
     setMessages(prev => [...prev, userMessage]);
     setQuestion('');
     setIsLoading(true);
-    setCurrentThinkingStep('Analyserar frågan...');
+    setCurrentThinkingStep('[tänker...] Analyserar frågan...');
+    setLiveThinkingChain([]);
 
     try {
-      // Call personality-based inference
-      const response = await sendPersonalityChatMessage(userQuestion, {
-        streamThinking: true,
-      });
+      // Use WebSocket if supported, otherwise fall back to REST API
+      if (isWebSocketSupported()) {
+        await sendPersonalityMessageViaWebSocket(userQuestion, {
+          onThinking: (thinkingStep) => {
+            // Update current thinking step display
+            setCurrentThinkingStep(thinkingStep.message);
+            
+            // Add to live thinking chain
+            setLiveThinkingChain(prev => [...prev, thinkingStep]);
+          },
+          onFinal: (response) => {
+            // Add AI response
+            const aiMessage = {
+              type: 'ai',
+              content: response.response,
+              timestamp: new Date().toISOString(),
+              personality: response.personality,
+              thinkingChain: response.thinking_chain || [],
+              apiData: response.api_data || [],
+              tokens: response.tokens,
+              latency_ms: response.latency_ms,
+            };
+            
+            setMessages(prev => [...prev, aiMessage]);
+            setCurrentThinkingStep(null);
+            setLiveThinkingChain([]);
+            setIsLoading(false);
+          },
+          onError: (errorMessage) => {
+            const errorMsg = {
+              type: 'error',
+              content: `Fel: ${errorMessage}`,
+              timestamp: new Date().toISOString(),
+            };
+            
+            setMessages(prev => [...prev, errorMsg]);
+            setCurrentThinkingStep(null);
+            setLiveThinkingChain([]);
+            setIsLoading(false);
+          }
+        });
+      } else {
+        // Fallback to REST API
+        const response = await sendPersonalityChatMessage(userQuestion, {
+          streamThinking: true,
+        });
 
-      // Add AI response
-      const aiMessage = {
-        type: 'ai',
-        content: response.response,
-        timestamp: new Date().toISOString(),
-        personality: response.personality,
-        thinkingChain: response.thinking_chain || [],
-        apiData: response.api_data || [],
-        tokens: response.tokens,
-        latency_ms: response.latency_ms,
-      };
-      
-      setMessages(prev => [...prev, aiMessage]);
-      setCurrentThinkingStep(null);
+        // Add AI response
+        const aiMessage = {
+          type: 'ai',
+          content: response.response,
+          timestamp: new Date().toISOString(),
+          personality: response.personality,
+          thinkingChain: response.thinking_chain || [],
+          apiData: response.api_data || [],
+          tokens: response.tokens,
+          latency_ms: response.latency_ms,
+        };
+        
+        setMessages(prev => [...prev, aiMessage]);
+        setCurrentThinkingStep(null);
+        setIsLoading(false);
+      }
     } catch (error) {
       console.error('Error:', error);
       
@@ -67,7 +114,7 @@ export default function PersonalityChatPage() {
       
       setMessages(prev => [...prev, errorMessage]);
       setCurrentThinkingStep(null);
-    } finally {
+      setLiveThinkingChain([]);
       setIsLoading(false);
     }
   };

@@ -31,7 +31,7 @@ except (ImportError, AttributeError):
 # ==============================
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Request, APIRouter
+from fastapi import FastAPI, HTTPException, Request, APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 import asyncio
@@ -12585,6 +12585,355 @@ async def personality_based_inference(request: Request, inference_request: Perso
         import traceback
         logger.error(f"Traceback:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# ONESEEK Δ+ v6.2: PERSONALITY-BASED INFERENCE WITH WEBSOCKET STREAMING
+# =============================================================================
+
+@app.websocket("/ws/personality")
+async def websocket_personality_inference(websocket: WebSocket):
+    """
+    WebSocket endpoint for personality-based inference with real-time streaming.
+    
+    Sends progressive updates for each step:
+    1. Analyzing query...
+    2. Selected personality: [name]
+    3. Building API map...
+    4. Selecting APIs...
+    5. Fetching real-time data...
+    6. Building final response...
+    7. Final response
+    
+    Message format:
+    {
+        "type": "thinking" | "final" | "error",
+        "step": "analyzing" | "personality_selected" | "api_map_created" | ...,
+        "message": "[tänker...] Swedish message",
+        "data": {...}  // Optional metadata
+    }
+    """
+    await websocket.accept()
+    
+    # Check if required modules are available
+    if not PERSONALITY_SELECTOR_AVAILABLE or not API_SELECTOR_AVAILABLE:
+        await websocket.send_json({
+            "type": "error",
+            "message": "Personality selector or API selector module not available"
+        })
+        await websocket.close()
+        return
+    
+    try:
+        # Receive initial request
+        request_data = await websocket.receive_json()
+        
+        user_query = request_data.get('text', '')
+        max_length = request_data.get('max_length', 512)
+        temperature = request_data.get('temperature', 0.7)
+        override_personality_id = request_data.get('override_personality', None)
+        history = request_data.get('history', None)
+        
+        if not user_query or not user_query.strip():
+            await websocket.send_json({
+                "type": "error",
+                "message": "Ingen fråga angiven"
+            })
+            await websocket.close()
+            return
+        
+        start_time = time.time()
+        thinking_chain = []
+        
+        # Step 1: Query received - analyzing
+        await websocket.send_json({
+            "type": "thinking",
+            "step": "analyzing",
+            "message": "[tänker...] Analyserar frågan..."
+        })
+        
+        thinking_chain.append({
+            "step": "received",
+            "message": "Analyserar frågan...",
+            "data": {"query_length": len(user_query)}
+        })
+        
+        # Step 2: Select personality
+        if override_personality_id:
+            logger.info(f"[WS-Personality] Manual override: {override_personality_id}")
+            personality_data = override_personality(override_personality_id)
+            if not personality_data:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": f"Personlighet '{override_personality_id}' hittades inte"
+                })
+                await websocket.close()
+                return
+            personality_id = override_personality_id
+            personality_name = personality_data.get('name', personality_id)
+            confidence = 1.0
+        else:
+            # Automatic selection with embedding matching
+            personality_id, personality_name, confidence, personality_data = select_personality(
+                user_query,
+                boost_recent=True,
+                recent_boost_factor=0.4
+            )
+        
+        logger.info(f"[WS-Personality] Selected: {personality_name} (confidence: {confidence:.3f})")
+        
+        await websocket.send_json({
+            "type": "thinking",
+            "step": "personality_selected",
+            "message": f"[tänker...] Valde personlighet: {personality_name}",
+            "data": {
+                "personality_id": personality_id,
+                "personality_name": personality_name,
+                "confidence": round(confidence, 3)
+            }
+        })
+        
+        thinking_chain.append({
+            "step": "personality_selected",
+            "message": f"Valde personlighet: {personality_name}",
+            "data": {
+                "personality_id": personality_id,
+                "confidence": round(confidence, 3)
+            }
+        })
+        
+        # Step 3: Build API map for selected personality
+        await websocket.send_json({
+            "type": "thinking",
+            "step": "building_api_map",
+            "message": "[tänker...] Bygger API-karta..."
+        })
+        
+        logger.info(f"[WS-Personality] Building API map for {personality_name}...")
+        character_api_map = create_character_api_map(personality_data)
+        
+        api_count = len(character_api_map.get('api_categories', {}))
+        thinking_chain.append({
+            "step": "api_map_created",
+            "message": f"Skapade API-karta med {api_count} kategorier",
+            "data": {"api_categories": api_count}
+        })
+        
+        # Step 4: Ask model to select APIs (if any available)
+        api_results = []
+        if api_count > 0:
+            await websocket.send_json({
+                "type": "thinking",
+                "step": "selecting_apis",
+                "message": "[tänker...] Väljer API:er..."
+            })
+            
+            thinking_chain.append({
+                "step": "selecting_apis",
+                "message": "Väljer vilka API:er som behövs...",
+                "data": {}
+            })
+            
+            # Create prompt for API selection
+            api_selection_prompt = create_api_selection_prompt(user_query, character_api_map)
+            
+            # Call model to get API selection (using llama-server if available)
+            if USING_LLAMA_SERVER:
+                try:
+                    server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                    payload = {
+                        "messages": [
+                            {"role": "system", "content": "Du är OneSeek-7B-Zero och väljer API:er baserat på användarens fråga."},
+                            {"role": "user", "content": api_selection_prompt}
+                        ],
+                        "max_tokens": 256,
+                        "temperature": 0.3,  # Low temperature for structured output
+                        "stop": ["\n\n", "Användare:"],
+                    }
+                    
+                    response = requests.post(
+                        f"{server_url}/v1/chat/completions",
+                        json=payload,
+                        timeout=30,
+                    )
+                    response.raise_for_status()
+                    result = response.json()
+                    
+                    if 'choices' in result and len(result['choices']) > 0:
+                        api_selection_text = result['choices'][0].get('message', {}).get('content', '')
+                    else:
+                        api_selection_text = result.get('content', '')
+                    
+                    logger.info(f"[WS-Personality] Model API selection: {api_selection_text[:200]}...")
+                    
+                    # Parse API selection (synchronous function)
+                    api_selection = parse_api_selection(api_selection_text)
+                    
+                    if api_selection and api_selection.get('apis'):
+                        selected_apis = api_selection.get('apis', [])
+                        thinking_chain.append({
+                            "step": "apis_selected",
+                            "message": f"Valde {len(selected_apis)} API:er",
+                            "data": {"apis": [api.get('name') for api in selected_apis]}
+                        })
+                        
+                        # Step 5: Fetch data from APIs in parallel
+                        await websocket.send_json({
+                            "type": "thinking",
+                            "step": "fetching_data",
+                            "message": "[tänker...] Hämtar realtidsdata..."
+                        })
+                        
+                        thinking_chain.append({
+                            "step": "fetching_data",
+                            "message": "Hämtar realtidsdata...",
+                            "data": {}
+                        })
+                        
+                        api_results = await fetch_apis_parallel(
+                            api_selection,
+                            character_api_map
+                        )
+                        
+                        successful_apis = [r for r in api_results if r.get('success')]
+                        thinking_chain.append({
+                            "step": "data_fetched",
+                            "message": f"Hämtade data från {len(successful_apis)}/{len(api_results)} API:er",
+                            "data": {"successful": len(successful_apis), "total": len(api_results)}
+                        })
+                    else:
+                        thinking_chain.append({
+                            "step": "no_apis_needed",
+                            "message": "Inga API:er behövs för denna fråga",
+                            "data": {}
+                        })
+                    
+                except Exception as e:
+                    logger.error(f"[WS-Personality] API selection error: {e}")
+                    thinking_chain.append({
+                        "step": "api_selection_error",
+                        "message": "Kunde inte välja API:er, fortsätter utan externa data",
+                        "data": {"error": str(e)}
+                    })
+        
+        # Step 6: Generate final response with personality + data
+        await websocket.send_json({
+            "type": "thinking",
+            "step": "generating_response",
+            "message": "[tänker...] Bygger slutligt svar..."
+        })
+        
+        thinking_chain.append({
+            "step": "generating_response",
+            "message": "Bygger svar...",
+            "data": {}
+        })
+        
+        # Build final prompt with personality and API data
+        personality_prompt = personality_data.get('prompt', '')
+        api_data_str = format_api_data_for_model(api_results) if api_results else ""
+        
+        # Build time context
+        now = datetime.now()
+        weekday_map = {0: "måndag", 1: "tisdag", 2: "onsdag", 3: "torsdag", 4: "fredag", 5: "lördag", 6: "söndag"}
+        day_name = weekday_map.get(now.weekday(), "")
+        time_context = f"Idag är det {day_name} {now.day} {['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'][now.month-1]} {now.year}, klockan {now.strftime('%H:%M')}."
+        
+        # Combine system prompt
+        final_system_prompt = f"""{personality_prompt}
+
+[Aktuell tid] {time_context}"""
+        
+        if api_data_str:
+            final_system_prompt += f"\n\n[Realtidsdata från API:er]\n{api_data_str}"
+        
+        # Generate final response
+        if USING_LLAMA_SERVER:
+            server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+            
+            # Build conversation history
+            messages = [
+                {"role": "system", "content": final_system_prompt}
+            ]
+            
+            # Add history if provided
+            if history:
+                messages.extend(history)
+            
+            # Add current query
+            messages.append({"role": "user", "content": user_query})
+            
+            payload = {
+                "messages": messages,
+                "max_tokens": max_length,
+                "temperature": temperature,
+                "stop": ["</s>", "[/INST]", "User:", "\n\nUser:", "Användare:"],
+            }
+            
+            response = requests.post(
+                f"{server_url}/v1/chat/completions",
+                json=payload,
+                timeout=120,
+            )
+            response.raise_for_status()
+            result = response.json()
+            
+            if 'choices' in result and len(result['choices']) > 0:
+                final_response = result['choices'][0].get('message', {}).get('content', '')
+            else:
+                final_response = result.get('content', '')
+            
+            final_response = final_response.strip()
+        else:
+            # Fallback: simple response if no llama-server
+            final_response = f"[Personality: {personality_name}] Response för: {user_query}"
+        
+        # Calculate latency
+        latency_ms = (time.time() - start_time) * 1000
+        tokens = len(final_response.split())
+        
+        # Send final response
+        await websocket.send_json({
+            "type": "final",
+            "response": final_response,
+            "model": "oneseek-7b-zero",
+            "tokens": tokens,
+            "latency_ms": latency_ms,
+            "personality": {
+                "id": personality_id,
+                "name": personality_name,
+                "confidence": round(confidence, 3),
+                "prompt": personality_prompt[:200] + "..." if len(personality_prompt) > 200 else personality_prompt
+            },
+            "thinking_chain": thinking_chain,
+            "api_data": [{
+                "api": r.get('api_name'),
+                "source": r.get('source'),
+                "success": r.get('success'),
+                "data": r.get('data') if r.get('success') else None,
+                "error": r.get('error')
+            } for r in api_results] if api_results else None
+        })
+        
+        await websocket.close()
+        
+    except WebSocketDisconnect:
+        logger.info("[WS-Personality] Client disconnected")
+    except Exception as e:
+        logger.error(f"[WS-Personality] Error: {e}")
+        import traceback
+        logger.error(f"Traceback:\n{traceback.format_exc()}")
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": str(e)
+            })
+        except:
+            pass
+        try:
+            await websocket.close()
+        except:
+            pass
 
 
 @app.post("/inference/llama", response_model=InferenceResponse)
