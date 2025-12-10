@@ -13663,7 +13663,7 @@ Exempel:
                         )
                     
                     model_response = generate_with_llama_server(
-                        system_prompt=personality_selection_system_prompt,
+                        prompt=personality_selection_system_prompt,
                         user_message=text,
                         max_tokens=300,
                         temperature=0.1
