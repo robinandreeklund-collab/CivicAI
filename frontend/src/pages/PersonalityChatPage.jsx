@@ -235,7 +235,16 @@ export default function PersonalityChatPage() {
           {/* Live thinking indicator */}
           {isLoading && currentThinkingStep && (
             <div className="flex justify-start">
-              <LiveThinkingIndicator currentStep={currentThinkingStep} />
+              <div className="max-w-3xl">
+                <LiveThinkingIndicator currentStep={currentThinkingStep} />
+                
+                {/* Show live thinking chain as it builds */}
+                {liveThinkingChain.length > 0 && (
+                  <div className="mt-2">
+                    <ThinkingChain thinkingChain={liveThinkingChain} isExpanded={true} />
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

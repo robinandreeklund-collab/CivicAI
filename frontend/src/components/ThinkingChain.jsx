@@ -124,7 +124,7 @@ export function LiveThinkingIndicator({ currentStep = null }) {
     <div className="flex items-center gap-2 py-2 px-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
       <Loader className="w-4 h-4 animate-spin text-blue-500" />
       <span className="text-sm text-blue-700 dark:text-blue-300">
-        [tänker...] {currentStep}
+        {currentStep}
       </span>
     </div>
   );
