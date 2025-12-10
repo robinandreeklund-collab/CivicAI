@@ -13182,8 +13182,9 @@ async def generate_sse_tokens(
                 
                 selected_personality = select_personality(text, history)
                 if selected_personality:
-                    thinking_steps.append({"step": "personality", "message": f"Valde personlighet: {selected_personality['name']}"})
-                    yield f"event: thinking\ndata: {json.dumps({'step': 'personality', 'personality': selected_personality['name'], 'message': f\"Valde personlighet: {selected_personality['name']}\"})}\n\n"
+                    personality_msg = f"Valde personlighet: {selected_personality['name']}"
+                    thinking_steps.append({"step": "personality", "message": personality_msg})
+                    yield f"event: thinking\ndata: {json.dumps({'step': 'personality', 'personality': selected_personality['name'], 'message': personality_msg})}\n\n"
                     logger.info(f"🎭 [STREAM-PERSONALITY] Selected: {selected_personality['name']} (score: {selected_personality.get('score', 0):.2f})")
             except Exception as e:
                 logger.warning(f"🎭 [STREAM-PERSONALITY] Selection failed, using default: {e}")
