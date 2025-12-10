@@ -428,7 +428,7 @@ try:
         get_current_personality,
         reset_personality,
         load_personality_catalog,
-        load_api_catalog
+        load_api_catalog as load_api_catalog_with_refs
     )
     PERSONALITY_SELECTOR_AVAILABLE = True
 except ImportError:
@@ -440,7 +440,7 @@ except ImportError:
             get_current_personality,
             reset_personality,
             load_personality_catalog,
-            load_api_catalog
+            load_api_catalog as load_api_catalog_with_refs
         )
         PERSONALITY_SELECTOR_AVAILABLE = True
     except ImportError:
@@ -451,7 +451,7 @@ except ImportError:
         get_current_personality = None
         reset_personality = None
         load_personality_catalog = None
-        load_api_catalog = None
+        load_api_catalog_with_refs = None
 
 try:
     from .api_selector import (
@@ -2066,11 +2066,12 @@ def load_api_catalog() -> dict:
     """
     Load API catalog and active features from config/api_catalog.json.
     
-    ONESEEK Δ+ v4.0: This is the new central configuration that:
+    ONESEEK Δ+ v4.0/v7.0: This loads the catalog with $ref resolution support
     - Disables Intent Engine by default
     - Disables Typo Checker by default
     - Keeps Time Context always active
-    - Provides 31+ categorized Swedish APIs for model-driven selection
+    - Provides categorized Swedish APIs for model-driven selection
+    - Resolves $ref links to external catalog modules (v7.0)
     
     Returns:
         Dict with api_catalog, active_features, and system_prompt
@@ -2079,8 +2080,13 @@ def load_api_catalog() -> dict:
     
     if API_CATALOG_FILE.exists():
         try:
-            with open(API_CATALOG_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+            # Use the personality_selector's load_api_catalog which includes $ref resolution
+            if PERSONALITY_SELECTOR_AVAILABLE and load_api_catalog_with_refs:
+                data = load_api_catalog_with_refs()
+            else:
+                # Fallback to direct load if personality selector not available
+                with open(API_CATALOG_FILE, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
             
             # Load active features (controls Intent Engine, Typo Checker, Time Context)
             active_features = data.get("active_features", DEFAULT_ACTIVE_FEATURES)
@@ -2090,7 +2096,7 @@ def load_api_catalog() -> dict:
                 "time_context": active_features.get("time_context", True)
             }
             
-            # Load API catalog
+            # Load API catalog (now with $ref resolution)
             API_CATALOG = data.get("api_catalog", {})
             
             # Load system prompt if present
@@ -13547,7 +13553,7 @@ async def generate_personality_response(
         personality_match = personality_id.replace("oneseek-", "").replace("-", "")
         
         # Load API catalog with $ref resolution
-        full_api_catalog = load_api_catalog()
+        full_api_catalog = load_api_catalog_with_refs() if load_api_catalog_with_refs else {}
         print(f"   Loaded catalog: version={full_api_catalog.get('version')}, categories={list(full_api_catalog.get('api_catalog', {}).keys())}")
         
         filtered_categories = {}
@@ -13946,7 +13952,7 @@ Exempel:
                         
                         try:
                             # Load full API catalog with $ref resolution
-                            full_api_catalog = load_api_catalog()
+                            full_api_catalog = load_api_catalog_with_refs() if load_api_catalog_with_refs else {}
                             print(f"   Loaded catalog: version={full_api_catalog.get('version')}, categories={list(full_api_catalog.get('api_catalog', {}).keys())}")
                             
                             if full_api_catalog:
