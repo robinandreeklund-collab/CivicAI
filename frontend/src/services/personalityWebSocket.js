@@ -77,34 +77,42 @@ export async function sendPersonalityMessageViaWebSocket(message, options = {}) 
             ws.close();
             resolve(data);
           } else if (data.type === 'error') {
-            // Error
+            // Error from server
             onError(data.message);
             ws.close();
-            reject(new Error(data.message));
+            // Resolve instead of reject to allow fallback
+            resolve(null);
           }
         } catch (e) {
           console.error('[PersonalityWS] Error parsing message:', e);
           onError('Failed to parse server message');
+          ws.close();
+          // Resolve instead of reject to allow fallback
+          resolve(null);
         }
       };
 
       ws.onerror = (error) => {
         console.error('[PersonalityWS] WebSocket error:', error);
         onError('WebSocket connection error');
-        reject(error);
+        // Resolve instead of reject to allow fallback
+        resolve(null);
       };
 
       ws.onclose = (event) => {
         console.log('[PersonalityWS] Connection closed', event.code, event.reason);
         if (event.code !== 1000 && event.code !== 1001) {
-          // Abnormal closure
+          // Abnormal closure - but don't reject, allow fallback
           onError(`Connection closed unexpectedly (code: ${event.code})`);
+          resolve(null);
         }
       };
 
     } catch (error) {
       console.error('[PersonalityWS] Error creating WebSocket:', error);
-      reject(error);
+      onError('Failed to establish WebSocket connection');
+      // Resolve instead of reject to allow fallback
+      resolve(null);
     }
   });
 }

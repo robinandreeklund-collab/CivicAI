@@ -1241,72 +1241,83 @@ export default function SevenBZeroPage() {
       // Try personality-based endpoint first (with thinking chain and automatic API routing)
       if (usePersonalityEndpoint) {
         try {
+          let wsSuccess = false;
+          
           // Use WebSocket for real-time progressive updates if supported
           if (isWebSocketSupported()) {
-            console.log('[7B-Zero] Using WebSocket for personality inference...');
+            console.log('[7B-Zero] Attempting WebSocket for personality inference...');
             
-            await sendPersonalityMessageViaWebSocket(currentQuestion, {
-              onThinking: (thinkingStep) => {
-                // Update AI message with current thinking step
-                setMessages(prev => prev.map(msg => 
-                  msg.id === aiMessageId 
-                    ? { 
-                        ...msg, 
-                        currentThinkingStep: thinkingStep.message,
-                        thinkingChain: [...(msg.thinkingChain || []), thinkingStep],
-                      }
-                    : msg
-                ));
-              },
-              onFinal: (data) => {
-                const responseEndTime = Date.now();
-                const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
-                
-                // Update AI-selected personality from response
-                if (data.personality) {
-                  setAiSelectedPersonality({
-                    id: data.personality.id,
-                    name: data.personality.name || data.personality.id,
-                    description: '',
-                    categories: [],
-                    is_default: false
-                  });
-                  setSelectedPersona(data.personality.id);
-                }
-                
-                const responseText = data.response;
-                if (responseText) {
+            try {
+              const wsResult = await sendPersonalityMessageViaWebSocket(currentQuestion, {
+                onThinking: (thinkingStep) => {
+                  // Update AI message with current thinking step
                   setMessages(prev => prev.map(msg => 
                     msg.id === aiMessageId 
                       ? { 
                           ...msg, 
-                          responseTime: finalResponseTime,
-                          confidence: data.personality?.confidence || 0.85,
-                          version: data.model || 'OneSeek-7B-Zero',
-                          thinkingChain: data.thinking_chain || msg.thinkingChain || null,
-                          apiData: data.api_data || null,
-                          tokens: data.tokens,
-                          personality: data.personality,
-                          currentThinkingStep: null, // Clear thinking step
+                          currentThinkingStep: thinkingStep.message,
+                          thinkingChain: [...(msg.thinkingChain || []), thinkingStep],
                         }
                       : msg
                   ));
-                  animateTyping(responseText, aiMessageId);
-                }
-              },
-              onError: (errorMessage) => {
-                console.error('[7B-Zero] WebSocket personality error:', errorMessage);
-                // Fall back to REST
-                throw new Error(errorMessage);
-              },
-              maxTokens: 512,
-              temperature: 0.7,
-            });
-            return; // Success - exit early
+                },
+                onFinal: (data) => {
+                  const responseEndTime = Date.now();
+                  const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
+                  
+                  // Update AI-selected personality from response
+                  if (data.personality) {
+                    setAiSelectedPersonality({
+                      id: data.personality.id,
+                      name: data.personality.name || data.personality.id,
+                      description: '',
+                      categories: [],
+                      is_default: false
+                    });
+                    setSelectedPersona(data.personality.id);
+                  }
+                  
+                  const responseText = data.response;
+                  if (responseText) {
+                    setMessages(prev => prev.map(msg => 
+                      msg.id === aiMessageId 
+                        ? { 
+                            ...msg, 
+                            responseTime: finalResponseTime,
+                            confidence: data.personality?.confidence || 0.85,
+                            version: data.model || 'OneSeek-7B-Zero',
+                            thinkingChain: data.thinking_chain || msg.thinkingChain || null,
+                            apiData: data.api_data || null,
+                            tokens: data.tokens,
+                            personality: data.personality,
+                            currentThinkingStep: null, // Clear thinking step
+                          }
+                        : msg
+                    ));
+                    animateTyping(responseText, aiMessageId);
+                  }
+                },
+                onError: (errorMessage) => {
+                  console.log('[7B-Zero] WebSocket not available:', errorMessage);
+                  // Will fall back to REST below
+                },
+                maxTokens: 512,
+                temperature: 0.7,
+              });
+              
+              // Check if WebSocket succeeded (result will be null if error occurred)
+              if (wsResult !== null) {
+                return; // Success - exit early
+              } else {
+                console.log('[7B-Zero] WebSocket did not complete successfully, falling back to REST');
+              }
+            } catch (wsError) {
+              console.log('[7B-Zero] WebSocket failed, falling back to REST:', wsError.message);
+            }
           }
           
-          // Fallback to REST API if WebSocket not supported
-          console.log('[7B-Zero] Using REST API for personality inference (WebSocket not supported)...');
+          // Fallback to REST API if WebSocket not supported or failed
+          console.log('[7B-Zero] Using REST API for personality inference...');
           response = await fetch('/api/inference/personality', {
             method: 'POST',
             headers: {
