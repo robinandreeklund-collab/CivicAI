@@ -13605,7 +13605,9 @@ async def generate_sse_tokens(
                 personality_catalog_path = PROJECT_ROOT / "config/personality_catalog.json"
                 if personality_catalog_path.exists():
                     with open(personality_catalog_path, 'r', encoding='utf-8') as f:
-                        personality_catalog = json.load(f)
+                        catalog_data = json.load(f)
+                    # Extract the personality_catalog dict from the JSON structure
+                    personality_catalog = catalog_data.get('personality_catalog', {})
                     print(f"✅ Loaded {len(personality_catalog)} personalities from catalog")
                 else:
                     print(f"❌ personality_catalog.json not found")
@@ -13689,11 +13691,11 @@ Exempel:
                     
                     if parsed_personality_id:
                         personality_id = parsed_personality_id
-                        # Find personality data from catalog
+                        # Find personality data from catalog (dict of {id: data})
                         personality_data = None
                         personality_name = None
-                        for p in personality_catalog:
-                            if p.get('id', '').lower() == personality_id.lower():
+                        for pid, p in personality_catalog.items():
+                            if pid.lower() == personality_id.lower():
                                 personality_data = p
                                 personality_name = p.get('name', personality_id.title())
                                 break
