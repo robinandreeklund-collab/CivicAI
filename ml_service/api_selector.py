@@ -127,13 +127,28 @@ async def call_api(
             logger.error(result['error'])
             return result
         
-        # Make API call
-        logger.info(f"Calling API: {api_name} with params: {params}")
+        # Check if URL is a template (has placeholders like {lon}, {lat})
+        is_template = api_config.get('url_template', False) or ('{' in api_url and '}' in api_url)
         
+        if is_template:
+            # Replace placeholders in URL with actual parameter values
+            try:
+                api_url = api_url.format(**params)
+                logger.info(f"Calling API: {api_name} with templated URL: {api_url}")
+                params_to_send = {}  # No query parameters needed for templated URLs
+            except KeyError as e:
+                result['error'] = f"Missing required parameter {e} for URL template"
+                logger.error(result['error'])
+                return result
+        else:
+            logger.info(f"Calling API: {api_name} with params: {params}")
+            params_to_send = params
+        
+        # Make API call
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 api_url,
-                params=params,
+                params=params_to_send,
                 timeout=aiohttp.ClientTimeout(total=timeout)
             ) as response:
                 if response.status == 200:
