@@ -25,17 +25,48 @@ function ThinkingStepItem({ step, index }) {
     }
   };
 
+  // Get step title based on step type
+  const getStepTitle = () => {
+    if (step.step === 'personality_selection') {
+      return `Steg 1 - Valde personlighet: ${step.personality || 'Okänd'}`;
+    } else if (step.step === 'api_selection') {
+      const apiList = step.apis ? step.apis.join(', ') : 'Inga APIs';
+      return `Steg 2 - Valde API: ${apiList}`;
+    } else if (step.step === 'final_answer_start' || step.step === 'final_answer') {
+      return 'Steg 3 - Slutligt svar';
+    } else {
+      return step.message || 'Bearbetar...';
+    }
+  };
+
   return (
-    <div className="flex items-start gap-3 py-2 px-3 hover:bg-[#151515] dark:hover:bg-[#151515] transition-colors">
+    <div className="flex items-start gap-3 py-3 px-4 hover:bg-[#151515] dark:hover:bg-[#151515] transition-colors border-b border-[#1a1a1a] dark:border-[#1a1a1a] last:border-0">
       <div className="mt-0.5">
         {getStepIcon()}
       </div>
       <div className="flex-1">
-        <p className="text-sm text-[#ccc] dark:text-[#ccc]">
-          {step.message}
+        <p className="text-sm font-medium text-[#ddd] dark:text-[#ddd]">
+          {getStepTitle()}
         </p>
+        
+        {/* Display reasoning if available (from three-stage pipeline) */}
+        {step.reasoning && (
+          <div className="mt-2 text-sm text-[#888] dark:text-[#888] italic pl-4 border-l-2 border-[#333] dark:border-[#333]">
+            <span className="text-[#999] dark:text-[#999] font-medium">Reasoning: </span>
+            {step.reasoning}
+          </div>
+        )}
+        
+        {/* Legacy: display message if no reasoning */}
+        {!step.reasoning && step.message && step.step !== 'personality_selection' && step.step !== 'api_selection' && (
+          <p className="mt-1 text-xs text-[#777] dark:text-[#777]">
+            {step.message}
+          </p>
+        )}
+        
+        {/* Display data if available (legacy compatibility) */}
         {step.data && Object.keys(step.data).length > 0 && (
-          <div className="mt-1 text-xs text-[#888] dark:text-[#888] font-mono bg-[#151515] dark:bg-[#151515] p-2 rounded overflow-auto max-h-32 border border-[#222]">
+          <div className="mt-2 text-xs text-[#888] dark:text-[#888] font-mono bg-[#151515] dark:bg-[#151515] p-2 rounded overflow-auto max-h-32 border border-[#222]">
             {/* Display as read-only JSON. Data comes from backend and is not user-controlled. */}
             <pre className="whitespace-pre-wrap break-words">
               {JSON.stringify(step.data, null, 2)}
