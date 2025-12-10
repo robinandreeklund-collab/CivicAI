@@ -13169,7 +13169,8 @@ async def generate_sse_tokens(
     """
     start_time = time.time()
     tokens_sent = 0
-    selected_personality = None
+    personality_name = None
+    personality_data = None
     thinking_steps = []
     
     try:
@@ -13180,18 +13181,19 @@ async def generate_sse_tokens(
                 thinking_steps.append({"step": "analyzing", "message": "Analyserar frågan..."})
                 yield f"event: thinking\ndata: {json.dumps({'step': 'analyzing', 'message': 'Analyserar frågan...'})}\n\n"
                 
-                selected_personality = select_personality(text, history)
-                if selected_personality:
-                    personality_msg = f"Valde personlighet: {selected_personality['name']}"
+                # select_personality returns tuple: (personality_id, personality_name, confidence_score, personality_data)
+                personality_id, personality_name, confidence_score, personality_data = select_personality(text, history)
+                if personality_data:
+                    personality_msg = f"Valde personlighet: {personality_name}"
                     thinking_steps.append({"step": "personality", "message": personality_msg})
-                    yield f"event: thinking\ndata: {json.dumps({'step': 'personality', 'personality': selected_personality['name'], 'message': personality_msg})}\n\n"
-                    logger.info(f"🎭 [STREAM-PERSONALITY] Selected: {selected_personality['name']} (score: {selected_personality.get('score', 0):.2f})")
+                    yield f"event: thinking\ndata: {json.dumps({'step': 'personality', 'personality': personality_name, 'message': personality_msg})}\n\n"
+                    logger.info(f"🎭 [STREAM-PERSONALITY] Selected: {personality_name} (score: {confidence_score:.2f})")
             except Exception as e:
                 logger.warning(f"🎭 [STREAM-PERSONALITY] Selection failed, using default: {e}")
         
         # Get the active system prompt (will be overridden by personality if selected)
-        if selected_personality and selected_personality.get('system_prompt'):
-            system_prompt = selected_personality['system_prompt']
+        if personality_data and personality_data.get('system_prompt'):
+            system_prompt = personality_data['system_prompt']
             logger.info(f"🎭 [STREAM-PERSONALITY] Using personality system prompt")
         else:
             system_prompt = get_active_system_prompt()
@@ -13279,11 +13281,11 @@ async def generate_sse_tokens(
                     "model": "llama-server",
                     "backend": "llama-server.exe",
                     "thinking_chain": thinking_chain,
-                    "personality": selected_personality if selected_personality else None,
+                    "personality": personality_name if personality_name else None,
                     "thinking_steps": thinking_steps
                 }
                 yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
-                yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': output_tokens, 'personality': selected_personality['name'] if selected_personality else None})}\n\n"
+                yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': output_tokens, 'personality': personality_name if personality_name else None})}\n\n"
                 
                 if thinking_chain:
                     logger.info(f"🧠 [THINKING] Extracted thinking chain from llama-server ({len(thinking_chain)} chars)")
