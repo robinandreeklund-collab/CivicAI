@@ -62,8 +62,11 @@ export default function ThinkingChain({ thinkingChain = [], isExpanded = false, 
   };
 
   if (!thinkingChain || thinkingChain.length === 0) {
+    console.log('[ThinkingChain] No thinking chain data to display');
     return null;
   }
+
+  console.log('[ThinkingChain] Rendering with', thinkingChain.length, 'steps:', thinkingChain);
 
   const lastStep = thinkingChain[thinkingChain.length - 1];
   const isProcessing = lastStep?.step === 'received' || 
@@ -71,7 +74,10 @@ export default function ThinkingChain({ thinkingChain = [], isExpanded = false, 
                        lastStep?.step?.includes('ing');
 
   return (
-    <details className="mt-3 rounded-lg overflow-hidden bg-[#0a0a0a] dark:bg-[#0a0a0a] border border-[#222] dark:border-[#222]">
+    <details 
+      open={expanded}
+      className="mt-3 rounded-lg overflow-hidden bg-[#0a0a0a] dark:bg-[#0a0a0a] border border-[#222] dark:border-[#222]"
+    >
       {/* Toggle summary */}
       <summary 
         className="flex items-center justify-between px-4 py-2.5 cursor-pointer hover:bg-[#151515] dark:hover:bg-[#151515] transition-colors list-none"
@@ -103,14 +109,12 @@ export default function ThinkingChain({ thinkingChain = [], isExpanded = false, 
         </div>
       </summary>
 
-      {/* Expanded content */}
-      {expanded && (
-        <div className="bg-[#0a0a0a] dark:bg-[#0a0a0a] divide-y divide-[#1a1a1a] dark:divide-[#1a1a1a] border-t border-[#222]">
-          {thinkingChain.map((step, index) => (
-            <ThinkingStepItem key={index} step={step} index={index} />
-          ))}
-        </div>
-      )}
+      {/* Expanded content - always rendered, visibility controlled by details[open] */}
+      <div className="bg-[#0a0a0a] dark:bg-[#0a0a0a] divide-y divide-[#1a1a1a] dark:divide-[#1a1a1a] border-t border-[#222]">
+        {thinkingChain.map((step, index) => (
+          <ThinkingStepItem key={index} step={step} index={index} />
+        ))}
+      </div>
     </details>
   );
 }
