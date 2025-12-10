@@ -13427,37 +13427,59 @@ Du är {personality_name}.
 Din uppgift är att:
 1. Förstå vad användarens fråga kräver
 2. Extrahera viktiga entity_types (t.ex. stad → koordinater, datum → format)
-3. Välja rätt APIs från din API-karta
+3. Välja rätt APIs från din API-karta baserat på KEYWORDS och DESCRIPTION
 4. Returnera JSON med APIs och parametrar
 
 **Din personlighet:**
 {personality_prompt[:500]}{'...' if len(personality_prompt) > 500 else ''}
 
 **Tillgängliga APIs för dig:**
+
+För varje API, analysera dessa fält noggrant:
+- **name**: API-namn som du ska använda i din JSON-respons
+- **description**: Vad API:t gör och vilken typ av data det ger
+- **keywords**: Nyckelord som matchar mot användarens fråga - VIKTIGT FÖR URVAL!
+- **priority**: Lägre nummer = högre prioritet (0 = viktigast, välj det med lägst nummer om flera matchar)
+- **parameters**: Vilka parametrar API:t kräver (t.ex. lon/lat för platsbaserade APIs)
+- **url**: Endpoint-URL (för din information)
+
 {character_api_json}
 
+**Tips för att välja rätt API:**
+1. **Matcha användarens KEYWORDS** mot API:ernas keywords-lista - detta är viktigast!
+2. Läs API:ernas **description** för att förstå vad de levererar
+3. Välj API med **LÄGST priority** som matchar frågan
+4. Om flera passar, välj det som **bäst matchar användarens INTENT**
+
+**Exempel på keyword-matchning:**
+- Fråga: "vädret imorgon" → matchar keywords ["imorgon", "prognos"] → välj smhi_prognos
+- Fråga: "regnar det NU" → matchar keywords ["nu", "just nu", "aktuellt"] → välj smhi_analys  
+- Fråga: "finns vädervarning" → matchar keywords ["varning", "storm"] → välj smhi_varningar (priority=0!)
+- Fråga: "hur är vädret" (utan tidsangivelse) → välj smhi_prognos (default för allmän väderinfo)
+
 **Instruktioner:**
-1. Analysera frågan noga
+1. Analysera frågan noga - vilka KEYWORDS finns i användarens fråga?
 2. Om frågan innehåller platsnamn (t.ex. "Göteborg", "Hjo"), konvertera till koordinater
 3. Om frågan innehåller datum/tid, formatera korrekt
-4. Välj vilka APIs du behöver från listan ovan
-5. Returnera BARA JSON i detta format:
+4. Jämför användarens keywords med varje APIs keywords-lista
+5. Välj det API som har BÄST keyword-matchning och lägst priority
+6. Returnera BARA JSON i detta format:
 
 {{"apis": [{{"name": "api_name", "params": {{"key": "value"}}}}]}}
 
 Om inga APIs behövs: {{"apis": []}}
 
 **Efter JSON:** Förklara ditt val (2-3 meningar):
-- Varför valde du dessa APIs?
-- Vilka entity_types extraherade du?
-- Hur konverterade du dem?
+- Vilka keywords matchade du?
+- Varför valde du detta specifika API (inte ett annat)?
+- Vilka entity_types extraherade du och hur?
 
 **Exempel:**
 Fråga: "Vad är vädret imorgon i Stockholm?"
 Svar:
-{{"apis": [{{"name": "smhi", "params": {{"lon": "18.07", "lat": "59.33"}}}}]}}
+{{"apis": [{{"name": "smhi_prognos", "params": {{"lon": "18.07", "lat": "59.33"}}}}]}}
 
-Reasoning: För väderprognos i Stockholm behöver jag SMHI:s data. Stockholm ligger på koordinater lat=59.33, lon=18.07 som jag extraherade från platsnamnet.
+Reasoning: Användaren frågade om "imorgon" vilket matchar smhi_prognos keywords ["imorgon", "prognos"]. Inte smhi_analys (för "nu") eller smhi_varningar (för "varning"). Stockholm ligger på koordinater lat=59.33, lon=18.07 som jag extraherade från platsnamnet.
 
 **Nu är det din tur!**
 Användarens fråga: {user_question}
