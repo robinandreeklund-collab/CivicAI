@@ -939,11 +939,23 @@ export default function SevenBZeroPage() {
                 case 'thinking':
                   // Handle thinking step events (personality selection, API fetching, etc.)
                   console.log('[7B-Zero Stream] Thinking:', data.message);
+                  
+                  // Update AI message with current thinking step (live display)
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === aiMessageId 
+                      ? { 
+                          ...msg, 
+                          currentThinkingStep: data.message,
+                          thinkingChain: [...(msg.thinkingChain || []), data],
+                        }
+                      : msg
+                  ));
+                  
                   if (data.step === 'personality' && data.personality) {
                     // Personality selected - update UI
                     console.log(`[7B-Zero Stream] AI selected personality: ${data.personality}`);
+                    setAiSelectedPersonality(data.personality);
                   }
-                  // Thinking steps will be included in metadata's thinking_steps array
                   break;
                   
                 case 'token':
@@ -1040,6 +1052,7 @@ export default function SevenBZeroPage() {
               ...msg, 
               text: formattedFinalText,
               isTyping: false,
+              currentThinkingStep: null, // Clear thinking step when complete
               responseTime: finalResponseTime,
               confidence: metadata?.confidence_score || 0.85,
               version: metadata?.model || 'OneSeek-Δ+ (Streaming)',
@@ -1048,7 +1061,7 @@ export default function SevenBZeroPage() {
               promptTokens: metadata?.prompt_tokens || null,
               outputTokens: metadata?.output_tokens || tokenCount,
               contextWindow: metadata?.context_window || 8192,  // Use actual context window from llama-server
-              thinkingChain: metadata?.thinking_chain || null,
+              thinkingChain: metadata?.thinking_steps || metadata?.thinking_chain || msg.thinkingChain || null,
               personality: metadata?.personality || null,
             }
           : msg
