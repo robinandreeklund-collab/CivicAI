@@ -188,6 +188,9 @@ export default function SevenBZeroPage() {
   // ONESEEK Δ+ v6.2: AI-selected personality (real-time display)
   const [aiSelectedPersonality, setAiSelectedPersonality] = useState(null);
   
+  // Thinking chain state for personality routing
+  const [thinkingChain, setThinkingChain] = useState(null);
+  
   // Load typo check setting from admin
   useEffect(() => {
     const loadTypoCheckSetting = async () => {
