@@ -23,7 +23,7 @@ def parse_api_selection(model_response: str) -> Optional[Dict]:
     Expected format:
     {
         "apis": [
-            {"name": "smhi", "params": {"lon": "17.3", "lat": "60.6"}},
+            {"name": "smhi_current", "params": {"lon": "17.3", "lat": "60.6"}},
             {"name": "yr_no", "params": {"location": "Stockholm"}}
         ]
     }
@@ -102,7 +102,9 @@ async def call_api(
     try:
         # Find API configuration in catalog
         api_config = None
-        for category_data in api_catalog.get('api_categories', {}).values():
+        # Support both 'api_categories' and 'api_catalog' keys for backward compatibility
+        catalog_key = 'api_catalog' if 'api_catalog' in api_catalog else 'api_categories'
+        for category_data in api_catalog.get(catalog_key, {}).values():
             for api in category_data.get('apis', []):
                 if api.get('name') == api_name:
                     api_config = api
@@ -256,7 +258,9 @@ def create_api_selection_prompt(
     """
     # Extract available APIs
     available_apis = []
-    for category_name, category_data in character_api_map.get('api_categories', {}).items():
+    # Support both 'api_categories' and 'api_catalog' keys for backward compatibility
+    catalog_key = 'api_catalog' if 'api_catalog' in character_api_map else 'api_categories'
+    for category_name, category_data in character_api_map.get(catalog_key, {}).items():
         for api in category_data.get('apis', []):
             api_info = {
                 'name': api.get('name'),
