@@ -13544,11 +13544,20 @@ async def generate_sse_tokens(
         # Step 1-2: Select personality using embedding matching
         if PERSONALITY_SELECTOR_AVAILABLE:
             try:
+                print("\n" + "="*80)
+                print("🎭 PERSONALITY PIPELINE START")
+                print("="*80)
+                print(f"📝 User query: {text[:100]}...")
+                
                 thinking_steps.append({"step": "analyzing", "message": "Analyserar frågan..."})
                 yield f"event: thinking\ndata: {json.dumps({'step': 'analyzing', 'message': 'Analyserar frågan...'})}\n\n"
                 
+                print(f"🔍 Step 1: Calling select_personality()...")
                 # select_personality returns tuple: (personality_id, personality_name, confidence_score, personality_data)
                 personality_id, personality_name, confidence_score, personality_data = select_personality(text, history)
+                print(f"✅ Personality selected: {personality_name} (ID: {personality_id}, confidence: {confidence_score:.2f})")
+                print(f"📊 Personality data keys: {list(personality_data.keys()) if personality_data else 'None'}")
+                
                 if personality_data:
                     # DEBUG: Personality selected
                     if debug_enabled:
@@ -13564,10 +13573,14 @@ async def generate_sse_tokens(
                     logger.info(f"🎭 [STREAM-PERSONALITY] Selected: {personality_name} (score: {confidence_score:.2f})")
                     
                     # Step 3: Build character API map filtered by personality tags
+                    print(f"\n🗺️ Step 2: Building character API map...")
+                    print(f"   Checking for tags in personality_data: {personality_data.get('tags', 'NO TAGS FOUND')}")
                     if API_SELECTOR_AVAILABLE and personality_data.get('tags'):
                         from personality_selector import create_character_api_map
                         character_api_map = create_character_api_map(personality_data)
                         api_count = len(character_api_map.get('api_categories', {}))
+                        print(f"✅ Character API map created with {api_count} API categories")
+                        print(f"   API categories: {list(character_api_map.get('api_categories', {}).keys())}")
                         logger.info(f"🗺️ [API-MAP] Created character API map with {api_count} APIs")
                         
                         # DEBUG: API map created
@@ -13583,6 +13596,7 @@ async def generate_sse_tokens(
                             thinking_steps.append({"step": "api_selection", "message": "Väljer relevanta API:er..."})
                             yield f"event: thinking\ndata: {json.dumps({'step': 'api_selection', 'message': 'Väljer relevanta API:er...'})}\n\n"
                             
+                            print(f"\n🤖 Step 3: First inference - asking model to select APIs...")
                             # Create prompt for API selection
                             api_selection_prompt = f"""Du är {personality_name}. Analysera användarens fråga och välj vilka API:er du behöver.
 
@@ -13596,6 +13610,7 @@ Svara ENDAST med JSON i detta format:
 
 Om du inte behöver några API:er, svara: {{"apis": []}}"""
 
+                            print(f"   Prompt length: {len(api_selection_prompt)} characters")
                             # DEBUG: First inference start
                             if debug_enabled:
                                 await debug_client.debug_first_inference_start(
@@ -13607,6 +13622,7 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                             # Call model for API selection (non-streaming)
                             try:
                                 first_inference_start = time.time()
+                                print(f"   Calling generate_with_llama_server (non-streaming)...")
                                 # Call generate_with_llama_server directly (it's in this same file)
                                 api_response = generate_with_llama_server(
                                     system_prompt="Du är en API-väljare. Svara ENDAST med JSON.",
@@ -13615,6 +13631,8 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                                     temperature=0.1
                                 )
                                 first_inference_latency = (time.time() - first_inference_start) * 1000
+                                print(f"✅ First inference complete in {first_inference_latency:.0f}ms")
+                                print(f"   Model response: {api_response[:200]}...")
                                 
                                 # DEBUG: First inference response
                                 if debug_enabled:
@@ -13624,12 +13642,15 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                                         shown_to_user=False  # Should always be False!
                                     )
                                 
+                                print(f"\n📋 Step 4: Parsing API selection from model response...")
                                 # Step 5: Parse API selection and fetch data
                                 # parse_api_selection and fetch_apis_parallel are already imported at top
                                 api_selection = parse_api_selection(api_response)
+                                print(f"   Parsed: {api_selection}")
                                 
                                 if api_selection and api_selection.get('apis'):
                                     selected_apis = api_selection['apis']
+                                    print(f"✅ Model selected {len(selected_apis)} APIs: {[api.get('name') for api in selected_apis]}")
                                     
                                     # DEBUG: API selection parsed
                                     if debug_enabled:
@@ -13641,6 +13662,8 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                                     fetch_msg = f"Hämtar data från {', '.join(api_names)}..."
                                     yield f"event: thinking\ndata: {json.dumps({'step': 'api_fetch', 'message': fetch_msg})}\n\n"
                                     
+                                    print(f"\n🌐 Step 5: Fetching API data in parallel...")
+                                    print(f"   APIs to call: {api_names}")
                                     # DEBUG: API fetch start
                                     if debug_enabled:
                                         await debug_client.debug_api_fetch_start(len(selected_apis), 5)
@@ -13651,11 +13674,15 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                                         character_api_map.get('api_categories', {}),
                                         max_concurrent=5
                                     )
+                                    print(f"✅ API fetch complete: {len(api_results)} results received")
                                     
                                     # Format API data for model context
                                     api_data_parts = []
                                     successful_count = 0
                                     for result in api_results:
+                                        print(f"   - {result['api_name']}: {'✅ Success' if result['success'] else '❌ Failed'}")
+                                        if result.get('error'):
+                                            print(f"     Error: {result['error']}")
                                         # DEBUG: Individual API fetch result
                                         if debug_enabled:
                                             await debug_client.debug_api_fetch_result(
@@ -13671,6 +13698,7 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                                             successful_count += 1
                                             api_data_parts.append(f"\n[Data från {result['api_name']}]:\n{json.dumps(result['data'], indent=2, ensure_ascii=False)}")
                                     
+                                    print(f"   {successful_count}/{len(api_results)} APIs returned data successfully")
                                     # DEBUG: API fetch complete
                                     if debug_enabled:
                                         await debug_client.debug_api_fetch_complete(successful_count, len(api_results))
@@ -13679,24 +13707,42 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                                         api_data_context = "\n".join(api_data_parts)
                                         thinking_steps.append({"step": "api_data", "data": api_results, "message": "API-data hämtad"})
                                         logger.info(f"📊 [API-DATA] Fetched data from {len(api_results)} APIs")
+                                        print(f"   API data context length: {len(api_data_context)} characters")
+                                else:
+                                    print(f"⚠️ No APIs selected by model")
                                 
                             except Exception as e:
+                                print(f"❌ API selection failed: {e}")
+                                import traceback
+                                traceback.print_exc()
                                 logger.warning(f"⚠️ [API-SELECTION] Failed: {e}")
                                 if debug_enabled:
                                     await debug_client.debug_error("api_selection", str(e))
+                    else:
+                        print(f"⚠️ No API map created - personality has no tags or API selector unavailable")
             except Exception as e:
+                print(f"❌ Personality selection failed: {e}")
+                import traceback
+                traceback.print_exc()
                 logger.warning(f"🎭 [STREAM-PERSONALITY] Selection failed, using default: {e}")
                 if debug_enabled:
                     await debug_client.debug_error("personality_selection", str(e))
+        else:
+            print(f"\n⚠️ PERSONALITY_SELECTOR_AVAILABLE = False")
+            print(f"   Personality pipeline SKIPPED - modules not loaded")
         
         # Step 6: Prepare final inference with personality + API data
+        print(f"\n📝 Step 6: Loading system prompt for final answer...")
         # Load the actual character card system prompt if personality was selected
         system_prompt = None
         if personality_data:
             # Try to load the character card file
             card_file = personality_data.get('card_file')
+            print(f"   Personality has card_file: {card_file}")
             if card_file:
                 card_path = PROJECT_ROOT / card_file
+                print(f"   Card path: {card_path}")
+                print(f"   Card exists: {card_path.exists()}")
                 if card_path.exists():
                     try:
                         import yaml
@@ -13704,31 +13750,42 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                             card_data = yaml.safe_load(f)
                         system_prompt = card_data.get('system_prompt', '')
                         if system_prompt:
+                            print(f"✅ Loaded system prompt from {card_file}")
+                            print(f"   Prompt length: {len(system_prompt)} characters")
+                            print(f"   Prompt preview: {system_prompt[:200]}...")
                             logger.info(f"🎭 [STREAM-PERSONALITY] Loaded system prompt from {card_file}")
                         else:
+                            print(f"⚠️ No system_prompt field in card file {card_file}")
                             logger.warning(f"🎭 [STREAM-PERSONALITY] No system_prompt in card file {card_file}")
                     except Exception as e:
+                        print(f"❌ Failed to load card {card_file}: {e}")
                         logger.warning(f"🎭 [STREAM-PERSONALITY] Failed to load card {card_file}: {e}")
         
         # Fallback to default system prompt if no personality card loaded
         if not system_prompt:
+            print(f"   No system prompt loaded yet, trying fallbacks...")
             # For the DEFAULT personality, we should NOT use the API selection prompt!
             # Get a clean system prompt without API selection instructions
             if personality_name and personality_name != "Medveten":
                 # Use the short prompt from catalog as fallback
-                system_prompt = personality_data.get('prompt', '')
+                system_prompt = personality_data.get('prompt', '') if personality_data else ''
+                if system_prompt:
+                    print(f"✅ Using short prompt from catalog: {system_prompt[:100]}...")
             
             if not system_prompt:
                 # Load default Medveten card
                 default_card_path = PROJECT_ROOT / "frontend/public/characters/OneSeek-Medveten.yaml"
+                print(f"   Trying default Medveten card: {default_card_path}")
                 if default_card_path.exists():
                     try:
                         import yaml
                         with open(default_card_path, 'r', encoding='utf-8') as f:
                             card_data = yaml.safe_load(f)
                         system_prompt = card_data.get('system_prompt', '')
+                        print(f"✅ Using default Medveten card")
                         logger.info(f"🎭 [STREAM-PERSONALITY] Using default Medveten card")
                     except Exception as e:
+                        print(f"❌ Failed to load default card: {e}")
                         logger.warning(f"🎭 [STREAM-PERSONALITY] Failed to load default card: {e}")
         
         # Final fallback - use a simple clean prompt without API selection
@@ -13738,6 +13795,7 @@ Du pratar alltid svenska – inga undantag, inga engelska ord, aldrig.
 Du är rak, kort, ärlig och varm – som en svensk kompis.
 Du använder alltid de senaste officiella källorna.
 Du visar alltid källor när du hämtar fakta."""
+            print(f"⚠️ Using emergency fallback prompt")
             logger.info(f"🎭 [STREAM-PERSONALITY] Using emergency fallback prompt")
         
         # Get current time context
@@ -13767,6 +13825,11 @@ Du visar alltid källor när du hämtar fakta."""
         
         # Check if using llama-server.exe backend
         if USING_LLAMA_SERVER:
+            print(f"\n🚀 Step 7: Starting SECOND inference (final answer streaming)...")
+            print(f"   Backend: llama-server.exe")
+            print(f"   Enriched system prompt length: {len(enriched_system_prompt)} characters")
+            print(f"   Has API data: {bool(api_data_context)}")
+            print(f"   System prompt preview: {system_prompt[:150]}...")
             logger.info(f"🌊 [STREAM] Using llama-server.exe backend for: {text[:50]}...")
             try:
                 second_inference_start = time.time()
@@ -13778,6 +13841,8 @@ Du visar alltid källor när du hämtar fakta."""
                 context_window = llama_props.get('n_ctx', 8192) if llama_props else 8192
                 logger.info(f"[LLAMA-SERVER] Context window: {context_window}")
                 
+                print(f"   Calling stream_generate_with_llama_server...")
+                token_count = 0
                 # Use ChatML formatter with conversation history support
                 for item in stream_generate_with_llama_server(
                     enriched_system_prompt=enriched_system_prompt,
@@ -13790,6 +13855,7 @@ Du visar alltid källor när du hämtar fakta."""
                         token = item[1]
                         if token:
                             full_response_llama += token  # Accumulate full response
+                            token_count += 1
                             try:
                                 event_data = json.dumps({"token": token, "index": tokens_sent}, ensure_ascii=False)
                             except (TypeError, ValueError):
@@ -13804,6 +13870,10 @@ Du visar alltid källor när du hämtar fakta."""
                                 await asyncio.sleep(delay_ms / 1000.0)
                     elif item[0] == 'timings':
                         llama_timings = item[2]
+                
+                print(f"✅ Second inference complete - generated {token_count} tokens")
+                print(f"   Full response length: {len(full_response_llama)} characters")
+                print(f"   Response preview: {full_response_llama[:200]}...")
                 
                 # Send completion event
                 elapsed = (time.time() - start_time) * 1000
@@ -13852,6 +13922,17 @@ Du visar alltid källor när du hämtar fakta."""
                     "thinking_steps": thinking_steps,
                     "api_sources": [api.get('name') for api in selected_apis] if selected_apis else []
                 }
+                
+                print(f"\n📊 FINAL METADATA:")
+                print(f"   Personality: {personality_name if personality_name else 'None'}")
+                print(f"   Thinking steps: {len(thinking_steps)}")
+                print(f"   API sources: {metadata['api_sources']}")
+                print(f"   Tokens: {output_tokens}")
+                print(f"   Elapsed: {elapsed:.0f}ms")
+                print("="*80)
+                print("🎭 PERSONALITY PIPELINE COMPLETE")
+                print("="*80 + "\n")
+                
                 yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
                 yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': output_tokens, 'personality': personality_name if personality_name else None})}\n\n"
                 
@@ -13864,6 +13945,9 @@ Du visar alltid källor när du hämtar fakta."""
                 logger.info(f"🌊 [STREAM/LLAMA] Complete: {output_tokens} tokens in {elapsed:.0f}ms ({tokens_per_second} tokens/s)")
                 return
             except Exception as e:
+                print(f"\n❌ FATAL ERROR in second inference: {e}")
+                import traceback
+                traceback.print_exc()
                 logger.error(f"🌊 [STREAM] llama-server.exe error: {e}")
                 if debug_enabled:
                     await debug_client.debug_error("second_inference_streaming", str(e))
