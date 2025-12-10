@@ -12,6 +12,11 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
       },
+      // ONESEEK Δ+ Inference API (personality-based routing, model inference)
+      '/api/inference': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
       // ONESEEK Δ+ ML Service API (Intent Engine, Typo Checker, etc.)
       '/api/ml': {
         target: 'http://localhost:5000',

@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { formatAIResponse } from '../utils/formatMarkdown';
+import ThinkingChain from '../components/ThinkingChain';
+import { sendPersonalityMessageViaWebSocket, isWebSocketSupported } from '../services/personalityWebSocket';
 
 /**
  * 7B-Zero Page - Integrated OQI Interface
@@ -186,6 +188,9 @@ export default function SevenBZeroPage() {
   
   // ONESEEK Δ+ v6.2: AI-selected personality (real-time display)
   const [aiSelectedPersonality, setAiSelectedPersonality] = useState(null);
+  
+  // Thinking chain state for personality routing
+  const [thinkingChain, setThinkingChain] = useState(null);
   
   // Load typo check setting from admin
   useEffect(() => {
@@ -931,6 +936,33 @@ export default function SevenBZeroPage() {
               
               // Handle different event types properly
               switch (currentEventType) {
+                case 'thinking':
+                  // Handle thinking step events (personality selection, API fetching, etc.)
+                  console.log('[7B-Zero Stream] Thinking:', data.message);
+                  
+                  // Update AI message with current thinking step (live display)
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === aiMessageId 
+                      ? { 
+                          ...msg, 
+                          currentThinkingStep: data.message,
+                          thinkingChain: [...(msg.thinkingChain || []), data],
+                        }
+                      : msg
+                  ));
+                  
+                  if (data.step === 'personality' && data.personality) {
+                    // Personality selected - update UI
+                    const personalityName = typeof data.personality === 'string' ? data.personality : data.personality.name;
+                    const personalityId = data.personality_id || (typeof data.personality === 'object' ? data.personality.id : null);
+                    console.log(`[7B-Zero Stream] AI selected personality: ${personalityName} (ID: ${personalityId})`);
+                    setAiSelectedPersonality(personalityName);
+                    if (personalityId) {
+                      setSelectedPersona(personalityId);
+                    }
+                  }
+                  break;
+                  
                 case 'token':
                   // Handle token event - accumulate and schedule batched update
                   if (data.token !== undefined) {
@@ -947,10 +979,20 @@ export default function SevenBZeroPage() {
                   console.log('[7B-Zero Stream] Metadata:', metadata);
                   // Update personality if provided
                   if (metadata.personality) {
-                    setAiSelectedPersonality(metadata.personality);
-                    if (metadata.personality.id) {
-                      setSelectedPersona(metadata.personality.id);
+                    const personalityName = typeof metadata.personality === 'string' ? metadata.personality : metadata.personality.name;
+                    const personalityId = typeof metadata.personality === 'object' ? metadata.personality.id : null;
+                    setAiSelectedPersonality(personalityName);
+                    if (personalityId) {
+                      setSelectedPersona(personalityId);
                     }
+                  }
+                  // Also check for selected_persona_id directly (for model-based selection)
+                  if (metadata.selected_persona_id) {
+                    setSelectedPersona(metadata.selected_persona_id);
+                  }
+                  // Store thinking steps if provided
+                  if (metadata.thinking_steps && metadata.thinking_steps.length > 0) {
+                    setThinkingChain(metadata.thinking_steps);
                   }
                   break;
                   
@@ -1021,6 +1063,7 @@ export default function SevenBZeroPage() {
               ...msg, 
               text: formattedFinalText,
               isTyping: false,
+              currentThinkingStep: null, // Clear thinking step when complete
               responseTime: finalResponseTime,
               confidence: metadata?.confidence_score || 0.85,
               version: metadata?.model || 'OneSeek-Δ+ (Streaming)',
@@ -1029,7 +1072,7 @@ export default function SevenBZeroPage() {
               promptTokens: metadata?.prompt_tokens || null,
               outputTokens: metadata?.output_tokens || tokenCount,
               contextWindow: metadata?.context_window || 8192,  // Use actual context window from llama-server
-              thinkingChain: metadata?.thinking_chain || null,
+              thinkingChain: metadata?.thinking_steps || metadata?.thinking_chain || msg.thinkingChain || null,
               personality: metadata?.personality || null,
             }
           : msg
@@ -1217,27 +1260,173 @@ export default function SevenBZeroPage() {
       // Standard flow - use ONESEEK Δ+ inference endpoint (fallback when streaming disabled)
       console.log('[7B-Zero] Using standard (non-streaming) mode...');
       let useOQTFallback = false;
+      let usePersonalityEndpoint = true; // Enable personality-based API routing
       
-      try {
-        response = await fetch('/api/inference/oneseek', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            text: currentQuestion,
-            max_length: 512,
-            temperature: 0.7,
-            top_p: 0.9,
-            skip_typo_check: !typoCheckEnabled, // Skip typo check if disabled
-          }),
-        });
-        
-        if (!response.ok) {
+      // Try personality-based endpoint first (with thinking chain and automatic API routing)
+      if (usePersonalityEndpoint) {
+        try {
+          let wsSuccess = false;
+          
+          // Use WebSocket for real-time progressive updates if supported
+          if (isWebSocketSupported()) {
+            console.log('[7B-Zero] Attempting WebSocket for personality inference...');
+            
+            try {
+              const wsResult = await sendPersonalityMessageViaWebSocket(currentQuestion, {
+                onThinking: (thinkingStep) => {
+                  // Update AI message with current thinking step
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === aiMessageId 
+                      ? { 
+                          ...msg, 
+                          currentThinkingStep: thinkingStep.message,
+                          thinkingChain: [...(msg.thinkingChain || []), thinkingStep],
+                        }
+                      : msg
+                  ));
+                },
+                onFinal: (data) => {
+                  const responseEndTime = Date.now();
+                  const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
+                  
+                  // Update AI-selected personality from response
+                  if (data.personality) {
+                    setAiSelectedPersonality({
+                      id: data.personality.id,
+                      name: data.personality.name || data.personality.id,
+                      description: '',
+                      categories: [],
+                      is_default: false
+                    });
+                    setSelectedPersona(data.personality.id);
+                  }
+                  
+                  const responseText = data.response;
+                  if (responseText) {
+                    setMessages(prev => prev.map(msg => 
+                      msg.id === aiMessageId 
+                        ? { 
+                            ...msg, 
+                            responseTime: finalResponseTime,
+                            confidence: data.personality?.confidence || 0.85,
+                            version: data.model || 'OneSeek-7B-Zero',
+                            thinkingChain: data.thinking_chain || msg.thinkingChain || null,
+                            apiData: data.api_data || null,
+                            tokens: data.tokens,
+                            personality: data.personality,
+                            currentThinkingStep: null, // Clear thinking step
+                          }
+                        : msg
+                    ));
+                    animateTyping(responseText, aiMessageId);
+                  }
+                },
+                onError: (errorMessage) => {
+                  console.log('[7B-Zero] WebSocket not available:', errorMessage);
+                  // Will fall back to REST below
+                },
+                maxTokens: 512,
+                temperature: 0.7,
+              });
+              
+              // Check if WebSocket succeeded (result will be null if error occurred)
+              if (wsResult !== null) {
+                return; // Success - exit early
+              } else {
+                console.log('[7B-Zero] WebSocket did not complete successfully, falling back to REST');
+              }
+            } catch (wsError) {
+              console.log('[7B-Zero] WebSocket failed, falling back to REST:', wsError.message);
+            }
+          }
+          
+          // Fallback to REST API if WebSocket not supported or failed
+          console.log('[7B-Zero] Using REST API for personality inference...');
+          response = await fetch('/api/inference/personality', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              text: currentQuestion,
+              max_length: 512,
+              temperature: 0.7,
+              stream_thinking: true,
+            }),
+          });
+          
+          if (response.ok) {
+            data = await response.json();
+            const responseEndTime = Date.now();
+            const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
+            
+            // Update AI-selected personality from response
+            if (data.personality) {
+              setAiSelectedPersonality({
+                id: data.personality.id,
+                name: data.personality.name || data.personality.id,
+                description: '',
+                categories: [],
+                is_default: false
+              });
+              setSelectedPersona(data.personality.id);
+            }
+            
+            const responseText = data.response;
+            if (responseText) {
+              setMessages(prev => prev.map(msg => 
+                msg.id === aiMessageId 
+                  ? { 
+                      ...msg, 
+                      responseTime: finalResponseTime,
+                      confidence: data.personality?.confidence || 0.85,
+                      version: data.model || 'OneSeek-7B-Zero',
+                      thinkingChain: data.thinking_chain || null,
+                      apiData: data.api_data || null,
+                      tokens: data.tokens,
+                      personality: data.personality,
+                    }
+                  : msg
+              ));
+              animateTyping(responseText, aiMessageId);
+              return;
+            }
+          } else {
+            // Fall through to legacy endpoint
+            usePersonalityEndpoint = false;
+          }
+        } catch (err) {
+          console.log('[7B-Zero] Personality endpoint failed, falling back...', err);
+          usePersonalityEndpoint = false;
+        }
+      }
+      
+      // Fallback to standard ONESEEK Δ+ inference endpoint
+      if (!usePersonalityEndpoint) {
+        try {
+          response = await fetch('/api/inference/oneseek', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              text: currentQuestion,
+              max_length: 512,
+              temperature: 0.7,
+              top_p: 0.9,
+              skip_typo_check: !typoCheckEnabled, // Skip typo check if disabled
+            }),
+          });
+          
+          if (!response.ok) {
+            useOQTFallback = true;
+          }
+        } catch {
           useOQTFallback = true;
         }
-      } catch {
-        useOQTFallback = true;
+      } else {
+        // Already handled by personality endpoint
+        return;
       }
       
       // Fallback to OQT endpoint if Δ+ fails
@@ -2005,8 +2194,30 @@ export default function SevenBZeroPage() {
                     </div>
                   )}
                   
-                  {/* Thinking Chain - Collapsible section */}
-                  {msg.thinkingChain && !msg.isTyping && (
+                  {/* Live Thinking Step - Show current thinking while processing */}
+                  {msg.isTyping && msg.currentThinkingStep && (
+                    <div className={`mt-3 flex items-center gap-2 px-3 py-2 rounded-lg ${
+                      whiteMode ? 'bg-blue-50' : 'bg-blue-900/20'
+                    }`}>
+                      <div className="animate-spin">⚙️</div>
+                      <span className={`text-sm ${whiteMode ? 'text-blue-700' : 'text-blue-300'}`}>
+                        {msg.currentThinkingStep}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Thinking Chain - Using ThinkingChain component */}
+                  {msg.thinkingChain && Array.isArray(msg.thinkingChain) && msg.thinkingChain.length > 0 && (
+                    <div className="mt-4">
+                      <ThinkingChain 
+                        thinkingChain={msg.thinkingChain} 
+                        isExpanded={false} // Always start collapsed (minimized)
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Legacy text-based thinking chain (fallback) */}
+                  {msg.thinkingChain && !msg.isTyping && typeof msg.thinkingChain === 'string' && (
                     <details className={`mt-4 ${whiteMode ? 'bg-[#f8f8f8]' : 'bg-[#0a0a0a]'} rounded-lg overflow-hidden`}>
                       <summary className={`px-4 py-2 cursor-pointer text-[11px] font-medium uppercase tracking-wider flex items-center gap-2 ${
                         whiteMode ? 'text-[#666] hover:bg-[#f0f0f0]' : 'text-[#888] hover:bg-[#151515]'
@@ -2025,6 +2236,33 @@ export default function SevenBZeroPage() {
                         }`}>{msg.thinkingChain}</pre>
                       </div>
                     </details>
+                  )}
+                  
+                  {/* API Data Sources - Show which APIs were used */}
+                  {msg.apiData && !msg.isTyping && Array.isArray(msg.apiData) && msg.apiData.length > 0 && (
+                    <div className={`mt-3 flex flex-wrap items-center gap-2`}>
+                      <span className={`text-[10px] uppercase tracking-wider ${
+                        whiteMode ? 'text-[#999]' : 'text-[#555]'
+                      }`}>
+                        Källor:
+                      </span>
+                      {msg.apiData.map((api, idx) => (
+                        <span
+                          key={idx}
+                          className={`px-2 py-1 text-[10px] rounded ${
+                            api.success
+                              ? whiteMode
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-green-900/30 text-green-300'
+                              : whiteMode
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-red-900/30 text-red-300'
+                          }`}
+                        >
+                          {api.source || api.api}
+                        </span>
+                      ))}
+                    </div>
                   )}
                   
                   {/* Token Metrics - Minimalist view matching llama frontend */}
