@@ -13613,6 +13613,66 @@ def parse_api_selection_response(text: str) -> tuple:
     return api_selection, reasoning
 
 
+def build_api_selection_prompt(personality_name: str, personality_prompt: str, character_api_json: str, user_question: str) -> str:
+    """
+    Build prompt for stage 2: API selection with entity extraction.
+    
+    Args:
+        personality_name: Selected personality name (e.g. "Metrolog")
+        personality_prompt: Personality's system prompt for context
+        character_api_json: Filtered API catalog JSON string
+        user_question: User's original question
+        
+    Returns:
+        str: Complete prompt for API selection stage
+    """
+    prompt = f"""**STEG 2: Analysera frågan och välj APIs**
+
+Du är {personality_name}.
+
+Din uppgift är att:
+1. Förstå vad användarens fråga kräver
+2. Extrahera viktiga entity_types (t.ex. stad → koordinater, datum → format)
+3. Välja rätt APIs från din API-karta
+4. Returnera JSON med APIs och parametrar
+
+**Din personlighet:**
+{personality_prompt[:500]}...
+
+**Tillgängliga APIs för dig:**
+{character_api_json}
+
+**Instruktioner:**
+1. Analysera frågan noga
+2. Om frågan innehåller platsnamn (t.ex. "Göteborg", "Hjo"), konvertera till koordinater
+3. Om frågan innehåller datum/tid, formatera korrekt
+4. Välj vilka APIs du behöver från listan ovan
+5. Returnera BARA JSON i detta format:
+
+{{"apis": [{{"name": "api_name", "params": {{"key": "value"}}}}]}}
+
+Om inga APIs behövs: {{"apis": []}}
+
+**Efter JSON:** Förklara ditt val (2-3 meningar):
+- Varför valde du dessa APIs?
+- Vilka entity_types extraherade du?
+- Hur konverterade du dem?
+
+**Exempel:**
+Fråga: "Vad är vädret imorgon i Stockholm?"
+Svar:
+{{"apis": [{{"name": "smhi", "params": {{"lon": "18.07", "lat": "59.33"}}}}]}}
+
+Reasoning: För väderprognos i Stockholm behöver jag SMHI:s data. Stockholm ligger på koordinater lat=59.33, lon=18.07 som jag extraherade från platsnamnet.
+
+**Nu är det din tur!**
+Användarens fråga: {user_question}
+
+Ditt svar (JSON + reasoning):"""
+    
+    return prompt
+
+
 async def generate_sse_tokens(
     text: str,
     max_length: int = 512,
