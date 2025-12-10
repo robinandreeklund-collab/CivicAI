@@ -13803,16 +13803,16 @@ Exempel:
                     model_response = generate_with_llama_server(
                         prompt=personality_selection_system_prompt,
                         user_message=text,
-                        max_tokens=300,
+                        max_tokens=200,  # Shorter for personality-only selection
                         temperature=0.1
                     )
                     first_inference_latency = (time.time() - first_inference_start) * 1000
-                    print(f"✅ First inference complete in {first_inference_latency:.0f}ms")
+                    print(f"✅ Stage 1 complete in {first_inference_latency:.0f}ms")
                     print(f"   Model response: {model_response[:300]}...")
                     
                     # Emit thinking event: First inference done (replaces "Analyserar frågan...")
-                    selection_msg = "Väljer personlighet (modellen beslutar)..."
-                    thinking_steps[-1] = {"step": "personality_selection_done", "message": selection_msg}  # Replace last step
+                    selection_msg = "Väljer personlighet..."
+                    thinking_steps[-1] = {"step": "personality_selection_done", "message": selection_msg}
                     yield f"event: thinking\ndata: {json.dumps({'step': 'personality_selection_done', 'message': selection_msg})}\n\n"
                     
                     # DEBUG: First inference response
@@ -13823,12 +13823,11 @@ Exempel:
                             shown_to_user=False  # NEVER shown to user!
                         )
                     
-                    # Parse tags from model response
-                    print(f"\n📋 Step 2: Parsing personality and API tags from model response...")
-                    parsed_personality_id, parsed_api_list, clean_reasoning = parse_personality_and_api_tags(model_response)
+                    # Parse personality response (stage 1 - NO APIs yet!)
+                    print(f"\n📋 Step 2: Parsing personality selection...")
+                    parsed_personality_id, reasoning_1 = parse_personality_response(model_response)
                     print(f"   Parsed personality ID: {parsed_personality_id}")
-                    print(f"   Parsed API list: {parsed_api_list}")
-                    print(f"   Clean reasoning: {clean_reasoning[:200]}...")
+                    print(f"   Reasoning: {reasoning_1[:200]}...")
                     
                     if parsed_personality_id:
                         personality_id = parsed_personality_id
@@ -13846,9 +13845,16 @@ Exempel:
                         
                         print(f"✅ Personality selected by model: {personality_name} (ID: {personality_id})")
                         
+                        # Save reasoning from stage 1 for thinking chain
+                        thinking_steps.append({
+                            "step": "personality_selection",
+                            "personality": personality_name,
+                            "personality_id": personality_id,
+                            "reasoning": reasoning_1  # Model's explanation!
+                        })
+                        
                         # Emit thinking event
                         personality_msg = f"Valde personlighet: {personality_name}"
-                        thinking_steps.append({"step": "personality", "personality": personality_name, "personality_id": personality_id, "message": personality_msg})
                         yield f"event: thinking\ndata: {json.dumps({'step': 'personality', 'personality': personality_name, 'personality_id': personality_id, 'message': personality_msg})}\n\n"
                         logger.info(f"🎭 [STREAM-PERSONALITY] Model selected: {personality_name}")
                         
@@ -13918,12 +13924,96 @@ Exempel:
                             import traceback
                             traceback.print_exc()
                         
-                        # If model selected APIs, add them to selected_apis
-                        if parsed_api_list:
-                            print(f"✅ Model also selected APIs: {parsed_api_list}")
-                            # Convert API names to proper format
-                            for api_name in parsed_api_list:
-                                selected_apis.append({"name": api_name, "params": {}})
+                        # === STAGE 2: API Selection with Entity Extraction (NEW!) ===
+                        print(f"\n🔍 STAGE 2: API Selection + Entity Extraction...")
+                        
+                        # Emit thinking event for stage 2
+                        api_selection_msg = "Analyserar och väljer APIs..."
+                        thinking_steps.append({"step": "api_selection_start", "message": api_selection_msg})
+                        yield f"event: thinking\ndata: {json.dumps({'step': 'api_selection_start', 'message': api_selection_msg})}\n\n"
+                        
+                        try:
+                            # Load character card for personality context
+                            personality_card_path = None
+                            if personality_data and personality_data.get('card_file'):
+                                personality_card_path = PROJECT_ROOT / personality_data['card_file']
+                            else:
+                                # Try standard path
+                                personality_card_path = PROJECT_ROOT / f"frontend/public/characters/OneSeek-{personality_id.title()}.yaml"
+                            
+                            personality_system_prompt = ""
+                            if personality_card_path and personality_card_path.exists():
+                                import yaml
+                                with open(personality_card_path, 'r', encoding='utf-8') as f:
+                                    card_data = yaml.safe_load(f)
+                                personality_system_prompt = card_data.get('system_prompt', '')
+                            
+                            # Load character_api.json
+                            character_api_path = PROJECT_ROOT / "runtime/character_api.json"
+                            character_api_json_str = "{}"
+                            if character_api_path.exists():
+                                with open(character_api_path, 'r', encoding='utf-8') as f:
+                                    character_api_json_str = f.read()
+                            
+                            # Build API selection prompt
+                            api_selection_prompt = build_api_selection_prompt(
+                                personality_name,
+                                personality_system_prompt,
+                                character_api_json_str,
+                                text
+                            )
+                            
+                            # Call model for SECOND inference (API selection)
+                            second_inference_start = time.time()
+                            print(f"   Calling model for API selection...")
+                            print(f"   Prompt length: {len(api_selection_prompt)} characters")
+                            
+                            model_response_2 = generate_with_llama_server(
+                                prompt=api_selection_prompt,
+                                user_message="",  # Question already in prompt
+                                max_tokens=500,
+                                temperature=0.1
+                            )
+                            
+                            second_inference_latency = (time.time() - second_inference_start) * 1000
+                            print(f"✅ Stage 2 complete in {second_inference_latency:.0f}ms")
+                            print(f"   Model response: {model_response_2[:300]}...")
+                            
+                            # Parse API selection + reasoning
+                            api_selection, reasoning_2 = parse_api_selection_response(model_response_2)
+                            print(f"   Parsed APIs: {api_selection.get('apis', [])}")
+                            print(f"   Reasoning: {reasoning_2[:200]}...")
+                            
+                            # Extract selected APIs
+                            if api_selection and api_selection.get('apis'):
+                                selected_apis = api_selection['apis']
+                                print(f"✅ Model selected {len(selected_apis)} APIs")
+                                
+                                # Save reasoning for thinking chain
+                                api_names = [api.get('name', 'unknown') for api in selected_apis]
+                                thinking_steps.append({
+                                    "step": "api_selection",
+                                    "apis": api_names,
+                                    "reasoning": reasoning_2
+                                })
+                                
+                                # Emit thinking event with selected APIs
+                                api_selected_msg = f"Valde API: {', '.join(api_names)}"
+                                yield f"event: thinking\ndata: {json.dumps({'step': 'api_selection', 'message': api_selected_msg})}\n\n"
+                            else:
+                                print(f"   No APIs selected by model")
+                                thinking_steps.append({
+                                    "step": "api_selection",
+                                    "apis": [],
+                                    "reasoning": reasoning_2 or "Ingen API behövs för denna fråga"
+                                })
+                        
+                        except Exception as e:
+                            print(f"⚠️ Stage 2 (API selection) failed: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            # Continue without APIs
+                            reasoning_2 = f"API selection misslyckades: {str(e)}"
                     else:
                         print(f"⚠️ No personality tag found in model response, using default Medveten")
                         personality_id = "medveten"
@@ -14099,7 +14189,7 @@ Du visar alltid källor när du hämtar fakta."""
         
         # Check if using llama-server.exe backend
         if USING_LLAMA_SERVER:
-            print(f"\n🚀 Step 7: Starting SECOND inference (final answer streaming)...")
+            print(f"\n🚀 STAGE 3: Final answer generation (streaming)...")
             print(f"   Backend: llama-server.exe")
             print(f"   Enriched system prompt length: {len(enriched_system_prompt)} characters")
             print(f"   Has API data: {bool(api_data_context)}")
@@ -14107,8 +14197,7 @@ Du visar alltid källor när du hämtar fakta."""
             
             # Emit thinking event: Building final answer
             final_msg = "Bygger slutligt svar..."
-            thinking_steps.append({"step": "final_answer", "message": final_msg})
-            yield f"event: thinking\ndata: {json.dumps({'step': 'final_answer', 'message': final_msg})}\n\n"
+            yield f"event: thinking\ndata: {json.dumps({'step': 'final_answer_start', 'message': final_msg})}\n\n"
             
             logger.info(f"🌊 [STREAM] Using llama-server.exe backend for: {text[:50]}...")
             try:
