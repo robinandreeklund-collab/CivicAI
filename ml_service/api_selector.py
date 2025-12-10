@@ -96,7 +96,9 @@ async def call_api(
         'success': False,
         'data': None,
         'error': None,
-        'source': None
+        'source': None,
+        'url': None,
+        'params': params
     }
     
     try:
@@ -143,6 +145,9 @@ async def call_api(
         else:
             logger.info(f"Calling API: {api_name} with params: {params}")
             params_to_send = params
+        
+        # Store URL for reasoning display
+        result['url'] = api_url
         
         # Make API call
         async with aiohttp.ClientSession() as session:

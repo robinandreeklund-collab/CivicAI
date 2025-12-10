@@ -14164,7 +14164,7 @@ Exempel:
                                 print(f"   - {api_name}: {'✅ Success' if is_success else '❌ Failed'}")
                                 
                                 # Add detailed reasoning for each API call
-                                endpoint = result.get('endpoint', 'N/A')
+                                api_url = result.get('url', 'N/A')
                                 params = result.get('params', {})
                                 if is_success:
                                     successful_count += 1
@@ -14177,10 +14177,10 @@ Exempel:
                                         data_str = data_str[:max_data_size] + "\n... (data truncated for context window)"
                                         print(f"   ⚠️ Truncated {api_name} data from {data_size} to {max_data_size} chars")
                                     api_data_parts.append(f"\n[Data från {api_name}]:\n{data_str}")
-                                    api_fetch_reasoning = f"GET {endpoint} med params {json.dumps(params)} → Success ({data_size} chars data)"
+                                    api_fetch_reasoning = f"GET {api_url} med params {json.dumps(params)} → Success ({data_size} chars data)"
                                 else:
                                     error_msg = result.get('error', 'Unknown error')
-                                    api_fetch_reasoning = f"GET {endpoint} med params {json.dumps(params)} → Failed ({error_msg})"
+                                    api_fetch_reasoning = f"GET {api_url} med params {json.dumps(params)} → Failed ({error_msg})"
                                 
                                 thinking_steps.append({
                                     "step": "api_fetch_detail",
