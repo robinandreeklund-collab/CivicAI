@@ -13607,7 +13607,7 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                             # Call model for API selection (non-streaming)
                             try:
                                 first_inference_start = time.time()
-                                from llama_server import generate_with_llama_server
+                                # Call generate_with_llama_server directly (it's in this same file)
                                 api_response = generate_with_llama_server(
                                     system_prompt="Du är en API-väljare. Svara ENDAST med JSON.",
                                     user_message=api_selection_prompt,
@@ -13625,7 +13625,7 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                                     )
                                 
                                 # Step 5: Parse API selection and fetch data
-                                from api_selector import parse_api_selection, fetch_multiple_apis
+                                # parse_api_selection and fetch_apis_parallel are already imported at top
                                 api_selection = parse_api_selection(api_response)
                                 
                                 if api_selection and api_selection.get('apis'):
@@ -13646,8 +13646,8 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                                         await debug_client.debug_api_fetch_start(len(selected_apis), 5)
                                     
                                     # Fetch API data in parallel (asyncio already imported at top)
-                                    api_results = await fetch_multiple_apis(
-                                        api_selection['apis'],
+                                    api_results = await fetch_apis_parallel(
+                                        api_selection,  # Pass the whole dict, not just apis list
                                         character_api_map.get('api_categories', {}),
                                         max_concurrent=5
                                     )
