@@ -13942,11 +13942,16 @@ Du visar alltid källor när du hämtar fakta."""
                         if token:
                             # CRITICAL: Strip ChatML artifacts from token before sending
                             import re
-                            token = re.sub(r'<\|im_start\|>[^\n]*\n?', '', token)
-                            token = re.sub(r'<\|im_end\|>', '', token)
-                            token = token.strip()
+                            cleaned_token = re.sub(r'<\|im_start\|>[^\n]*\n?', '', token)
+                            cleaned_token = re.sub(r'<\|im_end\|>', '', cleaned_token)
+                            # Only strip whitespace if we actually removed ChatML artifacts
+                            # This preserves spaces between words!
+                            if cleaned_token != token:  # ChatML was removed
+                                token = cleaned_token.strip()
+                            else:  # Normal token, keep as-is (including spaces)
+                                token = cleaned_token
                             
-                            if token:  # Only process if token not empty after stripping
+                            if token:  # Only process if token not empty after cleaning
                                 full_response_llama += token  # Accumulate full response
                                 token_count += 1
                                 try:
@@ -13966,7 +13971,8 @@ Du visar alltid källor när du hämtar fakta."""
                 
                 print(f"✅ Second inference complete - generated {token_count} tokens")
                 print(f"   Full response length: {len(full_response_llama)} characters")
-                print(f"   Response preview: {full_response_llama[:200]}...")
+                print(f"   Response preview (first 200): {full_response_llama[:200]}...")
+                print(f"   Response preview (last 200): ...{full_response_llama[-200:]}")
                 
                 # CRITICAL: Strip any remaining [PERSONLIGHET:...] and [API:...] tags from response
                 # The model should NOT include these in final answer, but we strip just in case
