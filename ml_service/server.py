@@ -2864,6 +2864,8 @@ parser.add_argument('--llama-bin', type=str, default=None,
                     help='Path to llama.cpp bin directory with pre-built binaries (e.g., C:\\llama.cpp-bin-cuda)')
 parser.add_argument('--llama-server-port', type=int, default=8081,
                     help='Port for llama-server.exe when using --llama-bin (default: 8081)')
+parser.add_argument('--debug-pipeline', action='store_true',
+                    help='Enable debug pipeline mode - sends real-time debug info to debug terminal (ws://localhost:5001)')
 
 args, unknown = parser.parse_known_args()
 
@@ -13749,6 +13751,29 @@ if __name__ == "__main__":
     
     port = int(os.getenv('ML_SERVICE_PORT', '5000'))
     host = "0.0.0.0" if args.listen else "127.0.0.1"
+    
+    # Initialize debug pipeline if requested
+    if args.debug_pipeline:
+        logger.info("[Debug] Pipeline debug mode ENABLED")
+        logger.info("[Debug] Connecting to debug terminal at ws://localhost:5001...")
+        try:
+            import debug_client
+            import asyncio
+            
+            # Try to connect to debug terminal
+            async def init_debug():
+                success = await debug_client.connect_to_debug_terminal()
+                if success:
+                    logger.info("[Debug] ✓ Connected to debug terminal")
+                else:
+                    logger.warning("[Debug] Could not connect to debug terminal")
+                    logger.warning("[Debug] Make sure debug_personality_pipeline.py is running first")
+            
+            # Run connection attempt
+            asyncio.run(init_debug())
+        except Exception as e:
+            logger.warning(f"[Debug] Failed to initialize debug client: {e}")
+            logger.warning("[Debug] Continuing without debug terminal")
     
     # Log startup configuration
     logger.info(f"[Server] Starting on {host}:{port}")

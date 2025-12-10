@@ -93,6 +93,9 @@ class PipelineDebugger:
     
     async def handle_debug_message(self, websocket, path):
         """Hantera inkommande debug-meddelanden från server"""
+        client_addr = websocket.remote_address if hasattr(websocket, 'remote_address') else 'unknown'
+        logger.info(f"New connection from {client_addr}")
+        
         try:
             async for message in websocket:
                 try:
@@ -286,9 +289,13 @@ class PipelineDebugger:
                 
                 except json.JSONDecodeError:
                     print(f"{Fore.RED}Failed to parse JSON: {message}{Style.RESET_ALL}\n")
+                except Exception as e:
+                    print(f"{Fore.RED}Error processing message: {e}{Style.RESET_ALL}\n")
         
         except websockets.exceptions.ConnectionClosed:
-            print(f"\n{Fore.YELLOW}WebSocket connection closed{Style.RESET_ALL}\n")
+            print(f"\n{Fore.YELLOW}Client {client_addr} disconnected{Style.RESET_ALL}\n")
+        except Exception as e:
+            print(f"\n{Fore.RED}Error with client {client_addr}: {e}{Style.RESET_ALL}\n")
 
 
 async def main():
