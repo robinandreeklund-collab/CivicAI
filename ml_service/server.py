@@ -13239,8 +13239,7 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                                     fetch_msg = f"Hämtar data från {', '.join(api_names)}..."
                                     yield f"event: thinking\ndata: {json.dumps({'step': 'api_fetch', 'message': fetch_msg})}\n\n"
                                     
-                                    # Fetch API data in parallel
-                                    import asyncio
+                                    # Fetch API data in parallel (asyncio already imported at top)
                                     api_results = await fetch_multiple_apis(
                                         api_selection['apis'],
                                         character_api_map.get('apis', {}),
