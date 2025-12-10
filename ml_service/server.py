@@ -13491,6 +13491,52 @@ class StreamRequest(BaseModel):
     history: Optional[List[Dict[str, str]]] = Field(default=None, description="Conversation history as list of {role, content} dicts")
 
 
+def parse_personality_and_api_tags(text: str) -> tuple:
+    """
+    Parse [PERSONLIGHET: xxx] and [API: yyy] tags from model response.
+    
+    Args:
+        text: Model's response text containing tags
+        
+    Returns:
+        tuple: (personality_id, api_list, clean_text)
+        - personality_id: str or None - extracted personality ID
+        - api_list: list - list of API names (empty if none)
+        - clean_text: str - text with tags removed
+        
+    Examples:
+        >>> parse_personality_and_api_tags("[PERSONLIGHET: bibliotekarie] [API: libris_search] Answer")
+        ('bibliotekarie', ['libris_search'], 'Answer')
+        
+        >>> parse_personality_and_api_tags("[PERSONLIGHET: metrolog] [API: smhi, yr] Weather")
+        ('metrolog', ['smhi', 'yr'], 'Weather')
+    """
+    import re
+    
+    personality_id = None
+    api_list = []
+    
+    # Extract personality tag (case-insensitive)
+    personality_match = re.search(r'\[PERSONLIGHET:\s*([^\]]+)\]', text, re.IGNORECASE)
+    if personality_match:
+        personality_id = personality_match.group(1).strip().lower()
+    
+    # Extract API tag (case-insensitive)
+    api_match = re.search(r'\[API:\s*([^\]]+)\]', text, re.IGNORECASE)
+    if api_match:
+        api_text = api_match.group(1).strip()
+        if api_text:  # Not empty
+            # Split by comma and clean
+            api_list = [api.strip() for api in api_text.split(',') if api.strip()]
+    
+    # Remove both tags from text
+    clean_text = re.sub(r'\[PERSONLIGHET:[^\]]+\]', '', text, flags=re.IGNORECASE)
+    clean_text = re.sub(r'\[API:[^\]]+\]', '', clean_text, flags=re.IGNORECASE)
+    clean_text = clean_text.strip()
+    
+    return personality_id, api_list, clean_text
+
+
 async def generate_sse_tokens(
     text: str,
     max_length: int = 512,
@@ -13536,265 +13582,283 @@ async def generate_sse_tokens(
         if debug_enabled:
             await debug_client.debug_session_start(text)
         
-        # PERSONALITY-BASED ROUTING INTEGRATION - COMPLETE PIPELINE
+        # PERSONALITY-BASED ROUTING INTEGRATION - MODEL-BASED SELECTION
         api_data_context = ""
         character_api_map = {}
         selected_apis = []
+        personality_id = None
         
-        # Step 1-2: Select personality using embedding matching
-        if PERSONALITY_SELECTOR_AVAILABLE:
+        # Step 1: Model-based personality selection (FIRST INFERENCE)
+        # The model chooses the personality and APIs, we parse the tags
+        if True:  # Always try model-based selection
             try:
                 print("\n" + "="*80)
-                print("🎭 PERSONALITY PIPELINE START")
+                print("🎭 PERSONALITY PIPELINE START (MODEL-BASED)")
                 print("="*80)
                 print(f"📝 User query: {text[:100]}...")
                 
                 thinking_steps.append({"step": "analyzing", "message": "Analyserar frågan..."})
                 yield f"event: thinking\ndata: {json.dumps({'step': 'analyzing', 'message': 'Analyserar frågan...'})}\n\n"
                 
-                print(f"🔍 Step 1: Calling select_personality()...")
-                # select_personality returns tuple: (personality_id, personality_name, confidence_score, personality_data)
-                # Note: Pass None as personality_catalog to let it load from config
-                personality_id, personality_name, confidence_score, personality_data = select_personality(
-                    query=text,
-                    personality_catalog=None,  # Load from config
-                    boost_recent=True,
-                    recent_boost_factor=0.4
-                )
-                print(f"✅ Personality selected: {personality_name} (ID: {personality_id}, confidence: {confidence_score:.2f})")
-                print(f"📊 Personality data keys: {list(personality_data.keys()) if personality_data else 'None'}")
+                # Load personality catalog
+                print(f"🔍 Step 1: First inference - model selects personality...")
+                personality_catalog_path = PROJECT_ROOT / "config/personality_catalog.json"
+                if personality_catalog_path.exists():
+                    with open(personality_catalog_path, 'r', encoding='utf-8') as f:
+                        personality_catalog = json.load(f)
+                    print(f"✅ Loaded {len(personality_catalog)} personalities from catalog")
+                else:
+                    print(f"❌ personality_catalog.json not found")
+                    personality_catalog = {}
                 
-                if personality_data:
-                    # DEBUG: Personality selected
-                    if debug_enabled:
-                        await debug_client.debug_personality_selection(
-                            personality_name, 
-                            confidence_score,
-                            [{"name": personality_name, "score": confidence_score}]
-                        )
-                    
-                    personality_msg = f"Valde personlighet: {personality_name}"
-                    thinking_steps.append({"step": "personality", "personality": personality_name, "personality_id": personality_id, "confidence": confidence_score, "message": personality_msg})
-                    yield f"event: thinking\ndata: {json.dumps({'step': 'personality', 'personality': personality_name, 'personality_id': personality_id, 'confidence': confidence_score, 'message': personality_msg})}\n\n"
-                    logger.info(f"🎭 [STREAM-PERSONALITY] Selected: {personality_name} (score: {confidence_score:.2f})")
-                    
-                    # Step 3: Build character API map filtered by personality tags
-                    print(f"\n🗺️ Step 2: Building character API map...")
-                    print(f"   Checking for tags in personality_data: {personality_data.get('tags', 'NO TAGS FOUND')}")
-                    if API_SELECTOR_AVAILABLE and personality_data.get('tags'):
-                        from personality_selector import create_character_api_map
-                        character_api_map = create_character_api_map(personality_data)
-                        api_count = len(character_api_map.get('api_categories', {}))
-                        print(f"✅ Character API map created with {api_count} API categories")
-                        print(f"   API categories: {list(character_api_map.get('api_categories', {}).keys())}")
-                        logger.info(f"🗺️ [API-MAP] Created character API map with {api_count} APIs")
-                        
-                        # DEBUG: API map created
-                        if debug_enabled:
-                            await debug_client.debug_api_map_created(
-                                personality_name,
-                                api_count,
-                                personality_data.get('tags', [])
-                            )
-                        
-                        # Step 4: Ask model to select which APIs to use (FIRST INFERENCE)
-                        if character_api_map and character_api_map.get('api_categories'):
-                            thinking_steps.append({"step": "api_selection", "message": "Väljer relevanta API:er..."})
-                            yield f"event: thinking\ndata: {json.dumps({'step': 'api_selection', 'message': 'Väljer relevanta API:er...'})}\n\n"
-                            
-                            print(f"\n🤖 Step 3: First inference - asking model to select APIs...")
-                            # Create prompt for API selection
-                            api_selection_prompt = f"""Du är {personality_name}. Analysera användarens fråga och välj vilka API:er du behöver.
-
-Tillgängliga API:er:
-{json.dumps(character_api_map, indent=2, ensure_ascii=False)}
-
-Användarens fråga: {text}
-
-Svara ENDAST med JSON i detta format:
-{{"apis": [{{"name": "api_name", "params": {{"param1": "value1"}}}}]}}
-
-Om du inte behöver några API:er, svara: {{"apis": []}}"""
-
-                            print(f"   Prompt length: {len(api_selection_prompt)} characters")
-                            # DEBUG: First inference start
-                            if debug_enabled:
-                                await debug_client.debug_first_inference_start(
-                                    api_selection_prompt,
-                                    "oneseek-7b-zero",
-                                    500
-                                )
-
-                            # Call model for API selection (non-streaming)
-                            try:
-                                first_inference_start = time.time()
-                                print(f"   Calling generate_with_llama_server (non-streaming)...")
-                                # Call generate_with_llama_server directly (it's in this same file)
-                                api_response = generate_with_llama_server(
-                                    system_prompt="Du är en API-väljare. Svara ENDAST med JSON.",
-                                    user_message=api_selection_prompt,
-                                    max_tokens=500,
-                                    temperature=0.1
-                                )
-                                first_inference_latency = (time.time() - first_inference_start) * 1000
-                                print(f"✅ First inference complete in {first_inference_latency:.0f}ms")
-                                print(f"   Model response: {api_response[:200]}...")
-                                
-                                # DEBUG: First inference response
-                                if debug_enabled:
-                                    await debug_client.debug_first_inference_response(
-                                        api_response,
-                                        first_inference_latency,
-                                        shown_to_user=False  # Should always be False!
-                                    )
-                                
-                                print(f"\n📋 Step 4: Parsing API selection from model response...")
-                                # Step 5: Parse API selection and fetch data
-                                # parse_api_selection and fetch_apis_parallel are already imported at top
-                                api_selection = parse_api_selection(api_response)
-                                print(f"   Parsed: {api_selection}")
-                                
-                                if api_selection and api_selection.get('apis'):
-                                    selected_apis = api_selection['apis']
-                                    print(f"✅ Model selected {len(selected_apis)} APIs: {[api.get('name') for api in selected_apis]}")
-                                    
-                                    # DEBUG: API selection parsed
-                                    if debug_enabled:
-                                        await debug_client.debug_api_selection_parsed(selected_apis)
-                                    
-                                    thinking_steps.append({"step": "api_fetch", "apis": selected_apis, "message": f"Hämtar data från {len(selected_apis)} API:er..."})
-                                    
-                                    api_names = [api.get('name', 'unknown') for api in selected_apis]
-                                    fetch_msg = f"Hämtar data från {', '.join(api_names)}..."
-                                    yield f"event: thinking\ndata: {json.dumps({'step': 'api_fetch', 'message': fetch_msg})}\n\n"
-                                    
-                                    print(f"\n🌐 Step 5: Fetching API data in parallel...")
-                                    print(f"   APIs to call: {api_names}")
-                                    # DEBUG: API fetch start
-                                    if debug_enabled:
-                                        await debug_client.debug_api_fetch_start(len(selected_apis), 5)
-                                    
-                                    # Fetch API data in parallel (asyncio already imported at top)
-                                    api_results = await fetch_apis_parallel(
-                                        api_selection,  # Pass the whole dict, not just apis list
-                                        character_api_map.get('api_categories', {}),
-                                        max_concurrent=5
-                                    )
-                                    print(f"✅ API fetch complete: {len(api_results)} results received")
-                                    
-                                    # Format API data for model context
-                                    api_data_parts = []
-                                    successful_count = 0
-                                    for result in api_results:
-                                        print(f"   - {result['api_name']}: {'✅ Success' if result['success'] else '❌ Failed'}")
-                                        if result.get('error'):
-                                            print(f"     Error: {result['error']}")
-                                        # DEBUG: Individual API fetch result
-                                        if debug_enabled:
-                                            await debug_client.debug_api_fetch_result(
-                                                result['api_name'],
-                                                result['success'],
-                                                result.get('source'),
-                                                result.get('data') if result['success'] else None,
-                                                result.get('error') if not result['success'] else None,
-                                                0  # latency not tracked per API yet
-                                            )
-                                        
-                                        if result['success']:
-                                            successful_count += 1
-                                            api_data_parts.append(f"\n[Data från {result['api_name']}]:\n{json.dumps(result['data'], indent=2, ensure_ascii=False)}")
-                                    
-                                    print(f"   {successful_count}/{len(api_results)} APIs returned data successfully")
-                                    # DEBUG: API fetch complete
-                                    if debug_enabled:
-                                        await debug_client.debug_api_fetch_complete(successful_count, len(api_results))
-                                    
-                                    if api_data_parts:
-                                        api_data_context = "\n".join(api_data_parts)
-                                        thinking_steps.append({"step": "api_data", "data": api_results, "message": "API-data hämtad"})
-                                        logger.info(f"📊 [API-DATA] Fetched data from {len(api_results)} APIs")
-                                        print(f"   API data context length: {len(api_data_context)} characters")
-                                else:
-                                    print(f"⚠️ No APIs selected by model")
-                                
-                            except Exception as e:
-                                print(f"❌ API selection failed: {e}")
-                                import traceback
-                                traceback.print_exc()
-                                logger.warning(f"⚠️ [API-SELECTION] Failed: {e}")
-                                if debug_enabled:
-                                    await debug_client.debug_error("api_selection", str(e))
-                    else:
-                        print(f"⚠️ No API map created - personality has no tags or API selector unavailable")
-            except Exception as e:
-                print(f"❌ Personality selection failed: {e}")
-                import traceback
-                traceback.print_exc()
-                logger.warning(f"🎭 [STREAM-PERSONALITY] Selection failed, using default: {e}")
-                if debug_enabled:
-                    await debug_client.debug_error("personality_selection", str(e))
-        else:
-            print(f"\n⚠️ PERSONALITY_SELECTOR_AVAILABLE = False")
-            print(f"   Personality pipeline SKIPPED - modules not loaded")
-        
-        # Step 6: Prepare final inference with personality + API data
-        print(f"\n📝 Step 6: Loading system prompt for final answer...")
-        # Load the actual character card system prompt if personality was selected
-        system_prompt = None
-        if personality_data:
-            # Try to load the character card file
-            card_file = personality_data.get('card_file')
-            print(f"   Personality has card_file: {card_file}")
-            if card_file:
-                card_path = PROJECT_ROOT / card_file
-                print(f"   Card path: {card_path}")
-                print(f"   Card exists: {card_path.exists()}")
-                if card_path.exists():
-                    try:
-                        import yaml
-                        with open(card_path, 'r', encoding='utf-8') as f:
-                            card_data = yaml.safe_load(f)
-                        system_prompt = card_data.get('system_prompt', '')
-                        if system_prompt:
-                            print(f"✅ Loaded system prompt from {card_file}")
-                            print(f"   Prompt length: {len(system_prompt)} characters")
-                            print(f"   Prompt preview: {system_prompt[:200]}...")
-                            logger.info(f"🎭 [STREAM-PERSONALITY] Loaded system prompt from {card_file}")
-                        else:
-                            print(f"⚠️ No system_prompt field in card file {card_file}")
-                            logger.warning(f"🎭 [STREAM-PERSONALITY] No system_prompt in card file {card_file}")
-                    except Exception as e:
-                        print(f"❌ Failed to load card {card_file}: {e}")
-                        logger.warning(f"🎭 [STREAM-PERSONALITY] Failed to load card {card_file}: {e}")
-        
-        # Fallback to default system prompt if no personality card loaded
-        if not system_prompt:
-            print(f"   No system prompt loaded yet, trying fallbacks...")
-            # For the DEFAULT personality, we should NOT use the API selection prompt!
-            # Get a clean system prompt without API selection instructions
-            if personality_name and personality_name != "Medveten":
-                # Use the short prompt from catalog as fallback
-                system_prompt = personality_data.get('prompt', '') if personality_data else ''
-                if system_prompt:
-                    print(f"✅ Using short prompt from catalog: {system_prompt[:100]}...")
-            
-            if not system_prompt:
-                # Load default Medveten card
+                # Load default Medveten card to get personality_selection_prompt
                 default_card_path = PROJECT_ROOT / "frontend/public/characters/OneSeek-Medveten.yaml"
-                print(f"   Trying default Medveten card: {default_card_path}")
+                personality_selection_system_prompt = ""
                 if default_card_path.exists():
                     try:
                         import yaml
                         with open(default_card_path, 'r', encoding='utf-8') as f:
                             card_data = yaml.safe_load(f)
-                        system_prompt = card_data.get('system_prompt', '')
-                        print(f"✅ Using default Medveten card")
-                        logger.info(f"🎭 [STREAM-PERSONALITY] Using default Medveten card")
+                        personality_selection_system_prompt = card_data.get('personality_selection_prompt', '')
+                        # Replace placeholder with actual catalog
+                        if personality_selection_system_prompt and personality_catalog:
+                            personality_selection_system_prompt = personality_selection_system_prompt.replace(
+                                '{PERSONALITY_CATALOG_JSON}',
+                                json.dumps(personality_catalog, indent=2, ensure_ascii=False)
+                            )
+                        print(f"✅ Loaded personality_selection_prompt from Medveten card")
                     except Exception as e:
-                        print(f"❌ Failed to load default card: {e}")
-                        logger.warning(f"🎭 [STREAM-PERSONALITY] Failed to load default card: {e}")
+                        print(f"⚠️ Failed to load personality_selection_prompt: {e}")
+                
+                # Fallback prompt if card doesn't have it
+                if not personality_selection_system_prompt:
+                    personality_selection_system_prompt = f"""Du är OneSeek-7B-Zero. Välj rätt personlighet för denna fråga.
+
+Tillgängliga personligheter:
+{json.dumps(personality_catalog, indent=2, ensure_ascii=False)}
+
+Instruktioner:
+1. Läs frågan noggrant
+2. Välj MEST lämplig personlighet
+3. Börja ditt svar med: [PERSONLIGHET: <id>] [API: <api_names eller tom>]
+
+Exempel:
+- Fråga om böcker → [PERSONLIGHET: bibliotekarie] [API: libris_search]
+- Fråga om väder → [PERSONLIGHET: metrolog] [API: smhi]
+- Allmän fråga → [PERSONLIGHET: medveten] [API: ]
+"""
+                
+                # Call model for personality + API selection (FIRST INFERENCE - HIDDEN)
+                try:
+                    first_inference_start = time.time()
+                    print(f"   Calling model with personality_selection_prompt...")
+                    print(f"   Prompt length: {len(personality_selection_system_prompt)} characters")
+                    
+                    # DEBUG: First inference start
+                    if debug_enabled:
+                        await debug_client.debug_first_inference_start(
+                            personality_selection_system_prompt + "\n\nFråga: " + text,
+                            "oneseek-7b-zero",
+                            300
+                        )
+                    
+                    model_response = generate_with_llama_server(
+                        system_prompt=personality_selection_system_prompt,
+                        user_message=text,
+                        max_tokens=300,
+                        temperature=0.1
+                    )
+                    first_inference_latency = (time.time() - first_inference_start) * 1000
+                    print(f"✅ First inference complete in {first_inference_latency:.0f}ms")
+                    print(f"   Model response: {model_response[:300]}...")
+                    
+                    # DEBUG: First inference response
+                    if debug_enabled:
+                        await debug_client.debug_first_inference_response(
+                            model_response,
+                            first_inference_latency,
+                            shown_to_user=False  # NEVER shown to user!
+                        )
+                    
+                    # Parse tags from model response
+                    print(f"\n📋 Step 2: Parsing personality and API tags from model response...")
+                    parsed_personality_id, parsed_api_list, clean_reasoning = parse_personality_and_api_tags(model_response)
+                    print(f"   Parsed personality ID: {parsed_personality_id}")
+                    print(f"   Parsed API list: {parsed_api_list}")
+                    print(f"   Clean reasoning: {clean_reasoning[:200]}...")
+                    
+                    if parsed_personality_id:
+                        personality_id = parsed_personality_id
+                        # Find personality data from catalog
+                        personality_data = None
+                        personality_name = None
+                        for p in personality_catalog:
+                            if p.get('id', '').lower() == personality_id.lower():
+                                personality_data = p
+                                personality_name = p.get('name', personality_id.title())
+                                break
+                        
+                        if not personality_name:
+                            personality_name = personality_id.title()
+                        
+                        print(f"✅ Personality selected by model: {personality_name} (ID: {personality_id})")
+                        
+                        # Emit thinking event
+                        personality_msg = f"Valde personlighet: {personality_name}"
+                        thinking_steps.append({"step": "personality", "personality": personality_name, "personality_id": personality_id, "message": personality_msg})
+                        yield f"event: thinking\ndata: {json.dumps({'step': 'personality', 'personality': personality_name, 'personality_id': personality_id, 'message': personality_msg})}\n\n"
+                        logger.info(f"🎭 [STREAM-PERSONALITY] Model selected: {personality_name}")
+                        
+                        # DEBUG: Personality selected
+                        if debug_enabled:
+                            await debug_client.debug_personality_selection(
+                                personality_name,
+                                1.0,  # Model selection has 100% confidence
+                                [{"name": personality_name, "score": 1.0}]
+                            )
+                        
+                        # If model selected APIs, add them to selected_apis
+                        if parsed_api_list:
+                            print(f"✅ Model also selected APIs: {parsed_api_list}")
+                            # Convert API names to proper format
+                            for api_name in parsed_api_list:
+                                selected_apis.append({"name": api_name, "params": {}})
+                    else:
+                        print(f"⚠️ No personality tag found in model response, using default Medveten")
+                        personality_id = "medveten"
+                        personality_name = "Medveten"
+                        personality_data = {"id": "medveten", "name": "Medveten", "card_file": "frontend/public/characters/OneSeek-Medveten.yaml"}
+                    
+                except Exception as e:
+                    print(f"❌ First inference (personality selection) failed: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    logger.warning(f"🎭 [STREAM-PERSONALITY] First inference failed: {e}")
+                    # Fallback to default
+                    personality_id = "medveten"
+                    personality_name = "Medveten"
+                    personality_data = {"id": "medveten", "name": "Medveten", "card_file": "frontend/public/characters/OneSeek-Medveten.yaml"}
+                    if debug_enabled:
+                        await debug_client.debug_error("personality_selection", str(e))
+                
+                # Step 3: Fetch API data if APIs were selected
+                if selected_apis:
+                    print(f"\n🌐 Step 3: Fetching API data for {len(selected_apis)} APIs...")
+                    api_names = [api.get('name', 'unknown') for api in selected_apis]
+                    print(f"   APIs to call: {api_names}")
+                    
+                    fetch_msg = f"Hämtar data från {', '.join(api_names)}..."
+                    thinking_steps.append({"step": "api_fetch", "apis": selected_apis, "message": fetch_msg})
+                    yield f"event: thinking\ndata: {json.dumps({'step': 'api_fetch', 'message': fetch_msg})}\n\n"
+                    
+                    # Try to fetch API data if api_selector is available
+                    if API_SELECTOR_AVAILABLE:
+                        try:
+                            # We need to build api_catalog for fetch_apis_parallel
+                            # Load it from config
+                            api_catalog_path = PROJECT_ROOT / "config/api_catalog.json"
+                            if api_catalog_path.exists():
+                                with open(api_catalog_path, 'r', encoding='utf-8') as f:
+                                    full_api_catalog = json.load(f)
+                                api_categories = full_api_catalog.get('api_categories', {})
+                                
+                                # Fetch APIs in parallel
+                                api_selection_dict = {"apis": selected_apis}
+                                api_results = await fetch_apis_parallel(
+                                    api_selection_dict,
+                                    api_categories,
+                                    max_concurrent=5
+                                )
+                                print(f"✅ API fetch complete: {len(api_results)} results received")
+                                
+                                # Format API data
+                                api_data_parts = []
+                                successful_count = 0
+                                for result in api_results:
+                                    print(f"   - {result['api_name']}: {'✅ Success' if result['success'] else '❌ Failed'}")
+                                    if result['success']:
+                                        successful_count += 1
+                                        api_data_parts.append(f"\n[Data från {result['api_name']}]:\n{json.dumps(result['data'], indent=2, ensure_ascii=False)}")
+                                
+                                print(f"   {successful_count}/{len(api_results)} APIs returned data successfully")
+                                
+                                if api_data_parts:
+                                    api_data_context = "\n".join(api_data_parts)
+                                    thinking_steps.append({"step": "api_data", "data": api_results, "message": "API-data hämtad"})
+                                    logger.info(f"📊 [API-DATA] Fetched data from {len(api_results)} APIs")
+                                    print(f"   API data context length: {len(api_data_context)} characters")
+                            else:
+                                print(f"⚠️ api_catalog.json not found, skipping API fetch")
+                        except Exception as e:
+                            print(f"❌ API fetch failed: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            logger.warning(f"⚠️ [API-FETCH] Failed: {e}")
+                    else:
+                        print(f"⚠️ API selector not available, skipping API fetch")
+                
+            except Exception as e:
+                print(f"❌ Personality pipeline failed: {e}")
+                import traceback
+                traceback.print_exc()
+                logger.warning(f"🎭 [STREAM-PERSONALITY] Pipeline failed, using default: {e}")
+                # Fallback to default
+                personality_id = "medveten"
+                personality_name = "Medveten"
+                personality_data = {"id": "medveten", "name": "Medveten", "card_file": "frontend/public/characters/OneSeek-Medveten.yaml"}
+                if debug_enabled:
+                    await debug_client.debug_error("personality_pipeline", str(e))
         
-        # Final fallback - use a simple clean prompt without API selection
+        # Step 4: Load character card system prompt for SECOND INFERENCE
+        print(f"\n📝 Step 4: Loading system prompt for final answer...")
+        # Load the actual character card system prompt based on selected personality
+        system_prompt = None
+        if personality_id:
+        # Step 4: Load character card system prompt for SECOND INFERENCE
+        print(f"\n📝 Step 4: Loading system prompt for final answer...")
+        # Load the actual character card system prompt based on selected personality
+        system_prompt = None
+        if personality_id:
+            # Build card file path based on personality ID
+            card_filename = f"OneSeek-{personality_id.title()}.yaml"
+            card_path = PROJECT_ROOT / "frontend/public/characters" / card_filename
+            print(f"   Trying to load: {card_path}")
+            
+            if card_path.exists():
+                try:
+                    import yaml
+                    with open(card_path, 'r', encoding='utf-8') as f:
+                        card_data = yaml.safe_load(f)
+                    system_prompt = card_data.get('system_prompt', '')
+                    if system_prompt:
+                        print(f"✅ Loaded system_prompt from {card_filename}")
+                        print(f"   Prompt length: {len(system_prompt)} characters")
+                        print(f"   Prompt preview: {system_prompt[:200]}...")
+                        logger.info(f"🎭 [STREAM-PERSONALITY] Loaded system_prompt from {card_filename}")
+                    else:
+                        print(f"⚠️ No system_prompt field in {card_filename}")
+                except Exception as e:
+                    print(f"❌ Failed to load {card_filename}: {e}")
+                    logger.warning(f"🎭 [STREAM-PERSONALITY] Failed to load {card_filename}: {e}")
+            else:
+                print(f"⚠️ Card file not found: {card_path}")
+        
+        # Fallback to default Medveten card
+        if not system_prompt:
+            print(f"   Using fallback: Default Medveten card")
+            default_card_path = PROJECT_ROOT / "frontend/public/characters/OneSeek-Medveten.yaml"
+            if default_card_path.exists():
+                try:
+                    import yaml
+                    with open(default_card_path, 'r', encoding='utf-8') as f:
+                        card_data = yaml.safe_load(f)
+                    system_prompt = card_data.get('system_prompt', '')
+                    print(f"✅ Using default Medveten system_prompt")
+                    logger.info(f"🎭 [STREAM-PERSONALITY] Using default Medveten system_prompt")
+                except Exception as e:
+                    print(f"❌ Failed to load default Medveten card: {e}")
+        
+        # Final emergency fallback
         if not system_prompt:
             system_prompt = """Du är OneSeek-7B-Zero.
 Du pratar alltid svenska – inga undantag, inga engelska ord, aldrig.
@@ -13880,6 +13944,14 @@ Du visar alltid källor när du hämtar fakta."""
                 print(f"✅ Second inference complete - generated {token_count} tokens")
                 print(f"   Full response length: {len(full_response_llama)} characters")
                 print(f"   Response preview: {full_response_llama[:200]}...")
+                
+                # CRITICAL: Strip any remaining [PERSONLIGHET:...] and [API:...] tags from response
+                # The model should NOT include these in final answer, but we strip just in case
+                import re
+                full_response_llama = re.sub(r'\[PERSONLIGHET:[^\]]+\]', '', full_response_llama, flags=re.IGNORECASE)
+                full_response_llama = re.sub(r'\[API:[^\]]+\]', '', full_response_llama, flags=re.IGNORECASE)
+                full_response_llama = full_response_llama.strip()
+                print(f"   After tag stripping: {len(full_response_llama)} characters")
                 
                 # Send completion event
                 elapsed = (time.time() - start_time) * 1000
