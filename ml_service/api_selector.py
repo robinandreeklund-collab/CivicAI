@@ -23,7 +23,7 @@ def parse_api_selection(model_response: str) -> Optional[Dict]:
     Expected format:
     {
         "apis": [
-            {"name": "smhi_current", "params": {"lon": "17.3", "lat": "60.6"}},
+            {"name": "smhi", "params": {"lon": "17.3", "lat": "60.6"}},
             {"name": "yr_no", "params": {"location": "Stockholm"}}
         ]
     }
@@ -296,7 +296,7 @@ if __name__ == "__main__":
     test_response = '''
     {
         "apis": [
-            {"name": "smhi_current", "params": {"lon": "17.3", "lat": "60.6"}},
+            {"name": "smhi", "params": {"lon": "17.3", "lat": "60.6"}},
             {"name": "yr_no", "params": {"location": "Hjo"}}
         ]
     }

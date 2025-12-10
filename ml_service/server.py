@@ -13367,7 +13367,7 @@ def parse_api_selection_response(text: str) -> tuple:
         - reasoning: str - model's explanation (for thinking chain)
     
     Expected format:
-        {"apis": [{"name": "smhi_current", "params": {"lon": "14.28", "lat": "58.30"}}]}
+        {"apis": [{"name": "smhi", "params": {"lon": "14.28", "lat": "58.30"}}]}
         Reasoning: För att ge exakt väderförutsägelse i Hjo behöver jag SMHI:s data...
     """
     import re
@@ -13447,7 +13447,7 @@ Om inga APIs behövs: {{"apis": []}}
 **Exempel:**
 Fråga: "Vad är vädret imorgon i Stockholm?"
 Svar:
-{{"apis": [{{"name": "smhi_current", "params": {{"lon": "18.07", "lat": "59.33"}}}}]}}
+{{"apis": [{{"name": "smhi", "params": {{"lon": "18.07", "lat": "59.33"}}}}]}}
 
 Reasoning: För väderprognos i Stockholm behöver jag SMHI:s data. Stockholm ligger på koordinater lat=59.33, lon=18.07 som jag extraherade från platsnamnet.
 
