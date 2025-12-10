@@ -13175,7 +13175,18 @@ async def generate_sse_tokens(
     personality_data = None
     thinking_steps = []
     
+    # Import debug client if available
     try:
+        import debug_client
+        debug_enabled = debug_client.is_debug_enabled()
+    except ImportError:
+        debug_enabled = False
+    
+    try:
+        # DEBUG: Session start
+        if debug_enabled:
+            await debug_client.debug_session_start(text)
+        
         # PERSONALITY-BASED ROUTING INTEGRATION - COMPLETE PIPELINE
         api_data_context = ""
         character_api_map = {}
@@ -13190,6 +13201,14 @@ async def generate_sse_tokens(
                 # select_personality returns tuple: (personality_id, personality_name, confidence_score, personality_data)
                 personality_id, personality_name, confidence_score, personality_data = select_personality(text, history)
                 if personality_data:
+                    # DEBUG: Personality selected
+                    if debug_enabled:
+                        await debug_client.debug_personality_selection(
+                            personality_name, 
+                            confidence_score,
+                            [{"name": personality_name, "score": confidence_score}]
+                        )
+                    
                     personality_msg = f"Valde personlighet: {personality_name}"
                     thinking_steps.append({"step": "personality", "personality": personality_name, "confidence": confidence_score, "message": personality_msg})
                     yield f"event: thinking\ndata: {json.dumps({'step': 'personality', 'personality': personality_name, 'message': personality_msg})}\n\n"
@@ -13199,10 +13218,19 @@ async def generate_sse_tokens(
                     if API_SELECTOR_AVAILABLE and personality_data.get('tags'):
                         from personality_selector import create_character_api_map
                         character_api_map = create_character_api_map(personality_data)
-                        logger.info(f"🗺️ [API-MAP] Created character API map with {len(character_api_map.get('apis', {}))} APIs")
+                        api_count = len(character_api_map.get('api_categories', {}))
+                        logger.info(f"🗺️ [API-MAP] Created character API map with {api_count} APIs")
+                        
+                        # DEBUG: API map created
+                        if debug_enabled:
+                            await debug_client.debug_api_map_created(
+                                personality_name,
+                                api_count,
+                                personality_data.get('tags', [])
+                            )
                         
                         # Step 4: Ask model to select which APIs to use (FIRST INFERENCE)
-                        if character_api_map and character_api_map.get('apis'):
+                        if character_api_map and character_api_map.get('api_categories'):
                             thinking_steps.append({"step": "api_selection", "message": "Väljer relevanta API:er..."})
                             yield f"event: thinking\ndata: {json.dumps({'step': 'api_selection', 'message': 'Väljer relevanta API:er...'})}\n\n"
                             
@@ -13219,8 +13247,17 @@ Svara ENDAST med JSON i detta format:
 
 Om du inte behöver några API:er, svara: {{"apis": []}}"""
 
+                            # DEBUG: First inference start
+                            if debug_enabled:
+                                await debug_client.debug_first_inference_start(
+                                    api_selection_prompt,
+                                    "oneseek-7b-zero",
+                                    500
+                                )
+
                             # Call model for API selection (non-streaming)
                             try:
+                                first_inference_start = time.time()
                                 from llama_server import generate_with_llama_server
                                 api_response = generate_with_llama_server(
                                     system_prompt="Du är en API-väljare. Svara ENDAST med JSON.",
@@ -13228,6 +13265,15 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                                     max_tokens=500,
                                     temperature=0.1
                                 )
+                                first_inference_latency = (time.time() - first_inference_start) * 1000
+                                
+                                # DEBUG: First inference response
+                                if debug_enabled:
+                                    await debug_client.debug_first_inference_response(
+                                        api_response,
+                                        first_inference_latency,
+                                        shown_to_user=False  # Should always be False!
+                                    )
                                 
                                 # Step 5: Parse API selection and fetch data
                                 from api_selector import parse_api_selection, fetch_multiple_apis
@@ -13235,24 +13281,50 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                                 
                                 if api_selection and api_selection.get('apis'):
                                     selected_apis = api_selection['apis']
+                                    
+                                    # DEBUG: API selection parsed
+                                    if debug_enabled:
+                                        await debug_client.debug_api_selection_parsed(selected_apis)
+                                    
                                     thinking_steps.append({"step": "api_fetch", "apis": selected_apis, "message": f"Hämtar data från {len(selected_apis)} API:er..."})
                                     
                                     api_names = [api.get('name', 'unknown') for api in selected_apis]
                                     fetch_msg = f"Hämtar data från {', '.join(api_names)}..."
                                     yield f"event: thinking\ndata: {json.dumps({'step': 'api_fetch', 'message': fetch_msg})}\n\n"
                                     
+                                    # DEBUG: API fetch start
+                                    if debug_enabled:
+                                        await debug_client.debug_api_fetch_start(len(selected_apis), 5)
+                                    
                                     # Fetch API data in parallel (asyncio already imported at top)
                                     api_results = await fetch_multiple_apis(
                                         api_selection['apis'],
-                                        character_api_map.get('apis', {}),
+                                        character_api_map.get('api_categories', {}),
                                         max_concurrent=5
                                     )
                                     
                                     # Format API data for model context
                                     api_data_parts = []
+                                    successful_count = 0
                                     for result in api_results:
+                                        # DEBUG: Individual API fetch result
+                                        if debug_enabled:
+                                            await debug_client.debug_api_fetch_result(
+                                                result['api_name'],
+                                                result['success'],
+                                                result.get('source'),
+                                                result.get('data') if result['success'] else None,
+                                                result.get('error') if not result['success'] else None,
+                                                0  # latency not tracked per API yet
+                                            )
+                                        
                                         if result['success']:
+                                            successful_count += 1
                                             api_data_parts.append(f"\n[Data från {result['api_name']}]:\n{json.dumps(result['data'], indent=2, ensure_ascii=False)}")
+                                    
+                                    # DEBUG: API fetch complete
+                                    if debug_enabled:
+                                        await debug_client.debug_api_fetch_complete(successful_count, len(api_results))
                                     
                                     if api_data_parts:
                                         api_data_context = "\n".join(api_data_parts)
@@ -13261,8 +13333,12 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                                 
                             except Exception as e:
                                 logger.warning(f"⚠️ [API-SELECTION] Failed: {e}")
+                                if debug_enabled:
+                                    await debug_client.debug_error("api_selection", str(e))
             except Exception as e:
                 logger.warning(f"🎭 [STREAM-PERSONALITY] Selection failed, using default: {e}")
+                if debug_enabled:
+                    await debug_client.debug_error("personality_selection", str(e))
         
         # Step 6: Prepare final inference with personality + API data
         # Get the active system prompt (will be overridden by personality if selected)
@@ -13287,10 +13363,21 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
             yield f"event: thinking\ndata: {json.dumps({'step': 'building', 'message': 'Bygger svar med färsk data...'})}\n\n"
             logger.info(f"📝 [FINAL-ANSWER] Building response with API data")
         
+        # DEBUG: Second inference start
+        if debug_enabled:
+            await debug_client.debug_second_inference_start(
+                personality_name or "Medveten",
+                bool(api_data_context),
+                enriched_system_prompt,
+                "oneseek-7b-zero",
+                max_length
+            )
+        
         # Check if using llama-server.exe backend
         if USING_LLAMA_SERVER:
             logger.info(f"🌊 [STREAM] Using llama-server.exe backend for: {text[:50]}...")
             try:
+                second_inference_start = time.time()
                 full_response_llama = ""  # Track full response for thinking extraction
                 llama_timings = None  # Store timings from llama-server
                 
@@ -13350,6 +13437,15 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                 # Use actual llama-server speed if available, otherwise use display speed
                 tokens_per_second = actual_tokens_per_second if actual_tokens_per_second > 0 else display_tokens_per_second
                 
+                # DEBUG: Second inference response
+                if debug_enabled:
+                    second_inference_latency = (time.time() - second_inference_start) * 1000
+                    await debug_client.debug_second_inference_response(
+                        full_response_llama,
+                        second_inference_latency,
+                        tokens_per_second
+                    )
+                
                 metadata = {
                     "tokens": output_tokens,
                     "latency_ms": round(elapsed, 2),
@@ -13367,12 +13463,18 @@ Om du inte behöver några API:er, svara: {{"apis": []}}"""
                 yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
                 yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': output_tokens, 'personality': personality_name if personality_name else None})}\n\n"
                 
+                # DEBUG: Response sent
+                if debug_enabled:
+                    await debug_client.debug_response_sent(elapsed)
+                
                 if thinking_chain:
                     logger.info(f"🧠 [THINKING] Extracted thinking chain from llama-server ({len(thinking_chain)} chars)")
                 logger.info(f"🌊 [STREAM/LLAMA] Complete: {output_tokens} tokens in {elapsed:.0f}ms ({tokens_per_second} tokens/s)")
                 return
             except Exception as e:
                 logger.error(f"🌊 [STREAM] llama-server.exe error: {e}")
+                if debug_enabled:
+                    await debug_client.debug_error("second_inference_streaming", str(e))
                 yield f"event: error\ndata: {json.dumps({'error': f'llama-server error: {str(e)}'})}\n\n"
                 return
         
