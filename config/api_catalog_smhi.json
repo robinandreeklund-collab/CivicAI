@@ -1,0 +1,193 @@
+{
+  "name": "SMHI Öppna Data",
+  "version": "1.0.0",
+  "description": "Sveriges Meteorologiska och Hydrologiska Institut - Komplett katalog över öppna väder-API:er",
+  "updated": "2025-12-10",
+  "provider": {
+    "name": "SMHI",
+    "url": "https://www.smhi.se/data/oppna-data",
+    "api_documentation": "https://opendata.smhi.se/apidocs/",
+    "license": "CC BY 4.0",
+    "attribution": "© SMHI",
+    "requires_api_key": false
+  },
+  
+  "personality_tags": ["metrolog"],
+  
+  "apis": [
+    {
+      "id": "smhi_forecast_point",
+      "name": "Punktprognoser (9 dagar)",
+      "description": "Detaljerade väderp
+
+rognoser för specifika koordinater, upp till 9 dagar framåt",
+      "endpoint": "https://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point",
+      "method": "GET",
+      "parameters": {
+        "lon": {"type": "float", "required": true, "description": "Longitud (WGS84)"},
+        "lat": {"type": "float", "required": true, "description": "Latitud (WGS84)"}
+      },
+      "frequency": "Uppdateras varje timme",
+      "resolution": "Timprognos",
+      "coverage": "Sverige",
+      "data_format": "JSON/GeoJSON",
+      "keywords": ["väder", "prognos", "temperatur", "nederbörd", "vind", "imorgon", "veckoprognos"],
+      "priority": 1,
+      "example_url": "https://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point/lon/18.07/lat/59.33/data.json"
+    },
+    {
+      "id": "smhi_analysis",
+      "name": "Analys (Nuläge)",
+      "description": "Aktuella väderobservationer och analys av nuvarande förhållanden",
+      "endpoint": "https://opendata-download-metanalys.smhi.se/api/category/mesan2g/version/1/geotype/point",
+      "method": "GET",
+      "parameters": {
+        "lon": {"type": "float", "required": true},
+        "lat": {"type": "float", "required": true"}
+      },
+      "frequency": "Uppdateras varje timme",
+      "resolution": "1x1 km grid",
+      "coverage": "Sverige och närområden",
+      "data_format": "JSON",
+      "keywords": ["väder nu", "aktuellt väder", "just nu", "temperatur nu"],
+      "priority": 2,
+      "example_url": "https://opendata-download-metanalys.smhi.se/api/category/mesan2g/version/1/geotype/point/lon/18.07/lat/59.33/data.json"
+    },
+    {
+      "id": "smhi_observations_latest",
+      "name": "Senaste observationerna",
+      "description": "Senaste väderobservationerna från alla SMHI:s mätstationer",
+      "endpoint": "https://opendata-download-metobs.smhi.se/api/version/latest/parameter/{parameter}/station-set/all/period/latest-hour/data.json",
+      "method": "GET",
+      "parameters": {
+        "parameter": {
+          "type": "integer",
+          "required": true,
+          "options": {
+            "1": "Lufttemperatur",
+            "2": "Lufttemperatur (min 1 dygn)",
+            "3": "Lufttemperatur (max 1 dygn)",
+            "4": "Vindhastighet",
+            "5": "Vindriktning",
+            "6": "Relativ luftfuktighet",
+            "7": "Nederbörd",
+            "39": "Lufttryck"
+          }
+        }
+      },
+      "frequency": "Uppdateras varje timme",
+      "coverage": "SMHI:s alla mätstationer",
+      "data_format": "JSON",
+      "keywords": ["observationer", "mätdata", "mätstation", "verkligt väder"],
+      "priority": 3,
+      "example_url": "https://opendata-download-metobs.smhi.se/api/version/latest/parameter/1/station-set/all/period/latest-hour/data.json"
+    },
+    {
+      "id": "smhi_warnings",
+      "name": "Vädervarningar",
+      "description": "Aktuella vädervarningar för Sverige (klass 1-3)",
+      "endpoint": "https://opendata-download-warnings.smhi.se/api/version/2/warnings.json",
+      "method": "GET",
+      "parameters": {},
+      "frequency": "Uppdateras kontinuerligt",
+      "coverage": "Sverige, indelat i län/områden",
+      "data_format": "JSON",
+      "keywords": ["varning", "vädervarning", "storm", "varning klass", "extremväder"],
+      "priority": 0,
+      "example_url": "https://opendata-download-warnings.smhi.se/api/version/2/warnings.json"
+    },
+    {
+      "id": "smhi_radar",
+      "name": "Nederbördsradar",
+      "description": "Radarbilder som visar nederbörd över Norden",
+      "endpoint": "https://opendata-download-radar.smhi.se/api/version/latest/area/sweden/product/comp",
+      "method": "GET",
+      "parameters": {},
+      "frequency": "Uppdateras var 15:e minut",
+      "coverage": "Sverige och Norden",
+      "data_format": "PNG/GeoTIFF",
+      "keywords": ["radar", "nederbördsradar", "regn nu", "regnradar"],
+      "priority": 4,
+      "example_url": "https://opendata-download-radar.smhi.se/api/version/latest/area/sweden/product/comp"
+    },
+    {
+      "id": "smhi_stations",
+      "name": "Mätstationer",
+      "description": "Information om alla SMHI:s mätstationer",
+      "endpoint": "https://opendata-download-metobs.smhi.se/api/version/latest/parameter/{parameter}/station-set/all.json",
+      "method": "GET",
+      "parameters": {
+        "parameter": {"type": "integer", "required": true}
+      },
+      "frequency": "Statisk data",
+      "coverage": "Sverige",
+      "data_format": "JSON",
+      "keywords": ["mätstation", "station", "stationer"],
+      "priority": 5,
+      "example_url": "https://opendata-download-metobs.smhi.se/api/version/latest/parameter/1/station-set/all.json"
+    },
+    {
+      "id": "smhi_climatology",
+      "name": "Klimatdata",
+      "description": "Historisk klimatdata och statistik från mätstationer",
+      "endpoint": "https://opendata-download-metobs.smhi.se/api/version/1.0/parameter/{parameter}/station/{station}/period/corrected-archive/data.json",
+      "method": "GET",
+      "parameters": {
+        "parameter": {"type": "integer", "required": true},
+        "station": {"type": "integer", "required": true, "description": "Stationsnummer"}
+      },
+      "frequency": "Historisk data",
+      "coverage": "Sverige, historiska mätserier",
+      "data_format": "JSON",
+      "keywords": ["klimat", "historik", "klimatdata", "statistik"],
+      "priority": 6,
+      "example_url": "https://opendata-download-metobs.smhi.se/api/version/1.0/parameter/1/station/180960/period/corrected-archive/data.json"
+    }
+  ],
+  
+  "entity_config": {
+    "entity_required": true,
+    "entity_type": "stad",
+    "fallback_entity": "Stockholm",
+    "entity_extraction": {
+      "method": "city_lookup",
+      "source": "config/swedish_cities.json",
+      "fallback_coordinates": {
+        "lon": 18.07,
+        "lat": 59.33
+      }
+    }
+  },
+  
+  "keywords": ["väder", "vädret", "temperatur", "regn", "snö", "sol", "prognos", "grader", "imorgon", "idag", "nu"],
+  
+  "response_format": {
+    "include_source": true,
+    "include_attribution": true,
+    "format_template": "I {stad} {tid}: {temperatur}°C, {nederbördskategori}. {prognos}\n\n**Källa**: SMHI Öppna Data"
+  },
+  
+  "rate_limits": {
+    "requests_per_second": 10,
+    "requests_per_hour": 1000,
+    "notes": "Inga hårda begränsningar, men rekommenderar caching"
+  },
+  
+  "caching_strategy": {
+    "forecast": "30 minuter",
+    "observations": "15 minuter",
+    "warnings": "5 minuter",
+    "static_data": "24 timmar"
+  },
+  
+  "error_handling": {
+    "fallback_message": "Kunde inte hämta väderdata från SMHI just nu. Försök igen om en stund.",
+    "retry_strategy": "exponential_backoff",
+    "max_retries": 3
+  },
+  
+  "examples": {
+    "query": "Hur blir vädret i Stockholm imorgon?",
+    "response": "I Stockholm imorgon: ca 5°C och regn. Molnigt med tillfälliga regnskurar under dagen. Vindar från sydväst 5-8 m/s.\n\n**Källa**: SMHI Punktprognos"
+  }
+}
