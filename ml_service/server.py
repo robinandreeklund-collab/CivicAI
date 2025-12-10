@@ -13174,8 +13174,12 @@ async def generate_sse_tokens(
     thinking_steps = []
     
     try:
-        # PERSONALITY-BASED ROUTING INTEGRATION
-        # Step 1: Use personality selector to choose best personality
+        # PERSONALITY-BASED ROUTING INTEGRATION - COMPLETE PIPELINE
+        api_data_context = ""
+        character_api_map = {}
+        selected_apis = []
+        
+        # Step 1-2: Select personality using embedding matching
         if PERSONALITY_SELECTOR_AVAILABLE:
             try:
                 thinking_steps.append({"step": "analyzing", "message": "Analyserar frågan..."})
@@ -13185,12 +13189,81 @@ async def generate_sse_tokens(
                 personality_id, personality_name, confidence_score, personality_data = select_personality(text, history)
                 if personality_data:
                     personality_msg = f"Valde personlighet: {personality_name}"
-                    thinking_steps.append({"step": "personality", "message": personality_msg})
+                    thinking_steps.append({"step": "personality", "personality": personality_name, "confidence": confidence_score, "message": personality_msg})
                     yield f"event: thinking\ndata: {json.dumps({'step': 'personality', 'personality': personality_name, 'message': personality_msg})}\n\n"
                     logger.info(f"🎭 [STREAM-PERSONALITY] Selected: {personality_name} (score: {confidence_score:.2f})")
+                    
+                    # Step 3: Build character API map filtered by personality tags
+                    if API_SELECTOR_AVAILABLE and personality_data.get('tags'):
+                        from personality_selector import create_character_api_map
+                        character_api_map = create_character_api_map(personality_data)
+                        logger.info(f"🗺️ [API-MAP] Created character API map with {len(character_api_map.get('apis', {}))} APIs")
+                        
+                        # Step 4: Ask model to select which APIs to use (FIRST INFERENCE)
+                        if character_api_map and character_api_map.get('apis'):
+                            thinking_steps.append({"step": "api_selection", "message": "Väljer relevanta API:er..."})
+                            yield f"event: thinking\ndata: {json.dumps({'step': 'api_selection', 'message': 'Väljer relevanta API:er...'})}\n\n"
+                            
+                            # Create prompt for API selection
+                            api_selection_prompt = f"""Du är {personality_name}. Analysera användarens fråga och välj vilka API:er du behöver.
+
+Tillgängliga API:er:
+{json.dumps(character_api_map, indent=2, ensure_ascii=False)}
+
+Användarens fråga: {text}
+
+Svara ENDAST med JSON i detta format:
+{{"apis": [{{"name": "api_name", "params": {{"param1": "value1"}}}}]}}
+
+Om du inte behöver några API:er, svara: {{"apis": []}}"""
+
+                            # Call model for API selection (non-streaming)
+                            try:
+                                from llama_server import generate_with_llama_server
+                                api_response = generate_with_llama_server(
+                                    system_prompt="Du är en API-väljare. Svara ENDAST med JSON.",
+                                    user_message=api_selection_prompt,
+                                    max_tokens=500,
+                                    temperature=0.1
+                                )
+                                
+                                # Step 5: Parse API selection and fetch data
+                                from api_selector import parse_api_selection, fetch_multiple_apis
+                                api_selection = parse_api_selection(api_response)
+                                
+                                if api_selection and api_selection.get('apis'):
+                                    selected_apis = api_selection['apis']
+                                    thinking_steps.append({"step": "api_fetch", "apis": selected_apis, "message": f"Hämtar data från {len(selected_apis)} API:er..."})
+                                    
+                                    api_names = [api.get('name', 'unknown') for api in selected_apis]
+                                    fetch_msg = f"Hämtar data från {', '.join(api_names)}..."
+                                    yield f"event: thinking\ndata: {json.dumps({'step': 'api_fetch', 'message': fetch_msg})}\n\n"
+                                    
+                                    # Fetch API data in parallel
+                                    import asyncio
+                                    api_results = await fetch_multiple_apis(
+                                        api_selection['apis'],
+                                        character_api_map.get('apis', {}),
+                                        max_concurrent=5
+                                    )
+                                    
+                                    # Format API data for model context
+                                    api_data_parts = []
+                                    for result in api_results:
+                                        if result['success']:
+                                            api_data_parts.append(f"\n[Data från {result['api_name']}]:\n{json.dumps(result['data'], indent=2, ensure_ascii=False)}")
+                                    
+                                    if api_data_parts:
+                                        api_data_context = "\n".join(api_data_parts)
+                                        thinking_steps.append({"step": "api_data", "data": api_results, "message": "API-data hämtad"})
+                                        logger.info(f"📊 [API-DATA] Fetched data from {len(api_results)} APIs")
+                                
+                            except Exception as e:
+                                logger.warning(f"⚠️ [API-SELECTION] Failed: {e}")
             except Exception as e:
                 logger.warning(f"🎭 [STREAM-PERSONALITY] Selection failed, using default: {e}")
         
+        # Step 6: Prepare final inference with personality + API data
         # Get the active system prompt (will be overridden by personality if selected)
         if personality_data and personality_data.get('system_prompt'):
             system_prompt = personality_data['system_prompt']
@@ -13205,8 +13278,13 @@ async def generate_sse_tokens(
         day_name = weekday_map.get(now.weekday(), "")
         time_context = f"Idag är det {day_name} {now.day} {['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'][now.month-1]} {now.year}, klockan {now.strftime('%H:%M')}."
         
-        # Build enriched system prompt with time context
+        # Build enriched system prompt with time context AND API data
         enriched_system_prompt = f"{system_prompt}\n\n[Aktuell tid] {time_context}"
+        if api_data_context:
+            enriched_system_prompt += f"\n\n[Aktuell data från API:er]{api_data_context}"
+            thinking_steps.append({"step": "building", "message": "Bygger svar med färsk data..."})
+            yield f"event: thinking\ndata: {json.dumps({'step': 'building', 'message': 'Bygger svar med färsk data...'})}\n\n"
+            logger.info(f"📝 [FINAL-ANSWER] Building response with API data")
         
         # Check if using llama-server.exe backend
         if USING_LLAMA_SERVER:
@@ -13282,7 +13360,8 @@ async def generate_sse_tokens(
                     "backend": "llama-server.exe",
                     "thinking_chain": thinking_chain,
                     "personality": personality_name if personality_name else None,
-                    "thinking_steps": thinking_steps
+                    "thinking_steps": thinking_steps,
+                    "api_sources": [api.get('name') for api in selected_apis] if selected_apis else []
                 }
                 yield f"event: metadata\ndata: {json.dumps(metadata)}\n\n"
                 yield f"event: done\ndata: {json.dumps({'status': 'complete', 'tokens': output_tokens, 'personality': personality_name if personality_name else None})}\n\n"
