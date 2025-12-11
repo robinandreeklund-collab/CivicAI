@@ -55,17 +55,17 @@
       "name": "smhi_varningar",
       "source": "SMHI",
       "frequency": "kontinuerlig",
-      "url": "https://opendata-download-warnings.smhi.se/api/version/2.json",
+      "url": "https://opendata-download-warnings.smhi.se/ibww/api/version/1",
       "url_template": false,
       "keywords": ["varning", "vädervarning", "storm", "extremväder", "oväder", "fara", "varningar", "klass"],
       "priority": 0,
-      "description": "SMHI vädervarningar - aktuella vädervarningar och meddelanden för Sverige (klass 1-3)",
+      "description": "SMHI vädervarningar - konsekvensbaserade vädervarningar för Sverige (klass 1-3)",
       "method": "GET",
       "parameters": {},
       "coverage": "Sverige",
       "data_format": "JSON",
-      "example_url": "https://opendata-download-warnings.smhi.se/api/version/2.json",
-      "notes": "Returnerar alla aktiva vädervarningar med geografiska områden. Klass 1 = Meddelande, Klass 2 = Varning, Klass 3 = Meddelande om mycket farligt väder"
+      "example_url": "https://opendata-download-warnings.smhi.se/ibww/api/version/1",
+      "notes": "Konsekvensbaserade vädervarningar. Klass 1 = Meddelande om farligt väder, Klass 2 = Varning för mycket farligt väder, Klass 3 = Meddelande om extremt farligt väder"
     },
     {
       "name": "smhi_radar",
