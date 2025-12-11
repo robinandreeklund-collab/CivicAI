@@ -13165,7 +13165,7 @@ Ge ditt svar nu:"""
                         {"role": "system", "content": "Du är ONESEEK - en debattdeltagare som ger koncisa, balanserade svar."},
                         {"role": "user", "content": oneseek_context}
                     ],
-                    "max_tokens": 400,
+                    "max_tokens": 600,
                     "temperature": 0.7,
                 }
                 
