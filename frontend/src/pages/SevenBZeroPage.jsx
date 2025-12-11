@@ -1689,62 +1689,190 @@ export default function SevenBZeroPage() {
             
           case 'round_start':
             setThinkingStep(`🎤 Runda ${message.round} startar...`);
-            // Just show thinking step - round content will come in round_complete event
+            
+            // Initialize round data structure for real-time updates
+            if (!debateState.rounds[message.round - 1]) {
+              debateState.rounds[message.round - 1] = {
+                round: message.round,
+                responses: [],
+                liveInsights: [],
+                echoTexts: {},
+                reasoningTexts: {},
+                summary: null
+              };
+            }
             break;
             
-          case 'round_complete':
-            console.log(`[Debate] Round ${message.round} complete with ${message.data?.responses?.length || 0} responses`);
-            setThinkingStep(`✅ Runda ${message.round} avslutad`);
+          case 'ai_response':
+            // External AI response arrived and queued
+            console.log(`[Debate] ${message.agent} response queued`);
+            setThinkingStep(`✅ ${message.agent.toUpperCase()} har svarat - köar för analys...`);
+            break;
             
-            // Build grouped round message with all responses
-            const responses = message.data?.responses || [];
-            let roundText = `## 🎤 Runda ${message.round}\n\n`;
+          case 'oneseek_echo_start':
+            // OneSeek starts echoing an answer
+            console.log(`[Debate] OneSeek echoing ${message.agent}'s answer`);
+            setThinkingStep(`🔄 OneSeek ekar ${message.agent.toUpperCase()}s svar...`);
             
-            // Add external AI responses (GPT, Gemini, DeepSeek, Grok)
-            const externalAIs = responses.filter(r => r.agent !== 'oneseek');
-            externalAIs.forEach(resp => {
-              roundText += `### 🤖 ${resp.agent.toUpperCase()}\n`;
-              if (resp.model) {
-                roundText += `*${resp.model}*\n\n`;
-              }
-              roundText += `${resp.response}\n\n---\n\n`;
-            });
-            
-            // Add ONESEEK as full debate participant (not just synthesis)
-            const oneseekResp = responses.find(r => r.agent === 'oneseek');
-            if (oneseekResp) {
-              roundText += `### 🤖 ONESEEK\n`;
-              roundText += `*${oneseekResp.model || 'OneSeek-7B-Zero'}*\n\n`;
-              roundText += `${oneseekResp.response}\n\n`;
-              
-              // Don't add HTML tags to markdown - store reasoning for React rendering
-            }
-            
-            // Auto-collapse previous rounds, expand current round
-            setExpandedRounds(new Set([message.round]));
-            
-            // Add as ONE grouped message for the entire round
+            // Create or update message for this echo
+            const echoId = `echo-${message.round}-${message.agent}-${Date.now()}`;
             setMessages(prev => [...prev, {
-              id: `round-complete-${message.round}-${Date.now()}`,
+              id: echoId,
               sender: 'ai',
-              text: roundText,
+              text: `### 🔄 OneSeek ekar ${message.agent.toUpperCase()}s svar\n\n`,
               timestamp: new Date().toISOString(),
-              isRoundComplete: true,
-              roundNumber: message.round,
-              oneseekReasoning: oneseekResp?.reasoning || null  // Store for React rendering
+              isEcho: true,
+              round: message.round,
+              agent: message.agent,
+              isStreaming: true
+            }]);
+            break;
+            
+          case 'oneseek_echo':
+            // Token stream from OneSeek's echo
+            const echoText = message.text || '';
+            const isEchoComplete = message.complete || false;
+            
+            // Update the echo message with streaming text
+            setMessages(prev => prev.map(msg => {
+              if (msg.isEcho && msg.round === message.round && msg.agent === message.agent && msg.isStreaming) {
+                return {
+                  ...msg,
+                  text: `### 🔄 OneSeek ekar ${message.agent.toUpperCase()}s svar\n\n${echoText}`,
+                  isStreaming: !isEchoComplete
+                };
+              }
+              return msg;
+            }));
+            
+            if (isEchoComplete) {
+              setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            }
+            break;
+            
+          case 'oneseek_reasoning':
+            // OneSeek's focused reasoning for specific answer
+            console.log(`[Debate] OneSeek reasoning for ${message.agent}`);
+            
+            setMessages(prev => [...prev, {
+              id: `reasoning-${message.round}-${message.agent}-${Date.now()}`,
+              sender: 'ai',
+              text: `### 💭 OneSeek analys av ${message.agent.toUpperCase()}\n\n${message.message}`,
+              timestamp: new Date().toISOString(),
+              isReasoning: true,
+              round: message.round,
+              agent: message.agent
             }]);
             
-            // Track for voting context
-            if (!debateState.rounds[message.round - 1]) {
-              debateState.rounds[message.round - 1] = { round: message.round, responses: [] };
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            break;
+            
+          case 'live_insight':
+            // Live one-liner insight
+            console.log(`[Debate] Live insight: ${message.message}`);
+            
+            setMessages(prev => [...prev, {
+              id: `insight-${message.round}-${message.agent}-${Date.now()}`,
+              sender: 'system',
+              text: message.message,
+              timestamp: new Date().toISOString(),
+              isInsight: true,
+              round: message.round
+            }]);
+            
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            break;
+            
+          case 'oneseek_own_answer_start':
+            // OneSeek starts its own comprehensive answer
+            console.log(`[Debate] OneSeek generating own answer for round ${message.round}`);
+            setThinkingStep(`🤖 ONESEEK ger sitt debattsvar...`);
+            
+            const ownAnswerId = `oneseek-answer-${message.round}-${Date.now()}`;
+            setMessages(prev => [...prev, {
+              id: ownAnswerId,
+              sender: 'ai',
+              text: `### 🤖 ONESEEK\n*OneSeek-7B-Zero*\n\n`,
+              timestamp: new Date().toISOString(),
+              isOneSeekAnswer: true,
+              round: message.round,
+              isStreaming: true
+            }]);
+            break;
+            
+          case 'oneseek_own_answer':
+            // Token stream from OneSeek's own answer
+            const answerText = message.text || '';
+            const isAnswerComplete = message.complete || false;
+            
+            // Update the OneSeek answer message with streaming text
+            setMessages(prev => prev.map(msg => {
+              if (msg.isOneSeekAnswer && msg.round === message.round && msg.isStreaming) {
+                return {
+                  ...msg,
+                  text: `### 🤖 ONESEEK\n*OneSeek-7B-Zero*\n\n${answerText}`,
+                  isStreaming: !isAnswerComplete
+                };
+              }
+              return msg;
+            }));
+            
+            if (isAnswerComplete) {
+              setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             }
-            debateState.rounds[message.round - 1].responses = responses;
+            break;
+            
+          case 'oneseek_own_reasoning':
+            // OneSeek's reasoning for its own answer
+            console.log(`[Debate] OneSeek reasoning for own answer`);
+            
+            setMessages(prev => [...prev, {
+              id: `oneseek-reasoning-${message.round}-${Date.now()}`,
+              sender: 'ai',
+              text: `### 💭 OneSeeks tankekedja\n\n${message.message}`,
+              timestamp: new Date().toISOString(),
+              isOneSeekReasoning: true,
+              round: message.round
+            }]);
+            
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            break;
+            
+          case 'round_summary':
+            // Round compression/summary
+            console.log(`[Debate] Round ${message.round} summary received`);
+            setThinkingStep(`📚 Sammanfattar lärdomar från runda ${message.round}...`);
+            
+            const summaryText = message.data?.summary || message.message;
+            setMessages(prev => [...prev, {
+              id: `summary-${message.round}-${Date.now()}`,
+              sender: 'system',
+              text: `## 📚 Lärdomar från Runda ${message.round}\n\n${summaryText}`,
+              timestamp: new Date().toISOString(),
+              isRoundSummary: true,
+              round: message.round
+            }]);
             
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
             
           case 'round_end':
-            // Deprecated - using round_complete instead
+            setThinkingStep(`✅ Runda ${message.round} avslutad`);
+            
+            // Add visual separator between rounds
+            setMessages(prev => [...prev, {
+              id: `round-end-${message.round}-${Date.now()}`,
+              sender: 'system',
+              text: `---\n\n`,
+              timestamp: new Date().toISOString(),
+              isRoundEnd: true,
+              round: message.round
+            }]);
+            break;
+            
+          case 'round_complete':
+            // Legacy support - deprecated in new architecture
+            console.log(`[Debate] Legacy round_complete event received`);
             break;
             
           case 'debate_complete':
