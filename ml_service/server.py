@@ -14222,13 +14222,17 @@ Exempel:
                                 if is_success:
                                     successful_count += 1
                                     successful_api_names.append(api_name)
-                                    # Truncate large API responses to prevent context overflow
+                                    # Get API response data
                                     data_str = json.dumps(result['data'], indent=2, ensure_ascii=False)
                                     data_size = len(data_str)
-                                    max_data_size = 2000  # Max chars per API response
-                                    if len(data_str) > max_data_size:
-                                        data_str = data_str[:max_data_size] + "\n... (data truncated for context window)"
-                                        print(f"   ⚠️ Truncated {api_name} data from {data_size} to {max_data_size} chars")
+                                    
+                                    # NOTE: Truncation commented out since we now fetch only relevant endpoints
+                                    # If context overflow becomes an issue again, uncomment below:
+                                    # max_data_size = 2000  # Max chars per API response
+                                    # if len(data_str) > max_data_size:
+                                    #     data_str = data_str[:max_data_size] + "\n... (data truncated for context window)"
+                                    #     print(f"   ⚠️ Truncated {api_name} data from {data_size} to {max_data_size} chars")
+                                    
                                     api_data_parts.append(f"\n[Data från {api_name}]:\n{data_str}")
                                     api_fetch_reasoning = f"GET {api_url} med params {json.dumps(params)} → Success ({data_size} chars data)"
                                 else:

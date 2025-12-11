@@ -55,7 +55,7 @@
       "name": "smhi_varningar",
       "source": "SMHI",
       "frequency": "kontinuerligt",
-      "url": "https://opendata-download-warnings.smhi.se/api/version/2/warnings.json",
+      "url": "https://opendata-download-warnings.smhi.se/api/version/2/alerts.json",
       "url_template": false,
       "keywords": ["varning", "vädervarning", "storm", "varning klass", "extremväder", "farligt", "risk"],
       "priority": 0,
@@ -64,7 +64,7 @@
       "parameters": {},
       "coverage": "Sverige, indelat i län/områden",
       "data_format": "JSON",
-      "example_url": "https://opendata-download-warnings.smhi.se/api/version/2/warnings.json"
+      "example_url": "https://opendata-download-warnings.smhi.se/api/version/2/alerts.json"
     },
     {
       "name": "smhi_radar",
