@@ -363,18 +363,97 @@ export default function ApiAdminPageNew() {
                         <div className="flex items-start justify-between mb-2">
                           <div>
                             <div className="text-sm font-mono text-[#e7e7e7]">{api.name}</div>
-                            <div className="text-[10px] text-[#555] mt-1">ID: {api.id}</div>
+                            {api.source && (
+                              <div className="text-[10px] text-[#555] mt-1">
+                                📡 {api.source}
+                                {api.url_template && <span className="ml-2 text-orange-400">🔗 Template URL</span>}
+                              </div>
+                            )}
                           </div>
-                          <div className="text-[10px] px-2 py-1 bg-blue-900/20 text-blue-400 rounded">
-                            Priority: {api.priority}
+                          <div className="flex gap-2 items-center">
+                            <div className={`text-[10px] px-2 py-1 rounded ${
+                              api.priority === 0 ? 'bg-red-900/30 text-red-400 border border-red-500/30' :
+                              api.priority === 1 ? 'bg-blue-900/30 text-blue-400 border border-blue-500/30' :
+                              'bg-purple-900/20 text-purple-400'
+                            }`}>
+                              Priority: {api.priority}
+                            </div>
+                            <div className="text-[10px] px-2 py-1 bg-green-900/20 text-green-400 rounded">
+                              {api.method || 'GET'}
+                            </div>
                           </div>
                         </div>
                         <p className="text-xs text-[#888] mb-3">{api.description}</p>
-                        <div className="text-[10px] text-[#555] space-y-1">
-                          <div>📍 {api.endpoint}</div>
-                          <div>🔄 {api.frequency}</div>
-                          <div>🏷️ Keywords: {api.keywords?.join(', ')}</div>
+                        <div className="text-[10px] text-[#555] space-y-1 mb-3">
+                          <div className="flex items-start gap-2">
+                            <span className="text-[#777]">📍 URL:</span>
+                            <span className="text-blue-300 font-mono break-all">{api.url}</span>
+                          </div>
+                          {api.frequency && (
+                            <div className="flex items-start gap-2">
+                              <span className="text-[#777]">🔄 Uppdatering:</span>
+                              <span>{api.frequency}</span>
+                            </div>
+                          )}
+                          {api.coverage && (
+                            <div className="flex items-start gap-2">
+                              <span className="text-[#777]">🌍 Täckning:</span>
+                              <span>{api.coverage}</span>
+                            </div>
+                          )}
+                          {api.data_format && (
+                            <div className="flex items-start gap-2">
+                              <span className="text-[#777]">📄 Format:</span>
+                              <span>{api.data_format}</span>
+                            </div>
+                          )}
+                          {api.keywords && api.keywords.length > 0 && (
+                            <div className="flex items-start gap-2">
+                              <span className="text-[#777]">🏷️ Keywords:</span>
+                              <span className="flex-1">
+                                {api.keywords.map((kw, i) => (
+                                  <span key={i} className="inline-block mr-1 mb-1 px-2 py-0.5 bg-[#1a1a1a] text-[#888] rounded text-[9px]">
+                                    {kw}
+                                  </span>
+                                ))}
+                              </span>
+                            </div>
+                          )}
+                          {api.parameters && Object.keys(api.parameters).length > 0 && (
+                            <div className="flex items-start gap-2">
+                              <span className="text-[#777]">⚙️ Parameters:</span>
+                              <span className="flex-1">
+                                {Object.entries(api.parameters).map(([key, val]) => (
+                                  <div key={key} className="text-[9px] bg-[#1a1a1a] rounded px-2 py-1 mb-1">
+                                    <span className="text-cyan-400">{key}</span>
+                                    <span className="text-[#666]">: {val.type}</span>
+                                    {val.required && <span className="text-orange-400 ml-1">*required</span>}
+                                    {val.description && <span className="text-[#777] ml-2">// {val.description}</span>}
+                                  </div>
+                                ))}
+                              </span>
+                            </div>
+                          )}
+                          {api.notes && (
+                            <div className="flex items-start gap-2 mt-2 pt-2 border-t border-[#1a1a1a]">
+                              <span className="text-[#777]">💡 Info:</span>
+                              <span className="text-[#888] italic">{api.notes}</span>
+                            </div>
+                          )}
                         </div>
+                        {api.example_url && (
+                          <div className="mt-3 pt-3 border-t border-[#1a1a1a]">
+                            <div className="text-[10px] text-[#555] mb-1">📝 Example:</div>
+                            <a 
+                              href={api.example_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[9px] text-blue-400 hover:text-blue-300 font-mono break-all"
+                            >
+                              {api.example_url}
+                            </a>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
