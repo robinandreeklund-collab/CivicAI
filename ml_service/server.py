@@ -12779,14 +12779,20 @@ async def websocket_live_debate(websocket: WebSocket):
         
         logger.info(f"[WS-Debate] Starting live debate for: {clean_question[:60]}...")
         
-        # Step 1: Personality selection (model does this automatically via catalog)
+        # Step 1: Load Debattledare personality directly (no automatic selection needed)
         await websocket.send_json({
             "type": "thinking",
-            "message": "[tänker...] Startar debattarena..."
+            "message": "[tänker...] Laddar Debattledare-personlighet..."
         })
         
-        # Personality selection should happen automatically based on keywords in question
-        # The catalog has "debatt", "diskussion" etc. which should trigger Debattledaren
+        # Load Debattledare personality card directly since debate button was pressed
+        try:
+            from personality_selector import load_personality_catalog
+            catalog = load_personality_catalog()
+            debattledare_config = catalog.get('personality_catalog', {}).get('oneseek-debattledare', {})
+            logger.info(f"[WS-Debate] Loaded Debattledare personality: {debattledare_config.get('name', 'Debattledaren')}")
+        except Exception as e:
+            logger.warning(f"[WS-Debate] Could not load Debattledare config: {e}")
         
         # Step 2: Initialize debate participants
         debate_agents = ['gpt', 'gemini', 'deepseek', 'grok', 'oneseek']
@@ -12795,11 +12801,12 @@ async def websocket_live_debate(websocket: WebSocket):
         
         await websocket.send_json({
             "type": "debate_init",
-            "message": "Debattarena redo! Deltagare: GPT, Gemini, DeepSeek, Grok, ONESEEK",
+            "message": "🎤 Debattarena redo! Debattledaren välkomnar alla deltagare.",
             "data": {
                 "agents": debate_agents,
                 "rounds": max_rounds,
-                "question": clean_question
+                "question": clean_question,
+                "personality": "Debattledaren"
             }
         })
         
@@ -12843,10 +12850,10 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
             async def get_agent_response(agent_name):
                 try:
                     if agent_name == 'oneseek':
-                        # Use personality endpoint for ONESEEK (should auto-select Debattledaren)
+                        # Use ONESEEK with Debattledare personality loaded
                         payload = {
                             "messages": [
-                                {"role": "system", "content": "Du är Debattledaren i en AI-debatt. Ge objektiv analys."},
+                                {"role": "system", "content": "Du är Debattledaren – Sveriges mest erfarna och objektiva debattmoderator. Du ger objektiv, balanserad analys i debatten."},
                                 {"role": "user", "content": debate_prompt}
                             ],
                             "max_tokens": 300,
