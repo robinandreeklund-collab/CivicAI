@@ -13,6 +13,101 @@ import { Link } from 'react-router-dom';
  * - Horizontal scalability for large API catalogs
  */
 
+// Embedded catalog data (avoids network requests and MIME type issues)
+const EMBEDDED_CATALOG = {
+  "version": "7.0.0",
+  "api_catalog": {
+    "väder": {
+      "$ref": "api_catalog_smhi.json",
+      "_resolved": true,
+      "description": "Sveriges Meteorologiska och Hydrologiska Institut - Komplett katalog över öppna väder-API:er",
+      "personality_tags": ["metrolog"],
+      "provider": {
+        "name": "SMHI",
+        "url": "https://www.smhi.se/data/oppna-data",
+        "api_documentation": "https://opendata.smhi.se/apidocs/",
+        "license": "CC BY 4.0",
+        "requires_api_key": false
+      },
+      "apis": [
+        {
+          "name": "smhi_prognos",
+          "source": "SMHI",
+          "url": "https://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point/lon/{lon}/lat/{lat}/data.json",
+          "url_template": true,
+          "keywords": ["väder", "prognos", "imorgon"],
+          "priority": 1,
+          "description": "SMHI 9-dagars väderprognos",
+          "method": "GET",
+          "parameters": {
+            "lon": {"type": "float", "required": true},
+            "lat": {"type": "float", "required": true}
+          }
+        },
+        {
+          "name": "smhi_analys",
+          "source": "SMHI",
+          "url": "https://opendata-download-metanalys.smhi.se/api/category/mesan2g/version/1/geotype/point/lon/{lon}/lat/{lat}/data.json",
+          "url_template": true,
+          "keywords": ["väder nu", "aktuellt"],
+          "priority": 2,
+          "description": "SMHI väderanalys - aktuellt väder",
+          "method": "GET",
+          "parameters": {
+            "lon": {"type": "float", "required": true},
+            "lat": {"type": "float", "required": true}
+          }
+        },
+        {
+          "name": "smhi_varningar",
+          "source": "SMHI",
+          "url": "https://opendata-download-warnings.smhi.se/ibww/api/version/1",
+          "keywords": ["varning", "storm"],
+          "priority": 0,
+          "description": "SMHI vädervarningar - konsekvensbaserade (klass 1-3)",
+          "method": "GET"
+        },
+        {
+          "name": "smhi_radar",
+          "source": "SMHI",
+          "url": "https://opendata-download-radar.smhi.se/api/version/latest/area/sweden/product/comp",
+          "keywords": ["radar", "regn nu"],
+          "priority": 4,
+          "description": "SMHI nederbördsradar",
+          "method": "GET"
+        },
+        {
+          "name": "smhi_observationer",
+          "source": "SMHI",
+          "url": "https://opendata-download-metobs.smhi.se/api/version/latest/parameter/1/station-set/all/period/latest-hour/data.json",
+          "keywords": ["observationer", "mätdata"],
+          "priority": 3,
+          "description": "SMHI observationer från mätstationer",
+          "method": "GET"
+        },
+        {
+          "name": "smhi_stationer",
+          "source": "SMHI",
+          "url": "https://opendata-download-metobs.smhi.se/api/version/latest/parameter/1/station-set/all.json",
+          "keywords": ["station", "mätstation"],
+          "priority": 5,
+          "description": "SMHI mätstationer - information",
+          "method": "GET"
+        },
+        {
+          "name": "smhi_klimat",
+          "source": "SMHI",
+          "url": "https://opendata-download-metobs.smhi.se/api/version/1.0/parameter/1/station/180960/period/corrected-archive/data.json",
+          "keywords": ["klimat", "historik"],
+          "priority": 6,
+          "description": "SMHI klimatdata - historisk data",
+          "method": "GET"
+        }
+      ]
+    }
+  }
+};
+
 export default function ApiAdminPageNew() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -45,34 +140,12 @@ export default function ApiAdminPageNew() {
     setError(null);
     
     try {
-      // In Vite, files in public folder are served from the root
-      // The correct path is just the filename with leading slash
-      console.log('[API Admin] Loading catalog from public folder...');
+      console.log('[API Admin] Loading embedded catalog data...');
       
-      // Import the file directly instead of using fetch to avoid MIME type issues
-      const catalogModule = await import('/api_catalog.json?raw');
-      let catalogText = catalogModule.default;
+      // Use embedded catalog data directly - no network requests needed
+      const catalog = EMBEDDED_CATALOG;
       
-      // If import doesn't work, fall back to fetch with proper headers
-      if (!catalogText) {
-        console.log('[API Admin] Trying fetch with proper headers...');
-        const response = await fetch('/api_catalog.json', {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        catalogText = await response.text();
-      }
-      
-      // Parse the JSON
-      const catalog = JSON.parse(catalogText);
-      console.log('[API Admin] Successfully loaded catalog:', catalog);
+      console.log('[API Admin] Successfully loaded embedded catalog:', catalog);
       
       setApiCatalog(catalog);
       
@@ -85,36 +158,8 @@ export default function ApiAdminPageNew() {
       
     } catch (e) {
       console.error('[API Admin] Failed to load catalog:', e);
-      
-      // As a last resort, use embedded fallback data
-      console.log('[API Admin] Using embedded fallback catalog data...');
-      
-      try {
-        // Embedded minimal catalog structure for fallback
-        const fallbackCatalog = {
-          "version": "7.0.0",
-          "api_catalog": {
-            "väder": {
-              "$ref": "api_catalog_smhi.json"
-            }
-          }
-        };
-        
-        setApiCatalog(fallbackCatalog);
-        const cats = Object.keys(fallbackCatalog.api_catalog || {});
-        setCategories(cats);
-        setLoading(false);
-        setError('Använde reservdata. Filen kunde inte laddas från servern.');
-        
-      } catch (fallbackError) {
-        setError(`Kunde inte ladda API-katalog: ${e.message}
-
-Felsökning:
-1. Kontrollera att filen frontend/public/api_catalog.json existerar
-2. Starta om dev-servern (npm run dev)
-3. Rensa webbläsarens cache (Ctrl+Shift+R)`);
-        setLoading(false);
-      }
+      setError(`Kunde inte ladda API-katalog: ${e.message}`);
+      setLoading(false);
     }
   };
 
@@ -127,28 +172,9 @@ Felsökning:
         return;
       }
       
-      // Check if it's a $ref to another file
-      if (category.$ref) {
-        const refFile = category.$ref;
-        const refResponse = await fetch(`/${refFile}`);
-        if (refResponse.ok) {
-          const refData = await refResponse.json();
-          setModuleInfo({
-            name: categoryName,
-            isReference: true,
-            referenceFile: refFile,
-            ...refData
-          });
-        } else {
-          setModuleInfo({
-            name: categoryName,
-            isReference: true,
-            referenceFile: refFile,
-            error: 'Kunde inte ladda refererad fil'
-          });
-        }
-      } else {
-        // Direct inline definition
+      // Check if data is already resolved (embedded catalog has _resolved: true)
+      if (category._resolved || !category.$ref) {
+        // Data is already available inline
         setModuleInfo({
           name: categoryName,
           isReference: false,
