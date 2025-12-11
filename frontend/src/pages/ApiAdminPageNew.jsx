@@ -194,27 +194,28 @@ export default function ApiAdminPageNew() {
     setTesting(true);
     setTestResult(null);
     
-    try {
-      // Call backend test endpoint for the module
-      const response = await fetch(`/api/test-module/${selectedModule}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: 'Test query',
-          entity: 'Stockholm'
-        })
-      });
+    // Simulate API test with mock data
+    setTimeout(() => {
+      const moduleData = moduleDetails[selectedModule];
       
-      const data = await response.json();
-      setTestResult(data);
-    } catch (e) {
       setTestResult({
-        success: false,
-        error: e.message
+        success: true,
+        message: 'Detta är en förhandsvisning av API-modulen',
+        data: {
+          module: selectedModule,
+          apis: moduleData?.apis?.length || 0,
+          provider: moduleData?.provider?.name || 'Unknown',
+          endpoints: moduleData?.apis?.map(api => ({
+            name: api.name,
+            url: api.url,
+            method: api.method || 'GET',
+            description: api.description
+          })) || []
+        },
+        note: 'För att testa mot riktiga API:er, använd huvudapplikationen på /chat eller /7b-0'
       });
-    } finally {
       setTesting(false);
-    }
+    }, 500);
   };
 
   if (loading) {
@@ -553,11 +554,58 @@ export default function ApiAdminPageNew() {
                   <h3 className={`text-sm font-mono mb-4 ${
                     testResult.success ? 'text-green-400' : 'text-red-400'
                   }`}>
-                    {testResult.success ? '✓ Test lyckades' : '✗ Test misslyckades'}
+                    {testResult.success ? '✓ Modulöversikt' : '✗ Test misslyckades'}
                   </h3>
-                  <pre className="text-[10px] font-mono text-[#888] overflow-x-auto">
-                    {JSON.stringify(testResult, null, 2)}
-                  </pre>
+                  
+                  {testResult.success && testResult.data ? (
+                    <div className="space-y-4">
+                      <div className="text-sm text-[#aaa]">
+                        {testResult.message}
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-4 text-xs">
+                        <div>
+                          <div className="text-[#555] mb-1">Modul</div>
+                          <div className="text-[#e7e7e7]">{testResult.data.module}</div>
+                        </div>
+                        <div>
+                          <div className="text-[#555] mb-1">Antal APIs</div>
+                          <div className="text-[#e7e7e7]">{testResult.data.apis}</div>
+                        </div>
+                        <div>
+                          <div className="text-[#555] mb-1">Leverantör</div>
+                          <div className="text-[#e7e7e7]">{testResult.data.provider}</div>
+                        </div>
+                      </div>
+                      
+                      {testResult.data.endpoints && testResult.data.endpoints.length > 0 && (
+                        <div>
+                          <div className="text-[#555] text-xs mb-2">Endpoints:</div>
+                          <div className="space-y-2">
+                            {testResult.data.endpoints.map((ep, idx) => (
+                              <div key={idx} className="bg-[#0a0a0a] rounded p-3 text-xs">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-blue-400 font-mono">{ep.name}</span>
+                                  <span className="text-[#555]">{ep.method}</span>
+                                </div>
+                                <div className="text-[#888] text-[10px] truncate">{ep.url}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {testResult.note && (
+                        <div className="text-xs text-yellow-400/80 bg-yellow-900/10 border border-yellow-900/30 rounded p-3">
+                          💡 {testResult.note}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <pre className="text-[10px] font-mono text-[#888] overflow-x-auto">
+                      {JSON.stringify(testResult, null, 2)}
+                    </pre>
+                  )}
                 </div>
               )}
             </div>
