@@ -12810,13 +12810,8 @@ async def websocket_live_debate(websocket: WebSocket):
             }
         })
         
-        # Import external AI services
-        import sys
-        sys.path.insert(0, str(PROJECT_ROOT / 'backend'))
-        from services.openai import getOpenAIResponse
-        from services.gemini import getGeminiResponse
-        from services.deepseek import getDeepSeekResponse
-        from services.grok import getGrokResponse
+        # Backend API base URL (Node.js server with external AI services)
+        BACKEND_API_URL = os.environ.get('BACKEND_API_URL', 'http://localhost:3001')
         
         # Conduct debate rounds
         for round_num in range(1, max_rounds + 1):
@@ -12881,23 +12876,31 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
                             'success': True
                         }
                     else:
-                        # External AI services
-                        service_map = {
-                            'gpt': getOpenAIResponse,
-                            'gemini': getGeminiResponse,
-                            'deepseek': getDeepSeekResponse,
-                            'grok': getGrokResponse
+                        # External AI services - call via backend HTTP API
+                        service_endpoints = {
+                            'gpt': f'{BACKEND_API_URL}/api/external/openai',
+                            'gemini': f'{BACKEND_API_URL}/api/external/gemini',
+                            'deepseek': f'{BACKEND_API_URL}/api/external/deepseek',
+                            'grok': f'{BACKEND_API_URL}/api/external/grok'
                         }
                         
-                        service = service_map.get(agent_name)
-                        if not service:
+                        endpoint = service_endpoints.get(agent_name)
+                        if not endpoint:
                             return {
                                 'agent': agent_name,
                                 'response': 'Fel: Tjänst inte tillgänglig',
                                 'success': False
                             }
                         
-                        result = await asyncio.to_thread(service, debate_prompt)
+                        # Make HTTP request to backend
+                        response = requests.post(
+                            endpoint,
+                            json={'question': debate_prompt},
+                            timeout=60
+                        )
+                        response.raise_for_status()
+                        result = response.json()
+                        
                         return {
                             'agent': agent_name,
                             'response': result.get('response', ''),
