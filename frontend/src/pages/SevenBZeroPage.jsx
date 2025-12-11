@@ -2517,7 +2517,7 @@ export default function SevenBZeroPage() {
                           
                           {/* Interactive rounds */}
                           {msg.debateData.rounds && msg.debateData.rounds.map((round, idx) => (
-                            round && round.responses && round.responses.length > 0 && (
+                            round && (
                               <div key={idx} style={{marginBottom: '16px', border: '1px solid #333', borderRadius: '8px', overflow: 'hidden'}}>
                                 <button
                                   onClick={() => toggleDebateRound(msg.id, idx)}
@@ -2543,16 +2543,22 @@ export default function SevenBZeroPage() {
                                 
                                 {round.expanded !== false && (
                                   <div style={{padding: '16px', background: whiteMode ? '#fafafa' : '#0d0d0d'}}>
-                                    {round.responses.map((resp, ridx) => (
-                                      <div key={ridx} style={{marginBottom: '16px', paddingBottom: '16px', borderBottom: ridx < round.responses.length - 1 ? '1px solid #333' : 'none'}}>
-                                        <div style={{fontWeight: 'bold', marginBottom: '8px', color: '#646cff'}}>
-                                          {resp.agent.toUpperCase()} {resp.model && `(${resp.model})`}
+                                    {round.responses && round.responses.length > 0 ? (
+                                      round.responses.map((resp, ridx) => (
+                                        <div key={ridx} style={{marginBottom: '16px', paddingBottom: '16px', borderBottom: ridx < round.responses.length - 1 ? '1px solid #333' : 'none'}}>
+                                          <div style={{fontWeight: 'bold', marginBottom: '8px', color: '#646cff'}}>
+                                            {resp.agent.toUpperCase()} {resp.model && `(${resp.model})`}
+                                          </div>
+                                          <div style={{lineHeight: '1.6'}}>
+                                            {resp.response}
+                                          </div>
                                         </div>
-                                        <div style={{lineHeight: '1.6'}}>
-                                          {resp.response}
-                                        </div>
+                                      ))
+                                    ) : (
+                                      <div style={{fontStyle: 'italic', color: '#888'}}>
+                                        Väntar på svar...
                                       </div>
-                                    ))}
+                                    )}
                                   </div>
                                 )}
                               </div>
