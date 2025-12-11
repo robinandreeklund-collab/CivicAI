@@ -6,11 +6,29 @@
  * - Cleaner, more organized presentation
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 
 export default function DebateRoundDisplay({ round, aiData, isActive = false }) {
-  const [expandedAIs, setExpandedAIs] = useState(new Set());
+  // AI display order
+  const aiOrder = ['gpt', 'gemini', 'deepseek', 'grok', 'oneseek'];
+  
+  // Get all AIs that have data in this round
+  const availableAIs = aiOrder.filter(ai => aiData && aiData[ai]);
+  
+  // Start with all available AIs expanded
+  const [expandedAIs, setExpandedAIs] = useState(new Set(availableAIs));
+
+  // Auto-expand AIs that are streaming or have new content
+  useEffect(() => {
+    const newExpanded = new Set(expandedAIs);
+    availableAIs.forEach(ai => {
+      if (aiData[ai] && (aiData[ai].isStreaming || aiData[ai].text)) {
+        newExpanded.add(ai);
+      }
+    });
+    setExpandedAIs(newExpanded);
+  }, [aiData, availableAIs]);
 
   const toggleAI = (aiName) => {
     const newExpanded = new Set(expandedAIs);
@@ -21,12 +39,6 @@ export default function DebateRoundDisplay({ round, aiData, isActive = false }) 
     }
     setExpandedAIs(newExpanded);
   };
-
-  // AI display order
-  const aiOrder = ['gpt', 'gemini', 'deepseek', 'grok', 'oneseek'];
-  
-  // Get all AIs that have data in this round
-  const availableAIs = aiOrder.filter(ai => aiData && aiData[ai]);
 
   return (
     <div className={`bg-[#1a1a2e] rounded-xl border-2 ${isActive ? 'border-[#00d9ff]' : 'border-[#2d2d44]'} p-4 mb-4 ${isActive ? 'animate-fadeIn' : ''}`}>

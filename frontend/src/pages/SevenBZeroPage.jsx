@@ -2512,8 +2512,13 @@ export default function SevenBZeroPage() {
             </div>
           )}
 
-          {/* Messages */}
-          {messages.map((msg, idx) => {
+          {/* Messages - Filter to show only non-debate messages or debate completion when using new component */}
+          {messages.filter(msg => {
+            // If not in debate mode with new component, show all messages
+            if (!(debateMode && Object.keys(debateRounds).length > 0)) return true;
+            // If in debate mode with new component, only show debate_complete messages
+            return msg.isDebateComplete;
+          }).map((msg, idx) => {
             // Calculate opacity based on position - newer messages are more visible
             const totalMessages = messages.length;
             const distanceFromEnd = totalMessages - 1 - idx;
