@@ -1688,62 +1688,61 @@ export default function SevenBZeroPage() {
             
           case 'round_start':
             setThinkingStep(`🎤 Runda ${message.round} startar...`);
-            debateState.currentRound = message.round;
-            debateState.rounds[message.round - 1] = {
-              round: message.round,
-              responses: [],
-              expanded: true  // New round starts expanded
-            };
-            
-            // Collapse previous rounds when new round starts
-            if (message.round > 1) {
-              debateState.rounds.forEach((r, idx) => {
-                if (idx < message.round - 1) {
-                  r.expanded = false;
-                }
-              });
-            }
-            
-            setDebateData({...debateState});
-            updateDebateMessage(aiMessageId, debateState, false);
+            // Add round header as a NEW message
+            setMessages(prev => [...prev, {
+              id: `round-${message.round}-${Date.now()}`,
+              sender: 'system',
+              text: `### 🎤 Runda ${message.round}\n\n*Lyssnar på alla AI-modeller...*`,
+              timestamp: new Date().toISOString(),
+              isRoundHeader: true
+            }]);
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
             
           case 'response':
             console.log(`[Debate] Response from ${message.agent}`);
-            const roundIndex = message.round - 1;
-            if (!debateState.rounds[roundIndex]) {
-              debateState.rounds[roundIndex] = { round: message.round, responses: [], expanded: true };
+            setThinkingStep(`💬 ${message.agent.toUpperCase()} svarade...`);
+            
+            // Add AI response as a NEW message - appears immediately!
+            setMessages(prev => [...prev, {
+              id: `response-${message.agent}-${message.round}-${Date.now()}`,
+              sender: 'ai',
+              agent: message.agent.toUpperCase(),
+              text: message.message,
+              model: message.data?.model,
+              timestamp: new Date().toISOString(),
+              isDebateResponse: true
+            }]);
+            
+            // Track for final summary
+            if (!debateState.rounds[message.round - 1]) {
+              debateState.rounds[message.round - 1] = { round: message.round, responses: [] };
             }
-            debateState.rounds[roundIndex].responses.push({
+            debateState.rounds[message.round - 1].responses.push({
               agent: message.agent,
               response: message.message,
               model: message.data?.model
             });
-            setDebateData({...debateState});
-            setThinkingStep(`💬 ${message.agent.toUpperCase()} svarade...`);
             
-            // Update message in real-time with current debate state
-            updateDebateMessage(aiMessageId, debateState, false);
-            // Force scroll to trigger browser repaint and React commit
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
             
           case 'round_end':
             setThinkingStep(`✅ Runda ${message.round} avslutad`);
-            // Keep current round expanded when it ends
-            // It will be collapsed when the next round starts
-            setDebateData({...debateState});
-            updateDebateMessage(aiMessageId, debateState, false);
+            // Just update thinking step - responses already added as individual messages
             break;
             
           case 'voting':
             setThinkingStep('🗳️ Röstning pågår...');
-            // Collapse all rounds during voting for clean display
-            debateState.rounds.forEach(r => {
-              if (r) r.expanded = false;
-            });
-            setDebateData({...debateState});
-            updateDebateMessage(aiMessageId, debateState, false);
+            // Add voting header as NEW message
+            setMessages(prev => [...prev, {
+              id: `voting-${Date.now()}`,
+              sender: 'system',
+              text: `### 🗳️ Röstning\n\n*AI-modellerna röstar nu på bästa argumentet...*`,
+              timestamp: new Date().toISOString(),
+              isVotingHeader: true
+            }]);
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
             
           case 'winner':
@@ -1752,23 +1751,46 @@ export default function SevenBZeroPage() {
             debateState.winnerVotes = message.data.votes;
             debateState.allVotes = message.data.all_votes;
             debateState.voteResults = message.data.vote_results;
-            setDebateData({...debateState});
+            
+            // Build vote results text
+            let voteText = `### 🏆 Vinnare: ${message.data.winner.toUpperCase()}\n\n`;
+            voteText += `**Röster:** ${message.data.votes}/${debateState.rounds[0]?.responses?.length || 5}\n\n`;
+            voteText += `**Röstresultat:**\n`;
+            if (message.data.vote_results) {
+              Object.entries(message.data.vote_results).forEach(([voter, voted_for]) => {
+                voteText += `- **${voter.toUpperCase()}** röstade på: **${voted_for.toUpperCase()}**\n`;
+              });
+            }
+            
+            // Add winner announcement as NEW message
+            setMessages(prev => [...prev, {
+              id: `winner-${Date.now()}`,
+              sender: 'system',
+              text: voteText,
+              timestamp: new Date().toISOString(),
+              isWinner: true
+            }]);
             
             // Show confetti!
             setShowConfetti(true);
             setTimeout(() => setShowConfetti(false), 5000);
-            
-            // Update message with winner
-            updateDebateMessage(aiMessageId, debateState, false);
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
             
           case 'summary':
             setThinkingStep('📝 Sammanfattning klar!');
             debateState.summary = message.data.summary;
-            setDebateData({...debateState});
             
-            // Update message with summary
-            updateDebateMessage(aiMessageId, debateState, false);
+            // Add summary as NEW message
+            setMessages(prev => [...prev, {
+              id: `summary-${Date.now()}`,
+              sender: 'ai',
+              agent: 'DEBATTLEDAREN',
+              text: `### 📋 Sammanfattning från Debattledaren\n\n${message.data.summary}`,
+              timestamp: new Date().toISOString(),
+              isSummary: true
+            }]);
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
             
           case 'final':
@@ -1778,21 +1800,16 @@ export default function SevenBZeroPage() {
             const responseEndTime = Date.now();
             const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
             
-            // Final update with response time
-            setMessages(prev => prev.map(msg => 
-              msg.id === aiMessageId 
-                ? { 
-                    ...msg, 
-                    responseTime: finalResponseTime,
-                    confidence: 0.9,
-                    version: 'Live Debate Arena',
-                    isTyping: false,
-                  }
-                : msg
-            ));
+            // Remove initial "thinking" message and replace with debate complete message
+            setMessages(prev => prev.filter(msg => msg.id !== aiMessageId).concat([{
+              id: `debate-complete-${Date.now()}`,
+              sender: 'system',
+              text: `✅ **Debatt avslutad!**\n\nTid: ${finalResponseTime}s`,
+              timestamp: new Date().toISOString(),
+              responseTime: finalResponseTime,
+              isDebateComplete: true
+            }]));
             
-            // Final update of debate message
-            updateDebateMessage(aiMessageId, debateState, true);
             ws.close();
             break;
             
