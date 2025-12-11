@@ -1856,11 +1856,13 @@ export default function SevenBZeroPage() {
             console.log(`[Debate] Round ${message.round} summary received`);
             
             const summaryText = message.data?.summary || message.message;
+            const consensus = message.data?.consensus || 50;
             setDebateRounds(prev => ({
               ...prev,
               [message.round]: {
                 ...(prev[message.round] || {}),
-                summary: summaryText
+                summary: summaryText,
+                consensus: consensus
               }
             }));
             
@@ -1870,15 +1872,10 @@ export default function SevenBZeroPage() {
           case 'round_end':
             setThinkingStep(`✅ Runda ${message.round} avslutad`);
             
-            // Add visual separator between rounds
-            setMessages(prev => [...prev, {
-              id: generateMessageId(),
-              sender: 'system',
-              text: `---\n\n`,
-              timestamp: new Date().toISOString(),
-              isRoundEnd: true,
-              round: message.round
-            }]);
+            // Mark round as complete (no longer active) to trigger auto-minimize
+            if (parseInt(message.round) === currentRound) {
+              setCurrentRound(0); // No active round
+            }
             break;
             
           case 'round_complete':
@@ -1899,39 +1896,21 @@ export default function SevenBZeroPage() {
             debateState.voteResults = message.data.vote_results;
             debateState.summary = message.data.summary;
             
-            // Build combined final message
-            let finalText = `## 🏁 DEBATT AVSLUTAD\n\n`;
+            // Add debate completion data to debateRounds state
+            setDebateRounds(prev => ({
+              ...prev,
+              completion: {
+                winner: message.data.winner,
+                winnerVotes: message.data.winner_votes,
+                totalVotes: message.data.total_votes,
+                voteResults: message.data.vote_results,
+                summary: message.data.summary,
+                time: finalResponseTime
+              }
+            }));
             
-            // Voting section
-            finalText += `### 🗳️ Röstning\n`;
-            finalText += `*AI-modellerna har röstat på bästa argumentet.*\n\n`;
-            finalText += `**Röstresultat:**\n`;
-            if (message.data.vote_results && Array.isArray(message.data.vote_results)) {
-              message.data.vote_results.forEach((voteObj) => {
-                finalText += `- **${voteObj.voter.toUpperCase()}** röstade på: **${voteObj.voted_for.toUpperCase()}**\n`;
-              });
-            }
-            
-            // Winner section
-            finalText += `\n### 🏆 Vinnare: ${message.data.winner.toUpperCase()}\n`;
-            finalText += `**Röster:** ${message.data.winner_votes}/${message.data.total_votes}\n\n`;
-            
-            // Summary section
-            finalText += `### 📋 Sammanfattning från Debattledaren\n`;
-            finalText += `${message.data.summary}\n\n`;
-            
-            // Completion time
-            finalText += `---\n**Debatt slutförd på ${finalResponseTime} sekunder**`;
-            
-            // Remove initial "thinking" message and add combined final message
-            setMessages(prev => prev.filter(msg => msg.id !== aiMessageId).concat([{
-              id: `debate-complete-${Date.now()}`,
-              sender: 'system',
-              text: finalText,
-              timestamp: new Date().toISOString(),
-              responseTime: finalResponseTime,
-              isDebateComplete: true
-            }]));
+            // Mark all rounds as complete
+            setCurrentRound(0);
             
             // Show confetti for winner!
             setShowConfetti(true);
@@ -2501,7 +2480,7 @@ export default function SevenBZeroPage() {
           {/* Debate Rounds Display - New Component */}
           {debateMode && Object.keys(debateRounds).length > 0 && (
             <div className="mb-6">
-              {Object.keys(debateRounds).sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
+              {Object.keys(debateRounds).filter(k => k !== 'completion').sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
                 <DebateRoundDisplay
                   key={roundNum}
                   round={parseInt(roundNum)}
@@ -2509,6 +2488,44 @@ export default function SevenBZeroPage() {
                   isActive={parseInt(roundNum) === currentRound}
                 />
               ))}
+              
+              {/* Debate Completion - Integrated into flow */}
+              {debateRounds.completion && (
+                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                  <div className="text-sm font-medium text-[#888] mb-3">Debatt avslutad</div>
+                  
+                  {/* Voting Results */}
+                  <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
+                    <div className="text-xs text-[#666] mb-2">Röstning</div>
+                    <div className="space-y-1">
+                      {debateRounds.completion.voteResults?.map((vote, idx) => (
+                        <div key={idx} className="text-xs text-[#888]">
+                          {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Winner */}
+                  <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
+                    <div className="text-xs text-[#666] mb-1">Vinnare</div>
+                    <div className="text-sm text-[#aaa]">
+                      {debateRounds.completion.winner?.toUpperCase()}
+                      <span className="text-xs text-[#666] ml-2">
+                        ({debateRounds.completion.winnerVotes}/{debateRounds.completion.totalVotes} röster)
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Summary */}
+                  <div>
+                    <div className="text-xs text-[#666] mb-2">Sammanfattning</div>
+                    <div className="text-xs text-[#888] leading-relaxed">
+                      {debateRounds.completion.summary}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

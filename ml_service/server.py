@@ -13298,16 +13298,67 @@ SVAR I DENNA RUNDA:
                 else:
                     summary_text = result.get('content', '')
                 
+                # Calculate consensus
+                consensus_prompt = f"""Analysera konsensusgraden mellan alla AI-svar i denna debattrunda om: {clean_question}
+
+SVAR I RUNDA {round_num}:
+"""
+                for resp in round_responses:
+                    if resp.get('success', False):
+                        consensus_prompt += f"{resp['agent'].upper()}: {resp['response'][:200]}...\n\n"
+                
+                consensus_prompt += """
+Beräkna konsensusgraden (0-100%) baserat på:
+- Hur överens AI:erna är om huvudbudskapet
+- Om de drar liknande slutsatser
+- Om de föreslår samma lösningar eller åtgärder
+
+Svara ENDAST med ett tal 0-100, inget annat."""
+
+                try:
+                    consensus_payload = {
+                        "messages": [
+                            {"role": "system", "content": "Du är en analyserare som bedömer konsensus. Svara endast med ett tal 0-100."},
+                            {"role": "user", "content": consensus_prompt}
+                        ],
+                        "max_tokens": 10,
+                        "temperature": 0.3,
+                    }
+                    
+                    consensus_response = requests.post(
+                        f"{server_url}/v1/chat/completions",
+                        json=consensus_payload,
+                        timeout=15,
+                    )
+                    consensus_response.raise_for_status()
+                    consensus_result = consensus_response.json()
+                    
+                    if 'choices' in consensus_result and len(consensus_result['choices']) > 0:
+                        consensus_text = consensus_result['choices'][0].get('message', {}).get('content', '50').strip()
+                    else:
+                        consensus_text = consensus_result.get('content', '50').strip()
+                    
+                    # Extract just the number
+                    import re
+                    consensus_match = re.search(r'\d+', consensus_text)
+                    consensus_pct = int(consensus_match.group()) if consensus_match else 50
+                    consensus_pct = max(0, min(100, consensus_pct))  # Clamp to 0-100
+                    
+                except Exception as e:
+                    logger.error(f"[WS-Debate] Error calculating consensus: {e}")
+                    consensus_pct = 50  # Default to middle
+                
                 await websocket.send_json({
                     "type": "round_summary",
                     "round": round_num,
                     "message": f"📚 Lärdomar från runda {round_num}",
                     "data": {
                         "summary": summary_text,
-                        "round": round_num
+                        "round": round_num,
+                        "consensus": consensus_pct
                     }
                 })
-                logger.info(f"[WS-Debate] Round {round_num} summary generated")
+                logger.info(f"[WS-Debate] Round {round_num} summary generated (consensus: {consensus_pct}%)")
                 
             except Exception as e:
                 logger.error(f"[WS-Debate] Error generating round summary: {e}")
@@ -13317,7 +13368,8 @@ SVAR I DENNA RUNDA:
                     "message": f"📚 Lärdomar från runda {round_num}",
                     "data": {
                         "summary": f"Runda {round_num}: {len(round_responses)} AI-modeller presenterade sina perspektiv.",
-                        "round": round_num
+                        "round": round_num,
+                        "consensus": 50
                     }
                 })
             

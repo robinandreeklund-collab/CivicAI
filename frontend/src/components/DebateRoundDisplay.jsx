@@ -66,7 +66,12 @@ export default function DebateRoundDisplay({ round, aiData, isActive = false }) 
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {aiData.consensus !== undefined && !roundExpanded && (
+            <span className="text-xs text-[#666]">
+              Konsensus: {aiData.consensus}%
+            </span>
+          )}
           <span className="text-xs text-[#555]">
             {availableAIs.length} svar
           </span>
