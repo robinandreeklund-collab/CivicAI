@@ -1601,9 +1601,16 @@ export default function SevenBZeroPage() {
     }));
   };
 
+  // Update counter to force React re-renders
+  const debateUpdateCounter = useRef(0);
+  
   // Helper function to update debate message in real-time
   const updateDebateMessage = (aiMessageId, debateState, isFinal) => {
+    debateUpdateCounter.current++;
+    const counter = debateUpdateCounter.current;
+    
     console.log('[Debate-Update] Updating message', { 
+      counter,
       rounds: debateState.rounds?.length, 
       isFinal,
       hasVotes: !!debateState.voteResults,
@@ -1611,14 +1618,18 @@ export default function SevenBZeroPage() {
     });
     
     // Update the message with fresh debateData - this is what the UI renders!
-    // CRITICAL: Use JSON deep copy to ensure React detects nested changes
+    // CRITICAL: Use JSON deep copy + counter to ensure React detects changes
     setMessages(prev => prev.map(msg => 
       msg.id === aiMessageId 
         ? { 
             ...msg, 
             debateMode: true,  // Always ensure debateMode is set
             isTyping: !isFinal,  // Keep typing indicator while debate is in progress
-            debateData: JSON.parse(JSON.stringify(debateState)),  // DEEP copy to trigger re-render
+            debateData: {
+              ...JSON.parse(JSON.stringify(debateState)),  // DEEP copy
+              _updateCounter: counter,  // Force React to see change
+              _timestamp: Date.now()  // Unique timestamp
+            },
             thinkingChain: null,  // Clear to prevent ThinkingChain rendering
           }
         : msg
@@ -2516,7 +2527,10 @@ export default function SevenBZeroPage() {
                       `}</style>
                       {/* Render debate with interactive rounds */}
                       {msg.debateMode && msg.debateData ? (
-                        <div className="debate-container">
+                        <div 
+                          key={`debate-${msg.id}-${msg.debateData._updateCounter || 0}`}
+                          className="debate-container"
+                        >
                           <h3 style={{fontSize: '18px', fontWeight: 'bold', marginBottom: '16px'}}>
                             🎤 Live AI-Debatt
                           </h3>
