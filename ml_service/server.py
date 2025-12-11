@@ -12841,110 +12841,131 @@ async def websocket_live_debate(websocket: WebSocket):
 
 Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max 200 ord). Var koncis och tydlig."""
             
-            # Get responses from all agents - STREAM AS THEY ARRIVE (not wait for all)
-            async def get_agent_response_and_stream(agent_name):
+            # NEW ARCHITECTURE: Collect external AI responses first, then send to ONESEEK for synthesis
+            external_agents = ['gpt', 'gemini', 'deepseek', 'grok']
+            
+            async def get_external_response(agent_name):
+                """Get response from external AI service"""
                 try:
-                    if agent_name == 'oneseek':
-                        # Use ONESEEK with Debattledare personality loaded
-                        payload = {
-                            "messages": [
-                                {"role": "system", "content": "Du är Debattledaren – Sveriges mest erfarna och objektiva debattmoderator. Du ger objektiv, balanserad analys i debatten."},
-                                {"role": "user", "content": debate_prompt}
-                            ],
-                            "max_tokens": 300,
-                            "temperature": 0.7,
-                        }
-                        
-                        server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
-                        response = requests.post(
-                            f"{server_url}/v1/chat/completions",
-                            json=payload,
-                            timeout=30,  # Increased timeout for ONESEEK
-                        )
-                        response.raise_for_status()
-                        result = response.json()
-                        
-                        if 'choices' in result and len(result['choices']) > 0:
-                            response_text = result['choices'][0].get('message', {}).get('content', '')
-                        else:
-                            response_text = result.get('content', '')
-                        
-                        resp = {
-                            'agent': agent_name,
-                            'response': response_text,
-                            'model': 'OneSeek-7B-Zero',
-                            'success': True
-                        }
-                    else:
-                        # External AI services - call via backend HTTP API
-                        service_endpoints = {
-                            'gpt': f'{BACKEND_API_URL}/api/external/openai',
-                            'gemini': f'{BACKEND_API_URL}/api/external/gemini',
-                            'deepseek': f'{BACKEND_API_URL}/api/external/deepseek',
-                            'grok': f'{BACKEND_API_URL}/api/external/grok'
-                        }
-                        
-                        endpoint = service_endpoints.get(agent_name)
-                        if not endpoint:
-                            raise Exception(f"Tjänst {agent_name} inte tillgänglig")
-                        
-                        # Make HTTP request to backend - NO MOCK FALLBACK
-                        response = requests.post(
-                            endpoint,
-                            json={'question': debate_prompt},
-                            timeout=30  # Increased timeout to match backend services
-                        )
-                        response.raise_for_status()
-                        result = response.json()
-                        
-                        resp = {
-                            'agent': agent_name,
-                            'response': result.get('response', ''),
-                            'model': result.get('model', agent_name),
-                            'success': bool(result.get('response'))
-                        }
+                    service_endpoints = {
+                        'gpt': f'{BACKEND_API_URL}/api/external/openai',
+                        'gemini': f'{BACKEND_API_URL}/api/external/gemini',
+                        'deepseek': f'{BACKEND_API_URL}/api/external/deepseek',
+                        'grok': f'{BACKEND_API_URL}/api/external/grok'
+                    }
                     
-                    # STREAM IMMEDIATELY when response arrives (not wait for others!)
-                    await websocket.send_json({
-                        "type": "response",
-                        "round": round_num,
-                        "agent": resp['agent'],
-                        "message": resp['response'],
-                        "data": {
-                            "model": resp.get('model', resp['agent']),
-                            "success": resp.get('success', True)
-                        }
-                    })
-                    logger.info(f"[WS-Debate] Streamed response from {agent_name} live!")
+                    endpoint = service_endpoints.get(agent_name)
+                    if not endpoint:
+                        raise Exception(f"Tjänst {agent_name} inte tillgänglig")
                     
-                    if resp.get('success'):
-                        round_responses.append(resp)
+                    response = requests.post(
+                        endpoint,
+                        json={'question': debate_prompt},
+                        timeout=30
+                    )
+                    response.raise_for_status()
+                    result = response.json()
                     
-                    return resp
+                    return {
+                        'agent': agent_name,
+                        'response': result.get('response', ''),
+                        'model': result.get('model', agent_name),
+                        'success': bool(result.get('response'))
+                    }
                         
                 except Exception as e:
                     logger.error(f"[WS-Debate] Error getting response from {agent_name}: {e}")
-                    # Stream error immediately
-                    error_resp = {
+                    return {
                         'agent': agent_name,
-                        'response': f'❌ Fel: Kunde inte hämta svar från {agent_name} - {str(e)[:100]}',
+                        'response': f'❌ Fel: Kunde inte hämta svar från {agent_name}',
+                        'model': agent_name,
                         'success': False
                     }
-                    await websocket.send_json({
-                        "type": "response",
-                        "round": round_num,
-                        "agent": error_resp['agent'],
-                        "message": error_resp['response'],
-                        "data": {
-                            "model": agent_name,
-                            "success": False
-                        }
-                    })
-                    return error_resp
             
-            # Launch all agent requests in parallel - each streams AS IT COMPLETES
-            tasks = [get_agent_response_and_stream(agent) for agent in debate_agents]
-            await asyncio.gather(*tasks, return_exceptions=True)  # Don't crash if one fails
+            # Step 1: Collect all external AI responses in parallel
+            logger.info(f"[WS-Debate] Collecting responses from {len(external_agents)} external AIs...")
+            external_tasks = [get_external_response(agent) for agent in external_agents]
+            external_responses = await asyncio.gather(*external_tasks, return_exceptions=True)
+            
+            # Filter out exceptions and failed responses
+            external_responses = [r for r in external_responses if isinstance(r, dict)]
+            round_responses.extend(external_responses)
+            
+            # Step 2: Build context for ONESEEK with all external AI responses
+            oneseek_context = f"""Du deltar i en AI-debatt om: {clean_question}
+
+Detta är runda {round_num} av {max_rounds}.
+
+ANDRA AI-MODELLERS SVAR I DENNA RUNDA:
+
+"""
+            for ext_resp in external_responses:
+                oneseek_context += f"**{ext_resp['agent'].upper()}** ({ext_resp['model']}):\n{ext_resp['response']}\n\n"
+            
+            oneseek_context += f"""
+Din uppgift:
+1. Analysera din egen kunskap och perspektiv på frågan
+2. Studera de andra AI-modellernas svar ovan
+3. Identifiera gemensamma mönster, motsättningar och unika insikter
+4. Skapa en syntes som kombinerar alla perspektiv för en bredare helhetsbild
+5. Leverera ditt svar - neutralt, faktabaserat, och berikad med lärdomar från andra
+
+Ge ditt syntetiserade svar (max 250 ord):"""
+            
+            # Step 3: Get ONESEEK synthesis with full context
+            try:
+                payload = {
+                    "messages": [
+                        {"role": "system", "content": debattledare_config.get('system_prompt', "Du är ONESEEK - en AI som kombinerar egen kunskap med insikter från andra AI-modeller för att ge det bästa svaret.")},
+                        {"role": "user", "content": oneseek_context}
+                    ],
+                    "max_tokens": 400,
+                    "temperature": 0.7,
+                }
+                
+                server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                response = requests.post(
+                    f"{server_url}/v1/chat/completions",
+                    json=payload,
+                    timeout=30,
+                )
+                response.raise_for_status()
+                result = response.json()
+                
+                if 'choices' in result and len(result['choices']) > 0:
+                    oneseek_response = result['choices'][0].get('message', {}).get('content', '')
+                else:
+                    oneseek_response = result.get('content', '')
+                
+                oneseek_resp = {
+                    'agent': 'oneseek',
+                    'response': oneseek_response,
+                    'model': 'OneSeek-7B-Zero',
+                    'success': True
+                }
+                round_responses.append(oneseek_resp)
+                logger.info(f"[WS-Debate] ONESEEK synthesis complete for round {round_num}")
+                
+            except Exception as e:
+                logger.error(f"[WS-Debate] Error getting ONESEEK synthesis: {e}")
+                oneseek_resp = {
+                    'agent': 'oneseek',
+                    'response': f'❌ Fel: Kunde inte generera syntes',
+                    'model': 'OneSeek-7B-Zero',
+                    'success': False
+                }
+                round_responses.append(oneseek_resp)
+            
+            # Step 4: Send ONE grouped message for the entire round
+            await websocket.send_json({
+                "type": "round_complete",
+                "round": round_num,
+                "message": f"✅ Runda {round_num} avslutad - alla svar insamlade",
+                "data": {
+                    "responses": round_responses  # All 5 responses in one message
+                }
+            })
+            logger.info(f"[WS-Debate] Round {round_num} complete - sent grouped message with {len(round_responses)} responses")
             
             debate_rounds.append({
                 'round': round_num,

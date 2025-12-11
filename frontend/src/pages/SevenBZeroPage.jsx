@@ -1688,48 +1688,56 @@ export default function SevenBZeroPage() {
             
           case 'round_start':
             setThinkingStep(`🎤 Runda ${message.round} startar...`);
-            // Add round header as a NEW message
-            setMessages(prev => [...prev, {
-              id: `round-${message.round}-${Date.now()}`,
-              sender: 'system',
-              text: `### 🎤 Runda ${message.round}\n\n*Lyssnar på alla AI-modeller...*`,
-              timestamp: new Date().toISOString(),
-              isRoundHeader: true
-            }]);
-            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            // Just show thinking step - round content will come in round_complete event
             break;
             
-          case 'response':
-            console.log(`[Debate] Response from ${message.agent}`);
-            setThinkingStep(`💬 ${message.agent.toUpperCase()} svarade...`);
+          case 'round_complete':
+            console.log(`[Debate] Round ${message.round} complete with ${message.data?.responses?.length || 0} responses`);
+            setThinkingStep(`✅ Runda ${message.round} avslutad`);
             
-            // Add AI response as a NEW message - appears immediately!
+            // Build grouped round message with all responses
+            const responses = message.data?.responses || [];
+            let roundText = `## 🎤 Runda ${message.round}\n\n`;
+            
+            // Add external AI responses (GPT, Gemini, DeepSeek, Grok)
+            const externalAIs = responses.filter(r => r.agent !== 'oneseek');
+            externalAIs.forEach(resp => {
+              roundText += `### 🤖 ${resp.agent.toUpperCase()}\n`;
+              if (resp.model) {
+                roundText += `*${resp.model}*\n\n`;
+              }
+              roundText += `${resp.response}\n\n---\n\n`;
+            });
+            
+            // Add ONESEEK synthesis at the end
+            const onesee kResp = responses.find(r => r.agent === 'oneseek');
+            if (oneseekResp) {
+              roundText += `### 🔍 ONESEEK SYNTES\n`;
+              roundText += `*${oneseekResp.model || 'OneSeek-7B-Zero'}*\n\n`;
+              roundText += `${oneseekResp.response}\n\n`;
+            }
+            
+            // Add as ONE grouped message for the entire round
             setMessages(prev => [...prev, {
-              id: `response-${message.agent}-${message.round}-${Date.now()}`,
+              id: `round-complete-${message.round}-${Date.now()}`,
               sender: 'ai',
-              agent: message.agent.toUpperCase(),
-              text: message.message,
-              model: message.data?.model,
+              text: roundText,
               timestamp: new Date().toISOString(),
-              isDebateResponse: true
+              isRoundComplete: true,
+              roundNumber: message.round
             }]);
             
-            // Track for final summary
+            // Track for voting context
             if (!debateState.rounds[message.round - 1]) {
               debateState.rounds[message.round - 1] = { round: message.round, responses: [] };
             }
-            debateState.rounds[message.round - 1].responses.push({
-              agent: message.agent,
-              response: message.message,
-              model: message.data?.model
-            });
+            debateState.rounds[message.round - 1].responses = responses;
             
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
             
           case 'round_end':
-            setThinkingStep(`✅ Runda ${message.round} avslutad`);
-            // Just update thinking step - responses already added as individual messages
+            // Deprecated - using round_complete instead
             break;
             
           case 'voting':
