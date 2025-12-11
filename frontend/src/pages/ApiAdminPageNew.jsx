@@ -43,8 +43,8 @@ export default function ApiAdminPageNew() {
   const loadApiCatalog = async () => {
     setLoading(true);
     try {
-      // Load main catalog
-      const response = await fetch('/config/api_catalog.json');
+      // Load main catalog from public folder
+      const response = await fetch('/api_catalog.json');
       if (!response.ok) throw new Error('Failed to load API catalog');
       
       const catalog = await response.json();
@@ -73,7 +73,7 @@ export default function ApiAdminPageNew() {
       // Check if it's a $ref to another file
       if (category.$ref) {
         const refFile = category.$ref;
-        const refResponse = await fetch(`/config/${refFile}`);
+        const refResponse = await fetch(`/${refFile}`);
         if (refResponse.ok) {
           const refData = await refResponse.json();
           setModuleInfo({
