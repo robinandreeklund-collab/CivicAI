@@ -13148,18 +13148,13 @@ Din uppgift: LEVERERA DITT EGET DEBATTSVAR som fullständig deltagare!
 
 Du är ONESEEK - en debattdeltagare som ska ge ditt eget perspektiv. Du har sett andra AI:ers svar och ska använda dina egna insikter OCH lärdomar från deras svar.
 
-Skapa ett balanserat, väl underbyggt debattsvar (ca 400-600 ord) som täcker:
-- Ekonomiska konsekvenser och aspekter
-- Sociala effekter på samhället
-- Miljöpåverkan och hållbarhet
-- Tekniska möjligheter och begränsningar
-- Politiska och etiska överväganden
+Skapa ett kortfattat, tydligt debattsvar (ca 150-250 ord) som täcker viktiga aspekter av frågan.
 
-Ge konkreta exempel när möjligt. Var balanserad och nyanserad.
+Ge konkreta exempel när möjligt. Var balanserad och koncis.
 
 VIKTIGT FORMAT:
-REASONING: [Din interna tankekedja - hur du tänker kring frågan. 2-3 meningar.]
-ANSWER: [Ditt kompletta debattsvar - 400-600 ord med konkreta argument och exempel.]
+Först: Skriv din interna tankekedja på egen rad som börjar med "REASONING: " (2-3 meningar)
+Sedan: Skriv ditt debattsvar på egen rad som börjar med "ANSWER: " (150-250 ord)
 
 Ge ditt svar nu:"""
             
@@ -13167,10 +13162,10 @@ Ge ditt svar nu:"""
             try:
                 payload = {
                     "messages": [
-                        {"role": "system", "content": "Du är ONESEEK - en debattdeltagare som ger balanserade, väl underbyggda svar."},
+                        {"role": "system", "content": "Du är ONESEEK - en debattdeltagare som ger koncisa, balanserade svar."},
                         {"role": "user", "content": oneseek_context}
                     ],
-                    "max_tokens": 800,
+                    "max_tokens": 400,
                     "temperature": 0.7,
                 }
                 
@@ -13192,12 +13187,46 @@ Ge ditt svar nu:"""
                 reasoning = ""
                 answer = oneseek_full_response
                 
-                if "REASONING:" in oneseek_full_response and "ANSWER:" in oneseek_full_response:
-                    parts = oneseek_full_response.split("ANSWER:", 1)
-                    reasoning_part = parts[0].replace("REASONING:", "").strip()
-                    answer_part = parts[1].strip() if len(parts) > 1 else oneseek_full_response
-                    reasoning = reasoning_part
-                    answer = answer_part
+                # Split by ANSWER: first to separate reasoning from answer
+                if "ANSWER:" in oneseek_full_response.upper():
+                    # Case-insensitive search for ANSWER:
+                    import re
+                    answer_match = re.search(r'ANSWER:\s*', oneseek_full_response, re.IGNORECASE)
+                    if answer_match:
+                        answer_start = answer_match.end()
+                        reasoning_text = oneseek_full_response[:answer_match.start()].strip()
+                        answer = oneseek_full_response[answer_start:].strip()
+                        
+                        # Extract reasoning (remove REASONING: prefix if present)
+                        reasoning_match = re.search(r'REASONING:\s*', reasoning_text, re.IGNORECASE)
+                        if reasoning_match:
+                            reasoning = reasoning_text[reasoning_match.end():].strip()
+                        else:
+                            reasoning = reasoning_text
+                
+                # If no ANSWER: found, treat entire response as answer
+                if not answer or answer == oneseek_full_response:
+                    # Check if there's a REASONING: at the start
+                    reasoning_match = re.search(r'REASONING:\s*', oneseek_full_response, re.IGNORECASE)
+                    if reasoning_match:
+                        # Find where reasoning ends (look for double newline or ANSWER:)
+                        rest_of_text = oneseek_full_response[reasoning_match.end():]
+                        lines = rest_of_text.split('\n')
+                        
+                        # Take first 2-3 lines as reasoning
+                        reasoning_lines = []
+                        answer_lines = []
+                        in_reasoning = True
+                        
+                        for line in lines:
+                            if in_reasoning and len(reasoning_lines) < 3 and line.strip():
+                                reasoning_lines.append(line)
+                            elif line.strip():
+                                in_reasoning = False
+                                answer_lines.append(line)
+                        
+                        reasoning = ' '.join(reasoning_lines)
+                        answer = '\n'.join(answer_lines) if answer_lines else oneseek_full_response
                 
                 # Stream OneSeek's own answer
                 await websocket.send_json({
