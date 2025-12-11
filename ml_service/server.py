@@ -13129,7 +13129,7 @@ Skapa en kort, objektiv sammanfattning (max 150 ord) av debatten och förklara v
                     {"role": "system", "content": "Du är Debattledaren. Sammanfatta objektivt."},
                     {"role": "user", "content": summary_prompt}
                 ],
-                "max_tokens": 600,  # Increased from 300 to allow complete summaries
+                "max_tokens": 900,  # Increased from 600 to ensure complete summaries without truncation
                 "temperature": 0.7,
             }
             
