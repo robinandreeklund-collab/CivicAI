@@ -2,20 +2,34 @@
 
 ## Översikt
 
-Live AI-Debatt är en komplett funktion integrerad i /7B-Zero som låter användare starta live-debatter mellan 4 externa AI-modeller (GPT, Gemini, DeepSeek, Grok) plus ONESEEK som neutral domare.
+Live AI-Debatt är en **separat, fristående funktion** integrerad i /7B-Zero som låter användare starta live-debatter mellan 4 externa AI-modeller (GPT, Gemini, DeepSeek, Grok) plus ONESEEK som neutral domare.
+
+**VIKTIGT**: Debattflödet är **helt separat** från det normala query-flödet (Compare/Standard). Detta ger:
+- **Full kontroll**: Debattlogik är oberoende och kan utvecklas fritt
+- **Avancerade funktioner**: Röstning, rundhantering, confetti etc. utan att påverka standardflödet
+- **Enklare underhåll**: Ändringar i debatt påverkar inte Compare eller Standard-läge
+- **Bättre prestanda**: Dedikerat WebSocket-flöde för realtidsstreaming
 
 ## Flöde
 
-### 1. Initiering
+### 1. Initiering - Separat Flöde Aktiveras
 - Användaren aktiverar **[Debatt]**-knappen bredvid Compare-knappen
-- Frågan skickas via WebSocket till `/ws/debate`
-- Servern laddar **direkt** "Debattledare"-personligheten från `personality_catalog.json`
+- Frontend växlar till **debattläge** (helt separat från Standard/Compare)
+- Frågan skickas via **dedikerad WebSocket** till `/ws/debate`
+- Servern startar **separat debattflöde** med egen logik
 
-### 2. Personlighetsval
-**VIKTIGT**: När användaren trycker på [Debatt]-knappen laddas Debattledare-personligheten **direkt**:
-1. Ingen automatisk analys av nyckelord behövs
-2. Servern vet att Debattledaren ska användas eftersom debattknappen är aktiverad
-3. Personlighetskortet (`OneSeek-Debattledare.yaml`) laddas direkt vid debattstart
+### 2. Personlighet & Prompt - Automatisk Laddning
+**VIKTIGT**: När Debatt-knappen trycks händer automatiskt:
+1. **Debattledare-personligheten laddas direkt** från `personality_catalog.json`
+2. **Debatt-specifik system prompt** aktiveras (neutral domare, objektiv)
+3. **Personlighetskortet** (`OneSeek-Debattledare.yaml`) laddas automatiskt
+4. Inget behov av automatisk nyckelordsanalys - knappen styr allt
+
+**Separat Flöde**: Debattlogiken använder:
+- Egen WebSocket-endpoint (`/ws/debate`)
+- Egen state-hantering (rounds, votes, winner)
+- Egna meddelanden och events
+- Ingen delad logik med Standard/Compare-lägen
 
 ### 3. Debattrundor (3 st)
 Varje runda:
