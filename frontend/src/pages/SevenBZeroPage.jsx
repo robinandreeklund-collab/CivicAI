@@ -1592,43 +1592,8 @@ export default function SevenBZeroPage() {
           updatedDebateData.rounds[roundIndex].expanded = !updatedDebateData.rounds[roundIndex].expanded;
         }
         
-        // Update the message text
-        let debateText = `## 🎤 Live AI-Debatt\n\n**Fråga:** ${updatedDebateData.question}\n\n`;
-        
-        updatedDebateData.rounds.forEach((round, idx) => {
-          if (round && round.responses && round.responses.length > 0) {
-            const isExpanded = round.expanded !== false;
-            const roundHeader = `### ${isExpanded ? '▼' : '▶'} Runda ${round.round}`;
-            debateText += `${roundHeader}\n\n`;
-            
-            if (isExpanded) {
-              round.responses.forEach(resp => {
-                debateText += `**${resp.agent.toUpperCase()}** (${resp.model || resp.agent}):\n${resp.response}\n\n`;
-              });
-            }
-          }
-        });
-        
-        if (updatedDebateData.voteResults && updatedDebateData.voteResults.length > 0) {
-          debateText += `\n### 🗳️ Röstning\n\n`;
-          updatedDebateData.voteResults.forEach(vote => {
-            debateText += `- **${vote.voter.toUpperCase()}** röstade på: **${vote.voted_for.toUpperCase()}**\n`;
-          });
-          debateText += `\n`;
-        }
-        
-        if (updatedDebateData.winner) {
-          debateText += `\n## 🏆 Vinnare: ${updatedDebateData.winner.toUpperCase()}\n`;
-          debateText += `**Röster:** ${updatedDebateData.winnerVotes}/${updatedDebateData.voteResults?.length || 5}\n\n`;
-        }
-        
-        if (updatedDebateData.summary) {
-          debateText += `### 📋 Sammanfattning från Debattledaren\n\n${updatedDebateData.summary}\n`;
-        }
-        
         return {
           ...msg,
-          text: debateText,
           debateData: updatedDebateData
         };
       }
@@ -2577,14 +2542,102 @@ export default function SevenBZeroPage() {
                           50% { opacity: 0; }
                         }
                       `}</style>
-                      <ReactMarkdown>
-                        {convertEmojis(msg.debateMode ? msg.text : (msg.isTyping ? currentTypingText : msg.text))}
-                      </ReactMarkdown>
-                      {/* Debug info - remove after testing */}
-                      {msg.debateMode && (
-                        <div style={{fontSize: '10px', color: '#666', marginTop: '10px'}}>
-                          [Debug: debateMode={String(msg.debateMode)}, textLength={msg.text?.length || 0}, isTyping={String(msg.isTyping)}]
+                      {/* Render debate with interactive rounds */}
+                      {msg.debateMode && msg.debateData ? (
+                        <div className="debate-container">
+                          <h3 style={{fontSize: '18px', fontWeight: 'bold', marginBottom: '16px'}}>
+                            🎤 Live AI-Debatt
+                          </h3>
+                          <p style={{marginBottom: '20px'}}>
+                            <strong>Fråga:</strong> {msg.debateData.question}
+                          </p>
+                          
+                          {/* Interactive rounds */}
+                          {msg.debateData.rounds && msg.debateData.rounds.map((round, idx) => (
+                            round && round.responses && round.responses.length > 0 && (
+                              <div key={idx} style={{marginBottom: '16px', border: '1px solid #333', borderRadius: '8px', overflow: 'hidden'}}>
+                                <button
+                                  onClick={() => toggleDebateRound(msg.id, idx)}
+                                  style={{
+                                    width: '100%',
+                                    padding: '12px 16px',
+                                    background: whiteMode ? '#f5f5f5' : '#1a1a1a',
+                                    border: 'none',
+                                    textAlign: 'left',
+                                    cursor: 'pointer',
+                                    fontSize: '16px',
+                                    fontWeight: '600',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                  }}
+                                >
+                                  <span style={{fontSize: '20px'}}>
+                                    {round.expanded !== false ? '▼' : '▶'}
+                                  </span>
+                                  <span>Runda {round.round}</span>
+                                </button>
+                                
+                                {round.expanded !== false && (
+                                  <div style={{padding: '16px', background: whiteMode ? '#fafafa' : '#0d0d0d'}}>
+                                    {round.responses.map((resp, ridx) => (
+                                      <div key={ridx} style={{marginBottom: '16px', paddingBottom: '16px', borderBottom: ridx < round.responses.length - 1 ? '1px solid #333' : 'none'}}>
+                                        <div style={{fontWeight: 'bold', marginBottom: '8px', color: '#646cff'}}>
+                                          {resp.agent.toUpperCase()} {resp.model && `(${resp.model})`}
+                                        </div>
+                                        <div style={{lineHeight: '1.6'}}>
+                                          {resp.response}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          ))}
+                          
+                          {/* Voting results */}
+                          {msg.debateData.voteResults && msg.debateData.voteResults.length > 0 && (
+                            <div style={{marginTop: '24px', marginBottom: '20px'}}>
+                              <h4 style={{fontSize: '16px', fontWeight: 'bold', marginBottom: '12px'}}>
+                                🗳️ Röstning
+                              </h4>
+                              {msg.debateData.voteResults.map((vote, idx) => (
+                                <div key={idx} style={{marginBottom: '8px'}}>
+                                  • <strong>{vote.voter.toUpperCase()}</strong> röstade på: <strong>{vote.voted_for.toUpperCase()}</strong>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {/* Winner */}
+                          {msg.debateData.winner && (
+                            <div style={{marginTop: '24px', padding: '16px', background: whiteMode ? '#f0f9ff' : '#1a2332', borderRadius: '8px', marginBottom: '20px'}}>
+                              <h4 style={{fontSize: '18px', fontWeight: 'bold', marginBottom: '8px'}}>
+                                🏆 Vinnare: {msg.debateData.winner.toUpperCase()}
+                              </h4>
+                              <p>
+                                <strong>Röster:</strong> {msg.debateData.winnerVotes}/{msg.debateData.voteResults?.length || 5}
+                              </p>
+                            </div>
+                          )}
+                          
+                          {/* Summary */}
+                          {msg.debateData.summary && (
+                            <div style={{marginTop: '24px'}}>
+                              <h4 style={{fontSize: '16px', fontWeight: 'bold', marginBottom: '12px'}}>
+                                📋 Sammanfattning från Debattledaren
+                              </h4>
+                              <div style={{lineHeight: '1.6'}}>
+                                {msg.debateData.summary}
+                              </div>
+                            </div>
+                          )}
                         </div>
+                      ) : (
+                        <ReactMarkdown>
+                          {convertEmojis(msg.debateMode ? msg.text : (msg.isTyping ? currentTypingText : msg.text))}
+                        </ReactMarkdown>
                       )}
                     </div>
                   )}
