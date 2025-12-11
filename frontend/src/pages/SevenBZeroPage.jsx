@@ -1709,12 +1709,22 @@ export default function SevenBZeroPage() {
               roundText += `${resp.response}\n\n---\n\n`;
             });
             
-            // Add ONESEEK synthesis at the end
+            // Add ONESEEK as full debate participant (not just synthesis)
             const oneseekResp = responses.find(r => r.agent === 'oneseek');
             if (oneseekResp) {
-              roundText += `### 🔍 ONESEEK SYNTES\n`;
+              roundText += `### 🤖 ONESEEK\n`;
               roundText += `*${oneseekResp.model || 'OneSeek-7B-Zero'}*\n\n`;
               roundText += `${oneseekResp.response}\n\n`;
+              
+              // Add collapsible reasoning section if available
+              if (oneseekResp.reasoning) {
+                roundText += `<details>\n`;
+                roundText += `  <summary>📋 Tankekedja</summary>\n`;
+                roundText += `  <div style="font-size: 0.9em; color: #666; font-style: italic; padding: 10px;">\n`;
+                roundText += `${oneseekResp.reasoning}\n`;
+                roundText += `  </div>\n`;
+                roundText += `</details>\n\n`;
+              }
             }
             
             // Add as ONE grouped message for the entire round

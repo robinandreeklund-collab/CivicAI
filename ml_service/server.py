@@ -12904,13 +12904,23 @@ ANDRA AI-MODELLERS SVAR I DENNA RUNDA:
             
             oneseek_context += f"""
 Din uppgift:
+Du är en full deltagare i debatten, inte bara en sammanfattare.
+
 1. Analysera din egen kunskap och perspektiv på frågan
 2. Studera de andra AI-modellernas svar ovan
 3. Identifiera gemensamma mönster, motsättningar och unika insikter
-4. Skapa en syntes som kombinerar alla perspektiv för en bredare helhetsbild
-5. Leverera ditt svar - neutralt, faktabaserat, och berikad med lärdomar från andra
+4. Formulera ditt eget debattsvar baserat på din kunskap + lärdomar från andra
+5. Leverera ditt fullständiga debattsvar - neutralt, faktabaserat, berikad med multipla perspektiv
 
-Ge ditt syntetiserade svar (max 250 ord):"""
+VIKTIGT FORMAT:
+Först: Skriv REASONING: följt av din tankekedja (hur du analyserar frågan och andras svar)
+Sedan: Skriv ANSWER: följt av ditt fullständiga debattsvar
+
+Exempel:
+REASONING: Jag analyserar först frågan från ekonomiskt perspektiv... GPT:s poäng om X är viktig... Gemini lyfter Y vilket kompletterar...
+ANSWER: Mitt svar på frågan är att... [ditt fullständiga debattsvar]
+
+Ge ditt svar nu:"""
             
             # Step 3: Get ONESEEK synthesis with full context
             try:
@@ -12933,24 +12943,37 @@ Ge ditt syntetiserade svar (max 250 ord):"""
                 result = response.json()
                 
                 if 'choices' in result and len(result['choices']) > 0:
-                    oneseek_response = result['choices'][0].get('message', {}).get('content', '')
+                    oneseek_full_response = result['choices'][0].get('message', {}).get('content', '')
                 else:
-                    oneseek_response = result.get('content', '')
+                    oneseek_full_response = result.get('content', '')
+                
+                # Parse REASONING and ANSWER from response
+                reasoning = ""
+                answer = oneseek_full_response
+                
+                if "REASONING:" in oneseek_full_response and "ANSWER:" in oneseek_full_response:
+                    parts = oneseek_full_response.split("ANSWER:", 1)
+                    reasoning_part = parts[0].replace("REASONING:", "").strip()
+                    answer_part = parts[1].strip() if len(parts) > 1 else oneseek_full_response
+                    reasoning = reasoning_part
+                    answer = answer_part
                 
                 oneseek_resp = {
                     'agent': 'oneseek',
-                    'response': oneseek_response,
+                    'response': answer,
+                    'reasoning': reasoning if reasoning else None,
                     'model': 'OneSeek-7B-Zero',
                     'success': True
                 }
                 round_responses.append(oneseek_resp)
-                logger.info(f"[WS-Debate] ONESEEK synthesis complete for round {round_num}")
+                logger.info(f"[WS-Debate] ONESEEK debate answer complete for round {round_num}")
                 
             except Exception as e:
-                logger.error(f"[WS-Debate] Error getting ONESEEK synthesis: {e}")
+                logger.error(f"[WS-Debate] Error getting ONESEEK debate answer: {e}")
                 oneseek_resp = {
                     'agent': 'oneseek',
-                    'response': f'❌ Fel: Kunde inte generera syntes',
+                    'response': f'❌ Fel: Kunde inte generera svar',
+                    'reasoning': None,
                     'model': 'OneSeek-7B-Zero',
                     'success': False
                 }
