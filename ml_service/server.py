@@ -13973,8 +13973,7 @@ Exempel:
                         personality_match = personality_id.replace("oneseek-", "").replace("-", "")
                         print(f"   Matching personality: {personality_match}")
                         print(f"   [DEBUG] Original personality_id: {personality_id}")
-                            
-                        
+
                         try:
                             # Load full API catalog with $ref resolution
                             full_api_catalog = load_api_catalog_with_refs() if load_api_catalog_with_refs else {}
@@ -14009,14 +14008,16 @@ Exempel:
                                     print(f"   [DEBUG] Exact match '{personality_match}' in {api_personality_tags}: {matched}")
                                     
                                     # If no exact match, try without common Swedish definite article suffixes
+                                    # Using endswith() and slicing to avoid removing characters from middle of word
                                     if not matched and api_personality_tags:
                                         for suffix in ['en', 'et', 'n']:
-                                            alt_match = personality_match.rstrip(suffix)
-                                            if alt_match != personality_match and alt_match in api_personality_tags:
-                                                print(f"   [DEBUG] Matched '{alt_match}' (removed suffix '{suffix}' from '{personality_match}')")
-                                                personality_match = alt_match
-                                                matched = True
-                                                break
+                                            if personality_match.endswith(suffix):
+                                                alt_match = personality_match[:-len(suffix)]
+                                                if alt_match and alt_match in api_personality_tags:
+                                                    print(f"   [DEBUG] Matched '{alt_match}' (removed suffix '{suffix}' from '{personality_match}')")
+                                                    personality_match = alt_match
+                                                    matched = True
+                                                    break
                                     
                                     if matched:
                                         print(f"      ✅ Match! Including category '{category}'")
