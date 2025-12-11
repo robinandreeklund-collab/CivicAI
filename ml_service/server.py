@@ -13972,6 +13972,7 @@ Exempel:
                         # Use personality_id without "oneseek-" prefix to match personality_tags in api_catalog
                         personality_match = personality_id.replace("oneseek-", "").replace("-", "")
                         print(f"   Matching personality: {personality_match}")
+                        print(f"   [DEBUG] Original personality_id: {personality_id}")
                             
                         
                         try:
@@ -14003,7 +14004,21 @@ Exempel:
                                         print(f"      ⚠️ Category data keys: {list(category_data.keys())}")
                                     
                                     # Check if our personality matches any of the category's personality_tags
-                                    if personality_match in api_personality_tags:
+                                    # First try exact match
+                                    matched = personality_match in api_personality_tags
+                                    print(f"   [DEBUG] Exact match '{personality_match}' in {api_personality_tags}: {matched}")
+                                    
+                                    # If no exact match, try without common Swedish definite article suffixes
+                                    if not matched and api_personality_tags:
+                                        for suffix in ['en', 'et', 'n']:
+                                            alt_match = personality_match.rstrip(suffix)
+                                            if alt_match != personality_match and alt_match in api_personality_tags:
+                                                print(f"   [DEBUG] Matched '{alt_match}' (removed suffix '{suffix}' from '{personality_match}')")
+                                                personality_match = alt_match
+                                                matched = True
+                                                break
+                                    
+                                    if matched:
                                         print(f"      ✅ Match! Including category '{category}'")
                                         filtered_categories[category] = category_data
                                         total_filtered += len(category_data.get('apis', []))
