@@ -13979,6 +13979,16 @@ Exempel:
                             full_api_catalog = load_api_catalog_with_refs() if load_api_catalog_with_refs else {}
                             print(f"   Loaded catalog: version={full_api_catalog.get('version')}, categories={list(full_api_catalog.get('api_catalog', {}).keys())}")
                             
+                            # DEBUG: Show full catalog structure after $ref resolution
+                            print(f"   [DEBUG] Full api_catalog keys: {list(full_api_catalog.get('api_catalog', {}).keys())}")
+                            for cat_name in full_api_catalog.get('api_catalog', {}).keys():
+                                cat_data = full_api_catalog['api_catalog'][cat_name]
+                                print(f"   [DEBUG] Category '{cat_name}' type: {type(cat_data)}")
+                                if isinstance(cat_data, dict):
+                                    print(f"   [DEBUG] Category '{cat_name}' keys: {list(cat_data.keys())}")
+                                    print(f"   [DEBUG] Category '{cat_name}' personality_tags: {cat_data.get('personality_tags', 'KEY NOT FOUND')}")
+                                    print(f"   [DEBUG] Category '{cat_name}' apis count: {len(cat_data.get('apis', []))}")
+                            
                             if full_api_catalog:
                                 # Filter API categories where personality_tags contain our personality
                                 filtered_categories = {}
@@ -13986,6 +13996,11 @@ Exempel:
                                 for category, category_data in full_api_catalog.get('api_catalog', {}).items():
                                     api_personality_tags = category_data.get('personality_tags', [])
                                     print(f"   Checking API category '{category}' with tags: {api_personality_tags}")
+                                    
+                                    # DEBUG: Warn if tags are unexpectedly empty
+                                    if not api_personality_tags and isinstance(category_data, dict):
+                                        print(f"      ⚠️ WARNING: Category '{category}' has no personality_tags!")
+                                        print(f"      ⚠️ Category data keys: {list(category_data.keys())}")
                                     
                                     # Check if our personality matches any of the category's personality_tags
                                     if personality_match in api_personality_tags:
