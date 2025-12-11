@@ -1611,13 +1611,14 @@ export default function SevenBZeroPage() {
     });
     
     // Update the message with fresh debateData - this is what the UI renders!
+    // CRITICAL: Use JSON deep copy to ensure React detects nested changes
     setMessages(prev => prev.map(msg => 
       msg.id === aiMessageId 
         ? { 
             ...msg, 
             debateMode: true,  // Always ensure debateMode is set
             isTyping: !isFinal,  // Keep typing indicator while debate is in progress
-            debateData: { ...debateState },  // Deep copy to trigger re-render
+            debateData: JSON.parse(JSON.stringify(debateState)),  // DEEP copy to trigger re-render
             thinkingChain: null,  // Clear to prevent ThinkingChain rendering
           }
         : msg
