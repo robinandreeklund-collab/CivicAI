@@ -12929,7 +12929,7 @@ Ge ditt svar nu:"""
                         {"role": "system", "content": debattledare_config.get('system_prompt', "Du är ONESEEK - en AI som kombinerar egen kunskap med insikter från andra AI-modeller för att ge det bästa svaret.")},
                         {"role": "user", "content": oneseek_context}
                     ],
-                    "max_tokens": 800,
+                    "max_tokens": 1200,  # Increased from 800 for more comprehensive responses
                     "temperature": 0.7,
                 }
                 

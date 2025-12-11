@@ -1717,15 +1717,7 @@ export default function SevenBZeroPage() {
               roundText += `*${oneseekResp.model || 'OneSeek-7B-Zero'}*\n\n`;
               roundText += `${oneseekResp.response}\n\n`;
               
-              // Add collapsible reasoning section if available
-              if (oneseekResp.reasoning) {
-                roundText += `<details>\n`;
-                roundText += `  <summary>📋 Tankekedja</summary>\n`;
-                roundText += `  <div style="font-size: 0.9em; color: #666; font-style: italic; padding: 10px;">\n`;
-                roundText += `${oneseekResp.reasoning}\n`;
-                roundText += `  </div>\n`;
-                roundText += `</details>\n\n`;
-              }
+              // Don't add HTML tags to markdown - store reasoning for React rendering
             }
             
             // Auto-collapse previous rounds, expand current round
@@ -1738,7 +1730,8 @@ export default function SevenBZeroPage() {
               text: roundText,
               timestamp: new Date().toISOString(),
               isRoundComplete: true,
-              roundNumber: message.round
+              roundNumber: message.round,
+              oneseekReasoning: oneseekResp?.reasoning || null  // Store for React rendering
             }]);
             
             // Track for voting context
@@ -2677,6 +2670,18 @@ export default function SevenBZeroPage() {
                             <ReactMarkdown>
                               {convertEmojis(msg.text)}
                             </ReactMarkdown>
+                            
+                            {/* Render ONESEEK reasoning as proper React component */}
+                            {msg.oneseekReasoning && (
+                              <details style={{marginTop: '16px', padding: '12px', borderLeft: '3px solid #4a90e2'}}>
+                                <summary style={{cursor: 'pointer', fontWeight: '500', color: '#4a90e2'}}>
+                                  📋 Tankekedja
+                                </summary>
+                                <div style={{fontSize: '0.9em', color: '#666', fontStyle: 'italic', padding: '10px 0', marginTop: '8px'}}>
+                                  {msg.oneseekReasoning}
+                                </div>
+                              </details>
+                            )}
                           </div>
                         </details>
                       ) : (
