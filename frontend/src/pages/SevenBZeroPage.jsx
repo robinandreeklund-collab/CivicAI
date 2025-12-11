@@ -2354,7 +2354,7 @@ export default function SevenBZeroPage() {
             
             return (
             <div 
-              key={msg.id}
+              key={msg.debateMode && msg.debateData?._updateCounter ? `${msg.id}-debate-${msg.debateData._updateCounter}` : msg.id}
               ref={(el) => { if (el) messageRefs.current[msg.id] = el; }}
               className={`elegant-fade transition-all duration-500 ${msg.type === 'user' ? 'flex flex-col items-end' : 'flex flex-col items-start'} ${isRecent ? '' : 'hover:opacity-100'} ${isHighlighted ? 'ring-2 ring-white/30 rounded-lg' : ''}`}
               style={{ 
