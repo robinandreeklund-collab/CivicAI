@@ -1710,7 +1710,7 @@ export default function SevenBZeroPage() {
             });
             
             // Add ONESEEK synthesis at the end
-            const onesee kResp = responses.find(r => r.agent === 'oneseek');
+            const oneseekResp = responses.find(r => r.agent === 'oneseek');
             if (oneseekResp) {
               roundText += `### 🔍 ONESEEK SYNTES\n`;
               roundText += `*${oneseekResp.model || 'OneSeek-7B-Zero'}*\n\n`;
