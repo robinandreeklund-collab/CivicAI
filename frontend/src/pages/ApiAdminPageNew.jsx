@@ -44,53 +44,78 @@ export default function ApiAdminPageNew() {
     setLoading(true);
     setError(null);
     
-    const pathsToTry = [
-      '/api_catalog.json',              // Public folder (standard Vite)
-      '/config/api_catalog.json',       // Config folder
-      '../config/api_catalog.json'      // Relative path
-    ];
-    
-    let lastError = null;
-    
-    for (const path of pathsToTry) {
-      try {
-        console.log(`[API Admin] Attempting to load catalog from: ${path}`);
-        const response = await fetch(path);
-        
-        console.log(`[API Admin] Response status: ${response.status} for ${path}`);
+    try {
+      // In Vite, files in public folder are served from the root
+      // The correct path is just the filename with leading slash
+      console.log('[API Admin] Loading catalog from public folder...');
+      
+      // Import the file directly instead of using fetch to avoid MIME type issues
+      const catalogModule = await import('/api_catalog.json?raw');
+      let catalogText = catalogModule.default;
+      
+      // If import doesn't work, fall back to fetch with proper headers
+      if (!catalogText) {
+        console.log('[API Admin] Trying fetch with proper headers...');
+        const response = await fetch('/api_catalog.json', {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        });
         
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         
-        const catalog = await response.json();
-        console.log('[API Admin] Successfully loaded catalog:', catalog);
+        catalogText = await response.text();
+      }
+      
+      // Parse the JSON
+      const catalog = JSON.parse(catalogText);
+      console.log('[API Admin] Successfully loaded catalog:', catalog);
+      
+      setApiCatalog(catalog);
+      
+      // Extract categories from catalog
+      const cats = Object.keys(catalog.api_catalog || {});
+      setCategories(cats);
+      
+      setLoading(false);
+      setError(null);
+      
+    } catch (e) {
+      console.error('[API Admin] Failed to load catalog:', e);
+      
+      // As a last resort, use embedded fallback data
+      console.log('[API Admin] Using embedded fallback catalog data...');
+      
+      try {
+        // Embedded minimal catalog structure for fallback
+        const fallbackCatalog = {
+          "version": "7.0.0",
+          "api_catalog": {
+            "väder": {
+              "$ref": "api_catalog_smhi.json"
+            }
+          }
+        };
         
-        setApiCatalog(catalog);
-        
-        // Extract categories from catalog
-        const cats = Object.keys(catalog.api_catalog || {});
+        setApiCatalog(fallbackCatalog);
+        const cats = Object.keys(fallbackCatalog.api_catalog || {});
         setCategories(cats);
-        
         setLoading(false);
-        setError(null);
-        return; // Success! Exit early
+        setError('Använde reservdata. Filen kunde inte laddas från servern.');
         
-      } catch (e) {
-        console.error(`[API Admin] Failed to load from ${path}:`, e);
-        lastError = e;
-        // Continue to next path
+      } catch (fallbackError) {
+        setError(`Kunde inte ladda API-katalog: ${e.message}
+
+Felsökning:
+1. Kontrollera att filen frontend/public/api_catalog.json existerar
+2. Starta om dev-servern (npm run dev)
+3. Rensa webbläsarens cache (Ctrl+Shift+R)`);
+        setLoading(false);
       }
     }
-    
-    // All attempts failed
-    setError(`Kunde inte ladda API-katalog från någon av följande källor:
-${pathsToTry.map((p, i) => `  ${i + 1}. ${p}`).join('\n')}
-
-Senaste fel: ${lastError?.message || 'Okänt fel'}
-
-Kontrollera att filen frontend/public/api_catalog.json existerar.`);
-    setLoading(false);
   };
 
   const loadModuleDetails = async (categoryName) => {
