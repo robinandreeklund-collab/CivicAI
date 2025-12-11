@@ -12841,8 +12841,8 @@ async def websocket_live_debate(websocket: WebSocket):
 
 Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max 200 ord). Var koncis och tydlig."""
             
-            # Get responses from all agents in parallel
-            async def get_agent_response(agent_name):
+            # Get responses from all agents - STREAM AS THEY ARRIVE (not wait for all)
+            async def get_agent_response_and_stream(agent_name):
                 try:
                     if agent_name == 'oneseek':
                         # Use ONESEEK with Debattledare personality loaded
@@ -12859,7 +12859,7 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
                         response = requests.post(
                             f"{server_url}/v1/chat/completions",
                             json=payload,
-                            timeout=15,  # Reduced from 60s to 15s for faster failover
+                            timeout=30,  # Increased timeout for ONESEEK
                         )
                         response.raise_for_status()
                         result = response.json()
@@ -12869,7 +12869,7 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
                         else:
                             response_text = result.get('content', '')
                         
-                        return {
+                        resp = {
                             'agent': agent_name,
                             'response': response_text,
                             'model': 'OneSeek-7B-Zero',
@@ -12886,73 +12886,65 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
                         
                         endpoint = service_endpoints.get(agent_name)
                         if not endpoint:
-                            return {
-                                'agent': agent_name,
-                                'response': 'Fel: Tjänst inte tillgänglig',
-                                'success': False
-                            }
+                            raise Exception(f"Tjänst {agent_name} inte tillgänglig")
                         
-                        try:
-                            # Make HTTP request to backend
-                            response = requests.post(
-                                endpoint,
-                                json={'question': debate_prompt},
-                                timeout=8  # Reduced from 10s to 8s for faster streaming
-                            )
-                            response.raise_for_status()
-                            result = response.json()
-                            
-                            return {
-                                'agent': agent_name,
-                                'response': result.get('response', ''),
-                                'model': result.get('model', agent_name),
-                                'success': bool(result.get('response'))
-                            }
-                        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, requests.exceptions.HTTPError) as e:
-                            # Backend not available or errored - use mock response
-                            logger.warning(f"[WS-Debate] Backend error for {agent_name} ({str(e)[:50]}), using mock response")
-                            
-                            mock_responses = {
-                                'gpt': f"GPT-perspektiv: {clean_question[:50]}... är en komplex fråga med många dimensioner. Baserat på aktuell forskning och data kan vi se både fördelar och utmaningar. Det är viktigt att väga ekonomiska, sociala och miljömässiga aspekter mot varandra.",
-                                'gemini': f"Gemini-analys: Låt oss analysera {clean_question[:50]}... systematiskt. Historiskt sett har liknande frågor visat att balanserade lösningar ofta ger bäst resultat. Vi bör överväga både kortsi ktiga och långsiktiga konsekvenser.",
-                                'deepseek': f"DeepSeek-perspektiv: Vid analys av {clean_question[:50]}... ser vi flera intressanta mönster. Data tyder på att framgångsrika implementationer kräver noggrann planering och bred samhällelig förankring.",
-                                'grok': f"Grok-syn: {clean_question[:50]}... är definitivt något värt att diskutera! Låt oss vara pragmatiska här. Internationella exempel visar att innovation och anpassningsförmåga är nyckelfaktorer för framgång."
-                            }
-                            
-                            return {
-                                'agent': agent_name,
-                                'response': mock_responses.get(agent_name, f"Mock-svar från {agent_name}"),
-                                'model': f'{agent_name} (mock - backend unavailable)',
-                                'success': True
-                            }
+                        # Make HTTP request to backend - NO MOCK FALLBACK
+                        response = requests.post(
+                            endpoint,
+                            json={'question': debate_prompt},
+                            timeout=30  # Increased timeout to match backend services
+                        )
+                        response.raise_for_status()
+                        result = response.json()
+                        
+                        resp = {
+                            'agent': agent_name,
+                            'response': result.get('response', ''),
+                            'model': result.get('model', agent_name),
+                            'success': bool(result.get('response'))
+                        }
+                    
+                    # STREAM IMMEDIATELY when response arrives (not wait for others!)
+                    await websocket.send_json({
+                        "type": "response",
+                        "round": round_num,
+                        "agent": resp['agent'],
+                        "message": resp['response'],
+                        "data": {
+                            "model": resp.get('model', resp['agent']),
+                            "success": resp.get('success', True)
+                        }
+                    })
+                    logger.info(f"[WS-Debate] Streamed response from {agent_name} live!")
+                    
+                    if resp.get('success'):
+                        round_responses.append(resp)
+                    
+                    return resp
                         
                 except Exception as e:
                     logger.error(f"[WS-Debate] Error getting response from {agent_name}: {e}")
-                    return {
+                    # Stream error immediately
+                    error_resp = {
                         'agent': agent_name,
-                        'response': f'Fel: Kunde inte hämta svar ({str(e)})',
+                        'response': f'❌ Fel: Kunde inte hämta svar från {agent_name} - {str(e)[:100]}',
                         'success': False
                     }
+                    await websocket.send_json({
+                        "type": "response",
+                        "round": round_num,
+                        "agent": error_resp['agent'],
+                        "message": error_resp['response'],
+                        "data": {
+                            "model": agent_name,
+                            "success": False
+                        }
+                    })
+                    return error_resp
             
-            # Get all responses in parallel
-            tasks = [get_agent_response(agent) for agent in debate_agents]
-            responses = await asyncio.gather(*tasks)
-            
-            # Stream each response as it completes
-            for resp in responses:
-                await websocket.send_json({
-                    "type": "response",
-                    "round": round_num,
-                    "agent": resp['agent'],
-                    "message": resp['response'],
-                    "data": {
-                        "model": resp.get('model', resp['agent']),
-                        "success": resp.get('success', True)
-                    }
-                })
-                
-                if resp.get('success'):
-                    round_responses.append(resp)
+            # Launch all agent requests in parallel - each streams AS IT COMPLETES
+            tasks = [get_agent_response_and_stream(agent) for agent in debate_agents]
+            await asyncio.gather(*tasks, return_exceptions=True)  # Don't crash if one fails
             
             debate_rounds.append({
                 'round': round_num,
