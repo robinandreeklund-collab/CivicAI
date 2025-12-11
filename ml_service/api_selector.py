@@ -96,13 +96,17 @@ async def call_api(
         'success': False,
         'data': None,
         'error': None,
-        'source': None
+        'source': None,
+        'url': None,
+        'params': params
     }
     
     try:
         # Find API configuration in catalog
         api_config = None
-        for category_data in api_catalog.get('api_categories', {}).values():
+        # Support both 'api_categories' and 'api_catalog' keys for backward compatibility
+        catalog_key = 'api_catalog' if 'api_catalog' in api_catalog else 'api_categories'
+        for category_data in api_catalog.get(catalog_key, {}).values():
             for api in category_data.get('apis', []):
                 if api.get('name') == api_name:
                     api_config = api
@@ -125,13 +129,31 @@ async def call_api(
             logger.error(result['error'])
             return result
         
-        # Make API call
-        logger.info(f"Calling API: {api_name} with params: {params}")
+        # Check if URL is a template (has placeholders like {lon}, {lat})
+        is_template = api_config.get('url_template', False) or ('{' in api_url and '}' in api_url)
         
+        if is_template:
+            # Replace placeholders in URL with actual parameter values
+            try:
+                api_url = api_url.format(**params)
+                logger.info(f"Calling API: {api_name} with templated URL: {api_url}")
+                params_to_send = {}  # No query parameters needed for templated URLs
+            except KeyError as e:
+                result['error'] = f"Missing required parameter {e} for URL template"
+                logger.error(result['error'])
+                return result
+        else:
+            logger.info(f"Calling API: {api_name} with params: {params}")
+            params_to_send = params
+        
+        # Store URL for reasoning display
+        result['url'] = api_url
+        
+        # Make API call
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 api_url,
-                params=params,
+                params=params_to_send,
                 timeout=aiohttp.ClientTimeout(total=timeout)
             ) as response:
                 if response.status == 200:
@@ -256,7 +278,9 @@ def create_api_selection_prompt(
     """
     # Extract available APIs
     available_apis = []
-    for category_name, category_data in character_api_map.get('api_categories', {}).items():
+    # Support both 'api_categories' and 'api_catalog' keys for backward compatibility
+    catalog_key = 'api_catalog' if 'api_catalog' in character_api_map else 'api_categories'
+    for category_name, category_data in character_api_map.get(catalog_key, {}).items():
         for api in category_data.get('apis', []):
             api_info = {
                 'name': api.get('name'),
@@ -292,7 +316,7 @@ if __name__ == "__main__":
     test_response = '''
     {
         "apis": [
-            {"name": "smhi_current", "params": {"lon": "17.3", "lat": "60.6"}},
+            {"name": "smhi", "params": {"lon": "17.3", "lat": "60.6"}},
             {"name": "yr_no", "params": {"location": "Hjo"}}
         ]
     }

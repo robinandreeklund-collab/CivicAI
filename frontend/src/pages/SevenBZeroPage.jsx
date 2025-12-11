@@ -192,6 +192,9 @@ export default function SevenBZeroPage() {
   // Thinking chain state for personality routing
   const [thinkingChain, setThinkingChain] = useState(null);
   
+  // Progressive thinking step display
+  const [thinkingStep, setThinkingStep] = useState(null);
+  
   // Load typo check setting from admin
   useEffect(() => {
     const loadTypoCheckSetting = async () => {
@@ -838,7 +841,7 @@ export default function SevenBZeroPage() {
    * 
    * Features:
    * - Real-time token display
-   * - Shows "ONESEEK skriver..." until first token
+   * - Progressive thinking steps with "[tänker...]" prefix
    * - Error handling with fallback
    * - Stream abort capability
    */
@@ -1187,6 +1190,7 @@ export default function SevenBZeroPage() {
     };
     setMessages(prev => [...prev, aiMessage]);
     setIsTyping(true);
+    setThinkingStep('[tänker...] Analyserar frågan');
 
     try {
       let response;
@@ -1273,14 +1277,17 @@ export default function SevenBZeroPage() {
             
             try {
               const wsResult = await sendPersonalityMessageViaWebSocket(currentQuestion, {
-                onThinking: (thinkingStep) => {
+                onThinking: (step) => {
+                  // Update global thinking step for loading indicator
+                  setThinkingStep(`[tänker...] ${step.message}`);
+                  
                   // Update AI message with current thinking step
                   setMessages(prev => prev.map(msg => 
                     msg.id === aiMessageId 
                       ? { 
                           ...msg, 
-                          currentThinkingStep: thinkingStep.message,
-                          thinkingChain: [...(msg.thinkingChain || []), thinkingStep],
+                          currentThinkingStep: step.message,
+                          thinkingChain: [...(msg.thinkingChain || []), step],
                         }
                       : msg
                   ));
@@ -1288,6 +1295,9 @@ export default function SevenBZeroPage() {
                 onFinal: (data) => {
                   const responseEndTime = Date.now();
                   const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
+                  
+                  // Clear thinking step
+                  setThinkingStep(null);
                   
                   // Update AI-selected personality from response
                   if (data.personality) {
@@ -1541,6 +1551,7 @@ export default function SevenBZeroPage() {
             : msg
         ));
         setIsTyping(false);
+        setThinkingStep(null);
       }
     } catch (err) {
       console.error('Query error:', err);
@@ -1555,6 +1566,7 @@ export default function SevenBZeroPage() {
           : msg
       ));
       setIsTyping(false);
+      setThinkingStep(null);
     }
   };
 
@@ -2101,7 +2113,7 @@ export default function SevenBZeroPage() {
                       <div className={`text-[14px] font-light tracking-wide loading-pulse ${
                         whiteMode ? 'text-[#666]' : 'text-[#666]'
                       }`}>
-                        {isStreaming ? 'ONESEEK skriver' : 'Tänker'}
+                        {thinkingStep || (isStreaming ? '[tänker...] Genererar svar' : '[tänker...] Analyserar')}
                       </div>
                       <div className="flex items-center gap-1">
                         <span className={`w-2 h-2 rounded-full loading-dot-1 ${whiteMode ? 'bg-[#333]' : 'bg-white'}`} />

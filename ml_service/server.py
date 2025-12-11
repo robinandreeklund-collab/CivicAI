@@ -428,7 +428,7 @@ try:
         get_current_personality,
         reset_personality,
         load_personality_catalog,
-        load_api_catalog
+        load_api_catalog as load_api_catalog_with_refs
     )
     PERSONALITY_SELECTOR_AVAILABLE = True
 except ImportError:
@@ -440,7 +440,7 @@ except ImportError:
             get_current_personality,
             reset_personality,
             load_personality_catalog,
-            load_api_catalog
+            load_api_catalog as load_api_catalog_with_refs
         )
         PERSONALITY_SELECTOR_AVAILABLE = True
     except ImportError:
@@ -451,7 +451,7 @@ except ImportError:
         get_current_personality = None
         reset_personality = None
         load_personality_catalog = None
-        load_api_catalog = None
+        load_api_catalog_with_refs = None
 
 try:
     from .api_selector import (
@@ -2066,11 +2066,12 @@ def load_api_catalog() -> dict:
     """
     Load API catalog and active features from config/api_catalog.json.
     
-    ONESEEK Δ+ v4.0: This is the new central configuration that:
+    ONESEEK Δ+ v4.0/v7.0: This loads the catalog with $ref resolution support
     - Disables Intent Engine by default
     - Disables Typo Checker by default
     - Keeps Time Context always active
-    - Provides 31+ categorized Swedish APIs for model-driven selection
+    - Provides categorized Swedish APIs for model-driven selection
+    - Resolves $ref links to external catalog modules (v7.0)
     
     Returns:
         Dict with api_catalog, active_features, and system_prompt
@@ -2079,8 +2080,13 @@ def load_api_catalog() -> dict:
     
     if API_CATALOG_FILE.exists():
         try:
-            with open(API_CATALOG_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+            # Use the personality_selector's load_api_catalog which includes $ref resolution
+            if PERSONALITY_SELECTOR_AVAILABLE and load_api_catalog_with_refs:
+                data = load_api_catalog_with_refs()
+            else:
+                # Fallback to direct load if personality selector not available
+                with open(API_CATALOG_FILE, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
             
             # Load active features (controls Intent Engine, Typo Checker, Time Context)
             active_features = data.get("active_features", DEFAULT_ACTIVE_FEATURES)
@@ -2090,7 +2096,7 @@ def load_api_catalog() -> dict:
                 "time_context": active_features.get("time_context", True)
             }
             
-            # Load API catalog
+            # Load API catalog (now with $ref resolution)
             API_CATALOG = data.get("api_catalog", {})
             
             # Load system prompt if present
@@ -4027,6 +4033,8 @@ def stream_generate_with_llama_server(enriched_system_prompt: str, user_message:
         raise RuntimeError(error_msg)
     except requests.exceptions.RequestException as e:
         logger.error(f"[GGUF] Streaming /completion failed: {e}")
+        if "400" in str(e):
+            logger.error(f"[GGUF] 400 Bad Request - Prompt may be too large. Prompt length: {len(formatted_prompt)} chars")
         raise RuntimeError(f"GGUF streaming error: {e}")
 
 def ensure_llama_cpp_python():
@@ -13419,37 +13427,59 @@ Du är {personality_name}.
 Din uppgift är att:
 1. Förstå vad användarens fråga kräver
 2. Extrahera viktiga entity_types (t.ex. stad → koordinater, datum → format)
-3. Välja rätt APIs från din API-karta
+3. Välja rätt APIs från din API-karta baserat på KEYWORDS och DESCRIPTION
 4. Returnera JSON med APIs och parametrar
 
 **Din personlighet:**
 {personality_prompt[:500]}{'...' if len(personality_prompt) > 500 else ''}
 
 **Tillgängliga APIs för dig:**
+
+För varje API, analysera dessa fält noggrant:
+- **name**: API-namn som du ska använda i din JSON-respons
+- **description**: Vad API:t gör och vilken typ av data det ger
+- **keywords**: Nyckelord som matchar mot användarens fråga - VIKTIGT FÖR URVAL!
+- **priority**: Lägre nummer = högre prioritet (0 = viktigast, välj det med lägst nummer om flera matchar)
+- **parameters**: Vilka parametrar API:t kräver (t.ex. lon/lat för platsbaserade APIs)
+- **url**: Endpoint-URL (för din information)
+
 {character_api_json}
 
+**Tips för att välja rätt API:**
+1. **Matcha användarens KEYWORDS** mot API:ernas keywords-lista - detta är viktigast!
+2. Läs API:ernas **description** för att förstå vad de levererar
+3. Välj API med **LÄGST priority** som matchar frågan
+4. Om flera passar, välj det som **bäst matchar användarens INTENT**
+
+**Exempel på keyword-matchning:**
+- Fråga: "vädret imorgon" → matchar keywords ["imorgon", "prognos"] → välj smhi_prognos
+- Fråga: "regnar det NU" → matchar keywords ["nu", "just nu", "aktuellt"] → välj smhi_analys  
+- Fråga: "finns vädervarning" → matchar keywords ["varning", "storm"] → välj smhi_varningar (priority=0!)
+- Fråga: "hur är vädret" (utan tidsangivelse) → välj smhi_prognos (default för allmän väderinfo)
+
 **Instruktioner:**
-1. Analysera frågan noga
+1. Analysera frågan noga - vilka KEYWORDS finns i användarens fråga?
 2. Om frågan innehåller platsnamn (t.ex. "Göteborg", "Hjo"), konvertera till koordinater
 3. Om frågan innehåller datum/tid, formatera korrekt
-4. Välj vilka APIs du behöver från listan ovan
-5. Returnera BARA JSON i detta format:
+4. Jämför användarens keywords med varje APIs keywords-lista
+5. Välj det API som har BÄST keyword-matchning och lägst priority
+6. Returnera BARA JSON i detta format:
 
 {{"apis": [{{"name": "api_name", "params": {{"key": "value"}}}}]}}
 
 Om inga APIs behövs: {{"apis": []}}
 
 **Efter JSON:** Förklara ditt val (2-3 meningar):
-- Varför valde du dessa APIs?
-- Vilka entity_types extraherade du?
-- Hur konverterade du dem?
+- Vilka keywords matchade du?
+- Varför valde du detta specifika API (inte ett annat)?
+- Vilka entity_types extraherade du och hur?
 
 **Exempel:**
 Fråga: "Vad är vädret imorgon i Stockholm?"
 Svar:
-{{"apis": [{{"name": "smhi", "params": {{"lon": "18.07", "lat": "59.33"}}}}]}}
+{{"apis": [{{"name": "smhi_prognos", "params": {{"lon": "18.07", "lat": "59.33"}}}}]}}
 
-Reasoning: För väderprognos i Stockholm behöver jag SMHI:s data. Stockholm ligger på koordinater lat=59.33, lon=18.07 som jag extraherade från platsnamnet.
+Reasoning: Användaren frågade om "imorgon" vilket matchar smhi_prognos keywords ["imorgon", "prognos"]. Inte smhi_analys (för "nu") eller smhi_varningar (för "varning"). Stockholm ligger på koordinater lat=59.33, lon=18.07 som jag extraherade från platsnamnet.
 
 **Nu är det din tur!**
 Användarens fråga: {user_question}
@@ -13546,14 +13576,15 @@ async def generate_personality_response(
         
         personality_match = personality_id.replace("oneseek-", "").replace("-", "")
         
-        api_catalog_path = PROJECT_ROOT / "config/api_catalog.json"
-        with open(api_catalog_path, 'r', encoding='utf-8') as f:
-            full_api_catalog = json.load(f)
+        # Load API catalog with $ref resolution
+        full_api_catalog = load_api_catalog_with_refs() if load_api_catalog_with_refs else {}
+        print(f"   Loaded catalog: version={full_api_catalog.get('version')}, categories={list(full_api_catalog.get('api_catalog', {}).keys())}")
         
         filtered_categories = {}
         total_filtered = 0
         for category, category_data in full_api_catalog.get('api_catalog', {}).items():
             api_personality_tags = category_data.get('personality_tags', [])
+            print(f"   Checking API category '{category}' with tags: {api_personality_tags}")
             if personality_match in api_personality_tags:
                 filtered_categories[category] = category_data
                 total_filtered += len(category_data.get('apis', []))
@@ -13629,7 +13660,9 @@ async def generate_personality_response(
         successful_api_names = []
         
         if selected_apis:
-            api_results = await fetch_apis_parallel(selected_apis)
+            # Pass the resolved catalog to fetch_apis_parallel
+            api_selection_dict = {"apis": selected_apis}
+            api_results = await fetch_apis_parallel(api_selection_dict, character_api)
             
             for result in api_results:
                 api_name = result.get('api_name', 'unknown')
@@ -13939,15 +13972,24 @@ Exempel:
                         # Use personality_id without "oneseek-" prefix to match personality_tags in api_catalog
                         personality_match = personality_id.replace("oneseek-", "").replace("-", "")
                         print(f"   Matching personality: {personality_match}")
-                            
-                        
+                        print(f"   [DEBUG] Original personality_id: {personality_id}")
+
                         try:
-                            # Load full API catalog
-                            api_catalog_path = PROJECT_ROOT / "config/api_catalog.json"
-                            if api_catalog_path.exists():
-                                with open(api_catalog_path, 'r', encoding='utf-8') as f:
-                                    full_api_catalog = json.load(f)
-                                
+                            # Load full API catalog with $ref resolution
+                            full_api_catalog = load_api_catalog_with_refs() if load_api_catalog_with_refs else {}
+                            print(f"   Loaded catalog: version={full_api_catalog.get('version')}, categories={list(full_api_catalog.get('api_catalog', {}).keys())}")
+                            
+                            # DEBUG: Show full catalog structure after $ref resolution
+                            print(f"   [DEBUG] Full api_catalog keys: {list(full_api_catalog.get('api_catalog', {}).keys())}")
+                            for cat_name in full_api_catalog.get('api_catalog', {}).keys():
+                                cat_data = full_api_catalog['api_catalog'][cat_name]
+                                print(f"   [DEBUG] Category '{cat_name}' type: {type(cat_data)}")
+                                if isinstance(cat_data, dict):
+                                    print(f"   [DEBUG] Category '{cat_name}' keys: {list(cat_data.keys())}")
+                                    print(f"   [DEBUG] Category '{cat_name}' personality_tags: {cat_data.get('personality_tags', 'KEY NOT FOUND')}")
+                                    print(f"   [DEBUG] Category '{cat_name}' apis count: {len(cat_data.get('apis', []))}")
+                            
+                            if full_api_catalog:
                                 # Filter API categories where personality_tags contain our personality
                                 filtered_categories = {}
                                 total_filtered = 0
@@ -13955,8 +13997,29 @@ Exempel:
                                     api_personality_tags = category_data.get('personality_tags', [])
                                     print(f"   Checking API category '{category}' with tags: {api_personality_tags}")
                                     
+                                    # DEBUG: Warn if tags are unexpectedly empty
+                                    if not api_personality_tags and isinstance(category_data, dict):
+                                        print(f"      ⚠️ WARNING: Category '{category}' has no personality_tags!")
+                                        print(f"      ⚠️ Category data keys: {list(category_data.keys())}")
+                                    
                                     # Check if our personality matches any of the category's personality_tags
-                                    if personality_match in api_personality_tags:
+                                    # First try exact match
+                                    matched = personality_match in api_personality_tags
+                                    print(f"   [DEBUG] Exact match '{personality_match}' in {api_personality_tags}: {matched}")
+                                    
+                                    # If no exact match, try without common Swedish definite article suffixes
+                                    # Using endswith() and slicing to avoid removing characters from middle of word
+                                    if not matched and api_personality_tags:
+                                        for suffix in ['en', 'et', 'n']:
+                                            if personality_match.endswith(suffix):
+                                                alt_match = personality_match[:-len(suffix)]
+                                                if alt_match and alt_match in api_personality_tags:
+                                                    print(f"   [DEBUG] Matched '{alt_match}' (removed suffix '{suffix}' from '{personality_match}')")
+                                                    personality_match = alt_match
+                                                    matched = True
+                                                    break
+                                    
+                                    if matched:
                                         print(f"      ✅ Match! Including category '{category}'")
                                         filtered_categories[category] = category_data
                                         total_filtered += len(category_data.get('apis', []))
@@ -13995,7 +14058,7 @@ Exempel:
                                 })
                                 yield f"event: thinking\ndata: {json.dumps({'step': 'api_map', 'message': api_map_msg})}\n\n"
                             else:
-                                print(f"⚠️ API catalog not found at {api_catalog_path}")
+                                print(f"⚠️ Failed to load API catalog")
                         except Exception as e:
                             print(f"⚠️ Failed to build character_api.json: {e}")
                             import traceback
@@ -14125,19 +14188,20 @@ Exempel:
                         # Import api_selector functions
                         from api_selector import fetch_apis_parallel
                         
-                        # We need to build api_catalog for fetch_apis_parallel
-                        # Load it from config
-                        api_catalog_path = PROJECT_ROOT / "config/api_catalog.json"
-                        if api_catalog_path.exists():
-                            with open(api_catalog_path, 'r', encoding='utf-8') as f:
-                                full_api_catalog = json.load(f)
-                            api_categories = full_api_catalog.get('api_categories', {})
+                        # Use the character_api that was built earlier (filtered for personality)
+                        # Read it from runtime/character_api.json
+                        runtime_dir = PROJECT_ROOT / "runtime"
+                        character_api_path = runtime_dir / "character_api.json"
+                        
+                        if character_api_path.exists():
+                            with open(character_api_path, 'r', encoding='utf-8') as f:
+                                character_api = json.load(f)
                             
-                            # Fetch APIs in parallel
+                            # Fetch APIs in parallel using character_api
                             api_selection_dict = {"apis": selected_apis}
                             api_results = await fetch_apis_parallel(
                                 api_selection_dict,
-                                api_categories,
+                                character_api,
                                 max_concurrent=5
                             )
                             print(f"✅ API fetch complete: {len(api_results)} results received")
@@ -14153,17 +14217,27 @@ Exempel:
                                 print(f"   - {api_name}: {'✅ Success' if is_success else '❌ Failed'}")
                                 
                                 # Add detailed reasoning for each API call
-                                endpoint = result.get('endpoint', 'N/A')
+                                api_url = result.get('url', 'N/A')
                                 params = result.get('params', {})
                                 if is_success:
                                     successful_count += 1
                                     successful_api_names.append(api_name)
-                                    data_size = len(str(result.get('data', '')))
-                                    api_data_parts.append(f"\n[Data från {api_name}]:\n{json.dumps(result['data'], indent=2, ensure_ascii=False)}")
-                                    api_fetch_reasoning = f"GET {endpoint} med params {json.dumps(params)} → Success ({data_size} chars data)"
+                                    # Get API response data
+                                    data_str = json.dumps(result['data'], indent=2, ensure_ascii=False)
+                                    data_size = len(data_str)
+                                    
+                                    # Truncate large API responses to prevent context window overflow
+                                    # SMHI forecast can be 40KB+, analysis 25KB+ - limit to 8000 chars for balance
+                                    max_data_size = 8000  # Optimal limit: preserves forecast details while preventing HTTP 400
+                                    if len(data_str) > max_data_size:
+                                        data_str = data_str[:max_data_size] + "\n... (data truncated for context window)"
+                                        print(f"   ⚠️ Truncated {api_name} data from {data_size} to {max_data_size} chars")
+                                    
+                                    api_data_parts.append(f"\n[Data från {api_name}]:\n{data_str}")
+                                    api_fetch_reasoning = f"GET {api_url} med params {json.dumps(params)} → Success ({data_size} chars data)"
                                 else:
                                     error_msg = result.get('error', 'Unknown error')
-                                    api_fetch_reasoning = f"GET {endpoint} med params {json.dumps(params)} → Failed ({error_msg})"
+                                    api_fetch_reasoning = f"GET {api_url} med params {json.dumps(params)} → Failed ({error_msg})"
                                 
                                 thinking_steps.append({
                                     "step": "api_fetch_detail",
@@ -14180,7 +14254,7 @@ Exempel:
                                 logger.info(f"📊 [API-DATA] Fetched data from {len(api_results)} APIs")
                                 print(f"   API data context length: {len(api_data_context)} characters")
                         else:
-                            print(f"⚠️ api_catalog.json not found, skipping API fetch")
+                            print(f"⚠️ character_api.json not found, skipping API fetch")
                     except ImportError as e:
                         print(f"⚠️ API selector not available (import failed), skipping API fetch: {e}")
                     except Exception as e:

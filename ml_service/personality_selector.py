@@ -77,15 +77,72 @@ def load_personality_catalog(config_path: str = None) -> Dict:
         return {}
 
 
+def resolve_catalog_refs(catalog: Dict, config_dir: Path) -> Dict:
+    """
+    Resolve $ref links in API catalog to support modular structure.
+    
+    Args:
+        catalog: The loaded API catalog
+        config_dir: Directory containing config files
+        
+    Returns:
+        Catalog with all $ref links resolved
+    """
+    print(f"   [DEBUG] resolve_catalog_refs called with config_dir: {config_dir}")
+    resolved_catalog = catalog.copy()
+    
+    if 'api_catalog' not in resolved_catalog:
+        print(f"   [DEBUG] No 'api_catalog' key found in catalog")
+        return resolved_catalog
+    
+    print(f"   [DEBUG] Found {len(resolved_catalog['api_catalog'])} categories to check")
+    
+    # Resolve each category that has a $ref
+    for category_name, category_data in list(resolved_catalog['api_catalog'].items()):
+        print(f"   [DEBUG] Checking category '{category_name}': type={type(category_data)}, has $ref={isinstance(category_data, dict) and '$ref' in category_data}")
+        if isinstance(category_data, dict) and '$ref' in category_data:
+            ref_file = category_data['$ref']
+            ref_path = config_dir / ref_file
+            
+            try:
+                with open(ref_path, 'r', encoding='utf-8') as f:
+                    ref_data = json.load(f)
+                
+                logger.info(f"Resolved $ref for category '{category_name}' from {ref_file}")
+                print(f"   ✓ Resolved $ref: {ref_file} → {len(ref_data.get('apis', []))} APIs, tags: {ref_data.get('personality_tags', [])}")
+                
+                # Replace the $ref with the actual data
+                # Keep the structure compatible with existing code
+                resolved_catalog['api_catalog'][category_name] = {
+                    'description': ref_data.get('description', f"{ref_data.get('name', category_name)} API"),
+                    'personality_tags': ref_data.get('personality_tags', []),
+                    'apis': ref_data.get('apis', []),
+                    'entity_required': ref_data.get('entity_config', {}).get('entity_required', False),
+                    'entity_type': ref_data.get('entity_config', {}).get('entity_type', 'stad'),
+                    'fallback_entity': ref_data.get('entity_config', {}).get('fallback_entity', ''),
+                    'keywords': ref_data.get('keywords', []),
+                    # Store original ref data for advanced features
+                    '_ref_source': ref_file,
+                    '_provider': ref_data.get('provider', {})
+                }
+                
+            except Exception as e:
+                logger.error(f"Failed to resolve $ref '{ref_file}' for category '{category_name}': {e}")
+                # Keep the original data if resolution fails
+                continue
+    
+    return resolved_catalog
+
+
 def load_api_catalog(config_path: str = None) -> Dict:
     """
-    Load API catalog from JSON file.
+    Load API catalog from JSON file with $ref resolution support.
     
     Args:
         config_path: Path to api_catalog.json. If None, uses default location.
         
     Returns:
-        Dict containing API catalog data
+        Dict containing API catalog data with all $ref links resolved
     """
     if config_path is None:
         # Default path relative to project root
@@ -94,12 +151,28 @@ def load_api_catalog(config_path: str = None) -> Dict:
     else:
         config_path = Path(config_path)
     
+    config_dir = config_path.parent
+    
     try:
+        print(f"   [DEBUG] Loading API catalog from: {config_path}")
+        print(f"   [DEBUG] File exists: {config_path.exists()}")
+        
         with open(config_path, 'r', encoding='utf-8') as f:
             catalog = json.load(f)
+        
+        print(f"   [DEBUG] Loaded catalog version: {catalog.get('version')}")
         logger.info(f"Loaded API catalog from {config_path}")
+        
+        # Resolve any $ref links
+        print(f"   [DEBUG] Resolving $ref links...")
+        catalog = resolve_catalog_refs(catalog, config_dir)
+        
+        print(f"   [DEBUG] After resolution, version: {catalog.get('version')}")
         return catalog
     except Exception as e:
+        print(f"   [ERROR] Failed to load API catalog: {e}")
+        import traceback
+        traceback.print_exc()
         logger.error(f"Failed to load API catalog from {config_path}: {e}")
         return {}
 
