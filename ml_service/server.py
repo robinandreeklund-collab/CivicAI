@@ -12859,7 +12859,7 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
                         response = requests.post(
                             f"{server_url}/v1/chat/completions",
                             json=payload,
-                            timeout=60,
+                            timeout=15,  # Reduced from 60s to 15s for faster failover
                         )
                         response.raise_for_status()
                         result = response.json()
@@ -12897,7 +12897,7 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
                             response = requests.post(
                                 endpoint,
                                 json={'question': debate_prompt},
-                                timeout=10  # Shorter timeout to fail fast
+                                timeout=8  # Reduced from 10s to 8s for faster streaming
                             )
                             response.raise_for_status()
                             result = response.json()
@@ -12908,9 +12908,9 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
                                 'model': result.get('model', agent_name),
                                 'success': bool(result.get('response'))
                             }
-                        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
-                            # Backend not available - use mock response
-                            logger.warning(f"[WS-Debate] Backend not available for {agent_name}, using mock response")
+                        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, requests.exceptions.HTTPError) as e:
+                            # Backend not available or errored - use mock response
+                            logger.warning(f"[WS-Debate] Backend error for {agent_name} ({str(e)[:50]}), using mock response")
                             
                             mock_responses = {
                                 'gpt': f"GPT-perspektiv: {clean_question[:50]}... är en komplex fråga med många dimensioner. Baserat på aktuell forskning och data kan vi se både fördelar och utmaningar. Det är viktigt att väga ekonomiska, sociala och miljömässiga aspekter mot varandra.",

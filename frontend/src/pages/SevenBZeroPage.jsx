@@ -1687,6 +1687,7 @@ export default function SevenBZeroPage() {
         ? { 
             ...msg, 
             text: debateText,
+            debateMode: true,  // Always ensure debateMode is set
             isTyping: !isFinal,  // Keep typing indicator while debate is in progress
             debateMode: true,
             debateData: debateState,
