@@ -42,23 +42,55 @@ export default function ApiAdminPageNew() {
 
   const loadApiCatalog = async () => {
     setLoading(true);
-    try {
-      // Load main catalog from public folder
-      const response = await fetch('/api_catalog.json');
-      if (!response.ok) throw new Error('Failed to load API catalog');
-      
-      const catalog = await response.json();
-      setApiCatalog(catalog);
-      
-      // Extract categories from catalog
-      const cats = Object.keys(catalog.api_catalog || {});
-      setCategories(cats);
-      
-      setLoading(false);
-    } catch (e) {
-      setError('Kunde inte ladda API-katalog: ' + e.message);
-      setLoading(false);
+    setError(null);
+    
+    const pathsToTry = [
+      '/api_catalog.json',              // Public folder (standard Vite)
+      '/config/api_catalog.json',       // Config folder
+      '../config/api_catalog.json'      // Relative path
+    ];
+    
+    let lastError = null;
+    
+    for (const path of pathsToTry) {
+      try {
+        console.log(`[API Admin] Attempting to load catalog from: ${path}`);
+        const response = await fetch(path);
+        
+        console.log(`[API Admin] Response status: ${response.status} for ${path}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const catalog = await response.json();
+        console.log('[API Admin] Successfully loaded catalog:', catalog);
+        
+        setApiCatalog(catalog);
+        
+        // Extract categories from catalog
+        const cats = Object.keys(catalog.api_catalog || {});
+        setCategories(cats);
+        
+        setLoading(false);
+        setError(null);
+        return; // Success! Exit early
+        
+      } catch (e) {
+        console.error(`[API Admin] Failed to load from ${path}:`, e);
+        lastError = e;
+        // Continue to next path
+      }
     }
+    
+    // All attempts failed
+    setError(`Kunde inte ladda API-katalog från någon av följande källor:
+${pathsToTry.map((p, i) => `  ${i + 1}. ${p}`).join('\n')}
+
+Senaste fel: ${lastError?.message || 'Okänt fel'}
+
+Kontrollera att filen frontend/public/api_catalog.json existerar.`);
+    setLoading(false);
   };
 
   const loadModuleDetails = async (categoryName) => {
