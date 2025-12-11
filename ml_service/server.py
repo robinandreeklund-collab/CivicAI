@@ -12973,7 +12973,11 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
             external_responses = []
             
             # Start background task to collect all responses
-            collect_task = asyncio.create_task(asyncio.gather(*external_tasks, return_exceptions=True))
+            # Create coroutine for gathering and then create task from it
+            async def collect_all_responses():
+                return await asyncio.gather(*external_tasks, return_exceptions=True)
+            
+            collect_task = asyncio.create_task(collect_all_responses())
             
             # Process each queued response immediately with OneSeek
             processed_count = 0
