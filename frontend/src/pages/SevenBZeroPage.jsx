@@ -1679,7 +1679,7 @@ export default function SevenBZeroPage() {
         ? { 
             ...msg, 
             text: debateText,
-            isTyping: !isFinal,
+            isTyping: !isFinal,  // Keep typing indicator while debate is in progress
             debateMode: true,
             debateData: debateState,
           }
@@ -2570,7 +2570,7 @@ export default function SevenBZeroPage() {
                         }
                       `}</style>
                       <ReactMarkdown>
-                        {convertEmojis(msg.isTyping ? currentTypingText : msg.text)}
+                        {convertEmojis(msg.debateMode ? msg.text : (msg.isTyping ? currentTypingText : msg.text))}
                       </ReactMarkdown>
                     </div>
                   )}
