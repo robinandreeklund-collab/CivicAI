@@ -159,6 +159,11 @@ export default function SevenBZeroPage() {
   const [externalResponses, setExternalResponses] = useState([]);
   const [showExternalResponses, setShowExternalResponses] = useState(false);
   
+  // Debate Mode state - live AI debate
+  const [debateMode, setDebateMode] = useState(false);
+  const [debateData, setDebateData] = useState(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  
   // Chat state
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
@@ -1196,6 +1201,13 @@ export default function SevenBZeroPage() {
       let response;
       let data;
       
+      // Use Live Debate Flow when debateMode is enabled
+      if (debateMode) {
+        console.log('[7B-Zero] Starting Live Debate Flow...');
+        await startLiveDebate(currentQuestion, aiMessageId);
+        return;
+      }
+      
       // Use Zero Compare Flow when compareMode is enabled
       if (compareMode) {
         console.log('[7B-Zero] Using Zero Compare Flow...');
@@ -1570,6 +1582,204 @@ export default function SevenBZeroPage() {
     }
   };
 
+  // Live Debate Flow via WebSocket
+  const startLiveDebate = async (question, aiMessageId) => {
+    console.log('[Debate] Starting live AI debate...');
+    
+    setThinkingStep('[tänker...] Startar debattarena...');
+    setDebateData(null);
+    setShowConfetti(false);
+    
+    try {
+      const ws = new WebSocket(`ws://localhost:5000/ws/debate`);
+      
+      const debateState = {
+        question,
+        rounds: [],
+        votes: {},
+        winner: null,
+        summary: null
+      };
+      
+      ws.onopen = () => {
+        console.log('[Debate] WebSocket connected');
+        // Send debate request
+        ws.send(JSON.stringify({
+          question: `[debatt] ${question}`
+        }));
+      };
+      
+      ws.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        console.log('[Debate] Message received:', message.type);
+        
+        switch (message.type) {
+          case 'thinking':
+            setThinkingStep(message.message);
+            break;
+            
+          case 'debate_init':
+            setThinkingStep('🎯 Debattarena initierad!');
+            debateState.agents = message.data.agents;
+            debateState.maxRounds = message.data.rounds;
+            setDebateData({...debateState});
+            break;
+            
+          case 'round_start':
+            setThinkingStep(`🎤 Runda ${message.round} startar...`);
+            debateState.currentRound = message.round;
+            debateState.rounds[message.round - 1] = {
+              round: message.round,
+              responses: []
+            };
+            setDebateData({...debateState});
+            break;
+            
+          case 'response':
+            console.log(`[Debate] Response from ${message.agent}`);
+            const roundIndex = message.round - 1;
+            if (!debateState.rounds[roundIndex]) {
+              debateState.rounds[roundIndex] = { round: message.round, responses: [] };
+            }
+            debateState.rounds[roundIndex].responses.push({
+              agent: message.agent,
+              response: message.message,
+              model: message.data?.model
+            });
+            setDebateData({...debateState});
+            setThinkingStep(`💬 ${message.agent.toUpperCase()} svarade...`);
+            break;
+            
+          case 'round_end':
+            setThinkingStep(`✅ Runda ${message.round} avslutad`);
+            break;
+            
+          case 'voting':
+            setThinkingStep('🗳️ Röstning pågår...');
+            break;
+            
+          case 'winner':
+            setThinkingStep(`🏆 Vinnare: ${message.data.winner.toUpperCase()}!`);
+            debateState.winner = message.data.winner;
+            debateState.winnerVotes = message.data.votes;
+            debateState.allVotes = message.data.all_votes;
+            debateState.voteResults = message.data.vote_results;
+            setDebateData({...debateState});
+            
+            // Show confetti!
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 5000);
+            break;
+            
+          case 'summary':
+            setThinkingStep('📝 Sammanfattning klar!');
+            debateState.summary = message.data.summary;
+            setDebateData({...debateState});
+            break;
+            
+          case 'final':
+            setThinkingStep(null);
+            setIsTyping(false);
+            
+            // Build final message text
+            let finalText = `## 🎤 Live AI-Debatt\n\n`;
+            finalText += `**Fråga:** ${question}\n\n`;
+            
+            // Show rounds
+            debateState.rounds.forEach(round => {
+              finalText += `### Runda ${round.round}\n\n`;
+              round.responses.forEach(resp => {
+                finalText += `**${resp.agent.toUpperCase()}:** ${resp.response.substring(0, 150)}...\n\n`;
+              });
+            });
+            
+            // Show winner
+            if (debateState.winner) {
+              finalText += `\n### 🏆 Vinnare: ${debateState.winner.toUpperCase()}\n`;
+              finalText += `**Röster:** ${debateState.winnerVotes}\n\n`;
+            }
+            
+            // Show summary
+            if (debateState.summary) {
+              finalText += `### 📋 Sammanfattning\n\n${debateState.summary}\n`;
+            }
+            
+            const responseEndTime = Date.now();
+            const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
+            
+            setMessages(prev => prev.map(msg => 
+              msg.id === aiMessageId 
+                ? { 
+                    ...msg, 
+                    responseTime: finalResponseTime,
+                    confidence: 0.9,
+                    version: 'Live Debate Arena',
+                    debateMode: true,
+                    debateData: debateState,
+                  }
+                : msg
+            ));
+            
+            animateTyping(finalText, aiMessageId);
+            ws.close();
+            break;
+            
+          case 'error':
+            console.error('[Debate] Error:', message.message);
+            setThinkingStep(null);
+            setIsTyping(false);
+            setMessages(prev => prev.map(msg => 
+              msg.id === aiMessageId 
+                ? { 
+                    ...msg, 
+                    text: `Debattfel: ${message.message}`,
+                    error: true,
+                    isTyping: false,
+                  }
+                : msg
+            ));
+            ws.close();
+            break;
+        }
+      };
+      
+      ws.onerror = (error) => {
+        console.error('[Debate] WebSocket error:', error);
+        setThinkingStep(null);
+        setIsTyping(false);
+        setMessages(prev => prev.map(msg => 
+          msg.id === aiMessageId 
+            ? { 
+                ...msg, 
+                text: 'Kunde inte ansluta till debattarenan. WebSocket-fel.',
+                error: true,
+                isTyping: false,
+              }
+            : msg
+        ));
+      };
+      
+      ws.onclose = () => {
+        console.log('[Debate] WebSocket closed');
+      };
+      
+    } catch (error) {
+      console.error('[Debate] Error starting debate:', error);
+      setThinkingStep(null);
+      setIsTyping(false);
+      setMessages(prev => prev.map(msg => 
+        msg.id === aiMessageId 
+          ? { 
+              ...msg, 
+              text: 'Debattfel: ' + error.message,
+              error: true,
+              isTyping: false,
+            }
+          : msg
+      ));
+    }
+  };
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e) => {
@@ -1652,6 +1862,25 @@ export default function SevenBZeroPage() {
           : 'bg-[#0a0a0a] text-white'
       } ${quantumMode ? 'opacity-50' : ''}`}
     >
+      {/* ===== CONFETTI OVERLAY ===== */}
+      {showConfetti && (
+        <div className="fixed inset-0 pointer-events-none z-[100]">
+          <div className="confetti-container">
+            {[...Array(50)].map((_, i) => (
+              <div
+                key={i}
+                className="confetti"
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  animationDelay: `${Math.random() * 3}s`,
+                  backgroundColor: ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f7b731', '#5f27cd'][Math.floor(Math.random() * 5)],
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      
       <style>{`
         @keyframes elegantFade {
           from { opacity: 0; transform: translateY(8px); }
@@ -1716,6 +1945,32 @@ export default function SevenBZeroPage() {
         .chat-scroll::-webkit-scrollbar { width: 4px; }
         .chat-scroll::-webkit-scrollbar-track { background: transparent; }
         .chat-scroll::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 2px; }
+        
+        /* Confetti animation */
+        .confetti-container {
+          position: relative;
+          width: 100%;
+          height: 100%;
+        }
+        
+        .confetti {
+          position: absolute;
+          width: 10px;
+          height: 10px;
+          top: -10px;
+          animation: confetti-fall 3s linear infinite;
+        }
+        
+        @keyframes confetti-fall {
+          0% {
+            transform: translateY(0) rotate(0deg);
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(100vh) rotate(720deg);
+            opacity: 0;
+          }
+        }
       `}</style>
 
       {/* ===== HEADER ===== */}
@@ -2649,7 +2904,10 @@ export default function SevenBZeroPage() {
                 {/* Compare Mode toggle */}
                 <button
                   type="button"
-                  onClick={() => setCompareMode(prev => !prev)}
+                  onClick={() => {
+                    setCompareMode(prev => !prev);
+                    if (debateMode) setDebateMode(false); // Turn off debate when compare is on
+                  }}
                   className={`ml-4 text-[9px] tracking-[0.1em] uppercase px-2 py-1 rounded transition-all duration-300 ${
                     compareMode
                       ? (whiteMode ? 'bg-purple-100 text-purple-700 border border-purple-300' : 'bg-purple-900/30 text-purple-400 border border-purple-700/50')
@@ -2657,6 +2915,22 @@ export default function SevenBZeroPage() {
                   }`}
                 >
                   {compareMode ? '🔬 Compare ON' : '🔬 Compare OFF'}
+                </button>
+                
+                {/* Debate Mode toggle */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDebateMode(prev => !prev);
+                    if (compareMode) setCompareMode(false); // Turn off compare when debate is on
+                  }}
+                  className={`ml-2 text-[9px] tracking-[0.1em] uppercase px-2 py-1 rounded transition-all duration-300 ${
+                    debateMode
+                      ? (whiteMode ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-green-900/30 text-green-400 border border-green-700/50')
+                      : (whiteMode ? 'bg-gray-100 text-gray-500 border border-gray-200' : 'bg-[#1a1a1a] text-[#666] border border-[#2a2a2a]')
+                  }`}
+                >
+                  {debateMode ? '🎤 Debatt ON' : '🎤 Debatt OFF'}
                 </button>
                 {compareMode && (
                   <>
