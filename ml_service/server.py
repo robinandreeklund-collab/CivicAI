@@ -13258,14 +13258,14 @@ Ge ditt svar nu:"""
                     "agent": "oneseek"
                 })
             
-            # Generate round summary/compression (10 key learnings)
+            # Generate round summary/compression (5 key learnings)
             logger.info(f"[WS-Debate] Generating round {round_num} summary...")
             await websocket.send_json({
                 "type": "thinking",
                 "message": f"[tänker...] Sammanfattar lärdomar från runda {round_num}..."
             })
             
-            summary_prompt = f"""Sammanfatta de 10 viktigaste lärdomarna från runda {round_num} i debatten om: {clean_question}
+            summary_prompt = f"""Sammanfatta de 5 viktigaste lärdomarna från runda {round_num} i debatten om: {clean_question}
 
 SVAR I DENNA RUNDA:
 """
@@ -13273,7 +13273,7 @@ SVAR I DENNA RUNDA:
                 if resp.get('success', False):
                     summary_prompt += f"{resp['agent'].upper()}: {resp['response'][:300]}...\n\n"
             
-            summary_prompt += "\nSkapa en punktlista med de 10 viktigaste lärdomarna/insikterna från denna runda (var koncis, 1 rad per punkt):"
+            summary_prompt += "\nSkapa en punktlista med de 5 viktigaste lärdomarna/insikterna från denna runda (var koncis, 1 rad per punkt):"
             
             try:
                 payload = {
