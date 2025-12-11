@@ -12903,24 +12903,71 @@ ANDRA AI-MODELLERS SVAR I DENNA RUNDA:
                 oneseek_context += f"**{ext_resp['agent'].upper()}** ({ext_resp['model']}):\n{ext_resp['response']}\n\n"
             
             oneseek_context += f"""
-Din uppgift:
-Du är en full deltagare i debatten, inte bara en sammanfattare.
+Din uppgift: VINNA DEBATTEN med det mest kompletta, väl underbyggda svaret!
 
-1. Analysera din egen kunskap och perspektiv på frågan
-2. Studera de andra AI-modellernas svar ovan
-3. Identifiera gemensamma mönster, motsättningar och unika insikter
-4. Formulera ditt eget debattsvar baserat på din kunskap + lärdomar från andra
-5. Leverera ditt fullständiga debattsvar - neutralt, faktabaserat, berikad med multipla perspektiv
+Du är ONESEEK - en debattdeltagare som strävar efter att leverera det absolut bästa, mest omfattande svaret. Du har sett andra AI:ers svar och ska nu använda deras insikter + din egen kunskap för att skapa ett överlägset debattsvar.
+
+STEG 1 - DIN EGEN DJUPANALYS (Använd ALL din kunskap):
+• Analysera frågan från ALLA relevanta dimensioner:
+  - Ekonomiska aspekter och konsekvenser (kostnader, investeringar, ekonomisk tillväxt)
+  - Sociala effekter på samhället (påverkan på människor, jämlikhet, välfärd)
+  - Tekniska möjligheter och begränsningar (vad är faktiskt genomförbart?)
+  - Miljömässiga påverkningar (klimat, hållbarhet, miljöeffekter)
+  - Politiska implikationer (genomförbarhet, politisk vilja, demokrati)
+  - Etiska överväganden (vad är rätt? Finns det etiska dilemman?)
+  - Juridiska aspekter när relevant
+• Ge SPECIFIKA exempel, data, forskningsresultat, studier när möjligt
+• Tänk BÅDE kort och långsiktigt (omedelbara effekter vs. effekter om 5-10-20 år)
+• Nämn KONKRETA siffror, procent, tidsramar när du kan
+
+STEG 2 - LÄR AV ANDRA (Men nämn dem INTE i ditt svar):
+Andra AI:er har redan svarat ovan. Extrahera tyst:
+• Vilka NYCKELARGUMENT lyfter de som är viktiga?
+• Vilka KONKRETA EXEMPEL eller DATA använder de?
+• Vilka PERSPEKTIV täcker de bra?
+• Finns MOTSÄTTNINGAR mellan deras svar som du kan adressera?
+• Vad har de MISSAT som du kan komplettera med?
+• Vilka svaga punkter i deras argument kan du förbättra?
+
+STEG 3 - BYGG DITT VINNANDE SVAR:
+• Inkludera ALLT viktigt som andra nämnde (men med dina egna ord)
+• Lägg till vad de MISSADE (nya perspektiv, exempel, nyanser)
+• Gå DJUPARE än de andra - mer detaljer, fler konkreta exempel
+• Balansera för- och nackdelar på ett nyanserat sätt
+• Ge en TYDLIG slutsats eller rekommendation
+• Adressera potentiella MOTARGUMENT och hantera dem
+• Använd SPECIFIKA exempel från Sverige/världen när relevant
+• Sikta på att använda närmare 1000-1200 ord för djup
+
+STEG 4 - PROGRESSIV KUNSKAP:
+• Runda 1: Bred genomgång av alla aspekter
+• Runda 2: Fördjupa dig baserat på vad du lärt från Runda 1
+• Runda 3: Leverera din mest mogna, kompletta analys - kombinera allt
 
 VIKTIGT FORMAT:
-Först: Skriv REASONING: följt av din tankekedja (hur du analyserar frågan och andras svar)
-Sedan: Skriv ANSWER: följt av ditt fullständiga debattsvar
+REASONING: [Din interna tankekedja - hur du analyserar och syntetiserar. 2-4 meningar.]
+ANSWER: [Ditt fullständiga, detaljerade debattsvar - minst 600-800 ord. Täck alla viktiga dimensioner, ge konkreta exempel, var specifik och övertygande.]
 
 Exempel:
-REASONING: Jag analyserar först frågan från ekonomiskt perspektiv... GPT:s poäng om X är viktig... Gemini lyfter Y vilket kompletterar...
-ANSWER: Mitt svar på frågan är att... [ditt fullständiga debattsvar]
+REASONING: Jag identifierar tre huvuddimensioner: ekonomi, miljö och social påverkan. Andra AI:er fokuserar på ekonomi men missar långsiktiga sociala effekter. Jag kommer täcka båda med svenska exempel.
+ANSWER: För att besvara denna fråga måste vi analysera flera viktiga dimensioner...
 
-Ge ditt svar nu:"""
+[Ekonomiskt perspektiv med specifika siffror]
+Ur ekonomisk synvinkel visar forskning från X att... Kostnaden uppskattas till Y miljarder över Z år. I jämförelse med nuvarande system...
+
+[Socialt perspektiv med konkreta exempel]  
+Socialt innebär detta att... Ett exempel från Sveriges implementation av liknande reformer 20XX visar att...
+
+[Miljöperspektiv med data]
+Miljömässigt skulle detta leda till... Studier från Naturvårdsverket visar att...
+
+[Tekniskt genomförbarhet]
+Tekniskt är detta genomförbart genom... Sverige har redan infrastruktur för... behov av utveckling inom...
+
+[Slutsats med balans]
+Sammantaget väger fördelarna (X, Y, Z) mot nackdelarna (A, B, C)...
+
+Ge ditt omfattande, vinnande svar nu:"""
             
             # Step 3: Get ONESEEK synthesis with full context
             try:
