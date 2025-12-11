@@ -12929,7 +12929,7 @@ Ge ditt svar nu:"""
                         {"role": "system", "content": debattledare_config.get('system_prompt', "Du är ONESEEK - en AI som kombinerar egen kunskap med insikter från andra AI-modeller för att ge det bästa svaret.")},
                         {"role": "user", "content": oneseek_context}
                     ],
-                    "max_tokens": 400,
+                    "max_tokens": 800,
                     "temperature": 0.7,
                 }
                 
@@ -12958,10 +12958,12 @@ Ge ditt svar nu:"""
                     reasoning = reasoning_part
                     answer = answer_part
                 
+                # response field = ANSWER (visible in debate)
+                # reasoning field = REASONING (internal, shown in collapsible)
                 oneseek_resp = {
                     'agent': 'oneseek',
-                    'response': answer,
-                    'reasoning': reasoning if reasoning else None,
+                    'response': answer,  # ANSWER first - visible to other AIs
+                    'reasoning': reasoning if reasoning else None,  # REASONING - internal process
                     'model': 'OneSeek-7B-Zero',
                     'success': True
                 }
@@ -13005,11 +13007,6 @@ Ge ditt svar nu:"""
             await asyncio.sleep(0.5)
         
         # Step 3: Voting phase
-        await websocket.send_json({
-            "type": "voting",
-            "message": "🗳️ Röstning pågår..."
-        })
-        
         votes = {}
         vote_results = []
         
@@ -13062,23 +13059,7 @@ RÖST: """
         winner = max(votes.items(), key=lambda x: x[1])[0] if votes else debate_agents[0]
         winner_votes = votes.get(winner, 0)
         
-        await websocket.send_json({
-            "type": "winner",
-            "message": f"🏆 Vinnare: {winner.upper()} med {winner_votes} röster!",
-            "data": {
-                "winner": winner,
-                "votes": winner_votes,
-                "all_votes": votes,
-                "vote_results": vote_results
-            }
-        })
-        
         # Step 5: ONESEEK creates objective summary
-        await websocket.send_json({
-            "type": "thinking",
-            "message": "[tänker...] Skapar objektiv sammanfattning..."
-        })
-        
         # Build summary prompt
         summary_prompt = f"""Du är Debattledaren och ska sammanfatta debatten objektivt.
 
@@ -13123,23 +13104,18 @@ Skapa en kort, objektiv sammanfattning (max 150 ord) av debatten och förklara v
             logger.error(f"[WS-Debate] Error creating summary: {e}")
             summary_text = f"Debatten handlade om: {clean_question}. {winner.upper()} vann med {winner_votes} röster baserat på tydlighet och substans."
         
+        # Send ONE combined final message with voting, winner, summary, completion
         await websocket.send_json({
-            "type": "summary",
-            "message": summary_text,
-            "data": {
-                "summary": summary_text
-            }
-        })
-        
-        # Final message
-        await websocket.send_json({
-            "type": "final",
+            "type": "debate_complete",
             "message": "Debatt avslutad!",
             "data": {
                 "question": clean_question,
                 "rounds": len(debate_rounds),
                 "winner": winner,
                 "winner_votes": winner_votes,
+                "total_votes": len(vote_results),
+                "vote_results": vote_results,
+                "all_votes": votes,
                 "summary": summary_text
             }
         })

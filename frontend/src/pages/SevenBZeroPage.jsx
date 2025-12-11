@@ -1754,85 +1754,67 @@ export default function SevenBZeroPage() {
             // Deprecated - using round_complete instead
             break;
             
-          case 'voting':
-            setThinkingStep('🗳️ Röstning pågår...');
-            // Add voting header as NEW message
-            setMessages(prev => [...prev, {
-              id: `voting-${Date.now()}`,
-              sender: 'system',
-              text: `### 🗳️ Röstning\n\n*AI-modellerna röstar nu på bästa argumentet...*`,
-              timestamp: new Date().toISOString(),
-              isVotingHeader: true
-            }]);
-            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
-            break;
-            
-          case 'winner':
-            setThinkingStep(`🏆 Vinnare: ${message.data.winner.toUpperCase()}!`);
-            debateState.winner = message.data.winner;
-            debateState.winnerVotes = message.data.votes;
-            debateState.allVotes = message.data.all_votes;
-            debateState.voteResults = message.data.vote_results;
-            
-            // Build vote results text
-            let voteText = `### 🏆 Vinnare: ${message.data.winner.toUpperCase()}\n\n`;
-            voteText += `**Röster:** ${message.data.votes}/${debateState.rounds[0]?.responses?.length || 5}\n\n`;
-            voteText += `**Röstresultat:**\n`;
-            if (message.data.vote_results && Array.isArray(message.data.vote_results)) {
-              message.data.vote_results.forEach((voteObj) => {
-                voteText += `- **${voteObj.voter.toUpperCase()}** röstade på: **${voteObj.voted_for.toUpperCase()}**\n`;
-              });
-            }
-            
-            // Add winner announcement as NEW message
-            setMessages(prev => [...prev, {
-              id: `winner-${Date.now()}`,
-              sender: 'system',
-              text: voteText,
-              timestamp: new Date().toISOString(),
-              isWinner: true
-            }]);
-            
-            // Show confetti!
-            setShowConfetti(true);
-            setTimeout(() => setShowConfetti(false), 5000);
-            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
-            break;
-            
-          case 'summary':
-            setThinkingStep('📝 Sammanfattning klar!');
-            debateState.summary = message.data.summary;
-            
-            // Add summary as NEW message
-            setMessages(prev => [...prev, {
-              id: `summary-${Date.now()}`,
-              sender: 'ai',
-              agent: 'DEBATTLEDAREN',
-              text: `### 📋 Sammanfattning från Debattledaren\n\n${message.data.summary}`,
-              timestamp: new Date().toISOString(),
-              isSummary: true
-            }]);
-            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
-            break;
-            
-          case 'final':
+          case 'debate_complete':
+            // Combined final message with voting, winner, summary, completion
             setThinkingStep(null);
             setIsTyping(false);
             
             const responseEndTime = Date.now();
             const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
             
-            // Remove initial "thinking" message and replace with debate complete message
+            debateState.winner = message.data.winner;
+            debateState.winnerVotes = message.data.winner_votes;
+            debateState.voteResults = message.data.vote_results;
+            debateState.summary = message.data.summary;
+            
+            // Build combined final message
+            let finalText = `## 🏁 DEBATT AVSLUTAD\n\n`;
+            
+            // Voting section
+            finalText += `### 🗳️ Röstning\n`;
+            finalText += `*AI-modellerna har röstat på bästa argumentet.*\n\n`;
+            finalText += `**Röstresultat:**\n`;
+            if (message.data.vote_results && Array.isArray(message.data.vote_results)) {
+              message.data.vote_results.forEach((voteObj) => {
+                finalText += `- **${voteObj.voter.toUpperCase()}** röstade på: **${voteObj.voted_for.toUpperCase()}**\n`;
+              });
+            }
+            
+            // Winner section
+            finalText += `\n### 🏆 Vinnare: ${message.data.winner.toUpperCase()}\n`;
+            finalText += `**Röster:** ${message.data.winner_votes}/${message.data.total_votes}\n\n`;
+            
+            // Summary section
+            finalText += `### 📋 Sammanfattning från Debattledaren\n`;
+            finalText += `${message.data.summary}\n\n`;
+            
+            // Completion time
+            finalText += `---\n**Debatt slutförd på ${finalResponseTime} sekunder**`;
+            
+            // Remove initial "thinking" message and add combined final message
             setMessages(prev => prev.filter(msg => msg.id !== aiMessageId).concat([{
               id: `debate-complete-${Date.now()}`,
               sender: 'system',
-              text: `✅ **Debatt avslutad!**\n\nTid: ${finalResponseTime}s`,
+              text: finalText,
               timestamp: new Date().toISOString(),
               responseTime: finalResponseTime,
               isDebateComplete: true
             }]));
             
+            // Show confetti for winner!
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 5000);
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            
             ws.close();
+            break;
+            
+          // Legacy events - kept for backward compatibility
+          case 'voting':
+          case 'winner':
+          case 'summary':
+          case 'final':
+            // These are now combined in debate_complete event
             break;
             
           case 'error':
