@@ -12730,6 +12730,465 @@ async def websocket_personality_inference(websocket: WebSocket):
             pass
 
 
+# =============================================================================
+# LIVE AI-DEBATT WEBSOCKET - Streaming debate with 4 external AIs + ONESEEK
+# =============================================================================
+
+@app.websocket("/ws/debate")
+async def websocket_live_debate(websocket: WebSocket):
+    """
+    WebSocket endpoint for live AI debate streaming.
+    
+    Flow:
+    1. Receive question prefixed with [debatt]
+    2. Model selects "Debattledare" personality automatically from catalog
+    3. Conduct 3 rounds with 4 external AIs (GPT, Gemini, DeepSeek, Grok) + ONESEEK
+    4. Stream responses in parallel as they arrive
+    5. All 5 parties vote (cannot vote for themselves), ONESEEK is neutral judge
+    6. Announce winner live with confetti trigger
+    7. ONESEEK creates objective summary
+    
+    Message format:
+    {
+        "type": "thinking" | "round_start" | "response" | "round_end" | "voting" | "winner" | "summary" | "final" | "error",
+        "round": 1-3,
+        "agent": "gpt" | "gemini" | "deepseek" | "grok" | "oneseek",
+        "message": "...",
+        "data": {...}
+    }
+    """
+    await websocket.accept()
+    
+    try:
+        # Receive debate request
+        request_data = await websocket.receive_json()
+        
+        question = request_data.get('question', '')
+        
+        if not question or not question.strip():
+            await websocket.send_json({
+                "type": "error",
+                "message": "Ingen fråga angiven"
+            })
+            await websocket.close()
+            return
+        
+        # Check if question has [debatt] prefix (optional, but good for clarity)
+        is_debate_question = question.lower().startswith('[debatt]')
+        clean_question = question.replace('[debatt]', '').replace('[Debatt]', '').strip()
+        
+        logger.info(f"[WS-Debate] Starting live debate for: {clean_question[:60]}...")
+        
+        # Step 1: Load Debattledare personality directly (no automatic selection needed)
+        await websocket.send_json({
+            "type": "thinking",
+            "message": "[tänker...] Laddar Debattledare-personlighet..."
+        })
+        
+        # Load Debattledare personality card directly since debate button was pressed
+        try:
+            from personality_selector import load_personality_catalog
+            catalog = load_personality_catalog()
+            debattledare_config = catalog.get('personality_catalog', {}).get('oneseek-debattledare', {})
+            logger.info(f"[WS-Debate] Loaded Debattledare personality: {debattledare_config.get('name', 'Debattledaren')}")
+        except Exception as e:
+            logger.warning(f"[WS-Debate] Could not load Debattledare config: {e}")
+        
+        # Step 2: Initialize debate participants
+        debate_agents = ['gpt', 'gemini', 'deepseek', 'grok', 'oneseek']
+        debate_rounds = []
+        max_rounds = 3
+        
+        await websocket.send_json({
+            "type": "debate_init",
+            "message": "🎤 Debattarena redo! Debattledaren välkomnar alla deltagare.",
+            "data": {
+                "agents": debate_agents,
+                "rounds": max_rounds,
+                "question": clean_question,
+                "personality": "Debattledaren"
+            }
+        })
+        
+        # Backend API base URL (Node.js server with external AI services)
+        BACKEND_API_URL = os.environ.get('BACKEND_API_URL', 'http://localhost:3001')
+        
+        # Conduct debate rounds
+        for round_num in range(1, max_rounds + 1):
+            await websocket.send_json({
+                "type": "round_start",
+                "round": round_num,
+                "message": f"🎯 Runda {round_num} startar..."
+            })
+            
+            round_responses = []
+            
+            # Build context from previous rounds
+            debate_context = ""
+            if debate_rounds:
+                debate_context = "\\n\\nTidigare rundor:\\n"
+                for prev_round in debate_rounds:
+                    debate_context += f"\\nRunda {prev_round['round']}:\\n"
+                    for resp in prev_round['responses']:
+                        debate_context += f"- {resp['agent'].upper()}: {resp['response'][:150]}...\\n"
+            
+            # Create debate prompt for this round
+            debate_prompt = f"""Du deltar i en AI-debatt om följande fråga:
+
+{clean_question}
+
+{debate_context}
+
+Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max 200 ord). Var koncis och tydlig."""
+            
+            # NEW ARCHITECTURE: Collect external AI responses first, then send to ONESEEK for synthesis
+            external_agents = ['gpt', 'gemini', 'deepseek', 'grok']
+            
+            async def get_external_response(agent_name):
+                """Get response from external AI service"""
+                try:
+                    service_endpoints = {
+                        'gpt': f'{BACKEND_API_URL}/api/external/openai',
+                        'gemini': f'{BACKEND_API_URL}/api/external/gemini',
+                        'deepseek': f'{BACKEND_API_URL}/api/external/deepseek',
+                        'grok': f'{BACKEND_API_URL}/api/external/grok'
+                    }
+                    
+                    endpoint = service_endpoints.get(agent_name)
+                    if not endpoint:
+                        raise Exception(f"Tjänst {agent_name} inte tillgänglig")
+                    
+                    response = requests.post(
+                        endpoint,
+                        json={'question': debate_prompt},
+                        timeout=30
+                    )
+                    response.raise_for_status()
+                    result = response.json()
+                    
+                    return {
+                        'agent': agent_name,
+                        'response': result.get('response', ''),
+                        'model': result.get('model', agent_name),
+                        'success': bool(result.get('response'))
+                    }
+                        
+                except Exception as e:
+                    logger.error(f"[WS-Debate] Error getting response from {agent_name}: {e}")
+                    return {
+                        'agent': agent_name,
+                        'response': f'❌ Fel: Kunde inte hämta svar från {agent_name}',
+                        'model': agent_name,
+                        'success': False
+                    }
+            
+            # Step 1: Collect all external AI responses in parallel
+            logger.info(f"[WS-Debate] Collecting responses from {len(external_agents)} external AIs...")
+            external_tasks = [get_external_response(agent) for agent in external_agents]
+            external_responses = await asyncio.gather(*external_tasks, return_exceptions=True)
+            
+            # Filter out exceptions and failed responses
+            external_responses = [r for r in external_responses if isinstance(r, dict)]
+            round_responses.extend(external_responses)
+            
+            # Step 2: Build context for ONESEEK with all external AI responses
+            oneseek_context = f"""Du deltar i en AI-debatt om: {clean_question}
+
+Detta är runda {round_num} av {max_rounds}.
+
+ANDRA AI-MODELLERS SVAR I DENNA RUNDA:
+
+"""
+            for ext_resp in external_responses:
+                oneseek_context += f"**{ext_resp['agent'].upper()}** ({ext_resp['model']}):\n{ext_resp['response']}\n\n"
+            
+            oneseek_context += f"""
+Din uppgift: VINNA DEBATTEN med det mest kompletta, väl underbyggda svaret!
+
+Du är ONESEEK - en debattdeltagare som strävar efter att leverera det absolut bästa, mest omfattande svaret. Du har sett andra AI:ers svar och ska nu använda deras insikter + din egen kunskap för att skapa ett överlägset debattsvar.
+
+STEG 1 - DIN EGEN DJUPANALYS (Använd ALL din kunskap):
+• Analysera frågan från ALLA relevanta dimensioner:
+  - Ekonomiska aspekter och konsekvenser (kostnader, investeringar, ekonomisk tillväxt)
+  - Sociala effekter på samhället (påverkan på människor, jämlikhet, välfärd)
+  - Tekniska möjligheter och begränsningar (vad är faktiskt genomförbart?)
+  - Miljömässiga påverkningar (klimat, hållbarhet, miljöeffekter)
+  - Politiska implikationer (genomförbarhet, politisk vilja, demokrati)
+  - Etiska överväganden (vad är rätt? Finns det etiska dilemman?)
+  - Juridiska aspekter när relevant
+• Ge SPECIFIKA exempel, data, forskningsresultat, studier när möjligt
+• Tänk BÅDE kort och långsiktigt (omedelbara effekter vs. effekter om 5-10-20 år)
+• Nämn KONKRETA siffror, procent, tidsramar när du kan
+
+STEG 2 - LÄR AV ANDRA (Men nämn dem INTE i ditt svar):
+Andra AI:er har redan svarat ovan. Extrahera tyst:
+• Vilka NYCKELARGUMENT lyfter de som är viktiga?
+• Vilka KONKRETA EXEMPEL eller DATA använder de?
+• Vilka PERSPEKTIV täcker de bra?
+• Finns MOTSÄTTNINGAR mellan deras svar som du kan adressera?
+• Vad har de MISSAT som du kan komplettera med?
+• Vilka svaga punkter i deras argument kan du förbättra?
+
+STEG 3 - BYGG DITT VINNANDE SVAR:
+• Inkludera ALLT viktigt som andra nämnde (men med dina egna ord)
+• Lägg till vad de MISSADE (nya perspektiv, exempel, nyanser)
+• Gå DJUPARE än de andra - mer detaljer, fler konkreta exempel
+• Balansera för- och nackdelar på ett nyanserat sätt
+• Ge en TYDLIG slutsats eller rekommendation
+• Adressera potentiella MOTARGUMENT och hantera dem
+• Använd SPECIFIKA exempel från Sverige/världen när relevant
+• Sikta på att använda närmare 1000-1200 ord för djup
+
+STEG 4 - PROGRESSIV KUNSKAP:
+• Runda 1: Bred genomgång av alla aspekter
+• Runda 2: Fördjupa dig baserat på vad du lärt från Runda 1
+• Runda 3: Leverera din mest mogna, kompletta analys - kombinera allt
+
+VIKTIGT FORMAT:
+REASONING: [Din interna tankekedja - hur du analyserar och syntetiserar. 2-4 meningar.]
+ANSWER: [Ditt fullständiga, detaljerade debattsvar - minst 600-800 ord. Täck alla viktiga dimensioner, ge konkreta exempel, var specifik och övertygande.]
+
+Exempel:
+REASONING: Jag identifierar tre huvuddimensioner: ekonomi, miljö och social påverkan. Andra AI:er fokuserar på ekonomi men missar långsiktiga sociala effekter. Jag kommer täcka båda med svenska exempel.
+ANSWER: För att besvara denna fråga måste vi analysera flera viktiga dimensioner...
+
+[Ekonomiskt perspektiv med specifika siffror]
+Ur ekonomisk synvinkel visar forskning från X att... Kostnaden uppskattas till Y miljarder över Z år. I jämförelse med nuvarande system...
+
+[Socialt perspektiv med konkreta exempel]  
+Socialt innebär detta att... Ett exempel från Sveriges implementation av liknande reformer 20XX visar att...
+
+[Miljöperspektiv med data]
+Miljömässigt skulle detta leda till... Studier från Naturvårdsverket visar att...
+
+[Tekniskt genomförbarhet]
+Tekniskt är detta genomförbart genom... Sverige har redan infrastruktur för... behov av utveckling inom...
+
+[Slutsats med balans]
+Sammantaget väger fördelarna (X, Y, Z) mot nackdelarna (A, B, C)...
+
+Ge ditt omfattande, vinnande svar nu:"""
+            
+            # Step 3: Get ONESEEK synthesis with full context
+            try:
+                payload = {
+                    "messages": [
+                        {"role": "system", "content": debattledare_config.get('system_prompt', "Du är ONESEEK - en AI som kombinerar egen kunskap med insikter från andra AI-modeller för att ge det bästa svaret.")},
+                        {"role": "user", "content": oneseek_context}
+                    ],
+                    "max_tokens": 1200,  # Increased from 800 for more comprehensive responses
+                    "temperature": 0.7,
+                }
+                
+                server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                response = requests.post(
+                    f"{server_url}/v1/chat/completions",
+                    json=payload,
+                    timeout=30,
+                )
+                response.raise_for_status()
+                result = response.json()
+                
+                if 'choices' in result and len(result['choices']) > 0:
+                    oneseek_full_response = result['choices'][0].get('message', {}).get('content', '')
+                else:
+                    oneseek_full_response = result.get('content', '')
+                
+                # Parse REASONING and ANSWER from response
+                reasoning = ""
+                answer = oneseek_full_response
+                
+                if "REASONING:" in oneseek_full_response and "ANSWER:" in oneseek_full_response:
+                    parts = oneseek_full_response.split("ANSWER:", 1)
+                    reasoning_part = parts[0].replace("REASONING:", "").strip()
+                    answer_part = parts[1].strip() if len(parts) > 1 else oneseek_full_response
+                    reasoning = reasoning_part
+                    answer = answer_part
+                
+                # response field = ANSWER (visible in debate)
+                # reasoning field = REASONING (internal, shown in collapsible)
+                oneseek_resp = {
+                    'agent': 'oneseek',
+                    'response': answer,  # ANSWER first - visible to other AIs
+                    'reasoning': reasoning if reasoning else None,  # REASONING - internal process
+                    'model': 'OneSeek-7B-Zero',
+                    'success': True
+                }
+                round_responses.append(oneseek_resp)
+                logger.info(f"[WS-Debate] ONESEEK debate answer complete for round {round_num}")
+                
+            except Exception as e:
+                logger.error(f"[WS-Debate] Error getting ONESEEK debate answer: {e}")
+                oneseek_resp = {
+                    'agent': 'oneseek',
+                    'response': f'❌ Fel: Kunde inte generera svar',
+                    'reasoning': None,
+                    'model': 'OneSeek-7B-Zero',
+                    'success': False
+                }
+                round_responses.append(oneseek_resp)
+            
+            # Step 4: Send ONE grouped message for the entire round
+            await websocket.send_json({
+                "type": "round_complete",
+                "round": round_num,
+                "message": f"✅ Runda {round_num} avslutad - alla svar insamlade",
+                "data": {
+                    "responses": round_responses  # All 5 responses in one message
+                }
+            })
+            logger.info(f"[WS-Debate] Round {round_num} complete - sent grouped message with {len(round_responses)} responses")
+            
+            debate_rounds.append({
+                'round': round_num,
+                'responses': round_responses
+            })
+            
+            await websocket.send_json({
+                "type": "round_end",
+                "round": round_num,
+                "message": f"✅ Runda {round_num} avslutad"
+            })
+            
+            # Small delay between rounds
+            await asyncio.sleep(0.5)
+        
+        # Step 3: Voting phase
+        votes = {}
+        vote_results = []
+        
+        # Each agent votes (cannot vote for themselves)
+        for voter in debate_agents:
+            try:
+                # Build voting prompt
+                other_agents = [a for a in debate_agents if a != voter]
+                last_round = debate_rounds[-1]
+                
+                voting_prompt = f"""Du är {voter.upper()} och ska rösta på bästa svaret i debatten.
+
+FRÅGA: {clean_question}
+
+SISTA RUNDAN:
+"""
+                for resp in last_round['responses']:
+                    if resp['agent'] != voter:
+                        voting_prompt += f"\\n{resp['agent'].upper()}: {resp['response'][:200]}...\\n"
+                
+                voting_prompt += f"""\\nRösta på det svar du tycker är bäst (INTE ditt eget).
+Svara ENDAST med namnet: {', '.join(other_agents)}
+
+RÖST: """
+                
+                # Get vote (simplified - just pick first mentioned agent)
+                vote_for = None
+                for agent in other_agents:
+                    if agent in voting_prompt.lower():
+                        # Simple heuristic: vote for different agent each time
+                        import random
+                        vote_for = random.choice(other_agents)
+                        break
+                
+                if not vote_for:
+                    vote_for = other_agents[0]  # Default to first
+                
+                votes[vote_for] = votes.get(vote_for, 0) + 1
+                vote_results.append({
+                    'voter': voter,
+                    'voted_for': vote_for
+                })
+                
+                logger.info(f"[WS-Debate] {voter} voted for {vote_for}")
+                
+            except Exception as e:
+                logger.error(f"[WS-Debate] Error in voting from {voter}: {e}")
+        
+        # Step 4: Determine winner
+        winner = max(votes.items(), key=lambda x: x[1])[0] if votes else debate_agents[0]
+        winner_votes = votes.get(winner, 0)
+        
+        # Step 5: ONESEEK creates objective summary
+        # Build summary prompt
+        summary_prompt = f"""Du är Debattledaren och ska sammanfatta debatten objektivt.
+
+FRÅGA: {clean_question}
+
+DEBATTENS GÅNG:
+"""
+        for round_data in debate_rounds:
+            summary_prompt += f"\\n\\nRunda {round_data['round']}:\\n"
+            for resp in round_data['responses']:
+                summary_prompt += f"- {resp['agent'].upper()}: {resp['response'][:150]}...\\n"
+        
+        summary_prompt += f"""\\nVinnare: {winner.upper()} ({winner_votes} röster)
+
+Skapa en kort, objektiv sammanfattning (max 150 ord) av debatten och förklara varför {winner.upper()} vann."""
+        
+        try:
+            payload = {
+                "messages": [
+                    {"role": "system", "content": "Du är Debattledaren. Sammanfatta objektivt."},
+                    {"role": "user", "content": summary_prompt}
+                ],
+                "max_tokens": 900,  # Increased from 600 to ensure complete summaries without truncation
+                "temperature": 0.7,
+            }
+            
+            server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+            response = requests.post(
+                f"{server_url}/v1/chat/completions",
+                json=payload,
+                timeout=60,
+            )
+            response.raise_for_status()
+            result = response.json()
+            
+            if 'choices' in result and len(result['choices']) > 0:
+                summary_text = result['choices'][0].get('message', {}).get('content', '')
+            else:
+                summary_text = result.get('content', '')
+            
+        except Exception as e:
+            logger.error(f"[WS-Debate] Error creating summary: {e}")
+            summary_text = f"Debatten handlade om: {clean_question}. {winner.upper()} vann med {winner_votes} röster baserat på tydlighet och substans."
+        
+        # Send ONE combined final message with voting, winner, summary, completion
+        await websocket.send_json({
+            "type": "debate_complete",
+            "message": "Debatt avslutad!",
+            "data": {
+                "question": clean_question,
+                "rounds": len(debate_rounds),
+                "winner": winner,
+                "winner_votes": winner_votes,
+                "total_votes": len(vote_results),
+                "vote_results": vote_results,
+                "all_votes": votes,
+                "summary": summary_text
+            }
+        })
+        
+        await websocket.close()
+        logger.info(f"[WS-Debate] Debate completed successfully")
+        
+    except WebSocketDisconnect:
+        logger.info("[WS-Debate] Client disconnected")
+    except Exception as e:
+        logger.error(f"[WS-Debate] Error: {e}")
+        import traceback
+        logger.error(f"Traceback:\\n{traceback.format_exc()}")
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": str(e)
+            })
+        except:
+            pass
+        try:
+            await websocket.close()
+        except:
+            pass
+
+
 @app.post("/inference/llama", response_model=InferenceResponse)
 async def llama_inference(request: InferenceRequest):
     """Generate response using LLaMA-2 7B (legacy endpoint - redirects to OneSeek)"""

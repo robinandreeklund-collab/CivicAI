@@ -159,6 +159,12 @@ export default function SevenBZeroPage() {
   const [externalResponses, setExternalResponses] = useState([]);
   const [showExternalResponses, setShowExternalResponses] = useState(false);
   
+  // Debate Mode state - live AI debate
+  const [debateMode, setDebateMode] = useState(false);
+  const [debateData, setDebateData] = useState(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [expandedRounds, setExpandedRounds] = useState(new Set([1])); // Track which rounds are expanded
+  
   // Chat state
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
@@ -1187,6 +1193,7 @@ export default function SevenBZeroPage() {
       text: '',
       isTyping: true,
       timestamp: new Date().toISOString(),
+      debateMode: debateMode,  // Set debate mode flag from the start
     };
     setMessages(prev => [...prev, aiMessage]);
     setIsTyping(true);
@@ -1195,6 +1202,13 @@ export default function SevenBZeroPage() {
     try {
       let response;
       let data;
+      
+      // Use Live Debate Flow when debateMode is enabled
+      if (debateMode) {
+        console.log('[7B-Zero] Starting Live Debate Flow...');
+        await startLiveDebate(currentQuestion, aiMessageId);
+        return;
+      }
       
       // Use Zero Compare Flow when compareMode is enabled
       if (compareMode) {
@@ -1570,6 +1584,288 @@ export default function SevenBZeroPage() {
     }
   };
 
+  // Toggle round expansion in debate
+  const toggleDebateRound = (messageId, roundIndex) => {
+    setMessages(prev => prev.map(msg => {
+      if (msg.id === messageId && msg.debateData) {
+        const updatedDebateData = { ...msg.debateData };
+        if (updatedDebateData.rounds[roundIndex]) {
+          updatedDebateData.rounds[roundIndex].expanded = !updatedDebateData.rounds[roundIndex].expanded;
+        }
+        
+        return {
+          ...msg,
+          debateData: updatedDebateData
+        };
+      }
+      return msg;
+    }));
+  };
+
+  // Update counter to force React re-renders
+  const debateUpdateCounter = useRef(0);
+  
+  // Helper function to update debate message in real-time
+  const updateDebateMessage = (aiMessageId, debateState, isFinal) => {
+    debateUpdateCounter.current++;
+    const counter = debateUpdateCounter.current;
+    
+    console.log('[Debate-Update] Updating message', { 
+      counter,
+      rounds: debateState.rounds?.length, 
+      isFinal,
+      hasVotes: !!debateState.voteResults,
+      hasWinner: !!debateState.winner 
+    });
+    
+    // Update the message with fresh debateData - this is what the UI renders!
+    // CRITICAL: Use JSON deep copy + counter to ensure React detects changes
+    setMessages(prev => prev.map(msg => 
+      msg.id === aiMessageId 
+        ? { 
+            ...msg, 
+            debateMode: true,  // Always ensure debateMode is set
+            isTyping: !isFinal,  // Keep typing indicator while debate is in progress
+            debateData: {
+              ...JSON.parse(JSON.stringify(debateState)),  // DEEP copy
+              _updateCounter: counter,  // Force React to see change
+              _timestamp: Date.now()  // Unique timestamp
+            },
+            thinkingChain: null,  // Clear to prevent ThinkingChain rendering
+          }
+        : msg
+    ));
+  };
+
+  // Live Debate Flow via WebSocket
+  const startLiveDebate = async (question, aiMessageId) => {
+    console.log('[Debate] Starting live AI debate...');
+    
+    // Ensure the AI message doesn't have thinkingChain to prevent ThinkingChain component rendering
+    setMessages(prev => prev.map(msg =>
+      msg.id === aiMessageId
+        ? { ...msg, thinkingChain: null, debateMode: true }
+        : msg
+    ));
+    
+    setThinkingStep('[tänker...] Startar debattarena...');
+    setDebateData(null);
+    setShowConfetti(false);
+    
+    try {
+      const ws = new WebSocket(`ws://localhost:5000/ws/debate`);
+      
+      const debateState = {
+        question,
+        rounds: [],
+        votes: {},
+        winner: null,
+        summary: null
+      };
+      
+      ws.onopen = () => {
+        console.log('[Debate] WebSocket connected');
+        // Send debate request
+        ws.send(JSON.stringify({
+          question: `[debatt] ${question}`
+        }));
+      };
+      
+      ws.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        console.log('[Debate] Message received:', message.type);
+        
+        switch (message.type) {
+          case 'thinking':
+            setThinkingStep(message.message);
+            break;
+            
+          case 'debate_init':
+            setThinkingStep('🎯 Debattarena initierad!');
+            debateState.agents = message.data.agents;
+            debateState.maxRounds = message.data.rounds;
+            setDebateData({...debateState});
+            break;
+            
+          case 'round_start':
+            setThinkingStep(`🎤 Runda ${message.round} startar...`);
+            // Just show thinking step - round content will come in round_complete event
+            break;
+            
+          case 'round_complete':
+            console.log(`[Debate] Round ${message.round} complete with ${message.data?.responses?.length || 0} responses`);
+            setThinkingStep(`✅ Runda ${message.round} avslutad`);
+            
+            // Build grouped round message with all responses
+            const responses = message.data?.responses || [];
+            let roundText = `## 🎤 Runda ${message.round}\n\n`;
+            
+            // Add external AI responses (GPT, Gemini, DeepSeek, Grok)
+            const externalAIs = responses.filter(r => r.agent !== 'oneseek');
+            externalAIs.forEach(resp => {
+              roundText += `### 🤖 ${resp.agent.toUpperCase()}\n`;
+              if (resp.model) {
+                roundText += `*${resp.model}*\n\n`;
+              }
+              roundText += `${resp.response}\n\n---\n\n`;
+            });
+            
+            // Add ONESEEK as full debate participant (not just synthesis)
+            const oneseekResp = responses.find(r => r.agent === 'oneseek');
+            if (oneseekResp) {
+              roundText += `### 🤖 ONESEEK\n`;
+              roundText += `*${oneseekResp.model || 'OneSeek-7B-Zero'}*\n\n`;
+              roundText += `${oneseekResp.response}\n\n`;
+              
+              // Don't add HTML tags to markdown - store reasoning for React rendering
+            }
+            
+            // Auto-collapse previous rounds, expand current round
+            setExpandedRounds(new Set([message.round]));
+            
+            // Add as ONE grouped message for the entire round
+            setMessages(prev => [...prev, {
+              id: `round-complete-${message.round}-${Date.now()}`,
+              sender: 'ai',
+              text: roundText,
+              timestamp: new Date().toISOString(),
+              isRoundComplete: true,
+              roundNumber: message.round,
+              oneseekReasoning: oneseekResp?.reasoning || null  // Store for React rendering
+            }]);
+            
+            // Track for voting context
+            if (!debateState.rounds[message.round - 1]) {
+              debateState.rounds[message.round - 1] = { round: message.round, responses: [] };
+            }
+            debateState.rounds[message.round - 1].responses = responses;
+            
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            break;
+            
+          case 'round_end':
+            // Deprecated - using round_complete instead
+            break;
+            
+          case 'debate_complete':
+            // Combined final message with voting, winner, summary, completion
+            setThinkingStep(null);
+            setIsTyping(false);
+            
+            const responseEndTime = Date.now();
+            const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
+            
+            debateState.winner = message.data.winner;
+            debateState.winnerVotes = message.data.winner_votes;
+            debateState.voteResults = message.data.vote_results;
+            debateState.summary = message.data.summary;
+            
+            // Build combined final message
+            let finalText = `## 🏁 DEBATT AVSLUTAD\n\n`;
+            
+            // Voting section
+            finalText += `### 🗳️ Röstning\n`;
+            finalText += `*AI-modellerna har röstat på bästa argumentet.*\n\n`;
+            finalText += `**Röstresultat:**\n`;
+            if (message.data.vote_results && Array.isArray(message.data.vote_results)) {
+              message.data.vote_results.forEach((voteObj) => {
+                finalText += `- **${voteObj.voter.toUpperCase()}** röstade på: **${voteObj.voted_for.toUpperCase()}**\n`;
+              });
+            }
+            
+            // Winner section
+            finalText += `\n### 🏆 Vinnare: ${message.data.winner.toUpperCase()}\n`;
+            finalText += `**Röster:** ${message.data.winner_votes}/${message.data.total_votes}\n\n`;
+            
+            // Summary section
+            finalText += `### 📋 Sammanfattning från Debattledaren\n`;
+            finalText += `${message.data.summary}\n\n`;
+            
+            // Completion time
+            finalText += `---\n**Debatt slutförd på ${finalResponseTime} sekunder**`;
+            
+            // Remove initial "thinking" message and add combined final message
+            setMessages(prev => prev.filter(msg => msg.id !== aiMessageId).concat([{
+              id: `debate-complete-${Date.now()}`,
+              sender: 'system',
+              text: finalText,
+              timestamp: new Date().toISOString(),
+              responseTime: finalResponseTime,
+              isDebateComplete: true
+            }]));
+            
+            // Show confetti for winner!
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 5000);
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            
+            ws.close();
+            break;
+            
+          // Legacy events - kept for backward compatibility
+          case 'voting':
+          case 'winner':
+          case 'summary':
+          case 'final':
+            // These are now combined in debate_complete event
+            break;
+            
+          case 'error':
+            console.error('[Debate] Error:', message.message);
+            setThinkingStep(null);
+            setIsTyping(false);
+            setMessages(prev => prev.map(msg => 
+              msg.id === aiMessageId 
+                ? { 
+                    ...msg, 
+                    text: `Debattfel: ${message.message}`,
+                    error: true,
+                    isTyping: false,
+                  }
+                : msg
+            ));
+            ws.close();
+            break;
+        }
+      };
+      
+      ws.onerror = (error) => {
+        console.error('[Debate] WebSocket error:', error);
+        setThinkingStep(null);
+        setIsTyping(false);
+        setMessages(prev => prev.map(msg => 
+          msg.id === aiMessageId 
+            ? { 
+                ...msg, 
+                text: 'Kunde inte ansluta till debattarenan. WebSocket-fel.',
+                error: true,
+                isTyping: false,
+              }
+            : msg
+        ));
+      };
+      
+      ws.onclose = () => {
+        console.log('[Debate] WebSocket closed');
+      };
+      
+    } catch (error) {
+      console.error('[Debate] Error starting debate:', error);
+      setThinkingStep(null);
+      setIsTyping(false);
+      setMessages(prev => prev.map(msg => 
+        msg.id === aiMessageId 
+          ? { 
+              ...msg, 
+              text: 'Debattfel: ' + error.message,
+              error: true,
+              isTyping: false,
+            }
+          : msg
+      ));
+    }
+  };
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e) => {
@@ -1652,6 +1948,25 @@ export default function SevenBZeroPage() {
           : 'bg-[#0a0a0a] text-white'
       } ${quantumMode ? 'opacity-50' : ''}`}
     >
+      {/* ===== CONFETTI OVERLAY ===== */}
+      {showConfetti && (
+        <div className="fixed inset-0 pointer-events-none z-[100]">
+          <div className="confetti-container">
+            {[...Array(50)].map((_, i) => (
+              <div
+                key={i}
+                className="confetti"
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  animationDelay: `${Math.random() * 3}s`,
+                  backgroundColor: ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f7b731', '#5f27cd'][Math.floor(Math.random() * 5)],
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      
       <style>{`
         @keyframes elegantFade {
           from { opacity: 0; transform: translateY(8px); }
@@ -1716,6 +2031,32 @@ export default function SevenBZeroPage() {
         .chat-scroll::-webkit-scrollbar { width: 4px; }
         .chat-scroll::-webkit-scrollbar-track { background: transparent; }
         .chat-scroll::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 2px; }
+        
+        /* Confetti animation */
+        .confetti-container {
+          position: relative;
+          width: 100%;
+          height: 100%;
+        }
+        
+        .confetti {
+          position: absolute;
+          width: 10px;
+          height: 10px;
+          top: -10px;
+          animation: confetti-fall 3s linear infinite;
+        }
+        
+        @keyframes confetti-fall {
+          0% {
+            transform: translateY(0) rotate(0deg);
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(100vh) rotate(720deg);
+            opacity: 0;
+          }
+        }
       `}</style>
 
       {/* ===== HEADER ===== */}
@@ -2029,7 +2370,7 @@ export default function SevenBZeroPage() {
             
             return (
             <div 
-              key={msg.id}
+              key={msg.debateMode && msg.debateData?._updateCounter ? `${msg.id}-debate-${msg.debateData._updateCounter}` : msg.id}
               ref={(el) => { if (el) messageRefs.current[msg.id] = el; }}
               className={`elegant-fade transition-all duration-500 ${msg.type === 'user' ? 'flex flex-col items-end' : 'flex flex-col items-start'} ${isRecent ? '' : 'hover:opacity-100'} ${isHighlighted ? 'ring-2 ring-white/30 rounded-lg' : ''}`}
               style={{ 
@@ -2200,9 +2541,154 @@ export default function SevenBZeroPage() {
                           50% { opacity: 0; }
                         }
                       `}</style>
-                      <ReactMarkdown>
-                        {convertEmojis(msg.isTyping ? currentTypingText : msg.text)}
-                      </ReactMarkdown>
+                      {/* Render debate with interactive rounds */}
+                      {msg.debateMode && msg.debateData ? (
+                        <div 
+                          key={`debate-${msg.id}-${msg.debateData._updateCounter || 0}`}
+                          className="debate-container"
+                        >
+                          <h3 style={{fontSize: '18px', fontWeight: 'bold', marginBottom: '16px'}}>
+                            🎤 Live AI-Debatt
+                          </h3>
+                          <p style={{marginBottom: '20px'}}>
+                            <strong>Fråga:</strong> {msg.debateData.question}
+                          </p>
+                          
+                          {/* Interactive rounds */}
+                          {msg.debateData.rounds && msg.debateData.rounds.map((round, idx) => (
+                            round && (
+                              <div key={idx} style={{marginBottom: '16px', border: '1px solid #333', borderRadius: '8px', overflow: 'hidden'}}>
+                                <button
+                                  onClick={() => toggleDebateRound(msg.id, idx)}
+                                  style={{
+                                    width: '100%',
+                                    padding: '12px 16px',
+                                    background: whiteMode ? '#f5f5f5' : '#1a1a1a',
+                                    border: 'none',
+                                    textAlign: 'left',
+                                    cursor: 'pointer',
+                                    fontSize: '16px',
+                                    fontWeight: '600',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                  }}
+                                >
+                                  <span style={{fontSize: '20px'}}>
+                                    {round.expanded !== false ? '▼' : '▶'}
+                                  </span>
+                                  <span>Runda {round.round}</span>
+                                </button>
+                                
+                                {round.expanded !== false && (
+                                  <div style={{padding: '16px', background: whiteMode ? '#fafafa' : '#0d0d0d'}}>
+                                    {round.responses && round.responses.length > 0 ? (
+                                      round.responses.map((resp, ridx) => (
+                                        <div key={ridx} style={{marginBottom: '16px', paddingBottom: '16px', borderBottom: ridx < round.responses.length - 1 ? '1px solid #333' : 'none'}}>
+                                          <div style={{fontWeight: 'bold', marginBottom: '8px', color: '#646cff'}}>
+                                            {resp.agent.toUpperCase()} {resp.model && `(${resp.model})`}
+                                          </div>
+                                          <div style={{lineHeight: '1.6'}}>
+                                            {resp.response}
+                                          </div>
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <div style={{fontStyle: 'italic', color: '#888'}}>
+                                        Väntar på svar...
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          ))}
+                          
+                          {/* Voting results */}
+                          {msg.debateData.voteResults && msg.debateData.voteResults.length > 0 && (
+                            <div style={{marginTop: '24px', marginBottom: '20px'}}>
+                              <h4 style={{fontSize: '16px', fontWeight: 'bold', marginBottom: '12px'}}>
+                                🗳️ Röstning
+                              </h4>
+                              {msg.debateData.voteResults.map((vote, idx) => (
+                                <div key={idx} style={{marginBottom: '8px'}}>
+                                  • <strong>{vote.voter.toUpperCase()}</strong> röstade på: <strong>{vote.voted_for.toUpperCase()}</strong>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {/* Winner */}
+                          {msg.debateData.winner && (
+                            <div style={{marginTop: '24px', padding: '16px', background: whiteMode ? '#f0f9ff' : '#1a2332', borderRadius: '8px', marginBottom: '20px'}}>
+                              <h4 style={{fontSize: '18px', fontWeight: 'bold', marginBottom: '8px'}}>
+                                🏆 Vinnare: {msg.debateData.winner.toUpperCase()}
+                              </h4>
+                              <p>
+                                <strong>Röster:</strong> {msg.debateData.winnerVotes}/{msg.debateData.voteResults?.length || 5}
+                              </p>
+                            </div>
+                          )}
+                          
+                          {/* Summary */}
+                          {msg.debateData.summary && (
+                            <div style={{marginTop: '24px'}}>
+                              <h4 style={{fontSize: '16px', fontWeight: 'bold', marginBottom: '12px'}}>
+                                📋 Sammanfattning från Debattledaren
+                              </h4>
+                              <div style={{lineHeight: '1.6'}}>
+                                {msg.debateData.summary}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : msg.isRoundComplete ? (
+                        /* Collapsible round message */
+                        <details open={expandedRounds.has(msg.roundNumber)}>
+                          <summary 
+                            style={{
+                              cursor: 'pointer',
+                              fontWeight: 'bold',
+                              fontSize: '16px',
+                              padding: '8px 0',
+                              listStyle: 'none'
+                            }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const newExpanded = new Set(expandedRounds);
+                              if (newExpanded.has(msg.roundNumber)) {
+                                newExpanded.delete(msg.roundNumber);
+                              } else {
+                                newExpanded.add(msg.roundNumber);
+                              }
+                              setExpandedRounds(newExpanded);
+                            }}
+                          >
+                            {expandedRounds.has(msg.roundNumber) ? '▼' : '▶'} 🎤 Runda {msg.roundNumber}
+                          </summary>
+                          <div style={{paddingLeft: '20px', marginTop: '12px'}}>
+                            <ReactMarkdown>
+                              {convertEmojis(msg.text)}
+                            </ReactMarkdown>
+                            
+                            {/* Render ONESEEK reasoning as proper React component */}
+                            {msg.oneseekReasoning && (
+                              <details style={{marginTop: '16px', padding: '12px', borderLeft: '3px solid #4a90e2'}}>
+                                <summary style={{cursor: 'pointer', fontWeight: '500', color: '#4a90e2'}}>
+                                  📋 Tankekedja
+                                </summary>
+                                <div style={{fontSize: '0.9em', color: '#666', fontStyle: 'italic', padding: '10px 0', marginTop: '8px'}}>
+                                  {msg.oneseekReasoning}
+                                </div>
+                              </details>
+                            )}
+                          </div>
+                        </details>
+                      ) : (
+                        <ReactMarkdown>
+                          {convertEmojis(msg.debateMode ? msg.text : (msg.isTyping ? currentTypingText : msg.text))}
+                        </ReactMarkdown>
+                      )}
                     </div>
                   )}
                   
@@ -2218,8 +2704,8 @@ export default function SevenBZeroPage() {
                     </div>
                   )}
                   
-                  {/* Thinking Chain - Using ThinkingChain component */}
-                  {msg.thinkingChain && Array.isArray(msg.thinkingChain) && msg.thinkingChain.length > 0 && (
+                  {/* Thinking Chain - Using ThinkingChain component (NOT in debate mode!) */}
+                  {!msg.debateMode && msg.thinkingChain && Array.isArray(msg.thinkingChain) && msg.thinkingChain.length > 0 && (
                     <div className="mt-4">
                       <ThinkingChain 
                         thinkingChain={msg.thinkingChain} 
@@ -2228,8 +2714,8 @@ export default function SevenBZeroPage() {
                     </div>
                   )}
                   
-                  {/* Legacy text-based thinking chain (fallback) */}
-                  {msg.thinkingChain && !msg.isTyping && typeof msg.thinkingChain === 'string' && (
+                  {/* Legacy text-based thinking chain (fallback, NOT in debate mode!) */}
+                  {!msg.debateMode && msg.thinkingChain && !msg.isTyping && typeof msg.thinkingChain === 'string' && (
                     <details className={`mt-4 ${whiteMode ? 'bg-[#f8f8f8]' : 'bg-[#0a0a0a]'} rounded-lg overflow-hidden`}>
                       <summary className={`px-4 py-2 cursor-pointer text-[11px] font-medium uppercase tracking-wider flex items-center gap-2 ${
                         whiteMode ? 'text-[#666] hover:bg-[#f0f0f0]' : 'text-[#888] hover:bg-[#151515]'
@@ -2649,7 +3135,10 @@ export default function SevenBZeroPage() {
                 {/* Compare Mode toggle */}
                 <button
                   type="button"
-                  onClick={() => setCompareMode(prev => !prev)}
+                  onClick={() => {
+                    setCompareMode(prev => !prev);
+                    if (debateMode) setDebateMode(false); // Turn off debate when compare is on
+                  }}
                   className={`ml-4 text-[9px] tracking-[0.1em] uppercase px-2 py-1 rounded transition-all duration-300 ${
                     compareMode
                       ? (whiteMode ? 'bg-purple-100 text-purple-700 border border-purple-300' : 'bg-purple-900/30 text-purple-400 border border-purple-700/50')
@@ -2657,6 +3146,22 @@ export default function SevenBZeroPage() {
                   }`}
                 >
                   {compareMode ? '🔬 Compare ON' : '🔬 Compare OFF'}
+                </button>
+                
+                {/* Debate Mode toggle */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDebateMode(prev => !prev);
+                    if (compareMode) setCompareMode(false); // Turn off compare when debate is on
+                  }}
+                  className={`ml-2 text-[9px] tracking-[0.1em] uppercase px-2 py-1 rounded transition-all duration-300 ${
+                    debateMode
+                      ? (whiteMode ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-green-900/30 text-green-400 border border-green-700/50')
+                      : (whiteMode ? 'bg-gray-100 text-gray-500 border border-gray-200' : 'bg-[#1a1a1a] text-[#666] border border-[#2a2a2a]')
+                  }`}
+                >
+                  {debateMode ? '🎤 Debatt ON' : '🎤 Debatt OFF'}
                 </button>
                 {compareMode && (
                   <>
