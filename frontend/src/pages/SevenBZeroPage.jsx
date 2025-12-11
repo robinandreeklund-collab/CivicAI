@@ -1715,9 +1715,8 @@ export default function SevenBZeroPage() {
             setThinkingStep(`🔄 OneSeek ekar ${message.agent.toUpperCase()}s svar...`);
             
             // Create or update message for this echo
-            const echoId = `echo-${message.round}-${message.agent}-${Date.now()}`;
             setMessages(prev => [...prev, {
-              id: echoId,
+              id: generateMessageId(),
               sender: 'ai',
               text: `### 🔄 OneSeek ekar ${message.agent.toUpperCase()}s svar\n\n`,
               timestamp: new Date().toISOString(),
@@ -1755,7 +1754,7 @@ export default function SevenBZeroPage() {
             console.log(`[Debate] OneSeek reasoning for ${message.agent}`);
             
             setMessages(prev => [...prev, {
-              id: `reasoning-${message.round}-${message.agent}-${Date.now()}`,
+              id: generateMessageId(),
               sender: 'ai',
               text: `### 💭 OneSeek analys av ${message.agent.toUpperCase()}\n\n${message.message}`,
               timestamp: new Date().toISOString(),
@@ -1772,7 +1771,7 @@ export default function SevenBZeroPage() {
             console.log(`[Debate] Live insight: ${message.message}`);
             
             setMessages(prev => [...prev, {
-              id: `insight-${message.round}-${message.agent}-${Date.now()}`,
+              id: generateMessageId(),
               sender: 'system',
               text: message.message,
               timestamp: new Date().toISOString(),
@@ -1788,9 +1787,8 @@ export default function SevenBZeroPage() {
             console.log(`[Debate] OneSeek generating own answer for round ${message.round}`);
             setThinkingStep(`🤖 ONESEEK ger sitt debattsvar...`);
             
-            const ownAnswerId = `oneseek-answer-${message.round}-${Date.now()}`;
             setMessages(prev => [...prev, {
-              id: ownAnswerId,
+              id: generateMessageId(),
               sender: 'ai',
               text: `### 🤖 ONESEEK\n*OneSeek-7B-Zero*\n\n`,
               timestamp: new Date().toISOString(),
@@ -1827,7 +1825,7 @@ export default function SevenBZeroPage() {
             console.log(`[Debate] OneSeek reasoning for own answer`);
             
             setMessages(prev => [...prev, {
-              id: `oneseek-reasoning-${message.round}-${Date.now()}`,
+              id: generateMessageId(),
               sender: 'ai',
               text: `### 💭 OneSeeks tankekedja\n\n${message.message}`,
               timestamp: new Date().toISOString(),
@@ -1845,7 +1843,7 @@ export default function SevenBZeroPage() {
             
             const summaryText = message.data?.summary || message.message;
             setMessages(prev => [...prev, {
-              id: `summary-${message.round}-${Date.now()}`,
+              id: generateMessageId(),
               sender: 'system',
               text: `## 📚 Lärdomar från Runda ${message.round}\n\n${summaryText}`,
               timestamp: new Date().toISOString(),
@@ -1861,7 +1859,7 @@ export default function SevenBZeroPage() {
             
             // Add visual separator between rounds
             setMessages(prev => [...prev, {
-              id: `round-end-${message.round}-${Date.now()}`,
+              id: generateMessageId(),
               sender: 'system',
               text: `---\n\n`,
               timestamp: new Date().toISOString(),

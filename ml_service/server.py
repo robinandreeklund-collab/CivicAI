@@ -12749,16 +12749,20 @@ async def stream_text_tokens(websocket: WebSocket, text: str, event_type: str, a
     if not text:
         return
     
+    # Constants for streaming behavior
+    DEFAULT_WORD_DELAY = 0.015  # Fallback delay if tokens_per_second is 0
+    STREAMING_CHUNK_SIZE = 4  # Send every N words for smooth streaming
+    
     # Split into words (approximate tokens)
     words = text.split()
-    delay_per_word = 1.0 / tokens_per_second if tokens_per_second > 0 else 0.015
+    delay_per_word = 1.0 / tokens_per_second if tokens_per_second > 0 else DEFAULT_WORD_DELAY
     
     buffer = ""
     for i, word in enumerate(words):
         buffer += word + " "
         
-        # Send every ~3-5 words for smooth streaming
-        if (i + 1) % 4 == 0 or i == len(words) - 1:
+        # Send every STREAMING_CHUNK_SIZE words for smooth streaming
+        if (i + 1) % STREAMING_CHUNK_SIZE == 0 or i == len(words) - 1:
             event_data = {
                 "type": event_type,
                 "text": buffer.strip(),
