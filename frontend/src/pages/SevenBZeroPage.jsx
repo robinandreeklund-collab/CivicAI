@@ -1192,6 +1192,7 @@ export default function SevenBZeroPage() {
       text: '',
       isTyping: true,
       timestamp: new Date().toISOString(),
+      debateMode: debateMode,  // Set debate mode flag from the start
     };
     setMessages(prev => [...prev, aiMessage]);
     setIsTyping(true);
@@ -1637,6 +1638,13 @@ export default function SevenBZeroPage() {
 
   // Helper function to update debate message in real-time
   const updateDebateMessage = (aiMessageId, debateState, isFinal) => {
+    console.log('[Debate-Update] Updating message', { 
+      rounds: debateState.rounds?.length, 
+      isFinal,
+      hasVotes: !!debateState.voteResults,
+      hasWinner: !!debateState.winner 
+    });
+    
     let debateText = `## 🎤 Live AI-Debatt\n\n**Fråga:** ${debateState.question}\n\n`;
     
     // Show rounds
@@ -2572,6 +2580,12 @@ export default function SevenBZeroPage() {
                       <ReactMarkdown>
                         {convertEmojis(msg.debateMode ? msg.text : (msg.isTyping ? currentTypingText : msg.text))}
                       </ReactMarkdown>
+                      {/* Debug info - remove after testing */}
+                      {msg.debateMode && (
+                        <div style={{fontSize: '10px', color: '#666', marginTop: '10px'}}>
+                          [Debug: debateMode={String(msg.debateMode)}, textLength={msg.text?.length || 0}, isTyping={String(msg.isTyping)}]
+                        </div>
+                      )}
                     </div>
                   )}
                   
