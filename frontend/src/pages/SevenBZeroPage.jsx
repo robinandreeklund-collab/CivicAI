@@ -1724,6 +1724,8 @@ export default function SevenBZeroPage() {
             
             // Update message in real-time with current debate state
             updateDebateMessage(aiMessageId, debateState, false);
+            // Force scroll to trigger browser repaint and React commit
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
             
           case 'round_end':
