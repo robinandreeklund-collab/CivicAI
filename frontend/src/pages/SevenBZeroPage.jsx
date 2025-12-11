@@ -1869,8 +1869,50 @@ export default function SevenBZeroPage() {
             break;
             
           case 'round_complete':
-            // Legacy support - deprecated in new architecture
-            console.log(`[Debate] Legacy round_complete event received`);
+            // Grouped round message with all responses
+            console.log(`[Debate] Round ${message.round} complete with ${message.data?.responses?.length || 0} responses`);
+            setThinkingStep(`✅ Runda ${message.round} avslutad`);
+            
+            // Build grouped round message with all responses
+            const responses = message.data?.responses || [];
+            let roundText = `## 🎤 Runda ${message.round}\n\n`;
+            
+            // Add external AI responses (GPT, Gemini, DeepSeek, Grok)
+            const externalAIs = responses.filter(r => r.agent !== 'oneseek');
+            externalAIs.forEach(resp => {
+              roundText += `### 🤖 ${resp.agent.toUpperCase()}\n`;
+              if (resp.model) {
+                roundText += `*${resp.model}*\n\n`;
+              }
+              roundText += `${resp.response}\n\n---\n\n`;
+            });
+            
+            // Add ONESEEK as full debate participant
+            const oneseekResp = responses.find(r => r.agent === 'oneseek');
+            if (oneseekResp) {
+              roundText += `### 🤖 ONESEEK\n`;
+              roundText += `*${oneseekResp.model || 'OneSeek-7B-Zero'}*\n\n`;
+              roundText += `${oneseekResp.response}\n\n`;
+            }
+            
+            // Add as ONE grouped message for the entire round
+            setMessages(prev => [...prev, {
+              id: generateMessageId(),
+              sender: 'ai',
+              text: roundText,
+              timestamp: new Date().toISOString(),
+              isRoundComplete: true,
+              roundNumber: message.round,
+              oneseekReasoning: oneseekResp?.reasoning || null
+            }]);
+            
+            // Track for voting context
+            if (!debateState.rounds[message.round - 1]) {
+              debateState.rounds[message.round - 1] = { round: message.round, responses: [] };
+            }
+            debateState.rounds[message.round - 1].responses = responses;
+            
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
             
           case 'debate_complete':
