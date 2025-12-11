@@ -1618,6 +1618,7 @@ export default function SevenBZeroPage() {
             debateMode: true,  // Always ensure debateMode is set
             isTyping: !isFinal,  // Keep typing indicator while debate is in progress
             debateData: { ...debateState },  // Deep copy to trigger re-render
+            thinkingChain: null,  // Clear to prevent ThinkingChain rendering
           }
         : msg
     ));
@@ -1626,6 +1627,13 @@ export default function SevenBZeroPage() {
   // Live Debate Flow via WebSocket
   const startLiveDebate = async (question, aiMessageId) => {
     console.log('[Debate] Starting live AI debate...');
+    
+    // Ensure the AI message doesn't have thinkingChain to prevent ThinkingChain component rendering
+    setMessages(prev => prev.map(msg =>
+      msg.id === aiMessageId
+        ? { ...msg, thinkingChain: null, debateMode: true }
+        : msg
+    ));
     
     setThinkingStep('[tänker...] Startar debattarena...');
     setDebateData(null);
@@ -2623,8 +2631,8 @@ export default function SevenBZeroPage() {
                     </div>
                   )}
                   
-                  {/* Thinking Chain - Using ThinkingChain component */}
-                  {msg.thinkingChain && Array.isArray(msg.thinkingChain) && msg.thinkingChain.length > 0 && (
+                  {/* Thinking Chain - Using ThinkingChain component (NOT in debate mode!) */}
+                  {!msg.debateMode && msg.thinkingChain && Array.isArray(msg.thinkingChain) && msg.thinkingChain.length > 0 && (
                     <div className="mt-4">
                       <ThinkingChain 
                         thinkingChain={msg.thinkingChain} 
@@ -2633,8 +2641,8 @@ export default function SevenBZeroPage() {
                     </div>
                   )}
                   
-                  {/* Legacy text-based thinking chain (fallback) */}
-                  {msg.thinkingChain && !msg.isTyping && typeof msg.thinkingChain === 'string' && (
+                  {/* Legacy text-based thinking chain (fallback, NOT in debate mode!) */}
+                  {!msg.debateMode && msg.thinkingChain && !msg.isTyping && typeof msg.thinkingChain === 'string' && (
                     <details className={`mt-4 ${whiteMode ? 'bg-[#f8f8f8]' : 'bg-[#0a0a0a]'} rounded-lg overflow-hidden`}>
                       <summary className={`px-4 py-2 cursor-pointer text-[11px] font-medium uppercase tracking-wider flex items-center gap-2 ${
                         whiteMode ? 'text-[#666] hover:bg-[#f0f0f0]' : 'text-[#888] hover:bg-[#151515]'
