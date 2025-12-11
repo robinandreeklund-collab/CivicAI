@@ -163,6 +163,7 @@ export default function SevenBZeroPage() {
   const [debateMode, setDebateMode] = useState(false);
   const [debateData, setDebateData] = useState(null);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [expandedRounds, setExpandedRounds] = useState(new Set([1])); // Track which rounds are expanded
   
   // Chat state
   const [messages, setMessages] = useState([]);
@@ -1727,6 +1728,9 @@ export default function SevenBZeroPage() {
               }
             }
             
+            // Auto-collapse previous rounds, expand current round
+            setExpandedRounds(new Set([message.round]));
+            
             // Add as ONE grouped message for the entire round
             setMessages(prev => [...prev, {
               id: `round-complete-${message.round}-${Date.now()}`,
@@ -1774,9 +1778,9 @@ export default function SevenBZeroPage() {
             let voteText = `### 🏆 Vinnare: ${message.data.winner.toUpperCase()}\n\n`;
             voteText += `**Röster:** ${message.data.votes}/${debateState.rounds[0]?.responses?.length || 5}\n\n`;
             voteText += `**Röstresultat:**\n`;
-            if (message.data.vote_results) {
-              Object.entries(message.data.vote_results).forEach(([voter, voted_for]) => {
-                voteText += `- **${voter.toUpperCase()}** röstade på: **${voted_for.toUpperCase()}**\n`;
+            if (message.data.vote_results && Array.isArray(message.data.vote_results)) {
+              message.data.vote_results.forEach((voteObj) => {
+                voteText += `- **${voteObj.voter.toUpperCase()}** röstade på: **${voteObj.voted_for.toUpperCase()}**\n`;
               });
             }
             
@@ -2663,6 +2667,36 @@ export default function SevenBZeroPage() {
                             </div>
                           )}
                         </div>
+                      ) : msg.isRoundComplete ? (
+                        /* Collapsible round message */
+                        <details open={expandedRounds.has(msg.roundNumber)}>
+                          <summary 
+                            style={{
+                              cursor: 'pointer',
+                              fontWeight: 'bold',
+                              fontSize: '16px',
+                              padding: '8px 0',
+                              listStyle: 'none'
+                            }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const newExpanded = new Set(expandedRounds);
+                              if (newExpanded.has(msg.roundNumber)) {
+                                newExpanded.delete(msg.roundNumber);
+                              } else {
+                                newExpanded.add(msg.roundNumber);
+                              }
+                              setExpandedRounds(newExpanded);
+                            }}
+                          >
+                            {expandedRounds.has(msg.roundNumber) ? '▼' : '▶'} 🎤 Runda {msg.roundNumber}
+                          </summary>
+                          <div style={{paddingLeft: '20px', marginTop: '12px'}}>
+                            <ReactMarkdown>
+                              {convertEmojis(msg.text)}
+                            </ReactMarkdown>
+                          </div>
+                        </details>
                       ) : (
                         <ReactMarkdown>
                           {convertEmojis(msg.debateMode ? msg.text : (msg.isTyping ? currentTypingText : msg.text))}
