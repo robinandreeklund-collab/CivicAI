@@ -1610,51 +1610,14 @@ export default function SevenBZeroPage() {
       hasWinner: !!debateState.winner 
     });
     
-    let debateText = `## 🎤 Live AI-Debatt\n\n**Fråga:** ${debateState.question}\n\n`;
-    
-    // Show rounds
-    debateState.rounds.forEach((round, idx) => {
-      if (round && round.responses && round.responses.length > 0) {
-        const isExpanded = round.expanded !== false; // Default to expanded
-        const roundHeader = `### ${isExpanded ? '▼' : '▶'} Runda ${round.round}`;
-        debateText += `${roundHeader}\n\n`;
-        
-        if (isExpanded) {
-          round.responses.forEach(resp => {
-            debateText += `**${resp.agent.toUpperCase()}** (${resp.model || resp.agent}):\n${resp.response}\n\n`;
-          });
-        }
-      }
-    });
-    
-    // Show voting results
-    if (debateState.voteResults && debateState.voteResults.length > 0) {
-      debateText += `\n### 🗳️ Röstning\n\n`;
-      debateState.voteResults.forEach(vote => {
-        debateText += `- **${vote.voter.toUpperCase()}** röstade på: **${vote.voted_for.toUpperCase()}**\n`;
-      });
-      debateText += `\n`;
-    }
-    
-    // Show winner
-    if (debateState.winner) {
-      debateText += `\n## 🏆 Vinnare: ${debateState.winner.toUpperCase()}\n`;
-      debateText += `**Röster:** ${debateState.winnerVotes}/${debateState.voteResults?.length || 5}\n\n`;
-    }
-    
-    // Show summary
-    if (debateState.summary) {
-      debateText += `### 📋 Sammanfattning från Debattledaren\n\n${debateState.summary}\n`;
-    }
-    
+    // Update the message with fresh debateData - this is what the UI renders!
     setMessages(prev => prev.map(msg => 
       msg.id === aiMessageId 
         ? { 
             ...msg, 
-            text: debateText,
             debateMode: true,  // Always ensure debateMode is set
             isTyping: !isFinal,  // Keep typing indicator while debate is in progress
-            debateData: debateState,
+            debateData: { ...debateState },  // Deep copy to trigger re-render
           }
         : msg
     ));
