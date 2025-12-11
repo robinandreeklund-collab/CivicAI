@@ -1611,7 +1611,7 @@ export default function SevenBZeroPage() {
         if (updatedDebateData.voteResults && updatedDebateData.voteResults.length > 0) {
           debateText += `\n### 🗳️ Röstning\n\n`;
           updatedDebateData.voteResults.forEach(vote => {
-            debateText += `**${vote.voter.toUpperCase()}** röstade på: **${vote.voted_for.toUpperCase()}**\n`;
+            debateText += `- **${vote.voter.toUpperCase()}** röstade på: **${vote.voted_for.toUpperCase()}**\n`;
           });
           debateText += `\n`;
         }
@@ -1658,7 +1658,7 @@ export default function SevenBZeroPage() {
     if (debateState.voteResults && debateState.voteResults.length > 0) {
       debateText += `\n### 🗳️ Röstning\n\n`;
       debateState.voteResults.forEach(vote => {
-        debateText += `**${vote.voter.toUpperCase()}** röstade på: **${vote.voted_for.toUpperCase()}**\n`;
+        debateText += `- **${vote.voter.toUpperCase()}** röstade på: **${vote.voted_for.toUpperCase()}**\n`;
       });
       debateText += `\n`;
     }
@@ -1735,9 +1735,21 @@ export default function SevenBZeroPage() {
             debateState.currentRound = message.round;
             debateState.rounds[message.round - 1] = {
               round: message.round,
-              responses: []
+              responses: [],
+              expanded: true  // New round starts expanded
             };
+            
+            // Collapse previous rounds when new round starts
+            if (message.round > 1) {
+              debateState.rounds.forEach((r, idx) => {
+                if (idx < message.round - 1) {
+                  r.expanded = false;
+                }
+              });
+            }
+            
             setDebateData({...debateState});
+            updateDebateMessage(aiMessageId, debateState, false);
             break;
             
           case 'response':
@@ -1760,22 +1772,18 @@ export default function SevenBZeroPage() {
             
           case 'round_end':
             setThinkingStep(`✅ Runda ${message.round} avslutad`);
-            // Collapse previous rounds when starting a new one
-            if (message.round < debateState.maxRounds) {
-              debateState.rounds.forEach((r, idx) => {
-                if (idx < message.round - 1) {
-                  r.expanded = false;
-                }
-              });
-              setDebateData({...debateState});
-              updateDebateMessage(aiMessageId, debateState, false);
-            }
+            // Keep current round expanded when it ends
+            // It will be collapsed when the next round starts
+            setDebateData({...debateState});
+            updateDebateMessage(aiMessageId, debateState, false);
             break;
             
           case 'voting':
             setThinkingStep('🗳️ Röstning pågår...');
-            // Collapse all rounds during voting
-            debateState.rounds.forEach(r => r.expanded = false);
+            // Collapse all rounds during voting for clean display
+            debateState.rounds.forEach(r => {
+              if (r) r.expanded = false;
+            });
             setDebateData({...debateState});
             updateDebateMessage(aiMessageId, debateState, false);
             break;
