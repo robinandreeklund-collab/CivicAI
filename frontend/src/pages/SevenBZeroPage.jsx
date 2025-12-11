@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import { formatAIResponse } from '../utils/formatMarkdown';
 import ThinkingChain from '../components/ThinkingChain';
 import { sendPersonalityMessageViaWebSocket, isWebSocketSupported } from '../services/personalityWebSocket';
+import DebateRoundDisplay from '../components/DebateRoundDisplay';
 
 /**
  * 7B-Zero Page - Integrated OQI Interface
@@ -164,6 +165,8 @@ export default function SevenBZeroPage() {
   const [debateData, setDebateData] = useState(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [expandedRounds, setExpandedRounds] = useState(new Set([1])); // Track which rounds are expanded
+  const [debateRounds, setDebateRounds] = useState({}); // Structured data: { 1: { gpt: {text, isStreaming, reasoning, insights}, ... }, 2: {...} }
+  const [currentRound, setCurrentRound] = useState(0);
   
   // Chat state
   const [messages, setMessages] = useState([]);
@@ -1689,24 +1692,19 @@ export default function SevenBZeroPage() {
             
           case 'round_start':
             setThinkingStep(`🎤 Runda ${message.round} startar...`);
+            setCurrentRound(message.round);
             
-            // Initialize round data structure for real-time updates
-            if (!debateState.rounds[message.round - 1]) {
-              debateState.rounds[message.round - 1] = {
-                round: message.round,
-                responses: [],
-                liveInsights: [],
-                echoTexts: {},
-                reasoningTexts: {},
-                summary: null
-              };
-            }
+            // Initialize round data structure
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {}
+            }));
             break;
             
           case 'ai_response':
             // External AI response arrived and queued
             console.log(`[Debate] ${message.agent} response queued`);
-            setThinkingStep(`✅ ${message.agent.toUpperCase()} har svarat - köar för analys...`);
+            setThinkingStep(`✅ ${message.agent.toUpperCase()} har svarat`);
             break;
             
           case 'oneseek_echo_start':
@@ -1714,17 +1712,20 @@ export default function SevenBZeroPage() {
             console.log(`[Debate] OneSeek echoing ${message.agent}'s answer`);
             setThinkingStep(`🔄 OneSeek ekar ${message.agent.toUpperCase()}s svar...`);
             
-            // Create or update message for this echo
-            setMessages(prev => [...prev, {
-              id: generateMessageId(),
-              sender: 'ai',
-              text: `### 🔄 OneSeek ekar ${message.agent.toUpperCase()}s svar\n\n`,
-              timestamp: new Date().toISOString(),
-              isEcho: true,
-              round: message.round,
-              agent: message.agent,
-              isStreaming: true
-            }]);
+            // Initialize AI data in round
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {
+                ...(prev[message.round] || {}),
+                [message.agent]: {
+                  text: '',
+                  isStreaming: true,
+                  reasoning: null,
+                  insights: [],
+                  model: null
+                }
+              }
+            }));
             break;
             
           case 'oneseek_echo':
@@ -1732,16 +1733,17 @@ export default function SevenBZeroPage() {
             const echoText = message.text || '';
             const isEchoComplete = message.complete || false;
             
-            // Update the echo message with streaming text
-            setMessages(prev => prev.map(msg => {
-              if (msg.isEcho && msg.round === message.round && msg.agent === message.agent && msg.isStreaming) {
-                return {
-                  ...msg,
-                  text: `### 🔄 OneSeek ekar ${message.agent.toUpperCase()}s svar\n\n${echoText}`,
+            // Update AI data with streaming text
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {
+                ...(prev[message.round] || {}),
+                [message.agent]: {
+                  ...(prev[message.round]?.[message.agent] || {}),
+                  text: echoText,
                   isStreaming: !isEchoComplete
-                };
+                }
               }
-              return msg;
             }));
             
             if (isEchoComplete) {
@@ -1753,15 +1755,16 @@ export default function SevenBZeroPage() {
             // OneSeek's focused reasoning for specific answer
             console.log(`[Debate] OneSeek reasoning for ${message.agent}`);
             
-            setMessages(prev => [...prev, {
-              id: generateMessageId(),
-              sender: 'ai',
-              text: `### 💭 OneSeek analys av ${message.agent.toUpperCase()}\n\n${message.message}`,
-              timestamp: new Date().toISOString(),
-              isReasoning: true,
-              round: message.round,
-              agent: message.agent
-            }]);
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {
+                ...(prev[message.round] || {}),
+                [message.agent]: {
+                  ...(prev[message.round]?.[message.agent] || {}),
+                  reasoning: message.message
+                }
+              }
+            }));
             
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
@@ -1770,14 +1773,19 @@ export default function SevenBZeroPage() {
             // Live one-liner insight
             console.log(`[Debate] Live insight: ${message.message}`);
             
-            setMessages(prev => [...prev, {
-              id: generateMessageId(),
-              sender: 'system',
-              text: message.message,
-              timestamp: new Date().toISOString(),
-              isInsight: true,
-              round: message.round
-            }]);
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {
+                ...(prev[message.round] || {}),
+                [message.agent]: {
+                  ...(prev[message.round]?.[message.agent] || {}),
+                  insights: [
+                    ...(prev[message.round]?.[message.agent]?.insights || []),
+                    message.message
+                  ]
+                }
+              }
+            }));
             
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
@@ -1787,15 +1795,19 @@ export default function SevenBZeroPage() {
             console.log(`[Debate] OneSeek generating own answer for round ${message.round}`);
             setThinkingStep(`🤖 ONESEEK ger sitt debattsvar...`);
             
-            setMessages(prev => [...prev, {
-              id: generateMessageId(),
-              sender: 'ai',
-              text: `### 🤖 ONESEEK\n*OneSeek-7B-Zero*\n\n`,
-              timestamp: new Date().toISOString(),
-              isOneSeekAnswer: true,
-              round: message.round,
-              isStreaming: true
-            }]);
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {
+                ...(prev[message.round] || {}),
+                oneseek: {
+                  text: '',
+                  isStreaming: true,
+                  reasoning: null,
+                  insights: [],
+                  model: 'OneSeek-7B-Zero'
+                }
+              }
+            }));
             break;
             
           case 'oneseek_own_answer':
@@ -1803,16 +1815,17 @@ export default function SevenBZeroPage() {
             const answerText = message.text || '';
             const isAnswerComplete = message.complete || false;
             
-            // Update the OneSeek answer message with streaming text
-            setMessages(prev => prev.map(msg => {
-              if (msg.isOneSeekAnswer && msg.round === message.round && msg.isStreaming) {
-                return {
-                  ...msg,
-                  text: `### 🤖 ONESEEK\n*OneSeek-7B-Zero*\n\n${answerText}`,
-                  isStreaming: !isAnswerComplete
-                };
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {
+                ...(prev[message.round] || {}),
+                oneseek: {
+                  ...(prev[message.round]?.oneseek || {}),
+                  text: answerText,
+                  isStreaming: !isAnswerComplete,
+                  model: 'OneSeek-7B-Zero'
+                }
               }
-              return msg;
             }));
             
             if (isAnswerComplete) {
@@ -1824,14 +1837,16 @@ export default function SevenBZeroPage() {
             // OneSeek's reasoning for its own answer
             console.log(`[Debate] OneSeek reasoning for own answer`);
             
-            setMessages(prev => [...prev, {
-              id: generateMessageId(),
-              sender: 'ai',
-              text: `### 💭 OneSeeks tankekedja\n\n${message.message}`,
-              timestamp: new Date().toISOString(),
-              isOneSeekReasoning: true,
-              round: message.round
-            }]);
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {
+                ...(prev[message.round] || {}),
+                oneseek: {
+                  ...(prev[message.round]?.oneseek || {}),
+                  reasoning: message.message
+                }
+              }
+            }));
             
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
@@ -1839,17 +1854,15 @@ export default function SevenBZeroPage() {
           case 'round_summary':
             // Round compression/summary
             console.log(`[Debate] Round ${message.round} summary received`);
-            setThinkingStep(`📚 Sammanfattar lärdomar från runda ${message.round}...`);
             
             const summaryText = message.data?.summary || message.message;
-            setMessages(prev => [...prev, {
-              id: generateMessageId(),
-              sender: 'system',
-              text: `## 📚 Lärdomar från Runda ${message.round}\n\n${summaryText}`,
-              timestamp: new Date().toISOString(),
-              isRoundSummary: true,
-              round: message.round
-            }]);
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {
+                ...(prev[message.round] || {}),
+                summary: summaryText
+              }
+            }));
             
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
@@ -1869,50 +1882,8 @@ export default function SevenBZeroPage() {
             break;
             
           case 'round_complete':
-            // Grouped round message with all responses
-            console.log(`[Debate] Round ${message.round} complete with ${message.data?.responses?.length || 0} responses`);
-            setThinkingStep(`✅ Runda ${message.round} avslutad`);
-            
-            // Build grouped round message with all responses
-            const responses = message.data?.responses || [];
-            let roundText = `## 🎤 Runda ${message.round}\n\n`;
-            
-            // Add external AI responses (GPT, Gemini, DeepSeek, Grok)
-            const externalAIs = responses.filter(r => r.agent !== 'oneseek');
-            externalAIs.forEach(resp => {
-              roundText += `### 🤖 ${resp.agent.toUpperCase()}\n`;
-              if (resp.model) {
-                roundText += `*${resp.model}*\n\n`;
-              }
-              roundText += `${resp.response}\n\n---\n\n`;
-            });
-            
-            // Add ONESEEK as full debate participant
-            const oneseekResp = responses.find(r => r.agent === 'oneseek');
-            if (oneseekResp) {
-              roundText += `### 🤖 ONESEEK\n`;
-              roundText += `*${oneseekResp.model || 'OneSeek-7B-Zero'}*\n\n`;
-              roundText += `${oneseekResp.response}\n\n`;
-            }
-            
-            // Add as ONE grouped message for the entire round
-            setMessages(prev => [...prev, {
-              id: generateMessageId(),
-              sender: 'ai',
-              text: roundText,
-              timestamp: new Date().toISOString(),
-              isRoundComplete: true,
-              roundNumber: message.round,
-              oneseekReasoning: oneseekResp?.reasoning || null
-            }]);
-            
-            // Track for voting context
-            if (!debateState.rounds[message.round - 1]) {
-              debateState.rounds[message.round - 1] = { round: message.round, responses: [] };
-            }
-            debateState.rounds[message.round - 1].responses = responses;
-            
-            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            // Legacy support - deprecated in new architecture
+            console.log(`[Debate] Legacy round_complete event received`);
             break;
             
           case 'debate_complete':
@@ -2524,6 +2495,20 @@ export default function SevenBZeroPage() {
               <p className={`text-xs mt-4 ${whiteMode ? 'text-[#999]' : 'text-[#444]'}`}>
                 Tryck Q för Quantum · F för Focus · W för White Mode
               </p>
+            </div>
+          )}
+
+          {/* Debate Rounds Display - New Component */}
+          {debateMode && Object.keys(debateRounds).length > 0 && (
+            <div className="mb-6">
+              {Object.keys(debateRounds).sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
+                <DebateRoundDisplay
+                  key={roundNum}
+                  round={parseInt(roundNum)}
+                  aiData={debateRounds[roundNum]}
+                  isActive={parseInt(roundNum) === currentRound}
+                />
+              ))}
             </div>
           )}
 

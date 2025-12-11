@@ -12939,38 +12939,199 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
                         'success': False
                     }
             
-            # Simplified: Collect all external AI responses with progress indication
-            logger.info(f"[WS-Debate] Collecting responses from {len(external_agents)} external AIs...")
+            # NEW ARCHITECTURE: Process responses as they arrive using a queue
+            logger.info(f"[WS-Debate] Starting to collect responses from {len(external_agents)} external AIs...")
             
-            async def get_and_notify_response(agent_name):
-                """Get response from external AI and notify when complete"""
+            # Queue to store responses in arrival order
+            response_queue = asyncio.Queue()
+            
+            async def get_and_queue_response(agent_name):
+                """Get response from external AI and immediately queue it"""
                 response = await get_external_response(agent_name)
+                await response_queue.put(response)
                 
-                # Notify when answer arrives
+                # Emit ai_response event immediately when answer arrives
                 await websocket.send_json({
-                    "type": "thinking",
-                    "message": f"[tänker...] ✅ {agent_name.upper()} har svarat"
+                    "type": "ai_response",
+                    "round": round_num,
+                    "agent": agent_name,
+                    "message": f"✅ {agent_name.upper()} har svarat",
+                    "data": {
+                        "agent": agent_name,
+                        "success": response.get('success', False)
+                    }
                 })
-                logger.info(f"[WS-Debate] {agent_name.upper()} response received")
+                logger.info(f"[WS-Debate] {agent_name.upper()} response queued")
                 return response
             
             # Start all external AI requests concurrently
-            external_tasks = [get_and_notify_response(agent) for agent in external_agents]
-            external_responses = await asyncio.gather(*external_tasks, return_exceptions=True)
+            external_tasks = [get_and_queue_response(agent) for agent in external_agents]
             
-            # Filter out exceptions and collect successful responses
-            external_responses = [r for r in external_responses if isinstance(r, dict) and r.get('success', False)]
-            round_responses.extend(external_responses)
+            # Process responses from queue as they arrive
+            # Track all responses for later use
+            external_responses = []
             
-            # Generate OneSeek's answer
-            logger.info(f"[WS-Debate] OneSeek generating its own answer for round {round_num}...")
+            # Start background task to collect all responses
+            # Create coroutine for gathering and then create task from it
+            async def collect_all_responses():
+                return await asyncio.gather(*external_tasks, return_exceptions=True)
+            
+            collect_task = asyncio.create_task(collect_all_responses())
+            
+            # Process each queued response immediately with OneSeek
+            processed_count = 0
+            while processed_count < len(external_agents):
+                try:
+                    # Wait for next response with timeout
+                    response = await asyncio.wait_for(response_queue.get(), timeout=60.0)
+                    external_responses.append(response)
+                    processed_count += 1
+                    
+                    if not response.get('success', False):
+                        # Skip failed responses
+                        logger.warning(f"[WS-Debate] Skipping failed response from {response.get('agent', 'unknown')}")
+                        continue
+                    
+                    agent_name = response.get('agent', 'unknown')
+                    agent_response = response.get('response', '')
+                    
+                    # OneSeek pipeline for this answer: Echo → Reasoning → Insight
+                    logger.info(f"[WS-Debate] OneSeek processing {agent_name}'s answer...")
+                    
+                    # 1. ECHO: Stream the answer token-by-token
+                    await websocket.send_json({
+                        "type": "oneseek_echo_start",
+                        "round": round_num,
+                        "agent": agent_name,
+                        "message": f"🔄 OneSeek ekar {agent_name.upper()}s svar..."
+                    })
+                    
+                    await stream_text_tokens(
+                        websocket, 
+                        agent_response, 
+                        "oneseek_echo",
+                        agent=agent_name,
+                        round=round_num
+                    )
+                    
+                    # 2. REASONING: Generate focused analysis for this specific answer
+                    reasoning_prompt = f"""Du är OneSeek och analyserar ett svar i en debatt.
+
+DEBATTFRÅGA: {clean_question}
+
+RUNDA: {round_num} av {max_rounds}
+
+SVAR FRÅN {agent_name.upper()}:
+{agent_response}
+
+UPPGIFT: Skapa en kort, fokuserad analys av detta specifika svar (2-3 meningar):
+- Vad är huvudargumentet?
+- Vilka styrkor/svagheter ser du?
+- Vilken insikt kan vi lära oss?
+
+Var koncis och specifik. Svara endast med analysen."""
+                    
+                    try:
+                        payload = {
+                            "messages": [
+                                {"role": "system", "content": "Du är OneSeek - en analytisk AI som ger koncisa, fokuserade analyser."},
+                                {"role": "user", "content": reasoning_prompt}
+                            ],
+                            "max_tokens": 200,
+                            "temperature": 0.7,
+                        }
+                        
+                        server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                        llm_response = requests.post(
+                            f"{server_url}/v1/chat/completions",
+                            json=payload,
+                            timeout=30,
+                        )
+                        llm_response.raise_for_status()
+                        result = llm_response.json()
+                        
+                        if 'choices' in result and len(result['choices']) > 0:
+                            reasoning_text = result['choices'][0].get('message', {}).get('content', '')
+                        else:
+                            reasoning_text = result.get('content', '')
+                        
+                        # Save to knowledge chain
+                        knowledge_chain.append({
+                            'round': round_num,
+                            'agent': agent_name,
+                            'insight': reasoning_text
+                        })
+                        
+                        # Emit reasoning
+                        await websocket.send_json({
+                            "type": "oneseek_reasoning",
+                            "round": round_num,
+                            "agent": agent_name,
+                            "message": reasoning_text,
+                            "data": {
+                                "reasoning": reasoning_text,
+                                "agent_analyzed": agent_name
+                            }
+                        })
+                        logger.info(f"[WS-Debate] OneSeek reasoning generated for {agent_name}")
+                        
+                    except Exception as e:
+                        logger.error(f"[WS-Debate] Error generating reasoning for {agent_name}: {e}")
+                        reasoning_text = f"Analys: {agent_name.upper()} presenterar sitt perspektiv på frågan."
+                        await websocket.send_json({
+                            "type": "oneseek_reasoning",
+                            "round": round_num,
+                            "agent": agent_name,
+                            "message": reasoning_text
+                        })
+                    
+                    # 3. LIVE INSIGHT: One-liner "sport commentator" style update
+                    # Extract key themes for insight
+                    insight_keywords = []
+                    for keyword in ['ekonomi', 'miljö', 'samhälle', 'teknologi', 'framtid', 'konsekvens']:
+                        if keyword in agent_response.lower() or keyword in reasoning_text.lower():
+                            insight_keywords.append(keyword)
+                    
+                    if insight_keywords:
+                        insight = f"💡 {agent_name.upper()} fokuserar på {', '.join(insight_keywords[:2])} - {processed_count}/{len(external_agents)} svar mottagna"
+                    else:
+                        insight = f"💡 {agent_name.upper()} har delat sitt perspektiv - {processed_count}/{len(external_agents)} svar mottagna"
+                    
+                    await websocket.send_json({
+                        "type": "live_insight",
+                        "round": round_num,
+                        "agent": agent_name,
+                        "message": insight,
+                        "data": {
+                            "progress": f"{processed_count}/{len(external_agents)}"
+                        }
+                    })
+                    
+                    # Small delay before next answer
+                    await asyncio.sleep(0.5)
+                    
+                except asyncio.TimeoutError:
+                    logger.error(f"[WS-Debate] Timeout waiting for response {processed_count + 1}")
+                    break
+                except Exception as e:
+                    logger.error(f"[WS-Debate] Error processing queued response: {e}")
+                    break
+            
+            # Wait for all collection tasks to complete
+            await collect_task
+            
+            # Filter successful responses only
+            round_responses.extend([r for r in external_responses if r.get('success', False)])
+            
+            # After processing all queued external responses, OneSeek generates its OWN answer
+            logger.info(f"[WS-Debate] OneSeek generating its own comprehensive answer for round {round_num}...")
             
             await websocket.send_json({
                 "type": "thinking",
-                "message": f"[tänker...] OneSeek förbereder sitt debattsvar för runda {round_num}..."
+                "message": f"[tänker...] OneSeek förbereder sitt eget debattsvar för runda {round_num}..."
             })
             
-            # Build context for ONESEEK's answer
+            # Build context for ONESEEK's own answer
             oneseek_context = f"""Du deltar som ONESEEK i en AI-debatt om: {clean_question}
 
 Detta är runda {round_num} av {max_rounds}.
@@ -12979,14 +13140,22 @@ ANDRA AI-MODELLERS SVAR I DENNA RUNDA:
 
 """
             for ext_resp in external_responses:
-                oneseek_context += f"**{ext_resp['agent'].upper()}**:\n{ext_resp['response']}\n\n"
+                if ext_resp.get('success', False):
+                    oneseek_context += f"**{ext_resp['agent'].upper()}**:\n{ext_resp['response']}\n\n"
             
             oneseek_context += f"""
 Din uppgift: LEVERERA DITT EGET DEBATTSVAR som fullständig deltagare!
 
 Du är ONESEEK - en debattdeltagare som ska ge ditt eget perspektiv. Du har sett andra AI:ers svar och ska använda dina egna insikter OCH lärdomar från deras svar.
 
-Skapa ett balanserat, väl underbyggt debattsvar (ca 400-600 ord) som täcker relevanta aspekter.
+Skapa ett balanserat, väl underbyggt debattsvar (ca 400-600 ord) som täcker:
+- Ekonomiska konsekvenser och aspekter
+- Sociala effekter på samhället
+- Miljöpåverkan och hållbarhet
+- Tekniska möjligheter och begränsningar
+- Politiska och etiska överväganden
+
+Ge konkreta exempel när möjligt. Var balanserad och nyanserad.
 
 VIKTIGT FORMAT:
 REASONING: [Din interna tankekedja - hur du tänker kring frågan. 2-3 meningar.]
@@ -12994,7 +13163,7 @@ ANSWER: [Ditt kompletta debattsvar - 400-600 ord med konkreta argument och exemp
 
 Ge ditt svar nu:"""
             
-            # Generate OneSeek's answer
+            # Generate OneSeek's OWN answer with streaming
             try:
                 payload = {
                     "messages": [
@@ -13030,6 +13199,37 @@ Ge ditt svar nu:"""
                     reasoning = reasoning_part
                     answer = answer_part
                 
+                # Stream OneSeek's own answer
+                await websocket.send_json({
+                    "type": "oneseek_own_answer_start",
+                    "round": round_num,
+                    "message": "🤖 ONESEEK ger sitt debattsvar..."
+                })
+                
+                await stream_text_tokens(
+                    websocket,
+                    answer,
+                    "oneseek_own_answer",
+                    agent="oneseek",
+                    round=round_num
+                )
+                
+                # Emit OneSeek's reasoning for its own answer
+                if reasoning:
+                    await websocket.send_json({
+                        "type": "oneseek_own_reasoning",
+                        "round": round_num,
+                        "message": reasoning,
+                        "data": {
+                            "reasoning": reasoning
+                        }
+                    })
+                    knowledge_chain.append({
+                        'round': round_num,
+                        'agent': 'oneseek',
+                        'insight': f"OneSeek: {reasoning}"
+                    })
+                
                 oneseek_resp = {
                     'agent': 'oneseek',
                     'response': answer,
@@ -13038,10 +13238,10 @@ Ge ditt svar nu:"""
                     'success': True
                 }
                 round_responses.append(oneseek_resp)
-                logger.info(f"[WS-Debate] ONESEEK answer complete for round {round_num}")
+                logger.info(f"[WS-Debate] ONESEEK own answer complete for round {round_num}")
                 
             except Exception as e:
-                logger.error(f"[WS-Debate] Error generating ONESEEK answer: {e}")
+                logger.error(f"[WS-Debate] Error generating ONESEEK own answer: {e}")
                 oneseek_resp = {
                     'agent': 'oneseek',
                     'response': f'❌ Fel: Kunde inte generera svar',
@@ -13050,17 +13250,76 @@ Ge ditt svar nu:"""
                     'success': False
                 }
                 round_responses.append(oneseek_resp)
+                await websocket.send_json({
+                    "type": "oneseek_own_answer",
+                    "round": round_num,
+                    "text": oneseek_resp['response'],
+                    "complete": True,
+                    "agent": "oneseek"
+                })
             
-            # Send grouped round_complete message with all responses
+            # Generate round summary/compression (10 key learnings)
+            logger.info(f"[WS-Debate] Generating round {round_num} summary...")
             await websocket.send_json({
-                "type": "round_complete",
-                "round": round_num,
-                "message": f"✅ Runda {round_num} avslutad - alla svar insamlade",
-                "data": {
-                    "responses": round_responses
-                }
+                "type": "thinking",
+                "message": f"[tänker...] Sammanfattar lärdomar från runda {round_num}..."
             })
-            logger.info(f"[WS-Debate] Round {round_num} complete - sent grouped message with {len(round_responses)} responses")
+            
+            summary_prompt = f"""Sammanfatta de 10 viktigaste lärdomarna från runda {round_num} i debatten om: {clean_question}
+
+SVAR I DENNA RUNDA:
+"""
+            for resp in round_responses:
+                if resp.get('success', False):
+                    summary_prompt += f"{resp['agent'].upper()}: {resp['response'][:300]}...\n\n"
+            
+            summary_prompt += "\nSkapa en punktlista med de 10 viktigaste lärdomarna/insikterna från denna runda (var koncis, 1 rad per punkt):"
+            
+            try:
+                payload = {
+                    "messages": [
+                        {"role": "system", "content": "Du är OneSeek - sammanfatta koncist."},
+                        {"role": "user", "content": summary_prompt}
+                    ],
+                    "max_tokens": 400,
+                    "temperature": 0.7,
+                }
+                
+                llm_response = requests.post(
+                    f"{server_url}/v1/chat/completions",
+                    json=payload,
+                    timeout=30,
+                )
+                llm_response.raise_for_status()
+                result = llm_response.json()
+                
+                if 'choices' in result and len(result['choices']) > 0:
+                    summary_text = result['choices'][0].get('message', {}).get('content', '')
+                else:
+                    summary_text = result.get('content', '')
+                
+                await websocket.send_json({
+                    "type": "round_summary",
+                    "round": round_num,
+                    "message": f"📚 Lärdomar från runda {round_num}",
+                    "data": {
+                        "summary": summary_text,
+                        "round": round_num
+                    }
+                })
+                logger.info(f"[WS-Debate] Round {round_num} summary generated")
+                
+            except Exception as e:
+                logger.error(f"[WS-Debate] Error generating round summary: {e}")
+                await websocket.send_json({
+                    "type": "round_summary",
+                    "round": round_num,
+                    "message": f"📚 Lärdomar från runda {round_num}",
+                    "data": {
+                        "summary": f"Runda {round_num}: {len(round_responses)} AI-modeller presenterade sina perspektiv.",
+                        "round": round_num
+                    }
+                })
             
             # Save round data
             debate_rounds.append({
