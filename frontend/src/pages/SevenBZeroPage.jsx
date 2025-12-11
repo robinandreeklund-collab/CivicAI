@@ -1582,6 +1582,111 @@ export default function SevenBZeroPage() {
     }
   };
 
+  // Toggle round expansion in debate
+  const toggleDebateRound = (messageId, roundIndex) => {
+    setMessages(prev => prev.map(msg => {
+      if (msg.id === messageId && msg.debateData) {
+        const updatedDebateData = { ...msg.debateData };
+        if (updatedDebateData.rounds[roundIndex]) {
+          updatedDebateData.rounds[roundIndex].expanded = !updatedDebateData.rounds[roundIndex].expanded;
+        }
+        
+        // Update the message text
+        let debateText = `## 🎤 Live AI-Debatt\n\n**Fråga:** ${updatedDebateData.question}\n\n`;
+        
+        updatedDebateData.rounds.forEach((round, idx) => {
+          if (round && round.responses && round.responses.length > 0) {
+            const isExpanded = round.expanded !== false;
+            const roundHeader = `### ${isExpanded ? '▼' : '▶'} Runda ${round.round}`;
+            debateText += `${roundHeader}\n\n`;
+            
+            if (isExpanded) {
+              round.responses.forEach(resp => {
+                debateText += `**${resp.agent.toUpperCase()}** (${resp.model || resp.agent}):\n${resp.response}\n\n`;
+              });
+            }
+          }
+        });
+        
+        if (updatedDebateData.voteResults && updatedDebateData.voteResults.length > 0) {
+          debateText += `\n### 🗳️ Röstning\n\n`;
+          updatedDebateData.voteResults.forEach(vote => {
+            debateText += `**${vote.voter.toUpperCase()}** röstade på: **${vote.voted_for.toUpperCase()}**\n`;
+          });
+          debateText += `\n`;
+        }
+        
+        if (updatedDebateData.winner) {
+          debateText += `\n## 🏆 Vinnare: ${updatedDebateData.winner.toUpperCase()}\n`;
+          debateText += `**Röster:** ${updatedDebateData.winnerVotes}/${updatedDebateData.voteResults?.length || 5}\n\n`;
+        }
+        
+        if (updatedDebateData.summary) {
+          debateText += `### 📋 Sammanfattning från Debattledaren\n\n${updatedDebateData.summary}\n`;
+        }
+        
+        return {
+          ...msg,
+          text: debateText,
+          debateData: updatedDebateData
+        };
+      }
+      return msg;
+    }));
+  };
+
+  // Helper function to update debate message in real-time
+  const updateDebateMessage = (aiMessageId, debateState, isFinal) => {
+    let debateText = `## 🎤 Live AI-Debatt\n\n**Fråga:** ${debateState.question}\n\n`;
+    
+    // Show rounds
+    debateState.rounds.forEach((round, idx) => {
+      if (round && round.responses && round.responses.length > 0) {
+        const isExpanded = round.expanded !== false; // Default to expanded
+        const roundHeader = `### ${isExpanded ? '▼' : '▶'} Runda ${round.round}`;
+        debateText += `${roundHeader}\n\n`;
+        
+        if (isExpanded) {
+          round.responses.forEach(resp => {
+            debateText += `**${resp.agent.toUpperCase()}** (${resp.model || resp.agent}):\n${resp.response}\n\n`;
+          });
+        }
+      }
+    });
+    
+    // Show voting results
+    if (debateState.voteResults && debateState.voteResults.length > 0) {
+      debateText += `\n### 🗳️ Röstning\n\n`;
+      debateState.voteResults.forEach(vote => {
+        debateText += `**${vote.voter.toUpperCase()}** röstade på: **${vote.voted_for.toUpperCase()}**\n`;
+      });
+      debateText += `\n`;
+    }
+    
+    // Show winner
+    if (debateState.winner) {
+      debateText += `\n## 🏆 Vinnare: ${debateState.winner.toUpperCase()}\n`;
+      debateText += `**Röster:** ${debateState.winnerVotes}/${debateState.voteResults?.length || 5}\n\n`;
+    }
+    
+    // Show summary
+    if (debateState.summary) {
+      debateText += `### 📋 Sammanfattning från Debattledaren\n\n${debateState.summary}\n`;
+    }
+    
+    setMessages(prev => prev.map(msg => 
+      msg.id === aiMessageId 
+        ? { 
+            ...msg, 
+            text: debateText,
+            isTyping: !isFinal,
+            debateMode: true,
+            debateData: debateState,
+          }
+        : msg
+    ));
+  };
+
   // Live Debate Flow via WebSocket
   const startLiveDebate = async (question, aiMessageId) => {
     console.log('[Debate] Starting live AI debate...');
@@ -1639,7 +1744,7 @@ export default function SevenBZeroPage() {
             console.log(`[Debate] Response from ${message.agent}`);
             const roundIndex = message.round - 1;
             if (!debateState.rounds[roundIndex]) {
-              debateState.rounds[roundIndex] = { round: message.round, responses: [] };
+              debateState.rounds[roundIndex] = { round: message.round, responses: [], expanded: true };
             }
             debateState.rounds[roundIndex].responses.push({
               agent: message.agent,
@@ -1648,14 +1753,31 @@ export default function SevenBZeroPage() {
             });
             setDebateData({...debateState});
             setThinkingStep(`💬 ${message.agent.toUpperCase()} svarade...`);
+            
+            // Update message in real-time with current debate state
+            updateDebateMessage(aiMessageId, debateState, false);
             break;
             
           case 'round_end':
             setThinkingStep(`✅ Runda ${message.round} avslutad`);
+            // Collapse previous rounds when starting a new one
+            if (message.round < debateState.maxRounds) {
+              debateState.rounds.forEach((r, idx) => {
+                if (idx < message.round - 1) {
+                  r.expanded = false;
+                }
+              });
+              setDebateData({...debateState});
+              updateDebateMessage(aiMessageId, debateState, false);
+            }
             break;
             
           case 'voting':
             setThinkingStep('🗳️ Röstning pågår...');
+            // Collapse all rounds during voting
+            debateState.rounds.forEach(r => r.expanded = false);
+            setDebateData({...debateState});
+            updateDebateMessage(aiMessageId, debateState, false);
             break;
             
           case 'winner':
@@ -1669,44 +1791,28 @@ export default function SevenBZeroPage() {
             // Show confetti!
             setShowConfetti(true);
             setTimeout(() => setShowConfetti(false), 5000);
+            
+            // Update message with winner
+            updateDebateMessage(aiMessageId, debateState, false);
             break;
             
           case 'summary':
             setThinkingStep('📝 Sammanfattning klar!');
             debateState.summary = message.data.summary;
             setDebateData({...debateState});
+            
+            // Update message with summary
+            updateDebateMessage(aiMessageId, debateState, false);
             break;
             
           case 'final':
             setThinkingStep(null);
             setIsTyping(false);
             
-            // Build final message text
-            let finalText = `## 🎤 Live AI-Debatt\n\n`;
-            finalText += `**Fråga:** ${question}\n\n`;
-            
-            // Show rounds
-            debateState.rounds.forEach(round => {
-              finalText += `### Runda ${round.round}\n\n`;
-              round.responses.forEach(resp => {
-                finalText += `**${resp.agent.toUpperCase()}:** ${resp.response.substring(0, 150)}...\n\n`;
-              });
-            });
-            
-            // Show winner
-            if (debateState.winner) {
-              finalText += `\n### 🏆 Vinnare: ${debateState.winner.toUpperCase()}\n`;
-              finalText += `**Röster:** ${debateState.winnerVotes}\n\n`;
-            }
-            
-            // Show summary
-            if (debateState.summary) {
-              finalText += `### 📋 Sammanfattning\n\n${debateState.summary}\n`;
-            }
-            
             const responseEndTime = Date.now();
             const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
             
+            // Final update with response time
             setMessages(prev => prev.map(msg => 
               msg.id === aiMessageId 
                 ? { 
@@ -1714,13 +1820,13 @@ export default function SevenBZeroPage() {
                     responseTime: finalResponseTime,
                     confidence: 0.9,
                     version: 'Live Debate Arena',
-                    debateMode: true,
-                    debateData: debateState,
+                    isTyping: false,
                   }
                 : msg
             ));
             
-            animateTyping(finalText, aiMessageId);
+            // Final update of debate message
+            updateDebateMessage(aiMessageId, debateState, true);
             ws.close();
             break;
             
