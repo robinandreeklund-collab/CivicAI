@@ -111,8 +111,10 @@ class TestApiCatalogConfigFile:
                 ref_file = category_config["$ref"]
                 ref_path = config_dir / ref_file
                 assert ref_path.exists(), f"Referenced file '{ref_file}' should exist"
+                # Validate that referenced file contains valid JSON
                 with open(ref_path, 'r', encoding='utf-8') as f:
                     ref_data = json.load(f)
+                assert isinstance(ref_data, dict), f"Referenced file '{ref_file}' should contain a JSON object"
                 assert "apis" in ref_data, f"Referenced category '{category_name}' should have 'apis' key"
                 apis = ref_data["apis"]
                 assert isinstance(apis, list), f"Category '{category_name}' apis should be a list"

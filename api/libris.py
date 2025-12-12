@@ -128,10 +128,10 @@ class LibrisClient:
             # Clean ISBN (remove dashes and spaces)
             isbn_clean = isbn.replace("-", "").replace(" ", "")
             
-            # Validate ISBN length
-            if not isbn_clean or len(isbn_clean) < 10:
+            # Validate ISBN length (must be exactly 10 or 13 digits)
+            if not isbn_clean or len(isbn_clean) not in [10, 13]:
                 return {
-                    "error": "Ogiltigt ISBN-nummer. Ange 10 eller 13 siffror.",
+                    "error": "Ogiltigt ISBN-nummer. Ange exakt 10 eller 13 siffror.",
                     "isbn": isbn
                 }
             
@@ -363,8 +363,8 @@ def extract_book_info_from_query(query: str) -> Tuple[Optional[str], Optional[st
     """
     query_lower = query.lower()
     
-    # Extract ISBN
-    isbn_match = re.search(r'\b(978|979)?[\d\-]{10,17}\b', query)
+    # Extract ISBN (valid ISBN-10 or ISBN-13)
+    isbn_match = re.search(r'\b(?:(?:978|979)\d{10}|\d{9}[\dXx])\b', query)
     isbn = isbn_match.group(0) if isbn_match else None
     
     # Extract quoted strings as potential titles

@@ -79,7 +79,7 @@
       "method": "book_author_lookup",
       "description": "Extrahera boktitel, författarnamn eller ISBN från användarens fråga",
       "patterns": {
-        "isbn": "\\b(978|979)?[\\d\\-]{10,17}\\b",
+        "isbn": "\\b(?:(?:978|979)\\d{10}|\\d{9}[\\dXx])\\b",
         "title": "\"([^\"]+)\"|'([^']+)'|bok.*?([A-ZÅÄÖ][a-zåäö]+(?:\\s+[A-ZÅÄÖ][a-zåäö]+)*)",
         "author": "\\b([A-ZÅÄÖ][a-zåäö]+(?:\\s+[A-ZÅÄÖ][a-zåäö]+){1,3})\\b"
       }
