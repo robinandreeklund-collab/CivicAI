@@ -1,7 +1,7 @@
 {
   "version": "7.0.0",
   "description": "ONESEEK Δ+ v7.0 - Modulär API-katalog med $ref-stöd för skalbar struktur",
-  "updated": "2025-12-10",
+  "updated": "2025-12-12",
   
   "active_features": {
     "intent_engine": false,
@@ -14,6 +14,9 @@
   "api_catalog": {
     "väder": {
       "$ref": "api_catalog_smhi.json"
+    },
+    "böcker": {
+      "$ref": "api_catalog_libris.json"
     }
   },
   
