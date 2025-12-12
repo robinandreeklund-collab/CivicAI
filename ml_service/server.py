@@ -12921,116 +12921,116 @@ KRITISKT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen markdown, in
             
             # Generate MTA-43 analysis using OneSeek model
             analysis_prompt = MTA43_PROMPT_TEMPLATE.format(text=combined_text)
+            
+            # Try with retry logic
+            analysis_data = None
+            for attempt in range(2):  # Try twice
+                try:
+                    # Call OneSeek model for analysis
+                    payload = {
+                        "model": "oneseek",
+                        "messages": [
+                            {"role": "system", "content": "Du är en JSON-analysmotor. Returnera ENDAST välformat JSON utan markdown eller extra text."},
+                            {"role": "user", "content": analysis_prompt}
+                        ],
+                        "temperature": 0.1 if attempt == 0 else 0.05,  # Even lower temp on retry
+                        "max_tokens": 5000,  # Increased for complete 43-dimension JSON
+                        "stream": False
+                    }
                 
-                # Try with retry logic
-                analysis_data = None
-                for attempt in range(2):  # Try twice
-                    try:
-                        # Call OneSeek model for analysis
-                        payload = {
-                            "model": "oneseek",
-                            "messages": [
-                                {"role": "system", "content": "Du är en JSON-analysmotor. Returnera ENDAST välformat JSON utan markdown eller extra text."},
-                                {"role": "user", "content": analysis_prompt}
-                            ],
-                            "temperature": 0.1 if attempt == 0 else 0.05,  # Even lower temp on retry
-                            "max_tokens": 5000,  # Increased for complete 43-dimension JSON
-                            "stream": False
-                        }
+                    server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                    response = requests.post(
+                        f"{server_url}/v1/chat/completions",
+                        json=payload,
+                        timeout=120,  # Increased timeout
+                    )
+                    response.raise_for_status()
+                    result = response.json()
                     
-                        server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
-                        response = requests.post(
-                            f"{server_url}/v1/chat/completions",
-                            json=payload,
-                            timeout=120,  # Increased timeout
-                        )
-                        response.raise_for_status()
-                        result = response.json()
+                    if 'choices' in result and len(result['choices']) > 0:
+                        analysis_json_text = result['choices'][0].get('message', {}).get('content', '{}')
+                    else:
+                        analysis_json_text = result.get('content', '{}')
+                    
+                    # Parse JSON with robust error handling
+                    import json
+                    import re
+                    
+                    # Try multiple extraction methods
+                    # 1. Extract from markdown code blocks
+                    json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', analysis_json_text, re.DOTALL)
+                    if json_match:
+                        analysis_json_text = json_match.group(1)
+                    
+                    # 2. Find first { to last } for JSON extraction
+                    start_idx = analysis_json_text.find('{')
+                    end_idx = analysis_json_text.rfind('}')
+                    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                        analysis_json_text = analysis_json_text[start_idx:end_idx+1]
+                    
+                    # 3. Try to parse with multiple fix attempts
+                    try:
+                        analysis_data = json.loads(analysis_json_text)
+                        logger.info(f"[MTA-43] Successfully parsed JSON for {agent}")
+                        break  # Success - exit retry loop
+                    except json.JSONDecodeError as je:
+                        logger.error(f"[MTA-43] Attempt {attempt+1} - JSON decode error for {agent}: {je}")
                         
-                        if 'choices' in result and len(result['choices']) > 0:
-                            analysis_json_text = result['choices'][0].get('message', {}).get('content', '{}')
-                        else:
-                            analysis_json_text = result.get('content', '{}')
-                        
-                        # Parse JSON with robust error handling
-                        import json
-                        import re
-                        
-                        # Try multiple extraction methods
-                        # 1. Extract from markdown code blocks
-                        json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', analysis_json_text, re.DOTALL)
-                        if json_match:
-                            analysis_json_text = json_match.group(1)
-                        
-                        # 2. Find first { to last } for JSON extraction
-                        start_idx = analysis_json_text.find('{')
-                        end_idx = analysis_json_text.rfind('}')
-                        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                            analysis_json_text = analysis_json_text[start_idx:end_idx+1]
-                        
-                        # 3. Try to parse with multiple fix attempts
-                        try:
-                            analysis_data = json.loads(analysis_json_text)
-                            logger.info(f"[MTA-43] Successfully parsed JSON for {agent}")
-                            break  # Success - exit retry loop
-                        except json.JSONDecodeError as je:
-                            logger.error(f"[MTA-43] Attempt {attempt+1} - JSON decode error for {agent}: {je}")
+                        if attempt == 0:
+                            # First attempt failed - try aggressive fixing
+                            fixed_text = analysis_json_text
                             
-                            if attempt == 0:
-                                # First attempt failed - try aggressive fixing
-                                fixed_text = analysis_json_text
-                                
-                                # 1. Remove trailing commas before } or ]
-                                fixed_text = re.sub(r',(\s*[}\]])', r'\1', fixed_text)
-                                
-                                # 2. Remove control characters and newlines in strings
-                                fixed_text = re.sub(r'[\x00-\x1f\x7f]', ' ', fixed_text)
-                                
-                                # 3. Fix common quote issues - escape unescaped quotes in values
-                                # This is tricky - we need to escape quotes that are inside string values
-                                # but not the structural quotes
-                                
-                                # 4. Add missing commas between fields (common error)
-                                fixed_text = re.sub(r'"\s*}\s*"', '"},\n"', fixed_text)
-                                
-                                # 5. Ensure proper spacing
-                                fixed_text = re.sub(r'\s+', ' ', fixed_text)
-                                
-                                try:
-                                    analysis_data = json.loads(fixed_text)
-                                    logger.info(f"[MTA-43] Successfully parsed after fixing common issues")
-                                    break
-                                except json.JSONDecodeError as je2:
-                                    logger.warning(f"[MTA-43] Fix failed: {je2}. Retrying with lower temperature...")
-                                    continue
-                            else:
-                                # Second attempt also failed
-                                logger.error(f"[MTA-43] All attempts failed for {agent}")
-                                logger.error(f"[MTA-43] JSON sample: {analysis_json_text[:300]}...")
-                                # Create minimal error structure
-                                analysis_data = {
-                                    "error": "JSON parsing failed after retries",
-                                    "sentiment": {"värde": "oklart", "skala": 0, "motivering": "Kunde inte analysera - JSON-formateringsfel"}
-                                }
+                            # 1. Remove trailing commas before } or ]
+                            fixed_text = re.sub(r',(\s*[}\]])', r'\1', fixed_text)
+                            
+                            # 2. Remove control characters and newlines in strings
+                            fixed_text = re.sub(r'[\x00-\x1f\x7f]', ' ', fixed_text)
+                            
+                            # 3. Fix common quote issues - escape unescaped quotes in values
+                            # This is tricky - we need to escape quotes that are inside string values
+                            # but not the structural quotes
+                            
+                            # 4. Add missing commas between fields (common error)
+                            fixed_text = re.sub(r'"\s*}\s*"', '"},\n"', fixed_text)
+                            
+                            # 5. Ensure proper spacing
+                            fixed_text = re.sub(r'\s+', ' ', fixed_text)
+                            
+                            try:
+                                analysis_data = json.loads(fixed_text)
+                                logger.info(f"[MTA-43] Successfully parsed after fixing common issues")
                                 break
-                        
-                    except Exception as e:
-                        logger.error(f"[MTA-43] Error analyzing {agent} round {round_num}: {e}")
-                        if attempt == 1:  # Last attempt
-                            # Continue with next response
-                            continue
-                
-                # Store analysis if we got one
-                if analysis_data:
-                    all_analyses.append({
-                        "agent": agent,
-                        "rounds_analyzed": [r['round'] for r in responses],
-                        "total_responses": len(responses),
-                        "analysis": analysis_data
-                    })
-                
-                # Small delay to avoid overwhelming
-                await asyncio.sleep(0.5)
+                            except json.JSONDecodeError as je2:
+                                logger.warning(f"[MTA-43] Fix failed: {je2}. Retrying with lower temperature...")
+                                continue
+                        else:
+                            # Second attempt also failed
+                            logger.error(f"[MTA-43] All attempts failed for {agent}")
+                            logger.error(f"[MTA-43] JSON sample: {analysis_json_text[:300]}...")
+                            # Create minimal error structure
+                            analysis_data = {
+                                "error": "JSON parsing failed after retries",
+                                "sentiment": {"värde": "oklart", "skala": 0, "motivering": "Kunde inte analysera - JSON-formateringsfel"}
+                            }
+                            break
+                    
+                except Exception as e:
+                    logger.error(f"[MTA-43] Error analyzing {agent}: {e}")
+                    if attempt == 1:  # Last attempt
+                        # Continue with next AI
+                        continue
+            
+            # Store analysis if we got one
+            if analysis_data:
+                all_analyses.append({
+                    "agent": agent,
+                    "rounds_analyzed": [r['round'] for r in responses],
+                    "total_responses": len(responses),
+                    "analysis": analysis_data
+                })
+            
+            # Small delay to avoid overwhelming
+            await asyncio.sleep(0.5)
         
         # Send complete analysis results as chat message
         summary_msg = f"✅ MTA-43 analys slutförd! Analyserade {len(all_analyses)} svar från debatten."
