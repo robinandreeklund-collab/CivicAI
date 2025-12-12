@@ -44,9 +44,9 @@
       "frequency": "realtid",
       "url": "https://libris.kb.se/xsearch?query=isbn:{isbn}&format=json&n=1",
       "url_template": true,
-      "keywords": ["isbn", "978", "91-", "bokens isbn", "isbn nummer", "isbn-nummer"],
+      "keywords": ["978-", "979-", "91-0-", "91-1-", "978", "979"],
       "priority": 3,
-      "description": "Endast vid exakt ISBN-fråga när användaren GER ett ISBN-nummer",
+      "description": "Endast när användaren GER ett faktiskt ISBN-nummer med siffror",
       "method": "GET",
       "parameters": {
         "isbn": {"type": "string", "required": true, "description": "ISBN-10 eller ISBN-13"},
@@ -54,7 +54,7 @@
       },
       "data_format": "JSON",
       "example_url": "https://libris.kb.se/xsearch?query=isbn:9789100128821&format=json&n=1",
-      "notes": "Används bara när användaren faktiskt nämner ett ISBN-nummer (t.ex. '978-91...')"
+      "notes": "VIKTIGT: Aktiveras ENDAST när användaren faktiskt anger ISBN-siffror (t.ex. '978-91-0-123456-7'). Om användaren frågar 'ge mig ISBN' eller 'vad är ISBN' använd libris_title_author_anything istället!"
     },
     {
       "name": "libris_author_bibliography",
