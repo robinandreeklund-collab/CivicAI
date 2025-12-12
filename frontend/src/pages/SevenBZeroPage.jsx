@@ -1922,46 +1922,59 @@ export default function SevenBZeroPage() {
             // Don't close yet - wait for potential analysis_offer
             break;
             
+          case 'message':
+            // Handle regular messages (including analysis offer/progress/results)
+            if (message.analysis_offer) {
+              // This is the MTA-43 analysis offer - add as message with buttons
+              const offerMsgId = generateMessageId();
+              setMessages(prev => [...prev, {
+                id: offerMsgId,
+                role: 'ai',
+                text: message.message,
+                agent: message.agent || 'oneseek',
+                timestamp: new Date(),
+                isTyping: false,
+                analysisOffer: true  // Flag to show Ja/Nej buttons
+              }]);
+            } else if (message.thinking) {
+              // Analysis progress message - show as thinking
+              setThinkingStep(message.message);
+            } else if (message.analysis_complete) {
+              // Analysis complete - add as regular message
+              setThinkingStep(null);
+              const completeMsgId = generateMessageId();
+              setMessages(prev => [...prev, {
+                id: completeMsgId,
+                role: 'ai',
+                text: message.message,
+                agent: message.agent || 'oneseek',
+                timestamp: new Date(),
+                isTyping: false,
+                analysisData: message.analysis_data
+              }]);
+              // Close websocket
+              ws.close();
+            } else {
+              // Regular message
+              const msgId = generateMessageId();
+              setMessages(prev => [...prev, {
+                id: msgId,
+                role: 'ai',
+                text: message.message,
+                agent: message.agent || 'oneseek',
+                timestamp: new Date(),
+                isTyping: false
+              }]);
+            }
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            break;
+            
+          // Legacy events - remove these handlers
           case 'analysis_offer':
-            // OneSeek offers MTA-43 analysis
-            setDebateRounds(prev => ({
-              ...prev,
-              analysisOffered: true,
-              analysisMessage: message.message
-            }));
-            break;
-            
           case 'analysis_start':
-            // User accepted - analysis started
-            setDebateRounds(prev => ({
-              ...prev,
-              analysisRunning: true,
-              analysisProgress: 0
-            }));
-            setThinkingStep('[analyserar...] Startar MTA-43 analys...');
-            break;
-            
           case 'analysis_progress':
-            // Update progress
-            setDebateRounds(prev => ({
-              ...prev,
-              analysisProgress: message.progress || 0
-            }));
-            setThinkingStep(`[analyserar...] ${message.message}`);
-            break;
-            
           case 'analysis_result':
-            // Analysis complete - show results
-            setThinkingStep(null);
-            setDebateRounds(prev => ({
-              ...prev,
-              analysisRunning: false,
-              analysisComplete: true,
-              analysisResults: message.data
-            }));
-            
-            // Close websocket after analysis
-            ws.close();
+            // These are now handled via 'message' type
             break;
             
           // Legacy events - kept for backward compatibility
@@ -2571,50 +2584,7 @@ export default function SevenBZeroPage() {
                 </div>
               )}
               
-              {/* MTA-43 Analysis Offer */}
-              {debateRounds.analysisOffered && !debateRounds.analysisRunning && !debateRounds.analysisComplete && (
-                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
-                  <div className="text-sm text-[#aaa] mb-4 leading-relaxed">
-                    {debateRounds.analysisMessage}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        // Send analysis request
-                        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                          wsRef.current.send(JSON.stringify({
-                            type: 'analysis_request',
-                            approved: true
-                          }));
-                        }
-                      }}
-                      className="px-4 py-2 bg-[#1a1a1a] hover:bg-[#222] text-[#aaa] text-sm rounded border border-[#333] transition-colors"
-                    >
-                      Ja
-                    </button>
-                    <button
-                      onClick={() => {
-                        // Decline analysis - close websocket
-                        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                          wsRef.current.send(JSON.stringify({
-                            type: 'analysis_request',
-                            approved: false
-                          }));
-                          wsRef.current.close();
-                        }
-                        // Hide offer
-                        setDebateRounds(prev => ({
-                          ...prev,
-                          analysisOffered: false
-                        }));
-                      }}
-                      className="px-4 py-2 bg-[#0a0a0a] hover:bg-[#1a1a1a] text-[#666] text-sm rounded border border-[#1a1a1a] transition-colors"
-                    >
-                      Nej
-                    </button>
-                  </div>
-                </div>
-              )}
+              {/* MTA-43 Analysis Offer - now handled via regular messages, remove this */}
               
               {/* MTA-43 Analysis Progress */}
               {debateRounds.analysisRunning && (
@@ -2997,6 +2967,49 @@ export default function SevenBZeroPage() {
                           {convertEmojis(msg.debateMode ? msg.text : (msg.isTyping ? currentTypingText : msg.text))}
                         </ReactMarkdown>
                       )}
+                    </div>
+                  )}
+                  
+                  {/* MTA-43 Analysis Offer Buttons */}
+                  {msg.analysisOffer && !msg.isTyping && (
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        onClick={() => {
+                          // Send analysis request
+                          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                            wsRef.current.send(JSON.stringify({
+                              type: 'analysis_request',
+                              approved: true
+                            }));
+                          }
+                          // Hide buttons by removing the flag
+                          setMessages(prev => prev.map(m => 
+                            m.id === msg.id ? { ...m, analysisOffer: false } : m
+                          ));
+                        }}
+                        className="px-4 py-2 bg-[#1a1a1a] hover:bg-[#222] text-[#aaa] text-sm rounded border border-[#333] transition-colors"
+                      >
+                        Ja
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Decline analysis - close websocket
+                          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                            wsRef.current.send(JSON.stringify({
+                              type: 'analysis_request',
+                              approved: false
+                            }));
+                            wsRef.current.close();
+                          }
+                          // Hide buttons
+                          setMessages(prev => prev.map(m => 
+                            m.id === msg.id ? { ...m, analysisOffer: false } : m
+                          ));
+                        }}
+                        className="px-4 py-2 bg-[#0a0a0a] hover:bg-[#1a1a1a] text-[#666] text-sm rounded border border-[#1a1a1a] transition-colors"
+                      >
+                        Nej
+                      </button>
                     </div>
                   )}
                   

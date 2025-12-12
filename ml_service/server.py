@@ -12781,14 +12781,18 @@ async def run_mta43_analysis(websocket: WebSocket, debate_rounds, question):
     Run Multidimensional Transparency Analysis (MTA-43) on entire debate.
     Analyzes each AI response with 43 dimensions, all in Swedish.
     Uses OneSeek model - no external libraries.
+    Results stream as chat messages.
     """
     try:
+        # Send start message as chat
         await websocket.send_json({
-            "type": "analysis_start",
-            "message": "🔬 Startar MTA-43 analys av debatten..."
+            "type": "message",
+            "agent": "oneseek",
+            "message": "🔬 Startar MTA-43 analys av debatten...",
+            "streaming": False
         })
         
-        # MTA-43 prompt template with all 43 dimensions
+        # MTA-43 prompt template with all 43 dimensions - improved for JSON reliability
         MTA43_PROMPT_TEMPLATE = """Du är en transparent analysmotor. Du måste svara strikt på svenska i ALLA delar av svaret.
 
 ABSOLUTA KRAV:
@@ -12798,7 +12802,10 @@ ABSOLUTA KRAV:
   0 = inte alls, 10 = extremt.
 - Du får INTE utelämna något fält. Alla fält måste finnas med även om värdet är "oklart".
 - Använd inte engelska ord eller etiketter. Om ett begrepp normalt är engelskt ska du översätta det.
-- Returnera ENDAST ett JSON-objekt. Ingen extra text.
+- VIKTIGT: Returnera ENDAST ett JSON-objekt. Ingen extra text före eller efter.
+- VIKTIGT: Alla citattecken i motiveringar måste escapas med backslash: \\"
+- VIKTIGT: Inga radbrytningar i string-värden - använd mellanslag istället.
+- VIKTIGT: Säkerställ att JSON-objektet är komplett - alla {{ }} måste vara balanserade.
 
 TEXT SOM SKA ANALYSERAS:
 {text}
@@ -12807,7 +12814,7 @@ Du ska skapa ett JSON-objekt med följande EXAKTA struktur.
 Varje fält ska innehålla:
 - "värde": klassificeringen på svenska
 - "skala": ett heltal 0–10
-- "motivering": en detaljerad och textnära förklaring på svenska
+- "motivering": en detaljerad och textnära förklaring på svenska (escape alla citattecken!)
 
 JSON-STRUKTUR (följ exakt):
 
@@ -12857,18 +12864,20 @@ JSON-STRUKTUR (följ exakt):
   "saknade_perspektiv": {{ "värde": "", "skala": 0, "motivering": "" }}
 }}
 
-INNAN DU SVARAR:
+INNAN DU SVARAR - SJÄLVKONTROLL:
 Du ska själv kontrollera att:
 - alla fält finns med
 - alla fält har "värde", "skala" och "motivering"
 - inga engelska ord förekommer
 - alla motiveringar är detaljerade och textnära
 - JSON-strukturen följer exakt formatet ovan
-- alla citattecken är korrekt escaped
+- alla citattecken är korrekt escaped med backslash: \\"
 - inga radbrytningar i string-värden (använd mellanslag istället)
 - JSON-objektet är komplett och välformat
+- alla {{ }} är balanserade
+- sista fältet har INTE komma efter }}
 
-VIKTIGT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen extra text före eller efter. Säkerställ att alla strängar är korrekt avslutade och att alla {} är balanserade."""
+KRITISKT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen markdown, ingen extra text före eller efter. Börja med {{ och sluta med }}. Säkerställ att alla strängar är korrekt avslutade och att alla parenteser är balanserade."""
         
         all_analyses = []
         total_responses = sum(len(r['responses']) for r in debate_rounds)
@@ -12882,105 +12891,126 @@ VIKTIGT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen extra text f�
                 agent = response_data['agent']
                 response_text = response_data['response']
                 
-                # Send progress update
+                # Send progress update as chat message
                 processed += 1
+                progress_msg = f"Analyserar {agent.upper()} från runda {round_num}... ({processed}/{total_responses})"
                 await websocket.send_json({
-                    "type": "analysis_progress",
-                    "message": f"Analyserar {agent.upper()} från runda {round_num}... ({processed}/{total_responses})",
-                    "progress": int((processed / total_responses) * 100)
+                    "type": "message",
+                    "agent": "oneseek",
+                    "message": progress_msg,
+                    "streaming": False,
+                    "thinking": True
                 })
                 
                 # Generate MTA-43 analysis using OneSeek model
                 analysis_prompt = MTA43_PROMPT_TEMPLATE.format(text=response_text)
                 
-                try:
-                    # Call OneSeek model for analysis
-                    payload = {
-                        "model": "oneseek",
-                        "messages": [{"role": "user", "content": analysis_prompt}],
-                        "temperature": 0.2,  # Lower temp for more consistent JSON
-                        "max_tokens": 4500,  # Increased for complete 43-dimension JSON
-                        "stream": False
-                    }
-                    
-                    server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
-                    response = requests.post(
-                        f"{server_url}/v1/chat/completions",
-                        json=payload,
-                        timeout=90,
-                    )
-                    response.raise_for_status()
-                    result = response.json()
-                    
-                    if 'choices' in result and len(result['choices']) > 0:
-                        analysis_json_text = result['choices'][0].get('message', {}).get('content', '{}')
-                    else:
-                        analysis_json_text = result.get('content', '{}')
-                    
-                    # Parse JSON with robust error handling
-                    import json
-                    import re
-                    
-                    analysis_data = None
-                    
-                    # Try multiple extraction methods
-                    # 1. Extract from markdown code blocks
-                    json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', analysis_json_text, re.DOTALL)
-                    if json_match:
-                        analysis_json_text = json_match.group(1)
-                    
-                    # 2. Find first { to last } for JSON extraction
-                    start_idx = analysis_json_text.find('{')
-                    end_idx = analysis_json_text.rfind('}')
-                    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                        analysis_json_text = analysis_json_text[start_idx:end_idx+1]
-                    
-                    # 3. Try to parse
+                # Try with retry logic
+                analysis_data = None
+                for attempt in range(2):  # Try twice
                     try:
-                        analysis_data = json.loads(analysis_json_text)
-                    except json.JSONDecodeError as je:
-                        logger.error(f"[MTA-43] JSON decode error for {agent} round {round_num}: {je}")
-                        logger.error(f"[MTA-43] Problematic JSON (first 500 chars): {analysis_json_text[:500]}")
+                        # Call OneSeek model for analysis
+                        payload = {
+                            "model": "oneseek",
+                            "messages": [
+                                {"role": "system", "content": "Du är en JSON-analysmotor. Returnera ENDAST välformat JSON utan markdown eller extra text."},
+                                {"role": "user", "content": analysis_prompt}
+                            ],
+                            "temperature": 0.1 if attempt == 0 else 0.05,  # Even lower temp on retry
+                            "max_tokens": 5000,  # Increased for complete 43-dimension JSON
+                            "stream": False
+                        }
+                    
+                        server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                        response = requests.post(
+                            f"{server_url}/v1/chat/completions",
+                            json=payload,
+                            timeout=120,  # Increased timeout
+                        )
+                        response.raise_for_status()
+                        result = response.json()
                         
-                        # Try to fix common issues
-                        # Remove trailing commas
-                        fixed_text = re.sub(r',(\s*[}\]])', r'\1', analysis_json_text)
-                        # Escape unescaped quotes in strings (best effort)
+                        if 'choices' in result and len(result['choices']) > 0:
+                            analysis_json_text = result['choices'][0].get('message', {}).get('content', '{}')
+                        else:
+                            analysis_json_text = result.get('content', '{}')
+                        
+                        # Parse JSON with robust error handling
+                        import json
+                        import re
+                        
+                        # Try multiple extraction methods
+                        # 1. Extract from markdown code blocks
+                        json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', analysis_json_text, re.DOTALL)
+                        if json_match:
+                            analysis_json_text = json_match.group(1)
+                        
+                        # 2. Find first { to last } for JSON extraction
+                        start_idx = analysis_json_text.find('{')
+                        end_idx = analysis_json_text.rfind('}')
+                        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                            analysis_json_text = analysis_json_text[start_idx:end_idx+1]
+                        
+                        # 3. Try to parse
                         try:
-                            analysis_data = json.loads(fixed_text)
-                            logger.info(f"[MTA-43] Successfully parsed after fixing common issues")
-                        except:
-                            # Give up, create minimal structure
-                            analysis_data = {
-                                "error": "JSON parsing failed",
-                                "raw_response": analysis_json_text[:1000],
-                                "sentiment": {"värde": "oklart", "skala": 0, "motivering": "Kunde inte analysera på grund av JSON-fel"}
-                            }
-                    
-                    if not analysis_data:
-                        continue
-                    
-                    # Store analysis
+                            analysis_data = json.loads(analysis_json_text)
+                            logger.info(f"[MTA-43] Successfully parsed JSON for {agent} round {round_num}")
+                            break  # Success - exit retry loop
+                        except json.JSONDecodeError as je:
+                            logger.error(f"[MTA-43] Attempt {attempt+1} - JSON decode error for {agent} round {round_num}: {je}")
+                            
+                            if attempt == 0:
+                                # First attempt failed - try fixing
+                                # Remove trailing commas
+                                fixed_text = re.sub(r',(\s*[}\]])', r'\1', analysis_json_text)
+                                # Remove control characters
+                                fixed_text = re.sub(r'[\x00-\x1f\x7f]', ' ', fixed_text)
+                                try:
+                                    analysis_data = json.loads(fixed_text)
+                                    logger.info(f"[MTA-43] Successfully parsed after fixing common issues")
+                                    break
+                                except:
+                                    # Will retry with lower temp
+                                    logger.warning(f"[MTA-43] Retrying with lower temperature...")
+                                    continue
+                            else:
+                                # Second attempt also failed
+                                logger.error(f"[MTA-43] All attempts failed for {agent} round {round_num}")
+                                logger.error(f"[MTA-43] JSON sample: {analysis_json_text[:300]}...")
+                                # Create minimal error structure
+                                analysis_data = {
+                                    "error": "JSON parsing failed after retries",
+                                    "sentiment": {"värde": "oklart", "skala": 0, "motivering": "Kunde inte analysera - JSON-formateringsfel"}
+                                }
+                                break
+                        
+                    except Exception as e:
+                        logger.error(f"[MTA-43] Error analyzing {agent} round {round_num}: {e}")
+                        if attempt == 1:  # Last attempt
+                            # Continue with next response
+                            continue
+                
+                # Store analysis if we got one
+                if analysis_data:
                     all_analyses.append({
                         "round": round_num,
                         "agent": agent,
-                        "response": response_text,
+                        "response": response_text[:200] + "...",  # Truncate for brevity
                         "analysis": analysis_data
                     })
-                    
-                except Exception as e:
-                    logger.error(f"[MTA-43] Error analyzing {agent} round {round_num}: {e}")
-                    # Continue with next response
-                    continue
                 
                 # Small delay to avoid overwhelming
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(0.3)
         
-        # Send complete analysis results
+        # Send complete analysis results as chat message
+        summary_msg = f"✅ MTA-43 analys slutförd! Analyserade {len(all_analyses)} svar från debatten."
         await websocket.send_json({
-            "type": "analysis_result",
-            "message": "✅ MTA-43 analys slutförd!",
-            "data": {
+            "type": "message",
+            "agent": "oneseek",
+            "message": summary_msg,
+            "streaming": False,
+            "analysis_complete": True,
+            "analysis_data": {
                 "question": question,
                 "total_analyzed": len(all_analyses),
                 "analyses": all_analyses
@@ -12992,8 +13022,11 @@ VIKTIGT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen extra text f�
     except Exception as e:
         logger.error(f"[MTA-43] Error during analysis: {e}")
         await websocket.send_json({
-            "type": "error",
-            "message": f"Fel vid analys: {str(e)}"
+            "type": "message",
+            "agent": "oneseek",
+            "message": f"❌ Fel vid MTA-43 analys: {str(e)}",
+            "streaming": False,
+            "error": True
         })
 
 
@@ -13757,21 +13790,31 @@ Skapa en kort, objektiv sammanfattning (max 150 ord) av debatten och förklara v
             }
         })
         
-        # Offer MTA-43 analysis
+        # Offer MTA-43 analysis as a regular OneSeek message (streaming)
+        analysis_offer_text = "Debatten är nu avslutad. Vill du att jag genomför en Multidimensionell Transparensanalys (MTA-43) på hela debatten, steg för steg, och presenterar resultatet för dig? Analysen är övergripande, systematisk och modelloberoende."
+        
         await websocket.send_json({
-            "type": "analysis_offer",
-            "message": "Debatten är nu avslutad. Vill du att jag genomför en Multidimensionell Transparensanalys (MTA-43) på hela debatten, steg för steg, och presenterar resultatet för dig? Analysen är övergripande, systematisk och modelloberoende."
+            "type": "message",
+            "agent": "oneseek",
+            "message": analysis_offer_text,
+            "analysis_offer": True  # Special flag to show Ja/Nej buttons
         })
         
-        # Wait for user response (30 seconds timeout)
+        # Wait for user response (60 seconds timeout)
         try:
-            response_data = await asyncio.wait_for(websocket.receive_json(), timeout=30.0)
+            response_data = await asyncio.wait_for(websocket.receive_json(), timeout=60.0)
             
             if response_data.get("type") == "analysis_request" and response_data.get("approved"):
-                # User approved - run MTA-43 analysis
+                # User approved - run MTA-43 analysis (stream as messages)
                 await run_mta43_analysis(websocket, debate_rounds, clean_question)
         except asyncio.TimeoutError:
             logger.info("[WS-Debate] No analysis request received within timeout")
+            # Send timeout message
+            await websocket.send_json({
+                "type": "message",
+                "agent": "oneseek",
+                "message": "Ingen respons mottagen. Avslutar debatten."
+            })
         except Exception as e:
             logger.error(f"[WS-Debate] Error waiting for analysis request: {e}")
         
