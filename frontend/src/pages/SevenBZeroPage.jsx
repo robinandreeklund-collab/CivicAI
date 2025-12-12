@@ -1697,6 +1697,25 @@ export default function SevenBZeroPage() {
             setThinkingStep(`🎤 Runda ${message.round} startar...`);
             setCurrentRound(message.round);
             
+            // Add debate marker message at round 1 start for chronological positioning
+            if (message.round === 1) {
+              const debateMarker = {
+                id: `debate-marker-${Date.now()}`,
+                type: 'assistant',
+                text: 'Debatten startar nu...',
+                timestamp: new Date().toISOString(),
+                isDebateMarker: true
+              };
+              
+              setMessages(prev => [...prev, debateMarker]);
+              setConversationHistory(prev => [...prev, {
+                role: 'assistant',
+                content: 'Debatten startar nu...',
+                timestamp: debateMarker.timestamp,
+                isDebateMarker: true
+              }]);
+            }
+            
             // Initialize round data structure
             setDebateRounds(prev => ({
               ...prev,
@@ -2566,8 +2585,8 @@ export default function SevenBZeroPage() {
             </div>
           )}
 
-          {/* Debate Rounds Display - New Component - Show when debate data exists (regardless of debateMode) */}
-          {Object.keys(debateRounds).length > 0 && (
+          {/* Debate Rounds Display moved to message timeline - rendered at debate marker position */}
+          {false && Object.keys(debateRounds).length > 0 && (
             <div className="mb-6">
               {Object.keys(debateRounds).filter(k => k !== 'completion').sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
                 <DebateRoundDisplay
@@ -2755,6 +2774,74 @@ export default function SevenBZeroPage() {
                         ))}
                       </div>
                     </div>
+                  </div>
+                </div>
+              );
+            }
+            
+            // Handle debate marker - render debate rounds at this position
+            if (msg.isDebateMarker && Object.keys(debateRounds).length > 0) {
+              return (
+                <div 
+                  key={msg.id}
+                  className="elegant-fade transition-all duration-500 w-full"
+                  style={{ animationDelay: `${idx * 0.05}s` }}
+                >
+                  {/* Timestamp */}
+                  <p className={`text-[10px] mb-2 tracking-wide uppercase ${
+                    whiteMode ? 'text-[#bbb]' : 'text-[#3a3a3a]'
+                  }`}>
+                    {formatDate(msg.timestamp)} · {formatTime(msg.timestamp)}
+                  </p>
+                  
+                  {/* Debate rounds display - now in chronological position */}
+                  <div className="mb-6">
+                    {Object.keys(debateRounds).filter(k => k !== 'completion').sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
+                      <DebateRoundDisplay
+                        key={roundNum}
+                        round={parseInt(roundNum)}
+                        aiData={debateRounds[roundNum]}
+                        isActive={parseInt(roundNum) === currentRound}
+                      />
+                    ))}
+                    
+                    {/* Debate Completion */}
+                    {debateRounds.completion && (
+                      <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                        <div className="text-sm font-medium text-[#888] mb-3">Debatt avslutad</div>
+                        
+                        {/* Voting Results */}
+                        <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
+                          <div className="text-xs text-[#666] mb-2">Röstning</div>
+                          <div className="space-y-1">
+                            {debateRounds.completion.voteResults?.map((vote, idx) => (
+                              <div key={idx} className="text-xs text-[#888]">
+                                {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        {/* Winner */}
+                        <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
+                          <div className="text-xs text-[#666] mb-1">Vinnare</div>
+                          <div className="text-sm text-[#aaa]">
+                            {debateRounds.completion.winner?.toUpperCase()}
+                            <span className="text-xs text-[#666] ml-2">
+                              ({debateRounds.completion.winnerVotes}/{debateRounds.completion.totalVotes} röster)
+                            </span>
+                          </div>
+                        </div>
+                        
+                        {/* Summary */}
+                        <div>
+                          <div className="text-xs text-[#666] mb-2">Sammanfattning</div>
+                          <div className="text-xs text-[#888] leading-relaxed">
+                            {debateRounds.completion.summary}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
