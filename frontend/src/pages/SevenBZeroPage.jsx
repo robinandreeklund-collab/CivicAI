@@ -2546,8 +2546,8 @@ export default function SevenBZeroPage() {
             </div>
           )}
 
-          {/* Debate Rounds Display - New Component */}
-          {debateMode && Object.keys(debateRounds).length > 0 && (
+          {/* Debate Rounds Display - New Component - Show when debate data exists (regardless of debateMode) */}
+          {Object.keys(debateRounds).length > 0 && (
             <div className="mb-6">
               {Object.keys(debateRounds).filter(k => k !== 'completion').sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
                 <DebateRoundDisplay
@@ -2650,7 +2650,28 @@ export default function SevenBZeroPage() {
             if (!(debateMode && Object.keys(debateRounds).length > 0)) return true;
             // If in debate mode with new component, show debate_complete, analysisOffer, analysis, and thinking messages (INCLUDING isThinking for progress)
             return msg.isDebateComplete || msg.analysisOffer || msg.analysisData || msg.isThinking || (msg.message && msg.message.includes("Analyserar"));
-          }).map((msg, idx) => {
+          }).reduce((acc, msg, idx, arr) => {
+            // Group consecutive isThinking messages into a single entry
+            if (msg.isThinking) {
+              // Check if the last item in accumulator is already a thinking group
+              if (acc.length > 0 && acc[acc.length - 1].isThinkingGroup) {
+                // Add to existing group
+                acc[acc.length - 1].messages.push(msg);
+              } else {
+                // Create new thinking group
+                acc.push({
+                  isThinkingGroup: true,
+                  messages: [msg],
+                  id: `thinking-group-${msg.id}`,
+                  timestamp: msg.timestamp
+                });
+              }
+            } else {
+              // Regular message
+              acc.push(msg);
+            }
+            return acc;
+          }, []).map((msg, idx) => {
             // Calculate opacity based on position - newer messages are more visible
             const totalMessages = messages.length;
             const distanceFromEnd = totalMessages - 1 - idx;
@@ -2658,6 +2679,73 @@ export default function SevenBZeroPage() {
             const isRecent = distanceFromEnd <= 1;
             const isHighlighted = highlightedMessage === msg.id;
             
+            // Handle thinking group
+            if (msg.isThinkingGroup) {
+              return (
+                <div 
+                  key={msg.id}
+                  className="elegant-fade transition-all duration-500 flex flex-col items-start"
+                  style={{ animationDelay: `${idx * 0.05}s` }}
+                >
+                  {/* Timestamp */}
+                  <p className={`text-[10px] mb-2 tracking-wide uppercase ${
+                    whiteMode ? 'text-[#bbb]' : 'text-[#3a3a3a]'
+                  }`}>
+                    {formatDate(msg.timestamp)} · {formatTime(msg.timestamp)}
+                  </p>
+                  
+                  <div className="max-w-4xl relative group">
+                    {/* AI Meta */}
+                    <div className={`text-[10px] mb-2 tracking-wide font-light uppercase flex items-center gap-3 ${
+                      whiteMode ? 'text-[#999]' : 'text-[#4a4a4a]'
+                    }`}>
+                      <span className={whiteMode ? 'text-[#666]' : 'text-[#666]'}>ONESEEK</span>
+                      <button 
+                        className={`ml-2 px-2 py-0.5 rounded text-[9px] border transition-all ${
+                          whiteMode 
+                            ? 'border-[#ddd] hover:border-[#999] hover:bg-[#f5f5f5]' 
+                            : 'border-[#333] hover:border-[#555] hover:bg-[#111]'
+                        }`}
+                      >
+                        🔄 Konsensus
+                      </button>
+                    </div>
+                    
+                    {/* Grouped thinking messages */}
+                    <div className={`rounded-lg border p-4 ${
+                      whiteMode 
+                        ? 'bg-[#f5f5f5] border-[#e0e0e0]' 
+                        : 'bg-[#0d0d0d] border-[#1a1a1a]'
+                    }`}>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={`text-[14px] font-light ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
+                          🔬 MTA-16 Analys pågår
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className={`w-2 h-2 rounded-full loading-dot-1 ${whiteMode ? 'bg-[#333]' : 'bg-white'}`} />
+                          <span className={`w-2 h-2 rounded-full loading-dot-2 ${whiteMode ? 'bg-[#333]' : 'bg-white'}`} />
+                          <span className={`w-2 h-2 rounded-full loading-dot-3 ${whiteMode ? 'bg-[#333]' : 'bg-white'}`} />
+                        </div>
+                      </div>
+                      
+                      {/* All thinking messages grouped */}
+                      <div className="space-y-1.5">
+                        {msg.messages.map((thinkMsg, thinkIdx) => (
+                          <div 
+                            key={thinkMsg.id}
+                            className={`text-xs ${whiteMode ? 'text-[#888]' : 'text-[#666]'}`}
+                          >
+                            {thinkMsg.text}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            
+            // Regular message rendering
             return (
             <div 
               key={msg.debateMode && msg.debateData?._updateCounter ? `${msg.id}-debate-${msg.debateData._updateCounter}` : msg.id}
