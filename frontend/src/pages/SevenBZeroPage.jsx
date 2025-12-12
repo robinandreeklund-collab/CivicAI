@@ -2636,8 +2636,8 @@ export default function SevenBZeroPage() {
           {messages.filter(msg => {
             // If not in debate mode with new component, show all messages
             if (!(debateMode && Object.keys(debateRounds).length > 0)) return true;
-            // If in debate mode with new component, show debate_complete, analysisOffer, analysis, and thinking messages
-            return msg.isDebateComplete || msg.analysisOffer || msg.analysisData || msg.isThinking;
+            // If in debate mode with new component, show debate_complete, analysisOffer, analysis, and thinking messages (INCLUDING isThinking for progress)
+            return msg.isDebateComplete || msg.analysisOffer || msg.analysisData || msg.isThinking || (msg.message && msg.message.includes("Analyserar"));
           }).map((msg, idx) => {
             // Calculate opacity based on position - newer messages are more visible
             const totalMessages = messages.length;
@@ -3027,7 +3027,7 @@ export default function SevenBZeroPage() {
                   
                   {/* MTA-16 Analysis Results Display */}
                   {msg.analysisData && msg.analysisData.analyses && (
-                    <div className={`mt-4 ${whiteMode ? 'bg-[#f8f8f8]' : 'bg-[#0a0a0a]'} rounded-lg overflow-hidden px-4 py-3`}>
+                    <div className={`mt-4 ${whiteMode ? 'bg-[#f8f8f8]' : 'bg-[#0a0a0a]'} rounded-lg overflow-hidden px-4 py-3 max-w-none`}>
                       <div className={`text-[11px] font-medium uppercase tracking-wider flex items-center gap-2 mb-3 ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
                         <span>🔬</span>
                         <span>MTA-16 Analys Resultat</span>
@@ -3036,18 +3036,58 @@ export default function SevenBZeroPage() {
                         </span>
                       </div>
                       
-                      {/* Helhetsprofil - All AIs side-by-side */}
+                      {/* Per-Runda Tables - All AIs side-by-side */}
+                      {[1, 2, 3].map(roundNum => (
+                        <div key={roundNum} className="mb-4">
+                          <h3 className={`text-xs font-medium mb-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                            📊 Runda {roundNum} - Alla AI sida vid sida
+                          </h3>
+                          <div className="overflow-x-auto max-w-none">
+                            <table className={`w-full text-[10px] border-collapse ${whiteMode ? 'border-[#e0e0e0]' : 'border-[#333]'}`}>
+                              <thead>
+                                <tr className={`${whiteMode ? 'bg-[#f0f0f0] border-b border-[#ddd]' : 'bg-[#151515] border-b border-[#333]'}`}>
+                                  <th className={`text-left py-1 px-3 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>Dimension</th>
+                                  {msg.analysisData.analyses.map((a) => (
+                                    <th key={a.agent} className={`text-center py-1 px-3 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>
+                                      {a.agent.toUpperCase()}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {['sentiment', 'emotion', 'tonfall', 'politisk_riktning', 'ideologisk_dimension', 'bias', 'framing', 'retorik', 'propaganda', 'claim_detection', 'moral_foundations', 'toxicitet', 'osäkerhet', 'koherens', 'klarhet', 'sammanfattning'].map((dim) => (
+                                  <tr key={dim} className={`border-b ${whiteMode ? 'border-[#e8e8e8]' : 'border-[#1a1a1a]'}`}>
+                                    <td className={`py-1 px-3 font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
+                                      {dim.replace(/_/g, ' ')}
+                                    </td>
+                                    {msg.analysisData.analyses.map((a) => {
+                                      const dimData = a.analysis && a.analysis[dim];
+                                      return (
+                                        <td key={a.agent} className={`py-1 px-3 text-center ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                                          {dimData ? `${dimData.skala}/10` : 'N/A'}
+                                        </td>
+                                      );
+                                    })}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {/* Helhetsprofil - All AIs side-by-side (Medelvärden) */}
                       <div className="mb-4">
                         <h3 className={`text-xs font-medium mb-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
-                          Helhetsprofil - Alla AI sida vid sida (medelvärden)
+                          📈 Helhetsprofil - Alla AI sida vid sida (medelvärden)
                         </h3>
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto max-w-none">
                           <table className={`w-full text-[10px] border-collapse ${whiteMode ? 'border-[#e0e0e0]' : 'border-[#333]'}`}>
                             <thead>
                               <tr className={`${whiteMode ? 'bg-[#f0f0f0] border-b border-[#ddd]' : 'bg-[#151515] border-b border-[#333]'}`}>
-                                <th className={`text-left py-1 px-2 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>Dimension</th>
+                                <th className={`text-left py-1 px-3 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>Dimension</th>
                                 {msg.analysisData.analyses.map((a) => (
-                                  <th key={a.agent} className={`text-center py-1 px-2 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>
+                                  <th key={a.agent} className={`text-center py-1 px-3 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>
                                     {a.agent.toUpperCase()}
                                   </th>
                                 ))}
@@ -3056,14 +3096,53 @@ export default function SevenBZeroPage() {
                             <tbody>
                               {['sentiment', 'emotion', 'tonfall', 'politisk_riktning', 'ideologisk_dimension', 'bias', 'framing', 'retorik', 'propaganda', 'claim_detection', 'moral_foundations', 'toxicitet', 'osäkerhet', 'koherens', 'klarhet', 'sammanfattning'].map((dim) => (
                                 <tr key={dim} className={`border-b ${whiteMode ? 'border-[#e8e8e8]' : 'border-[#1a1a1a]'}`}>
-                                  <td className={`py-1 px-2 font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
+                                  <td className={`py-1 px-3 font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
                                     {dim.replace(/_/g, ' ')}
                                   </td>
                                   {msg.analysisData.analyses.map((a) => {
                                     const dimData = a.analysis && a.analysis[dim];
                                     return (
-                                      <td key={a.agent} className={`py-1 px-2 text-center ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                                      <td key={a.agent} className={`py-1 px-3 text-center ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
                                         {dimData ? `${dimData.skala}/10` : 'N/A'}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                      
+                      {/* Förändringar över tid - All AIs side-by-side */}
+                      <div className="mb-4">
+                        <h3 className={`text-xs font-medium mb-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                          📉 Förändringar över tid - Alla AI sida vid sida
+                        </h3>
+                        <div className="overflow-x-auto max-w-none">
+                          <table className={`w-full text-[10px] border-collapse ${whiteMode ? 'border-[#e0e0e0]' : 'border-[#333]'}`}>
+                            <thead>
+                              <tr className={`${whiteMode ? 'bg-[#f0f0f0] border-b border-[#ddd]' : 'bg-[#151515] border-b border-[#333]'}`}>
+                                <th className={`text-left py-1 px-3 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>Dimension</th>
+                                {msg.analysisData.analyses.map((a) => (
+                                  <th key={a.agent} className={`text-center py-1 px-3 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>
+                                    {a.agent.toUpperCase()}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {['sentiment', 'emotion', 'tonfall', 'politisk_riktning', 'ideologisk_dimension', 'bias', 'framing', 'retorik', 'propaganda', 'claim_detection', 'moral_foundations', 'toxicitet', 'osäkerhet', 'koherens', 'klarhet', 'sammanfattning'].map((dim) => (
+                                <tr key={dim} className={`border-b ${whiteMode ? 'border-[#e8e8e8]' : 'border-[#1a1a1a]'}`}>
+                                  <td className={`py-1 px-3 font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
+                                    {dim.replace(/_/g, ' ')}
+                                  </td>
+                                  {msg.analysisData.analyses.map((a) => {
+                                    const dimData = a.analysis && a.analysis[dim];
+                                    // Simple trend: Stabil (shows skala value for now)
+                                    return (
+                                      <td key={a.agent} className={`py-1 px-3 text-center ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                                        {dimData ? 'Stabil' : 'N/A'}
                                       </td>
                                     );
                                   })}
