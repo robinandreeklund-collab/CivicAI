@@ -2664,13 +2664,8 @@ export default function SevenBZeroPage() {
             </div>
           )}
 
-          {/* Messages - Filter to show only non-debate messages or debate completion when using new component */}
-          {messages.filter(msg => {
-            // If not in debate mode with new component, show all messages
-            if (!(debateMode && Object.keys(debateRounds).length > 0)) return true;
-            // If in debate mode with new component, show debate_complete, analysisOffer, analysis, and thinking messages (INCLUDING isThinking for progress)
-            return msg.isDebateComplete || msg.analysisOffer || msg.analysisData || msg.isThinking || (msg.message && msg.message.includes("Analyserar"));
-          }).reduce((acc, msg, idx, arr) => {
+          {/* Messages - Show ALL messages in one view (debate button only controls model behavior, not view) */}
+          {messages.reduce((acc, msg, idx, arr) => {
             // Group consecutive isThinking messages into a single entry
             if (msg.isThinking) {
               // Check if the last item in accumulator is already a thinking group
