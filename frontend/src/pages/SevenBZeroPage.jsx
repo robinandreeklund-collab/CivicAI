@@ -1919,6 +1919,9 @@ export default function SevenBZeroPage() {
             setTimeout(() => setShowConfetti(false), 5000);
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             
+            // Auto-toggle to Debate OFF mode - cleaner workflow
+            setDebateMode(false);
+            
             // Don't close yet - wait for potential analysis_offer
             break;
             
@@ -1936,9 +1939,18 @@ export default function SevenBZeroPage() {
                 isTyping: false,
                 analysisOffer: true  // Flag to show Ja/Nej buttons
               }]);
-            } else if (message.thinking) {
-              // Analysis progress message - show as thinking
-              setThinkingStep(message.message);
+            } else if (message.thinking || message.isThinking) {
+              // Analysis progress message - add as message with isThinking flag for grouped display
+              const thinkingMsgId = generateMessageId();
+              setMessages(prev => [...prev, {
+                id: thinkingMsgId,
+                role: 'ai',
+                text: message.message,
+                agent: message.agent || 'oneseek',
+                timestamp: new Date(),
+                isThinking: true,
+                isTyping: false
+              }]);
             } else if (message.analysis_complete) {
               // Analysis complete - add as regular message
               setThinkingStep(null);
@@ -3176,6 +3188,127 @@ export default function SevenBZeroPage() {
                               ))}
                             </tbody>
                           </table>
+                        </div>
+                      </div>
+                      
+                      {/* Sparkline-Grid: Top 5 Dimensions with Most Change */}
+                      <div className="mb-4">
+                        <h3 className={`text-xs font-medium mb-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                          📊 Sparkline-Grid - Top 5 dimensioner med störst förändring
+                        </h3>
+                        <div className={`p-3 rounded ${whiteMode ? 'bg-[#f8f8f8]' : 'bg-[#0f0f0f]'}`}>
+                          {(() => {
+                            // Calculate top 5 dimensions by change magnitude
+                            const dimensions = ['sentiment', 'emotion', 'tonfall', 'politisk_riktning', 'ideologisk_dimension', 'bias', 'framing', 'retorik', 'propaganda', 'claim_detection', 'moral_foundations', 'toxicitet', 'osäkerhet', 'koherens', 'klarhet', 'sammanfattning'];
+                            const dimChanges = [];
+                            
+                            dimensions.forEach(dim => {
+                              let maxChange = 0;
+                              msg.analysisData.analyses.forEach(a => {
+                                const perRoundData = a.per_round_analyses || {};
+                                const r1Data = perRoundData['round_1'];
+                                const r3Data = perRoundData['round_3'];
+                                if (r1Data && r3Data && r1Data[dim] && r3Data[dim]) {
+                                  const change = Math.abs(r3Data[dim].skala - r1Data[dim].skala);
+                                  if (change > maxChange) maxChange = change;
+                                }
+                              });
+                              dimChanges.push({ dim, maxChange });
+                            });
+                            
+                            // Sort by max change and take top 5
+                            const top5 = dimChanges.sort((a, b) => b.maxChange - a.maxChange).slice(0, 5);
+                            
+                            // AI colors
+                            const aiColors = {
+                              'gpt': '#60a5fa',
+                              'gemini': '#34d399',
+                              'deepseek': '#f472b6',
+                              'grok': '#fbbf24',
+                              'oneseek': '#a78bfa'
+                            };
+                            
+                            return (
+                              <div className="grid grid-cols-1 gap-3">
+                                {top5.map(({ dim }) => (
+                                  <div key={dim} className={`p-2 rounded ${whiteMode ? 'bg-white' : 'bg-[#1a1a1a]'}`}>
+                                    <div className={`text-[10px] font-medium mb-2 ${whiteMode ? 'text-[#555]' : 'text-[#999]'}`}>
+                                      {dim.replace(/_/g, ' ')}
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      {msg.analysisData.analyses.map(a => {
+                                        const perRoundData = a.per_round_analyses || {};
+                                        const values = [];
+                                        for (let r = 1; r <= 3; r++) {
+                                          const roundData = perRoundData[`round_${r}`];
+                                          if (roundData && roundData[dim] && roundData[dim].skala !== undefined) {
+                                            values.push(roundData[dim].skala);
+                                          } else {
+                                            values.push(null);
+                                          }
+                                        }
+                                        
+                                        // Skip if no data
+                                        if (values.every(v => v === null)) return null;
+                                        
+                                        const color = aiColors[a.agent.toLowerCase()] || '#888';
+                                        
+                                        return (
+                                          <div key={a.agent} className="flex-1">
+                                            <div className={`text-[8px] mb-1 ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
+                                              {a.agent.toUpperCase()}
+                                            </div>
+                                            <svg width="50" height="24" className="w-full">
+                                              {/* Grid lines */}
+                                              <line x1="0" y1="2" x2="50" y2="2" stroke={whiteMode ? '#e0e0e0' : '#333'} strokeWidth="0.5" />
+                                              <line x1="0" y1="12" x2="50" y2="12" stroke={whiteMode ? '#e0e0e0' : '#333'} strokeWidth="0.5" />
+                                              <line x1="0" y1="22" x2="50" y2="22" stroke={whiteMode ? '#e0e0e0' : '#333'} strokeWidth="0.5" />
+                                              
+                                              {/* Line chart */}
+                                              {values.filter(v => v !== null).length >= 2 && (
+                                                <polyline
+                                                  points={values.map((v, i) => {
+                                                    if (v === null) return null;
+                                                    const x = i * 25; // 0, 25, 50 for rounds 1, 2, 3
+                                                    const y = 22 - (v / 10 * 20); // Scale 0-10 to 22-2 (inverted)
+                                                    return `${x},${y}`;
+                                                  }).filter(p => p !== null).join(' ')}
+                                                  fill="none"
+                                                  stroke={color}
+                                                  strokeWidth="1.5"
+                                                />
+                                              )}
+                                              
+                                              {/* Data points */}
+                                              {values.map((v, i) => {
+                                                if (v === null) return null;
+                                                const x = i * 25;
+                                                const y = 22 - (v / 10 * 20);
+                                                return (
+                                                  <circle
+                                                    key={i}
+                                                    cx={x}
+                                                    cy={y}
+                                                    r="1.5"
+                                                    fill={color}
+                                                  />
+                                                );
+                                              })}
+                                            </svg>
+                                            <div className={`text-[7px] flex justify-between ${whiteMode ? 'text-[#999]' : 'text-[#666]'}`}>
+                                              <span>R1</span>
+                                              <span>R2</span>
+                                              <span>R3</span>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                       
