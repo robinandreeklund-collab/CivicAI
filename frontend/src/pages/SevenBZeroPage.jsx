@@ -2636,8 +2636,8 @@ export default function SevenBZeroPage() {
           {messages.filter(msg => {
             // If not in debate mode with new component, show all messages
             if (!(debateMode && Object.keys(debateRounds).length > 0)) return true;
-            // If in debate mode with new component, show debate_complete, analysisOffer, and analysis messages
-            return msg.isDebateComplete || msg.analysisOffer || msg.analysisData || msg.thinking;
+            // If in debate mode with new component, show debate_complete, analysisOffer, analysis, and thinking messages
+            return msg.isDebateComplete || msg.analysisOffer || msg.analysisData || msg.isThinking;
           }).map((msg, idx) => {
             // Calculate opacity based on position - newer messages are more visible
             const totalMessages = messages.length;

@@ -12916,7 +12916,7 @@ KRITISKT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen markdown, in
                 "agent": "oneseek",
                 "message": progress_msg,
                 "streaming": False,
-                "thinking": True
+                "isThinking": True
             })
             
             # Generate MTA-43 analysis using OneSeek model
@@ -12934,7 +12934,8 @@ KRITISKT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen markdown, in
                             {"role": "user", "content": analysis_prompt}
                         ],
                         "temperature": 0.1 if attempt == 0 else 0.05,  # Even lower temp on retry
-                        "max_tokens": 5000,  # Increased for complete 43-dimension JSON
+                        "max_tokens": 6000,  # Increased for complete 43-dimension JSON (5500+ needed)
+                        "response_format": {"type": "json_object"},  # Force JSON mode in llama.cpp
                         "stream": False
                     }
                 
@@ -12967,6 +12968,10 @@ KRITISKT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen markdown, in
                     end_idx = analysis_json_text.rfind('}')
                     if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
                         analysis_json_text = analysis_json_text[start_idx:end_idx+1]
+                    
+                    # 2.5. Strip newlines from ALL string values (critical for nested objects)
+                    # This prevents "Expecting ',' delimiter" errors from newlines in motivering fields
+                    analysis_json_text = re.sub(r'\\n|\\r|\\t', ' ', analysis_json_text)
                     
                     # 3. Try to parse with multiple fix attempts
                     try:
