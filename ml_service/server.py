@@ -12866,17 +12866,12 @@ Returnera sedan ENDAST JSON-objektet."""
         total_ais = len(ai_responses)
         processed = 0
         
-        # Analyze each AI's complete debate participation
+        # Analyze each AI's participation PER ROUND (not combined)
         for agent, responses in ai_responses.items():
             processed += 1
             
-            # Combine all responses from this AI with round markers
-            combined_text = ""
-            for resp in responses:
-                combined_text += f"\\n\\n--- RUNDA {resp['round']} ---\\n{resp['text']}"
-            
             # Send progress update
-            progress_msg = f"Analyserar {agent.upper()}s hela debattdeltagande... ({processed}/{total_ais})"
+            progress_msg = f"Analyserar {agent.upper()}s debattdeltagande per runda... ({processed}/{total_ais})"
             await websocket.send_json({
                 "type": "message",
                 "agent": "oneseek",
@@ -12885,147 +12880,184 @@ Returnera sedan ENDAST JSON-objektet."""
                 "isThinking": True
             })
             
-            # Generate MTA-16 analysis using OneSeek model
-            analysis_prompt = MTA16_PROMPT_TEMPLATE.format(text=combined_text)
-            
-            # Try with retry logic
-            analysis_data = None
-            for attempt in range(2):  # Try twice
-                try:
-                    # Call OneSeek model for analysis
-                    payload = {
-                        "model": "oneseek",
-                        "messages": [
-                            {"role": "system", "content": "Du är en JSON-analysmotor. Returnera ENDAST välformat JSON utan markdown eller extra text."},
-                            {"role": "user", "content": analysis_prompt}
-                        ],
-                        "temperature": 0.1 if attempt == 0 else 0.05,  # Even lower temp on retry
-                        "max_tokens": 3500,  # Reduced from 6000 - enough for 16 fields (was 43)
-                        "response_format": {"type": "json_object"},  # Force JSON mode in llama.cpp
-                        "stream": False
-                    }
+            # Analyze EACH ROUND SEPARATELY (critical for trend analysis)
+            per_round_analyses = {}
+            for resp in responses:
+                round_num = resp['round']
+                round_text = resp['text']
                 
-                    server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
-                    response = requests.post(
-                        f"{server_url}/v1/chat/completions",
-                        json=payload,
-                        timeout=120,  # Increased timeout
-                    )
-                    response.raise_for_status()
-                    result = response.json()
-                    
-                    if 'choices' in result and len(result['choices']) > 0:
-                        analysis_json_text = result['choices'][0].get('message', {}).get('content', '{}')
-                    else:
-                        analysis_json_text = result.get('content', '{}')
-                    
-                    # Parse JSON with robust error handling
-                    import json
-                    import re
-                    
-                    # Try multiple extraction methods
-                    # 1. Extract from markdown code blocks
-                    json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', analysis_json_text, re.DOTALL)
-                    if json_match:
-                        analysis_json_text = json_match.group(1)
-                    
-                    # 2. Find first { to last } for JSON extraction
-                    start_idx = analysis_json_text.find('{')
-                    end_idx = analysis_json_text.rfind('}')
-                    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                        analysis_json_text = analysis_json_text[start_idx:end_idx+1]
-                    
-                    # 2.5. Strip newlines from ALL string values (critical for nested objects)
-                    # This prevents "Expecting ',' delimiter" errors from newlines in motivering fields
-                    analysis_json_text = re.sub(r'\\n|\\r|\\t', ' ', analysis_json_text)
-                    
-                    # 3. Try to parse with multiple fix attempts
+                # Generate MTA-16 analysis for THIS SPECIFIC ROUND
+                analysis_prompt = MTA16_PROMPT_TEMPLATE.format(text=f"RUNDA {round_num}:\\n{round_text}")
+                
+                # Try with retry logic for THIS ROUND
+                analysis_data = None
+                for attempt in range(2):  # Try twice
                     try:
-                        analysis_data = json.loads(analysis_json_text)
-                        logger.info(f"[MTA-16] Successfully parsed JSON for {agent}")
-                        break  # Success - exit retry loop
-                    except json.JSONDecodeError as je:
-                        logger.error(f"[MTA-16] Attempt {attempt+1} - JSON decode error for {agent}: {je}")
-                        
-                        if attempt == 0:
-                            # First attempt failed - try aggressive fixing
-                            fixed_text = analysis_json_text
-                            
-                            # 1. Remove trailing commas before } or ]
-                            fixed_text = re.sub(r',(\s*[}\]])', r'\1', fixed_text)
-                            
-                            # 2. Remove control characters and newlines in strings
-                            fixed_text = re.sub(r'[\x00-\x1f\x7f]', ' ', fixed_text)
-                            
-                            # 3. Fix common quote issues - escape unescaped quotes in values
-                            # This is tricky - we need to escape quotes that are inside string values
-                            # but not the structural quotes
-                            
-                            # 4. Add missing commas between fields (common error)
-                            fixed_text = re.sub(r'"\s*}\s*"', '"},\n"', fixed_text)
-                            
-                            # 5. Ensure proper spacing
-                            fixed_text = re.sub(r'\s+', ' ', fixed_text)
-                            
-                            try:
-                                analysis_data = json.loads(fixed_text)
-                                logger.info(f"[MTA-16] Successfully parsed after fixing common issues")
-                                break
-                            except json.JSONDecodeError as je2:
-                                logger.warning(f"[MTA-16] Fix failed: {je2}. Retrying with lower temperature...")
-                                continue
-                        else:
-                            # Second attempt also failed
-                            logger.error(f"[MTA-16] All attempts failed for {agent}")
-                            logger.error(f"[MTA-16] JSON sample: {analysis_json_text[:300]}...")
-                            # Create minimal error structure
-                            analysis_data = {
-                                "error": "JSON parsing failed after retries",
-                                "sentiment": {"värde": "oklart", "skala": 0, "motivering": "Kunde inte analysera - JSON-formateringsfel"}
-                            }
-                            break
+                        # Call OneSeek model for analysis
+                        payload = {
+                            "model": "oneseek",
+                            "messages": [
+                                {"role": "system", "content": "Du är en JSON-analysmotor. Returnera ENDAST välformat JSON utan markdown eller extra text."},
+                                {"role": "user", "content": analysis_prompt}
+                            ],
+                            "temperature": 0.1 if attempt == 0 else 0.05,  # Even lower temp on retry
+                            "max_tokens": 3500,  # Reduced from 6000 - enough for 16 fields (was 43)
+                            "response_format": {"type": "json_object"},  # Force JSON mode in llama.cpp
+                            "stream": False
+                        }
                     
-                except Exception as e:
-                    logger.error(f"[MTA-16] Error analyzing {agent}: {e}")
-                    if attempt == 1:  # Last attempt
-                        # Continue with next AI
-                        continue
+                        server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                        response = requests.post(
+                            f"{server_url}/v1/chat/completions",
+                            json=payload,
+                            timeout=120,  # Increased timeout
+                        )
+                        response.raise_for_status()
+                        result = response.json()
+                        
+                        if 'choices' in result and len(result['choices']) > 0:
+                            analysis_json_text = result['choices'][0].get('message', {}).get('content', '{}')
+                        else:
+                            analysis_json_text = result.get('content', '{}')
+                        
+                        # Parse JSON with robust error handling
+                        import json
+                        import re
+                        
+                        # Try multiple extraction methods
+                        # 1. Extract from markdown code blocks
+                        json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', analysis_json_text, re.DOTALL)
+                        if json_match:
+                            analysis_json_text = json_match.group(1)
+                        
+                        # 2. Find first { to last } for JSON extraction
+                        start_idx = analysis_json_text.find('{')
+                        end_idx = analysis_json_text.rfind('}')
+                        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                            analysis_json_text = analysis_json_text[start_idx:end_idx+1]
+                        
+                        # 2.5. Strip newlines from ALL string values (critical for nested objects)
+                        # This prevents "Expecting ',' delimiter" errors from newlines in motivering fields
+                        analysis_json_text = re.sub(r'\\n|\\r|\\t', ' ', analysis_json_text)
+                        
+                        # 3. Try to parse with multiple fix attempts
+                        try:
+                            analysis_data = json.loads(analysis_json_text)
+                            logger.info(f"[MTA-16] Successfully parsed JSON for {agent} round {round_num}")
+                            break  # Success - exit retry loop
+                        except json.JSONDecodeError as je:
+                            logger.error(f"[MTA-16] Attempt {attempt+1} - JSON decode error for {agent} round {round_num}: {je}")
+                            
+                            if attempt == 0:
+                                # First attempt failed - try aggressive fixing
+                                fixed_text = analysis_json_text
+                                
+                                # 1. Remove trailing commas before } or ]
+                                fixed_text = re.sub(r',(\s*[}\]])', r'\1', fixed_text)
+                                
+                                # 2. Remove control characters and newlines in strings
+                                fixed_text = re.sub(r'[\x00-\x1f\x7f]', ' ', fixed_text)
+                                
+                                # 3. Fix common quote issues - escape unescaped quotes in values
+                                # This is tricky - we need to escape quotes that are inside string values
+                                # but not the structural quotes
+                                
+                                # 4. Add missing commas between fields (common error)
+                                fixed_text = re.sub(r'"\s*}\s*"', '"},\n"', fixed_text)
+                                
+                                # 5. Ensure proper spacing
+                                fixed_text = re.sub(r'\s+', ' ', fixed_text)
+                                
+                                try:
+                                    analysis_data = json.loads(fixed_text)
+                                    logger.info(f"[MTA-16] Successfully parsed after fixing common issues")
+                                    break
+                                except json.JSONDecodeError as je2:
+                                    logger.warning(f"[MTA-16] Fix failed: {je2}. Retrying with lower temperature...")
+                                    continue
+                            else:
+                                # Second attempt also failed
+                                logger.error(f"[MTA-16] All attempts failed for {agent} round {round_num}")
+                                logger.error(f"[MTA-16] JSON sample: {analysis_json_text[:300]}...")
+                                # Create minimal error structure
+                                analysis_data = {
+                                    "error": "JSON parsing failed after retries",
+                                    "sentiment": {"värde": "oklart", "skala": 0, "motivering": "Kunde inte analysera - JSON-formateringsfel"}
+                                }
+                                break
+                        
+                    except Exception as e:
+                        logger.error(f"[MTA-16] Error analyzing {agent} round {round_num}: {e}")
+                        if attempt == 1:  # Last attempt
+                            # Continue with next round
+                            continue
+                
+                # Store per-round analysis
+                if analysis_data:
+                    per_round_analyses[f"round_{round_num}"] = analysis_data
+                
+                # Small delay between rounds
+                await asyncio.sleep(0.3)
             
-            # Store analysis if we got one
-            if analysis_data:
+            # Store all per-round analyses for this AI
+            if per_round_analyses:
                 all_analyses.append({
                     "agent": agent,
                     "rounds_analyzed": [r['round'] for r in responses],
                     "total_responses": len(responses),
-                    "analysis": analysis_data
+                    "per_round_analyses": per_round_analyses,  # NEW: Per-round data
+                    "analysis": per_round_analyses.get("round_1", {})  # Backward compat: use round 1 as default
                 })
             
             # Small delay to avoid overwhelming
             await asyncio.sleep(0.5)
         
-        # Generate OneSeek's insight summary
+        # Generate OneSeek's insight summary based on per-round data
         oneseek_insight = ""
         if all_analyses:
-            insight_prompt = f"""Baserat på MTA-16 analysen av debatten om "{question}", skriv en kort (2-3 meningar) slutinsikt om mönster du ser. 
+            # Build summary of trends for OneSeek to analyze
+            trend_summary = "Analys per AI över rundor:\\n\\n"
+            for ai_data in all_analyses:
+                agent = ai_data['agent'].upper()
+                per_round = ai_data.get('per_round_analyses', {})
+                
+                # Calculate trends for key dimensions
+                for dim in ['bias', 'emotion', 'toxicitet', 'koherens']:
+                    if 'round_1' in per_round and 'round_3' in per_round:
+                        r1_val = per_round['round_1'].get(dim, {}).get('skala', 0)
+                        r3_val = per_round['round_3'].get(dim, {}).get('skala', 0)
+                        change = r3_val - r1_val
+                        trend = "stabil" if abs(change) <= 1 else ("ökade" if change > 0 else "minskade")
+                        trend_summary += f"- {agent}: {dim} {trend} ({r1_val}/10 → {r3_val}/10)\\n"
+            
+            insight_prompt = f"""Du är OneSeek och har analyserat debatten om "{question}" med MTA-16. 
 
-Analyserade AI:er: {', '.join([a['agent'].upper() for a in all_analyses])}
+{trend_summary}
 
-Fokusera på:
+Skriv en kort, skarp slutinsikt (3-4 meningar) på svenska som sammanfattar mönstren du ser:
 - Vilka AI:er var mest stabila vs mest föränderliga
-- Tydliga trender i bias, emotionell laddning, eller koherens
+- Tydliga trender i bias, emotionell laddning, koherens
 - Intressanta skillnader mellan AI:erna
 
-Skriv koncist och direkt på svenska. Exempel:
-"GPT-4o var mest stabil genom hela debatten, medan Grok ökade sin bias och emotionella laddning i varje runda. Claude höll en lågintensiv linje, medan Gemini ökade sin moraliska argumentation men tappade koherens i slutet." """
+Skriv direkt och koncist. Exempel:
+"GPT-4o höll en stabil och saklig linje genom hela debatten, medan Grok blev gradvis mer emotionell och partisk. Claude var konsekvent försiktig och låg i intensitet, medan Gemini ökade sin moraliska argumentation men tappade koherens i slutet." """
             
             try:
-                insight_response = await oneseek_model.create_chat_completion(
-                    messages=[{"role": "user", "content": insight_prompt}],
-                    max_tokens=200,
-                    temperature=0.7,
-                    stream=False
+                # Use requests for insight generation with streaming support
+                server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                response = requests.post(
+                    f"{server_url}/v1/chat/completions",
+                    json={
+                        "messages": [{"role": "user", "content": insight_prompt}],
+                        "max_tokens": 300,  # Increased from 200 for more detailed insight
+                        "temperature": 0.7,
+                        "stream": False
+                    },
+                    timeout=30
                 )
-                oneseek_insight = insight_response['choices'][0]['message']['content'].strip()
+                response.raise_for_status()
+                result = response.json()
+                oneseek_insight = result['choices'][0]['message']['content'].strip()
                 logger.info(f"[MTA-16] Generated OneSeek insight")
             except Exception as e:
                 logger.error(f"[MTA-16] Failed to generate insight: {e}")
@@ -13449,13 +13481,13 @@ Din uppgift: LEVERERA DITT EGET DEBATTSVAR som fullständig deltagare!
 
 Du är ONESEEK - en debattdeltagare som ska ge ditt eget perspektiv. Du har sett andra AI:ers svar och ska använda dina egna insikter OCH lärdomar från deras svar.
 
-Skapa ett kortfattat, tydligt debattsvar (ca 150-250 ord) som täcker viktiga aspekter av frågan.
+Skapa ett utförligt, välgrundat debattsvar (ca 300-500 ord) som täcker viktiga aspekter av frågan.
 
-Ge konkreta exempel när möjligt. Var balanserad och koncis.
+Utveckla dina argument noggrant med konkreta exempel. Var balanserad men grundlig i din analys.
 
 VIKTIGT FORMAT:
-Först: Skriv din interna tankekedja på egen rad som börjar med "REASONING: " (2-3 meningar)
-Sedan: Skriv ditt debattsvar på egen rad som börjar med "ANSWER: " (150-250 ord)
+Först: Skriv din interna tankekedja på egen rad som börjar med "REASONING: " (3-4 meningar)
+Sedan: Skriv ditt debattsvar på egen rad som börjar med "ANSWER: " (300-500 ord)
 
 Ge ditt svar nu:"""
             
@@ -13463,10 +13495,10 @@ Ge ditt svar nu:"""
             try:
                 payload = {
                     "messages": [
-                        {"role": "system", "content": "Du är ONESEEK - en debattdeltagare som ger koncisa, balanserade svar."},
+                        {"role": "system", "content": "Du är ONESEEK - en debattdeltagare som ger utförliga, balanserade och välgrundade svar."},
                         {"role": "user", "content": oneseek_context}
                     ],
-                    "max_tokens": 600,
+                    "max_tokens": 1000,  # Increased from 600 for more comprehensive answers
                     "temperature": 0.7,
                 }
                 

@@ -3036,13 +3036,13 @@ export default function SevenBZeroPage() {
                         </span>
                       </div>
                       
-                      {/* Per-Runda Tables - All AIs side-by-side */}
+                      {/* Per-Runda Tables - All AIs side-by-side - COLLAPSED by default */}
                       {[1, 2, 3].map(roundNum => (
-                        <div key={roundNum} className="mb-4">
-                          <h3 className={`text-xs font-medium mb-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
-                            📊 Runda {roundNum} - Alla AI sida vid sida
-                          </h3>
-                          <div className="overflow-x-auto max-w-none">
+                        <details key={roundNum} className="mb-2">
+                          <summary className={`cursor-pointer text-xs font-medium py-2 px-3 rounded ${whiteMode ? 'bg-[#f0f0f0] hover:bg-[#e8e8e8] text-[#444]' : 'bg-[#151515] hover:bg-[#1a1a1a] text-[#aaa]'}`}>
+                            📊 Runda {roundNum} - Alla AI sida vid sida (klicka för att expandera)
+                          </summary>
+                          <div className="mt-2 overflow-x-auto max-w-none">
                             <table className={`w-full text-[10px] border-collapse ${whiteMode ? 'border-[#e0e0e0]' : 'border-[#333]'}`}>
                               <thead>
                                 <tr className={`${whiteMode ? 'bg-[#f0f0f0] border-b border-[#ddd]' : 'bg-[#151515] border-b border-[#333]'}`}>
@@ -3061,7 +3061,9 @@ export default function SevenBZeroPage() {
                                       {dim.replace(/_/g, ' ')}
                                     </td>
                                     {msg.analysisData.analyses.map((a) => {
-                                      const dimData = a.analysis && a.analysis[dim];
+                                      // Access per-round data
+                                      const perRoundData = a.per_round_analyses && a.per_round_analyses[`round_${roundNum}`];
+                                      const dimData = perRoundData && perRoundData[dim];
                                       return (
                                         <td key={a.agent} className={`py-1 px-3 text-center ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
                                           {dimData ? `${dimData.skala}/10` : 'N/A'}
@@ -3073,10 +3075,10 @@ export default function SevenBZeroPage() {
                               </tbody>
                             </table>
                           </div>
-                        </div>
+                        </details>
                       ))}
                       
-                      {/* Helhetsprofil - All AIs side-by-side (Medelvärden) */}
+                      {/* Helhetsprofil - All AIs side-by-side (Medelvärden) - CALCULATE AVERAGES */}
                       <div className="mb-4">
                         <h3 className={`text-xs font-medium mb-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
                           📈 Helhetsprofil - Alla AI sida vid sida (medelvärden)
@@ -3100,10 +3102,19 @@ export default function SevenBZeroPage() {
                                     {dim.replace(/_/g, ' ')}
                                   </td>
                                   {msg.analysisData.analyses.map((a) => {
-                                    const dimData = a.analysis && a.analysis[dim];
+                                    // Calculate average across all rounds
+                                    const perRoundData = a.per_round_analyses || {};
+                                    const values = [];
+                                    for (let r = 1; r <= 3; r++) {
+                                      const roundData = perRoundData[`round_${r}`];
+                                      if (roundData && roundData[dim] && roundData[dim].skala !== undefined) {
+                                        values.push(roundData[dim].skala);
+                                      }
+                                    }
+                                    const avg = values.length > 0 ? (values.reduce((sum, v) => sum + v, 0) / values.length).toFixed(1) : 'N/A';
                                     return (
                                       <td key={a.agent} className={`py-1 px-3 text-center ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
-                                        {dimData ? `${dimData.skala}/10` : 'N/A'}
+                                        {avg !== 'N/A' ? `${avg}/10` : 'N/A'}
                                       </td>
                                     );
                                   })}
@@ -3114,7 +3125,7 @@ export default function SevenBZeroPage() {
                         </div>
                       </div>
                       
-                      {/* Förändringar över tid - All AIs side-by-side */}
+                      {/* Förändringar över tid - All AIs side-by-side - CALCULATE TRENDS */}
                       <div className="mb-4">
                         <h3 className={`text-xs font-medium mb-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
                           📉 Förändringar över tid - Alla AI sida vid sida
@@ -3138,11 +3149,26 @@ export default function SevenBZeroPage() {
                                     {dim.replace(/_/g, ' ')}
                                   </td>
                                   {msg.analysisData.analyses.map((a) => {
-                                    const dimData = a.analysis && a.analysis[dim];
-                                    // Simple trend: Stabil (shows skala value for now)
+                                    // Calculate trend: compare round 1 vs round 3
+                                    const perRoundData = a.per_round_analyses || {};
+                                    const r1Data = perRoundData['round_1'];
+                                    const r3Data = perRoundData['round_3'];
+                                    let trend = 'N/A';
+                                    if (r1Data && r3Data && r1Data[dim] && r3Data[dim]) {
+                                      const r1Val = r1Data[dim].skala;
+                                      const r3Val = r3Data[dim].skala;
+                                      const change = r3Val - r1Val;
+                                      if (Math.abs(change) <= 1) {
+                                        trend = 'Stabil';
+                                      } else if (change >= 2) {
+                                        trend = `Ökar +${change}`;
+                                      } else if (change <= -2) {
+                                        trend = `Minskar ${change}`;
+                                      }
+                                    }
                                     return (
                                       <td key={a.agent} className={`py-1 px-3 text-center ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
-                                        {dimData ? 'Stabil' : 'N/A'}
+                                        {trend}
                                       </td>
                                     );
                                   })}
