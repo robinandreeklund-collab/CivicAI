@@ -2566,7 +2566,103 @@ export default function SevenBZeroPage() {
             </div>
           )}
 
-          {/* Debate display removed from here - now integrated in message timeline below for correct chronological position */}
+          {/* Debate Rounds Display - New Component - Show when debate data exists (regardless of debateMode) */}
+          {Object.keys(debateRounds).length > 0 && (
+            <div className="mb-6">
+              {Object.keys(debateRounds).filter(k => k !== 'completion').sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
+                <DebateRoundDisplay
+                  key={roundNum}
+                  round={parseInt(roundNum)}
+                  aiData={debateRounds[roundNum]}
+                  isActive={parseInt(roundNum) === currentRound}
+                />
+              ))}
+              
+              {/* Debate Completion - Integrated into flow */}
+              {debateRounds.completion && (
+                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                  <div className="text-sm font-medium text-[#888] mb-3">Debatt avslutad</div>
+                  
+                  {/* Voting Results */}
+                  <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
+                    <div className="text-xs text-[#666] mb-2">Röstning</div>
+                    <div className="space-y-1">
+                      {debateRounds.completion.voteResults?.map((vote, idx) => (
+                        <div key={idx} className="text-xs text-[#888]">
+                          {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Winner */}
+                  <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
+                    <div className="text-xs text-[#666] mb-1">Vinnare</div>
+                    <div className="text-sm text-[#aaa]">
+                      {debateRounds.completion.winner?.toUpperCase()}
+                      <span className="text-xs text-[#666] ml-2">
+                        ({debateRounds.completion.winnerVotes}/{debateRounds.completion.totalVotes} röster)
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Summary */}
+                  <div>
+                    <div className="text-xs text-[#666] mb-2">Sammanfattning</div>
+                    <div className="text-xs text-[#888] leading-relaxed">
+                      {debateRounds.completion.summary}
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* MTA-16 Analysis Offer - now handled via regular messages, remove this */}
+              
+              {/* MTA-16 Analysis Progress */}
+              {debateRounds.analysisRunning && (
+                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                  <div className="text-sm text-[#aaa] mb-2">MTA-16 Analys pågår...</div>
+                  <div className="w-full bg-[#1a1a1a] rounded-full h-2">
+                    <div 
+                      className="bg-[#333] h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${debateRounds.analysisProgress || 0}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-[#666] mt-2 text-right">
+                    {debateRounds.analysisProgress || 0}%
+                  </div>
+                </div>
+              )}
+              
+              {/* MTA-16 Analysis Results */}
+              {debateRounds.analysisComplete && debateRounds.analysisResults && (
+                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                  <div className="text-sm font-medium text-[#888] mb-3">
+                    MTA-16 Analys - {debateRounds.analysisResults.total_analyzed} svar analyserade
+                  </div>
+                  
+                  {/* Results by round */}
+                  {debateRounds.analysisResults.analyses?.map((analysis, idx) => (
+                    <details key={idx} className="mb-3 border-b border-[#1a1a1a] pb-3 last:border-0">
+                      <summary className="cursor-pointer text-xs text-[#888] hover:text-[#aaa] mb-2">
+                        Runda {analysis.round} - {analysis.agent.toUpperCase()}
+                      </summary>
+                      <div className="pl-4 mt-2 space-y-2">
+                        {/* Show key dimensions with high scores */}
+                        {Object.entries(analysis.analysis || {}).filter(([key, val]) => val?.skala >= 5).slice(0, 10).map(([dimension, data]) => (
+                          <div key={dimension} className="text-xs">
+                            <span className="text-[#666]">{dimension}:</span>
+                            <span className="text-[#888] ml-2">{data.värde}</span>
+                            <span className="text-[#555] ml-2">({data.skala}/10)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Messages - Filter to show only non-debate messages or debate completion when using new component */}
           {messages.filter(msg => {
@@ -2664,74 +2760,6 @@ export default function SevenBZeroPage() {
                         ))}
                       </div>
                     </div>
-                  </div>
-                </div>
-              );
-            }
-            
-            // Check if this is where debate should display (after debate completes)
-            if (msg.isDebateComplete && Object.keys(debateRounds).length > 0) {
-              return (
-                <div 
-                  key={`debate-display-${msg.id}`}
-                  className="elegant-fade transition-all duration-500 flex flex-col items-start mb-6"
-                  style={{ animationDelay: `${idx * 0.05}s` }}
-                >
-                  {/* Timestamp */}
-                  <p className={`text-[10px] mb-2 tracking-wide uppercase ${
-                    whiteMode ? 'text-[#bbb]' : 'text-[#3a3a3a]'
-                  }`}>
-                    {formatDate(msg.timestamp)} · {formatTime(msg.timestamp)}
-                  </p>
-                  
-                  {/* Debate Rounds */}
-                  <div className="mb-6 w-full">
-                    {Object.keys(debateRounds).filter(k => k !== 'completion').sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
-                      <DebateRoundDisplay
-                        key={roundNum}
-                        round={parseInt(roundNum)}
-                        aiData={debateRounds[roundNum]}
-                        isActive={parseInt(roundNum) === currentRound}
-                      />
-                    ))}
-                    
-                    {/* Debate Completion */}
-                    {debateRounds.completion && (
-                      <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
-                        <div className="text-sm font-medium text-[#888] mb-3">Debatt avslutad</div>
-                        
-                        {/* Voting Results */}
-                        <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
-                          <div className="text-xs text-[#666] mb-2">Röstning</div>
-                          <div className="space-y-1">
-                            {debateRounds.completion.voteResults?.map((vote, idx) => (
-                              <div key={idx} className="text-xs text-[#888]">
-                                {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        
-                        {/* Winner */}
-                        <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
-                          <div className="text-xs text-[#666] mb-1">Vinnare</div>
-                          <div className="text-sm text-[#aaa]">
-                            {debateRounds.completion.winner?.toUpperCase()}
-                            <span className="text-xs text-[#666] ml-2">
-                              ({debateRounds.completion.winnerVotes}/{debateRounds.completion.totalVotes} röster)
-                            </span>
-                          </div>
-                        </div>
-                        
-                        {/* Summary */}
-                        <div>
-                          <div className="text-xs text-[#666] mb-2">Sammanfattning</div>
-                          <div className="text-xs text-[#888] leading-relaxed">
-                            {debateRounds.completion.summary}
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
               );
