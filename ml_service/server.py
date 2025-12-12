@@ -12734,28 +12734,406 @@ async def websocket_personality_inference(websocket: WebSocket):
 # LIVE AI-DEBATT WEBSOCKET - Streaming debate with 4 external AIs + ONESEEK
 # =============================================================================
 
+async def stream_text_tokens(websocket: WebSocket, text: str, event_type: str, agent: str = None, tokens_per_second: int = 65, **extra_data):
+    """
+    Stream text token-by-token to simulate realistic AI typing speed.
+    
+    Args:
+        websocket: WebSocket connection
+        text: Text to stream
+        event_type: WebSocket event type (e.g., 'oneseek_echo', 'oneseek_own_answer')
+        agent: Agent name (optional)
+        tokens_per_second: Streaming speed (default ~65 for realistic feel)
+        **extra_data: Additional data to include in event
+    """
+    if not text:
+        return
+    
+    # Constants for streaming behavior
+    DEFAULT_WORD_DELAY = 0.015  # Fallback delay if tokens_per_second is 0
+    STREAMING_CHUNK_SIZE = 4  # Send every N words for smooth streaming
+    
+    # Split into words (approximate tokens)
+    words = text.split()
+    delay_per_word = 1.0 / tokens_per_second if tokens_per_second > 0 else DEFAULT_WORD_DELAY
+    
+    accumulated_text = ""
+    for i, word in enumerate(words):
+        accumulated_text += word + " "
+        
+        # Send every STREAMING_CHUNK_SIZE words for smooth streaming
+        if (i + 1) % STREAMING_CHUNK_SIZE == 0 or i == len(words) - 1:
+            event_data = {
+                "type": event_type,
+                "text": accumulated_text.strip(),
+                "complete": (i == len(words) - 1)
+            }
+            if agent:
+                event_data["agent"] = agent
+            event_data.update(extra_data)
+            
+            await websocket.send_json(event_data)
+            await asyncio.sleep(delay_per_word * STREAMING_CHUNK_SIZE)
+
+
+async def run_mta16_analysis(websocket: WebSocket, debate_rounds, question):
+    """
+    Run Multidimensional Transparency Analysis (MTA-16) on entire debate.
+    Analyzes each AI response with 16 core dimensions, all in Swedish.
+    Simplified from MTA-43 for better reliability.
+    Uses OneSeek model - no external libraries.
+    Results stream as chat messages.
+    """
+    try:
+        # Send start message as chat
+        await websocket.send_json({
+            "type": "message",
+            "agent": "oneseek",
+            "message": "🔬 Startar MTA-16 analys av debatten...",
+            "streaming": False
+        })
+        
+        # MTA-16 prompt template - simplified to 16 core dimensions with skala field
+        MTA16_PROMPT_TEMPLATE = """Du är en transparent analysmotor. Du måste svara strikt på svenska i ALLA delar av svaret.
+
+KRAV:
+- Alla fält, värden, etiketter och motiveringar ska vara på svenska.
+- Alla motiveringar ska vara detaljerade och textnära.
+- Varje fält ska innehålla en numerisk skala från 0 till 10 i fältet "skala".
+  0 = inte alls, 10 = extremt.
+- Du får INTE utelämna något fält. Alla 16 fält måste finnas med även om värdet är "oklart".
+- Använd inte engelska ord eller etiketter.
+- Returnera ENDAST ett JSON-objekt. Ingen extra text.
+
+TEXT SOM SKA ANALYSERAS:
+{text}
+
+Du ska skapa ett JSON-objekt med följande EXAKTA struktur.
+Varje fält ska innehålla:
+- "värde": klassificeringen på svenska
+- "skala": ett heltal 0–10
+- "motivering": en detaljerad och textnära förklaring
+
+JSON-STRUKTUR (följ exakt):
+
+{{
+  "sentiment": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "emotion": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "tonfall": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "politisk_riktning": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "ideologisk_dimension": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "bias": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "framing": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "retorik": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "propaganda": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "claim_detection": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "moral_foundations": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "toxicitet": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "osäkerhet": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "koherens": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "klarhet": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "sammanfattning": {{ "värde": "", "skala": 0, "motivering": "" }}
+}}
+
+INNAN DU SVARAR:
+Du ska själv kontrollera att:
+- alla 16 fält finns med
+- alla fält har "värde", "skala" och "motivering"
+- inga engelska ord förekommer
+- alla motiveringar är detaljerade och textnära
+- JSON-strukturen följer exakt formatet ovan
+
+Returnera sedan ENDAST JSON-objektet."""
+        
+        # NEW APPROACH: Group responses by AI (much faster!)
+        # Instead of 15 analyses (5 AIs × 3 rounds), we do 5 analyses (one per AI)
+        # Each analysis covers ALL responses from that AI across all rounds
+        
+        # Group responses by AI
+        ai_responses = {}
+        for round_data in debate_rounds:
+            round_num = round_data['round']
+            for response_data in round_data['responses']:
+                agent = response_data['agent']
+                if agent not in ai_responses:
+                    ai_responses[agent] = []
+                ai_responses[agent].append({
+                    'round': round_num,
+                    'text': response_data['response']
+                })
+        
+        all_analyses = []
+        total_ais = len(ai_responses)
+        processed = 0
+        
+        # Analyze each AI's participation PER ROUND (not combined)
+        for agent, responses in ai_responses.items():
+            processed += 1
+            
+            # Send progress update
+            progress_msg = f"Analyserar {agent.upper()}s debattdeltagande per runda... ({processed}/{total_ais})"
+            await websocket.send_json({
+                "type": "message",
+                "agent": "oneseek",
+                "message": progress_msg,
+                "streaming": False,
+                "isThinking": True
+            })
+            
+            # Analyze EACH ROUND SEPARATELY (critical for trend analysis)
+            per_round_analyses = {}
+            for resp in responses:
+                round_num = resp['round']
+                round_text = resp['text']
+                
+                # Generate MTA-16 analysis for THIS SPECIFIC ROUND
+                analysis_prompt = MTA16_PROMPT_TEMPLATE.format(text=f"RUNDA {round_num}:\\n{round_text}")
+                
+                # Try with retry logic for THIS ROUND
+                analysis_data = None
+                for attempt in range(2):  # Try twice
+                    try:
+                        # Call OneSeek model for analysis
+                        payload = {
+                            "model": "oneseek",
+                            "messages": [
+                                {"role": "system", "content": "Du är en JSON-analysmotor. Returnera ENDAST välformat JSON utan markdown eller extra text."},
+                                {"role": "user", "content": analysis_prompt}
+                            ],
+                            "temperature": 0.1 if attempt == 0 else 0.05,  # Even lower temp on retry
+                            "max_tokens": 3500,  # Reduced from 6000 - enough for 16 fields (was 43)
+                            "response_format": {"type": "json_object"},  # Force JSON mode in llama.cpp
+                            "stream": False
+                        }
+                    
+                        server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                        response = requests.post(
+                            f"{server_url}/v1/chat/completions",
+                            json=payload,
+                            timeout=120,  # Increased timeout
+                        )
+                        response.raise_for_status()
+                        result = response.json()
+                        
+                        if 'choices' in result and len(result['choices']) > 0:
+                            analysis_json_text = result['choices'][0].get('message', {}).get('content', '{}')
+                        else:
+                            analysis_json_text = result.get('content', '{}')
+                        
+                        # Parse JSON with robust error handling
+                        import json
+                        import re
+                        
+                        # Try multiple extraction methods
+                        # 1. Extract from markdown code blocks
+                        json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', analysis_json_text, re.DOTALL)
+                        if json_match:
+                            analysis_json_text = json_match.group(1)
+                        
+                        # 2. Find first { to last } for JSON extraction
+                        start_idx = analysis_json_text.find('{')
+                        end_idx = analysis_json_text.rfind('}')
+                        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                            analysis_json_text = analysis_json_text[start_idx:end_idx+1]
+                        
+                        # 2.5. Strip newlines from ALL string values (critical for nested objects)
+                        # This prevents "Expecting ',' delimiter" errors from newlines in motivering fields
+                        analysis_json_text = re.sub(r'\\n|\\r|\\t', ' ', analysis_json_text)
+                        
+                        # 3. Try to parse with multiple fix attempts
+                        try:
+                            analysis_data = json.loads(analysis_json_text)
+                            logger.info(f"[MTA-16] Successfully parsed JSON for {agent} round {round_num}")
+                            break  # Success - exit retry loop
+                        except json.JSONDecodeError as je:
+                            logger.error(f"[MTA-16] Attempt {attempt+1} - JSON decode error for {agent} round {round_num}: {je}")
+                            
+                            if attempt == 0:
+                                # First attempt failed - try aggressive fixing
+                                fixed_text = analysis_json_text
+                                
+                                # 1. Remove trailing commas before } or ]
+                                fixed_text = re.sub(r',(\s*[}\]])', r'\1', fixed_text)
+                                
+                                # 2. Remove control characters and newlines in strings
+                                fixed_text = re.sub(r'[\x00-\x1f\x7f]', ' ', fixed_text)
+                                
+                                # 3. Fix common quote issues - escape unescaped quotes in values
+                                # This is tricky - we need to escape quotes that are inside string values
+                                # but not the structural quotes
+                                
+                                # 4. Add missing commas between fields (common error)
+                                fixed_text = re.sub(r'"\s*}\s*"', '"},\n"', fixed_text)
+                                
+                                # 5. Ensure proper spacing
+                                fixed_text = re.sub(r'\s+', ' ', fixed_text)
+                                
+                                try:
+                                    analysis_data = json.loads(fixed_text)
+                                    logger.info(f"[MTA-16] Successfully parsed after fixing common issues")
+                                    break
+                                except json.JSONDecodeError as je2:
+                                    logger.warning(f"[MTA-16] Fix failed: {je2}. Retrying with lower temperature...")
+                                    continue
+                            else:
+                                # Second attempt also failed
+                                logger.error(f"[MTA-16] All attempts failed for {agent} round {round_num}")
+                                logger.error(f"[MTA-16] JSON sample: {analysis_json_text[:300]}...")
+                                # Create minimal error structure
+                                analysis_data = {
+                                    "error": "JSON parsing failed after retries",
+                                    "sentiment": {"värde": "oklart", "skala": 0, "motivering": "Kunde inte analysera - JSON-formateringsfel"}
+                                }
+                                break
+                        
+                    except Exception as e:
+                        logger.error(f"[MTA-16] Error analyzing {agent} round {round_num}: {e}")
+                        if attempt == 1:  # Last attempt
+                            # Continue with next round
+                            continue
+                
+                # Store per-round analysis
+                if analysis_data:
+                    per_round_analyses[f"round_{round_num}"] = analysis_data
+                
+                # Small delay between rounds
+                await asyncio.sleep(0.3)
+            
+            # Store all per-round analyses for this AI
+            if per_round_analyses:
+                all_analyses.append({
+                    "agent": agent,
+                    "rounds_analyzed": [r['round'] for r in responses],
+                    "total_responses": len(responses),
+                    "per_round_analyses": per_round_analyses,  # NEW: Per-round data
+                    "analysis": per_round_analyses.get("round_1", {})  # Backward compat: use round 1 as default
+                })
+            
+            # Small delay to avoid overwhelming
+            await asyncio.sleep(0.5)
+        
+        # Generate OneSeek's insight summary based on per-round data
+        oneseek_insight = ""
+        if all_analyses:
+            # Build summary of trends for OneSeek to analyze
+            trend_summary = "Analys per AI över rundor:\\n\\n"
+            for ai_data in all_analyses:
+                agent = ai_data['agent'].upper()
+                per_round = ai_data.get('per_round_analyses', {})
+                
+                # Calculate trends for key dimensions
+                for dim in ['bias', 'emotion', 'toxicitet', 'koherens']:
+                    if 'round_1' in per_round and 'round_3' in per_round:
+                        r1_val = per_round['round_1'].get(dim, {}).get('skala', 0)
+                        r3_val = per_round['round_3'].get(dim, {}).get('skala', 0)
+                        change = r3_val - r1_val
+                        trend = "stabil" if abs(change) <= 1 else ("ökade" if change > 0 else "minskade")
+                        trend_summary += f"- {agent}: {dim} {trend} ({r1_val}/10 → {r3_val}/10)\\n"
+            
+            insight_prompt = f"""Du är OneSeek och har analyserat debatten om "{question}" med MTA-16. 
+
+{trend_summary}
+
+Skriv en kort, skarp slutinsikt (3-4 meningar) på svenska som sammanfattar mönstren du ser:
+- Vilka AI:er var mest stabila vs mest föränderliga
+- Tydliga trender i bias, emotionell laddning, koherens
+- Intressanta skillnader mellan AI:erna
+
+Skriv direkt och koncist. Exempel:
+"GPT-4o höll en stabil och saklig linje genom hela debatten, medan Grok blev gradvis mer emotionell och partisk. Claude var konsekvent försiktig och låg i intensitet, medan Gemini ökade sin moraliska argumentation men tappade koherens i slutet." """
+            
+            try:
+                # Use requests for insight generation with streaming support
+                server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                response = requests.post(
+                    f"{server_url}/v1/chat/completions",
+                    json={
+                        "messages": [{"role": "user", "content": insight_prompt}],
+                        "max_tokens": 300,  # Increased from 200 for more detailed insight
+                        "temperature": 0.7,
+                        "stream": False
+                    },
+                    timeout=30
+                )
+                response.raise_for_status()
+                result = response.json()
+                oneseek_insight = result['choices'][0]['message']['content'].strip()
+                logger.info(f"[MTA-16] Generated OneSeek insight")
+            except Exception as e:
+                logger.error(f"[MTA-16] Failed to generate insight: {e}")
+                oneseek_insight = "Analys slutförd - se tabellerna för detaljer."
+        
+        # Send complete analysis results as chat message
+        summary_msg = f"✅ MTA-16 analys slutförd! Analyserade {len(all_analyses)} svar från debatten."
+        await websocket.send_json({
+            "type": "message",
+            "agent": "oneseek",
+            "message": summary_msg,
+            "streaming": False,
+            "analysis_complete": True,
+            "analysis_data": {
+                "question": question,
+                "total_analyzed": len(all_analyses),
+                "analyses": all_analyses,
+                "oneseek_insight": oneseek_insight,
+                "rounds": max([max(a['rounds_analyzed']) for a in all_analyses]) if all_analyses else 3
+            }
+        })
+        
+        logger.info(f"[MTA-16] Analysis complete: {len(all_analyses)} responses analyzed")
+        
+    except Exception as e:
+        logger.error(f"[MTA-16] Error during analysis: {e}")
+        await websocket.send_json({
+            "type": "message",
+            "agent": "oneseek",
+            "message": f"❌ Fel vid MTA-16 analys: {str(e)}",
+            "streaming": False,
+            "error": True
+        })
+
+
 @app.websocket("/ws/debate")
 async def websocket_live_debate(websocket: WebSocket):
     """
-    WebSocket endpoint for live AI debate streaming.
+    WebSocket endpoint for live AI debate streaming with real-time queue-based processing.
     
-    Flow:
+    NEW ARCHITECTURE (Queue-based, event-driven):
     1. Receive question prefixed with [debatt]
-    2. Model selects "Debattledare" personality automatically from catalog
+    2. Load "Debattledare" personality automatically
     3. Conduct 3 rounds with 4 external AIs (GPT, Gemini, DeepSeek, Grok) + ONESEEK
-    4. Stream responses in parallel as they arrive
-    5. All 5 parties vote (cannot vote for themselves), ONESEEK is neutral judge
-    6. Announce winner live with confetti trigger
-    7. ONESEEK creates objective summary
+    4. For each round:
+       a. Gather external AI responses asynchronously
+       b. Queue each response as it arrives
+       c. OneSeek processes queue in order:
+          - Echo answer (streaming ~50-80 tokens/sec)
+          - Generate focused reasoning for that answer
+          - Emit live insight (one-liner)
+       d. After all queued answers processed, OneSeek generates its own full answer
+       e. Compress/summarize round learnings (10 key points)
+    5. After 3 rounds: voting, winner, final summary
     
-    Message format:
-    {
-        "type": "thinking" | "round_start" | "response" | "round_end" | "voting" | "winner" | "summary" | "final" | "error",
-        "round": 1-3,
-        "agent": "gpt" | "gemini" | "deepseek" | "grok" | "oneseek",
-        "message": "...",
-        "data": {...}
-    }
+    WebSocket Event Types:
+    - thinking: Progress updates
+    - debate_init: Debate initialization
+    - round_start: Round begins
+    - ai_response: External AI answer arrives (queued)
+    - oneseek_echo: Token-by-token streaming of answer being analyzed
+    - oneseek_reasoning: OneSeek's analysis of specific answer
+    - live_insight: Single-line sport-commentator update per answer
+    - oneseek_own_answer: OneSeek's full answer for the round (streaming)
+    - oneseek_own_reasoning: OneSeek's reasoning for its own answer
+    - round_summary: Compressed learnings from round (10 key points)
+    - round_end: Round complete
+    - voting: Voting phase
+    - winner: Winner announcement
+    - summary: Final summary
+    - debate_complete: Debate finished
+    - analysis_offer: Offer MTA-43 analysis (user can accept/decline)
+    - analysis_start: MTA-43 analysis started
+    - analysis_progress: Analysis progress update with percentage
+    - analysis_result: Complete MTA-43 analysis results
+    - error: Error occurred
     """
     await websocket.accept()
     
@@ -12798,6 +13176,7 @@ async def websocket_live_debate(websocket: WebSocket):
         debate_agents = ['gpt', 'gemini', 'deepseek', 'grok', 'oneseek']
         debate_rounds = []
         max_rounds = 3
+        knowledge_chain = []  # Accumulated knowledge across rounds
         
         await websocket.send_json({
             "type": "debate_init",
@@ -12813,7 +13192,7 @@ async def websocket_live_debate(websocket: WebSocket):
         # Backend API base URL (Node.js server with external AI services)
         BACKEND_API_URL = os.environ.get('BACKEND_API_URL', 'http://localhost:3001')
         
-        # Conduct debate rounds
+        # Conduct debate rounds with NEW queue-based architecture
         for round_num in range(1, max_rounds + 1):
             await websocket.send_json({
                 "type": "round_start",
@@ -12882,17 +13261,211 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
                         'success': False
                     }
             
-            # Step 1: Collect all external AI responses in parallel
-            logger.info(f"[WS-Debate] Collecting responses from {len(external_agents)} external AIs...")
-            external_tasks = [get_external_response(agent) for agent in external_agents]
-            external_responses = await asyncio.gather(*external_tasks, return_exceptions=True)
+            # NEW ARCHITECTURE: Process responses as they arrive using a queue
+            logger.info(f"[WS-Debate] Starting to collect responses from {len(external_agents)} external AIs...")
             
-            # Filter out exceptions and failed responses
-            external_responses = [r for r in external_responses if isinstance(r, dict)]
-            round_responses.extend(external_responses)
+            # Queue to store responses in arrival order
+            response_queue = asyncio.Queue()
             
-            # Step 2: Build context for ONESEEK with all external AI responses
-            oneseek_context = f"""Du deltar i en AI-debatt om: {clean_question}
+            async def get_and_queue_response(agent_name):
+                """Get response from external AI and immediately queue it"""
+                response = await get_external_response(agent_name)
+                await response_queue.put(response)
+                
+                # Emit ai_response event immediately when answer arrives
+                await websocket.send_json({
+                    "type": "ai_response",
+                    "round": round_num,
+                    "agent": agent_name,
+                    "message": f"✅ {agent_name.upper()} har svarat",
+                    "data": {
+                        "agent": agent_name,
+                        "success": response.get('success', False)
+                    }
+                })
+                logger.info(f"[WS-Debate] {agent_name.upper()} response queued")
+                return response
+            
+            # Start all external AI requests concurrently - tasks start immediately in background
+            external_tasks = [asyncio.create_task(get_and_queue_response(agent)) for agent in external_agents]
+            logger.info(f"[WS-Debate] Started {len(external_tasks)} background tasks for external AIs")
+            
+            # Process responses from queue as they arrive
+            # Track all responses for later use
+            external_responses = []
+            
+            # Start background task to collect all responses (just to ensure all complete)
+            # Create coroutine for gathering and then create task from it
+            async def collect_all_responses():
+                return await asyncio.gather(*external_tasks, return_exceptions=True)
+            
+            collect_task = asyncio.create_task(collect_all_responses())
+            
+            # Process each queued response immediately with OneSeek
+            # Process responses as they arrive - don't wait for all to be queued
+            processed_count = 0
+            while True:
+                try:
+                    # Wait for next response with timeout
+                    response = await asyncio.wait_for(response_queue.get(), timeout=2.0)
+                    external_responses.append(response)
+                    processed_count += 1
+                    
+                    if not response.get('success', False):
+                        # Skip failed responses
+                        logger.warning(f"[WS-Debate] Skipping failed response from {response.get('agent', 'unknown')}")
+                        continue
+                    
+                    agent_name = response.get('agent', 'unknown')
+                    agent_response = response.get('response', '')
+                    
+                    # OneSeek pipeline for this answer: Echo → Reasoning → Insight
+                    logger.info(f"[WS-Debate] OneSeek processing {agent_name}'s answer...")
+                    
+                    # 1. ECHO: Stream the answer token-by-token
+                    await websocket.send_json({
+                        "type": "oneseek_echo_start",
+                        "round": round_num,
+                        "agent": agent_name,
+                        "message": f"🔄 OneSeek ekar {agent_name.upper()}s svar..."
+                    })
+                    
+                    await stream_text_tokens(
+                        websocket, 
+                        agent_response, 
+                        "oneseek_echo",
+                        agent=agent_name,
+                        round=round_num
+                    )
+                    
+                    # 2. REASONING: Generate focused analysis for this specific answer
+                    reasoning_prompt = f"""Du är OneSeek och analyserar ett svar i en debatt.
+
+DEBATTFRÅGA: {clean_question}
+
+RUNDA: {round_num} av {max_rounds}
+
+SVAR FRÅN {agent_name.upper()}:
+{agent_response}
+
+UPPGIFT: Skapa en kort, fokuserad analys av detta specifika svar (2-3 meningar):
+- Vad är huvudargumentet?
+- Vilka styrkor/svagheter ser du?
+- Vilken insikt kan vi lära oss?
+
+Var koncis och specifik. Svara endast med analysen."""
+                    
+                    try:
+                        payload = {
+                            "messages": [
+                                {"role": "system", "content": "Du är OneSeek - en analytisk AI som ger koncisa, fokuserade analyser."},
+                                {"role": "user", "content": reasoning_prompt}
+                            ],
+                            "max_tokens": 200,
+                            "temperature": 0.7,
+                        }
+                        
+                        server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                        llm_response = requests.post(
+                            f"{server_url}/v1/chat/completions",
+                            json=payload,
+                            timeout=30,
+                        )
+                        llm_response.raise_for_status()
+                        result = llm_response.json()
+                        
+                        if 'choices' in result and len(result['choices']) > 0:
+                            reasoning_text = result['choices'][0].get('message', {}).get('content', '')
+                        else:
+                            reasoning_text = result.get('content', '')
+                        
+                        # Save to knowledge chain
+                        knowledge_chain.append({
+                            'round': round_num,
+                            'agent': agent_name,
+                            'insight': reasoning_text
+                        })
+                        
+                        # Emit reasoning
+                        await websocket.send_json({
+                            "type": "oneseek_reasoning",
+                            "round": round_num,
+                            "agent": agent_name,
+                            "message": reasoning_text,
+                            "data": {
+                                "reasoning": reasoning_text,
+                                "agent_analyzed": agent_name
+                            }
+                        })
+                        logger.info(f"[WS-Debate] OneSeek reasoning generated for {agent_name}")
+                        
+                    except Exception as e:
+                        logger.error(f"[WS-Debate] Error generating reasoning for {agent_name}: {e}")
+                        reasoning_text = f"Analys: {agent_name.upper()} presenterar sitt perspektiv på frågan."
+                        await websocket.send_json({
+                            "type": "oneseek_reasoning",
+                            "round": round_num,
+                            "agent": agent_name,
+                            "message": reasoning_text
+                        })
+                    
+                    # 3. LIVE INSIGHT: One-liner "sport commentator" style update
+                    # Extract key themes for insight
+                    insight_keywords = []
+                    for keyword in ['ekonomi', 'miljö', 'samhälle', 'teknologi', 'framtid', 'konsekvens']:
+                        if keyword in agent_response.lower() or keyword in reasoning_text.lower():
+                            insight_keywords.append(keyword)
+                    
+                    if insight_keywords:
+                        insight = f"💡 {agent_name.upper()} fokuserar på {', '.join(insight_keywords[:2])} - {processed_count}/{len(external_agents)} svar mottagna"
+                    else:
+                        insight = f"💡 {agent_name.upper()} har delat sitt perspektiv - {processed_count}/{len(external_agents)} svar mottagna"
+                    
+                    await websocket.send_json({
+                        "type": "live_insight",
+                        "round": round_num,
+                        "agent": agent_name,
+                        "message": insight,
+                        "data": {
+                            "progress": f"{processed_count}/{len(external_agents)}"
+                        }
+                    })
+                    
+                    # Small delay before next answer
+                    await asyncio.sleep(0.5)
+                    
+                    # Check if we've processed all expected responses
+                    if processed_count >= len(external_agents):
+                        break
+                    
+                except asyncio.TimeoutError:
+                    # Check if all tasks are done
+                    if collect_task.done():
+                        logger.info(f"[WS-Debate] All external tasks completed, processed {processed_count} responses")
+                        break
+                    # If tasks still running but queue empty, continue waiting
+                    logger.debug(f"[WS-Debate] Queue empty but tasks still running, waiting...")
+                    continue
+                except Exception as e:
+                    logger.error(f"[WS-Debate] Error processing queued response: {e}")
+                    break
+            
+            # Wait for all collection tasks to complete
+            await collect_task
+            
+            # Filter successful responses only
+            round_responses.extend([r for r in external_responses if r.get('success', False)])
+            
+            # After processing all queued external responses, OneSeek generates its OWN answer
+            logger.info(f"[WS-Debate] OneSeek generating its own comprehensive answer for round {round_num}...")
+            
+            await websocket.send_json({
+                "type": "thinking",
+                "message": f"[tänker...] OneSeek förbereder sitt eget debattsvar för runda {round_num}..."
+            })
+            
+            # Build context for ONESEEK's own answer
+            oneseek_context = f"""Du deltar som ONESEEK i en AI-debatt om: {clean_question}
 
 Detta är runda {round_num} av {max_rounds}.
 
@@ -12900,94 +13473,43 @@ ANDRA AI-MODELLERS SVAR I DENNA RUNDA:
 
 """
             for ext_resp in external_responses:
-                oneseek_context += f"**{ext_resp['agent'].upper()}** ({ext_resp['model']}):\n{ext_resp['response']}\n\n"
+                if ext_resp.get('success', False):
+                    oneseek_context += f"**{ext_resp['agent'].upper()}**:\n{ext_resp['response']}\n\n"
             
             oneseek_context += f"""
-Din uppgift: VINNA DEBATTEN med det mest kompletta, väl underbyggda svaret!
+Din uppgift: LEVERERA DITT EGET DEBATTSVAR som fullständig deltagare!
 
-Du är ONESEEK - en debattdeltagare som strävar efter att leverera det absolut bästa, mest omfattande svaret. Du har sett andra AI:ers svar och ska nu använda deras insikter + din egen kunskap för att skapa ett överlägset debattsvar.
+Du är ONESEEK - en debattdeltagare som ska ge ditt eget perspektiv. Du har sett andra AI:ers svar och ska använda dina egna insikter OCH lärdomar från deras svar.
 
-STEG 1 - DIN EGEN DJUPANALYS (Använd ALL din kunskap):
-• Analysera frågan från ALLA relevanta dimensioner:
-  - Ekonomiska aspekter och konsekvenser (kostnader, investeringar, ekonomisk tillväxt)
-  - Sociala effekter på samhället (påverkan på människor, jämlikhet, välfärd)
-  - Tekniska möjligheter och begränsningar (vad är faktiskt genomförbart?)
-  - Miljömässiga påverkningar (klimat, hållbarhet, miljöeffekter)
-  - Politiska implikationer (genomförbarhet, politisk vilja, demokrati)
-  - Etiska överväganden (vad är rätt? Finns det etiska dilemman?)
-  - Juridiska aspekter när relevant
-• Ge SPECIFIKA exempel, data, forskningsresultat, studier när möjligt
-• Tänk BÅDE kort och långsiktigt (omedelbara effekter vs. effekter om 5-10-20 år)
-• Nämn KONKRETA siffror, procent, tidsramar när du kan
+Skapa ett utförligt, välgrundat debattsvar (ca 300-500 ord) som täcker viktiga aspekter av frågan.
 
-STEG 2 - LÄR AV ANDRA (Men nämn dem INTE i ditt svar):
-Andra AI:er har redan svarat ovan. Extrahera tyst:
-• Vilka NYCKELARGUMENT lyfter de som är viktiga?
-• Vilka KONKRETA EXEMPEL eller DATA använder de?
-• Vilka PERSPEKTIV täcker de bra?
-• Finns MOTSÄTTNINGAR mellan deras svar som du kan adressera?
-• Vad har de MISSAT som du kan komplettera med?
-• Vilka svaga punkter i deras argument kan du förbättra?
-
-STEG 3 - BYGG DITT VINNANDE SVAR:
-• Inkludera ALLT viktigt som andra nämnde (men med dina egna ord)
-• Lägg till vad de MISSADE (nya perspektiv, exempel, nyanser)
-• Gå DJUPARE än de andra - mer detaljer, fler konkreta exempel
-• Balansera för- och nackdelar på ett nyanserat sätt
-• Ge en TYDLIG slutsats eller rekommendation
-• Adressera potentiella MOTARGUMENT och hantera dem
-• Använd SPECIFIKA exempel från Sverige/världen när relevant
-• Sikta på att använda närmare 1000-1200 ord för djup
-
-STEG 4 - PROGRESSIV KUNSKAP:
-• Runda 1: Bred genomgång av alla aspekter
-• Runda 2: Fördjupa dig baserat på vad du lärt från Runda 1
-• Runda 3: Leverera din mest mogna, kompletta analys - kombinera allt
+Utveckla dina argument noggrant med konkreta exempel. Var balanserad men grundlig i din analys.
 
 VIKTIGT FORMAT:
-REASONING: [Din interna tankekedja - hur du analyserar och syntetiserar. 2-4 meningar.]
-ANSWER: [Ditt fullständiga, detaljerade debattsvar - minst 600-800 ord. Täck alla viktiga dimensioner, ge konkreta exempel, var specifik och övertygande.]
+Först: Skriv din interna tankekedja på egen rad som börjar med "REASONING: " (3-4 meningar)
+Sedan: Skriv ditt debattsvar på egen rad som börjar med "ANSWER: " (300-500 ord)
 
-Exempel:
-REASONING: Jag identifierar tre huvuddimensioner: ekonomi, miljö och social påverkan. Andra AI:er fokuserar på ekonomi men missar långsiktiga sociala effekter. Jag kommer täcka båda med svenska exempel.
-ANSWER: För att besvara denna fråga måste vi analysera flera viktiga dimensioner...
-
-[Ekonomiskt perspektiv med specifika siffror]
-Ur ekonomisk synvinkel visar forskning från X att... Kostnaden uppskattas till Y miljarder över Z år. I jämförelse med nuvarande system...
-
-[Socialt perspektiv med konkreta exempel]  
-Socialt innebär detta att... Ett exempel från Sveriges implementation av liknande reformer 20XX visar att...
-
-[Miljöperspektiv med data]
-Miljömässigt skulle detta leda till... Studier från Naturvårdsverket visar att...
-
-[Tekniskt genomförbarhet]
-Tekniskt är detta genomförbart genom... Sverige har redan infrastruktur för... behov av utveckling inom...
-
-[Slutsats med balans]
-Sammantaget väger fördelarna (X, Y, Z) mot nackdelarna (A, B, C)...
-
-Ge ditt omfattande, vinnande svar nu:"""
+Ge ditt svar nu:"""
             
-            # Step 3: Get ONESEEK synthesis with full context
+            # Generate OneSeek's OWN answer with streaming
             try:
                 payload = {
                     "messages": [
-                        {"role": "system", "content": debattledare_config.get('system_prompt', "Du är ONESEEK - en AI som kombinerar egen kunskap med insikter från andra AI-modeller för att ge det bästa svaret.")},
+                        {"role": "system", "content": "Du är ONESEEK - en debattdeltagare som ger utförliga, balanserade och välgrundade svar."},
                         {"role": "user", "content": oneseek_context}
                     ],
-                    "max_tokens": 1200,  # Increased from 800 for more comprehensive responses
+                    "max_tokens": 1000,  # Increased from 600 for more comprehensive answers
                     "temperature": 0.7,
                 }
                 
                 server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
-                response = requests.post(
+                llm_response = requests.post(
                     f"{server_url}/v1/chat/completions",
                     json=payload,
-                    timeout=30,
+                    timeout=45,
                 )
-                response.raise_for_status()
-                result = response.json()
+                llm_response.raise_for_status()
+                result = llm_response.json()
                 
                 if 'choices' in result and len(result['choices']) > 0:
                     oneseek_full_response = result['choices'][0].get('message', {}).get('content', '')
@@ -12998,27 +13520,90 @@ Ge ditt omfattande, vinnande svar nu:"""
                 reasoning = ""
                 answer = oneseek_full_response
                 
-                if "REASONING:" in oneseek_full_response and "ANSWER:" in oneseek_full_response:
-                    parts = oneseek_full_response.split("ANSWER:", 1)
-                    reasoning_part = parts[0].replace("REASONING:", "").strip()
-                    answer_part = parts[1].strip() if len(parts) > 1 else oneseek_full_response
-                    reasoning = reasoning_part
-                    answer = answer_part
+                # Split by ANSWER: first to separate reasoning from answer
+                if "ANSWER:" in oneseek_full_response.upper():
+                    # Case-insensitive search for ANSWER:
+                    import re
+                    answer_match = re.search(r'ANSWER:\s*', oneseek_full_response, re.IGNORECASE)
+                    if answer_match:
+                        answer_start = answer_match.end()
+                        reasoning_text = oneseek_full_response[:answer_match.start()].strip()
+                        answer = oneseek_full_response[answer_start:].strip()
+                        
+                        # Extract reasoning (remove REASONING: prefix if present)
+                        reasoning_match = re.search(r'REASONING:\s*', reasoning_text, re.IGNORECASE)
+                        if reasoning_match:
+                            reasoning = reasoning_text[reasoning_match.end():].strip()
+                        else:
+                            reasoning = reasoning_text
                 
-                # response field = ANSWER (visible in debate)
-                # reasoning field = REASONING (internal, shown in collapsible)
+                # If no ANSWER: found, treat entire response as answer
+                if not answer or answer == oneseek_full_response:
+                    # Check if there's a REASONING: at the start
+                    reasoning_match = re.search(r'REASONING:\s*', oneseek_full_response, re.IGNORECASE)
+                    if reasoning_match:
+                        # Find where reasoning ends (look for double newline or ANSWER:)
+                        rest_of_text = oneseek_full_response[reasoning_match.end():]
+                        lines = rest_of_text.split('\n')
+                        
+                        # Take first 2-3 lines as reasoning
+                        reasoning_lines = []
+                        answer_lines = []
+                        in_reasoning = True
+                        
+                        for line in lines:
+                            if in_reasoning and len(reasoning_lines) < 3 and line.strip():
+                                reasoning_lines.append(line)
+                            elif line.strip():
+                                in_reasoning = False
+                                answer_lines.append(line)
+                        
+                        reasoning = ' '.join(reasoning_lines)
+                        answer = '\n'.join(answer_lines) if answer_lines else oneseek_full_response
+                
+                # Stream OneSeek's own answer
+                await websocket.send_json({
+                    "type": "oneseek_own_answer_start",
+                    "round": round_num,
+                    "message": "🤖 ONESEEK ger sitt debattsvar..."
+                })
+                
+                await stream_text_tokens(
+                    websocket,
+                    answer,
+                    "oneseek_own_answer",
+                    agent="oneseek",
+                    round=round_num
+                )
+                
+                # Emit OneSeek's reasoning for its own answer
+                if reasoning:
+                    await websocket.send_json({
+                        "type": "oneseek_own_reasoning",
+                        "round": round_num,
+                        "message": reasoning,
+                        "data": {
+                            "reasoning": reasoning
+                        }
+                    })
+                    knowledge_chain.append({
+                        'round': round_num,
+                        'agent': 'oneseek',
+                        'insight': f"OneSeek: {reasoning}"
+                    })
+                
                 oneseek_resp = {
                     'agent': 'oneseek',
-                    'response': answer,  # ANSWER first - visible to other AIs
-                    'reasoning': reasoning if reasoning else None,  # REASONING - internal process
+                    'response': answer,
+                    'reasoning': reasoning if reasoning else None,
                     'model': 'OneSeek-7B-Zero',
                     'success': True
                 }
                 round_responses.append(oneseek_resp)
-                logger.info(f"[WS-Debate] ONESEEK debate answer complete for round {round_num}")
+                logger.info(f"[WS-Debate] ONESEEK own answer complete for round {round_num}")
                 
             except Exception as e:
-                logger.error(f"[WS-Debate] Error getting ONESEEK debate answer: {e}")
+                logger.error(f"[WS-Debate] Error generating ONESEEK own answer: {e}")
                 oneseek_resp = {
                     'agent': 'oneseek',
                     'response': f'❌ Fel: Kunde inte generera svar',
@@ -13027,18 +13612,130 @@ Ge ditt omfattande, vinnande svar nu:"""
                     'success': False
                 }
                 round_responses.append(oneseek_resp)
+                await websocket.send_json({
+                    "type": "oneseek_own_answer",
+                    "round": round_num,
+                    "text": oneseek_resp['response'],
+                    "complete": True,
+                    "agent": "oneseek"
+                })
             
-            # Step 4: Send ONE grouped message for the entire round
+            # Generate round summary/compression (5 key learnings)
+            logger.info(f"[WS-Debate] Generating round {round_num} summary...")
             await websocket.send_json({
-                "type": "round_complete",
-                "round": round_num,
-                "message": f"✅ Runda {round_num} avslutad - alla svar insamlade",
-                "data": {
-                    "responses": round_responses  # All 5 responses in one message
-                }
+                "type": "thinking",
+                "message": f"[tänker...] Sammanfattar lärdomar från runda {round_num}..."
             })
-            logger.info(f"[WS-Debate] Round {round_num} complete - sent grouped message with {len(round_responses)} responses")
             
+            summary_prompt = f"""Sammanfatta de 5 viktigaste lärdomarna från runda {round_num} i debatten om: {clean_question}
+
+SVAR I DENNA RUNDA:
+"""
+            for resp in round_responses:
+                if resp.get('success', False):
+                    summary_prompt += f"{resp['agent'].upper()}: {resp['response'][:300]}...\n\n"
+            
+            summary_prompt += "\nSkapa en punktlista med de 5 viktigaste lärdomarna/insikterna från denna runda (var koncis, 1 rad per punkt):"
+            
+            try:
+                payload = {
+                    "messages": [
+                        {"role": "system", "content": "Du är OneSeek - sammanfatta koncist."},
+                        {"role": "user", "content": summary_prompt}
+                    ],
+                    "max_tokens": 400,
+                    "temperature": 0.7,
+                }
+                
+                llm_response = requests.post(
+                    f"{server_url}/v1/chat/completions",
+                    json=payload,
+                    timeout=30,
+                )
+                llm_response.raise_for_status()
+                result = llm_response.json()
+                
+                if 'choices' in result and len(result['choices']) > 0:
+                    summary_text = result['choices'][0].get('message', {}).get('content', '')
+                else:
+                    summary_text = result.get('content', '')
+                
+                # Calculate consensus
+                consensus_prompt = f"""Analysera konsensusgraden mellan alla AI-svar i denna debattrunda om: {clean_question}
+
+SVAR I RUNDA {round_num}:
+"""
+                for resp in round_responses:
+                    if resp.get('success', False):
+                        consensus_prompt += f"{resp['agent'].upper()}: {resp['response'][:200]}...\n\n"
+                
+                consensus_prompt += """
+Beräkna konsensusgraden (0-100%) baserat på:
+- Hur överens AI:erna är om huvudbudskapet
+- Om de drar liknande slutsatser
+- Om de föreslår samma lösningar eller åtgärder
+
+Svara ENDAST med ett tal 0-100, inget annat."""
+
+                try:
+                    consensus_payload = {
+                        "messages": [
+                            {"role": "system", "content": "Du är en analyserare som bedömer konsensus. Svara endast med ett tal 0-100."},
+                            {"role": "user", "content": consensus_prompt}
+                        ],
+                        "max_tokens": 10,
+                        "temperature": 0.3,
+                    }
+                    
+                    consensus_response = requests.post(
+                        f"{server_url}/v1/chat/completions",
+                        json=consensus_payload,
+                        timeout=15,
+                    )
+                    consensus_response.raise_for_status()
+                    consensus_result = consensus_response.json()
+                    
+                    if 'choices' in consensus_result and len(consensus_result['choices']) > 0:
+                        consensus_text = consensus_result['choices'][0].get('message', {}).get('content', '50').strip()
+                    else:
+                        consensus_text = consensus_result.get('content', '50').strip()
+                    
+                    # Extract just the number
+                    import re
+                    consensus_match = re.search(r'\d+', consensus_text)
+                    consensus_pct = int(consensus_match.group()) if consensus_match else 50
+                    consensus_pct = max(0, min(100, consensus_pct))  # Clamp to 0-100
+                    
+                except Exception as e:
+                    logger.error(f"[WS-Debate] Error calculating consensus: {e}")
+                    consensus_pct = 50  # Default to middle
+                
+                await websocket.send_json({
+                    "type": "round_summary",
+                    "round": round_num,
+                    "message": f"📚 Lärdomar från runda {round_num}",
+                    "data": {
+                        "summary": summary_text,
+                        "round": round_num,
+                        "consensus": consensus_pct
+                    }
+                })
+                logger.info(f"[WS-Debate] Round {round_num} summary generated (consensus: {consensus_pct}%)")
+                
+            except Exception as e:
+                logger.error(f"[WS-Debate] Error generating round summary: {e}")
+                await websocket.send_json({
+                    "type": "round_summary",
+                    "round": round_num,
+                    "message": f"📚 Lärdomar från runda {round_num}",
+                    "data": {
+                        "summary": f"Runda {round_num}: {len(round_responses)} AI-modeller presenterade sina perspektiv.",
+                        "round": round_num,
+                        "consensus": 50
+                    }
+                })
+            
+            # Save round data
             debate_rounds.append({
                 'round': round_num,
                 'responses': round_responses
@@ -13051,7 +13748,7 @@ Ge ditt omfattande, vinnande svar nu:"""
             })
             
             # Small delay between rounds
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(1.0)
         
         # Step 3: Voting phase
         votes = {}
@@ -13166,6 +13863,41 @@ Skapa en kort, objektiv sammanfattning (max 150 ord) av debatten och förklara v
                 "summary": summary_text
             }
         })
+        
+        logger.info("[WS-Debate] Debate complete message sent, preparing to send MTA-43 analysis offer...")
+        
+        # Small delay to ensure debate_complete is processed before analysis offer
+        await asyncio.sleep(0.5)
+        
+        # Offer MTA-16 analysis as a regular OneSeek message (streaming)
+        analysis_offer_text = "Debatten är nu avslutad. Vill du att jag genomför en Multidimensionell Transparensanalys (MTA-16) på hela debatten, steg för steg, och presenterar resultatet för dig? Analysen är övergripande, systematisk och modelloberoende."
+        
+        logger.info("[WS-Debate] Sending MTA-16 analysis offer message...")
+        await websocket.send_json({
+            "type": "message",
+            "agent": "oneseek",
+            "message": analysis_offer_text,
+            "analysis_offer": True  # Special flag to show Ja/Nej buttons
+        })
+        logger.info("[WS-Debate] MTA-16 analysis offer sent successfully")
+        
+        # Wait for user response (60 seconds timeout)
+        try:
+            response_data = await asyncio.wait_for(websocket.receive_json(), timeout=60.0)
+            
+            if response_data.get("type") == "analysis_request" and response_data.get("approved"):
+                # User approved - run MTA-16 analysis (stream as messages)
+                await run_mta16_analysis(websocket, debate_rounds, clean_question)
+        except asyncio.TimeoutError:
+            logger.info("[WS-Debate] No analysis request received within timeout")
+            # Send timeout message
+            await websocket.send_json({
+                "type": "message",
+                "agent": "oneseek",
+                "message": "Ingen respons mottagen. Avslutar debatten."
+            })
+        except Exception as e:
+            logger.error(f"[WS-Debate] Error waiting for analysis request: {e}")
         
         await websocket.close()
         logger.info(f"[WS-Debate] Debate completed successfully")

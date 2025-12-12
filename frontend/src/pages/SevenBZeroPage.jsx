@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import { formatAIResponse } from '../utils/formatMarkdown';
 import ThinkingChain from '../components/ThinkingChain';
 import { sendPersonalityMessageViaWebSocket, isWebSocketSupported } from '../services/personalityWebSocket';
+import DebateRoundDisplay from '../components/DebateRoundDisplay';
 
 /**
  * 7B-Zero Page - Integrated OQI Interface
@@ -164,6 +165,8 @@ export default function SevenBZeroPage() {
   const [debateData, setDebateData] = useState(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [expandedRounds, setExpandedRounds] = useState(new Set([1])); // Track which rounds are expanded
+  const [debateRounds, setDebateRounds] = useState({}); // Structured data: { 1: { gpt: {text, isStreaming, reasoning, insights}, ... }, 2: {...} }
+  const [currentRound, setCurrentRound] = useState(0);
   
   // Chat state
   const [messages, setMessages] = useState([]);
@@ -182,6 +185,7 @@ export default function SevenBZeroPage() {
   const [streamingEnabled, setStreamingEnabled] = useState(true);
   const [isStreaming, setIsStreaming] = useState(false);
   const streamAbortRef = useRef(null);
+  const wsRef = useRef(null); // WebSocket reference for debate
   
   // ONESEEK Δ+ Typo suggestion state
   const [typoSuggestion, setTypoSuggestion] = useState(null);
@@ -1291,6 +1295,7 @@ export default function SevenBZeroPage() {
             
             try {
               const wsResult = await sendPersonalityMessageViaWebSocket(currentQuestion, {
+                history: conversationHistory,  // Pass conversation history for context
                 onThinking: (step) => {
                   // Update global thinking step for loading indicator
                   setThinkingStep(`[tänker...] ${step.message}`);
@@ -1654,6 +1659,7 @@ export default function SevenBZeroPage() {
     
     try {
       const ws = new WebSocket(`ws://localhost:5000/ws/debate`);
+      wsRef.current = ws; // Store reference for MTA-43 analysis
       
       const debateState = {
         question,
@@ -1689,62 +1695,214 @@ export default function SevenBZeroPage() {
             
           case 'round_start':
             setThinkingStep(`🎤 Runda ${message.round} startar...`);
-            // Just show thinking step - round content will come in round_complete event
+            setCurrentRound(message.round);
+            
+            // Add debate marker message at round 1 start for chronological positioning
+            if (message.round === 1) {
+              const debateMarker = {
+                id: `debate-marker-${Date.now()}`,
+                type: 'assistant',
+                text: 'Debatten startar nu...',
+                timestamp: new Date().toISOString(),
+                isDebateMarker: true
+              };
+              
+              setMessages(prev => [...prev, debateMarker]);
+              setConversationHistory(prev => [...prev, {
+                role: 'assistant',
+                content: 'Debatten startar nu...',
+                timestamp: debateMarker.timestamp,
+                isDebateMarker: true
+              }]);
+            }
+            
+            // Initialize round data structure
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {}
+            }));
             break;
             
-          case 'round_complete':
-            console.log(`[Debate] Round ${message.round} complete with ${message.data?.responses?.length || 0} responses`);
-            setThinkingStep(`✅ Runda ${message.round} avslutad`);
+          case 'ai_response':
+            // External AI response arrived and queued
+            console.log(`[Debate] ${message.agent} response queued`);
+            setThinkingStep(`✅ ${message.agent.toUpperCase()} har svarat`);
+            break;
             
-            // Build grouped round message with all responses
-            const responses = message.data?.responses || [];
-            let roundText = `## 🎤 Runda ${message.round}\n\n`;
+          case 'oneseek_echo_start':
+            // OneSeek starts echoing an answer
+            console.log(`[Debate] OneSeek echoing ${message.agent}'s answer`);
+            setThinkingStep(`🔄 OneSeek ekar ${message.agent.toUpperCase()}s svar...`);
             
-            // Add external AI responses (GPT, Gemini, DeepSeek, Grok)
-            const externalAIs = responses.filter(r => r.agent !== 'oneseek');
-            externalAIs.forEach(resp => {
-              roundText += `### 🤖 ${resp.agent.toUpperCase()}\n`;
-              if (resp.model) {
-                roundText += `*${resp.model}*\n\n`;
+            // Initialize AI data in round
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {
+                ...(prev[message.round] || {}),
+                [message.agent]: {
+                  text: '',
+                  isStreaming: true,
+                  reasoning: null,
+                  insights: [],
+                  model: null
+                }
               }
-              roundText += `${resp.response}\n\n---\n\n`;
-            });
+            }));
+            break;
             
-            // Add ONESEEK as full debate participant (not just synthesis)
-            const oneseekResp = responses.find(r => r.agent === 'oneseek');
-            if (oneseekResp) {
-              roundText += `### 🤖 ONESEEK\n`;
-              roundText += `*${oneseekResp.model || 'OneSeek-7B-Zero'}*\n\n`;
-              roundText += `${oneseekResp.response}\n\n`;
-              
-              // Don't add HTML tags to markdown - store reasoning for React rendering
+          case 'oneseek_echo':
+            // Token stream from OneSeek's echo
+            const echoText = message.text || '';
+            const isEchoComplete = message.complete || false;
+            
+            // Update AI data with streaming text
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {
+                ...(prev[message.round] || {}),
+                [message.agent]: {
+                  ...(prev[message.round]?.[message.agent] || {}),
+                  text: echoText,
+                  isStreaming: !isEchoComplete
+                }
+              }
+            }));
+            
+            if (isEchoComplete) {
+              setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             }
+            break;
             
-            // Auto-collapse previous rounds, expand current round
-            setExpandedRounds(new Set([message.round]));
+          case 'oneseek_reasoning':
+            // OneSeek's focused reasoning for specific answer
+            console.log(`[Debate] OneSeek reasoning for ${message.agent}`);
             
-            // Add as ONE grouped message for the entire round
-            setMessages(prev => [...prev, {
-              id: `round-complete-${message.round}-${Date.now()}`,
-              sender: 'ai',
-              text: roundText,
-              timestamp: new Date().toISOString(),
-              isRoundComplete: true,
-              roundNumber: message.round,
-              oneseekReasoning: oneseekResp?.reasoning || null  // Store for React rendering
-            }]);
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {
+                ...(prev[message.round] || {}),
+                [message.agent]: {
+                  ...(prev[message.round]?.[message.agent] || {}),
+                  reasoning: message.message
+                }
+              }
+            }));
             
-            // Track for voting context
-            if (!debateState.rounds[message.round - 1]) {
-              debateState.rounds[message.round - 1] = { round: message.round, responses: [] };
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            break;
+            
+          case 'live_insight':
+            // Live one-liner insight
+            console.log(`[Debate] Live insight: ${message.message}`);
+            
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {
+                ...(prev[message.round] || {}),
+                [message.agent]: {
+                  ...(prev[message.round]?.[message.agent] || {}),
+                  insights: [
+                    ...(prev[message.round]?.[message.agent]?.insights || []),
+                    message.message
+                  ]
+                }
+              }
+            }));
+            
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            break;
+            
+          case 'oneseek_own_answer_start':
+            // OneSeek starts its own comprehensive answer
+            console.log(`[Debate] OneSeek generating own answer for round ${message.round}`);
+            setThinkingStep(`🤖 ONESEEK ger sitt debattsvar...`);
+            
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {
+                ...(prev[message.round] || {}),
+                oneseek: {
+                  text: '',
+                  isStreaming: true,
+                  reasoning: null,
+                  insights: [],
+                  model: 'OneSeek-7B-Zero'
+                }
+              }
+            }));
+            break;
+            
+          case 'oneseek_own_answer':
+            // Token stream from OneSeek's own answer
+            const answerText = message.text || '';
+            const isAnswerComplete = message.complete || false;
+            
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {
+                ...(prev[message.round] || {}),
+                oneseek: {
+                  ...(prev[message.round]?.oneseek || {}),
+                  text: answerText,
+                  isStreaming: !isAnswerComplete,
+                  model: 'OneSeek-7B-Zero'
+                }
+              }
+            }));
+            
+            if (isAnswerComplete) {
+              setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             }
-            debateState.rounds[message.round - 1].responses = responses;
+            break;
+            
+          case 'oneseek_own_reasoning':
+            // OneSeek's reasoning for its own answer
+            console.log(`[Debate] OneSeek reasoning for own answer`);
+            
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {
+                ...(prev[message.round] || {}),
+                oneseek: {
+                  ...(prev[message.round]?.oneseek || {}),
+                  reasoning: message.message
+                }
+              }
+            }));
+            
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            break;
+            
+          case 'round_summary':
+            // Round compression/summary
+            console.log(`[Debate] Round ${message.round} summary received`);
+            
+            const summaryText = message.data?.summary || message.message;
+            const consensus = message.data?.consensus || 50;
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {
+                ...(prev[message.round] || {}),
+                summary: summaryText,
+                consensus: consensus
+              }
+            }));
             
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
             
           case 'round_end':
-            // Deprecated - using round_complete instead
+            setThinkingStep(`✅ Runda ${message.round} avslutad`);
+            
+            // Mark round as complete (no longer active) to trigger auto-minimize
+            if (parseInt(message.round) === currentRound) {
+              setCurrentRound(0); // No active round
+            }
+            break;
+            
+          case 'round_complete':
+            // Legacy support - deprecated in new architecture
+            console.log(`[Debate] Legacy round_complete event received`);
             break;
             
           case 'debate_complete':
@@ -1760,46 +1918,114 @@ export default function SevenBZeroPage() {
             debateState.voteResults = message.data.vote_results;
             debateState.summary = message.data.summary;
             
-            // Build combined final message
-            let finalText = `## 🏁 DEBATT AVSLUTAD\n\n`;
+            // Add debate completion data to debateRounds state
+            setDebateRounds(prev => ({
+              ...prev,
+              completion: {
+                winner: message.data.winner,
+                winnerVotes: message.data.winner_votes,
+                totalVotes: message.data.total_votes,
+                voteResults: message.data.vote_results,
+                summary: message.data.summary,
+                time: finalResponseTime
+              }
+            }));
             
-            // Voting section
-            finalText += `### 🗳️ Röstning\n`;
-            finalText += `*AI-modellerna har röstat på bästa argumentet.*\n\n`;
-            finalText += `**Röstresultat:**\n`;
-            if (message.data.vote_results && Array.isArray(message.data.vote_results)) {
-              message.data.vote_results.forEach((voteObj) => {
-                finalText += `- **${voteObj.voter.toUpperCase()}** röstade på: **${voteObj.voted_for.toUpperCase()}**\n`;
-              });
-            }
-            
-            // Winner section
-            finalText += `\n### 🏆 Vinnare: ${message.data.winner.toUpperCase()}\n`;
-            finalText += `**Röster:** ${message.data.winner_votes}/${message.data.total_votes}\n\n`;
-            
-            // Summary section
-            finalText += `### 📋 Sammanfattning från Debattledaren\n`;
-            finalText += `${message.data.summary}\n\n`;
-            
-            // Completion time
-            finalText += `---\n**Debatt slutförd på ${finalResponseTime} sekunder**`;
-            
-            // Remove initial "thinking" message and add combined final message
-            setMessages(prev => prev.filter(msg => msg.id !== aiMessageId).concat([{
-              id: `debate-complete-${Date.now()}`,
-              sender: 'system',
-              text: finalText,
-              timestamp: new Date().toISOString(),
-              responseTime: finalResponseTime,
-              isDebateComplete: true
-            }]));
+            // Mark all rounds as complete
+            setCurrentRound(0);
             
             // Show confetti for winner!
             setShowConfetti(true);
             setTimeout(() => setShowConfetti(false), 5000);
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             
-            ws.close();
+            // Note: No auto-toggle - user controls debate mode with button
+            // Debate and analysis happen in whatever view user has selected
+            
+            // Add debate summary to conversationHistory for context
+            const debateSummary = `Debatt slutförd: ${debateState.question}. Deltagare: GPT, GEMINI, DEEPSEEK, GROK, ONESEEK. Rundor: ${max_rounds}. Vinnare: ${message.data.winner} med ${message.data.winner_votes} röster. Röstfördelning: ${Object.entries(message.data.vote_results || {}).map(([ai, votes]) => `${ai}: ${votes}`).join(', ')}.`;
+            setConversationHistory(prev => [
+              ...prev,
+              { role: 'assistant', content: debateSummary }
+            ]);
+            
+            // Don't close yet - wait for potential analysis_offer
+            break;
+            
+          case 'message':
+            // Handle regular messages (including analysis offer/progress/results)
+            if (message.analysis_offer) {
+              // This is the MTA-16 analysis offer - add as message with buttons
+              const offerMsgId = generateMessageId();
+              setMessages(prev => [...prev, {
+                id: offerMsgId,
+                role: 'ai',
+                text: message.message,
+                agent: message.agent || 'oneseek',
+                timestamp: new Date(),
+                isTyping: false,
+                analysisOffer: true  // Flag to show Ja/Nej buttons
+              }]);
+            } else if (message.thinking || message.isThinking) {
+              // Analysis progress message - add as message with isThinking flag for grouped display
+              const thinkingMsgId = generateMessageId();
+              setMessages(prev => [...prev, {
+                id: thinkingMsgId,
+                role: 'ai',
+                text: message.message,
+                agent: message.agent || 'oneseek',
+                timestamp: new Date(),
+                isThinking: true,
+                isTyping: false
+              }]);
+            } else if (message.analysis_complete) {
+              // Analysis complete - add as regular message
+              setThinkingStep(null);
+              const completeMsgId = generateMessageId();
+              setMessages(prev => [...prev, {
+                id: completeMsgId,
+                role: 'ai',
+                text: message.message,
+                agent: message.agent || 'oneseek',
+                timestamp: new Date(),
+                isTyping: false,
+                analysisData: message.analysis_data
+              }]);
+              
+              // Add MTA-16 analysis summary to conversationHistory for context
+              const analysisData = message.analysis_data || {};
+              const aiCount = Object.keys(analysisData.per_round_analyses || {}).length;
+              const aiList = Object.keys(analysisData.per_round_analyses || {}).join(', ').toUpperCase();
+              const dimensions = 'sentiment, emotion, tonfall, politisk_riktning, ideologisk_dimension, bias, framing, retorik, propaganda, claim_detection, moral_foundations, toxicitet, osäkerhet, koherens, klarhet, sammanfattning';
+              const analysisSummary = `MTA-16 analys slutförd på ${aiCount} AI-tjänster (${aiList}). Analyserade alla 3 rundor för varje AI. Tillgänglig data: per-round analyses, helhetsprofil (medelvärden), förändringar över tid, OneSeek slutinsikt. Dimensioner analyserade: ${dimensions}.`;
+              setConversationHistory(prev => [
+                ...prev,
+                { role: 'assistant', content: analysisSummary }
+              ]);
+              
+              // Close websocket
+              ws.close();
+            } else {
+              // Regular message
+              const msgId = generateMessageId();
+              setMessages(prev => [...prev, {
+                id: msgId,
+                role: 'ai',
+                text: message.message,
+                agent: message.agent || 'oneseek',
+                timestamp: new Date(),
+                isTyping: false
+              }]);
+            }
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            break;
+            
+          // Legacy events - remove these handlers
+          case 'analysis_offer':
+          case 'analysis_start':
+          case 'analysis_progress':
+          case 'analysis_result':
+            // These are now handled via 'message' type
             break;
             
           // Legacy events - kept for backward compatibility
@@ -2359,8 +2585,127 @@ export default function SevenBZeroPage() {
             </div>
           )}
 
-          {/* Messages */}
-          {messages.map((msg, idx) => {
+          {/* Debate Rounds Display moved to message timeline - rendered at debate marker position */}
+          {false && Object.keys(debateRounds).length > 0 && (
+            <div className="mb-6">
+              {Object.keys(debateRounds).filter(k => k !== 'completion').sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
+                <DebateRoundDisplay
+                  key={roundNum}
+                  round={parseInt(roundNum)}
+                  aiData={debateRounds[roundNum]}
+                  isActive={parseInt(roundNum) === currentRound}
+                />
+              ))}
+              
+              {/* Debate Completion - Integrated into flow */}
+              {debateRounds.completion && (
+                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                  <div className="text-sm font-medium text-[#888] mb-3">Debatt avslutad</div>
+                  
+                  {/* Voting Results */}
+                  <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
+                    <div className="text-xs text-[#666] mb-2">Röstning</div>
+                    <div className="space-y-1">
+                      {debateRounds.completion.voteResults?.map((vote, idx) => (
+                        <div key={idx} className="text-xs text-[#888]">
+                          {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Winner */}
+                  <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
+                    <div className="text-xs text-[#666] mb-1">Vinnare</div>
+                    <div className="text-sm text-[#aaa]">
+                      {debateRounds.completion.winner?.toUpperCase()}
+                      <span className="text-xs text-[#666] ml-2">
+                        ({debateRounds.completion.winnerVotes}/{debateRounds.completion.totalVotes} röster)
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Summary */}
+                  <div>
+                    <div className="text-xs text-[#666] mb-2">Sammanfattning</div>
+                    <div className="text-xs text-[#888] leading-relaxed">
+                      {debateRounds.completion.summary}
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* MTA-16 Analysis Offer - now handled via regular messages, remove this */}
+              
+              {/* MTA-16 Analysis Progress */}
+              {debateRounds.analysisRunning && (
+                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                  <div className="text-sm text-[#aaa] mb-2">MTA-16 Analys pågår...</div>
+                  <div className="w-full bg-[#1a1a1a] rounded-full h-2">
+                    <div 
+                      className="bg-[#333] h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${debateRounds.analysisProgress || 0}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-[#666] mt-2 text-right">
+                    {debateRounds.analysisProgress || 0}%
+                  </div>
+                </div>
+              )}
+              
+              {/* MTA-16 Analysis Results */}
+              {debateRounds.analysisComplete && debateRounds.analysisResults && (
+                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                  <div className="text-sm font-medium text-[#888] mb-3">
+                    MTA-16 Analys - {debateRounds.analysisResults.total_analyzed} svar analyserade
+                  </div>
+                  
+                  {/* Results by round */}
+                  {debateRounds.analysisResults.analyses?.map((analysis, idx) => (
+                    <details key={idx} className="mb-3 border-b border-[#1a1a1a] pb-3 last:border-0">
+                      <summary className="cursor-pointer text-xs text-[#888] hover:text-[#aaa] mb-2">
+                        Runda {analysis.round} - {analysis.agent.toUpperCase()}
+                      </summary>
+                      <div className="pl-4 mt-2 space-y-2">
+                        {/* Show key dimensions with high scores */}
+                        {Object.entries(analysis.analysis || {}).filter(([key, val]) => val?.skala >= 5).slice(0, 10).map(([dimension, data]) => (
+                          <div key={dimension} className="text-xs">
+                            <span className="text-[#666]">{dimension}:</span>
+                            <span className="text-[#888] ml-2">{data.värde}</span>
+                            <span className="text-[#555] ml-2">({data.skala}/10)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Messages - Show ALL messages in one view (debate button only controls model behavior, not view) */}
+          {messages.reduce((acc, msg, idx, arr) => {
+            // Group consecutive isThinking messages into a single entry
+            if (msg.isThinking) {
+              // Check if the last item in accumulator is already a thinking group
+              if (acc.length > 0 && acc[acc.length - 1].isThinkingGroup) {
+                // Add to existing group
+                acc[acc.length - 1].messages.push(msg);
+              } else {
+                // Create new thinking group
+                acc.push({
+                  isThinkingGroup: true,
+                  messages: [msg],
+                  id: `thinking-group-${msg.id}`,
+                  timestamp: msg.timestamp
+                });
+              }
+            } else {
+              // Regular message
+              acc.push(msg);
+            }
+            return acc;
+          }, []).map((msg, idx) => {
             // Calculate opacity based on position - newer messages are more visible
             const totalMessages = messages.length;
             const distanceFromEnd = totalMessages - 1 - idx;
@@ -2368,6 +2713,141 @@ export default function SevenBZeroPage() {
             const isRecent = distanceFromEnd <= 1;
             const isHighlighted = highlightedMessage === msg.id;
             
+            // Handle thinking group
+            if (msg.isThinkingGroup) {
+              return (
+                <div 
+                  key={msg.id}
+                  className="elegant-fade transition-all duration-500 flex flex-col items-start"
+                  style={{ animationDelay: `${idx * 0.05}s` }}
+                >
+                  {/* Timestamp */}
+                  <p className={`text-[10px] mb-2 tracking-wide uppercase ${
+                    whiteMode ? 'text-[#bbb]' : 'text-[#3a3a3a]'
+                  }`}>
+                    {formatDate(msg.timestamp)} · {formatTime(msg.timestamp)}
+                  </p>
+                  
+                  <div className="max-w-4xl relative group">
+                    {/* AI Meta */}
+                    <div className={`text-[10px] mb-2 tracking-wide font-light uppercase flex items-center gap-3 ${
+                      whiteMode ? 'text-[#999]' : 'text-[#4a4a4a]'
+                    }`}>
+                      <span className={whiteMode ? 'text-[#666]' : 'text-[#666]'}>ONESEEK</span>
+                      <button 
+                        className={`ml-2 px-2 py-0.5 rounded text-[9px] border transition-all ${
+                          whiteMode 
+                            ? 'border-[#ddd] hover:border-[#999] hover:bg-[#f5f5f5]' 
+                            : 'border-[#333] hover:border-[#555] hover:bg-[#111]'
+                        }`}
+                      >
+                        🔄 Konsensus
+                      </button>
+                    </div>
+                    
+                    {/* Grouped thinking messages */}
+                    <div className={`rounded-lg border p-4 ${
+                      whiteMode 
+                        ? 'bg-[#f5f5f5] border-[#e0e0e0]' 
+                        : 'bg-[#0d0d0d] border-[#1a1a1a]'
+                    }`}>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={`text-[14px] font-light ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
+                          🔬 MTA-16 Analys pågår
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className={`w-2 h-2 rounded-full loading-dot-1 ${whiteMode ? 'bg-[#333]' : 'bg-white'}`} />
+                          <span className={`w-2 h-2 rounded-full loading-dot-2 ${whiteMode ? 'bg-[#333]' : 'bg-white'}`} />
+                          <span className={`w-2 h-2 rounded-full loading-dot-3 ${whiteMode ? 'bg-[#333]' : 'bg-white'}`} />
+                        </div>
+                      </div>
+                      
+                      {/* All thinking messages grouped */}
+                      <div className="space-y-1.5">
+                        {msg.messages.map((thinkMsg, thinkIdx) => (
+                          <div 
+                            key={thinkMsg.id}
+                            className={`text-xs ${whiteMode ? 'text-[#888]' : 'text-[#666]'}`}
+                          >
+                            {thinkMsg.text}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            
+            // Handle debate marker - render debate rounds at this position
+            if (msg.isDebateMarker && Object.keys(debateRounds).length > 0) {
+              return (
+                <div 
+                  key={msg.id}
+                  className="elegant-fade transition-all duration-500 w-full"
+                  style={{ animationDelay: `${idx * 0.05}s` }}
+                >
+                  {/* Timestamp */}
+                  <p className={`text-[10px] mb-2 tracking-wide uppercase ${
+                    whiteMode ? 'text-[#bbb]' : 'text-[#3a3a3a]'
+                  }`}>
+                    {formatDate(msg.timestamp)} · {formatTime(msg.timestamp)}
+                  </p>
+                  
+                  {/* Debate rounds display - now in chronological position */}
+                  <div className="mb-6">
+                    {Object.keys(debateRounds).filter(k => k !== 'completion').sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
+                      <DebateRoundDisplay
+                        key={roundNum}
+                        round={parseInt(roundNum)}
+                        aiData={debateRounds[roundNum]}
+                        isActive={parseInt(roundNum) === currentRound}
+                      />
+                    ))}
+                    
+                    {/* Debate Completion */}
+                    {debateRounds.completion && (
+                      <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                        <div className="text-sm font-medium text-[#888] mb-3">Debatt avslutad</div>
+                        
+                        {/* Voting Results */}
+                        <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
+                          <div className="text-xs text-[#666] mb-2">Röstning</div>
+                          <div className="space-y-1">
+                            {debateRounds.completion.voteResults?.map((vote, idx) => (
+                              <div key={idx} className="text-xs text-[#888]">
+                                {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        {/* Winner */}
+                        <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
+                          <div className="text-xs text-[#666] mb-1">Vinnare</div>
+                          <div className="text-sm text-[#aaa]">
+                            {debateRounds.completion.winner?.toUpperCase()}
+                            <span className="text-xs text-[#666] ml-2">
+                              ({debateRounds.completion.winnerVotes}/{debateRounds.completion.totalVotes} röster)
+                            </span>
+                          </div>
+                        </div>
+                        
+                        {/* Summary */}
+                        <div>
+                          <div className="text-xs text-[#666] mb-2">Sammanfattning</div>
+                          <div className="text-xs text-[#888] leading-relaxed">
+                            {debateRounds.completion.summary}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+            
+            // Regular message rendering
             return (
             <div 
               key={msg.debateMode && msg.debateData?._updateCounter ? `${msg.id}-debate-${msg.debateData._updateCounter}` : msg.id}
@@ -2692,6 +3172,49 @@ export default function SevenBZeroPage() {
                     </div>
                   )}
                   
+                  {/* MTA-16 Analysis Offer Buttons */}
+                  {msg.analysisOffer && !msg.isTyping && (
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        onClick={() => {
+                          // Send analysis request
+                          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                            wsRef.current.send(JSON.stringify({
+                              type: 'analysis_request',
+                              approved: true
+                            }));
+                          }
+                          // Hide buttons by removing the flag
+                          setMessages(prev => prev.map(m => 
+                            m.id === msg.id ? { ...m, analysisOffer: false } : m
+                          ));
+                        }}
+                        className="px-4 py-2 bg-[#1a1a1a] hover:bg-[#222] text-[#aaa] text-sm rounded border border-[#333] transition-colors"
+                      >
+                        Ja
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Decline analysis - close websocket
+                          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                            wsRef.current.send(JSON.stringify({
+                              type: 'analysis_request',
+                              approved: false
+                            }));
+                            wsRef.current.close();
+                          }
+                          // Hide buttons
+                          setMessages(prev => prev.map(m => 
+                            m.id === msg.id ? { ...m, analysisOffer: false } : m
+                          ));
+                        }}
+                        className="px-4 py-2 bg-[#0a0a0a] hover:bg-[#1a1a1a] text-[#666] text-sm rounded border border-[#1a1a1a] transition-colors"
+                      >
+                        Nej
+                      </button>
+                    </div>
+                  )}
+                  
                   {/* Live Thinking Step - Show current thinking while processing */}
                   {msg.isTyping && msg.currentThinkingStep && (
                     <div className={`mt-3 flex items-center gap-2 px-3 py-2 rounded-lg ${
@@ -2701,6 +3224,295 @@ export default function SevenBZeroPage() {
                       <span className={`text-sm ${whiteMode ? 'text-blue-700' : 'text-blue-300'}`}>
                         {msg.currentThinkingStep}
                       </span>
+                    </div>
+                  )}
+                  
+                  {/* MTA-16 Analysis Results Display */}
+                  {msg.analysisData && msg.analysisData.analyses && (
+                    <div className={`mt-4 ${whiteMode ? 'bg-[#f8f8f8]' : 'bg-[#0a0a0a]'} rounded-lg overflow-hidden px-4 py-3 max-w-none`}>
+                      <div className={`text-[11px] font-medium uppercase tracking-wider flex items-center gap-2 mb-3 ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
+                        <span>🔬</span>
+                        <span>MTA-16 Analys Resultat</span>
+                        <span className={`ml-auto text-[10px] ${whiteMode ? 'text-[#999]' : 'text-[#555]'}`}>
+                          ({msg.analysisData.total_analyzed} AI-tjänster analyserade)
+                        </span>
+                      </div>
+                      
+                      {/* Per-Runda Tables - All AIs side-by-side - COLLAPSED by default */}
+                      {[1, 2, 3].map(roundNum => (
+                        <details key={roundNum} className="mb-2">
+                          <summary className={`cursor-pointer text-xs font-medium py-2 px-3 rounded ${whiteMode ? 'bg-[#f0f0f0] hover:bg-[#e8e8e8] text-[#444]' : 'bg-[#151515] hover:bg-[#1a1a1a] text-[#aaa]'}`}>
+                            📊 Runda {roundNum} - Alla AI sida vid sida (klicka för att expandera)
+                          </summary>
+                          <div className="mt-2 overflow-x-auto max-w-none">
+                            <table className={`w-full text-[10px] border-collapse ${whiteMode ? 'border-[#e0e0e0]' : 'border-[#333]'}`}>
+                              <thead>
+                                <tr className={`${whiteMode ? 'bg-[#f0f0f0] border-b border-[#ddd]' : 'bg-[#151515] border-b border-[#333]'}`}>
+                                  <th className={`text-left py-1 px-3 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>Dimension</th>
+                                  {msg.analysisData.analyses.map((a) => (
+                                    <th key={a.agent} className={`text-center py-1 px-3 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>
+                                      {a.agent.toUpperCase()}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {['sentiment', 'emotion', 'tonfall', 'politisk_riktning', 'ideologisk_dimension', 'bias', 'framing', 'retorik', 'propaganda', 'claim_detection', 'moral_foundations', 'toxicitet', 'osäkerhet', 'koherens', 'klarhet', 'sammanfattning'].map((dim) => (
+                                  <tr key={dim} className={`border-b ${whiteMode ? 'border-[#e8e8e8]' : 'border-[#1a1a1a]'}`}>
+                                    <td className={`py-1 px-3 font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
+                                      {dim.replace(/_/g, ' ')}
+                                    </td>
+                                    {msg.analysisData.analyses.map((a) => {
+                                      // Access per-round data
+                                      const perRoundData = a.per_round_analyses && a.per_round_analyses[`round_${roundNum}`];
+                                      const dimData = perRoundData && perRoundData[dim];
+                                      return (
+                                        <td key={a.agent} className={`py-1 px-3 text-center ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                                          {dimData ? `${dimData.skala}/10` : 'N/A'}
+                                        </td>
+                                      );
+                                    })}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </details>
+                      ))}
+                      
+                      {/* Helhetsprofil - All AIs side-by-side (Medelvärden) - CALCULATE AVERAGES */}
+                      <div className="mb-4">
+                        <h3 className={`text-xs font-medium mb-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                          📈 Helhetsprofil - Alla AI sida vid sida (medelvärden)
+                        </h3>
+                        <div className="overflow-x-auto max-w-none">
+                          <table className={`w-full text-[10px] border-collapse ${whiteMode ? 'border-[#e0e0e0]' : 'border-[#333]'}`}>
+                            <thead>
+                              <tr className={`${whiteMode ? 'bg-[#f0f0f0] border-b border-[#ddd]' : 'bg-[#151515] border-b border-[#333]'}`}>
+                                <th className={`text-left py-1 px-3 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>Dimension</th>
+                                {msg.analysisData.analyses.map((a) => (
+                                  <th key={a.agent} className={`text-center py-1 px-3 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>
+                                    {a.agent.toUpperCase()}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {['sentiment', 'emotion', 'tonfall', 'politisk_riktning', 'ideologisk_dimension', 'bias', 'framing', 'retorik', 'propaganda', 'claim_detection', 'moral_foundations', 'toxicitet', 'osäkerhet', 'koherens', 'klarhet', 'sammanfattning'].map((dim) => (
+                                <tr key={dim} className={`border-b ${whiteMode ? 'border-[#e8e8e8]' : 'border-[#1a1a1a]'}`}>
+                                  <td className={`py-1 px-3 font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
+                                    {dim.replace(/_/g, ' ')}
+                                  </td>
+                                  {msg.analysisData.analyses.map((a) => {
+                                    // Calculate average across all rounds
+                                    const perRoundData = a.per_round_analyses || {};
+                                    const values = [];
+                                    for (let r = 1; r <= 3; r++) {
+                                      const roundData = perRoundData[`round_${r}`];
+                                      if (roundData && roundData[dim] && roundData[dim].skala !== undefined) {
+                                        values.push(roundData[dim].skala);
+                                      }
+                                    }
+                                    const avg = values.length > 0 ? (values.reduce((sum, v) => sum + v, 0) / values.length).toFixed(1) : 'N/A';
+                                    return (
+                                      <td key={a.agent} className={`py-1 px-3 text-center ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                                        {avg !== 'N/A' ? `${avg}/10` : 'N/A'}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                      
+                      {/* Förändringar över tid - All AIs side-by-side - CALCULATE TRENDS */}
+                      <div className="mb-4">
+                        <h3 className={`text-xs font-medium mb-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                          📉 Förändringar över tid - Alla AI sida vid sida
+                        </h3>
+                        <div className="overflow-x-auto max-w-none">
+                          <table className={`w-full text-[10px] border-collapse ${whiteMode ? 'border-[#e0e0e0]' : 'border-[#333]'}`}>
+                            <thead>
+                              <tr className={`${whiteMode ? 'bg-[#f0f0f0] border-b border-[#ddd]' : 'bg-[#151515] border-b border-[#333]'}`}>
+                                <th className={`text-left py-1 px-3 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>Dimension</th>
+                                {msg.analysisData.analyses.map((a) => (
+                                  <th key={a.agent} className={`text-center py-1 px-3 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>
+                                    {a.agent.toUpperCase()}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {['sentiment', 'emotion', 'tonfall', 'politisk_riktning', 'ideologisk_dimension', 'bias', 'framing', 'retorik', 'propaganda', 'claim_detection', 'moral_foundations', 'toxicitet', 'osäkerhet', 'koherens', 'klarhet', 'sammanfattning'].map((dim) => (
+                                <tr key={dim} className={`border-b ${whiteMode ? 'border-[#e8e8e8]' : 'border-[#1a1a1a]'}`}>
+                                  <td className={`py-1 px-3 font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
+                                    {dim.replace(/_/g, ' ')}
+                                  </td>
+                                  {msg.analysisData.analyses.map((a) => {
+                                    // Calculate trend: compare round 1 vs round 3
+                                    const perRoundData = a.per_round_analyses || {};
+                                    const r1Data = perRoundData['round_1'];
+                                    const r3Data = perRoundData['round_3'];
+                                    let trend = 'N/A';
+                                    if (r1Data && r3Data && r1Data[dim] && r3Data[dim]) {
+                                      const r1Val = r1Data[dim].skala;
+                                      const r3Val = r3Data[dim].skala;
+                                      const change = r3Val - r1Val;
+                                      if (Math.abs(change) <= 1) {
+                                        trend = 'Stabil';
+                                      } else if (change >= 2) {
+                                        trend = `Ökar +${change}`;
+                                      } else if (change <= -2) {
+                                        trend = `Minskar ${change}`;
+                                      }
+                                    }
+                                    return (
+                                      <td key={a.agent} className={`py-1 px-3 text-center ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                                        {trend}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                      
+                      {/* Sparkline-Grid: Top 5 Dimensions with Most Change */}
+                      <div className="mb-4">
+                        <h3 className={`text-xs font-medium mb-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                          📊 Sparkline-Grid - Top 5 dimensioner med störst förändring
+                        </h3>
+                        <div className={`p-3 rounded ${whiteMode ? 'bg-[#f8f8f8]' : 'bg-[#0f0f0f]'}`}>
+                          {(() => {
+                            // Calculate top 5 dimensions by change magnitude
+                            const dimensions = ['sentiment', 'emotion', 'tonfall', 'politisk_riktning', 'ideologisk_dimension', 'bias', 'framing', 'retorik', 'propaganda', 'claim_detection', 'moral_foundations', 'toxicitet', 'osäkerhet', 'koherens', 'klarhet', 'sammanfattning'];
+                            const dimChanges = [];
+                            
+                            dimensions.forEach(dim => {
+                              let maxChange = 0;
+                              msg.analysisData.analyses.forEach(a => {
+                                const perRoundData = a.per_round_analyses || {};
+                                const r1Data = perRoundData['round_1'];
+                                const r3Data = perRoundData['round_3'];
+                                if (r1Data && r3Data && r1Data[dim] && r3Data[dim]) {
+                                  const change = Math.abs(r3Data[dim].skala - r1Data[dim].skala);
+                                  if (change > maxChange) maxChange = change;
+                                }
+                              });
+                              dimChanges.push({ dim, maxChange });
+                            });
+                            
+                            // Sort by max change and take top 5
+                            const top5 = dimChanges.sort((a, b) => b.maxChange - a.maxChange).slice(0, 5);
+                            
+                            // AI colors
+                            const aiColors = {
+                              'gpt': '#60a5fa',
+                              'gemini': '#34d399',
+                              'deepseek': '#f472b6',
+                              'grok': '#fbbf24',
+                              'oneseek': '#a78bfa'
+                            };
+                            
+                            return (
+                              <div className="grid grid-cols-1 gap-3">
+                                {top5.map(({ dim }) => (
+                                  <div key={dim} className={`p-2 rounded ${whiteMode ? 'bg-white' : 'bg-[#1a1a1a]'}`}>
+                                    <div className={`text-[10px] font-medium mb-2 ${whiteMode ? 'text-[#555]' : 'text-[#999]'}`}>
+                                      {dim.replace(/_/g, ' ')}
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      {msg.analysisData.analyses.map(a => {
+                                        const perRoundData = a.per_round_analyses || {};
+                                        const values = [];
+                                        for (let r = 1; r <= 3; r++) {
+                                          const roundData = perRoundData[`round_${r}`];
+                                          if (roundData && roundData[dim] && roundData[dim].skala !== undefined) {
+                                            values.push(roundData[dim].skala);
+                                          } else {
+                                            values.push(null);
+                                          }
+                                        }
+                                        
+                                        // Skip if no data
+                                        if (values.every(v => v === null)) return null;
+                                        
+                                        const color = aiColors[a.agent.toLowerCase()] || '#888';
+                                        
+                                        return (
+                                          <div key={a.agent} className="flex-1">
+                                            <div className={`text-[8px] mb-1 ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
+                                              {a.agent.toUpperCase()}
+                                            </div>
+                                            <svg width="50" height="24" className="w-full">
+                                              {/* Grid lines */}
+                                              <line x1="0" y1="2" x2="50" y2="2" stroke={whiteMode ? '#e0e0e0' : '#333'} strokeWidth="0.5" />
+                                              <line x1="0" y1="12" x2="50" y2="12" stroke={whiteMode ? '#e0e0e0' : '#333'} strokeWidth="0.5" />
+                                              <line x1="0" y1="22" x2="50" y2="22" stroke={whiteMode ? '#e0e0e0' : '#333'} strokeWidth="0.5" />
+                                              
+                                              {/* Line chart */}
+                                              {values.filter(v => v !== null).length >= 2 && (
+                                                <polyline
+                                                  points={values.map((v, i) => {
+                                                    if (v === null) return null;
+                                                    const x = i * 25; // 0, 25, 50 for rounds 1, 2, 3
+                                                    const y = 22 - (v / 10 * 20); // Scale 0-10 to 22-2 (inverted)
+                                                    return `${x},${y}`;
+                                                  }).filter(p => p !== null).join(' ')}
+                                                  fill="none"
+                                                  stroke={color}
+                                                  strokeWidth="1.5"
+                                                />
+                                              )}
+                                              
+                                              {/* Data points */}
+                                              {values.map((v, i) => {
+                                                if (v === null) return null;
+                                                const x = i * 25;
+                                                const y = 22 - (v / 10 * 20);
+                                                return (
+                                                  <circle
+                                                    key={i}
+                                                    cx={x}
+                                                    cy={y}
+                                                    r="1.5"
+                                                    fill={color}
+                                                  />
+                                                );
+                                              })}
+                                            </svg>
+                                            <div className={`text-[7px] flex justify-between ${whiteMode ? 'text-[#999]' : 'text-[#666]'}`}>
+                                              <span>R1</span>
+                                              <span>R2</span>
+                                              <span>R3</span>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                      
+                      {/* OneSeek Slutinsikt */}
+                      {msg.analysisData.oneseek_insight && (
+                        <div className={`p-3 rounded ${whiteMode ? 'bg-[#f0f0f0]' : 'bg-[#151515]'}`}>
+                          <div className={`text-xs font-medium mb-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                            💡 OneSeek Slutinsikt
+                          </div>
+                          <div className={`text-xs ${whiteMode ? 'text-[#555]' : 'text-[#bbb]'} leading-relaxed`}>
+                            {msg.analysisData.oneseek_insight}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                   

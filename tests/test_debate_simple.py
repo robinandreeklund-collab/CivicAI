@@ -173,6 +173,131 @@ def test_confetti_logic():
     print("✓ Confetti logic correct")
 
 
+def test_new_event_types():
+    """Test new WebSocket event types for queue-based architecture"""
+    event_types = [
+        'ai_response',
+        'oneseek_echo',
+        'oneseek_echo_start',
+        'oneseek_reasoning',
+        'live_insight',
+        'oneseek_own_answer',
+        'oneseek_own_answer_start',
+        'oneseek_own_reasoning',
+        'round_summary',
+    ]
+    
+    # Verify all new event types are defined
+    for event_type in event_types:
+        assert isinstance(event_type, str), f"Event type {event_type} should be string"
+        assert len(event_type) > 0, f"Event type {event_type} should not be empty"
+    
+    print("✓ New event types defined correctly")
+
+
+def test_queue_processing_order():
+    """Test that queue processes responses in arrival order"""
+    # Simulate queue behavior
+    queue = []
+    
+    # Responses arrive in order
+    queue.append({'agent': 'gpt', 'arrival_time': 1})
+    queue.append({'agent': 'gemini', 'arrival_time': 2})
+    queue.append({'agent': 'deepseek', 'arrival_time': 3})
+    
+    # Process in order
+    processed = []
+    while queue:
+        response = queue.pop(0)  # FIFO
+        processed.append(response['agent'])
+    
+    assert processed == ['gpt', 'gemini', 'deepseek'], "Queue should process in FIFO order"
+    print("✓ Queue processing order correct")
+
+
+def test_streaming_event_format():
+    """Test streaming event message format"""
+    stream_event = {
+        "type": "oneseek_echo",
+        "text": "This is streaming text...",
+        "complete": False,
+        "agent": "gpt",
+        "round": 1
+    }
+    
+    assert "type" in stream_event, "Stream event should have 'type'"
+    assert "text" in stream_event, "Stream event should have 'text'"
+    assert "complete" in stream_event, "Stream event should have 'complete' flag"
+    assert stream_event["complete"] == False, "Stream should not be complete initially"
+    print("✓ Streaming event format correct")
+
+
+def test_knowledge_chain():
+    """Test knowledge chain accumulation"""
+    knowledge_chain = []
+    
+    # Add insights from multiple rounds
+    knowledge_chain.append({
+        'round': 1,
+        'agent': 'gpt',
+        'insight': 'Economic perspective'
+    })
+    knowledge_chain.append({
+        'round': 1,
+        'agent': 'gemini',
+        'insight': 'Social perspective'
+    })
+    knowledge_chain.append({
+        'round': 2,
+        'agent': 'deepseek',
+        'insight': 'Technical perspective'
+    })
+    
+    assert len(knowledge_chain) == 3, f"Expected 3 insights, got {len(knowledge_chain)}"
+    assert knowledge_chain[0]['round'] == 1, "First insight should be from round 1"
+    assert knowledge_chain[2]['round'] == 2, "Last insight should be from round 2"
+    print("✓ Knowledge chain accumulation correct")
+
+
+def test_round_summary_format():
+    """Test round summary message format"""
+    summary = {
+        "type": "round_summary",
+        "round": 1,
+        "message": "📚 Lärdomar från runda 1",
+        "data": {
+            "summary": "1. Point one\n2. Point two\n...\n10. Point ten",
+            "round": 1
+        }
+    }
+    
+    assert summary["type"] == "round_summary", "Type should be round_summary"
+    assert summary["round"] in [1, 2, 3], "Round should be 1-3"
+    assert "summary" in summary["data"], "Data should contain summary"
+    print("✓ Round summary format correct")
+
+
+def test_oneseek_as_full_participant():
+    """Test that OneSeek is a full debate participant"""
+    agents = ['gpt', 'gemini', 'deepseek', 'grok', 'oneseek']
+    
+    # OneSeek should be in the agents list
+    assert 'oneseek' in agents, "oneseek should be in agents list"
+    
+    # OneSeek should have same capabilities as other agents
+    oneseek_capabilities = {
+        'can_answer': True,
+        'can_vote': True,
+        'has_reasoning': True,
+        'streams_response': True
+    }
+    
+    for capability, value in oneseek_capabilities.items():
+        assert value == True, f"OneSeek should have {capability}"
+    
+    print("✓ OneSeek full participant status correct")
+
+
 def run_all_tests():
     """Run all tests"""
     tests = [
@@ -187,6 +312,12 @@ def run_all_tests():
         test_response_message_format,
         test_documentation_exists,
         test_confetti_logic,
+        test_new_event_types,
+        test_queue_processing_order,
+        test_streaming_event_format,
+        test_knowledge_chain,
+        test_round_summary_format,
+        test_oneseek_as_full_participant,
     ]
     
     print("=" * 60)

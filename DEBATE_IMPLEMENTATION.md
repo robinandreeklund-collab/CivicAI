@@ -2,13 +2,21 @@
 
 ## Översikt
 
-Live AI-Debatt är en **separat, fristående funktion** integrerad i /7B-Zero som låter användare starta live-debatter mellan 4 externa AI-modeller (GPT, Gemini, DeepSeek, Grok) plus ONESEEK som neutral domare.
+Live AI-Debatt är en **separat, fristående funktion** integrerad i /7B-Zero med **queue-based, event-driven arkitektur** för maximal realtidsupplevelse. 5 AI-modeller (GPT, Gemini, DeepSeek, Grok, ONESEEK) deltar som **fullständiga debattörer** där varje svar processas och streamas omedelbart när det anländer.
+
+**NY ARKITEKTUR (Queue-based Real-time Flow)**:
+- 🔄 **Köbaserad processing**: Svar processas i ankomstordning, inga batch-dumps
+- 📡 **Full streaming**: Token-by-token streaming av alla svar och analyser (~65 tokens/sek)
+- 🧠 **OneSeek som aktiv deltagare**: Analyserar varje svar + ger sitt eget fullständiga debattsvar
+- 💡 **Live insikter**: "Sport-commentator" stil updates för varje svar
+- 📚 **Kunskapskedja**: OneSeek bygger progressiv förståelse genom hela debatten
+- 🎯 **Rundsammanfattningar**: 10 viktigaste lärdomarna efter varje runda
 
 **VIKTIGT**: Debattflödet är **helt separat** från det normala query-flödet (Compare/Standard). Detta ger:
 - **Full kontroll**: Debattlogik är oberoende och kan utvecklas fritt
-- **Avancerade funktioner**: Röstning, rundhantering, confetti etc. utan att påverka standardflödet
+- **Avancerade funktioner**: Röstning, rundhantering, confetti, streaming etc. utan att påverka standardflödet
 - **Enklare underhåll**: Ändringar i debatt påverkar inte Compare eller Standard-läge
-- **Bättre prestanda**: Dedikerat WebSocket-flöde för realtidsstreaming
+- **Bättre prestanda**: Dedikerat WebSocket-flöde för realtidsstreaming med köhantering
 
 ## Flöde
 
@@ -31,17 +39,48 @@ Live AI-Debatt är en **separat, fristående funktion** integrerad i /7B-Zero so
 - Egna meddelanden och events
 - Ingen delad logik med Standard/Compare-lägen
 
-### 3. Debattrundor (3 st)
-Varje runda:
-1. Alla 5 AI:er får samma fråga + kontext från tidigare rundor
-2. Svar hämtas parallellt från:
-   - **GPT** (OpenAI API)
-   - **Gemini** (Google Gemini API)
-   - **DeepSeek** (DeepSeek API)
-   - **Grok** (X.AI API)
-   - **ONESEEK** (lokalt via llama-server)
-3. Svar streamas live via WebSocket så fort de anländer
-4. Format: `{"type": "response", "round": 1-3, "agent": "gpt|gemini|deepseek|grok|oneseek", "message": "..."}`
+### 3. Debattrundor (3 st) - QUEUE-BASED REAL-TIME FLOW
+
+**NY ARKITEKTUR**: Varje svar processas omedelbart när det anländer, ingen väntan på batch!
+
+#### Flöde per runda:
+
+**Steg 1: Parallell insamling med kö**
+- Fråga skickas till 4 externa AI:er (GPT, Gemini, DeepSeek, Grok) parallellt
+- Varje svar läggs i kö **omedelbart** när det anländer
+- Event: `{"type": "ai_response", "agent": "gpt", "message": "✅ GPT har svarat"}`
+
+**Steg 2: OneSeek processerar varje köat svar i ordning**
+För varje svar i kön:
+
+a) **Echo (Streaming)**: OneSeek ekar svaret token-för-token
+   - Event start: `{"type": "oneseek_echo_start", "agent": "gpt"}`
+   - Streaming: `{"type": "oneseek_echo", "text": "...", "complete": false}`
+   - Simulerar realistisk AI-hastighet (~65 tokens/sek)
+
+b) **Fokuserad Reasoning**: OneSeek analyserar detta specifika svar
+   - Genererar 2-3 meningar om styrkor/svagheter/insikter
+   - Event: `{"type": "oneseek_reasoning", "message": "Analys av GPT..."}`
+   - Sparas i kunskapskedjan
+
+c) **Live Insight**: En-raders "sport-commentator" uppdatering
+   - Event: `{"type": "live_insight", "message": "💡 GPT fokuserar på ekonomi - 1/4 svar mottagna"}`
+
+**Steg 3: OneSeeks eget debattsvar (Streaming)**
+Efter alla externa svar processats:
+- OneSeek genererar sitt EGET fullständiga debattsvar (400-600 ord)
+- Event start: `{"type": "oneseek_own_answer_start"}`
+- Streaming: `{"type": "oneseek_own_answer", "text": "...", "complete": false}`
+- Reasoning: `{"type": "oneseek_own_reasoning", "message": "Min tankekedja..."}`
+- **OneSeek är fullständig debattdeltagare**, inte bara domare!
+
+**Steg 4: Rundsammanfattning**
+- OneSeek komprimerar rundan: 10 viktigaste lärdomarna
+- Event: `{"type": "round_summary", "data": {"summary": "1. ...\n2. ...\n10. ..."}}`
+
+**Steg 5: Runda avslutas**
+- Event: `{"type": "round_end", "round": 1}`
+- Kort paus (1s) innan nästa runda
 
 ### 4. Röstning
 Efter 3 rundor:
@@ -72,9 +111,11 @@ Efter 3 rundor:
 }
 ```
 
-**Response Events:**
+**Response Events (Queue-based Real-time Architecture):**
 
-1. **thinking** - Tänksteg
+### Initialization Events
+
+1. **thinking** - Progress updates
 ```json
 {
   "type": "thinking",
@@ -82,7 +123,7 @@ Efter 3 rundor:
 }
 ```
 
-2. **debate_init** - Initiering
+2. **debate_init** - Debate initialization
 ```json
 {
   "type": "debate_init",
@@ -96,7 +137,7 @@ Efter 3 rundor:
 }
 ```
 
-3. **round_start** - Runda startar
+3. **round_start** - Round begins
 ```json
 {
   "type": "round_start",
@@ -105,21 +146,120 @@ Efter 3 rundor:
 }
 ```
 
-4. **response** - AI-svar (5x per runda)
+### NEW: Queue-based Processing Events
+
+4. **ai_response** - External AI answer arrived and queued
 ```json
 {
-  "type": "response",
+  "type": "ai_response",
   "round": 1,
   "agent": "gpt",
-  "message": "Kärnkraft ger stabil elförsörjning...",
+  "message": "✅ GPT har svarat",
   "data": {
-    "model": "gpt-3.5-turbo",
+    "agent": "gpt",
     "success": true
   }
 }
 ```
 
-5. **round_end** - Runda avslutas
+5. **oneseek_echo_start** - OneSeek starts echoing an answer
+```json
+{
+  "type": "oneseek_echo_start",
+  "round": 1,
+  "agent": "gpt",
+  "message": "🔄 OneSeek ekar GPTs svar..."
+}
+```
+
+6. **oneseek_echo** - Token stream of echoed answer (~65 tokens/sec)
+```json
+{
+  "type": "oneseek_echo",
+  "text": "Kärnkraft ger stabil elförsörjning och är viktig för...",
+  "complete": false,
+  "agent": "gpt",
+  "round": 1
+}
+```
+
+7. **oneseek_reasoning** - OneSeek's focused analysis of specific answer
+```json
+{
+  "type": "oneseek_reasoning",
+  "round": 1,
+  "agent": "gpt",
+  "message": "GPT lyfter ekonomiska aspekter och elförsörjning som huvudargument. Styrka: konkreta exempel. Saknar miljöperspektiv.",
+  "data": {
+    "reasoning": "GPT lyfter ekonomiska aspekter...",
+    "agent_analyzed": "gpt"
+  }
+}
+```
+
+8. **live_insight** - One-liner "sport-commentator" update
+```json
+{
+  "type": "live_insight",
+  "round": 1,
+  "agent": "gpt",
+  "message": "💡 GPT fokuserar på ekonomi, teknologi - 1/4 svar mottagna",
+  "data": {
+    "progress": "1/4"
+  }
+}
+```
+
+### NEW: OneSeek's Own Answer Events
+
+9. **oneseek_own_answer_start** - OneSeek starts its own comprehensive answer
+```json
+{
+  "type": "oneseek_own_answer_start",
+  "round": 1,
+  "message": "🤖 ONESEEK ger sitt debattsvar..."
+}
+```
+
+10. **oneseek_own_answer** - Token stream of OneSeek's own answer
+```json
+{
+  "type": "oneseek_own_answer",
+  "text": "För att besvara frågan om kärnkraft måste vi analysera flera dimensioner...",
+  "complete": false,
+  "agent": "oneseek",
+  "round": 1
+}
+```
+
+11. **oneseek_own_reasoning** - OneSeek's reasoning for its own answer
+```json
+{
+  "type": "oneseek_own_reasoning",
+  "round": 1,
+  "message": "Jag identifierar tre huvuddimensioner: ekonomi, miljö och samhälle. Andra AI:er fokuserar på ekonomi, jag täcker alla aspekter.",
+  "data": {
+    "reasoning": "Jag identifierar tre huvuddimensioner..."
+  }
+}
+```
+
+### NEW: Round Summary Event
+
+12. **round_summary** - Compressed learnings from round (10 key points)
+```json
+{
+  "type": "round_summary",
+  "round": 1,
+  "message": "📚 Lärdomar från runda 1",
+  "data": {
+    "summary": "1. Ekonomiska aspekter dominerar argumenten\n2. Miljöfrågor nämns av 3/5 AI:er\n3. Teknisk genomförbarhet diskuteras\n...\n10. Långsiktig planering betonas",
+    "round": 1
+  }
+}
+```
+
+13. **round_end** - Round complete
 ```json
 {
   "type": "round_end",
@@ -128,7 +268,9 @@ Efter 3 rundor:
 }
 ```
 
-6. **voting** - Röstning
+### Voting & Winner Events
+
+14. **voting** - Voting phase (legacy, may be combined with debate_complete)
 ```json
 {
   "type": "voting",
@@ -136,7 +278,7 @@ Efter 3 rundor:
 }
 ```
 
-7. **winner** - Vinnare utses
+15. **winner** - Winner announcement (legacy, may be combined with debate_complete)
 ```json
 {
   "type": "winner",
@@ -154,39 +296,68 @@ Efter 3 rundor:
 }
 ```
 
-8. **summary** - Sammanfattning
+16. **debate_complete** - Final combined event with all results
 ```json
 {
-  "type": "summary",
-  "message": "Debatten handlade om kärnkraft. GPT vann...",
-  "data": {
-    "summary": "Debatten handlade om kärnkraft. GPT vann med tydliga argument om elförsörjning..."
-  }
-}
-```
-
-9. **final** - Avslut
-```json
-{
-  "type": "final",
+  "type": "debate_complete",
   "message": "Debatt avslutad!",
   "data": {
     "question": "Ska Sverige bygga nya kärnkraftverk?",
     "rounds": 3,
     "winner": "gpt",
     "winner_votes": 3,
-    "summary": "..."
+    "total_votes": 5,
+    "vote_results": [...],
+    "all_votes": {...},
+    "summary": "Debatten handlade om kärnkraft. GPT vann..."
   }
 }
 ```
 
-10. **error** - Fel
+17. **error** - Error occurred
 ```json
 {
   "type": "error",
   "message": "Felmeddelande här"
 }
 ```
+
+## Architecture Comparison
+
+### OLD Architecture (Pre-Queue)
+```
+External APIs → Wait for ALL → Batch Process → Send grouped round_complete → Show all at once
+                                 ↓
+                            OneSeek synthesis → Add to batch
+```
+❌ **Problems:**
+- No live activity during gathering phase
+- Batch dumps feel slow/unresponsive
+- OneSeek not visible as active participant
+- No progressive knowledge building
+
+### NEW Architecture (Queue-based Real-time)
+```
+External APIs → Queue immediately on arrival → Process in order → Stream live
+                         ↓                           ↓
+                    Event: ai_response         OneSeek Pipeline:
+                                                1. Echo (streaming)
+                                                2. Reasoning
+                                                3. Insight
+                                                     ↓
+                                               Next queued answer
+                                                     ↓
+                                           All done → OneSeek own answer (streaming)
+                                                     ↓
+                                           Round summary (10 points)
+```
+✅ **Benefits:**
+- Constant live activity - no waiting
+- Token-by-token streaming feels responsive
+- OneSeek visible as active analyzer AND full debater
+- Progressive knowledge chain building
+- Real-time insights keep users engaged
+- Round compression aids comprehension
 
 ## Personlighetskonfiguration
 

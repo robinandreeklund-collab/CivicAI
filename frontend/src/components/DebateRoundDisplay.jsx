@@ -1,67 +1,168 @@
 /**
  * DebateRoundDisplay Component
- * Displays a single round of debate with agent responses - live chat style with collapse/expand
+ * Displays a single round of debate with real-time AI responses
+ * - Collapsible per AI with streaming support
+ * - Shows OneSeek analysis inline
+ * - Cleaner, more organized presentation
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 
-export default function DebateRoundDisplay({ round, isLatest = false }) {
-  const [isExpanded, setIsExpanded] = useState(false); // All rounds minimized by default
+export default function DebateRoundDisplay({ round, aiData, isActive = false }) {
+  // AI display order
+  const aiOrder = ['gpt', 'gemini', 'deepseek', 'grok', 'oneseek'];
+  
+  // Get all AIs that have data in this round
+  const availableAIs = aiOrder.filter(ai => aiData && aiData[ai]);
+  
+  // Start with all available AIs expanded
+  const [expandedAIs, setExpandedAIs] = useState(new Set(availableAIs));
+  
+  // Track if the entire round is expanded (minimize when complete)
+  const [roundExpanded, setRoundExpanded] = useState(true);
+
+  // Auto-expand AIs that are streaming or have new content
+  useEffect(() => {
+    const newExpanded = new Set(expandedAIs);
+    availableAIs.forEach(ai => {
+      if (aiData[ai] && (aiData[ai].isStreaming || aiData[ai].text)) {
+        newExpanded.add(ai);
+      }
+    });
+    setExpandedAIs(newExpanded);
+  }, [aiData, availableAIs]);
+  
+  // Auto-minimize round when it's complete (not active)
+  useEffect(() => {
+    if (!isActive && aiData.summary) {
+      // Round is complete, minimize it
+      setRoundExpanded(false);
+    }
+  }, [isActive, aiData.summary]);
+
+  const toggleAI = (aiName) => {
+    const newExpanded = new Set(expandedAIs);
+    if (newExpanded.has(aiName)) {
+      newExpanded.delete(aiName);
+    } else {
+      newExpanded.add(aiName);
+    }
+    setExpandedAIs(newExpanded);
+  };
 
   return (
-    <div className={`bg-[#1a1a1a] rounded-lg border border-[#2a2a2a] ${isLatest ? 'animate-fadeIn' : ''}`}>
-      {/* Round header - always visible, clickable to toggle */}
+    <div className={`bg-[#0a0a0a] rounded-lg border ${isActive ? 'border-[#333]' : 'border-[#1a1a1a]'} mb-3`}>
+      {/* Round Header - Clickable to expand/collapse */}
       <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between p-3 hover:bg-[#151515] transition-colors"
+        onClick={() => setRoundExpanded(!roundExpanded)}
+        className="w-full flex items-center justify-between p-3 hover:bg-[#111] transition-colors"
       >
-        <div className="flex items-center gap-2">
-          <div className="px-2 py-0.5 bg-[#2a2a2a] text-[#888] rounded text-xs font-medium">
-            Runda {round.roundNumber}
-          </div>
-          <span className="text-xs text-[#666]">
-            {new Date(round.timestamp).toLocaleTimeString('sv-SE')}
-          </span>
-          <span className="text-xs text-[#666]">
-            ({round.responses.length} svar)
-          </span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-[#888]">Runda {round}</span>
+          {isActive && (
+            <span className="text-xs text-[#666]">
+              pågår...
+            </span>
+          )}
         </div>
-        <svg 
-          className={`w-4 h-4 text-[#888] transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-          fill="none" 
-          stroke="currentColor" 
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+        <div className="flex items-center gap-3">
+          {aiData.consensus !== undefined && !roundExpanded && (
+            <span className="text-xs text-[#666]">
+              Konsensus: {aiData.consensus}%
+            </span>
+          )}
+          <span className="text-xs text-[#555]">
+            {availableAIs.length} svar
+          </span>
+          <svg 
+            className={`w-4 h-4 text-[#666] transition-transform ${roundExpanded ? 'rotate-180' : ''}`}
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
       </button>
 
-      {/* Round content - collapsible */}
-      {isExpanded && (
+      {/* AI Responses - Only show if round is expanded */}
+      {roundExpanded && (
         <div className="px-3 pb-3 space-y-2">
-          {round.responses.map((response, idx) => (
-            <div 
-              key={idx}
-              className={`rounded-lg border p-2.5 transition-all duration-300 ${
-                response.error 
-                  ? 'border-[#888] bg-[#151515]' 
-                  : 'border-[#2a2a2a] bg-[#151515] hover:bg-[#1a1a1a]'
-              } ${isLatest ? 'animate-slideIn' : ''}`}
-              style={{ animationDelay: `${idx * 150}ms` }}
-            >
-              <div className="flex items-center gap-2 mb-1.5">
-                <div className="px-2 py-0.5 bg-[#2a2a2a] text-[#888] rounded text-xs font-medium">
-                  {response.agent}
-                </div>
-                {response.error && (
-                  <span className="text-xs text-[#888]">Fel</span>
+          {availableAIs.map(aiName => {
+            const ai = aiData[aiName];
+            const isExpanded = expandedAIs.has(aiName);
+            const hasContent = ai.text && ai.text.length > 0;
+            const isOneSeek = aiName === 'oneseek';
+
+            return (
+              <div 
+                key={aiName}
+                className="rounded border border-[#1a1a1a] bg-[#0a0a0a] overflow-hidden"
+              >
+                {/* AI Header - Clickable */}
+                <button
+                  onClick={() => hasContent && toggleAI(aiName)}
+                  disabled={!hasContent}
+                  className={`w-full p-2 flex items-center justify-between transition-colors ${
+                    hasContent ? 'hover:bg-[#111] cursor-pointer' : 'cursor-default'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-[#888]">
+                      {aiName.toUpperCase()}
+                    </span>
+                    {ai.isStreaming && (
+                      <span className="text-xs text-[#666]">
+                        ...
+                      </span>
+                    )}
+                  </div>
+                  {hasContent && (
+                    <svg 
+                      className={`w-3 h-3 text-[#555] transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  )}
+                </button>
+
+                {/* AI Content - Expandable */}
+                {isExpanded && hasContent && (
+                  <div className="px-3 pb-3 pt-1 border-t border-[#1a1a1a]">
+                    {/* Main Response */}
+                    <div className="text-sm text-[#888] leading-relaxed prose prose-invert prose-sm max-w-none">
+                      <ReactMarkdown>{ai.text}</ReactMarkdown>
+                    </div>
+
+                    {/* OneSeek's Reasoning - Small footnote at the end */}
+                    {ai.reasoning && (
+                      <div className="mt-3 pt-2 border-t border-[#1a1a1a]">
+                        <div className="text-xs text-[#555] italic">
+                          Reasoning: {ai.reasoning}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
-              <p className="text-sm text-[#888] leading-relaxed whitespace-pre-wrap">
-                {response.response}
-              </p>
+            );
+          })}
+          
+          {/* Round Summary - Minimalist */}
+          {aiData.summary && (
+            <div className="mt-3 pt-3 border-t border-[#1a1a1a]">
+              <div className="text-xs text-[#666] mb-2">
+                Sammanfattning
+              </div>
+              <div className="text-xs text-[#888] leading-relaxed">
+                <ReactMarkdown>{aiData.summary}</ReactMarkdown>
+              </div>
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>
