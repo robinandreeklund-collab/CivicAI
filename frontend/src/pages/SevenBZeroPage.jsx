@@ -185,6 +185,7 @@ export default function SevenBZeroPage() {
   const [streamingEnabled, setStreamingEnabled] = useState(true);
   const [isStreaming, setIsStreaming] = useState(false);
   const streamAbortRef = useRef(null);
+  const wsRef = useRef(null); // WebSocket reference for debate
   
   // ONESEEK Δ+ Typo suggestion state
   const [typoSuggestion, setTypoSuggestion] = useState(null);
@@ -1657,6 +1658,7 @@ export default function SevenBZeroPage() {
     
     try {
       const ws = new WebSocket(`ws://localhost:5000/ws/debate`);
+      wsRef.current = ws; // Store reference for MTA-43 analysis
       
       const debateState = {
         question,
@@ -1917,6 +1919,48 @@ export default function SevenBZeroPage() {
             setTimeout(() => setShowConfetti(false), 5000);
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             
+            // Don't close yet - wait for potential analysis_offer
+            break;
+            
+          case 'analysis_offer':
+            // OneSeek offers MTA-43 analysis
+            setDebateRounds(prev => ({
+              ...prev,
+              analysisOffered: true,
+              analysisMessage: message.message
+            }));
+            break;
+            
+          case 'analysis_start':
+            // User accepted - analysis started
+            setDebateRounds(prev => ({
+              ...prev,
+              analysisRunning: true,
+              analysisProgress: 0
+            }));
+            setThinkingStep('[analyserar...] Startar MTA-43 analys...');
+            break;
+            
+          case 'analysis_progress':
+            // Update progress
+            setDebateRounds(prev => ({
+              ...prev,
+              analysisProgress: message.progress || 0
+            }));
+            setThinkingStep(`[analyserar...] ${message.message}`);
+            break;
+            
+          case 'analysis_result':
+            // Analysis complete - show results
+            setThinkingStep(null);
+            setDebateRounds(prev => ({
+              ...prev,
+              analysisRunning: false,
+              analysisComplete: true,
+              analysisResults: message.data
+            }));
+            
+            // Close websocket after analysis
             ws.close();
             break;
             
@@ -2524,6 +2568,95 @@ export default function SevenBZeroPage() {
                       {debateRounds.completion.summary}
                     </div>
                   </div>
+                </div>
+              )}
+              
+              {/* MTA-43 Analysis Offer */}
+              {debateRounds.analysisOffered && !debateRounds.analysisRunning && !debateRounds.analysisComplete && (
+                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                  <div className="text-sm text-[#aaa] mb-4 leading-relaxed">
+                    {debateRounds.analysisMessage}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        // Send analysis request
+                        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                          wsRef.current.send(JSON.stringify({
+                            type: 'analysis_request',
+                            approved: true
+                          }));
+                        }
+                      }}
+                      className="px-4 py-2 bg-[#1a1a1a] hover:bg-[#222] text-[#aaa] text-sm rounded border border-[#333] transition-colors"
+                    >
+                      Ja
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Decline analysis - close websocket
+                        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                          wsRef.current.send(JSON.stringify({
+                            type: 'analysis_request',
+                            approved: false
+                          }));
+                          wsRef.current.close();
+                        }
+                        // Hide offer
+                        setDebateRounds(prev => ({
+                          ...prev,
+                          analysisOffered: false
+                        }));
+                      }}
+                      className="px-4 py-2 bg-[#0a0a0a] hover:bg-[#1a1a1a] text-[#666] text-sm rounded border border-[#1a1a1a] transition-colors"
+                    >
+                      Nej
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {/* MTA-43 Analysis Progress */}
+              {debateRounds.analysisRunning && (
+                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                  <div className="text-sm text-[#aaa] mb-2">MTA-43 Analys pågår...</div>
+                  <div className="w-full bg-[#1a1a1a] rounded-full h-2">
+                    <div 
+                      className="bg-[#333] h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${debateRounds.analysisProgress || 0}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-[#666] mt-2 text-right">
+                    {debateRounds.analysisProgress || 0}%
+                  </div>
+                </div>
+              )}
+              
+              {/* MTA-43 Analysis Results */}
+              {debateRounds.analysisComplete && debateRounds.analysisResults && (
+                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                  <div className="text-sm font-medium text-[#888] mb-3">
+                    MTA-43 Analys - {debateRounds.analysisResults.total_analyzed} svar analyserade
+                  </div>
+                  
+                  {/* Results by round */}
+                  {debateRounds.analysisResults.analyses?.map((analysis, idx) => (
+                    <details key={idx} className="mb-3 border-b border-[#1a1a1a] pb-3 last:border-0">
+                      <summary className="cursor-pointer text-xs text-[#888] hover:text-[#aaa] mb-2">
+                        Runda {analysis.round} - {analysis.agent.toUpperCase()}
+                      </summary>
+                      <div className="pl-4 mt-2 space-y-2">
+                        {/* Show key dimensions with high scores */}
+                        {Object.entries(analysis.analysis || {}).filter(([key, val]) => val?.skala >= 5).slice(0, 10).map(([dimension, data]) => (
+                          <div key={dimension} className="text-xs">
+                            <span className="text-[#666]">{dimension}:</span>
+                            <span className="text-[#888] ml-2">{data.värde}</span>
+                            <span className="text-[#555] ml-2">({data.skala}/10)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  ))}
                 </div>
               )}
             </div>

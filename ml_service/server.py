@@ -12775,6 +12775,193 @@ async def stream_text_tokens(websocket: WebSocket, text: str, event_type: str, a
             await websocket.send_json(event_data)
             await asyncio.sleep(delay_per_word * STREAMING_CHUNK_SIZE)
 
+
+async def run_mta43_analysis(websocket: WebSocket, debate_rounds, question):
+    """
+    Run Multidimensional Transparency Analysis (MTA-43) on entire debate.
+    Analyzes each AI response with 43 dimensions, all in Swedish.
+    Uses OneSeek model - no external libraries.
+    """
+    try:
+        await websocket.send_json({
+            "type": "analysis_start",
+            "message": "🔬 Startar MTA-43 analys av debatten..."
+        })
+        
+        # MTA-43 prompt template with all 43 dimensions
+        MTA43_PROMPT_TEMPLATE = """Du är en transparent analysmotor. Du måste svara strikt på svenska i ALLA delar av svaret.
+
+ABSOLUTA KRAV:
+- Alla fält, värden, etiketter och motiveringar i JSON-objektet ska vara på svenska.
+- Alla motiveringar ska vara detaljerade, textnära och förklara exakt varför klassificeringen gjordes.
+- Varje fält ska innehålla en numerisk skala från 0 till 10 i fältet "skala".
+  0 = inte alls, 10 = extremt.
+- Du får INTE utelämna något fält. Alla fält måste finnas med även om värdet är "oklart".
+- Använd inte engelska ord eller etiketter. Om ett begrepp normalt är engelskt ska du översätta det.
+- Returnera ENDAST ett JSON-objekt. Ingen extra text.
+
+TEXT SOM SKA ANALYSERAS:
+{text}
+
+Du ska skapa ett JSON-objekt med följande EXAKTA struktur.
+Varje fält ska innehålla:
+- "värde": klassificeringen på svenska
+- "skala": ett heltal 0–10
+- "motivering": en detaljerad och textnära förklaring på svenska
+
+JSON-STRUKTUR (följ exakt):
+
+{{
+  "sentiment": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "emotion": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "tonfall": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "politisk_riktning": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "ideologisk_dimension": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "bias": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "framing": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "retorik": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "propaganda": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "claim_detection": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "moral_foundations": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "toxicitet": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "osäkerhet": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "sammanfattning": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "epistemisk_säkerhet": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "källtyp_implicit": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "kunskapsluckor": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "logiska_fel": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "argumentstruktur": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "koherens": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "stilnivå": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "abstraktionsnivå": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "modalitet": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "intensitet": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "kognitiv_stil": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "emotionell_laddning": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "motivationsram": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "diskursram": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "perspektiv": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "underliggande_antaganden": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "konfliktnivå": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "polariseringsgrad": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "målgrupp": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "etiska_risker": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "värdegrund": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "positiva_konsekvenser": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "negativa_konsekvenser": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "osagda_konsekvenser": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "klarhet": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "precision": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "relevans": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "överflödigt_innehåll": {{ "värde": "", "skala": 0, "motivering": "" }},
+  "saknade_perspektiv": {{ "värde": "", "skala": 0, "motivering": "" }}
+}}
+
+INNAN DU SVARAR:
+Du ska själv kontrollera att:
+- alla fält finns med
+- alla fält har "värde", "skala" och "motivering"
+- inga engelska ord förekommer
+- alla motiveringar är detaljerade och textnära
+- JSON-strukturen följer exakt formatet ovan
+
+Returnera sedan ENDAST JSON-objektet."""
+        
+        all_analyses = []
+        total_responses = sum(len(r['responses']) for r in debate_rounds)
+        processed = 0
+        
+        # Analyze each response from each round
+        for round_data in debate_rounds:
+            round_num = round_data['round']
+            
+            for response_data in round_data['responses']:
+                agent = response_data['agent']
+                response_text = response_data['response']
+                
+                # Send progress update
+                processed += 1
+                await websocket.send_json({
+                    "type": "analysis_progress",
+                    "message": f"Analyserar {agent.upper()} från runda {round_num}... ({processed}/{total_responses})",
+                    "progress": int((processed / total_responses) * 100)
+                })
+                
+                # Generate MTA-43 analysis using OneSeek model
+                analysis_prompt = MTA43_PROMPT_TEMPLATE.format(text=response_text)
+                
+                try:
+                    # Call OneSeek model for analysis
+                    payload = {
+                        "model": "oneseek",
+                        "messages": [{"role": "user", "content": analysis_prompt}],
+                        "temperature": 0.3,  # Lower temp for more consistent analysis
+                        "max_tokens": 3000,  # Need space for full JSON
+                        "stream": False
+                    }
+                    
+                    server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                    response = requests.post(
+                        f"{server_url}/v1/chat/completions",
+                        json=payload,
+                        timeout=90,
+                    )
+                    response.raise_for_status()
+                    result = response.json()
+                    
+                    if 'choices' in result and len(result['choices']) > 0:
+                        analysis_json_text = result['choices'][0].get('message', {}).get('content', '{}')
+                    else:
+                        analysis_json_text = result.get('content', '{}')
+                    
+                    # Parse JSON
+                    import json
+                    import re
+                    
+                    # Extract JSON from potential markdown code blocks
+                    json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', analysis_json_text, re.DOTALL)
+                    if json_match:
+                        analysis_json_text = json_match.group(1)
+                    
+                    analysis_data = json.loads(analysis_json_text)
+                    
+                    # Store analysis
+                    all_analyses.append({
+                        "round": round_num,
+                        "agent": agent,
+                        "response": response_text,
+                        "analysis": analysis_data
+                    })
+                    
+                except Exception as e:
+                    logger.error(f"[MTA-43] Error analyzing {agent} round {round_num}: {e}")
+                    # Continue with next response
+                    continue
+                
+                # Small delay to avoid overwhelming
+                await asyncio.sleep(0.2)
+        
+        # Send complete analysis results
+        await websocket.send_json({
+            "type": "analysis_result",
+            "message": "✅ MTA-43 analys slutförd!",
+            "data": {
+                "question": question,
+                "total_analyzed": len(all_analyses),
+                "analyses": all_analyses
+            }
+        })
+        
+        logger.info(f"[MTA-43] Analysis complete: {len(all_analyses)} responses analyzed")
+        
+    except Exception as e:
+        logger.error(f"[MTA-43] Error during analysis: {e}")
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Fel vid analys: {str(e)}"
+        })
+
+
 @app.websocket("/ws/debate")
 async def websocket_live_debate(websocket: WebSocket):
     """
@@ -12811,6 +12998,10 @@ async def websocket_live_debate(websocket: WebSocket):
     - winner: Winner announcement
     - summary: Final summary
     - debate_complete: Debate finished
+    - analysis_offer: Offer MTA-43 analysis (user can accept/decline)
+    - analysis_start: MTA-43 analysis started
+    - analysis_progress: Analysis progress update with percentage
+    - analysis_result: Complete MTA-43 analysis results
     - error: Error occurred
     """
     await websocket.accept()
@@ -13530,6 +13721,24 @@ Skapa en kort, objektiv sammanfattning (max 150 ord) av debatten och förklara v
                 "summary": summary_text
             }
         })
+        
+        # Offer MTA-43 analysis
+        await websocket.send_json({
+            "type": "analysis_offer",
+            "message": "Debatten är nu avslutad. Vill du att jag genomför en Multidimensionell Transparensanalys (MTA-43) på hela debatten, steg för steg, och presenterar resultatet för dig? Analysen är övergripande, systematisk och modelloberoende."
+        })
+        
+        # Wait for user response (30 seconds timeout)
+        try:
+            response_data = await asyncio.wait_for(websocket.receive_json(), timeout=30.0)
+            
+            if response_data.get("type") == "analysis_request" and response_data.get("approved"):
+                # User approved - run MTA-43 analysis
+                await run_mta43_analysis(websocket, debate_rounds, clean_question)
+        except asyncio.TimeoutError:
+            logger.info("[WS-Debate] No analysis request received within timeout")
+        except Exception as e:
+            logger.error(f"[WS-Debate] Error waiting for analysis request: {e}")
         
         await websocket.close()
         logger.info(f"[WS-Debate] Debate completed successfully")
