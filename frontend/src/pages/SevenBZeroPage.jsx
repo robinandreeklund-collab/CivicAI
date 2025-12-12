@@ -1920,8 +1920,8 @@ export default function SevenBZeroPage() {
             setTimeout(() => setShowConfetti(false), 5000);
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             
-            // Auto-toggle to Debate OFF mode - cleaner workflow
-            setDebateMode(false);
+            // Note: No auto-toggle - user controls debate mode with button
+            // Debate and analysis happen in whatever view user has selected
             
             // Add debate summary to conversationHistory for context
             const debateSummary = `Debatt slutförd: ${debateState.question}. Deltagare: GPT, GEMINI, DEEPSEEK, GROK, ONESEEK. Rundor: ${max_rounds}. Vinnare: ${message.data.winner} med ${message.data.winner_votes} röster. Röstfördelning: ${Object.entries(message.data.vote_results || {}).map(([ai, votes]) => `${ai}: ${votes}`).join(', ')}.`;
