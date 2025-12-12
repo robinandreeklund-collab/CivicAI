@@ -13253,14 +13253,14 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
                 logger.info(f"[WS-Debate] {agent_name.upper()} response queued")
                 return response
             
-            # Start all external AI requests concurrently
-            external_tasks = [get_and_queue_response(agent) for agent in external_agents]
+            # Start all external AI requests concurrently - actually create tasks so they run in background
+            external_tasks = [asyncio.create_task(get_and_queue_response(agent)) for agent in external_agents]
             
             # Process responses from queue as they arrive
             # Track all responses for later use
             external_responses = []
             
-            # Start background task to collect all responses
+            # Start background task to collect all responses (just to ensure all complete)
             # Create coroutine for gathering and then create task from it
             async def collect_all_responses():
                 return await asyncio.gather(*external_tasks, return_exceptions=True)
