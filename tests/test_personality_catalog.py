@@ -102,14 +102,15 @@ def test_character_cards_exist():
 
 
 def test_api_catalog_version():
-    """Test that api_catalog.json has been updated to v6.2."""
+    """Test that api_catalog.json has been updated to v7.0+ (modular structure)."""
     config_path = Path(__file__).parent.parent / 'config' / 'api_catalog.json'
     
     with open(config_path, 'r', encoding='utf-8') as f:
         catalog = json.load(f)
     
     version = catalog.get("version", "")
-    assert version == "6.2.0", f"Expected version 6.2.0, got {version}"
+    # v7.0+ uses modular $ref structure
+    assert version.startswith("7."), f"Expected version 7.x, got {version}"
     
     # Check that personality_catalog feature is enabled
     features = catalog.get("active_features", {})
