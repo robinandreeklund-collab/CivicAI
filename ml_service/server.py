@@ -300,10 +300,10 @@ try:
         reset_api_stats,
         get_matching_apis,
         reload_api_catalog,
-        # Libris XL integrations
-        fetch_libris_search,
-        fetch_libris_isbn,
-        fetch_libris_sparql,
+        # Libris XL integrations - DEPRECATED: Now using modular api/libris.py via api_selector
+        # fetch_libris_search,
+        # fetch_libris_isbn,
+        # fetch_libris_sparql,
         # Legacy function imports for backward compatibility
         fetch_scb_population,
         fetch_scb_data,
@@ -350,10 +350,10 @@ except ImportError:
             reset_api_stats,
             get_matching_apis,
             reload_api_catalog,
-            # Libris XL integrations
-            fetch_libris_search,
-            fetch_libris_isbn,
-            fetch_libris_sparql,
+            # Libris XL integrations - DEPRECATED: Now using modular api/libris.py via api_selector
+            # fetch_libris_search,
+            # fetch_libris_isbn,
+            # fetch_libris_sparql,
             # Legacy function imports for backward compatibility
             fetch_scb_population,
             fetch_scb_data,
@@ -9868,9 +9868,10 @@ async def test_message_structure(request: MessageBuilderRequest):
                     "kungliga_biblioteket": lambda e: fetch_kungliga_biblioteket_data(e),
                     
                     # === BÖCKER (Libris XL) ===
-                    "libris_search": lambda e: fetch_libris_search(entity=e) if API_INTEGRATIONS_AVAILABLE else None,
-                    "libris_isbn": lambda e: fetch_libris_isbn(entity=e) if API_INTEGRATIONS_AVAILABLE else None,
-                    "libris_sparql": lambda e: fetch_libris_sparql(entity=e) if API_INTEGRATIONS_AVAILABLE else None,
+                    # DEPRECATED: Old api_integrations.py functions - Now using modular api/libris.py via api_selector
+                    # "libris_search": lambda e: fetch_libris_search(entity=e) if API_INTEGRATIONS_AVAILABLE else None,
+                    # "libris_isbn": lambda e: fetch_libris_isbn(entity=e) if API_INTEGRATIONS_AVAILABLE else None,
+                    # "libris_sparql": lambda e: fetch_libris_sparql(entity=e) if API_INTEGRATIONS_AVAILABLE else None,
                     
                     # === SÖKNING (Tavily) ===
                     "tavily": lambda e: None,  # Handled separately via Tavily integration
