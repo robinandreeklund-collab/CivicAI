@@ -13790,15 +13790,22 @@ Skapa en kort, objektiv sammanfattning (max 150 ord) av debatten och förklara v
             }
         })
         
+        logger.info("[WS-Debate] Debate complete message sent, preparing to send MTA-43 analysis offer...")
+        
+        # Small delay to ensure debate_complete is processed before analysis offer
+        await asyncio.sleep(0.5)
+        
         # Offer MTA-43 analysis as a regular OneSeek message (streaming)
         analysis_offer_text = "Debatten är nu avslutad. Vill du att jag genomför en Multidimensionell Transparensanalys (MTA-43) på hela debatten, steg för steg, och presenterar resultatet för dig? Analysen är övergripande, systematisk och modelloberoende."
         
+        logger.info("[WS-Debate] Sending MTA-43 analysis offer message...")
         await websocket.send_json({
             "type": "message",
             "agent": "oneseek",
             "message": analysis_offer_text,
             "analysis_offer": True  # Special flag to show Ja/Nej buttons
         })
+        logger.info("[WS-Debate] MTA-43 analysis offer sent successfully")
         
         # Wait for user response (60 seconds timeout)
         try:
