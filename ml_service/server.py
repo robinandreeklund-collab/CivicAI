@@ -12879,31 +12879,48 @@ Du ska själv kontrollera att:
 
 KRITISKT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen markdown, ingen extra text före eller efter. Börja med {{ och sluta med }}. Säkerställ att alla strängar är korrekt avslutade och att alla parenteser är balanserade."""
         
-        all_analyses = []
-        total_responses = sum(len(r['responses']) for r in debate_rounds)
-        processed = 0
+        # NEW APPROACH: Group responses by AI (much faster!)
+        # Instead of 15 analyses (5 AIs × 3 rounds), we do 5 analyses (one per AI)
+        # Each analysis covers ALL responses from that AI across all rounds
         
-        # Analyze each response from each round
+        # Group responses by AI
+        ai_responses = {}
         for round_data in debate_rounds:
             round_num = round_data['round']
-            
             for response_data in round_data['responses']:
                 agent = response_data['agent']
-                response_text = response_data['response']
-                
-                # Send progress update as chat message
-                processed += 1
-                progress_msg = f"Analyserar {agent.upper()} från runda {round_num}... ({processed}/{total_responses})"
-                await websocket.send_json({
-                    "type": "message",
-                    "agent": "oneseek",
-                    "message": progress_msg,
-                    "streaming": False,
-                    "thinking": True
+                if agent not in ai_responses:
+                    ai_responses[agent] = []
+                ai_responses[agent].append({
+                    'round': round_num,
+                    'text': response_data['response']
                 })
-                
-                # Generate MTA-43 analysis using OneSeek model
-                analysis_prompt = MTA43_PROMPT_TEMPLATE.format(text=response_text)
+        
+        all_analyses = []
+        total_ais = len(ai_responses)
+        processed = 0
+        
+        # Analyze each AI's complete debate participation
+        for agent, responses in ai_responses.items():
+            processed += 1
+            
+            # Combine all responses from this AI with round markers
+            combined_text = ""
+            for resp in responses:
+                combined_text += f"\\n\\n--- RUNDA {resp['round']} ---\\n{resp['text']}"
+            
+            # Send progress update
+            progress_msg = f"Analyserar {agent.upper()}s hela debattdeltagande... ({processed}/{total_ais})"
+            await websocket.send_json({
+                "type": "message",
+                "agent": "oneseek",
+                "message": progress_msg,
+                "streaming": False,
+                "thinking": True
+            })
+            
+            # Generate MTA-43 analysis using OneSeek model
+            analysis_prompt = MTA43_PROMPT_TEMPLATE.format(text=combined_text)
                 
                 # Try with retry logic
                 analysis_data = None
@@ -12951,31 +12968,44 @@ KRITISKT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen markdown, in
                         if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
                             analysis_json_text = analysis_json_text[start_idx:end_idx+1]
                         
-                        # 3. Try to parse
+                        # 3. Try to parse with multiple fix attempts
                         try:
                             analysis_data = json.loads(analysis_json_text)
-                            logger.info(f"[MTA-43] Successfully parsed JSON for {agent} round {round_num}")
+                            logger.info(f"[MTA-43] Successfully parsed JSON for {agent}")
                             break  # Success - exit retry loop
                         except json.JSONDecodeError as je:
-                            logger.error(f"[MTA-43] Attempt {attempt+1} - JSON decode error for {agent} round {round_num}: {je}")
+                            logger.error(f"[MTA-43] Attempt {attempt+1} - JSON decode error for {agent}: {je}")
                             
                             if attempt == 0:
-                                # First attempt failed - try fixing
-                                # Remove trailing commas
-                                fixed_text = re.sub(r',(\s*[}\]])', r'\1', analysis_json_text)
-                                # Remove control characters
+                                # First attempt failed - try aggressive fixing
+                                fixed_text = analysis_json_text
+                                
+                                # 1. Remove trailing commas before } or ]
+                                fixed_text = re.sub(r',(\s*[}\]])', r'\1', fixed_text)
+                                
+                                # 2. Remove control characters and newlines in strings
                                 fixed_text = re.sub(r'[\x00-\x1f\x7f]', ' ', fixed_text)
+                                
+                                # 3. Fix common quote issues - escape unescaped quotes in values
+                                # This is tricky - we need to escape quotes that are inside string values
+                                # but not the structural quotes
+                                
+                                # 4. Add missing commas between fields (common error)
+                                fixed_text = re.sub(r'"\s*}\s*"', '"},\n"', fixed_text)
+                                
+                                # 5. Ensure proper spacing
+                                fixed_text = re.sub(r'\s+', ' ', fixed_text)
+                                
                                 try:
                                     analysis_data = json.loads(fixed_text)
                                     logger.info(f"[MTA-43] Successfully parsed after fixing common issues")
                                     break
-                                except:
-                                    # Will retry with lower temp
-                                    logger.warning(f"[MTA-43] Retrying with lower temperature...")
+                                except json.JSONDecodeError as je2:
+                                    logger.warning(f"[MTA-43] Fix failed: {je2}. Retrying with lower temperature...")
                                     continue
                             else:
                                 # Second attempt also failed
-                                logger.error(f"[MTA-43] All attempts failed for {agent} round {round_num}")
+                                logger.error(f"[MTA-43] All attempts failed for {agent}")
                                 logger.error(f"[MTA-43] JSON sample: {analysis_json_text[:300]}...")
                                 # Create minimal error structure
                                 analysis_data = {
@@ -12993,14 +13023,14 @@ KRITISKT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen markdown, in
                 # Store analysis if we got one
                 if analysis_data:
                     all_analyses.append({
-                        "round": round_num,
                         "agent": agent,
-                        "response": response_text[:200] + "...",  # Truncate for brevity
+                        "rounds_analyzed": [r['round'] for r in responses],
+                        "total_responses": len(responses),
                         "analysis": analysis_data
                     })
                 
                 # Small delay to avoid overwhelming
-                await asyncio.sleep(0.3)
+                await asyncio.sleep(0.5)
         
         # Send complete analysis results as chat message
         summary_msg = f"✅ MTA-43 analys slutförd! Analyserade {len(all_analyses)} svar från debatten."

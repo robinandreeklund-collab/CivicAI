@@ -2636,8 +2636,8 @@ export default function SevenBZeroPage() {
           {messages.filter(msg => {
             // If not in debate mode with new component, show all messages
             if (!(debateMode && Object.keys(debateRounds).length > 0)) return true;
-            // If in debate mode with new component, only show debate_complete messages
-            return msg.isDebateComplete;
+            // If in debate mode with new component, show debate_complete, analysisOffer, and analysis messages
+            return msg.isDebateComplete || msg.analysisOffer || msg.analysisData || msg.thinking;
           }).map((msg, idx) => {
             // Calculate opacity based on position - newer messages are more visible
             const totalMessages = messages.length;
@@ -3022,6 +3022,68 @@ export default function SevenBZeroPage() {
                       <span className={`text-sm ${whiteMode ? 'text-blue-700' : 'text-blue-300'}`}>
                         {msg.currentThinkingStep}
                       </span>
+                    </div>
+                  )}
+                  
+                  {/* MTA-43 Analysis Results Display */}
+                  {msg.analysisData && msg.analysisData.analyses && (
+                    <div className="mt-4">
+                      <details className={`${whiteMode ? 'bg-[#f8f8f8]' : 'bg-[#0a0a0a]'} rounded-lg overflow-hidden`}>
+                        <summary className={`px-4 py-2 cursor-pointer text-[11px] font-medium uppercase tracking-wider flex items-center gap-2 ${
+                          whiteMode ? 'text-[#666] hover:bg-[#f0f0f0]' : 'text-[#888] hover:bg-[#151515]'
+                        } transition-colors`}>
+                          <span>🔬</span>
+                          <span>MTA-43 Analys Resultat</span>
+                          <span className={`ml-auto text-[10px] ${whiteMode ? 'text-[#999]' : 'text-[#555]'}`}>
+                            ({msg.analysisData.total_analyzed} AI-tjänster analyserade)
+                          </span>
+                        </summary>
+                        <div className={`px-4 py-3 text-[13px] font-light leading-relaxed border-t ${
+                          whiteMode ? 'text-[#555] border-[#e0e0e0]' : 'text-[#999] border-[#222]'
+                        }`}>
+                          {msg.analysisData.analyses.map((analysis, idx) => (
+                            <div key={idx} className="mb-4 pb-4 border-b border-[#2a2a2a] last:border-0">
+                              <div className={`font-medium text-sm mb-2 ${whiteMode ? 'text-[#333]' : 'text-[#ccc]'}`}>
+                                {analysis.agent.toUpperCase()} - Rundor: {analysis.rounds_analyzed ? analysis.rounds_analyzed.join(', ') : 'N/A'}
+                              </div>
+                              {analysis.analysis && analysis.analysis.sentiment && (
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-xs font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>Sentiment:</span>
+                                    <span className={`text-xs ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                                      {analysis.analysis.sentiment.värde} (skala: {analysis.analysis.sentiment.skala}/10)
+                                    </span>
+                                  </div>
+                                  {analysis.analysis.bias && (
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-xs font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>Bias:</span>
+                                      <span className={`text-xs ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                                        {analysis.analysis.bias.värde} (skala: {analysis.analysis.bias.skala}/10)
+                                      </span>
+                                    </div>
+                                  )}
+                                  {analysis.analysis.toxicitet && (
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-xs font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>Toxicitet:</span>
+                                      <span className={`text-xs ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                                        {analysis.analysis.toxicitet.värde} (skala: {analysis.analysis.toxicitet.skala}/10)
+                                      </span>
+                                    </div>
+                                  )}
+                                  {analysis.analysis.polariseringsgrad && (
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-xs font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>Polarisering:</span>
+                                      <span className={`text-xs ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                                        {analysis.analysis.polariseringsgrad.värde} (skala: {analysis.analysis.polariseringsgrad.skala}/10)
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
                     </div>
                   )}
                   
