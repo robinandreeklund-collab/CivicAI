@@ -1295,6 +1295,7 @@ export default function SevenBZeroPage() {
             
             try {
               const wsResult = await sendPersonalityMessageViaWebSocket(currentQuestion, {
+                history: conversationHistory,  // Pass conversation history for context
                 onThinking: (step) => {
                   // Update global thinking step for loading indicator
                   setThinkingStep(`[tänker...] ${step.message}`);
@@ -1922,6 +1923,13 @@ export default function SevenBZeroPage() {
             // Auto-toggle to Debate OFF mode - cleaner workflow
             setDebateMode(false);
             
+            // Add debate summary to conversationHistory for context
+            const debateSummary = `Debatt slutförd: ${debateState.question}. Deltagare: GPT, GEMINI, DEEPSEEK, GROK, ONESEEK. Rundor: ${max_rounds}. Vinnare: ${message.data.winner} med ${message.data.winner_votes} röster. Röstfördelning: ${Object.entries(message.data.vote_results || {}).map(([ai, votes]) => `${ai}: ${votes}`).join(', ')}.`;
+            setConversationHistory(prev => [
+              ...prev,
+              { role: 'assistant', content: debateSummary }
+            ]);
+            
             // Don't close yet - wait for potential analysis_offer
             break;
             
@@ -1964,6 +1972,18 @@ export default function SevenBZeroPage() {
                 isTyping: false,
                 analysisData: message.analysis_data
               }]);
+              
+              // Add MTA-16 analysis summary to conversationHistory for context
+              const analysisData = message.analysis_data || {};
+              const aiCount = Object.keys(analysisData.per_round_analyses || {}).length;
+              const aiList = Object.keys(analysisData.per_round_analyses || {}).join(', ').toUpperCase();
+              const dimensions = 'sentiment, emotion, tonfall, politisk_riktning, ideologisk_dimension, bias, framing, retorik, propaganda, claim_detection, moral_foundations, toxicitet, osäkerhet, koherens, klarhet, sammanfattning';
+              const analysisSummary = `MTA-16 analys slutförd på ${aiCount} AI-tjänster (${aiList}). Analyserade alla 3 rundor för varje AI. Tillgänglig data: per-round analyses, helhetsprofil (medelvärden), förändringar över tid, OneSeek slutinsikt. Dimensioner analyserade: ${dimensions}.`;
+              setConversationHistory(prev => [
+                ...prev,
+                { role: 'assistant', content: analysisSummary }
+              ]);
+              
               // Close websocket
               ws.close();
             } else {
