@@ -19,16 +19,14 @@
       "name": "libris_search",
       "source": "Libris XL",
       "frequency": "realtid",
-      "url": "https://libris.kb.se/xsearch?query={query}&format=json&n={n}",
+      "url": "https://libris.kb.se/xsearch?query={query}&format=json&n=5",
       "url_template": true,
       "keywords": ["bok", "böcker", "författare", "roman", "novell", "läsa", "litteratur", "handlar om", "läst", "rekommendation", "söker bok"],
       "priority": 1,
-      "description": "Libris XL fritextsökning - sök böcker efter titel, författare eller nyckelord",
+      "description": "Libris XL fritextsökning - sök böcker efter titel, författare eller nyckelord (returnerar 5 resultat)",
       "method": "GET",
       "parameters": {
-        "query": {"type": "string", "required": true, "description": "Sökterm (titel, författare, nyckelord)"},
-        "n": {"type": "integer", "required": false, "default": 5, "description": "Antal resultat (max 100)"},
-        "format": {"type": "string", "required": false, "default": "json", "description": "Svarsformat"}
+        "query": {"type": "string", "required": true, "description": "Sökterm (titel, författare, nyckelord)"}
       },
       "data_format": "JSON",
       "example_url": "https://libris.kb.se/xsearch?query=strindberg+röda+rummet&format=json&n=5"
@@ -55,15 +53,14 @@
       "name": "libris_sparql",
       "source": "Libris XL",
       "frequency": "realtid",
-      "url": "https://libris.kb.se/xsearch?query=author:{author}&format=json&n={n}",
+      "url": "https://libris.kb.se/xsearch?query=author:{author}&format=json&n=10",
       "url_template": true,
       "keywords": ["alla böcker av", "utgivna år", "författare", "förlag", "verk av", "bibliografi"],
       "priority": 2,
-      "description": "Libris XL författarsökning - hitta alla böcker av en specifik författare",
+      "description": "Libris XL författarsökning - hitta alla böcker av en specifik författare (returnerar 10 resultat)",
       "method": "GET",
       "parameters": {
-        "author": {"type": "string", "required": true, "description": "Författarnamn"},
-        "n": {"type": "integer", "required": false, "default": 10, "description": "Antal resultat"}
+        "author": {"type": "string", "required": true, "description": "Författarnamn"}
       },
       "data_format": "JSON",
       "example_url": "https://libris.kb.se/xsearch?query=author:astrid+lindgren&format=json&n=10",

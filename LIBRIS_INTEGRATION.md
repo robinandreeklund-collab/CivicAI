@@ -107,12 +107,14 @@ When a user asks about books:
 
 ### 1. Free Text Search
 
-**Endpoint**: `https://libris.kb.se/xsearch?query={query}&format=json&n={limit}`
+**Endpoint**: `https://libris.kb.se/xsearch?query={query}&format=json&n=5`
 
 **Example**: Search for "Röda rummet"
 ```
 https://libris.kb.se/xsearch?query=Röda%20rummet&format=json&n=5
 ```
+
+**Returns**: 5 results by default
 
 **Use cases**:
 - "Vad handlar Röda rummet om?"
@@ -134,12 +136,14 @@ https://libris.kb.se/xsearch?query=isbn:9789100128821&format=json&n=1
 
 ### 3. Author Search
 
-**Endpoint**: `https://libris.kb.se/xsearch?query=author:{author}&format=json&n={limit}`
+**Endpoint**: `https://libris.kb.se/xsearch?query=author:{author}&format=json&n=10`
 
 **Example**: Books by Astrid Lindgren
 ```
 https://libris.kb.se/xsearch?query=author:Astrid%20Lindgren&format=json&n=10
 ```
+
+**Returns**: 10 results by default
 
 **Use cases**:
 - "Alla böcker av Astrid Lindgren"
