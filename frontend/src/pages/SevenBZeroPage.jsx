@@ -1925,7 +1925,7 @@ export default function SevenBZeroPage() {
           case 'message':
             // Handle regular messages (including analysis offer/progress/results)
             if (message.analysis_offer) {
-              // This is the MTA-43 analysis offer - add as message with buttons
+              // This is the MTA-16 analysis offer - add as message with buttons
               const offerMsgId = generateMessageId();
               setMessages(prev => [...prev, {
                 id: offerMsgId,
@@ -2584,12 +2584,12 @@ export default function SevenBZeroPage() {
                 </div>
               )}
               
-              {/* MTA-43 Analysis Offer - now handled via regular messages, remove this */}
+              {/* MTA-16 Analysis Offer - now handled via regular messages, remove this */}
               
-              {/* MTA-43 Analysis Progress */}
+              {/* MTA-16 Analysis Progress */}
               {debateRounds.analysisRunning && (
                 <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
-                  <div className="text-sm text-[#aaa] mb-2">MTA-43 Analys pågår...</div>
+                  <div className="text-sm text-[#aaa] mb-2">MTA-16 Analys pågår...</div>
                   <div className="w-full bg-[#1a1a1a] rounded-full h-2">
                     <div 
                       className="bg-[#333] h-2 rounded-full transition-all duration-300"
@@ -2602,11 +2602,11 @@ export default function SevenBZeroPage() {
                 </div>
               )}
               
-              {/* MTA-43 Analysis Results */}
+              {/* MTA-16 Analysis Results */}
               {debateRounds.analysisComplete && debateRounds.analysisResults && (
                 <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
                   <div className="text-sm font-medium text-[#888] mb-3">
-                    MTA-43 Analys - {debateRounds.analysisResults.total_analyzed} svar analyserade
+                    MTA-16 Analys - {debateRounds.analysisResults.total_analyzed} svar analyserade
                   </div>
                   
                   {/* Results by round */}
@@ -2970,7 +2970,7 @@ export default function SevenBZeroPage() {
                     </div>
                   )}
                   
-                  {/* MTA-43 Analysis Offer Buttons */}
+                  {/* MTA-16 Analysis Offer Buttons */}
                   {msg.analysisOffer && !msg.isTyping && (
                     <div className="mt-3 flex gap-2">
                       <button
@@ -3025,7 +3025,7 @@ export default function SevenBZeroPage() {
                     </div>
                   )}
                   
-                  {/* MTA-43 Analysis Results Display */}
+                  {/* MTA-16 Analysis Results Display */}
                   {msg.analysisData && msg.analysisData.analyses && (
                     <div className="mt-4">
                       <details className={`${whiteMode ? 'bg-[#f8f8f8]' : 'bg-[#0a0a0a]'} rounded-lg overflow-hidden`}>
@@ -3033,7 +3033,7 @@ export default function SevenBZeroPage() {
                           whiteMode ? 'text-[#666] hover:bg-[#f0f0f0]' : 'text-[#888] hover:bg-[#151515]'
                         } transition-colors`}>
                           <span>🔬</span>
-                          <span>MTA-43 Analys Resultat</span>
+                          <span>MTA-16 Analys Resultat</span>
                           <span className={`ml-auto text-[10px] ${whiteMode ? 'text-[#999]' : 'text-[#555]'}`}>
                             ({msg.analysisData.total_analyzed} AI-tjänster analyserade)
                           </span>

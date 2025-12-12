@@ -12776,10 +12776,11 @@ async def stream_text_tokens(websocket: WebSocket, text: str, event_type: str, a
             await asyncio.sleep(delay_per_word * STREAMING_CHUNK_SIZE)
 
 
-async def run_mta43_analysis(websocket: WebSocket, debate_rounds, question):
+async def run_mta16_analysis(websocket: WebSocket, debate_rounds, question):
     """
-    Run Multidimensional Transparency Analysis (MTA-43) on entire debate.
-    Analyzes each AI response with 43 dimensions, all in Swedish.
+    Run Multidimensional Transparency Analysis (MTA-16) on entire debate.
+    Analyzes each AI response with 16 core dimensions, all in Swedish.
+    Simplified from MTA-43 for better reliability.
     Uses OneSeek model - no external libraries.
     Results stream as chat messages.
     """
@@ -12788,24 +12789,21 @@ async def run_mta43_analysis(websocket: WebSocket, debate_rounds, question):
         await websocket.send_json({
             "type": "message",
             "agent": "oneseek",
-            "message": "🔬 Startar MTA-43 analys av debatten...",
+            "message": "🔬 Startar MTA-16 analys av debatten...",
             "streaming": False
         })
         
-        # MTA-43 prompt template with all 43 dimensions - improved for JSON reliability
-        MTA43_PROMPT_TEMPLATE = """Du är en transparent analysmotor. Du måste svara strikt på svenska i ALLA delar av svaret.
+        # MTA-16 prompt template - simplified to 16 core dimensions with skala field
+        MTA16_PROMPT_TEMPLATE = """Du är en transparent analysmotor. Du måste svara strikt på svenska i ALLA delar av svaret.
 
-ABSOLUTA KRAV:
-- Alla fält, värden, etiketter och motiveringar i JSON-objektet ska vara på svenska.
-- Alla motiveringar ska vara detaljerade, textnära och förklara exakt varför klassificeringen gjordes.
+KRAV:
+- Alla fält, värden, etiketter och motiveringar ska vara på svenska.
+- Alla motiveringar ska vara detaljerade och textnära.
 - Varje fält ska innehålla en numerisk skala från 0 till 10 i fältet "skala".
   0 = inte alls, 10 = extremt.
-- Du får INTE utelämna något fält. Alla fält måste finnas med även om värdet är "oklart".
-- Använd inte engelska ord eller etiketter. Om ett begrepp normalt är engelskt ska du översätta det.
-- VIKTIGT: Returnera ENDAST ett JSON-objekt. Ingen extra text före eller efter.
-- VIKTIGT: Alla citattecken i motiveringar måste escapas med backslash: \\"
-- VIKTIGT: Inga radbrytningar i string-värden - använd mellanslag istället.
-- VIKTIGT: Säkerställ att JSON-objektet är komplett - alla {{ }} måste vara balanserade.
+- Du får INTE utelämna något fält. Alla 16 fält måste finnas med även om värdet är "oklart".
+- Använd inte engelska ord eller etiketter.
+- Returnera ENDAST ett JSON-objekt. Ingen extra text.
 
 TEXT SOM SKA ANALYSERAS:
 {text}
@@ -12814,7 +12812,7 @@ Du ska skapa ett JSON-objekt med följande EXAKTA struktur.
 Varje fält ska innehålla:
 - "värde": klassificeringen på svenska
 - "skala": ett heltal 0–10
-- "motivering": en detaljerad och textnära förklaring på svenska (escape alla citattecken!)
+- "motivering": en detaljerad och textnära förklaring
 
 JSON-STRUKTUR (följ exakt):
 
@@ -12832,52 +12830,20 @@ JSON-STRUKTUR (följ exakt):
   "moral_foundations": {{ "värde": "", "skala": 0, "motivering": "" }},
   "toxicitet": {{ "värde": "", "skala": 0, "motivering": "" }},
   "osäkerhet": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "sammanfattning": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "epistemisk_säkerhet": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "källtyp_implicit": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "kunskapsluckor": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "logiska_fel": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "argumentstruktur": {{ "värde": "", "skala": 0, "motivering": "" }},
   "koherens": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "stilnivå": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "abstraktionsnivå": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "modalitet": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "intensitet": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "kognitiv_stil": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "emotionell_laddning": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "motivationsram": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "diskursram": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "perspektiv": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "underliggande_antaganden": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "konfliktnivå": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "polariseringsgrad": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "målgrupp": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "etiska_risker": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "värdegrund": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "positiva_konsekvenser": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "negativa_konsekvenser": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "osagda_konsekvenser": {{ "värde": "", "skala": 0, "motivering": "" }},
   "klarhet": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "precision": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "relevans": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "överflödigt_innehåll": {{ "värde": "", "skala": 0, "motivering": "" }},
-  "saknade_perspektiv": {{ "värde": "", "skala": 0, "motivering": "" }}
+  "sammanfattning": {{ "värde": "", "skala": 0, "motivering": "" }}
 }}
 
-INNAN DU SVARAR - SJÄLVKONTROLL:
+INNAN DU SVARAR:
 Du ska själv kontrollera att:
-- alla fält finns med
+- alla 16 fält finns med
 - alla fält har "värde", "skala" och "motivering"
 - inga engelska ord förekommer
 - alla motiveringar är detaljerade och textnära
 - JSON-strukturen följer exakt formatet ovan
-- alla citattecken är korrekt escaped med backslash: \\"
-- inga radbrytningar i string-värden (använd mellanslag istället)
-- JSON-objektet är komplett och välformat
-- alla {{ }} är balanserade
-- sista fältet har INTE komma efter }}
 
-KRITISKT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen markdown, ingen extra text före eller efter. Börja med {{ och sluta med }}. Säkerställ att alla strängar är korrekt avslutade och att alla parenteser är balanserade."""
+Returnera sedan ENDAST JSON-objektet."""
         
         # NEW APPROACH: Group responses by AI (much faster!)
         # Instead of 15 analyses (5 AIs × 3 rounds), we do 5 analyses (one per AI)
@@ -12919,8 +12885,8 @@ KRITISKT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen markdown, in
                 "isThinking": True
             })
             
-            # Generate MTA-43 analysis using OneSeek model
-            analysis_prompt = MTA43_PROMPT_TEMPLATE.format(text=combined_text)
+            # Generate MTA-16 analysis using OneSeek model
+            analysis_prompt = MTA16_PROMPT_TEMPLATE.format(text=combined_text)
             
             # Try with retry logic
             analysis_data = None
@@ -12934,7 +12900,7 @@ KRITISKT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen markdown, in
                             {"role": "user", "content": analysis_prompt}
                         ],
                         "temperature": 0.1 if attempt == 0 else 0.05,  # Even lower temp on retry
-                        "max_tokens": 6000,  # Increased for complete 43-dimension JSON (5500+ needed)
+                        "max_tokens": 3500,  # Reduced from 6000 - enough for 16 fields (was 43)
                         "response_format": {"type": "json_object"},  # Force JSON mode in llama.cpp
                         "stream": False
                     }
@@ -12976,10 +12942,10 @@ KRITISKT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen markdown, in
                     # 3. Try to parse with multiple fix attempts
                     try:
                         analysis_data = json.loads(analysis_json_text)
-                        logger.info(f"[MTA-43] Successfully parsed JSON for {agent}")
+                        logger.info(f"[MTA-16] Successfully parsed JSON for {agent}")
                         break  # Success - exit retry loop
                     except json.JSONDecodeError as je:
-                        logger.error(f"[MTA-43] Attempt {attempt+1} - JSON decode error for {agent}: {je}")
+                        logger.error(f"[MTA-16] Attempt {attempt+1} - JSON decode error for {agent}: {je}")
                         
                         if attempt == 0:
                             # First attempt failed - try aggressive fixing
@@ -13003,15 +12969,15 @@ KRITISKT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen markdown, in
                             
                             try:
                                 analysis_data = json.loads(fixed_text)
-                                logger.info(f"[MTA-43] Successfully parsed after fixing common issues")
+                                logger.info(f"[MTA-16] Successfully parsed after fixing common issues")
                                 break
                             except json.JSONDecodeError as je2:
-                                logger.warning(f"[MTA-43] Fix failed: {je2}. Retrying with lower temperature...")
+                                logger.warning(f"[MTA-16] Fix failed: {je2}. Retrying with lower temperature...")
                                 continue
                         else:
                             # Second attempt also failed
-                            logger.error(f"[MTA-43] All attempts failed for {agent}")
-                            logger.error(f"[MTA-43] JSON sample: {analysis_json_text[:300]}...")
+                            logger.error(f"[MTA-16] All attempts failed for {agent}")
+                            logger.error(f"[MTA-16] JSON sample: {analysis_json_text[:300]}...")
                             # Create minimal error structure
                             analysis_data = {
                                 "error": "JSON parsing failed after retries",
@@ -13020,7 +12986,7 @@ KRITISKT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen markdown, in
                             break
                     
                 except Exception as e:
-                    logger.error(f"[MTA-43] Error analyzing {agent}: {e}")
+                    logger.error(f"[MTA-16] Error analyzing {agent}: {e}")
                     if attempt == 1:  # Last attempt
                         # Continue with next AI
                         continue
@@ -13038,7 +13004,7 @@ KRITISKT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen markdown, in
             await asyncio.sleep(0.5)
         
         # Send complete analysis results as chat message
-        summary_msg = f"✅ MTA-43 analys slutförd! Analyserade {len(all_analyses)} svar från debatten."
+        summary_msg = f"✅ MTA-16 analys slutförd! Analyserade {len(all_analyses)} svar från debatten."
         await websocket.send_json({
             "type": "message",
             "agent": "oneseek",
@@ -13052,14 +13018,14 @@ KRITISKT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen markdown, in
             }
         })
         
-        logger.info(f"[MTA-43] Analysis complete: {len(all_analyses)} responses analyzed")
+        logger.info(f"[MTA-16] Analysis complete: {len(all_analyses)} responses analyzed")
         
     except Exception as e:
-        logger.error(f"[MTA-43] Error during analysis: {e}")
+        logger.error(f"[MTA-16] Error during analysis: {e}")
         await websocket.send_json({
             "type": "message",
             "agent": "oneseek",
-            "message": f"❌ Fel vid MTA-43 analys: {str(e)}",
+            "message": f"❌ Fel vid MTA-16 analys: {str(e)}",
             "streaming": False,
             "error": True
         })
@@ -13830,25 +13796,25 @@ Skapa en kort, objektiv sammanfattning (max 150 ord) av debatten och förklara v
         # Small delay to ensure debate_complete is processed before analysis offer
         await asyncio.sleep(0.5)
         
-        # Offer MTA-43 analysis as a regular OneSeek message (streaming)
-        analysis_offer_text = "Debatten är nu avslutad. Vill du att jag genomför en Multidimensionell Transparensanalys (MTA-43) på hela debatten, steg för steg, och presenterar resultatet för dig? Analysen är övergripande, systematisk och modelloberoende."
+        # Offer MTA-16 analysis as a regular OneSeek message (streaming)
+        analysis_offer_text = "Debatten är nu avslutad. Vill du att jag genomför en Multidimensionell Transparensanalys (MTA-16) på hela debatten, steg för steg, och presenterar resultatet för dig? Analysen är övergripande, systematisk och modelloberoende."
         
-        logger.info("[WS-Debate] Sending MTA-43 analysis offer message...")
+        logger.info("[WS-Debate] Sending MTA-16 analysis offer message...")
         await websocket.send_json({
             "type": "message",
             "agent": "oneseek",
             "message": analysis_offer_text,
             "analysis_offer": True  # Special flag to show Ja/Nej buttons
         })
-        logger.info("[WS-Debate] MTA-43 analysis offer sent successfully")
+        logger.info("[WS-Debate] MTA-16 analysis offer sent successfully")
         
         # Wait for user response (60 seconds timeout)
         try:
             response_data = await asyncio.wait_for(websocket.receive_json(), timeout=60.0)
             
             if response_data.get("type") == "analysis_request" and response_data.get("approved"):
-                # User approved - run MTA-43 analysis (stream as messages)
-                await run_mta43_analysis(websocket, debate_rounds, clean_question)
+                # User approved - run MTA-16 analysis (stream as messages)
+                await run_mta16_analysis(websocket, debate_rounds, clean_question)
         except asyncio.TimeoutError:
             logger.info("[WS-Debate] No analysis request received within timeout")
             # Send timeout message
