@@ -3027,65 +3027,64 @@ export default function SevenBZeroPage() {
                   
                   {/* MTA-16 Analysis Results Display */}
                   {msg.analysisData && msg.analysisData.analyses && (
-                    <div className="mt-4">
-                      <details className={`${whiteMode ? 'bg-[#f8f8f8]' : 'bg-[#0a0a0a]'} rounded-lg overflow-hidden`}>
-                        <summary className={`px-4 py-2 cursor-pointer text-[11px] font-medium uppercase tracking-wider flex items-center gap-2 ${
-                          whiteMode ? 'text-[#666] hover:bg-[#f0f0f0]' : 'text-[#888] hover:bg-[#151515]'
-                        } transition-colors`}>
-                          <span>🔬</span>
-                          <span>MTA-16 Analys Resultat</span>
-                          <span className={`ml-auto text-[10px] ${whiteMode ? 'text-[#999]' : 'text-[#555]'}`}>
-                            ({msg.analysisData.total_analyzed} AI-tjänster analyserade)
-                          </span>
-                        </summary>
-                        <div className={`px-4 py-3 text-[13px] font-light leading-relaxed border-t ${
-                          whiteMode ? 'text-[#555] border-[#e0e0e0]' : 'text-[#999] border-[#222]'
-                        }`}>
-                          {msg.analysisData.analyses.map((analysis, idx) => (
-                            <div key={idx} className="mb-4 pb-4 border-b border-[#2a2a2a] last:border-0">
-                              <div className={`font-medium text-sm mb-2 ${whiteMode ? 'text-[#333]' : 'text-[#ccc]'}`}>
-                                {analysis.agent.toUpperCase()} - Rundor: {analysis.rounds_analyzed ? analysis.rounds_analyzed.join(', ') : 'N/A'}
-                              </div>
-                              {analysis.analysis && analysis.analysis.sentiment && (
-                                <div className="overflow-x-auto">
-                                  <table className={`w-full text-xs border-collapse ${whiteMode ? 'border-[#e0e0e0]' : 'border-[#333]'}`}>
-                                    <thead>
-                                      <tr className={`${whiteMode ? 'bg-[#f5f5f5] border-b-2 border-[#ddd]' : 'bg-[#1a1a1a] border-b-2 border-[#444]'}`}>
-                                        <th className={`text-left py-2 px-2 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#888]'}`}>Dimension</th>
-                                        <th className={`text-left py-2 px-2 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#888]'}`}>Värde</th>
-                                        <th className={`text-left py-2 px-2 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#888]'}`}>Skala</th>
-                                        <th className={`text-left py-2 px-2 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#888]'}`}>Kommentar</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {['sentiment', 'emotion', 'tonfall', 'politisk_riktning', 'ideologisk_dimension', 'bias', 'framing', 'retorik', 'propaganda', 'claim_detection', 'moral_foundations', 'toxicitet', 'osäkerhet', 'koherens', 'klarhet', 'sammanfattning'].map((dim) => {
-                                        const dimData = analysis.analysis[dim];
-                                        if (!dimData) return null;
-                                        return (
-                                          <tr key={dim} className={`border-b ${whiteMode ? 'border-[#e8e8e8]' : 'border-[#2a2a2a]'}`}>
-                                            <td className={`py-2 px-2 font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
-                                              {dim.replace(/_/g, ' ')}
-                                            </td>
-                                            <td className={`py-2 px-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
-                                              {dimData.värde || 'N/A'}
-                                            </td>
-                                            <td className={`py-2 px-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
-                                              {dimData.skala}/10
-                                            </td>
-                                            <td className={`py-2 px-2 text-xs ${whiteMode ? 'text-[#666]' : 'text-[#999]'}`}>
-                                              {dimData.motivering ? (dimData.motivering.length > 100 ? dimData.motivering.substring(0, 100) + '...' : dimData.motivering) : 'N/A'}
-                                            </td>
-                                          </tr>
-                                        );
-                                      })}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                    <div className={`mt-4 ${whiteMode ? 'bg-[#f8f8f8]' : 'bg-[#0a0a0a]'} rounded-lg overflow-hidden px-4 py-3`}>
+                      <div className={`text-[11px] font-medium uppercase tracking-wider flex items-center gap-2 mb-3 ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
+                        <span>🔬</span>
+                        <span>MTA-16 Analys Resultat</span>
+                        <span className={`ml-auto text-[10px] ${whiteMode ? 'text-[#999]' : 'text-[#555]'}`}>
+                          ({msg.analysisData.total_analyzed} AI-tjänster analyserade)
+                        </span>
+                      </div>
+                      
+                      {/* Helhetsprofil - All AIs side-by-side */}
+                      <div className="mb-4">
+                        <h3 className={`text-xs font-medium mb-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                          Helhetsprofil - Alla AI sida vid sida (medelvärden)
+                        </h3>
+                        <div className="overflow-x-auto">
+                          <table className={`w-full text-[10px] border-collapse ${whiteMode ? 'border-[#e0e0e0]' : 'border-[#333]'}`}>
+                            <thead>
+                              <tr className={`${whiteMode ? 'bg-[#f0f0f0] border-b border-[#ddd]' : 'bg-[#151515] border-b border-[#333]'}`}>
+                                <th className={`text-left py-1 px-2 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>Dimension</th>
+                                {msg.analysisData.analyses.map((a) => (
+                                  <th key={a.agent} className={`text-center py-1 px-2 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>
+                                    {a.agent.toUpperCase()}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {['sentiment', 'emotion', 'tonfall', 'politisk_riktning', 'ideologisk_dimension', 'bias', 'framing', 'retorik', 'propaganda', 'claim_detection', 'moral_foundations', 'toxicitet', 'osäkerhet', 'koherens', 'klarhet', 'sammanfattning'].map((dim) => (
+                                <tr key={dim} className={`border-b ${whiteMode ? 'border-[#e8e8e8]' : 'border-[#1a1a1a]'}`}>
+                                  <td className={`py-1 px-2 font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
+                                    {dim.replace(/_/g, ' ')}
+                                  </td>
+                                  {msg.analysisData.analyses.map((a) => {
+                                    const dimData = a.analysis && a.analysis[dim];
+                                    return (
+                                      <td key={a.agent} className={`py-1 px-2 text-center ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                                        {dimData ? `${dimData.skala}/10` : 'N/A'}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
-                      </details>
+                      </div>
+                      
+                      {/* OneSeek Slutinsikt */}
+                      {msg.analysisData.oneseek_insight && (
+                        <div className={`p-3 rounded ${whiteMode ? 'bg-[#f0f0f0]' : 'bg-[#151515]'}`}>
+                          <div className={`text-xs font-medium mb-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                            💡 OneSeek Slutinsikt
+                          </div>
+                          <div className={`text-xs ${whiteMode ? 'text-[#555]' : 'text-[#bbb]'} leading-relaxed`}>
+                            {msg.analysisData.oneseek_insight}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                   

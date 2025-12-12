@@ -13003,6 +13003,34 @@ Returnera sedan ENDAST JSON-objektet."""
             # Small delay to avoid overwhelming
             await asyncio.sleep(0.5)
         
+        # Generate OneSeek's insight summary
+        oneseek_insight = ""
+        if all_analyses:
+            insight_prompt = f"""Baserat på MTA-16 analysen av debatten om "{question}", skriv en kort (2-3 meningar) slutinsikt om mönster du ser. 
+
+Analyserade AI:er: {', '.join([a['agent'].upper() for a in all_analyses])}
+
+Fokusera på:
+- Vilka AI:er var mest stabila vs mest föränderliga
+- Tydliga trender i bias, emotionell laddning, eller koherens
+- Intressanta skillnader mellan AI:erna
+
+Skriv koncist och direkt på svenska. Exempel:
+"GPT-4o var mest stabil genom hela debatten, medan Grok ökade sin bias och emotionella laddning i varje runda. Claude höll en lågintensiv linje, medan Gemini ökade sin moraliska argumentation men tappade koherens i slutet." """
+            
+            try:
+                insight_response = await oneseek_model.create_chat_completion(
+                    messages=[{"role": "user", "content": insight_prompt}],
+                    max_tokens=200,
+                    temperature=0.7,
+                    stream=False
+                )
+                oneseek_insight = insight_response['choices'][0]['message']['content'].strip()
+                logger.info(f"[MTA-16] Generated OneSeek insight")
+            except Exception as e:
+                logger.error(f"[MTA-16] Failed to generate insight: {e}")
+                oneseek_insight = "Analys slutförd - se tabellerna för detaljer."
+        
         # Send complete analysis results as chat message
         summary_msg = f"✅ MTA-16 analys slutförd! Analyserade {len(all_analyses)} svar från debatten."
         await websocket.send_json({
@@ -13014,7 +13042,9 @@ Returnera sedan ENDAST JSON-objektet."""
             "analysis_data": {
                 "question": question,
                 "total_analyzed": len(all_analyses),
-                "analyses": all_analyses
+                "analyses": all_analyses,
+                "oneseek_insight": oneseek_insight,
+                "rounds": max([max(a['rounds_analyzed']) for a in all_analyses]) if all_analyses else 3
             }
         })
         
@@ -13224,8 +13254,9 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
                 logger.info(f"[WS-Debate] {agent_name.upper()} response queued")
                 return response
             
-            # Start all external AI requests concurrently - actually create tasks so they run in background
+            # Start all external AI requests concurrently - tasks start immediately in background
             external_tasks = [asyncio.create_task(get_and_queue_response(agent)) for agent in external_agents]
+            logger.info(f"[WS-Debate] Started {len(external_tasks)} background tasks for external AIs")
             
             # Process responses from queue as they arrive
             # Track all responses for later use
