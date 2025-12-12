@@ -268,8 +268,13 @@ class TestApiCatalogCategories:
         
         # Check for Libris APIs
         api_names = [api["name"] for api in böcker["apis"]]
-        assert "libris_search" in api_names, "böcker should have libris_search API"
+        assert "libris_title_author_anything" in api_names, "böcker should have libris_title_author_anything API"
         assert "libris_isbn" in api_names, "böcker should have libris_isbn API"
+        
+        # Verify default_api is set
+        assert "default_api" in böcker, "böcker should have default_api"
+        assert böcker["default_api"] == "libris_title_author_anything", \
+            "default_api should be libris_title_author_anything"
         
         # Verify provider info
         assert "provider" in böcker, "böcker should have provider information"

@@ -1,6 +1,6 @@
 {
   "name": "Libris XL",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Kungliga Bibliotekets nationella bibliotekskatalog - Komplett katalog över böcker, författare och litteratur i Sverige",
   "updated": "2025-12-12",
   "provider": {
@@ -13,23 +13,30 @@
   },
   
   "personality_tags": ["bibliotekarie"],
+  "default_api": "libris_title_author_anything",
   
   "apis": [
     {
-      "name": "libris_search",
+      "name": "libris_title_author_anything",
       "source": "Libris XL",
       "frequency": "realtid",
       "url": "https://libris.kb.se/xsearch?query={query}&format=json&n=5",
       "url_template": true,
-      "keywords": ["bok", "böcker", "författare", "roman", "novell", "läsa", "litteratur", "handlar om", "läst", "rekommendation", "söker bok"],
-      "priority": 1,
-      "description": "Libris XL fritextsökning - sök böcker efter titel, författare eller nyckelord (returnerar 5 resultat)",
+      "keywords": [
+        "bok", "böcker", "författare", "roman", "novell", "läsa", "litteratur", "handlar om",
+        "läst", "rekommendation", "söker bok", "titel", "författarnamn", "skriven av",
+        "selma lagerlöf", "gösta berlings", "astrid lindgren", "strindberg", "klassiker",
+        "vad handlar", "utgiven", "första upplagan", "år", "utgivningsår", "skriven",
+        "ge mig isbn", "isbn till", "hitta isbn", "vilket isbn", "isbn för"
+      ],
+      "priority": 0,
+      "description": "HUVUDENDPOINT – alla vanliga bokfrågor (titel, författare, innehåll, år, hitta ISBN osv)",
       "method": "GET",
       "parameters": {
-        "query": {"type": "string", "required": true, "description": "Sökterm (titel, författare, nyckelord)"}
+        "query": {"type": "string", "required": true, "description": "Titel, författare eller nyckelord"}
       },
       "data_format": "JSON",
-      "example_url": "https://libris.kb.se/xsearch?query=strindberg+röda+rummet&format=json&n=5"
+      "example_url": "https://libris.kb.se/xsearch?query=gösta+berlings+saga+selma+lagerlöf&format=json&n=5"
     },
     {
       "name": "libris_isbn",
@@ -37,34 +44,33 @@
       "frequency": "realtid",
       "url": "https://libris.kb.se/xsearch?query=isbn:{isbn}&format=json&n=1",
       "url_template": true,
-      "keywords": ["isbn", "978", "91-", "bokens isbn", "isbn nummer"],
-      "priority": 0,
-      "description": "Libris XL ISBN-uppslag - hitta bok via exakt ISBN-nummer",
+      "keywords": ["isbn", "978", "91-", "bokens isbn", "isbn nummer", "isbn-nummer"],
+      "priority": 3,
+      "description": "Endast vid exakt ISBN-fråga när användaren GER ett ISBN-nummer",
       "method": "GET",
       "parameters": {
-        "isbn": {"type": "string", "required": true, "description": "ISBN-10 eller ISBN-13 nummer"},
-        "format": {"type": "string", "required": false, "default": "json", "description": "Svarsformat"}
+        "isbn": {"type": "string", "required": true, "description": "ISBN-10 eller ISBN-13"},
+        "format": {"type": "string", "required": false, "default": "json"}
       },
       "data_format": "JSON",
       "example_url": "https://libris.kb.se/xsearch?query=isbn:9789100128821&format=json&n=1",
-      "notes": "Stödjer både ISBN-10 (10 siffror) och ISBN-13 (13 siffror med 978- eller 979-prefix)"
+      "notes": "Används bara när användaren faktiskt nämner ett ISBN-nummer (t.ex. '978-91...')"
     },
     {
-      "name": "libris_sparql",
+      "name": "libris_author_bibliography",
       "source": "Libris XL",
       "frequency": "realtid",
       "url": "https://libris.kb.se/xsearch?query=author:{author}&format=json&n=10",
       "url_template": true,
-      "keywords": ["alla böcker av", "utgivna år", "författare", "förlag", "verk av", "bibliografi"],
+      "keywords": ["alla böcker av", "bibliografi", "verk av", "författarens böcker"],
       "priority": 2,
-      "description": "Libris XL författarsökning - hitta alla böcker av en specifik författare (returnerar 10 resultat)",
+      "description": "Lista alla böcker av en författare",
       "method": "GET",
       "parameters": {
-        "author": {"type": "string", "required": true, "description": "Författarnamn"}
+        "author": {"type": "string", "required": true}
       },
       "data_format": "JSON",
-      "example_url": "https://libris.kb.se/xsearch?query=author:astrid+lindgren&format=json&n=10",
-      "notes": "Använd xsearch med author-filter för grundläggande författarsökningar. För avancerade SPARQL-frågor, använd https://libris.kb.se/sparql direkt."
+      "example_url": "https://libris.kb.se/xsearch?query=author:astrid+lindgren&format=json&n=10"
     }
   ],
   
@@ -111,7 +117,7 @@
   },
   
   "examples": {
-    "query": "Vad handlar Röda rummet om?",
-    "response": "**Röda rummet**\nFörfattare: August Strindberg\nUtgivningsår: 1879\n\nRöda rummet är August Strindbergs genombrott som författare. Romanen skildrar en grupp bohemer i 1870-talets Stockholm och är en samhällssatir som kritiserar dåtidens svenska samhälle. Berättelsen följer Arvid Falk, en ung ämbetsman som lämnar sin trygghet för att bli författare.\n\n**Källa**: Libris XL (Kungliga Biblioteket)"
+    "query": "Vad handlar Gösta Berlings saga om?",
+    "response": "**Gösta Berlings saga**\nFörfattare: Selma Lagerlöf\nUtgivningsår: 1891\n\nRomanen är Selma Lagerlöfs debutverk och räknas som en av den svenska litteraturens stora klassiker. Berättelsen utspelar sig i Värmland och följer den avsatte prästen Gösta Berling och hans öden bland kavaljererna på Ekeby bruk.\n\n**Källa**: Libris XL (Kungliga Biblioteket)"
   }
 }

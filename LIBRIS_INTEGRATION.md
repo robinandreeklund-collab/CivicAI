@@ -28,12 +28,13 @@ The Libris integration follows the exact same pattern as SMHI:
 A standalone JSON file containing:
 - **Provider metadata**: Kungliga Biblioteket, license, API documentation
 - **Personality tags**: `["bibliotekarie"]` - links to Bibliotekarie personality
-- **3 Main APIs**:
-  1. `libris_search` - Free text search for books
-  2. `libris_isbn` - ISBN lookup
-  3. `libris_sparql` - Author search and advanced queries
+- **Default API**: `libris_title_author_anything` - main endpoint for all queries
+- **3 Main APIs** (prioritized):
+  1. `libris_title_author_anything` (priority 0) - Main API for all book queries (titles, authors, content, finding ISBN, etc.)
+  2. `libris_author_bibliography` (priority 2) - List all books by an author
+  3. `libris_isbn` (priority 3) - ISBN lookup (only when user provides an ISBN)
 - **Entity configuration**: Book/author/ISBN extraction patterns
-- **Keywords**: Book-related search terms
+- **Keywords**: Extensive book-related search terms including author names
 - **Caching strategy**: Response caching times
 - **Error handling**: Retry logic and fallback messages
 
@@ -105,38 +106,50 @@ When a user asks about books:
 
 ## API Endpoints
 
-### 1. Free Text Search
+### 1. General Book Search (Main API)
 
-**Endpoint**: `https://libris.kb.se/xsearch?query={query}&format=json&n=5`
+**API name**: `libris_title_author_anything`  
+**Endpoint**: `https://libris.kb.se/xsearch?query={query}&format=json&n=5`  
+**Priority**: 0 (highest - default API)
 
-**Example**: Search for "Röda rummet"
+**Example**: Search for "Gösta Berlings saga Selma Lagerlöf"
 ```
-https://libris.kb.se/xsearch?query=Röda%20rummet&format=json&n=5
+https://libris.kb.se/xsearch?query=gösta+berlings+saga+selma+lagerlöf&format=json&n=5
 ```
 
 **Returns**: 5 results by default
 
 **Use cases**:
-- "Vad handlar Röda rummet om?"
+- "Vad handlar Gösta Berlings saga om?"
+- "Ge mig ISBN till Röda rummet av Strindberg"
 - "Böcker om Sverige"
+- "Vilka böcker skrev Astrid Lindgren?"
 - "Rekommendationer på svenska klassiker"
+
+**Note**: This is the primary API that handles most book-related questions including finding ISBN numbers, book content, publication years, etc.
 
 ### 2. ISBN Lookup
 
-**Endpoint**: `https://libris.kb.se/xsearch?query=isbn:{isbn}&format=json&n=1`
+**API name**: `libris_isbn`  
+**Endpoint**: `https://libris.kb.se/xsearch?query=isbn:{isbn}&format=json&n=1`  
+**Priority**: 3 (lowest - only when user provides ISBN)
 
 **Example**: ISBN 9789100128821
 ```
 https://libris.kb.se/xsearch?query=isbn:9789100128821&format=json&n=1
 ```
 
-**Use cases**:
-- "ISBN 978-91-0-012882-1"
-- "Vilken bok har ISBN 9789100128821?"
+**Use cases** (only when user provides the ISBN number):
+- "Vilken bok har ISBN 978-91-0-012882-1?"
+- "Sök upp ISBN 9789100128821"
 
-### 3. Author Search
+**Note**: This API is only used when the user explicitly provides an ISBN number. For questions like "Ge mig ISBN till [book]", use the main API instead.
 
-**Endpoint**: `https://libris.kb.se/xsearch?query=author:{author}&format=json&n=10`
+### 3. Author Bibliography
+
+**API name**: `libris_author_bibliography`  
+**Endpoint**: `https://libris.kb.se/xsearch?query=author:{author}&format=json&n=10`  
+**Priority**: 2 (medium)
 
 **Example**: Books by Astrid Lindgren
 ```
@@ -147,8 +160,8 @@ https://libris.kb.se/xsearch?query=author:Astrid%20Lindgren&format=json&n=10
 
 **Use cases**:
 - "Alla böcker av Astrid Lindgren"
-- "Vad har Strindberg skrivit?"
 - "Bibliografi August Strindberg"
+- "Författarens alla verk"
 
 ## Testing
 
