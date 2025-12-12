@@ -3047,37 +3047,39 @@ export default function SevenBZeroPage() {
                                 {analysis.agent.toUpperCase()} - Rundor: {analysis.rounds_analyzed ? analysis.rounds_analyzed.join(', ') : 'N/A'}
                               </div>
                               {analysis.analysis && analysis.analysis.sentiment && (
-                                <div className="space-y-2">
-                                  <div className="flex items-center gap-2">
-                                    <span className={`text-xs font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>Sentiment:</span>
-                                    <span className={`text-xs ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
-                                      {analysis.analysis.sentiment.värde} (skala: {analysis.analysis.sentiment.skala}/10)
-                                    </span>
-                                  </div>
-                                  {analysis.analysis.bias && (
-                                    <div className="flex items-center gap-2">
-                                      <span className={`text-xs font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>Bias:</span>
-                                      <span className={`text-xs ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
-                                        {analysis.analysis.bias.värde} (skala: {analysis.analysis.bias.skala}/10)
-                                      </span>
-                                    </div>
-                                  )}
-                                  {analysis.analysis.toxicitet && (
-                                    <div className="flex items-center gap-2">
-                                      <span className={`text-xs font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>Toxicitet:</span>
-                                      <span className={`text-xs ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
-                                        {analysis.analysis.toxicitet.värde} (skala: {analysis.analysis.toxicitet.skala}/10)
-                                      </span>
-                                    </div>
-                                  )}
-                                  {analysis.analysis.polariseringsgrad && (
-                                    <div className="flex items-center gap-2">
-                                      <span className={`text-xs font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>Polarisering:</span>
-                                      <span className={`text-xs ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
-                                        {analysis.analysis.polariseringsgrad.värde} (skala: {analysis.analysis.polariseringsgrad.skala}/10)
-                                      </span>
-                                    </div>
-                                  )}
+                                <div className="overflow-x-auto">
+                                  <table className={`w-full text-xs border-collapse ${whiteMode ? 'border-[#e0e0e0]' : 'border-[#333]'}`}>
+                                    <thead>
+                                      <tr className={`${whiteMode ? 'bg-[#f5f5f5] border-b-2 border-[#ddd]' : 'bg-[#1a1a1a] border-b-2 border-[#444]'}`}>
+                                        <th className={`text-left py-2 px-2 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#888]'}`}>Dimension</th>
+                                        <th className={`text-left py-2 px-2 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#888]'}`}>Värde</th>
+                                        <th className={`text-left py-2 px-2 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#888]'}`}>Skala</th>
+                                        <th className={`text-left py-2 px-2 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#888]'}`}>Kommentar</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {['sentiment', 'emotion', 'tonfall', 'politisk_riktning', 'ideologisk_dimension', 'bias', 'framing', 'retorik', 'propaganda', 'claim_detection', 'moral_foundations', 'toxicitet', 'osäkerhet', 'koherens', 'klarhet', 'sammanfattning'].map((dim) => {
+                                        const dimData = analysis.analysis[dim];
+                                        if (!dimData) return null;
+                                        return (
+                                          <tr key={dim} className={`border-b ${whiteMode ? 'border-[#e8e8e8]' : 'border-[#2a2a2a]'}`}>
+                                            <td className={`py-2 px-2 font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
+                                              {dim.replace(/_/g, ' ')}
+                                            </td>
+                                            <td className={`py-2 px-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                                              {dimData.värde || 'N/A'}
+                                            </td>
+                                            <td className={`py-2 px-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
+                                              {dimData.skala}/10
+                                            </td>
+                                            <td className={`py-2 px-2 text-xs ${whiteMode ? 'text-[#666]' : 'text-[#999]'}`}>
+                                              {dimData.motivering ? (dimData.motivering.length > 100 ? dimData.motivering.substring(0, 100) + '...' : dimData.motivering) : 'N/A'}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
                                 </div>
                               )}
                             </div>

@@ -13239,11 +13239,12 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
             collect_task = asyncio.create_task(collect_all_responses())
             
             # Process each queued response immediately with OneSeek
+            # Process responses as they arrive - don't wait for all to be queued
             processed_count = 0
-            while processed_count < len(external_agents):
+            while True:
                 try:
                     # Wait for next response with timeout
-                    response = await asyncio.wait_for(response_queue.get(), timeout=60.0)
+                    response = await asyncio.wait_for(response_queue.get(), timeout=2.0)
                     external_responses.append(response)
                     processed_count += 1
                     
@@ -13370,9 +13371,18 @@ Var koncis och specifik. Svara endast med analysen."""
                     # Small delay before next answer
                     await asyncio.sleep(0.5)
                     
+                    # Check if we've processed all expected responses
+                    if processed_count >= len(external_agents):
+                        break
+                    
                 except asyncio.TimeoutError:
-                    logger.error(f"[WS-Debate] Timeout waiting for response {processed_count + 1}")
-                    break
+                    # Check if all tasks are done
+                    if collect_task.done():
+                        logger.info(f"[WS-Debate] All external tasks completed, processed {processed_count} responses")
+                        break
+                    # If tasks still running but queue empty, continue waiting
+                    logger.debug(f"[WS-Debate] Queue empty but tasks still running, waiting...")
+                    continue
                 except Exception as e:
                     logger.error(f"[WS-Debate] Error processing queued response: {e}")
                     break
