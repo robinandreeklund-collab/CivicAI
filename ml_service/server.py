@@ -12864,8 +12864,11 @@ Du ska själv kontrollera att:
 - inga engelska ord förekommer
 - alla motiveringar är detaljerade och textnära
 - JSON-strukturen följer exakt formatet ovan
+- alla citattecken är korrekt escaped
+- inga radbrytningar i string-värden (använd mellanslag istället)
+- JSON-objektet är komplett och välformat
 
-Returnera sedan ENDAST JSON-objektet."""
+VIKTIGT: Returnera ENDAST ett giltigt, komplett JSON-objekt. Ingen extra text före eller efter. Säkerställ att alla strängar är korrekt avslutade och att alla {} är balanserade."""
         
         all_analyses = []
         total_responses = sum(len(r['responses']) for r in debate_rounds)
@@ -12895,8 +12898,8 @@ Returnera sedan ENDAST JSON-objektet."""
                     payload = {
                         "model": "oneseek",
                         "messages": [{"role": "user", "content": analysis_prompt}],
-                        "temperature": 0.3,  # Lower temp for more consistent analysis
-                        "max_tokens": 3000,  # Need space for full JSON
+                        "temperature": 0.2,  # Lower temp for more consistent JSON
+                        "max_tokens": 4500,  # Increased for complete 43-dimension JSON
                         "stream": False
                     }
                     
@@ -12914,16 +12917,48 @@ Returnera sedan ENDAST JSON-objektet."""
                     else:
                         analysis_json_text = result.get('content', '{}')
                     
-                    # Parse JSON
+                    # Parse JSON with robust error handling
                     import json
                     import re
                     
-                    # Extract JSON from potential markdown code blocks
+                    analysis_data = None
+                    
+                    # Try multiple extraction methods
+                    # 1. Extract from markdown code blocks
                     json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', analysis_json_text, re.DOTALL)
                     if json_match:
                         analysis_json_text = json_match.group(1)
                     
-                    analysis_data = json.loads(analysis_json_text)
+                    # 2. Find first { to last } for JSON extraction
+                    start_idx = analysis_json_text.find('{')
+                    end_idx = analysis_json_text.rfind('}')
+                    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                        analysis_json_text = analysis_json_text[start_idx:end_idx+1]
+                    
+                    # 3. Try to parse
+                    try:
+                        analysis_data = json.loads(analysis_json_text)
+                    except json.JSONDecodeError as je:
+                        logger.error(f"[MTA-43] JSON decode error for {agent} round {round_num}: {je}")
+                        logger.error(f"[MTA-43] Problematic JSON (first 500 chars): {analysis_json_text[:500]}")
+                        
+                        # Try to fix common issues
+                        # Remove trailing commas
+                        fixed_text = re.sub(r',(\s*[}\]])', r'\1', analysis_json_text)
+                        # Escape unescaped quotes in strings (best effort)
+                        try:
+                            analysis_data = json.loads(fixed_text)
+                            logger.info(f"[MTA-43] Successfully parsed after fixing common issues")
+                        except:
+                            # Give up, create minimal structure
+                            analysis_data = {
+                                "error": "JSON parsing failed",
+                                "raw_response": analysis_json_text[:1000],
+                                "sentiment": {"värde": "oklart", "skala": 0, "motivering": "Kunde inte analysera på grund av JSON-fel"}
+                            }
+                    
+                    if not analysis_data:
+                        continue
                     
                     # Store analysis
                     all_analyses.append({
