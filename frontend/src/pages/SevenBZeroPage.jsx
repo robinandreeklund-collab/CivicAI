@@ -1912,28 +1912,6 @@ export default function SevenBZeroPage() {
               }
             }));
             
-            // Add debate results as a message in the timeline for chronological display
-            const debateResultsMsg = generateMessageId();
-            setMessages(prev => [...prev, {
-              id: debateResultsMsg,
-              role: 'ai',
-              agent: 'oneseek',
-              timestamp: new Date(),
-              isTyping: false,
-              isDebateComplete: true,  // Flag to render debate results
-              debateData: {
-                rounds: debateRounds,
-                completion: {
-                  winner: message.data.winner,
-                  winnerVotes: message.data.winner_votes,
-                  totalVotes: message.data.total_votes,
-                  voteResults: message.data.vote_results,
-                  summary: message.data.summary,
-                  time: finalResponseTime
-                }
-              }
-            }]);
-            
             // Mark all rounds as complete
             setCurrentRound(0);
             
@@ -2588,7 +2566,103 @@ export default function SevenBZeroPage() {
             </div>
           )}
 
-          {/* Debate Rounds Display - REMOVED: Now integrated into chronological message timeline */}
+          {/* Debate Rounds Display - New Component - Show when debate data exists (regardless of debateMode) */}
+          {Object.keys(debateRounds).length > 0 && (
+            <div className="mb-6">
+              {Object.keys(debateRounds).filter(k => k !== 'completion').sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
+                <DebateRoundDisplay
+                  key={roundNum}
+                  round={parseInt(roundNum)}
+                  aiData={debateRounds[roundNum]}
+                  isActive={parseInt(roundNum) === currentRound}
+                />
+              ))}
+              
+              {/* Debate Completion - Integrated into flow */}
+              {debateRounds.completion && (
+                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                  <div className="text-sm font-medium text-[#888] mb-3">Debatt avslutad</div>
+                  
+                  {/* Voting Results */}
+                  <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
+                    <div className="text-xs text-[#666] mb-2">Röstning</div>
+                    <div className="space-y-1">
+                      {debateRounds.completion.voteResults?.map((vote, idx) => (
+                        <div key={idx} className="text-xs text-[#888]">
+                          {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Winner */}
+                  <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
+                    <div className="text-xs text-[#666] mb-1">Vinnare</div>
+                    <div className="text-sm text-[#aaa]">
+                      {debateRounds.completion.winner?.toUpperCase()}
+                      <span className="text-xs text-[#666] ml-2">
+                        ({debateRounds.completion.winnerVotes}/{debateRounds.completion.totalVotes} röster)
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Summary */}
+                  <div>
+                    <div className="text-xs text-[#666] mb-2">Sammanfattning</div>
+                    <div className="text-xs text-[#888] leading-relaxed">
+                      {debateRounds.completion.summary}
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* MTA-16 Analysis Offer - now handled via regular messages, remove this */}
+              
+              {/* MTA-16 Analysis Progress */}
+              {debateRounds.analysisRunning && (
+                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                  <div className="text-sm text-[#aaa] mb-2">MTA-16 Analys pågår...</div>
+                  <div className="w-full bg-[#1a1a1a] rounded-full h-2">
+                    <div 
+                      className="bg-[#333] h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${debateRounds.analysisProgress || 0}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-[#666] mt-2 text-right">
+                    {debateRounds.analysisProgress || 0}%
+                  </div>
+                </div>
+              )}
+              
+              {/* MTA-16 Analysis Results */}
+              {debateRounds.analysisComplete && debateRounds.analysisResults && (
+                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                  <div className="text-sm font-medium text-[#888] mb-3">
+                    MTA-16 Analys - {debateRounds.analysisResults.total_analyzed} svar analyserade
+                  </div>
+                  
+                  {/* Results by round */}
+                  {debateRounds.analysisResults.analyses?.map((analysis, idx) => (
+                    <details key={idx} className="mb-3 border-b border-[#1a1a1a] pb-3 last:border-0">
+                      <summary className="cursor-pointer text-xs text-[#888] hover:text-[#aaa] mb-2">
+                        Runda {analysis.round} - {analysis.agent.toUpperCase()}
+                      </summary>
+                      <div className="pl-4 mt-2 space-y-2">
+                        {/* Show key dimensions with high scores */}
+                        {Object.entries(analysis.analysis || {}).filter(([key, val]) => val?.skala >= 5).slice(0, 10).map(([dimension, data]) => (
+                          <div key={dimension} className="text-xs">
+                            <span className="text-[#666]">{dimension}:</span>
+                            <span className="text-[#888] ml-2">{data.värde}</span>
+                            <span className="text-[#555] ml-2">({data.skala}/10)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Messages - Show ALL messages in one view (debate button only controls model behavior, not view) */}
           {messages.reduce((acc, msg, idx, arr) => {
@@ -2860,58 +2934,8 @@ export default function SevenBZeroPage() {
                           50% { opacity: 0; }
                         }
                       `}</style>
-                      {/* Render debate completion in chronological message timeline */}
-                      {msg.isDebateComplete && msg.debateData ? (
-                        <div className="debate-results-container mb-6">
-                          {/* Debate Rounds Display */}
-                          {Object.keys(msg.debateData.rounds || {}).filter(k => k !== 'completion').sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
-                            <DebateRoundDisplay
-                              key={roundNum}
-                              round={parseInt(roundNum)}
-                              aiData={msg.debateData.rounds[roundNum]}
-                              isActive={false}
-                            />
-                          ))}
-                          
-                          {/* Debate Completion */}
-                          {msg.debateData.completion && (
-                            <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
-                              <div className="text-sm font-medium text-[#888] mb-3">Debatt avslutad</div>
-                              
-                              {/* Voting Results */}
-                              <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
-                                <div className="text-xs text-[#666] mb-2">Röstning</div>
-                                <div className="space-y-1">
-                                  {msg.debateData.completion.voteResults?.map((vote, idx) => (
-                                    <div key={idx} className="text-xs text-[#888]">
-                                      {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                              
-                              {/* Winner */}
-                              <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
-                                <div className="text-xs text-[#666] mb-1">Vinnare</div>
-                                <div className="text-sm text-[#aaa]">
-                                  {msg.debateData.completion.winner?.toUpperCase()}
-                                  <span className="text-xs text-[#666] ml-2">
-                                    ({msg.debateData.completion.winnerVotes}/{msg.debateData.completion.totalVotes} röster)
-                                  </span>
-                                </div>
-                              </div>
-                              
-                              {/* Summary */}
-                              <div>
-                                <div className="text-xs text-[#666] mb-2">Sammanfattning</div>
-                                <div className="text-xs text-[#888] leading-relaxed">
-                                  {msg.debateData.completion.summary}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ) : msg.debateMode && msg.debateData ? (
+                      {/* Render debate with interactive rounds */}
+                      {msg.debateMode && msg.debateData ? (
                         <div 
                           key={`debate-${msg.id}-${msg.debateData._updateCounter || 0}`}
                           className="debate-container"
