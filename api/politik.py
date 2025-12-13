@@ -60,6 +60,11 @@ class PolitikClient:
             'User-Agent': 'CivicAI/1.0 (Politik API Client)',
             'Accept': 'application/json'
         })
+        # Disable SSL verification for Riksdagen API (public government API)
+        self.session.verify = False
+        # Suppress InsecureRequestWarning
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     
     def get_voteringar(self, riksmote: str, beteckning: str) -> Dict[str, Any]:
         """
