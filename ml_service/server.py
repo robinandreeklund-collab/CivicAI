@@ -5614,6 +5614,82 @@ async def list_available_characters():
     return {"characters": characters, "count": len(characters)}
 
 
+@system_prompts_router.get("/characters/{character_id}")
+async def get_character_card(character_id: str):
+    """Get a specific character card by ID (e.g., 'oneseek-bibliotekarie' or 'bibliotekarie')"""
+    characters_dir = PROJECT_ROOT / 'frontend' / 'public' / 'characters'
+    
+    # Normalize the ID - ensure it has OneSeek- prefix for filename
+    if character_id.startswith("oneseek-"):
+        personality_suffix = character_id[8:]
+    else:
+        personality_suffix = character_id
+    
+    card_filename = f"OneSeek-{personality_suffix.title()}.yaml"
+    card_path = characters_dir / card_filename
+    
+    if not card_path.exists():
+        raise HTTPException(status_code=404, detail=f"Character card not found: {card_filename}")
+    
+    try:
+        import yaml
+        with open(card_path, 'r', encoding='utf-8') as f:
+            card_data = yaml.safe_load(f)
+        
+        return {
+            "id": character_id,
+            "filename": card_filename,
+            "data": card_data
+        }
+    except Exception as e:
+        logger.error(f"Failed to load character card {card_filename}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to load character card: {str(e)}")
+
+
+@system_prompts_router.put("/characters/{character_id}")
+async def update_character_card(character_id: str, card_data: dict):
+    """Update a character card YAML file"""
+    characters_dir = PROJECT_ROOT / 'frontend' / 'public' / 'characters'
+    
+    # Normalize the ID - ensure it has OneSeek- prefix for filename
+    if character_id.startswith("oneseek-"):
+        personality_suffix = character_id[8:]
+    else:
+        personality_suffix = character_id
+    
+    card_filename = f"OneSeek-{personality_suffix.title()}.yaml"
+    card_path = characters_dir / card_filename
+    
+    if not card_path.exists():
+        raise HTTPException(status_code=404, detail=f"Character card not found: {card_filename}")
+    
+    try:
+        import yaml
+        
+        # Validate that required fields exist
+        required_fields = ['name', 'id', 'system_prompt']
+        for field in required_fields:
+            if field not in card_data:
+                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+        
+        # Write back to file
+        with open(card_path, 'w', encoding='utf-8') as f:
+            yaml.dump(card_data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        
+        logger.info(f"✅ Updated character card: {card_filename}")
+        
+        return {
+            "success": True,
+            "message": f"Character card updated successfully: {card_filename}",
+            "filename": card_filename
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update character card {card_filename}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update character card: {str(e)}")
+
+
 # =============================================================================
 # SIMPLE SYSTEM PROMPT API - Convenience wrapper for Dashboard Integration
 # =============================================================================
