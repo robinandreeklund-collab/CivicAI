@@ -27,9 +27,13 @@ import requests
 import json
 import logging
 import re
+import urllib3
 from typing import Dict, Any, Optional, List, Tuple
 from pathlib import Path
 from urllib.parse import quote, urlencode
+
+# Suppress InsecureRequestWarning for Riksdagen API
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
@@ -60,11 +64,9 @@ class PolitikClient:
             'User-Agent': 'CivicAI/1.0 (Politik API Client)',
             'Accept': 'application/json'
         })
-        # Disable SSL verification for Riksdagen API (public government API)
+        # Note: SSL verification disabled for Riksdagen public API due to certificate issues
+        # This is acceptable for read-only public government data endpoints
         self.session.verify = False
-        # Suppress InsecureRequestWarning
-        import urllib3
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     
     def get_voteringar(self, riksmote: str, beteckning: str) -> Dict[str, Any]:
         """
