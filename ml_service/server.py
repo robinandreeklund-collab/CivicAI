@@ -15270,12 +15270,14 @@ Exempel:
                             if personality_data and personality_data.get('card_file'):
                                 personality_card_path = PROJECT_ROOT / personality_data['card_file']
                             else:
-                                # Try standard path - handle "oneseek-" prefix correctly
+                                # Try standard path - all cards are "OneSeek-{Name}.yaml"
+                                # personality_id can be "oneseek-bibliotekarie" OR just "bibliotekarie"
                                 if personality_id.startswith("oneseek-"):
                                     personality_suffix = personality_id[8:]  # Remove "oneseek-"
-                                    personality_card_path = PROJECT_ROOT / f"frontend/public/characters/OneSeek-{personality_suffix.title()}.yaml"
                                 else:
-                                    personality_card_path = PROJECT_ROOT / f"frontend/public/characters/{personality_id.title()}.yaml"
+                                    personality_suffix = personality_id
+                                # Always construct as "OneSeek-{Name}.yaml"
+                                personality_card_path = PROJECT_ROOT / f"frontend/public/characters/OneSeek-{personality_suffix.title()}.yaml"
                             
                             personality_system_prompt = ""
                             if personality_card_path and personality_card_path.exists():
@@ -15477,15 +15479,17 @@ Exempel:
         system_prompt = None
         if personality_id:
             # Build card file path based on personality ID
-            # Handle "oneseek-" prefix correctly (e.g., "oneseek-bibliotekarie" -> "OneSeek-Bibliotekarie")
+            # All character cards are named "OneSeek-{Name}.yaml"
+            # personality_id can be "oneseek-bibliotekarie" OR just "bibliotekarie"
             if personality_id.startswith("oneseek-"):
                 # Remove "oneseek-" prefix and capitalize the rest
                 personality_suffix = personality_id[8:]  # Remove "oneseek-"
-                card_filename = f"OneSeek-{personality_suffix.title()}.yaml"
             else:
-                # No prefix, just capitalize (e.g., "medveten" -> "Medveten")
-                card_filename = f"{personality_id.title()}.yaml"
+                # No prefix, use as-is
+                personality_suffix = personality_id
             
+            # Always construct filename as "OneSeek-{Name}.yaml"
+            card_filename = f"OneSeek-{personality_suffix.title()}.yaml"
             card_path = PROJECT_ROOT / "frontend/public/characters" / card_filename
             print(f"   Trying to load: {card_path}")
             
