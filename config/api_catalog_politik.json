@@ -12,7 +12,7 @@
     "requires_api_key": false
   },
   
-  "personality_tags": ["politikern"],
+  "personality_tags": ["oneseek-politikern"],
   "default_api": "riksdagen_voteringar",
   
   "apis": [
