@@ -5619,11 +5619,15 @@ async def get_character_card(character_id: str):
     """Get a specific character card by ID (e.g., 'oneseek-bibliotekarie' or 'bibliotekarie')"""
     characters_dir = PROJECT_ROOT / 'frontend' / 'public' / 'characters'
     
-    # Normalize the ID - ensure it has OneSeek- prefix for filename
-    if character_id.startswith("oneseek-"):
-        personality_suffix = character_id[8:]
+    # Normalize the ID - handle various formats:
+    # - "oneseek-bibliotekarie" (lowercase prefix)
+    # - "OneSeek-Bibliotekarie" (full filename without .yaml)
+    # - "bibliotekarie" (just the personality name)
+    character_id_lower = character_id.lower()
+    if character_id_lower.startswith("oneseek-"):
+        personality_suffix = character_id_lower[8:]
     else:
-        personality_suffix = character_id
+        personality_suffix = character_id_lower
     
     card_filename = f"OneSeek-{personality_suffix.title()}.yaml"
     card_path = characters_dir / card_filename
@@ -5651,11 +5655,15 @@ async def update_character_card(character_id: str, card_data: dict):
     """Update a character card YAML file"""
     characters_dir = PROJECT_ROOT / 'frontend' / 'public' / 'characters'
     
-    # Normalize the ID - ensure it has OneSeek- prefix for filename
-    if character_id.startswith("oneseek-"):
-        personality_suffix = character_id[8:]
+    # Normalize the ID - handle various formats:
+    # - "oneseek-bibliotekarie" (lowercase prefix)
+    # - "OneSeek-Bibliotekarie" (full filename without .yaml)
+    # - "bibliotekarie" (just the personality name)
+    character_id_lower = character_id.lower()
+    if character_id_lower.startswith("oneseek-"):
+        personality_suffix = character_id_lower[8:]
     else:
-        personality_suffix = character_id
+        personality_suffix = character_id_lower
     
     card_filename = f"OneSeek-{personality_suffix.title()}.yaml"
     card_path = characters_dir / card_filename
