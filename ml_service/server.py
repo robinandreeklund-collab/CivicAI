@@ -15562,19 +15562,30 @@ Exempel:
         # Load the actual character card system prompt based on selected personality
         system_prompt = None
         if personality_id:
-            # Build card file path based on personality ID
-            # All character cards are named "OneSeek-{Name}.yaml"
-            # personality_id can be "oneseek-bibliotekarie" OR just "bibliotekarie"
-            if personality_id.startswith("oneseek-"):
-                # Remove "oneseek-" prefix and capitalize the rest
-                personality_suffix = personality_id[8:]  # Remove "oneseek-"
-            else:
-                # No prefix, use as-is
-                personality_suffix = personality_id
+            # First, try to find the card_file from personality_data (most reliable)
+            card_path = None
+            if personality_data and 'card_file' in personality_data:
+                # Use the card_file from catalog - most reliable!
+                card_file_from_catalog = personality_data['card_file']
+                card_path = PROJECT_ROOT / card_file_from_catalog
+                print(f"   Using card_file from catalog: {card_file_from_catalog}")
             
-            # Always construct filename as "OneSeek-{Name}.yaml"
-            card_filename = f"OneSeek-{personality_suffix.title()}.yaml"
-            card_path = PROJECT_ROOT / "frontend/public/characters" / card_filename
+            # Fallback: construct filename from personality_id
+            if not card_path or not card_path.exists():
+                # Build card file path based on personality ID
+                # All character cards are named "OneSeek-{Name}.yaml"
+                # personality_id can be "oneseek-bibliotekarie" OR just "bibliotekarie"
+                if personality_id.startswith("oneseek-"):
+                    # Remove "oneseek-" prefix and capitalize the rest
+                    personality_suffix = personality_id[8:]  # Remove "oneseek-"
+                else:
+                    # No prefix, use as-is
+                    personality_suffix = personality_id
+                
+                # Always construct filename as "OneSeek-{Name}.yaml"
+                card_filename = f"OneSeek-{personality_suffix.title()}.yaml"
+                card_path = PROJECT_ROOT / "frontend/public/characters" / card_filename
+            
             print(f"   Trying to load: {card_path}")
             
             if card_path.exists():
