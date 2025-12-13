@@ -12,7 +12,7 @@
     "requires_api_key": false
   },
   
-  "personality_tags": ["politik"],
+  "personality_tags": ["politikern"],
   "default_api": "riksdagen_voteringar",
   
   "apis": [
