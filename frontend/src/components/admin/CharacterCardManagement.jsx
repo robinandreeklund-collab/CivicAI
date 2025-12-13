@@ -25,9 +25,6 @@ export default function CharacterCardManagement() {
   
   // Form state for editing
   const [formData, setFormData] = useState(null);
-  
-  // Use environment variable for API URL, fallback to default backend port
-  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
   // Fetch characters on mount
   useEffect(() => {
@@ -39,7 +36,8 @@ export default function CharacterCardManagement() {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`${API_BASE}/api/system-prompts/characters/available`);
+      // Use relative URL - Vite proxy will route to correct backend (port 5000 or 3001)
+      const response = await fetch('/api/system-prompts/characters/available');
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -59,7 +57,8 @@ export default function CharacterCardManagement() {
     try {
       setError(null);
       
-      const response = await fetch(`${API_BASE}/api/system-prompts/characters/${characterId}`);
+      // Use relative URL - Vite proxy will route to correct backend
+      const response = await fetch(`/api/system-prompts/characters/${characterId}`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -83,8 +82,9 @@ export default function CharacterCardManagement() {
       setError(null);
       setSuccess(null);
       
+      // Use relative URL - Vite proxy will route to correct backend
       const response = await fetch(
-        `${API_BASE}/api/system-prompts/characters/${selectedCharacter.id}`,
+        `/api/system-prompts/characters/${selectedCharacter.id}`,
         {
           method: 'PUT',
           headers: {
