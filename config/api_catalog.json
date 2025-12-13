@@ -17,6 +17,9 @@
     },
     "böcker": {
       "$ref": "api_catalog_libris.json"
+    },
+    "politik": {
+      "$ref": "api_catalog_politik.json"
     }
   },
   

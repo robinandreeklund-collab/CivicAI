@@ -1,0 +1,184 @@
+{
+  "name": "Politik Sverige",
+  "version": "1.0.0",
+  "description": "Öppen data om svensk politik, riksdag, regering, val och bistånd – från officiella källor som Riksdagen, SCB och OpenAid",
+  "updated": "2025-12-13",
+  "provider": {
+    "name": "Sveriges Riksdag, SCB, Utrikesdepartementet",
+    "url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/",
+    "api_documentation": "https://data.riksdagen.se/",
+    "license": "Öppen data (CC0 / PSI)",
+    "attribution": "© Sveriges Riksdag, SCB, UD/Sida",
+    "requires_api_key": false
+  },
+  
+  "personality_tags": ["politikern"],
+  "default_api": "riksdagen_voteringar",
+  
+  "apis": [
+    {
+      "name": "riksdagen_voteringar",
+      "source": "Riksdagens öppna data",
+      "frequency": "realtid",
+      "url": "https://data.riksdagen.se/voteringlista/?rm={riksmote}&bet={beteckning}&sz=100&utformat=json",
+      "url_template": true,
+      "keywords": [
+        "votering", "omröstning", "riksdagsröstning", "hur röstade", "parti röstade",
+        "röstade riksdagen", "omröstning om", "votering om", "ja eller nej"
+      ],
+      "priority": 0,
+      "description": "Riksdagens voteringar och omröstningar",
+      "method": "GET",
+      "parameters": {
+        "riksmote": {"type": "string", "required": true, "description": "Riksmöte (t.ex. 2024/25)"},
+        "beteckning": {"type": "string", "required": true, "description": "Beteckning (t.ex. AU4)"}
+      },
+      "data_format": "JSON",
+      "example_url": "https://data.riksdagen.se/voteringlista/?rm=2024/25&bet=AU4&sz=100&utformat=json"
+    },
+    {
+      "name": "riksdagen_dokument",
+      "source": "Riksdagens öppna data",
+      "frequency": "realtid",
+      "url": "https://data.riksdagen.se/dokumentlista/?sok={query}&doktyp=prop,mot,bet&utformat=json&p=1",
+      "url_template": true,
+      "keywords": [
+        "proposition", "motion", "betänkande", "riksdagsdokument", "regeringens förslag",
+        "förslag i riksdagen", "lagförslag", "riksdagsbeslut"
+      ],
+      "priority": 1,
+      "description": "Riksdagens dokument (propositioner, motioner, betänkanden)",
+      "method": "GET",
+      "parameters": {
+        "query": {"type": "string", "required": false, "description": "Sökterm (t.ex. titel eller ämne)"}
+      },
+      "data_format": "JSON",
+      "example_url": "https://data.riksdagen.se/dokumentlista/?sok=klimat&doktyp=prop,mot,bet&utformat=json&p=1"
+    },
+    {
+      "name": "riksdagen_ledamoter",
+      "source": "Riksdagens öppna data",
+      "frequency": "dagligen",
+      "url": "https://data.riksdagen.se/personlista/?utformat=json",
+      "url_template": false,
+      "keywords": [
+        "ledamot", "riksdagsledamot", "politiker", "parti", "valkrets",
+        "vilka ledamöter", "politikerna i riksdagen"
+      ],
+      "priority": 2,
+      "description": "Lista alla riksdagsledamöter",
+      "method": "GET",
+      "parameters": {},
+      "data_format": "JSON",
+      "example_url": "https://data.riksdagen.se/personlista/?utformat=json"
+    },
+    {
+      "name": "riksdagen_anforanden",
+      "source": "Riksdagens öppna data",
+      "frequency": "realtid",
+      "url": "https://data.riksdagen.se/anforandelista/?iid={ledamot_id}&sz=50&utformat=json",
+      "url_template": true,
+      "keywords": [
+        "tal i riksdagen", "anförande", "debatt", "vad sa", "talade i riksdagen",
+        "sagt i riksdagen"
+      ],
+      "priority": 3,
+      "description": "Anföranden och tal i riksdagen",
+      "method": "GET",
+      "parameters": {
+        "ledamot_id": {"type": "string", "required": true, "description": "Ledamotens ID (från personlista)"}
+      },
+      "data_format": "JSON",
+      "example_url": "https://data.riksdagen.se/anforandelista/?iid=0123456789&sz=50&utformat=json"
+    },
+    {
+      "name": "valresultat",
+      "source": "SCB Statistikdatabasen",
+      "frequency": "statisk (uppdateras efter val)",
+      "url": "https://api.scb.se/OV0104/v1/doris/sv/ssd/START/ME/ME0104/ME0104A/RiksdValkrets",
+      "url_template": false,
+      "keywords": [
+        "valresultat", "riksdagsval", "kommunval", "valdeltagande", "mandat",
+        "personröster", "val 2022", "val 2018", "valstatistik"
+      ],
+      "priority": 4,
+      "description": "Valresultat från SCB (POST med JSON-query krävs för detaljerad data)",
+      "method": "GET",
+      "parameters": {},
+      "data_format": "JSON",
+      "example_url": "https://api.scb.se/OV0104/v1/doris/sv/ssd/START/ME/ME0104/ME0104A/RiksdValkrets",
+      "notes": "För detaljerade valresultat krävs POST med JSON-query enligt SCB:s API-dokumentation"
+    },
+    {
+      "name": "bistand_projekt",
+      "source": "OpenAid.se (Utrikesdepartementet/Sida)",
+      "frequency": "månadsvis",
+      "url": "https://openaid.se/api/activities/?q={query}",
+      "url_template": true,
+      "keywords": [
+        "bistånd", "biståndsprojekt", "svenskt bistånd", "utvecklingssamarbete",
+        "sida", "svenskt bistånd till", "utvecklingsprojekt"
+      ],
+      "priority": 5,
+      "description": "Svenska biståndsprojekt och utvecklingssamarbete",
+      "method": "GET",
+      "parameters": {
+        "query": {"type": "string", "required": false, "description": "Land, organisation eller nyckelord"}
+      },
+      "data_format": "JSON",
+      "example_url": "https://openaid.se/api/activities/?q=kenya"
+    }
+  ],
+  
+  "entity_config": {
+    "entity_required": false,
+    "entity_type": "politisk händelse",
+    "fallback_entity": "aktuella riksdagsfrågor",
+    "entity_extraction": {
+      "method": "politics_lookup",
+      "description": "Extrahera riksmöte, beteckning, ledamot eller sökterm från användarens fråga",
+      "patterns": {
+        "riksmote": "\\b20\\d{2}/\\d{2}\\b",
+        "beteckning": "\\b[A-Z]{2,3}\\d+\\b",
+        "ledamot": "\\b([A-ZÅÄÖ][a-zåäö]+(?:\\s+[A-ZÅÄÖ][a-zåäö]+){1,2})\\b"
+      }
+    }
+  },
+  
+  "keywords": [
+    "riksdag", "regering", "politik", "votering", "omröstning", "ledamot", 
+    "politiker", "proposition", "motion", "val", "valresultat", "bistånd"
+  ],
+  
+  "response_format": {
+    "include_source": true,
+    "include_attribution": true,
+    "format_template": "**{titel}**\n{beskrivning}\n\n**Källa**: {källa} (Sveriges Riksdag/SCB/OpenAid)"
+  },
+  
+  "rate_limits": {
+    "requests_per_second": 5,
+    "requests_per_hour": 500,
+    "notes": "Respektfull användning rekommenderas"
+  },
+  
+  "caching_strategy": {
+    "voteringar": "15 minuter",
+    "dokument": "30 minuter",
+    "ledamoter": "24 timmar",
+    "anforanden": "1 timme",
+    "valresultat": "30 dagar",
+    "bistand": "7 dagar"
+  },
+  
+  "error_handling": {
+    "fallback_message": "Kunde inte hämta politisk data just nu. Försök igen om en stund eller besök riksdagen.se",
+    "retry_strategy": "exponential_backoff",
+    "max_retries": 3
+  },
+  
+  "examples": {
+    "query": "Hur röstade riksdagen om AU4 2024/25?",
+    "response": "**Votering: AU4 (2024/25)**\nResultat: Bifall (JA: 175, NEJ: 174)\n\nSocialdemokraterna, Miljöpartiet och Vänsterpartiet röstade ja.\nModeraterna, Sverigedemokraterna, Kristdemokraterna och Liberalerna röstade nej.\n\n**Källa**: Sveriges Riksdag"
+  }
+}
