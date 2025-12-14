@@ -74,6 +74,18 @@ class SocionomClient:
             Dict med sökresultat från riksdagen
         """
         try:
+            # Input validation
+            if not query or not isinstance(query, str):
+                return {
+                    "success": False,
+                    "error": "Invalid query parameter",
+                    "message": "Query must be a non-empty string"
+                }
+            
+            # Sanitize and limit query length
+            query = query.strip()[:200]
+            limit = max(1, min(limit, 100))  # Limit between 1 and 100
+            
             encoded_query = quote(query)
             url = f"{self.RIKSDAGEN_BASE}/dokumentlista/?sok={encoded_query}&doktyp=prop,mot,bet&utformat=json&sz={limit}&p=1"
             logger.info(f"[Socionomen] Söker riksdagsdokument: '{query}'")

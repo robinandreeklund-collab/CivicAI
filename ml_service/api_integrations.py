@@ -2033,6 +2033,9 @@ def browse_page(url: str, max_length: int = 5000) -> Optional[str]:
     This function is used by personalities like Socionomen to fetch legislation
     texts, statistics, and official documents from government websites.
     
+    Note: Uses regex-based HTML parsing for simplicity and minimal dependencies.
+    For more robust parsing, consider upgrading to BeautifulSoup in the future.
+    
     Args:
         url: The URL to fetch
         max_length: Maximum length of returned text (default 5000 chars)
