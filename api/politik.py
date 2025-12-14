@@ -90,7 +90,7 @@ class PolitikClient:
             
             logger.info(f"[Politik] Hämtar votering: {riksmote} {beteckning}")
             
-            response = self.session.get(url, params=params, timeout=self.timeout)
+            response = self.session.get(url, params=params, timeout=self.timeout, verify=False)
             response.raise_for_status()
             data = response.json()
             
@@ -159,7 +159,7 @@ class PolitikClient:
             
             logger.info(f"[Politik] Söker dokument: '{query}'")
             
-            response = self.session.get(url, params=params, timeout=self.timeout)
+            response = self.session.get(url, params=params, timeout=self.timeout, verify=False)
             response.raise_for_status()
             data = response.json()
             
@@ -216,7 +216,7 @@ class PolitikClient:
             
             logger.info("[Politik] Hämtar riksdagsledamöter")
             
-            response = self.session.get(url, params=params, timeout=self.timeout)
+            response = self.session.get(url, params=params, timeout=self.timeout, verify=False)
             response.raise_for_status()
             data = response.json()
             
@@ -278,7 +278,7 @@ class PolitikClient:
             
             logger.info(f"[Politik] Hämtar anföranden för ledamot: {ledamot_id}")
             
-            response = self.session.get(url, params=params, timeout=self.timeout)
+            response = self.session.get(url, params=params, timeout=self.timeout, verify=False)
             response.raise_for_status()
             data = response.json()
             
@@ -338,7 +338,7 @@ class PolitikClient:
             
             logger.info(f"[Politik] Söker biståndsprojekt: '{query}'")
             
-            response = self.session.get(url, params=params, timeout=self.timeout)
+            response = self.session.get(url, params=params, timeout=self.timeout, verify=False)
             response.raise_for_status()
             data = response.json()
             
