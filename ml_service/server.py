@@ -12454,6 +12454,7 @@ async def personality_based_inference(request: Request, inference_request: Perso
         # Convert follow_up_options to FollowUpOption objects if present
         follow_up_options_objs = None
         if result.get('follow_up_options'):
+            print(f"🔔 [ENDPOINT] Converting follow_up_options: {result.get('follow_up_options')}")
             follow_up_options_objs = [
                 FollowUpOption(
                     id=opt['id'],
@@ -12463,8 +12464,11 @@ async def personality_based_inference(request: Request, inference_request: Perso
                 )
                 for opt in result['follow_up_options']
             ]
+            print(f"🔔 [ENDPOINT] Created {len(follow_up_options_objs)} FollowUpOption objects")
+        else:
+            print(f"🔔 [ENDPOINT] No follow_up_options in result")
         
-        return PersonalityInferenceResponse(
+        response = PersonalityInferenceResponse(
             response=result.get('text', ''),
             model="oneseek-7b-zero-3stage",
             tokens=metadata.get('tokens', 0),
@@ -12479,6 +12483,8 @@ async def personality_based_inference(request: Request, inference_request: Perso
             api_data=None,  # API data is included in thinking chain
             follow_up_options=follow_up_options_objs
         )
+        print(f"🔔 [ENDPOINT] Response follow_up_options: {response.follow_up_options}")
+        return response
         
     except HTTPException:
         raise
@@ -15097,7 +15103,11 @@ async def generate_personality_response(
         # ============================================================================
         follow_up_options = None
         
-        # Debug logging
+        # Debug logging (using both print and logger for visibility)
+        logger.info(f"🔍 DEBUG: Checking for follow-up questions...")
+        logger.info(f"🔍 DEBUG: personality_id = {personality_id}")
+        logger.info(f"🔍 DEBUG: Response length = {len(final_response)}")
+        logger.info(f"🔍 DEBUG: Last 200 chars of response: {final_response[-200:]}")
         print(f"🔍 DEBUG: Checking for follow-up questions...")
         print(f"🔍 DEBUG: personality_id = {personality_id}")
         print(f"🔍 DEBUG: Response length = {len(final_response)}")
@@ -15115,10 +15125,12 @@ async def generate_personality_response(
         ]
         
         has_followup = any(re.search(pattern, final_response.lower()) for pattern in followup_patterns)
+        logger.info(f"🔍 DEBUG: has_followup = {has_followup}")
         print(f"🔍 DEBUG: has_followup = {has_followup}")
         
         # If it's Socionomen and response contains follow-up about prejudikat/domar
         if has_followup and personality_id == "socionomen":
+            logger.info(f"🔍 DEBUG: Checking for case law patterns...")
             print(f"🔍 DEBUG: Checking for case law patterns...")
             # Check if asking about case law / prejudikat
             case_law_patterns = [
@@ -15135,6 +15147,7 @@ async def generate_personality_response(
             ]
             
             is_about_case_law = any(re.search(pattern, final_response.lower()) for pattern in case_law_patterns)
+            logger.info(f"🔍 DEBUG: is_about_case_law = {is_about_case_law}")
             print(f"🔍 DEBUG: is_about_case_law = {is_about_case_law}")
             
             if is_about_case_law:
@@ -15178,6 +15191,8 @@ async def generate_personality_response(
                     }
                 ]
                 
+                logger.info(f"🔔 Detected follow-up question about case law: {paragraph} in {law_name}")
+                logger.info(f"🔔 follow_up_options = {follow_up_options}")
                 print(f"🔔 Detected follow-up question about case law: {paragraph} in {law_name}")
                 print(f"🔔 follow_up_options = {follow_up_options}")
         
