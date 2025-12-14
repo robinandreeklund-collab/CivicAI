@@ -2026,7 +2026,7 @@ def get_registry_summary() -> Dict[str, Any]:
 # BROWSE_PAGE - Web Content Fetching
 # =============================================================================
 
-def browse_page(url: str, max_length: int = 5000) -> Optional[str]:
+def browse_page(url: str, max_length: int = 20000) -> Optional[str]:
     """
     Fetch and extract text content from a web page.
     
@@ -2038,7 +2038,7 @@ def browse_page(url: str, max_length: int = 5000) -> Optional[str]:
     
     Args:
         url: The URL to fetch
-        max_length: Maximum length of returned text (default 5000 chars)
+        max_length: Maximum length of returned text (default 20000 chars for full law texts)
         
     Returns:
         Extracted text content or error message
