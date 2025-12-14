@@ -12428,15 +12428,24 @@ async def personality_based_inference(request: Request, inference_request: Perso
     """
     try:
         user_query = inference_request.text
+        print(f"\n🎯 [ENDPOINT START] /inference/personality called")
+        print(f"🎯 [ENDPOINT START] Query: {user_query[:100]}...")
         logger.info(f"[Personality/Non-Stream] Received query: {user_query[:100]}...")
         
         # Use three-stage inference pipeline (non-streaming version)
+        print(f"🎯 [ENDPOINT] About to call generate_personality_response...")
         result = await generate_personality_response(
             text=user_query,
             max_length=inference_request.max_tokens,
             temperature=inference_request.temperature,
             top_p=0.9
         )
+        
+        print(f"🎯 [ENDPOINT] Received result from generate_personality_response")
+        print(f"🎯 [ENDPOINT] Result keys: {result.keys()}")
+        print(f"🎯 [ENDPOINT] Result has follow_up_options: {'follow_up_options' in result}")
+        if 'follow_up_options' in result:
+            print(f"🎯 [ENDPOINT] follow_up_options value: {result['follow_up_options']}")
         
         # Convert thinking_steps format to ThinkingStep objects
         thinking_chain = []
@@ -15200,6 +15209,15 @@ async def generate_personality_response(
         # BUILD RESPONSE
         # ============================================================================
         total_time_ms = int((time.time() - start_time) * 1000)
+        
+        # Final debug before return
+        print(f"\n✅ [RETURN] Building response dict...")
+        print(f"✅ [RETURN] personality_id: {personality_id}")
+        print(f"✅ [RETURN] follow_up_options: {follow_up_options}")
+        print(f"✅ [RETURN] follow_up_options type: {type(follow_up_options)}")
+        if follow_up_options:
+            print(f"✅ [RETURN] follow_up_options length: {len(follow_up_options)}")
+        logger.info(f"✅ [RETURN] Building response with follow_up_options: {follow_up_options}")
         
         return {
             "text": final_response,
