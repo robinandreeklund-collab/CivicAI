@@ -12,7 +12,7 @@
     "requires_api_key": false
   },
   
-  "personality_tags": ["politikern"],
+  "personality_tags": ["politiker"],
   "default_api": "riksdagen_voteringar",
   "max_results": 20,
   
@@ -46,52 +46,55 @@
       "data_format": "JSON",
       "example_url": "https://data.riksdagen.se/voteringlista/?rm=2024/25&bet=AU4&sz=20&utformat=json"
     },
-    {
-      "name": "riksdagen_dokument",
-      "source": "Riksdagens öppna data",
-      "frequency": "realtid",
-      "url": "https://data.riksdagen.se/dokumentlista/?sok={query}&doktyp={doktyp}&rm={riksmote}&from={from_date}&tom={to_date}&utformat=json&sz=20&p=1",
-      "url_template": true,
-      "keywords": [
-        "proposition om", "motion om", "betänkande om", "riksdagsdokument", "regeringens förslag",
-        "förslag i riksdagen", "lagförslag", "riksdagsbeslut", "riksdagen om", "riksdagen migration",
-        "riksdagen klimat", "riksdagen kärnkraft"
-      ],
-      "priority": 0,
-      "description": "Sök i riksdagens dokument – propositioner, motioner och betänkanden med avancerad filtrering",
-      "method": "GET",
-      "parameters": {
-        "query": {
-          "type": "string",
-          "required": true,
-          "description": "Sökterm (t.ex. migration, klimat, kärnkraft, Nato)"
-        },
-        "doktyp": {
-          "type": "string",
-          "required": false,
-          "default": "prop,mot,bet",
-          "description": "Filtrera dokumenttyp: prop (propositioner), mot (motioner), bet (betänkanden)"
-        },
-        "riksmote": {
-          "type": "string",
-          "required": false,
-          "default": "2025/26",
-          "description": "Riksmöte, t.ex. 2024/25 eller 2025/26"
-        },
-        "from_date": {
-          "type": "string",
-          "required": false,
-          "description": "Startdatum i format YYYY-MM-DD (t.ex. 2025-01-01)"
-        },
-        "to_date": {
-          "type": "string",
-          "required": false,
-          "description": "Slutdatum i format YYYY-MM-DD (t.ex. 2025-12-31)"
-        }
-      },
-      "data_format": "JSON",
-      "example_url": "https://data.riksdagen.se/dokumentlista/?sok=klimat&doktyp=prop&rm=2024/25&utformat=json&sz=20&p=1"
+{
+  "name": "riksdagen_dokument",
+  "source": "Riksdagens öppna data",
+  "frequency": "realtid",
+  "url": "https://data.riksdagen.se/dokumentlista/?sok={query}&doktyp={doktyp}&rm={riksmote}&from={from}&tom={tom}&utformat=json&sz=20&p=1",
+  "url_template": true,
+  "keywords": [
+    "proposition om", "motion om", "betänkande om", "riksdagsdokument", "regeringens förslag",
+    "förslag i riksdagen", "lagförslag", "riksdagsbeslut", "riksdagen om", "riksdagen migration",
+    "riksdagen klimat", "riksdagen kärnkraft"
+  ],
+  "priority": 0,
+  "description": "Sök i riksdagens dokument – propositioner, motioner och betänkanden med avancerad filtrering",
+  "method": "GET",
+  "parameters": {
+    "query": {
+      "type": "string",
+      "required": true,
+      "description": "Sökterm (t.ex. migration, klimat, kärnkraft, Nato)"
     },
+    "doktyp": {
+      "type": "string",
+      "required": false,
+      "default": "prop,mot,bet",
+      "description": "Filtrera dokumenttyp: prop (propositioner), mot (motioner), bet (betänkanden)"
+    },
+    "riksmote": {
+      "type": "string",
+      "required": false,
+      "default": "2025/26",
+      "description": "Riksmöte, t.ex. 2024/25 eller 2025/26"
+    },
+    "from": {
+      "type": "string",
+      "required": false,
+      "default": "",
+      "description": "Startdatum YYYY-MM-DD (lämna tomt om inget datum anges)"
+    },
+    "tom": {
+      "type": "string",
+      "required": false,
+      "default": "",
+      "description": "Slutdatum YYYY-MM-DD (lämna tomt om inget datum anges)"
+    }
+  },
+  "data_format": "JSON",
+  "example_url": "https://data.riksdagen.se/dokumentlista/?sok=migration&doktyp=prop&rm=2025/26&from=&tom=&utformat=json&sz=20&p=1",
+  "notes": "from och tom är alltid med i URL:en men med default tomma värden. Riksdagens API ignorerar tomma datumparametrar – ingen krasch längre."
+},
     {
       "name": "riksdagen_ledamoter",
       "source": "Riksdagens öppna data",
