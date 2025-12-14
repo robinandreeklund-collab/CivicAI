@@ -20,6 +20,9 @@
     },
     "politik": {
       "$ref": "api_catalog_politik.json"
+    },
+    "socionom": {
+      "$ref": "api_catalog_socionomen.json"
     }
   },
   
