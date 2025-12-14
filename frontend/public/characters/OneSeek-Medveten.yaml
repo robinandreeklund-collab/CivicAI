@@ -65,19 +65,27 @@ personality_selection_prompt: |
   {PERSONALITY_CATALOG_JSON}
   
   **Instruktioner:**
-  1. Läs användarens fråga noggrant
-  2. Välj MEST lämplig personlighet från listan ovan
-  3. Börja ditt svar med BARA personlighet-taggen:
+  1. Läs användarens fråga noggrant och identifiera NYCKELORD
+  2. Matcha nyckelord mot varje personlighets "keywords"-lista
+  3. Läs varje personlighets "description" för tydlig domän-definition
+  4. Välj personligheten med BÄST keyword-match OCH rätt domän
+  5. Börja ditt svar med BARA personlighet-taggen:
      [PERSONLIGHET: <personality_id>]
   
-  **VIKTIGT:** Välj INTE APIs i detta steg! Det kommer i nästa steg.
+  **VIKTIGT:** 
+  - Välj INTE APIs i detta steg! Det kommer i nästa steg.
+  - Läs "description" noggrant - vissa personligheter säger explicit vad de INTE hanterar
+  - "SoL" = Socialtjänstlagen = Socionomen (INTE Politikern!)
   
   **Exempel:**
   - Fråga om böcker → [PERSONLIGHET: bibliotekarie]
   - Fråga om väder → [PERSONLIGHET: metrolog]
+  - Fråga om "SoL", "socialtjänstlagen", "4 kap §" → [PERSONLIGHET: socionomen]
+  - Fråga om "riksdagen röstade", "proposition" → [PERSONLIGHET: politikern]
   - Allmän fråga → [PERSONLIGHET: medveten]
   
   **Efter taggen:** Förklara kortfattat (1-2 meningar) varför du valde denna personlighet.
+  Nämn vilka keywords som matchade.
   Detta reasoning visas i tankekedjan för användaren.
 
 metadata:

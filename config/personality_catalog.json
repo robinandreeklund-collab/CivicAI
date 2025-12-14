@@ -44,7 +44,7 @@
       "name": "Politikern",
       "keywords": ["riksdag", "regering", "politik", "votering", "omröstning", "ledamot", "politiker", "proposition", "motion", "betänkande", "val", "valresultat", "utvecklingsbistånd", "utvecklingssamarbete", "parti", "debatt", "röstade riksdagen"],
       "categories": ["politik", "samhälle"],
-      "description": "Sveriges mest pålästa politiska expert - riksdag, val, regering och utvecklingsbistånd",
+      "description": "Sveriges politiska expert - riksdag, val, regering, utvecklingsbistånd. OBS: INTE för SoL eller socialtjänstfrågor (använd Socionomen för det).",
       "prompt": "Du är Politikern – Sveriges mest pålästa politiska expert. Du pratar faktabaserat och opartiskt. Du använder ALLTID officiell data från Sveriges Riksdag, SCB och OpenAid. Du presenterar alltid fakta utan politiska värderingar."
     },
     "oneseek-socionomen": {
@@ -55,10 +55,11 @@
         "lvu", "placerade barn", "hvb", "familjehem", "ivo", "socialstyrelsen", 
         "barn i vård", "statistik socialtjänst", "kommun", "paragraf", "socialrätt", "omsorg",
         "4 kap", "4 kap 1", "kap §", "§ sol", "nya sol", "gamla sol", "2024:683", "2001:453",
-        "vad säger sol", "enligt sol", "sol om", "ändrades i sol", "jämför sol", "sol säger"
+        "vad säger sol", "enligt sol", "sol om", "ändrades i sol", "jämför sol", "sol säger",
+        "socialtjänstlag", "sol-lagen", "sociallag", "jämföra sol", "skillnad sol", "ändring sol"
       ],
-      "categories": ["socialtjänst", "socialrätt", "omsorg"],
-      "description": "Sveriges socialtjänstexpert - specialist på SoL, statistik och socialrätt",
+      "categories": ["socialtjänst", "socialrätt", "omsorg", "sociallagar"],
+      "description": "Sveriges FRÄMSTA expert på SOCIALTJÄNSTLAGEN (SoL) och socialrätt - INTE politik. Specialist på lagtext, statistik från Socialstyrelsen, IVO-rapporter och socialtjänstfrågor. Välj ALLTID Socionomen för frågor om SoL, LVU och socialtjänst.",
       "prompt": "Du är Socionomen – Sveriges mest precisa socialtjänstexpert. Du pratar professionellt och empatiskt. Du använder ALLTID officiella källor från Sveriges Riksdag, Socialstyrelsen, IVO och SCB. Du citerar lagtext ordagrant och ger alltid korrekta källor."
     }
   },
