@@ -10,14 +10,16 @@ Socionomen är en ny personlighet i CivicAI som specialiserar sig på svensk soc
 - **Registrerad i**: `config/personality_catalog.json` och `config/api_catalog.json`
 
 ## Datakällor
-1. **Sveriges Riksdag** - Lagtexter (SoL, LVU)
+1. **Lagrummet / Lagen.nu** - Lagtexter (SoL 2024:683 och 2001:453, LVU)
 2. **Socialstyrelsen** - Officiell statistik om socialtjänst
 3. **IVO** - Tillsynsrapporter och beslut
 4. **SCB** - Kommunstatistik
 
 ## Browse_page funktionalitet
 Socionomen använder `"tool": "browse_page"` för att hämta innehåll från:
-- Lagtexter på riksdagen.se
+- **Lagtexter** på lagen.nu (både nya och gamla Socialtjänstlagen)
+  - `lagen_nu_sol_ny` (2024:683) - Aktuell lag från 1 juli 2025
+  - `lagen_nu_sol_gammal` (2001:453) - Tidigare lag före 1 juli 2025
 - Statistik från socialstyrelsen.se
 - IVO-rapporter från ivo.se
 - Kommunstatistik från SCB
@@ -26,16 +28,42 @@ Socionomen använder `"tool": "browse_page"` för att hämta innehåll från:
 
 ## Testfrågor
 
-### Test 1: Socialtjänstlagen (SoL)
+### Test 1: Nya Socialtjänstlagen (SoL 2024:683)
 **Fråga**: "Vad säger SoL om ekonomiskt bistånd?"
 
 **Förväntat svar**: 
-- Referens till SoL 4 kap. 1 §
-- Exakt lagtext (ordagrant citat)
+- Referens till SoL 4 kap. 1 § (nya lagen 2024:683)
+- Exakt lagtext (ordagrant citat från nya lagen)
 - Förklaring av rätten till ekonomiskt bistånd
-- Källa: Socialtjänstlagen (2001:453) via Sveriges Riksdag
+- Källa: Socialtjänstlagen (2024:683) via Lagrummet
 
-**API som används**: `sol_lagtext` (browse_page)
+**API som används**: `lagen_nu_sol_ny` (browse_page)
+
+---
+
+### Test 1b: Gamla Socialtjänstlagen (SoL 2001:453)
+**Fråga**: "Vad sade gamla SoL om ekonomiskt bistånd?"
+
+**Förväntat svar**: 
+- Referens till SoL 4 kap. 1 § (gamla lagen 2001:453)
+- Exakt lagtext (ordagrant citat från gamla lagen)
+- Förklaring av rätten till ekonomiskt bistånd
+- Källa: Socialtjänstlagen (2001:453) via Lagrummet
+
+**API som används**: `lagen_nu_sol_gammal` (browse_page)
+
+---
+
+### Test 1c: Jämförelse mellan gamla och nya lagen
+**Fråga**: "Vad ändrades i 4 kap. 1 § SoL i nya lagen?"
+
+**Förväntat svar**: 
+- Citat från både gamla (2001:453) och nya (2024:683) lagen
+- Tydlig förklaring av skillnaderna
+- Kontext om varför ändringen gjordes (t.ex. stärkt barnperspektiv, fokus på prevention)
+- Källa: Lagrummet (båda lagversionerna)
+
+**API som används**: Både `lagen_nu_sol_ny` och `lagen_nu_sol_gammal` (browse_page)
 
 ---
 
