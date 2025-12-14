@@ -300,10 +300,10 @@ try:
         reset_api_stats,
         get_matching_apis,
         reload_api_catalog,
-        # Libris XL integrations
-        fetch_libris_search,
-        fetch_libris_isbn,
-        fetch_libris_sparql,
+        # Libris XL integrations - DEPRECATED: Now using modular api/libris.py via api_selector
+        # fetch_libris_search,
+        # fetch_libris_isbn,
+        # fetch_libris_sparql,
         # Legacy function imports for backward compatibility
         fetch_scb_population,
         fetch_scb_data,
@@ -350,10 +350,10 @@ except ImportError:
             reset_api_stats,
             get_matching_apis,
             reload_api_catalog,
-            # Libris XL integrations
-            fetch_libris_search,
-            fetch_libris_isbn,
-            fetch_libris_sparql,
+            # Libris XL integrations - DEPRECATED: Now using modular api/libris.py via api_selector
+            # fetch_libris_search,
+            # fetch_libris_isbn,
+            # fetch_libris_sparql,
             # Legacy function imports for backward compatibility
             fetch_scb_population,
             fetch_scb_data,
@@ -5614,6 +5614,90 @@ async def list_available_characters():
     return {"characters": characters, "count": len(characters)}
 
 
+@system_prompts_router.get("/characters/{character_id}")
+async def get_character_card(character_id: str):
+    """Get a specific character card by ID (e.g., 'oneseek-bibliotekarie' or 'bibliotekarie')"""
+    characters_dir = PROJECT_ROOT / 'frontend' / 'public' / 'characters'
+    
+    # Normalize the ID - handle various formats:
+    # - "oneseek-bibliotekarie" (lowercase prefix)
+    # - "OneSeek-Bibliotekarie" (full filename without .yaml)
+    # - "bibliotekarie" (just the personality name)
+    character_id_lower = character_id.lower()
+    if character_id_lower.startswith("oneseek-"):
+        personality_suffix = character_id_lower[8:]
+    else:
+        personality_suffix = character_id_lower
+    
+    card_filename = f"OneSeek-{personality_suffix.title()}.yaml"
+    card_path = characters_dir / card_filename
+    
+    if not card_path.exists():
+        raise HTTPException(status_code=404, detail=f"Character card not found: {card_filename}")
+    
+    try:
+        import yaml
+        with open(card_path, 'r', encoding='utf-8') as f:
+            card_data = yaml.safe_load(f)
+        
+        return {
+            "id": character_id,
+            "filename": card_filename,
+            "data": card_data
+        }
+    except Exception as e:
+        logger.error(f"Failed to load character card {card_filename}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to load character card: {str(e)}")
+
+
+@system_prompts_router.put("/characters/{character_id}")
+async def update_character_card(character_id: str, card_data: dict):
+    """Update a character card YAML file"""
+    characters_dir = PROJECT_ROOT / 'frontend' / 'public' / 'characters'
+    
+    # Normalize the ID - handle various formats:
+    # - "oneseek-bibliotekarie" (lowercase prefix)
+    # - "OneSeek-Bibliotekarie" (full filename without .yaml)
+    # - "bibliotekarie" (just the personality name)
+    character_id_lower = character_id.lower()
+    if character_id_lower.startswith("oneseek-"):
+        personality_suffix = character_id_lower[8:]
+    else:
+        personality_suffix = character_id_lower
+    
+    card_filename = f"OneSeek-{personality_suffix.title()}.yaml"
+    card_path = characters_dir / card_filename
+    
+    if not card_path.exists():
+        raise HTTPException(status_code=404, detail=f"Character card not found: {card_filename}")
+    
+    try:
+        import yaml
+        
+        # Validate that required fields exist
+        required_fields = ['name', 'id', 'system_prompt']
+        for field in required_fields:
+            if field not in card_data:
+                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+        
+        # Write back to file
+        with open(card_path, 'w', encoding='utf-8') as f:
+            yaml.dump(card_data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        
+        logger.info(f"✅ Updated character card: {card_filename}")
+        
+        return {
+            "success": True,
+            "message": f"Character card updated successfully: {card_filename}",
+            "filename": card_filename
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update character card {card_filename}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update character card: {str(e)}")
+
+
 # =============================================================================
 # SIMPLE SYSTEM PROMPT API - Convenience wrapper for Dashboard Integration
 # =============================================================================
@@ -9868,9 +9952,10 @@ async def test_message_structure(request: MessageBuilderRequest):
                     "kungliga_biblioteket": lambda e: fetch_kungliga_biblioteket_data(e),
                     
                     # === BÖCKER (Libris XL) ===
-                    "libris_search": lambda e: fetch_libris_search(entity=e) if API_INTEGRATIONS_AVAILABLE else None,
-                    "libris_isbn": lambda e: fetch_libris_isbn(entity=e) if API_INTEGRATIONS_AVAILABLE else None,
-                    "libris_sparql": lambda e: fetch_libris_sparql(entity=e) if API_INTEGRATIONS_AVAILABLE else None,
+                    # DEPRECATED: Old api_integrations.py functions - Now using modular api/libris.py via api_selector
+                    # "libris_search": lambda e: fetch_libris_search(entity=e) if API_INTEGRATIONS_AVAILABLE else None,
+                    # "libris_isbn": lambda e: fetch_libris_isbn(entity=e) if API_INTEGRATIONS_AVAILABLE else None,
+                    # "libris_sparql": lambda e: fetch_libris_sparql(entity=e) if API_INTEGRATIONS_AVAILABLE else None,
                     
                     # === SÖKNING (Tavily) ===
                     "tavily": lambda e: None,  # Handled separately via Tavily integration
@@ -15269,8 +15354,14 @@ Exempel:
                             if personality_data and personality_data.get('card_file'):
                                 personality_card_path = PROJECT_ROOT / personality_data['card_file']
                             else:
-                                # Try standard path
-                                personality_card_path = PROJECT_ROOT / f"frontend/public/characters/OneSeek-{personality_id.title()}.yaml"
+                                # Try standard path - all cards are "OneSeek-{Name}.yaml"
+                                # personality_id can be "oneseek-bibliotekarie" OR just "bibliotekarie"
+                                if personality_id.startswith("oneseek-"):
+                                    personality_suffix = personality_id[8:]  # Remove "oneseek-"
+                                else:
+                                    personality_suffix = personality_id
+                                # Always construct as "OneSeek-{Name}.yaml"
+                                personality_card_path = PROJECT_ROOT / f"frontend/public/characters/OneSeek-{personality_suffix.title()}.yaml"
                             
                             personality_system_prompt = ""
                             if personality_card_path and personality_card_path.exists():
@@ -15471,9 +15562,30 @@ Exempel:
         # Load the actual character card system prompt based on selected personality
         system_prompt = None
         if personality_id:
-            # Build card file path based on personality ID
-            card_filename = f"OneSeek-{personality_id.title()}.yaml"
-            card_path = PROJECT_ROOT / "frontend/public/characters" / card_filename
+            # First, try to find the card_file from personality_data (most reliable)
+            card_path = None
+            if personality_data and 'card_file' in personality_data:
+                # Use the card_file from catalog - most reliable!
+                card_file_from_catalog = personality_data['card_file']
+                card_path = PROJECT_ROOT / card_file_from_catalog
+                print(f"   Using card_file from catalog: {card_file_from_catalog}")
+            
+            # Fallback: construct filename from personality_id
+            if not card_path or not card_path.exists():
+                # Build card file path based on personality ID
+                # All character cards are named "OneSeek-{Name}.yaml"
+                # personality_id can be "oneseek-bibliotekarie" OR just "bibliotekarie"
+                if personality_id.startswith("oneseek-"):
+                    # Remove "oneseek-" prefix and capitalize the rest
+                    personality_suffix = personality_id[8:]  # Remove "oneseek-"
+                else:
+                    # No prefix, use as-is
+                    personality_suffix = personality_id
+                
+                # Always construct filename as "OneSeek-{Name}.yaml"
+                card_filename = f"OneSeek-{personality_suffix.title()}.yaml"
+                card_path = PROJECT_ROOT / "frontend/public/characters" / card_filename
+            
             print(f"   Trying to load: {card_path}")
             
             if card_path.exists():

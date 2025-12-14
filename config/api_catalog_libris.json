@@ -1,0 +1,123 @@
+{
+  "name": "Libris XL",
+  "version": "1.0.1",
+  "description": "Kungliga Bibliotekets nationella bibliotekskatalog - Komplett katalog över böcker, författare och litteratur i Sverige",
+  "updated": "2025-12-12",
+  "provider": {
+    "name": "Kungliga Biblioteket (KB)",
+    "url": "https://libris.kb.se",
+    "api_documentation": "https://libris.kb.se/api/",
+    "license": "CC0 1.0 Universal",
+    "attribution": "© Kungliga Biblioteket",
+    "requires_api_key": false
+  },
+  
+  "personality_tags": ["bibliotekarie"],
+  "default_api": "libris_title_author_anything",
+  
+  "apis": [
+    {
+      "name": "libris_title_author_anything",
+      "source": "Libris XL",
+      "frequency": "realtid",
+      "url": "https://libris.kb.se/xsearch?query={query}&format=json&n=5",
+      "url_template": true,
+      "keywords": [
+        "bok", "böcker", "författare", "roman", "novell", "läsa", "litteratur", "handlar om",
+        "läst", "rekommendation", "söker bok", "titel", "författarnamn", "skriven av",
+        "selma lagerlöf", "gösta berlings", "astrid lindgren", "strindberg", "klassiker",
+        "vad handlar", "utgiven", "första upplagan", "år", "utgivningsår", "skriven",
+        "ge mig isbn", "isbn till", "hitta isbn", "vilket isbn", "isbn för"
+      ],
+      "priority": 0,
+      "description": "HUVUDENDPOINT – alla vanliga bokfrågor (titel, författare, innehåll, år, hitta ISBN osv)",
+      "method": "GET",
+      "parameters": {
+        "query": {"type": "string", "required": true, "description": "Titel, författare eller nyckelord"}
+      },
+      "data_format": "JSON",
+      "example_url": "https://libris.kb.se/xsearch?query=gösta+berlings+saga+selma+lagerlöf&format=json&n=5"
+    },
+    {
+      "name": "libris_isbn",
+      "source": "Libris XL",
+      "frequency": "realtid",
+      "url": "https://libris.kb.se/xsearch?query=isbn:{isbn}&format=json&n=1",
+      "url_template": true,
+      "keywords": ["978-", "979-", "91-0-", "91-1-", "978", "979"],
+      "priority": 3,
+      "description": "Endast när användaren GER ett faktiskt ISBN-nummer med siffror",
+      "method": "GET",
+      "parameters": {
+        "isbn": {"type": "string", "required": true, "description": "ISBN-10 eller ISBN-13"},
+        "format": {"type": "string", "required": false, "default": "json"}
+      },
+      "data_format": "JSON",
+      "example_url": "https://libris.kb.se/xsearch?query=isbn:9789100128821&format=json&n=1",
+      "notes": "VIKTIGT: Aktiveras ENDAST när användaren faktiskt anger ISBN-siffror (t.ex. '978-91-0-123456-7'). Om användaren frågar 'ge mig ISBN' eller 'vad är ISBN' använd libris_title_author_anything istället!"
+    },
+    {
+      "name": "libris_author_bibliography",
+      "source": "Libris XL",
+      "frequency": "realtid",
+      "url": "https://libris.kb.se/xsearch?query=author:{author}&format=json&n=10",
+      "url_template": true,
+      "keywords": ["alla böcker av", "bibliografi", "verk av", "författarens böcker"],
+      "priority": 2,
+      "description": "Lista alla böcker av en författare",
+      "method": "GET",
+      "parameters": {
+        "author": {"type": "string", "required": true}
+      },
+      "data_format": "JSON",
+      "example_url": "https://libris.kb.se/xsearch?query=author:astrid+lindgren&format=json&n=10"
+    }
+  ],
+  
+  "entity_config": {
+    "entity_required": true,
+    "entity_type": "bok",
+    "fallback_entity": "svenska klassiker",
+    "entity_extraction": {
+      "method": "book_author_lookup",
+      "description": "Extrahera boktitel, författarnamn eller ISBN från användarens fråga",
+      "patterns": {
+        "isbn": "\\b(?:(?:978|979)\\d{10}|\\d{9}[\\dXx])\\b",
+        "title": "\"([^\"]+)\"|'([^']+)'|bok.*?([A-ZÅÄÖ][a-zåäö]+(?:\\s+[A-ZÅÄÖ][a-zåäö]+)*)",
+        "author": "\\b([A-ZÅÄÖ][a-zåäö]+(?:\\s+[A-ZÅÄÖ][a-zåäö]+){1,3})\\b"
+      }
+    }
+  },
+  
+  "keywords": ["bok", "böcker", "författare", "roman", "novell", "läsa", "isbn", "libris", "litteratur", "handlar om", "klassiker", "strindberg", "lagerlöf", "lindgren"],
+  
+  "response_format": {
+    "include_source": true,
+    "include_attribution": true,
+    "format_template": "**{titel}**\nFörfattare: {författare}\nUtgivningsår: {år}\n{beskrivning}\n\n**Källa**: Libris XL (Kungliga Biblioteket)"
+  },
+  
+  "rate_limits": {
+    "requests_per_second": 10,
+    "requests_per_hour": 1000,
+    "notes": "Inga hårda begränsningar dokumenterade, men rekommenderar respektfull användning"
+  },
+  
+  "caching_strategy": {
+    "search_results": "30 minuter",
+    "isbn_lookup": "24 timmar",
+    "author_bibliography": "6 timmar",
+    "static_data": "7 dagar"
+  },
+  
+  "error_handling": {
+    "fallback_message": "Kunde inte hämta bokdata från Libris just nu. Försök igen om en stund eller sök direkt på libris.kb.se",
+    "retry_strategy": "exponential_backoff",
+    "max_retries": 3
+  },
+  
+  "examples": {
+    "query": "Vad handlar Gösta Berlings saga om?",
+    "response": "**Gösta Berlings saga**\nFörfattare: Selma Lagerlöf\nUtgivningsår: 1891\n\nRomanen är Selma Lagerlöfs debutverk och räknas som en av den svenska litteraturens stora klassiker. Berättelsen utspelar sig i Värmland och följer den avsatte prästen Gösta Berling och hans öden bland kavaljererna på Ekeby bruk.\n\n**Källa**: Libris XL (Kungliga Biblioteket)"
+  }
+}

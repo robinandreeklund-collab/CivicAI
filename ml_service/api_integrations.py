@@ -1134,9 +1134,15 @@ def fetch_vinnova_data(query: str = None, entity: str = None, **kwargs) -> Optio
 # =============================================================================
 # LIBRIS XL API INTEGRATIONS (Kungliga Biblioteket)
 # =============================================================================
+# DEPRECATED: These functions are legacy code from the old API system.
+# NEW SYSTEM: Use api/libris.py module with api_selector.py for modular API calls.
+# These functions are kept for backward compatibility but should not be used for new features.
+# =============================================================================
 
 def fetch_libris_search(query: str = None, entity: str = None, **kwargs) -> Optional[str]:
     """
+    DEPRECATED: Use api/libris.py module instead.
+    
     Search for books in Libris XL via Kungliga Biblioteket's xsearch API.
     
     Args:
@@ -1146,6 +1152,7 @@ def fetch_libris_search(query: str = None, entity: str = None, **kwargs) -> Opti
     Returns:
         Formatted search results with links
     """
+    logger.warning("[DEPRECATED] fetch_libris_search called. Use api/libris.py instead.")
     search_term = entity or query or "svenska klassiker"
     
     try:
@@ -1180,29 +1187,24 @@ def fetch_libris_search(query: str = None, entity: str = None, **kwargs) -> Opti
                     result += f"   ID: {identifier}\n"
                 result += "\n"
             
-            result += "\n**Källor:**\n"
-            result += f'1. <a href="https://libris.kb.se/hitlist?q={search_term}">Libris – Sökresultat</a>\n'
-            result += '2. <a href="https://libris.kb.se">Libris – Nationell bibliotekskatalog</a>'
-            
+            # Return without hardcoded source formatting - let AI personality handle it
             return result
             
     except requests.exceptions.Timeout:
-        return "Timeout vid anslutning till Libris.\n\n**Källa:** <a href=\"https://libris.kb.se\">Libris</a>"
+        return "Timeout vid anslutning till Libris."
     except Exception as e:
         logger.error(f"[Libris Search] Error: {e}")
     
-    # Fallback with example data
-    return f"""**Bokresultat för '{search_term}':**
+    # Fallback
+    return f"""Bokresultat för '{search_term}':
 
-Sök direkt i Libris för fullständig katalog.
-
-**Källor:**
-1. <a href="https://libris.kb.se">Libris – Nationell bibliotekskatalog</a>
-2. <a href="https://www.kb.se">Kungliga Biblioteket</a>"""
+Sök direkt i Libris för fullständig katalog: https://libris.kb.se"""
 
 
 def fetch_libris_isbn(query: str = None, entity: str = None, **kwargs) -> Optional[str]:
     """
+    DEPRECATED: Use api/libris.py module instead.
+    
     Look up book by ISBN from Libris XL.
     
     Args:
@@ -1212,18 +1214,15 @@ def fetch_libris_isbn(query: str = None, entity: str = None, **kwargs) -> Option
     Returns:
         Book details for the ISBN
     """
+    logger.warning("[DEPRECATED] fetch_libris_isbn called. Use api/libris.py instead.")
     isbn = entity or query or ""
     
     # Clean ISBN (remove dashes and spaces)
     isbn_clean = isbn.replace("-", "").replace(" ", "")
     
     if not isbn_clean or len(isbn_clean) < 10:
-        return """**ISBN-sökning**
-
-Ange ett giltigt ISBN-nummer (10 eller 13 siffror).
-Exempel: 978-91-0-012345-6 eller 9100123456
-
-**Källa:** <a href="https://libris.kb.se">Libris – Nationell bibliotekskatalog</a>"""
+        return """ISBN-sökning: Ange ett giltigt ISBN-nummer (10 eller 13 siffror).
+Exempel: 978-91-0-012345-6 eller 9100123456"""
     
     try:
         # Libris API for ISBN lookup
@@ -1251,24 +1250,21 @@ Exempel: 978-91-0-012345-6 eller 9100123456
                     result += f"• **Förlag:** {publisher}\n"
                 result += f"• **ISBN:** {isbn}\n"
                 
-                result += "\n**Källor:**\n"
-                result += f'1. <a href="https://libris.kb.se/bib/{identifier}">Libris – Bokpost</a>\n'
-                result += '2. <a href="https://libris.kb.se">Libris – Nationell bibliotekskatalog</a>'
-                
+                # Return without hardcoded source formatting - let AI personality handle it
                 return result
             
     except Exception as e:
         logger.error(f"[Libris ISBN] Error: {e}")
     
-    return f"""**ISBN: {isbn}**
+    return f"""ISBN: {isbn}
 
-Kunde inte hitta bok med detta ISBN i Libris.
-
-**Källa:** <a href="https://libris.kb.se">Libris – Nationell bibliotekskatalog</a>"""
+Kunde inte hitta bok med detta ISBN i Libris."""
 
 
 def fetch_libris_sparql(query: str = None, entity: str = None, **kwargs) -> Optional[str]:
     """
+    DEPRECATED: Use api/libris.py module instead.
+    
     Query Libris XL via SPARQL for advanced searches.
     
     Args:
@@ -1278,6 +1274,7 @@ def fetch_libris_sparql(query: str = None, entity: str = None, **kwargs) -> Opti
     Returns:
         Query results
     """
+    logger.warning("[DEPRECATED] fetch_libris_sparql called. Use api/libris.py instead.")
     search_term = entity or query or ""
     
     # For now, use xsearch as SPARQL requires complex queries
@@ -1306,22 +1303,15 @@ def fetch_libris_sparql(query: str = None, entity: str = None, **kwargs) -> Opti
                         result += f" ({date})"
                     result += "\n"
                 
-                result += "\n**Källor:**\n"
-                result += f'1. <a href="https://libris.kb.se/hitlist?q=author:{search_term}">Libris – Författarsökning</a>\n'
-                result += '2. <a href="https://libris.kb.se/sparql">Libris SPARQL</a>'
-                
+                # Return without hardcoded source formatting - let AI personality handle it
                 return result
                 
     except Exception as e:
         logger.error(f"[Libris SPARQL] Error: {e}")
     
-    return f"""**Avancerad sökning: {search_term}**
+    return f"""Avancerad sökning: {search_term}
 
-Libris SPARQL-endpoint för avancerade frågor.
-
-**Källor:**
-1. <a href="https://libris.kb.se/sparql">Libris SPARQL Endpoint</a>
-2. <a href="https://libris.kb.se">Libris – Nationell bibliotekskatalog</a>"""
+Libris SPARQL-endpoint för avancerade frågor: https://libris.kb.se/sparql"""
 
 
 # =============================================================================
