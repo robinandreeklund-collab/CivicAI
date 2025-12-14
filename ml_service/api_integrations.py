@@ -2022,6 +2022,65 @@ def get_registry_summary() -> Dict[str, Any]:
 # EXPORT ALL FUNCTIONS
 # =============================================================================
 
+# =============================================================================
+# BROWSE_PAGE - Web Content Fetching
+# =============================================================================
+
+def browse_page(url: str, max_length: int = 5000) -> Optional[str]:
+    """
+    Fetch and extract text content from a web page.
+    
+    This function is used by personalities like Socionomen to fetch legislation
+    texts, statistics, and official documents from government websites.
+    
+    Args:
+        url: The URL to fetch
+        max_length: Maximum length of returned text (default 5000 chars)
+        
+    Returns:
+        Extracted text content or error message
+    """
+    try:
+        logger.info(f"[browse_page] Fetching: {url}")
+        
+        headers = {
+            'User-Agent': 'CivicAI/1.0 (Compatible; OneSeek Bot)',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'sv-SE,sv;q=0.9,en;q=0.8',
+        }
+        
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        response.encoding = response.apparent_encoding or 'utf-8'
+        
+        # Simple HTML-to-text extraction
+        # Remove script and style tags
+        text = response.text
+        text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
+        
+        # Remove HTML tags
+        text = re.sub(r'<[^>]+>', ' ', text)
+        
+        # Clean up whitespace
+        text = re.sub(r'\s+', ' ', text)
+        text = text.strip()
+        
+        # Limit length
+        if len(text) > max_length:
+            text = text[:max_length] + "...\n\n[Innehållet fortsätter på webbplatsen]"
+        
+        logger.info(f"[browse_page] Successfully fetched {len(text)} characters from {url}")
+        return text
+        
+    except requests.RequestException as e:
+        logger.error(f"[browse_page] Error fetching {url}: {e}")
+        return f"Kunde inte hämta innehåll från {url}. Fel: {str(e)}"
+    except Exception as e:
+        logger.error(f"[browse_page] Unexpected error for {url}: {e}")
+        return f"Ett oväntat fel uppstod vid hämtning av {url}"
+
+
 __all__ = [
     # Registry functions
     'APIIntegration',
@@ -2082,4 +2141,7 @@ __all__ = [
     'fetch_hemnet_data',
     'fetch_vinnova_data',
     'fetch_open_data',
+    
+    # Browse functionality
+    'browse_page',
 ]
