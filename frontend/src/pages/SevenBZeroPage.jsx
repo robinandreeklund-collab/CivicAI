@@ -1402,6 +1402,12 @@ export default function SevenBZeroPage() {
                   }
                   
                   const responseText = data.response;
+                  console.log('🔔 [FRONTEND] onFinal received:', {
+                    hasFollowUpOptions: !!data.follow_up_options,
+                    followUpOptionsType: typeof data.follow_up_options,
+                    followUpOptions: data.follow_up_options,
+                    responseLength: responseText?.length
+                  });
                   if (responseText) {
                     setMessages(prev => prev.map(msg => 
                       msg.id === aiMessageId 
@@ -1419,6 +1425,7 @@ export default function SevenBZeroPage() {
                           }
                         : msg
                     ));
+                    console.log('🔔 [FRONTEND] Message updated with followUpOptions');
                     animateTyping(responseText, aiMessageId);
                   }
                 },
