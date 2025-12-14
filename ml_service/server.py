@@ -15097,20 +15097,29 @@ async def generate_personality_response(
         # ============================================================================
         follow_up_options = None
         
+        # Debug logging
+        print(f"🔍 DEBUG: Checking for follow-up questions...")
+        print(f"🔍 DEBUG: personality_id = {personality_id}")
+        print(f"🔍 DEBUG: Response length = {len(final_response)}")
+        print(f"🔍 DEBUG: Last 200 chars of response: {final_response[-200:]}")
+        
         # Check if response contains a follow-up question (case-insensitive Swedish patterns)
         followup_patterns = [
-            r'vill du (se|ha|läsa|titta på)',
+            r'vill du (se|ha|läsa|titta på|att jag)',
             r'är du intresserad av',
             r'vill du att jag',
             r'ska jag (visa|söka|hämta)',
             r'önskar du',
-            r'\?$'  # Ends with question mark
+            r'skulle du vilja',
+            r'\?'  # Contains question mark anywhere
         ]
         
         has_followup = any(re.search(pattern, final_response.lower()) for pattern in followup_patterns)
+        print(f"🔍 DEBUG: has_followup = {has_followup}")
         
         # If it's Socionomen and response contains follow-up about prejudikat/domar
         if has_followup and personality_id == "socionomen":
+            print(f"🔍 DEBUG: Checking for case law patterns...")
             # Check if asking about case law / prejudikat
             case_law_patterns = [
                 r'prejudikat',
@@ -15119,12 +15128,14 @@ async def generate_personality_response(
                 r'kammarrätt',
                 r'högsta förvaltningsdomstolen',
                 r'hfd',
-                r'tillämp(ning|ats|at)',
+                r'tillämp(ning|ats|at|ad)',
                 r'verkliga fall',
-                r'exempel'
+                r'exempel',
+                r'praktiken'
             ]
             
             is_about_case_law = any(re.search(pattern, final_response.lower()) for pattern in case_law_patterns)
+            print(f"🔍 DEBUG: is_about_case_law = {is_about_case_law}")
             
             if is_about_case_law:
                 # Extract paragraph reference from the response or original query
@@ -15168,6 +15179,7 @@ async def generate_personality_response(
                 ]
                 
                 print(f"🔔 Detected follow-up question about case law: {paragraph} in {law_name}")
+                print(f"🔔 follow_up_options = {follow_up_options}")
         
         # ============================================================================
         # BUILD RESPONSE
