@@ -2075,15 +2075,17 @@ def browse_page(url: str, max_length: int = 3000) -> Optional[str]:
             text_clean = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
             text_clean = re.sub(r'<style[^>]*>.*?</style>', '', text_clean, flags=re.DOTALL | re.IGNORECASE)
             
-            # Find element with id matching anchor (e.g., <div id="K11P1">...</div>)
-            # Matches opening tag with id, captures content, then closing tag
-            pattern = rf'<([a-zA-Z][a-zA-Z0-9]*)[^>]*\s+id=["\']?{re.escape(anchor)}["\']?[^>]*>(.*?)</\1>'
+            # Find element with id matching anchor
+            # Pattern matches: <section id="K4P1"...>content</section> or <div id="K4P1"...>content</div>
+            # Uses non-greedy matching and captures all content including nested tags
+            pattern = rf'<(section|div)[^>]*\s+id=["\']?{re.escape(anchor)}["\']?[^>]*>(.*?)</\1>'
             match = re.search(pattern, text_clean, flags=re.DOTALL | re.IGNORECASE)
             
             if match:
                 # Extract only the content within the matching element
-                text = match.group(2)
-                logger.info(f"[browse_page] Extracted {len(text)} chars from anchor #{anchor}")
+                html_content = match.group(2)
+                logger.info(f"[browse_page] Found anchor #{anchor}, extracted {len(html_content)} chars of HTML")
+                text = html_content
             else:
                 # Anchor not found, log warning and use full page
                 logger.warning(f"[browse_page] Anchor #{anchor} not found in HTML, using full page content")
