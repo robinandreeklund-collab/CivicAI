@@ -2058,6 +2058,9 @@ def browse_page(url: str, max_length: int = 5000) -> Optional[str]:
         
         # Simple HTML-to-text extraction
         # Remove script and style tags
+        # Note: This regex approach has limitations with malformed HTML (e.g., "</script >")
+        # but is sufficient for well-formed government websites. For production use with
+        # untrusted sources, consider using BeautifulSoup or similar library.
         text = response.text
         text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
         text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
