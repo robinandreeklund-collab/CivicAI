@@ -22,7 +22,7 @@ Socionomen använder `"tool": "browse_page"` för att hämta innehåll från:
 - IVO-rapporter från ivo.se
 - Kommunstatistik från SCB
 
-**Observera**: Browse_page-funktionaliteten behöver vara aktiverad i `ml_service/server.py` för att dessa endpoints ska fungera korrekt. Servern måste kunna ta emot function calls från modellen, hämta webbsidor med requests/playwright, och returnera innehållet till användaren.
+**Implementation**: Browse_page är nu integrerad i `ml_service/api_selector.py`. När ett API har `"tool": "browse_page"` eller `"method": "BROWSE"`, anropar `call_api` funktionen automatiskt `browse_page` från `api_integrations.py` istället för att försöka parsa JSON-svar. Innehållet returneras som text i `data.text` fältet.
 
 ## Testfrågor
 
