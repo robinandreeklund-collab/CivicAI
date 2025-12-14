@@ -14696,7 +14696,54 @@ def build_api_selection_prompt(personality_name: str, personality_prompt: str, c
     Returns:
         str: Complete prompt for API selection stage
     """
-    prompt = f"""**STEG 2: Analysera frågan och välj APIs**
+    # Check if API catalog is empty
+    try:
+        api_data = json.loads(character_api_json)
+        has_apis = bool(api_data.get('api_catalog', {}))
+    except:
+        has_apis = True  # Assume has APIs if we can't parse
+    
+    if not has_apis:
+        # Special prompt for personalities without APIs
+        prompt = f"""**STEG 2: Analysera frågan (ingen API-katalog)**
+
+Du är {personality_name}.
+
+**Din personlighet:**
+{personality_prompt[:500]}{'...' if len(personality_prompt) > 500 else ''}
+
+**VIKTIGT: Du har INGA API:er tillgängliga.**
+
+Din uppgift är att förklara varför du inte behöver externa API:er för att svara på denna fråga:
+
+1. Analysera vad användarens fråga handlar om
+2. Förklara vilken typ av kunskap eller resonemang som behövs
+3. Bekräfta att du kan svara baserat på din interna kunskap
+4. Returnera JSON som bekräftar att inga APIs behövs
+
+**Instruktioner:**
+Returnera BARA JSON i detta format:
+{{"apis": []}}
+
+**Efter JSON:** Förklara varför inga APIs behövs (2-3 meningar):
+- Vad frågar användaren om?
+- Varför kan du svara utan externa datakällor?
+- Vilken typ av svar kommer du ge (allmän kunskap, resonemang, förklaring)?
+
+**Exempel:**
+Fråga: "Vad är skillnaden mellan en metafor och en liknelse?"
+Svar:
+{{"apis": []}}
+
+Reasoning: Användaren frågar om litterära begrepp som kräver förklaring och definition, inte realtidsdata. Jag kan svara baserat på min språkkunskap och ge tydliga exempel på skillnaden mellan dessa stilfigurer. Inga externa API:er behövs för denna typ av kunskapsfråga.
+
+**Nu är det din tur!**
+Användarens fråga: {user_question}
+
+Ditt svar (JSON + reasoning):"""
+    else:
+        # Normal prompt with APIs available - ENCOURAGE MULTIPLE APIS
+        prompt = f"""**STEG 2: Analysera frågan och välj APIs**
 
 Du är {personality_name}.
 
@@ -14704,7 +14751,8 @@ Din uppgift är att:
 1. Förstå vad användarens fråga kräver
 2. Extrahera viktiga entity_types (t.ex. stad → koordinater, datum → format)
 3. Välja rätt APIs från din API-karta baserat på KEYWORDS och DESCRIPTION
-4. Returnera JSON med APIs och parametrar
+4. **VIKTIGT: Välj FLERA APIs om frågan behöver data från flera källor för bättre svar**
+5. Returnera JSON med ALLA relevanta APIs och parametrar
 
 **Din personlighet:**
 {personality_prompt[:500]}{'...' if len(personality_prompt) > 500 else ''}
@@ -14715,47 +14763,52 @@ För varje API, analysera dessa fält noggrant:
 - **name**: API-namn som du ska använda i din JSON-respons
 - **description**: Vad API:t gör och vilken typ av data det ger
 - **keywords**: Nyckelord som matchar mot användarens fråga - VIKTIGT FÖR URVAL!
-- **priority**: Lägre nummer = högre prioritet (0 = viktigast, välj det med lägst nummer om flera matchar)
+- **priority**: Lägre nummer = högre prioritet (0 = viktigast)
 - **parameters**: Vilka parametrar API:t kräver (t.ex. lon/lat för platsbaserade APIs)
 - **url**: Endpoint-URL (för din information)
 
 {character_api_json}
 
-**Tips för att välja rätt API:**
+**Tips för att välja rätt APIs:**
 1. **Matcha användarens KEYWORDS** mot API:ernas keywords-lista - detta är viktigast!
 2. Läs API:ernas **description** för att förstå vad de levererar
-3. Välj API med **LÄGST priority** som matchar frågan
-4. Om flera passar, välj det som **bäst matchar användarens INTENT**
+3. **Välj FLERA APIs** om frågan täcker flera aspekter (t.ex. både ny och gammal lag, flera datakällor)
+4. Prioritera APIs med **lägst priority** som matchar frågan
+5. Tänk: "Vilka ALLA datakällor behövs för att ge ett komplett svar?"
+
+**Exempel på flera APIs:**
+- Fråga: "Vad ändrades i nya SoL jämfört med gamla?" → Välj BÅDE lagen_nu_sol_ny OCH lagen_nu_sol_gammal
+- Fråga: "Väder och vädervarningar i Stockholm" → Välj BÅDE smhi_prognos OCH smhi_varningar
+- Fråga: "Statistik om placerade barn och IVO-rapporter" → Välj BÅDE socialstyrelsen_barn_vard OCH ivo_rapporter
 
 **Exempel på keyword-matchning:**
 - Fråga: "vädret imorgon" → matchar keywords ["imorgon", "prognos"] → välj smhi_prognos
 - Fråga: "regnar det NU" → matchar keywords ["nu", "just nu", "aktuellt"] → välj smhi_analys  
 - Fråga: "finns vädervarning" → matchar keywords ["varning", "storm"] → välj smhi_varningar (priority=0!)
-- Fråga: "hur är vädret" (utan tidsangivelse) → välj smhi_prognos (default för allmän väderinfo)
 
 **Instruktioner:**
 1. Analysera frågan noga - vilka KEYWORDS finns i användarens fråga?
 2. Om frågan innehåller platsnamn (t.ex. "Göteborg", "Hjo"), konvertera till koordinater
 3. Om frågan innehåller datum/tid, formatera korrekt
 4. Jämför användarens keywords med varje APIs keywords-lista
-5. Välj det API som har BÄST keyword-matchning och lägst priority
+5. **Välj ALLA APIs som matchar olika delar av frågan** - inte bara ett!
 6. Returnera BARA JSON i detta format:
 
-{{"apis": [{{"name": "api_name", "params": {{"key": "value"}}}}]}}
+{{"apis": [{{"name": "api_name_1", "params": {{"key": "value"}}}}, {{"name": "api_name_2", "params": {{"key": "value"}}}}]}}
 
 Om inga APIs behövs: {{"apis": []}}
 
 **Efter JSON:** Förklara ditt val (2-3 meningar):
 - Vilka keywords matchade du?
-- Varför valde du detta specifika API (inte ett annat)?
+- Varför valde du dessa specifika APIs (och varför flera om du valde flera)?
 - Vilka entity_types extraherade du och hur?
 
-**Exempel:**
-Fråga: "Vad är vädret imorgon i Stockholm?"
+**Exempel med FLERA APIs:**
+Fråga: "Jämför gamla och nya SoL om ekonomiskt bistånd"
 Svar:
-{{"apis": [{{"name": "smhi_prognos", "params": {{"lon": "18.07", "lat": "59.33"}}}}]}}
+{{"apis": [{{"name": "lagen_nu_sol_gammal", "params": {{}}}}, {{"name": "lagen_nu_sol_ny", "params": {{}}}}]}}
 
-Reasoning: Användaren frågade om "imorgon" vilket matchar smhi_prognos keywords ["imorgon", "prognos"]. Inte smhi_analys (för "nu") eller smhi_varningar (för "varning"). Stockholm ligger på koordinater lat=59.33, lon=18.07 som jag extraherade från platsnamnet.
+Reasoning: Användaren vill "jämföra" gamla och nya lagen, vilket kräver data från BÅDA källor. Keyword "gamla" matchar lagen_nu_sol_gammal och "nya" matchar lagen_nu_sol_ny. Keyword "ekonomiskt bistånd" matchar båda API:erna. Jag behöver hämta från båda för att kunna göra jämförelsen.
 
 **Nu är det din tur!**
 Användarens fråga: {user_question}
@@ -15341,101 +15394,116 @@ Exempel:
                             traceback.print_exc()
                         
                         # === STAGE 2: API Selection with Entity Extraction (NEW!) ===
-                        print(f"\n🔍 STAGE 2: API Selection + Entity Extraction...")
+                        # Check if we have any APIs first
+                        has_apis = total_filtered > 0 if 'total_filtered' in locals() else False
                         
-                        # Emit thinking event for stage 2
-                        api_selection_msg = "Analyserar och väljer APIs..."
-                        thinking_steps.append({"step": "api_selection_start", "message": api_selection_msg})
-                        yield f"event: thinking\ndata: {json.dumps({'step': 'api_selection_start', 'message': api_selection_msg})}\n\n"
+                        if not has_apis:
+                            print(f"\n⚠️ STAGE 2: Skipping API selection - no APIs available for {personality_name}")
+                            # Add reasoning for why no APIs are used
+                            no_api_reasoning = f"{personality_name} har inga externa API:er konfigurerade. Svarar baserat på intern kunskap och resonemang."
+                            thinking_steps.append({
+                                "step": "no_apis_available",
+                                "message": "Ingen API-katalog tillgänglig",
+                                "reasoning": no_api_reasoning
+                            })
+                            yield f"event: thinking\ndata: {json.dumps({'step': 'no_apis', 'message': 'Svarar med intern kunskap...'})}\n\n"
+                        else:
+                            print(f"\n🔍 STAGE 2: API Selection + Entity Extraction...")
+                            
+                            # Emit thinking event for stage 2
+                            api_selection_msg = "Analyserar och väljer APIs..."
+                            thinking_steps.append({"step": "api_selection_start", "message": api_selection_msg})
+                            yield f"event: thinking\ndata: {json.dumps({'step': 'api_selection_start', 'message': api_selection_msg})}\n\n"
                         
-                        try:
-                            # Load character card for personality context
-                            personality_card_path = None
-                            if personality_data and personality_data.get('card_file'):
-                                personality_card_path = PROJECT_ROOT / personality_data['card_file']
-                            else:
-                                # Try standard path - all cards are "OneSeek-{Name}.yaml"
-                                # personality_id can be "oneseek-bibliotekarie" OR just "bibliotekarie"
-                                if personality_id.startswith("oneseek-"):
-                                    personality_suffix = personality_id[8:]  # Remove "oneseek-"
+                        if has_apis:
+                            try:
+                                # Load character card for personality context
+                                personality_card_path = None
+                                if personality_data and personality_data.get('card_file'):
+                                    personality_card_path = PROJECT_ROOT / personality_data['card_file']
                                 else:
-                                    personality_suffix = personality_id
-                                # Always construct as "OneSeek-{Name}.yaml"
-                                personality_card_path = PROJECT_ROOT / f"frontend/public/characters/OneSeek-{personality_suffix.title()}.yaml"
-                            
-                            personality_system_prompt = ""
-                            if personality_card_path and personality_card_path.exists():
-                                import yaml
-                                with open(personality_card_path, 'r', encoding='utf-8') as f:
-                                    card_data = yaml.safe_load(f)
-                                personality_system_prompt = card_data.get('system_prompt', '')
-                            
-                            # Load character_api.json
-                            character_api_path = PROJECT_ROOT / "runtime/character_api.json"
-                            character_api_json_str = "{}"
-                            if character_api_path.exists():
-                                with open(character_api_path, 'r', encoding='utf-8') as f:
-                                    character_api_json_str = f.read()
-                            
-                            # Build API selection prompt
-                            api_selection_prompt = build_api_selection_prompt(
-                                personality_name,
-                                personality_system_prompt,
-                                character_api_json_str,
-                                text
-                            )
-                            
-                            # Call model for SECOND inference (API selection)
-                            second_inference_start = time.time()
-                            print(f"   Calling model for API selection...")
-                            print(f"   Prompt length: {len(api_selection_prompt)} characters")
-                            
-                            model_response_2 = generate_with_llama_server(
-                                prompt=api_selection_prompt,
-                                user_message="",  # Question already in prompt
-                                max_tokens=500,
-                                temperature=0.1
-                            )
-                            
-                            second_inference_latency = (time.time() - second_inference_start) * 1000
-                            print(f"✅ Stage 2 complete in {second_inference_latency:.0f}ms")
-                            print(f"   Model response: {model_response_2[:300]}...")
-                            
-                            # Parse API selection + reasoning
-                            api_selection, reasoning_2 = parse_api_selection_response(model_response_2)
-                            print(f"   Parsed APIs: {api_selection.get('apis', [])}")
-                            print(f"   Reasoning: {reasoning_2[:200]}...")
-                            
-                            # Extract selected APIs
-                            if api_selection and api_selection.get('apis'):
-                                selected_apis = api_selection['apis']
-                                print(f"✅ Model selected {len(selected_apis)} APIs")
+                                    # Try standard path - all cards are "OneSeek-{Name}.yaml"
+                                    # personality_id can be "oneseek-bibliotekarie" OR just "bibliotekarie"
+                                    if personality_id.startswith("oneseek-"):
+                                        personality_suffix = personality_id[8:]  # Remove "oneseek-"
+                                    else:
+                                        personality_suffix = personality_id
+                                    # Always construct as "OneSeek-{Name}.yaml"
+                                    personality_card_path = PROJECT_ROOT / f"frontend/public/characters/OneSeek-{personality_suffix.title()}.yaml"
                                 
-                                # Save reasoning for thinking chain
-                                api_names = [api.get('name', 'unknown') for api in selected_apis]
-                                thinking_steps.append({
-                                    "step": "api_selection",
-                                    "apis": api_names,
-                                    "reasoning": reasoning_2
-                                })
+                                personality_system_prompt = ""
+                                if personality_card_path and personality_card_path.exists():
+                                    import yaml
+                                    with open(personality_card_path, 'r', encoding='utf-8') as f:
+                                        card_data = yaml.safe_load(f)
+                                    personality_system_prompt = card_data.get('system_prompt', '')
                                 
-                                # Emit thinking event with selected APIs
-                                api_selected_msg = f"Valde API: {', '.join(api_names)}"
-                                yield f"event: thinking\ndata: {json.dumps({'step': 'api_selection', 'message': api_selected_msg})}\n\n"
-                            else:
-                                print(f"   No APIs selected by model")
-                                thinking_steps.append({
-                                    "step": "api_selection",
-                                    "apis": [],
-                                    "reasoning": reasoning_2 or "Ingen API behövs för denna fråga"
-                                })
-                        
-                        except Exception as e:
-                            print(f"⚠️ Stage 2 (API-val) misslyckades: {e}")
-                            import traceback
-                            traceback.print_exc()
-                            # Continue without APIs
-                            reasoning_2 = f"API-val misslyckades: {str(e)}"
+                                # Load character_api.json
+                                character_api_path = PROJECT_ROOT / "runtime/character_api.json"
+                                character_api_json_str = "{}"
+                                if character_api_path.exists():
+                                    with open(character_api_path, 'r', encoding='utf-8') as f:
+                                        character_api_json_str = f.read()
+                                
+                                # Build API selection prompt
+                                api_selection_prompt = build_api_selection_prompt(
+                                        personality_name,
+                                    personality_system_prompt,
+                                    character_api_json_str,
+                                    text
+                                )
+                                
+                                # Call model for SECOND inference (API selection)
+                                second_inference_start = time.time()
+                                print(f"   Calling model for API selection...")
+                                print(f"   Prompt length: {len(api_selection_prompt)} characters")
+                                
+                                model_response_2 = generate_with_llama_server(
+                                    prompt=api_selection_prompt,
+                                    user_message="",  # Question already in prompt
+                                    max_tokens=500,
+                                    temperature=0.1
+                                )
+                                
+                                second_inference_latency = (time.time() - second_inference_start) * 1000
+                                print(f"✅ Stage 2 complete in {second_inference_latency:.0f}ms")
+                                print(f"   Model response: {model_response_2[:300]}...")
+                                
+                                # Parse API selection + reasoning
+                                api_selection, reasoning_2 = parse_api_selection_response(model_response_2)
+                                print(f"   Parsed APIs: {api_selection.get('apis', [])}")
+                                print(f"   Reasoning: {reasoning_2[:200]}...")
+                                
+                                # Extract selected APIs
+                                if api_selection and api_selection.get('apis'):
+                                    selected_apis = api_selection['apis']
+                                    print(f"✅ Model selected {len(selected_apis)} APIs")
+                                    
+                                    # Save reasoning for thinking chain
+                                    api_names = [api.get('name', 'unknown') for api in selected_apis]
+                                    thinking_steps.append({
+                                        "step": "api_selection",
+                                        "apis": api_names,
+                                        "reasoning": reasoning_2
+                                    })
+                                    
+                                    # Emit thinking event with selected APIs
+                                    api_selected_msg = f"Valde API: {', '.join(api_names)}"
+                                    yield f"event: thinking\ndata: {json.dumps({'step': 'api_selection', 'message': api_selected_msg})}\n\n"
+                                else:
+                                    print(f"   No APIs selected by model")
+                                    thinking_steps.append({
+                                        "step": "api_selection",
+                                        "apis": [],
+                                        "reasoning": reasoning_2 or "Ingen API behövs för denna fråga"
+                                    })
+                            
+                            except Exception as e:
+                                print(f"⚠️ Stage 2 (API-val) misslyckades: {e}")
+                                import traceback
+                                traceback.print_exc()
+                                # Continue without APIs
+                                reasoning_2 = f"API-val misslyckades: {str(e)}"
                     else:
                         print(f"⚠️ No personality tag found in model response, using default Medveten")
                         personality_id = "medveten"
