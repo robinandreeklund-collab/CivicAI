@@ -1415,6 +1415,7 @@ export default function SevenBZeroPage() {
                             tokens: data.tokens,
                             personality: data.personality,
                             currentThinkingStep: null, // Clear thinking step
+                            followUpOptions: data.follow_up_options || null, // Add follow-up options from WebSocket
                           }
                         : msg
                     ));

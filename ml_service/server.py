@@ -12805,12 +12805,82 @@ async def websocket_personality_inference(websocket: WebSocket):
             # Fallback: simple response if no llama-server
             final_response = f"[Personality: {personality_name}] Response för: {user_query}"
         
+        # ============================================================================
+        # DETECT FOLLOW-UP QUESTIONS (for Socionomen case law) - WEBSOCKET
+        # ============================================================================
+        follow_up_options = None
+        
+        print(f"\n🔍 [WS] DEBUG: Checking for follow-up questions...")
+        print(f"🔍 [WS] DEBUG: personality_id = {personality_id}")
+        print(f"🔍 [WS] DEBUG: Response length = {len(final_response)}")
+        print(f"🔍 [WS] DEBUG: Last 200 chars: {final_response[-200:]}")
+        
+        # Check if this is Socionomen and response contains follow-up question
+        if personality_id == "socionomen":
+            # Check for question patterns
+            followup_patterns = [
+                r'vill du (se|ha|läsa|titta på|att jag)',
+                r'är du intresserad av',
+                r'vill du att jag',
+                r'ska jag (visa|söka|hämta)',
+                r'önskar du',
+                r'skulle du vilja',
+                r'\?'
+            ]
+            has_followup = any(re.search(pattern, final_response.lower()) for pattern in followup_patterns)
+            print(f"🔍 [WS] DEBUG: has_followup = {has_followup}")
+            
+            # Check for case law keywords
+            caselaw_patterns = [
+                r'exempel',
+                r'tillämp(ats|ning|ar)',
+                r'domar?',
+                r'prejudikat',
+                r'kammarrätt',
+                r'hfd',
+                r'högsta förvaltningsdomstolen',
+                r'verkliga fall',
+                r'praktiken'
+            ]
+            is_about_case_law = any(re.search(pattern, final_response.lower()) for pattern in caselaw_patterns)
+            print(f"🔍 [WS] DEBUG: is_about_case_law = {is_about_case_law}")
+            
+            if has_followup and is_about_case_law:
+                # Extract paragraph and law name from response
+                paragraph_match = re.search(r'(\d+\s+kap\.?\s+\d+\s+§)', final_response, re.IGNORECASE)
+                law_match = re.search(r'(Socialtjänstlagen|SoL|LVU|LVM)', final_response, re.IGNORECASE)
+                
+                paragraph = paragraph_match.group(1) if paragraph_match else "paragraf"
+                law_name = law_match.group(1) if law_match else "Socialtjänstlagen"
+                
+                follow_up_options = [
+                    {
+                        "id": "followup_yes",
+                        "label": "Ja, visa exempel",
+                        "action": "search_prejudikat",
+                        "parameters": {
+                            "paragraf": paragraph,
+                            "lag_namn": law_name,
+                            "personality": "socionomen"
+                        }
+                    },
+                    {
+                        "id": "followup_no",
+                        "label": "Nej tack",
+                        "action": "decline_followup",
+                        "parameters": {}
+                    }
+                ]
+                
+                print(f"🔔 [WS] Detected follow-up: {paragraph} in {law_name}")
+                print(f"🔔 [WS] follow_up_options = {follow_up_options}")
+        
         # Calculate latency
         latency_ms = (time.time() - start_time) * 1000
         tokens = len(final_response.split())
         
-        # Send final response
-        await websocket.send_json({
+        # Send final response (now with follow_up_options if detected)
+        response_data = {
             "type": "final",
             "response": final_response,
             "model": "oneseek-7b-zero",
@@ -12830,7 +12900,15 @@ async def websocket_personality_inference(websocket: WebSocket):
                 "data": r.get('data') if r.get('success') else None,
                 "error": r.get('error')
             } for r in api_results] if api_results else None
-        })
+        }
+        
+        # Add follow_up_options if detected
+        if follow_up_options:
+            response_data["follow_up_options"] = follow_up_options
+            print(f"🔔 [WS] Added follow_up_options to response: {follow_up_options}")
+        
+        print(f"🔔 [WS] Sending final response with keys: {response_data.keys()}")
+        await websocket.send_json(response_data)
         
         await websocket.close()
         
