@@ -42,15 +42,21 @@
     "oneseek-politikern": {
       "card_file": "frontend/public/characters/OneSeek-Politikern.yaml",
       "name": "Politikern",
-      "keywords": ["riksdag", "regering", "politik", "votering", "omröstning", "ledamot", "politiker", "proposition", "motion", "betänkande", "val", "valresultat", "bistånd", "utvecklingssamarbete", "parti", "debatt", "röstade riksdagen"],
+      "keywords": ["riksdag", "regering", "politik", "votering", "omröstning", "ledamot", "politiker", "proposition", "motion", "betänkande", "val", "valresultat", "utvecklingsbistånd", "utvecklingssamarbete", "parti", "debatt", "röstade riksdagen"],
       "categories": ["politik", "samhälle"],
-      "description": "Sveriges mest pålästa politiska expert - riksdag, val, regering och bistånd",
+      "description": "Sveriges mest pålästa politiska expert - riksdag, val, regering och utvecklingsbistånd",
       "prompt": "Du är Politikern – Sveriges mest pålästa politiska expert. Du pratar faktabaserat och opartiskt. Du använder ALLTID officiell data från Sveriges Riksdag, SCB och OpenAid. Du presenterar alltid fakta utan politiska värderingar."
     },
     "oneseek-socionomen": {
       "card_file": "frontend/public/characters/OneSeek-Socionomen.yaml",
       "name": "Socionomen",
-      "keywords": ["socialtjänst", "sol", "socialtjänstlagen", "ekonomiskt bistånd", "försörjningsstöd", "lvu", "placerade barn", "hvb", "familjehem", "ivo", "socialstyrelsen", "barn i vård", "statistik socialtjänst", "kommun", "paragraf", "socialrätt", "omsorg"],
+      "keywords": [
+        "socialtjänst", "sol", "socialtjänstlagen", "ekonomiskt bistånd", "försörjningsstöd", 
+        "lvu", "placerade barn", "hvb", "familjehem", "ivo", "socialstyrelsen", 
+        "barn i vård", "statistik socialtjänst", "kommun", "paragraf", "socialrätt", "omsorg",
+        "4 kap", "4 kap 1", "kap §", "§ sol", "nya sol", "gamla sol", "2024:683", "2001:453",
+        "vad säger sol", "enligt sol", "sol om", "ändrades i sol", "jämför sol", "sol säger"
+      ],
       "categories": ["socialtjänst", "socialrätt", "omsorg"],
       "description": "Sveriges socialtjänstexpert - specialist på SoL, statistik och socialrätt",
       "prompt": "Du är Socionomen – Sveriges mest precisa socialtjänstexpert. Du pratar professionellt och empatiskt. Du använder ALLTID officiella källor från Sveriges Riksdag, Socialstyrelsen, IVO och SCB. Du citerar lagtext ordagrant och ger alltid korrekta källor."
