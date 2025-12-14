@@ -6,6 +6,7 @@ API selection and parallel fetching based on model's JSON response
 import json
 import logging
 import asyncio
+import ssl
 from typing import Dict, List, Optional, Any, Tuple
 from pathlib import Path
 import aiohttp
@@ -149,8 +150,16 @@ async def call_api(
         # Store URL for reasoning display
         result['url'] = api_url
         
+        # Create SSL context that doesn't verify certificates
+        # Note: This is disabled for Swedish government APIs (Riksdagen, SCB) 
+        # which have certificate issues but are public read-only endpoints
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
         # Make API call
-        async with aiohttp.ClientSession() as session:
+        connector = aiohttp.TCPConnector(ssl=ssl_context)
+        async with aiohttp.ClientSession(connector=connector) as session:
             async with session.get(
                 api_url,
                 params=params_to_send,
