@@ -21,22 +21,22 @@
       "name": "lagen_nu_sol_ny",
       "source": "Lagrummet / Lagen.nu (ny SoL)",
       "frequency": "statisk (uppdateras vid lagändringar)",
-      "url": "https://lagen.nu/2024:683",
+      "url": "https://lagen.nu/2025:400",
       "url_template": false,
       "tool": "browse_page",
       "keywords": [
         "socialtjänstlagen", "sol", "ekonomiskt bistånd", "§", "paragraf",
         "socialtjänstlag", "4 kap", "4 kap 1", "försörjningsstöd", "bistånd",
         "vad säger sol", "enligt sol", "sol om", "socialtjänstlagens",
-        "ny sol", "sol 2024:683", "nya socialtjänstlagen", "socialtjänstlagen 2025", "aktuell sol"
+        "ny sol", "sol 2025:400", "nya socialtjänstlagen", "socialtjänstlagen 2025", "aktuell sol"
       ],
       "priority": 0,
-      "description": "Socialtjänstlagen (SoL 2024:683) – ny lag från 1 juli 2025 via Lagen.nu",
+      "description": "Socialtjänstlagen (SoL 2025:400) – ny lag från 1 juli 2025 via Lagen.nu",
       "method": "BROWSE",
       "parameters": {},
       "data_format": "HTML/Text",
-      "example_url": "https://lagen.nu/2024:683",
-      "notes": "Använder browse_page för att hämta och tolka lagtext från nya Socialtjänstlagen (2024:683) som trädde i kraft 1 juli 2025. Extrahera DEN EXAKTA TEXTEN för den angivna paragrafen. Börja med paragrafens rubrik följt av full lydelse. Inkludera inte noter eller kommentarer."
+      "example_url": "https://lagen.nu/2025:400",
+      "notes": "Använder browse_page för att hämta och tolka lagtext från nya Socialtjänstlagen (2025:400) som trädde i kraft 1 juli 2025. Extrahera DEN EXAKTA TEXTEN för den angivna paragrafen. Börja med paragrafens rubrik följt av full lydelse. Inkludera inte noter eller kommentarer."
     },
     {
       "name": "lagen_nu_sol_gammal",
