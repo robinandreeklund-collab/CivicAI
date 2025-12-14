@@ -2026,25 +2026,35 @@ def get_registry_summary() -> Dict[str, Any]:
 # BROWSE_PAGE - Web Content Fetching
 # =============================================================================
 
-def browse_page(url: str, max_length: int = 20000) -> Optional[str]:
+def browse_page(url: str, max_length: int = 3000) -> Optional[str]:
     """
     Fetch and extract text content from a web page.
     
     This function is used by personalities like Socionomen to fetch legislation
     texts, statistics, and official documents from government websites.
     
+    Special handling for anchor fragments (e.g., #K11P1):
+    - If URL contains anchor, attempts to extract only that specific HTML element
+    - Falls back to full page content if anchor element not found
+    
     Note: Uses regex-based HTML parsing for simplicity and minimal dependencies.
     For more robust parsing, consider upgrading to BeautifulSoup in the future.
     
     Args:
-        url: The URL to fetch
-        max_length: Maximum length of returned text (default 20000 chars for full law texts)
+        url: The URL to fetch (may include anchor fragment like #K11P1)
+        max_length: Maximum length of returned text (default 3000 chars for paragraph-level content)
         
     Returns:
         Extracted text content or error message
     """
     try:
+        from urllib.parse import urlparse
+        
         logger.info(f"[browse_page] Fetching: {url}")
+        
+        # Parse URL to extract anchor fragment
+        parsed_url = urlparse(url)
+        anchor = parsed_url.fragment  # e.g., "K11P1" from "#K11P1"
         
         headers = {
             'User-Agent': 'CivicAI/1.0 (Compatible; OneSeek Bot)',
@@ -2052,18 +2062,37 @@ def browse_page(url: str, max_length: int = 20000) -> Optional[str]:
             'Accept-Language': 'sv-SE,sv;q=0.9,en;q=0.8',
         }
         
+        # Note: HTTP GET ignores fragment (#...), so we fetch the full page
         response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
         response.encoding = response.apparent_encoding or 'utf-8'
         
-        # Simple HTML-to-text extraction
-        # Remove script and style tags
-        # Note: This regex approach has limitations with malformed HTML (e.g., "</script >")
-        # but is sufficient for well-formed government websites. For production use with
-        # untrusted sources, consider using BeautifulSoup or similar library.
         text = response.text
-        text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
-        text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
+        
+        # If anchor present, try to extract only that element's content
+        if anchor:
+            # Remove script and style tags first (they might interfere with extraction)
+            text_clean = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
+            text_clean = re.sub(r'<style[^>]*>.*?</style>', '', text_clean, flags=re.DOTALL | re.IGNORECASE)
+            
+            # Find element with id matching anchor (e.g., <div id="K11P1">...</div>)
+            # Matches opening tag with id, captures content, then closing tag
+            pattern = rf'<([a-zA-Z][a-zA-Z0-9]*)[^>]*\s+id=["\']?{re.escape(anchor)}["\']?[^>]*>(.*?)</\1>'
+            match = re.search(pattern, text_clean, flags=re.DOTALL | re.IGNORECASE)
+            
+            if match:
+                # Extract only the content within the matching element
+                text = match.group(2)
+                logger.info(f"[browse_page] Extracted {len(text)} chars from anchor #{anchor}")
+            else:
+                # Anchor not found, log warning and use full page
+                logger.warning(f"[browse_page] Anchor #{anchor} not found in HTML, using full page content")
+                text = text_clean
+        
+        # Remove script and style tags (if not already done)
+        if not anchor:
+            text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
         
         # Remove HTML tags
         text = re.sub(r'<[^>]+>', ' ', text)

@@ -144,8 +144,9 @@ async def call_api(
                 # Call browse_page synchronously (it's not async)
                 # We need to run it in an executor to avoid blocking
                 loop = asyncio.get_running_loop()
-                # Increased max_length to 20000 for complete law texts without truncation
-                text_content = await loop.run_in_executor(None, browse_page, api_url, 20000)
+                # Using max_length of 3000 - sufficient for paragraph-level content
+                # browse_page now extracts anchor-targeted elements for precise fetching
+                text_content = await loop.run_in_executor(None, browse_page, api_url, 3000)
                 
                 # Check if fetch was successful (errors start with "Kunde inte" or "Ett oväntat fel")
                 is_error = text_content and (text_content.startswith("Kunde inte") or text_content.startswith("Ett oväntat fel"))
