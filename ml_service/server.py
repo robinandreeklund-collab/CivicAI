@@ -4645,6 +4645,14 @@ class ThinkingStep(BaseModel):
     data: Optional[Dict[str, Any]] = Field(default=None, description="Additional step data")
 
 
+class FollowUpOption(BaseModel):
+    """Model for follow-up question options"""
+    id: str = Field(..., description="Unique identifier for this option")
+    label: str = Field(..., description="Button label (e.g., 'Ja', 'Nej', 'Visa exempel')")
+    action: str = Field(..., description="Action to take (e.g., 'search_prejudikat', 'decline_followup')")
+    parameters: Optional[Dict[str, Any]] = Field(default=None, description="Parameters for the action")
+
+
 class PersonalityInferenceResponse(BaseModel):
     """Response model for personality-based inference"""
     response: str = Field(..., description="Final response text")
@@ -4654,6 +4662,7 @@ class PersonalityInferenceResponse(BaseModel):
     personality: Dict[str, Any] = Field(..., description="Selected personality information")
     thinking_chain: List[ThinkingStep] = Field(default_factory=list, description="Thinking process steps")
     api_data: Optional[List[Dict[str, Any]]] = Field(default=None, description="API data fetched")
+    follow_up_options: Optional[List[FollowUpOption]] = Field(default=None, description="Interactive follow-up options")
 
 
 # =============================================================================
@@ -12442,6 +12451,19 @@ async def personality_based_inference(request: Request, inference_request: Perso
         personality_info = result.get('personality', {})
         metadata = result.get('metadata', {})
         
+        # Convert follow_up_options to FollowUpOption objects if present
+        follow_up_options_objs = None
+        if result.get('follow_up_options'):
+            follow_up_options_objs = [
+                FollowUpOption(
+                    id=opt['id'],
+                    label=opt['label'],
+                    action=opt['action'],
+                    parameters=opt.get('parameters')
+                )
+                for opt in result['follow_up_options']
+            ]
+        
         return PersonalityInferenceResponse(
             response=result.get('text', ''),
             model="oneseek-7b-zero-3stage",
@@ -12454,7 +12476,8 @@ async def personality_based_inference(request: Request, inference_request: Perso
                 "prompt": ""  # Not needed in response
             },
             thinking_chain=thinking_chain,
-            api_data=None  # API data is included in thinking chain
+            api_data=None,  # API data is included in thinking chain
+            follow_up_options=follow_up_options_objs
         )
         
     except HTTPException:
@@ -15070,6 +15093,83 @@ async def generate_personality_response(
         })
         
         # ============================================================================
+        # DETECT FOLLOW-UP QUESTIONS (for Socionomen case law)
+        # ============================================================================
+        follow_up_options = None
+        
+        # Check if response contains a follow-up question (case-insensitive Swedish patterns)
+        followup_patterns = [
+            r'vill du (se|ha|läsa|titta på)',
+            r'är du intresserad av',
+            r'vill du att jag',
+            r'ska jag (visa|söka|hämta)',
+            r'önskar du',
+            r'\?$'  # Ends with question mark
+        ]
+        
+        has_followup = any(re.search(pattern, final_response.lower()) for pattern in followup_patterns)
+        
+        # If it's Socionomen and response contains follow-up about prejudikat/domar
+        if has_followup and personality_id == "socionomen":
+            # Check if asking about case law / prejudikat
+            case_law_patterns = [
+                r'prejudikat',
+                r'dom(ar|en)?',
+                r'rättspraxis',
+                r'kammarrätt',
+                r'högsta förvaltningsdomstolen',
+                r'hfd',
+                r'tillämp(ning|ats|at)',
+                r'verkliga fall',
+                r'exempel'
+            ]
+            
+            is_about_case_law = any(re.search(pattern, final_response.lower()) for pattern in case_law_patterns)
+            
+            if is_about_case_law:
+                # Extract paragraph reference from the response or original query
+                paragraph_match = re.search(r'(\d+\s*kap\.?\s*\d+\s*§)', final_response + " " + text, re.IGNORECASE)
+                paragraph = paragraph_match.group(1) if paragraph_match else None
+                
+                # Extract law name
+                law_patterns = {
+                    'Socialtjänstlagen': r'sol|socialtjänstlagen',
+                    'LVU': r'lvu|lagen om vård av unga',
+                    'LVM': r'lvm|lagen om vård av missbrukare'
+                }
+                
+                law_name = None
+                for law, pattern in law_patterns.items():
+                    if re.search(pattern, (final_response + " " + text).lower()):
+                        law_name = law
+                        break
+                
+                if not law_name:
+                    law_name = "Socialtjänstlagen"  # Default for Socionomen
+                
+                # Create follow-up options
+                follow_up_options = [
+                    {
+                        "id": "followup_yes",
+                        "label": "Ja, visa exempel",
+                        "action": "search_prejudikat",
+                        "parameters": {
+                            "paragraf": paragraph if paragraph else "4 kap. 1 §",
+                            "lag_namn": law_name,
+                            "personality": personality_id
+                        }
+                    },
+                    {
+                        "id": "followup_no",
+                        "label": "Nej tack",
+                        "action": "decline_followup",
+                        "parameters": {}
+                    }
+                ]
+                
+                print(f"🔔 Detected follow-up question about case law: {paragraph} in {law_name}")
+        
+        # ============================================================================
         # BUILD RESPONSE
         # ============================================================================
         total_time_ms = int((time.time() - start_time) * 1000)
@@ -15086,7 +15186,8 @@ async def generate_personality_response(
                 "latency_ms": total_time_ms,
                 "thinking_steps": len(thinking_steps),
                 "api_sources": successful_api_names
-            }
+            },
+            "follow_up_options": follow_up_options
         }
         
     except Exception as e:

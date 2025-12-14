@@ -240,6 +240,47 @@ export async function resetPersonality() {
 }
 
 /**
+ * Handle follow-up action (e.g., search prejudikat for Socionomen)
+ * 
+ * @param {Object} followUpOption - The selected follow-up option
+ * @param {string} followUpOption.id - Option ID
+ * @param {string} followUpOption.action - Action to perform
+ * @param {Object} followUpOption.parameters - Action parameters
+ * @returns {Promise<Object>} Response with new answer based on follow-up
+ */
+export async function handleFollowUpAction(followUpOption) {
+  const { action, parameters } = followUpOption;
+  
+  // If decline, just return acknowledgment
+  if (action === 'decline_followup') {
+    return {
+      response: "Okej, du kan ställa en ny fråga om du vill ha mer information.",
+      personality: parameters.personality || 'socionomen',
+      thinking_chain: [],
+      follow_up_options: null
+    };
+  }
+  
+  // If search_prejudikat, create a new query to search for case law
+  if (action === 'search_prejudikat') {
+    const { paragraf, lag_namn, personality } = parameters;
+    
+    // Generate a natural search query
+    const searchQuery = `Sök efter domar och prejudikat om ${paragraf} i ${lag_namn}`;
+    
+    // Call personality inference with context that we're following up
+    const response = await sendPersonalityChatMessage(searchQuery, {
+      overridePersonality: personality,
+      maxTokens: 800  // Allow more tokens for case law summaries
+    });
+    
+    return response;
+  }
+  
+  throw new Error(`Unknown follow-up action: ${action}`);
+}
+
+/**
  * Get personality catalog
  * 
  * @returns {Promise<Object>} Full personality catalog

@@ -9,6 +9,7 @@ import PipelineAnalysisPanel from '../components/PipelineAnalysisPanel';
 import HighlightedText from '../components/HighlightedText';
 import ConsensusDebateCard from '../components/ConsensusDebateCard';
 import NLPProcessingLoader from '../components/NLPProcessingLoader';
+import FollowUpButtons from '../components/FollowUpButtons';
 import { formatMarkdown } from '../utils/formatMarkdown';
 import { triggerMicroTrainingAsync } from '../utils/microTraining';
 
