@@ -1,8 +1,8 @@
 {
   "name": "Politik Sverige",
-  "version": "1.0.0",
-  "description": "Öppen data om svensk politik, riksdag, regering, val och bistånd – från officiella källor som Riksdagen, SCB och OpenAid",
-  "updated": "2025-12-13",
+  "version": "1.1.0",
+  "description": "Öppen data om svensk politik – riksdagsdokument, voteringar, ledamöter, anföranden och valresultat. Optimerad för precision och filtrering.",
+  "updated": "2025-12-14",
   "provider": {
     "name": "Sveriges Riksdag, SCB, Utrikesdepartementet",
     "url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/",
@@ -25,14 +25,23 @@
       "url_template": true,
       "keywords": [
         "votering", "omröstning", "riksdagsröstning", "hur röstade", "parti röstade",
-        "röstade riksdagen", "omröstning om", "votering om", "ja eller nej"
+        "röstade riksdagen", "omröstning om", "votering om", "ja eller nej", "votering Nato"
       ],
-      "priority": 0,
-      "description": "Riksdagens voteringar och omröstningar",
+      "priority": 1,
+      "description": "Riksdagens voteringar och omröstningar med beteckning och riksmöte",
       "method": "GET",
       "parameters": {
-        "riksmote": {"type": "string", "required": true, "description": "Riksmöte (t.ex. 2024/25)"},
-        "beteckning": {"type": "string", "required": true, "description": "Beteckning (t.ex. AU4)"}
+        "riksmote": {
+          "type": "string",
+          "required": true,
+          "default": "2024/25",
+          "description": "Riksmöte (t.ex. 2024/25 eller 2025/26)"
+        },
+        "beteckning": {
+          "type": "string",
+          "required": true,
+          "description": "Beteckning (t.ex. AU4 för Nato-omröstning)"
+        }
       },
       "data_format": "JSON",
       "example_url": "https://data.riksdagen.se/voteringlista/?rm=2024/25&bet=AU4&sz=20&utformat=json"
@@ -41,20 +50,47 @@
       "name": "riksdagen_dokument",
       "source": "Riksdagens öppna data",
       "frequency": "realtid",
-      "url": "https://data.riksdagen.se/dokumentlista/?sok={query}&doktyp=prop,mot,bet&utformat=json&p=1&sz=20",
+      "url": "https://data.riksdagen.se/dokumentlista/?sok={query}&doktyp={doktyp}&rm={riksmote}&from={from_date}&tom={to_date}&utformat=json&sz=20&p=1",
       "url_template": true,
       "keywords": [
-        "proposition", "motion", "betänkande", "riksdagsdokument", "regeringens förslag",
-        "förslag i riksdagen", "lagförslag", "riksdagsbeslut"
+        "proposition om", "motion om", "betänkande om", "riksdagsdokument", "regeringens förslag",
+        "förslag i riksdagen", "lagförslag", "riksdagsbeslut", "riksdagen om", "riksdagen migration",
+        "riksdagen klimat", "riksdagen kärnkraft"
       ],
-      "priority": 1,
-      "description": "Riksdagens dokument (propositioner, motioner, betänkanden)",
+      "priority": 0,
+      "description": "Sök i riksdagens dokument – propositioner, motioner och betänkanden med avancerad filtrering",
       "method": "GET",
       "parameters": {
-        "query": {"type": "string", "required": false, "description": "Sökterm (t.ex. titel eller ämne)"}
+        "query": {
+          "type": "string",
+          "required": true,
+          "description": "Sökterm (t.ex. migration, klimat, kärnkraft, Nato)"
+        },
+        "doktyp": {
+          "type": "string",
+          "required": false,
+          "default": "prop,mot,bet",
+          "description": "Filtrera dokumenttyp: prop (propositioner), mot (motioner), bet (betänkanden)"
+        },
+        "riksmote": {
+          "type": "string",
+          "required": false,
+          "default": "2025/26",
+          "description": "Riksmöte, t.ex. 2024/25 eller 2025/26"
+        },
+        "from_date": {
+          "type": "string",
+          "required": false,
+          "description": "Startdatum i format YYYY-MM-DD (t.ex. 2025-01-01)"
+        },
+        "to_date": {
+          "type": "string",
+          "required": false,
+          "description": "Slutdatum i format YYYY-MM-DD (t.ex. 2025-12-31)"
+        }
       },
       "data_format": "JSON",
-      "example_url": "https://data.riksdagen.se/dokumentlista/?sok=klimat&doktyp=prop,mot,bet&utformat=json&p=1&sz=20"
+      "example_url": "https://data.riksdagen.se/dokumentlista/?sok=klimat&doktyp=prop&rm=2024/25&utformat=json&sz=20&p=1"
     },
     {
       "name": "riksdagen_ledamoter",
@@ -77,20 +113,30 @@
       "name": "riksdagen_anforanden",
       "source": "Riksdagens öppna data",
       "frequency": "realtid",
-      "url": "https://data.riksdagen.se/anforandelista/?iid={ledamot_id}&sz=20&utformat=json",
+      "url": "https://data.riksdagen.se/anforandelista/?sok={query}&rm={riksmote}&sz=20&utformat=json",
       "url_template": true,
       "keywords": [
         "tal i riksdagen", "anförande", "debatt", "vad sa", "talade i riksdagen",
-        "sagt i riksdagen"
+        "sagt i riksdagen", "anförande om"
       ],
       "priority": 3,
-      "description": "Anföranden och tal i riksdagen",
+      "description": "Anföranden och tal i riksdagen med sökfiltrering",
       "method": "GET",
       "parameters": {
-        "ledamot_id": {"type": "string", "required": true, "description": "Ledamotens ID (från personlista)"}
+        "query": {
+          "type": "string",
+          "required": false,
+          "description": "Sökterm för anföranden (t.ex. migration, klimat)"
+        },
+        "riksmote": {
+          "type": "string",
+          "required": false,
+          "default": "2024/25",
+          "description": "Riksmöte (t.ex. 2024/25)"
+        }
       },
       "data_format": "JSON",
-      "example_url": "https://data.riksdagen.se/anforandelista/?iid=0123456789&sz=20&utformat=json"
+      "example_url": "https://data.riksdagen.se/anforandelista/?sok=migration&rm=2024/25&sz=20&utformat=json"
     },
     {
       "name": "valresultat",
