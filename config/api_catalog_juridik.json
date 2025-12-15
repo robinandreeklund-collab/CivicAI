@@ -16,88 +16,73 @@
   "default_api": "lagen_nu_paragraf",
   "max_results": 20,
 
-  "api_catalog": {
-    "lagtext": {
-      "description": "Exakt paragraftext från svenska lagar",
-      "keywords": ["paragraf", "exakt text", "citera lag", "vad säger paragraf", "lagtext"],
+  "apis": [
+    {
+      "name": "lagen_nu_paragraf",
+      "source": "Lagrummet / Lagen.nu",
+      "tool": "browse_page",
+      "url_template": "https://lagen.nu/{sfs_nr}#{paragraph}",
+      "keywords": ["exakt paragraf", "citera paragraf", "vad säger paragraf", "lagtext", "paragraf", "exakt text", "citera lag", "vad säger paragraf"],
       "priority": 0,
-      "apis": [
-        {
-          "name": "lagen_nu_paragraf",
-          "source": "Lagrummet / Lagen.nu",
-          "tool": "browse_page",
-          "url_template": "https://lagen.nu/{sfs_nr}#{paragraph}",
-          "keywords": ["exakt paragraf", "citera paragraf", "vad säger paragraf"],
-          "priority": 0,
-          "parameters": {
-            "sfs_nr": {
-              "required": true,
-              "description": "SFS-nummer, t.ex. '2025:400' för nya SoL, '2001:453' för gamla SoL, '1990:52' för LVU"
-            },
-            "paragraph": {
-              "required": true,
-              "description": "Paragraf i format '4-kap-1'"
-            }
-          },
-          "method": "BROWSE",
-          "data_format": "HTML/Text",
-          "instructions": "Extrahera DEN EXAKTA TEXTEN för den angivna paragrafen. Börja med rubrik (t.ex. '4 kap. 1 §') följt av full lydelse. Inkludera inte noter, kommentarer eller kringtext.",
-          "example_url": "https://lagen.nu/2025:400#4-kap-1",
-          "notes": "Generisk endpoint för alla svenska lagar via SFS-nummer"
-        }
-      ]
-    },
-
-    "prejudikat": {
-      "description": "Prejudikat och domar från officiella källor",
-      "keywords": ["prejudikat", "domar", "hfd", "kammarrätt", "tillämpning paragraf", "verkliga fall", "hur används paragrafen"],
-      "priority": 0,
-      "apis": [
-        {
-          "name": "prejudikat_search",
-          "source": "Lagrummet + HFD + Lagen.nu",
-          "tool": "web_search",
-          "query_template": "\"{paragraf}\" \"{lag_namn}\" site:lagrummet.se OR site:hogstaforvaltningsdomstolen.se OR site:lagen.nu/dom",
-          "keywords": ["prejudikat paragraf", "domar paragraf", "hfd paragraf"],
-          "priority": 0,
-          "parameters": {
-            "paragraf": {
-              "required": true,
-              "description": "t.ex. '4 kap. 1 §'"
-            },
-            "lag_namn": {
-              "required": true,
-              "description": "t.ex. 'Socialtjänstlagen', 'SoL', 'LVU'"
-            }
-          },
-          "method": "SEARCH",
-          "data_format": "Search Results",
-          "instructions": "Sök efter prejudikat och domar som tillämpat den angivna paragrafen. Fokusera på officiella källor.",
-          "example_query": "\"4 kap. 1 §\" \"Socialtjänstlagen\" site:lagrummet.se OR site:hogstaforvaltningsdomstolen.se",
-          "notes": "Använder web_search för att hitta relevanta prejudikat från officiella källor"
+      "parameters": {
+        "sfs_nr": {
+          "required": true,
+          "description": "SFS-nummer, t.ex. '2025:400' för nya SoL, '2001:453' för gamla SoL, '1990:52' för LVU"
         },
-        {
-          "name": "browse_prejudikat_dom",
-          "source": "Specifik dom",
-          "tool": "browse_page",
-          "url_template": "{dom_url}",
-          "keywords": ["läs domen", "sammanfatta domen", "hela domen"],
-          "priority": 0,
-          "parameters": {
-            "dom_url": {
-              "required": true,
-              "description": "URL till specifik dom"
-            }
-          },
-          "method": "BROWSE",
-          "data_format": "HTML/Text",
-          "instructions": "Sammanfatta domen med fokus på: 1. Mål-nummer och datum. 2. Vilken paragraf som prövades. 3. Domstolens beslut och resonemang. Håll saklig och kort (max 250 ord).",
-          "example_url": "https://lagen.nu/dom/hfd/2023:1",
-          "notes": "Används för att läsa och sammanfatta en specifik dom"
+        "paragraph": {
+          "required": true,
+          "description": "Paragraf i format '4-kap-1'"
         }
-      ]
+      },
+      "method": "BROWSE",
+      "data_format": "HTML/Text",
+      "instructions": "Extrahera DEN EXAKTA TEXTEN för den angivna paragrafen. Börja med rubrik (t.ex. '4 kap. 1 §') följt av full lydelse. Inkludera inte noter, kommentarer eller kringtext.",
+      "example_url": "https://lagen.nu/2025:400#4-kap-1",
+      "notes": "Generisk endpoint för alla svenska lagar via SFS-nummer"
+    },
+    {
+      "name": "prejudikat_search",
+      "source": "Lagrummet + HFD + Lagen.nu",
+      "tool": "web_search",
+      "query_template": "\"{paragraf}\" \"{lag_namn}\" site:lagrummet.se OR site:hogstaforvaltningsdomstolen.se OR site:lagen.nu/dom",
+      "keywords": ["prejudikat", "domar", "hfd", "kammarrätt", "tillämpning paragraf", "verkliga fall", "hur används paragrafen", "prejudikat paragraf", "domar paragraf", "hfd paragraf"],
+      "priority": 0,
+      "parameters": {
+        "paragraf": {
+          "required": true,
+          "description": "t.ex. '4 kap. 1 §'"
+        },
+        "lag_namn": {
+          "required": true,
+          "description": "t.ex. 'Socialtjänstlagen', 'SoL', 'LVU'"
+        }
+      },
+      "method": "SEARCH",
+      "data_format": "Search Results",
+      "instructions": "Sök efter prejudikat och domar som tillämpat den angivna paragrafen. Fokusera på officiella källor.",
+      "example_query": "\"4 kap. 1 §\" \"Socialtjänstlagen\" site:lagrummet.se OR site:hogstaforvaltningsdomstolen.se",
+      "notes": "Använder web_search för att hitta relevanta prejudikat från officiella källor"
+    },
+    {
+      "name": "browse_prejudikat_dom",
+      "source": "Specifik dom",
+      "tool": "browse_page",
+      "url_template": "{dom_url}",
+      "keywords": ["läs domen", "sammanfatta domen", "hela domen"],
+      "priority": 0,
+      "parameters": {
+        "dom_url": {
+          "required": true,
+          "description": "URL till specifik dom"
+        }
+      },
+      "method": "BROWSE",
+      "data_format": "HTML/Text",
+      "instructions": "Sammanfatta domen med fokus på: 1. Mål-nummer och datum. 2. Vilken paragraf som prövades. 3. Domstolens beslut och resonemang. Håll saklig och kort (max 250 ord).",
+      "example_url": "https://lagen.nu/dom/hfd/2023:1",
+      "notes": "Används för att läsa och sammanfatta en specifik dom"
     }
-  },
+  ],
 
   "entity_config": {
     "entity_required": false,

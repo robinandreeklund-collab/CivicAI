@@ -24,6 +24,8 @@ import json
 import logging
 import re
 import os
+import sys
+from bs4 import BeautifulSoup
 
 # Try to import feedparser for RSS feeds
 try:
@@ -2026,6 +2028,344 @@ def get_registry_summary() -> Dict[str, Any]:
 # BROWSE_PAGE - Web Content Fetching
 # =============================================================================
 
+def extract_chapter_from_riksdagen(html_content: str, chapter_number: str) -> Optional[str]:
+    """
+    Extract a specific chapter from Riksdagen.se law HTML using BeautifulSoup.
+    
+    Args:
+        html_content: Full HTML content from Riksdagen
+        chapter_number: Chapter number as string (e.g., "4" for "4 kap.")
+        
+    Returns:
+        Extracted chapter text or None if not found
+    """
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # Find chapter header - try multiple tag types and search methods
+        # Pattern matches "4 kap." or "4 kap. Title text"
+        chapter_pattern = re.compile(rf"{chapter_number}\s+kap\.?", re.IGNORECASE)
+        chapter_header = None
+        
+        # Try h2 tags first
+        for h2 in soup.find_all('h2'):
+            if chapter_pattern.search(h2.get_text()):
+                chapter_header = h2
+                break
+        
+        # If not found, try h3 tags
+        if not chapter_header:
+            for h3 in soup.find_all('h3'):
+                if chapter_pattern.search(h3.get_text()):
+                    chapter_header = h3
+                    break
+        
+        # If still not found, try h4 tags
+        if not chapter_header:
+            for h4 in soup.find_all('h4'):
+                if chapter_pattern.search(h4.get_text()):
+                    chapter_header = h4
+                    break
+        
+        # If still not found, try strong/b tags
+        if not chapter_header:
+            for tag in soup.find_all(['strong', 'b']):
+                if chapter_pattern.search(tag.get_text()):
+                    chapter_header = tag
+                    break
+        
+        if not chapter_header:
+            logger.warning(f"[extract_chapter] Chapter {chapter_number} not found in HTML (tried h2, h3, h4, strong tags)")
+            return None
+        
+        logger.info(f"[extract_chapter] Found chapter {chapter_number} in <{chapter_header.name}> tag")
+        
+        # Collect all content after the header until next chapter header
+        content_parts = []
+        header_tag_name = chapter_header.name
+        
+        # Find all siblings after the chapter header
+        siblings = []
+        current = chapter_header.next_sibling
+        while current:
+            # Stop if we hit another chapter header
+            if hasattr(current, 'name') and current.name == header_tag_name:
+                if re.search(r'\d+\s+kap\.?', current.get_text(), re.IGNORECASE):
+                    break
+            siblings.append(current)
+            current = current.next_sibling
+        
+        # Process all siblings and their descendants
+        seen_para_markers = set()
+        i = 0
+        
+        while i < len(siblings):
+            sibling = siblings[i]
+            
+            if hasattr(sibling, 'name') and sibling.name:
+                # Handle subsection headers (h4, h5)
+                if sibling.name in ['h4', 'h5']:
+                    text = sibling.get_text(strip=True)
+                    if text:
+                        content_parts.append(f"\n{text}\n")
+                
+                # Handle <a> tags that might contain paragraph markers
+                # Structure: <a><b>1 §</b></a>  followed by text node with content
+                elif sibling.name == 'a':
+                    b_tag = sibling.find('b')
+                    if b_tag:
+                        b_text = b_tag.get_text(strip=True)
+                        # Check if it's a paragraph marker (matches "1 §", "1 a §", "1 b §", etc.)
+                        if re.match(r'^\d+\s*[a-z]?\s*§$', b_text) and b_text not in seen_para_markers:
+                            # Add paragraph marker
+                            content_parts.append(f"\n{b_text}  ")
+                            seen_para_markers.add(b_text)
+                            
+                            # Collect text nodes that follow this <a> tag
+                            # The actual legal text comes as text nodes after <a><b>§</b></a>
+                            collected_text = []
+                            j = i + 1
+                            while j < len(siblings):
+                                next_sibling = siblings[j]
+                                
+                                # Stop if we hit another <a> with paragraph marker or heading
+                                if hasattr(next_sibling, 'name') and next_sibling.name:
+                                    if next_sibling.name == 'a' and next_sibling.find('b'):
+                                        next_b = next_sibling.find('b')
+                                        if re.match(r'^\d+\s*[a-z]?\s*§$', next_b.get_text(strip=True)):
+                                            break
+                                    elif next_sibling.name in ['h4', 'h5', 'h2', 'h3']:
+                                        # Don't consume headers - let them be processed in next iteration
+                                        break
+                                    # Skip empty <p> tags but continue collecting
+                                    elif next_sibling.name == 'p':
+                                        p_text = next_sibling.get_text(strip=True)
+                                        if not p_text:
+                                            j += 1
+                                            continue
+                                        else:
+                                            # Non-empty paragraph tag means end of this paragraph's text
+                                            break
+                                    # For other tags, check if they're empty separators or should be included
+                                    elif next_sibling.name in ['br']:
+                                        j += 1
+                                        continue
+                                    elif next_sibling.name == 'i':
+                                        # Include italic text (often legal references like "Lag (2017:809)")
+                                        i_text = next_sibling.get_text(strip=True)
+                                        if i_text:
+                                            collected_text.append(i_text)
+                                        j += 1
+                                        continue
+                                    else:
+                                        # Other substantial tags stop paragraph text collection
+                                        break
+                                
+                                # Collect text nodes (NavigableString objects)
+                                elif hasattr(next_sibling, 'strip'):
+                                    text = next_sibling.strip()
+                                    # Collect any non-empty text (not just > 10 chars)
+                                    if text:
+                                        collected_text.append(text)
+                                
+                                j += 1
+                            
+                            # Add the collected text for this paragraph
+                            if collected_text:
+                                # Join with space and clean up excessive whitespace
+                                para_text = " ".join(collected_text)
+                                para_text = re.sub(r'\s+', ' ', para_text).strip()
+                                content_parts.append(para_text)
+                            # Don't skip ahead - let the loop continue normally to process headers
+                            # i = j - 1  # REMOVED: This was skipping headers
+                
+                # Handle paragraphs and other content containers (only if not empty separators)
+                elif sibling.name in ['p', 'div', 'section', 'article']:
+                    text = sibling.get_text(separator=" ", strip=True)
+                    if text and len(text) > 10:
+                        content_parts.append(text)
+                
+                # Handle lists, tables, and other structured content
+                elif sibling.name in ['ul', 'ol', 'li', 'table', 'pre']:
+                    text = sibling.get_text(separator=" ", strip=True)
+                    if text:
+                        content_parts.append(text)
+            
+            elif hasattr(sibling, 'strip'):
+                # This is a text node (NavigableString) - these are usually collected with their paragraph markers
+                # Only add if substantial and not already collected
+                text = sibling.strip()
+                if text and len(text) > 10:
+                    # Check if this might be paragraph text not yet collected
+                    # (in case structure is different than expected)
+                    content_parts.append(text)
+            
+            i += 1
+        
+        # Get the chapter header text
+        header_text = chapter_header.get_text(strip=True)
+        
+        # Join all collected content
+        chapter_text = "\n\n".join(content_parts)
+        
+        # Combine header and content
+        result = f"{header_text}\n\n{chapter_text}"
+        logger.info(f"[extract_chapter] Successfully extracted chapter {chapter_number} ({len(result)} chars, {len(content_parts)} parts)")
+        return result
+        
+    except Exception as e:
+        logger.error(f"[extract_chapter] Error extracting chapter: {e}", exc_info=True)
+        return None
+
+
+def browse_page_with_chapter_extraction(url: str, chapter: Optional[str] = None) -> Optional[str]:
+    """
+    Fetch and extract content from Riksdagen.se with optional chapter extraction.
+    
+    For Riksdagen URLs:
+    - If chapter is provided: Extract only that specific chapter (3k-6k chars)
+    - If no chapter: Return first 6000 chars as preview
+    
+    For other URLs:
+    - Return first 6000 chars
+    
+    Args:
+        url: The URL to fetch
+        chapter: Optional chapter number (e.g., "4" for "4 kap.")
+        
+    Returns:
+        Extracted content or error message
+    """
+    try:
+        # Fetch the full page
+        logger.info(f"[browse_page_chapter] Fetching {url}")
+        response = requests.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
+        response.raise_for_status()
+        
+        # Check if this is a Riksdagen URL and chapter extraction is requested
+        if 'riksdagen.se' in url and chapter:
+            logger.info(f"[browse_page_chapter] Extracting chapter {chapter} from Riksdagen")
+            extracted = extract_chapter_from_riksdagen(response.text, chapter)
+            if extracted:
+                return extracted
+            else:
+                logger.warning(f"[browse_page_chapter] Chapter extraction failed, falling back to first 6000 chars")
+        
+        # Fallback: Use browse_page for simple text extraction
+        content = browse_page(url, max_length=6000)
+        if content:
+            logger.info(f"[browse_page_chapter] Returning {len(content)} chars from page")
+            return content
+        
+        return "Kunde inte hämta innehåll från sidan."
+        
+    except Exception as e:
+        logger.error(f"[browse_page_chapter] Error: {e}")
+        return f"Ett fel uppstod vid hämtning av sidan: {str(e)}"
+
+
+def browse_page_with_bert(url: str, ratio: float = 0.3, min_length: int = 100) -> Optional[str]:
+    """
+    DEPRECATED: Use browse_page_with_chapter_extraction instead.
+    
+    This function is kept for backwards compatibility but is no longer recommended.
+    BERT summarization was too slow (60-120s) and produced poor results for large documents.
+    
+    Args:
+        url: The URL to fetch (may include anchor fragment like #K11P1)
+        ratio: Compression ratio for BERT summarization (0.2-0.5 recommended, default 0.3)
+        min_length: Minimum summary length in characters (default 100)
+        
+    Returns:
+        BERT-summarized content or error message
+    """
+    logger.warning("[browse_page_with_bert] DEPRECATED - Use browse_page_with_chapter_extraction instead")
+    
+    try:
+        # First, fetch the full page content WITHOUT character limit
+        # browse_page with max_length=999999 fetches the entire content
+        full_text = browse_page(url, max_length=999999)
+        
+        # Check if fetch failed
+        if not full_text or full_text.startswith("Kunde inte") or full_text.startswith("Ett oväntat fel"):
+            return full_text
+        
+        # Remove the "Innehållet fortsätter på webbplatsen" suffix if present
+        full_text = re.sub(r'\.\.\.\n\n\[Innehållet fortsätter på webbplatsen\]$', '', full_text)
+        
+        # If text is very short, no need to summarize
+        if len(full_text) < min_length * 2:
+            logger.info(f"[browse_page_with_bert] Text too short to summarize ({len(full_text)} chars), returning as-is")
+            return full_text
+        
+        logger.info(f"[browse_page_with_bert] Summarizing {len(full_text)} chars with BERT (ratio={ratio})")
+        
+        # Call BERT summarizer
+        import subprocess
+        import json as json_module
+        from pathlib import Path
+        
+        # Path to bert_summarizer.py
+        bert_script = Path(__file__).parent.parent / "backend" / "python_services" / "bert_summarizer.py"
+        
+        if not bert_script.exists():
+            logger.warning(f"[browse_page_with_bert] BERT summarizer script not found at {bert_script}")
+            # Fall back to truncated content with clear warning
+            logger.warning(f"[browse_page_with_bert] Returning truncated content (3000 chars) - BERT not available")
+            return full_text[:3000] + "...\n\n[VARNING: BERT ej tillgänglig - innehållet är trunkerat]"
+        
+        # Prepare input for BERT summarizer
+        input_data = {
+            "text": full_text,
+            "ratio": ratio,
+            "min_length": min_length,
+            "max_length": None  # No limit on output
+        }
+        
+        # Call the BERT summarizer Python script
+        try:
+            result = subprocess.run(
+                [sys.executable, str(bert_script)],
+                input=json_module.dumps(input_data, ensure_ascii=False),
+                capture_output=True,
+                text=True,
+                timeout=120  # Increased to 120 seconds for large documents (100k+ chars)
+            )
+            
+            if result.returncode == 0:
+                output = json_module.loads(result.stdout)
+                if output.get("success"):
+                    summary = output.get("summary", "")
+                    metadata = output.get("metadata", {})
+                    logger.info(f"[browse_page_with_bert] BERT summarization successful: "
+                              f"{metadata.get('original_length', 0)} → {metadata.get('summary_length', 0)} chars "
+                              f"(compression: {metadata.get('compression_ratio', 0):.2%})")
+                    return summary
+                else:
+                    logger.error(f"[browse_page_with_bert] BERT summarization failed: {output.get('error')}")
+                    # Fall back to truncated content with clear warning
+                    logger.warning(f"[browse_page_with_bert] Returning truncated content (3000 chars) - BERT failed")
+                    return full_text[:3000] + "...\n\n[VARNING: BERT-summering misslyckades - innehållet är trunkerat]"
+            else:
+                logger.error(f"[browse_page_with_bert] BERT script failed: {result.stderr}")
+                # Fall back to truncated content with clear warning
+                logger.warning(f"[browse_page_with_bert] Returning truncated content (3000 chars) - BERT script error")
+                return full_text[:3000] + "...\n\n[VARNING: BERT-summering misslyckades - innehållet är trunkerat]"
+                
+        except subprocess.TimeoutExpired:
+            logger.error(f"[browse_page_with_bert] BERT summarization timed out")
+            logger.warning(f"[browse_page_with_bert] Returning truncated content (3000 chars) - BERT timeout")
+            return full_text[:3000] + "...\n\n[VARNING: BERT-summering tog för lång tid - innehållet är trunkerat]"
+        except Exception as e:
+            logger.error(f"[browse_page_with_bert] Error calling BERT summarizer: {e}")
+            logger.warning(f"[browse_page_with_bert] Returning truncated content (3000 chars) - BERT error: {e}")
+            return full_text[:3000] + "...\n\n[VARNING: BERT-summering misslyckades - innehållet är trunkerat]"
+        
+    except Exception as e:
+        logger.error(f"[browse_page_with_bert] Unexpected error: {e}")
+        return f"Ett oväntat fel uppstod vid hämtning och summering av {url}"
+
+
 def browse_page(url: str, max_length: int = 3000) -> Optional[str]:
     """
     Fetch and extract text content from a web page.
@@ -2040,6 +2380,10 @@ def browse_page(url: str, max_length: int = 3000) -> Optional[str]:
     Note: Uses regex-based HTML parsing for simplicity and minimal dependencies.
     For more robust parsing, consider upgrading to BeautifulSoup in the future.
     
+    .. deprecated:: 
+        Use browse_page_with_bert instead for better results.
+        This function is kept for backward compatibility and as a fallback.
+    
     Args:
         url: The URL to fetch (may include anchor fragment like #K11P1)
         max_length: Maximum length of returned text (default 3000 chars for paragraph-level content)
@@ -2047,6 +2391,12 @@ def browse_page(url: str, max_length: int = 3000) -> Optional[str]:
     Returns:
         Extracted text content or error message
     """
+    import warnings
+    warnings.warn(
+        "browse_page is deprecated, use browse_page_with_bert instead",
+        DeprecationWarning,
+        stacklevel=2
+    )
     try:
         from urllib.parse import urlparse
         
@@ -2158,6 +2508,10 @@ __all__ = [
     'fetch_trafikverket_data',
     'fetch_saol_data',
     'fetch_open_data_search',
+    
+    # Web page fetching
+    'browse_page',
+    'browse_page_with_bert',
     'fetch_svt_news',
     'fetch_sr_ekot_news',
     'fetch_omni_news',
