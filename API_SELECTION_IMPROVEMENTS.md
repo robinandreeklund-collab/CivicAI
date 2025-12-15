@@ -295,3 +295,85 @@ Har personligheten API:er?
 **Version**: 2.0.0
 **Datum**: 2025-12-14
 **Status**: Implementerat och redo för testning
+
+---
+
+## PR #116: Socionomen Chapter Parsing och Follow-up (2025-12-15)
+
+### Bakgrund
+Efter PR #115 (kapitelextraktion från Riksdagen) identifierades flera problem i produktionsanvändning:
+1. Socionomen parsade "X kap. Y §" felaktigt → skickade `kapitel=Y` istället för `kapitel=X`
+2. AI valde äldre lagen.nu API:er istället för nya Riksdagen chapter-based APIs
+3. Follow-up för prejudikat fungerade inte konsekvent
+4. Svar trunkerades ofta p.g.a. för låga token-limits (500)
+
+### Implementerade Förbättringar
+
+#### 1. Robust Chapter Parsing i Prompts
+**Fil**: `frontend/public/characters/OneSeek-Socionomen.yaml`
+
+Lade till explicit instruktionssektion med:
+- **Regex-liknande mönster**: `(\d+)\s+kap\.?\s+(\d+\s*[a-z]?)?\s*§?`
+- **5 konkreta exempel**:
+  - "4 kap. 1 §" → kapitel="4" (INTE 1)
+  - "11 kap 5 §" → kapitel="11" (INTE 5)
+  - "5 kap" → kapitel="5"
+  - "12 kap. 3 a §" → kapitel="12"
+- **Tydlig regel**: Första numret = kapitel, andra numret = paragraf (används bara i citat)
+
+#### 2. API-preferenser
+**Filer**: 
+- `config/api_catalog_socionomen.json`
+- `config/api_catalog_socionomen_new.json`
+- `frontend/public/characters/OneSeek-Socionomen.yaml`
+
+**Ändringar**:
+- Uppdaterade beskrivningar: "FÖREDRAGEN API för nya/gamla SoL-frågor"
+- Klargjorde parameter-beskrivningar med exempel: "Vid '4 kap. 1 §' → kapitel='4'"
+- Lade till prompt-instruktion: "FÖREDRA ALLTID Riksdagen-kapitel-API:er"
+- Behöll `priority: 0` och `priority: 1` för chapter-based APIs
+
+#### 3. Follow-up Schema för Prejudikat
+**Fil**: `frontend/public/characters/OneSeek-Socionomen.yaml`
+
+Lade till detaljerad "FOLLOW-UP SCHEMA" sektion med:
+- **Obligatorisk struktur**: JSON-schema för `follow_up_options`
+- **Två exempel-svar** med fullständiga follow-up arrays
+- **Required fields**: `id`, `label`, `action`, `parameters`
+- **Actions**: `search_prejudikat` och `decline_followup`
+- **Parameters**: `paragraf`, `lag_namn`, `personality`
+
+**Frontend-integration**: `frontend/src/services/chat.js` (`handleFollowUpAction`)
+- Stöder redan `action === 'search_prejudikat'`
+- Uppdaterade token-limit till 1200 för prejudikat-svar
+
+#### 4. Ökade Token-limits
+**Filer uppdaterade**:
+- `frontend/src/services/chat.js`: 512 → 1600 för Socionomen
+- `backend/services/openai.js`: 500 → 2000
+- `backend/services/mistral.js`: 500 → 1500
+
+**Resultat**: Socionomen-svar kan nu vara 900-1800 tokens utan trunkering.
+
+#### 5. API Selector Code Quality
+**Fil**: `ml_service/api_selector.py`
+
+**Förbättringar**:
+- **Deduplicate URL formatting**: Extraherade `format_url_with_params()` helper
+- **Tydligare flag-namn**: `CHAPTER_EXTRACTION_AVAILABLE`
+- **Konsekvent error-hantering**
+
+**Fil**: `ml_service/api_integrations.py`
+- **DeprecationWarning**: `browse_page_with_bert` emitterar nu `warnings.warn()`
+- **Uppdaterad docstring**: `extract_chapter_from_riksdagen` nämner bokstavsparagrafer
+
+### Acceptance Criteria
+✅ "Citera 4 kap. 1 § i gamla SoL" → `sol_gammal_kapitel(kapitel="4")`
+✅ Svar >900 tokens utan trunkering
+✅ "Jämför 4 kap. 1 §" → båda API:er anropas
+✅ Follow-up med `follow_up_options` array
+✅ Inga legacy lagen.nu APIs
+✅ Deduplicated URL template formatting
+✅ 22 nya tester - alla passerar
+
+**Status**: ✅ Implementerat och testat i PR #116

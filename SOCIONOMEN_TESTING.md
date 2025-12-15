@@ -10,60 +10,81 @@ Socionomen är en ny personlighet i CivicAI som specialiserar sig på svensk soc
 - **Registrerad i**: `config/personality_catalog.json` och `config/api_catalog.json`
 
 ## Datakällor
-1. **Lagrummet / Lagen.nu** - Lagtexter (SoL 2024:683 och 2001:453, LVU)
+1. **Riksdagen.se** - Lagtexter (SoL 2025:400 och 2001:453, LVU) med kapitelextraktion
 2. **Socialstyrelsen** - Officiell statistik om socialtjänst
 3. **IVO** - Tillsynsrapporter och beslut
 4. **SCB** - Kommunstatistik
 
-## Browse_page funktionalitet
-Socionomen använder `"tool": "browse_page"` för att hämta innehåll från:
-- **Lagtexter** på lagen.nu (både nya och gamla Socialtjänstlagen)
-  - `lagen_nu_sol_ny` (2024:683) - Aktuell lag från 1 juli 2025
-  - `lagen_nu_sol_gammal` (2001:453) - Tidigare lag före 1 juli 2025
-- Statistik från socialstyrelsen.se
-- IVO-rapporter från ivo.se
-- Kommunstatistik från SCB
+## Browse_page och kapitelextraktion
+Socionomen använder två huvudsakliga verktyg för att hämta lagtexter:
 
-**Implementation**: Browse_page är nu integrerad i `ml_service/api_selector.py`. När ett API har `"tool": "browse_page"` eller `"method": "BROWSE"`, anropar `call_api` funktionen automatiskt `browse_page` från `api_integrations.py` istället för att försöka parsa JSON-svar. Innehållet returneras som text i `data.text` fältet.
+### Kapitelextraktion från Riksdagen (FÖREDRAGEN)
+- **API:er**: `sol_ny_kapitel`, `sol_gammal_kapitel`
+- **Tool**: `"browse_page_chapter"` (method: `"BROWSE_CHAPTER"`)
+- **Funktion**: `browse_page_with_chapter_extraction` i `api_integrations.py`
+- **Fördelar**:
+  - Smart extraktion av specifika kapitel (3-6k tecken per kapitel)
+  - Behåller paragrafmarkörer (inkl. bokstavsparagrafer som "1 a §", "1 b §")
+  - Bevarar underrubriker (h4, h5)
+  - Snabb och effektiv (ingen BERT-sammanfattning)
+  
+**Parameter-hantering KRITISKT VIKTIGT**:
+- Vid användarfråga "4 kap. 1 §" → `kapitel="4"` (INTE 1!)
+- Vid användarfråga "11 kap 5 §" → `kapitel="11"` (INTE 5!)
+- Första siffran = kapitelnummer, andra siffran = paragrafnummer (används bara i svar)
+
+### Legacy browse_page
+- **Fallback**: För andra källor (Socialstyrelsen, IVO, SCB)
+- Används när `"tool": "browse_page"` eller `"method": "BROWSE"`
+- Max 6000 tecken
+
+**Implementation**: Båda verktygen är integrerade i `ml_service/api_selector.py`. API-selektorn väljer automatiskt rätt verktyg baserat på `tool` eller `method` fält i API-konfigurationen.
 
 ## Testfrågor
 
-### Test 1: Nya Socialtjänstlagen (SoL 2024:683)
+### Test 1: Nya Socialtjänstlagen (SoL 2025:400)
 **Fråga**: "Vad säger SoL om ekonomiskt bistånd?"
 
 **Förväntat svar**: 
-- Referens till SoL 4 kap. 1 § (nya lagen 2024:683)
+- Referens till ekonomiskt bistånd i nya lagen (kap. 10-12 i 2025:400)
 - Exakt lagtext (ordagrant citat från nya lagen)
 - Förklaring av rätten till ekonomiskt bistånd
-- Källa: Socialtjänstlagen (2024:683) via Lagrummet
+- Follow-up fråga om prejudikat med `follow_up_options` JSON
+- Källa: Socialtjänstlagen (2025:400) via Riksdagen
 
-**API som används**: `lagen_nu_sol_ny` (browse_page)
+**API som används**: `sol_ny_kapitel` (browse_page_chapter)
 
 ---
 
-### Test 1b: Gamla Socialtjänstlagen (SoL 2001:453)
-**Fråga**: "Vad sade gamla SoL om ekonomiskt bistånd?"
+### Test 1b: Gamla Socialtjänstlagen (SoL 2001:453) med specifik paragraf
+**Fråga**: "Citera 4 kap. 1 § i gamla SoL"
 
 **Förväntat svar**: 
+- API anropas med `kapitel="4"` (INTE 1!)
 - Referens till SoL 4 kap. 1 § (gamla lagen 2001:453)
-- Exakt lagtext (ordagrant citat från gamla lagen)
+- Exakt lagtext (ordagrant citat från kapitel 4, inklusive 1 §)
 - Förklaring av rätten till ekonomiskt bistånd
-- Källa: Socialtjänstlagen (2001:453) via Lagrummet
+- Follow-up fråga om prejudikat med `follow_up_options` JSON
+- Svar längre än 900 tokens (ingen trunkering)
+- Källa: Socialtjänstlagen (2001:453) via Riksdagen
 
-**API som används**: `lagen_nu_sol_gammal` (browse_page)
+**API som används**: `sol_gammal_kapitel` med parameter `{"kapitel": "4"}` (browse_page_chapter)
 
 ---
 
 ### Test 1c: Jämförelse mellan gamla och nya lagen
-**Fråga**: "Vad ändrades i 4 kap. 1 § SoL i nya lagen?"
+**Fråga**: "Jämför 4 kap. 1 § i gamla och nya Socialtjänstlagen"
 
 **Förväntat svar**: 
-- Citat från både gamla (2001:453) och nya (2024:683) lagen
-- Tydlig förklaring av skillnaderna
+- Båda API:er anropas med `kapitel="4"`
+- Citat från både gamla (2001:453, 4 kap.) och nya (2025:400, kap. 10-12 för bistånd)
+- Tydlig förklaring av skillnaderna och kapitelflytt
 - Kontext om varför ändringen gjordes (t.ex. stärkt barnperspektiv, fokus på prevention)
-- Källa: Lagrummet (båda lagversionerna)
+- Follow-up alternativ för båda lagversionerna
+- Totalt svar >1000 tokens utan trunkering
+- Källa: Riksdagen (båda lagversionerna)
 
-**API som används**: Både `lagen_nu_sol_ny` och `lagen_nu_sol_gammal` (browse_page)
+**API som används**: Både `sol_gammal_kapitel` (`kapitel="4"`) och `sol_ny_kapitel` (relevant kapitel för bistånd)
 
 ---
 
@@ -104,6 +125,55 @@ Socionomen använder `"tool": "browse_page"` för att hämta innehåll från:
 - Källa: IVO tillsynsbeslut publicerat [datum] på ivo.se
 
 **API som används**: `ivo_rapporter` (browse_page)
+
+---
+
+### Test 5: Follow-up för prejudikat (Ny funktionalitet)
+**Fråga**: Efter ett lagcitat-svar, användaren svarar "ja" på uppföljningsfrågan
+
+**Förväntat flöde**:
+1. **Initialt svar** på "Citera 4 kap. 1 § i gamla SoL":
+   - Lagtext från 4 kap. med paragraf 1
+   - Uppföljningsfråga: "Vill du se hur denna paragraf har tillämpats i verkliga domar och prejudikat?"
+   - **MÅSTE inkludera** `follow_up_options` JSON:
+   ```json
+   {
+     "follow_up_options": [
+       {
+         "id": "prej_yes",
+         "label": "Ja, visa domar och prejudikat",
+         "action": "search_prejudikat",
+         "parameters": {
+           "paragraf": "4 kap. 1 §",
+           "lag_namn": "Socialtjänstlagen (2001:453)",
+           "personality": "socionomen"
+         }
+       },
+       {
+         "id": "prej_no",
+         "label": "Nej, ställ ny fråga",
+         "action": "decline_followup",
+         "parameters": {
+           "personality": "socionomen"
+         }
+       }
+     ]
+   }
+   ```
+
+2. **När användaren väljer "ja"** eller skriver "ja", "visa", "ja tack":
+   - Frontend anropar `handleFollowUpAction` med vald option
+   - Backend triggar ny sökning efter domar/prejudikat
+   - Svar innehåller sammanfattning av relevanta domstolsavgöranden
+   - Högt token-limit (1200+) för att inkludera flera domstolsexempel
+
+**Validation**:
+- `follow_up_options` finns i response JSON
+- Alla required fields finns: `id`, `label`, `action`, `parameters`
+- `action === "search_prejudikat"` för positiva alternativ
+- `parameters` innehåller `paragraf`, `lag_namn`, och `personality`
+- Frontend kan rendera knappar från options
+- Click/text-svar triggar `handleFollowUpAction`
 
 ---
 
