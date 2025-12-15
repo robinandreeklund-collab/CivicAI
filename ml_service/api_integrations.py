@@ -2135,6 +2135,7 @@ def extract_chapter_from_riksdagen(html_content: str, chapter_number: str) -> Op
                                         if re.match(r'^\d+\s*§$', next_b.get_text(strip=True)):
                                             break
                                     elif next_sibling.name in ['h4', 'h5', 'h2', 'h3']:
+                                        # Don't consume headers - let them be processed in next iteration
                                         break
                                     # Skip empty <p> tags but continue collecting
                                     elif next_sibling.name == 'p':
@@ -2168,7 +2169,8 @@ def extract_chapter_from_riksdagen(html_content: str, chapter_number: str) -> Op
                                 para_text = " ".join(collected_text)
                                 para_text = re.sub(r'\s+', ' ', para_text).strip()
                                 content_parts.append(para_text)
-                                i = j - 1  # Skip ahead to where we stopped
+                            # Don't skip ahead - let the loop continue normally to process headers
+                            # i = j - 1  # REMOVED: This was skipping headers
                 
                 # Handle paragraphs and other content containers (only if not empty separators)
                 elif sibling.name in ['p', 'div', 'section', 'article']:
