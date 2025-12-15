@@ -24,6 +24,7 @@ import json
 import logging
 import re
 import os
+import sys
 
 # Try to import feedparser for RSS feeds
 try:
