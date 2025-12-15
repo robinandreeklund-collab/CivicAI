@@ -42,6 +42,11 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
       },
+      // ONESEEK Δ+ Admin API (inference settings, configuration)
+      '/api/admin': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
       // Default API proxy (backend services)
       '/api': {
         target: 'http://localhost:3001',
