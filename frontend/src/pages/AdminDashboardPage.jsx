@@ -12,6 +12,7 @@ import UserVoting from '../components/admin/UserVoting';
 import SystemPromptManagement from '../components/admin/SystemPromptManagement';
 import CharacterCardManagement from '../components/admin/CharacterCardManagement';
 import IntegrationsManagement from '../components/admin/IntegrationsManagement';
+import InferenceSettings from '../components/admin/InferenceSettings';
 import '../styles/admin-theme.css';
 
 /**
@@ -67,6 +68,7 @@ export default function AdminDashboardPage() {
     { id: 'prompts', label: 'System Prompts' },
     { id: 'characters', label: '📚 Character Cards' },
     { id: 'integrations', label: '🔌 Integrations' },
+    { id: 'settings', label: '⚙️ Inference Settings' },
     { id: 'verification', label: 'Verification' },
     { id: 'autonomy', label: 'Autonomy' },
     { id: 'checkpoint', label: 'Golden Checkpoint' },
@@ -128,6 +130,7 @@ export default function AdminDashboardPage() {
           {selectedTab === 'prompts' && <SystemPromptManagement />}
           {selectedTab === 'characters' && <CharacterCardManagement />}
           {selectedTab === 'integrations' && <IntegrationsManagement />}
+          {selectedTab === 'settings' && <InferenceSettings />}
           {selectedTab === 'verification' && <VerificationTab />}
           {selectedTab === 'autonomy' && <AutonomyControl />}
           {selectedTab === 'checkpoint' && <GoldenCheckpoint />}
