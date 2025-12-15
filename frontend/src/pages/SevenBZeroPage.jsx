@@ -1433,7 +1433,7 @@ export default function SevenBZeroPage() {
                   console.log('[7B-Zero] WebSocket not available:', errorMessage);
                   // Will fall back to REST below
                 },
-                maxTokens: 512,
+                maxTokens: 1600,  // Increased for Socionomen and other personalities that need longer responses
                 temperature: 0.7,
               });
               
@@ -1457,7 +1457,7 @@ export default function SevenBZeroPage() {
             },
             body: JSON.stringify({
               text: currentQuestion,
-              max_length: 512,
+              max_length: 1600,  // Increased for Socionomen and other personalities that need longer responses
               temperature: 0.7,
               stream_thinking: true,
             }),
@@ -1481,6 +1481,11 @@ export default function SevenBZeroPage() {
             }
             
             const responseText = data.response;
+            console.log('🔔 [FRONTEND REST] Received response:', {
+              hasFollowUpOptions: !!data.follow_up_options,
+              followUpOptions: data.follow_up_options,
+              responseLength: responseText?.length
+            });
             if (responseText) {
               setMessages(prev => prev.map(msg => 
                 msg.id === aiMessageId 
@@ -1493,9 +1498,11 @@ export default function SevenBZeroPage() {
                       apiData: data.api_data || null,
                       tokens: data.tokens,
                       personality: data.personality,
+                      followUpOptions: data.follow_up_options || null, // Add follow-up options from REST API
                     }
                   : msg
               ));
+              console.log('🔔 [FRONTEND REST] Message updated with followUpOptions');
               animateTyping(responseText, aiMessageId);
               return;
             }
