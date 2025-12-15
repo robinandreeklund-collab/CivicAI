@@ -2115,8 +2115,8 @@ def extract_chapter_from_riksdagen(html_content: str, chapter_number: str) -> Op
                     b_tag = sibling.find('b')
                     if b_tag:
                         b_text = b_tag.get_text(strip=True)
-                        # Check if it's a paragraph marker
-                        if re.match(r'^\d+\s*§$', b_text) and b_text not in seen_para_markers:
+                        # Check if it's a paragraph marker (matches "1 §", "1 a §", "1 b §", etc.)
+                        if re.match(r'^\d+\s*[a-z]?\s*§$', b_text) and b_text not in seen_para_markers:
                             # Add paragraph marker
                             content_parts.append(f"\n{b_text}  ")
                             seen_para_markers.add(b_text)
@@ -2132,7 +2132,7 @@ def extract_chapter_from_riksdagen(html_content: str, chapter_number: str) -> Op
                                 if hasattr(next_sibling, 'name') and next_sibling.name:
                                     if next_sibling.name == 'a' and next_sibling.find('b'):
                                         next_b = next_sibling.find('b')
-                                        if re.match(r'^\d+\s*§$', next_b.get_text(strip=True)):
+                                        if re.match(r'^\d+\s*[a-z]?\s*§$', next_b.get_text(strip=True)):
                                             break
                                     elif next_sibling.name in ['h4', 'h5', 'h2', 'h3']:
                                         # Don't consume headers - let them be processed in next iteration
@@ -2146,8 +2146,15 @@ def extract_chapter_from_riksdagen(html_content: str, chapter_number: str) -> Op
                                         else:
                                             # Non-empty paragraph tag means end of this paragraph's text
                                             break
-                                    # For other tags, check if they're empty separators
+                                    # For other tags, check if they're empty separators or should be included
                                     elif next_sibling.name in ['br']:
+                                        j += 1
+                                        continue
+                                    elif next_sibling.name == 'i':
+                                        # Include italic text (often legal references like "Lag (2017:809)")
+                                        i_text = next_sibling.get_text(strip=True)
+                                        if i_text:
+                                            collected_text.append(i_text)
                                         j += 1
                                         continue
                                     else:
