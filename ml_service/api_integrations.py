@@ -25,6 +25,7 @@ import logging
 import re
 import os
 import sys
+from bs4 import BeautifulSoup
 
 # Try to import feedparser for RSS feeds
 try:
@@ -2027,13 +2028,103 @@ def get_registry_summary() -> Dict[str, Any]:
 # BROWSE_PAGE - Web Content Fetching
 # =============================================================================
 
+def extract_chapter_from_riksdagen(html_content: str, chapter_number: str) -> Optional[str]:
+    """
+    Extract a specific chapter from Riksdagen.se law HTML using BeautifulSoup.
+    
+    Args:
+        html_content: Full HTML content from Riksdagen
+        chapter_number: Chapter number as string (e.g., "4" for "4 kap.")
+        
+    Returns:
+        Extracted chapter text or None if not found
+    """
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # Find chapter header (e.g., "4 kap. Ansvaret för uppgifter inom socialtjänsten")
+        chapter_pattern = re.compile(rf"^{chapter_number}\s+kap\.", re.IGNORECASE)
+        chapter_header = soup.find('h2', string=chapter_pattern)
+        
+        if not chapter_header:
+            logger.warning(f"[extract_chapter] Chapter {chapter_number} not found in HTML")
+            return None
+        
+        # Collect all content after the header until next <h2>
+        content_parts = []
+        current = chapter_header.next_sibling
+        
+        while current and getattr(current, 'name', None) != 'h2':
+            if hasattr(current, 'name') and current.name in ['p', 'h3', 'ul', 'ol', 'li', 'div']:
+                text = current.get_text(separator=" ", strip=True)
+                if text:
+                    content_parts.append(text)
+            current = current.next_sibling
+        
+        header_text = chapter_header.get_text(strip=True)
+        chapter_text = "\n\n".join(content_parts)
+        
+        result = f"{header_text}\n\n{chapter_text}"
+        logger.info(f"[extract_chapter] Successfully extracted chapter {chapter_number} ({len(result)} chars)")
+        return result
+        
+    except Exception as e:
+        logger.error(f"[extract_chapter] Error extracting chapter: {e}")
+        return None
+
+
+def browse_page_with_chapter_extraction(url: str, chapter: Optional[str] = None) -> Optional[str]:
+    """
+    Fetch and extract content from Riksdagen.se with optional chapter extraction.
+    
+    For Riksdagen URLs:
+    - If chapter is provided: Extract only that specific chapter (3k-6k chars)
+    - If no chapter: Return first 6000 chars as preview
+    
+    For other URLs:
+    - Return first 6000 chars
+    
+    Args:
+        url: The URL to fetch
+        chapter: Optional chapter number (e.g., "4" for "4 kap.")
+        
+    Returns:
+        Extracted content or error message
+    """
+    try:
+        # Fetch the full page
+        logger.info(f"[browse_page_chapter] Fetching {url}")
+        response = requests.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
+        response.raise_for_status()
+        
+        # Check if this is a Riksdagen URL and chapter extraction is requested
+        if 'riksdagen.se' in url and chapter:
+            logger.info(f"[browse_page_chapter] Extracting chapter {chapter} from Riksdagen")
+            extracted = extract_chapter_from_riksdagen(response.text, chapter)
+            if extracted:
+                return extracted
+            else:
+                logger.warning(f"[browse_page_chapter] Chapter extraction failed, falling back to first 6000 chars")
+        
+        # Fallback: Use browse_page for simple text extraction
+        content = browse_page(url, max_length=6000)
+        if content:
+            logger.info(f"[browse_page_chapter] Returning {len(content)} chars from page")
+            return content
+        
+        return "Kunde inte hämta innehåll från sidan."
+        
+    except Exception as e:
+        logger.error(f"[browse_page_chapter] Error: {e}")
+        return f"Ett fel uppstod vid hämtning av sidan: {str(e)}"
+
+
 def browse_page_with_bert(url: str, ratio: float = 0.3, min_length: int = 100) -> Optional[str]:
     """
-    Fetch and extract text content from a web page, then summarize with BERT.
+    DEPRECATED: Use browse_page_with_chapter_extraction instead.
     
-    This function fetches the ENTIRE page content (no character limit on input),
-    then uses BERT extractive summarization to create a concise, relevant summary.
-    This ensures the model receives high-quality summaries instead of raw HTML content.
+    This function is kept for backwards compatibility but is no longer recommended.
+    BERT summarization was too slow (60-120s) and produced poor results for large documents.
     
     Args:
         url: The URL to fetch (may include anchor fragment like #K11P1)
@@ -2043,6 +2134,8 @@ def browse_page_with_bert(url: str, ratio: float = 0.3, min_length: int = 100) -
     Returns:
         BERT-summarized content or error message
     """
+    logger.warning("[browse_page_with_bert] DEPRECATED - Use browse_page_with_chapter_extraction instead")
+    
     try:
         # First, fetch the full page content WITHOUT character limit
         # browse_page with max_length=999999 fetches the entire content

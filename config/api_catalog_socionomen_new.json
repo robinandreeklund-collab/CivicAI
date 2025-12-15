@@ -1,0 +1,163 @@
+{
+  "name": "Socialtjänst Sverige",
+  "version": "2.0.0",
+  "description": "Komplett katalog för svensk socialrätt med smart kapitelextraktion från Riksdagen",
+  "updated": "2025-12-15",
+  "provider": {
+    "name": "Sveriges Riksdag, Socialstyrelsen, IVO, SCB",
+    "url": "https://www.riksdagen.se/",
+    "license": "Öppen data (CC0 / PSI)",
+    "attribution": "© Sveriges Riksdag, Socialstyrelsen, IVO, SCB",
+    "requires_api_key": false
+  },
+  
+  "personality_tags": ["socionom"],
+  "default_api": "sol_ny_kapitel",
+  "max_results": 20,
+  
+  "apis": [
+    {
+      "name": "sol_ny_kapitel",
+      "source": "Riksdagen.se (ny SoL 2025:400)",
+      "frequency": "statisk",
+      "url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2025400_sfs-2025-400",
+      "url_template": false,
+      "tool": "browse_page_chapter",
+      "keywords": [
+        "ny sol", "nya socialtjänstlagen", "sol 2025:400", "socialtjänstlagen 2025",
+        "aktuell sol", "sol efter 2025", "nya lagen om", "vad säger nya sol om",
+        "ekonomiskt bistånd", "bistånd nya sol", "barn nya sol", "förebyggande nya sol"
+      ],
+      "priority": 0,
+      "description": "Nya Socialtjänstlagen (2025:400) från Riksdagen. Använder smart kapitelextraktion - hämtar endast relevanta kapitel (3-6k chars).",
+      "method": "BROWSE_CHAPTER",
+      "parameters": {
+        "kapitel": {
+          "type": "string",
+          "required": false,
+          "description": "Kapitelnummer att extrahera (t.ex. '4' för 4 kap.). Om inte angivet, hämtas första 6000 tecken."
+        }
+      },
+      "data_format": "HTML/Text",
+      "example_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2025400_sfs-2025-400",
+      "notes": "Smart kapitelextraktion med BeautifulSoup. Ger lagom stora texter (3-6k tecken per kapitel) istället för hela lagen (129k)."
+    },
+    {
+      "name": "sol_gammal_kapitel",
+      "source": "Riksdagen.se (gammal SoL 2001:453)",
+      "frequency": "statisk (historisk)",
+      "url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2001453_sfs-2001-453",
+      "url_template": false,
+      "tool": "browse_page_chapter",
+      "keywords": [
+        "gammal sol", "gamla socialtjänstlagen", "sol 2001:453", "sol före 2025",
+        "socialtjänstlagen 2001", "tidigare sol", "gamla lagen om", "vad sa gamla sol om"
+      ],
+      "priority": 1,
+      "description": "Gamla Socialtjänstlagen (2001:453) från Riksdagen. Använder smart kapitelextraktion.",
+      "method": "BROWSE_CHAPTER",
+      "parameters": {
+        "kapitel": {
+          "type": "string",
+          "required": false,
+          "description": "Kapitelnummer att extrahera (t.ex. '4' för 4 kap.)."
+        }
+      },
+      "data_format": "HTML/Text",
+      "example_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2001453_sfs-2001-453",
+      "notes": "Smart kapitelextraktion. Ger lagom stora texter per kapitel."
+    },
+    {
+      "name": "lvu_lagtext",
+      "source": "Sveriges Riksdag (LVU)",
+      "frequency": "statisk",
+      "url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/lag-1990052-med-sarskilda-bestammelser-om_sfs-1990-52",
+      "url_template": false,
+      "tool": "browse_page",
+      "keywords": [
+        "lvu", "lag med särskilda bestämmelser", "tvångsvård", "ungdomsvård",
+        "omhändertagande", "vad säger lvu", "enligt lvu", "lvu om"
+      ],
+      "priority": 2,
+      "description": "Lag med särskilda bestämmelser om vård av unga (LVU) via browse_page",
+      "method": "BROWSE",
+      "parameters": {},
+      "data_format": "HTML/Text",
+      "example_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/lag-1990052-med-sarskilda-bestammelser-om_sfs-1990-52",
+      "notes": "Standard browse_page (max 6000 chars)"
+    },
+    {
+      "name": "socialstyrelsen_statistik",
+      "source": "Socialstyrelsen",
+      "frequency": "årligen/månatligen",
+      "url": "https://www.socialstyrelsen.se/statistik-och-data/statistik/statistikamnen/",
+      "url_template": false,
+      "tool": "browse_page",
+      "keywords": [
+        "statistik", "socialstyrelsen statistik", "antal placerade barn",
+        "hur många barn", "placeringar", "vård utanför hemmet", "hvb-hem statistik",
+        "familjehem statistik", "ekonomiskt bistånd statistik", "äldrevård statistik"
+      ],
+      "priority": 3,
+      "description": "Socialstyrelsen statistik",
+      "method": "BROWSE",
+      "parameters": {},
+      "data_format": "HTML/Text",
+      "example_url": "https://www.socialstyrelsen.se/statistik-och-data/statistik/statistikamnen/",
+      "notes": "Standard browse_page"
+    },
+    {
+      "name": "ivo_rapporter",
+      "source": "IVO (Inspektionen för vård och omsorg)",
+      "frequency": "löpande",
+      "url": "https://www.ivo.se/tillsyn/publicerade-tillsynsbeslut/",
+      "url_template": false,
+      "tool": "browse_page",
+      "keywords": [
+        "ivo", "ivo-rapport", "tillsyn", "ivo om hvb", "ivo granskning",
+        "tillsynsbeslut", "kvalitetsbrister", "ivo inspektion", "missförhållanden"
+      ],
+      "priority": 4,
+      "description": "IVO:s tillsynsrapporter",
+      "method": "BROWSE",
+      "parameters": {},
+      "data_format": "HTML/Text",
+      "example_url": "https://www.ivo.se/tillsyn/publicerade-tillsynsbeslut/",
+      "notes": "Standard browse_page"
+    }
+  ],
+  
+  "entity_config": {
+    "entity_required": false,
+    "entity_type": "social fråga",
+    "fallback_entity": "allmän socialtjänst"
+  },
+  
+  "topic_to_chapter_mapping": {
+    "ekonomiskt bistånd": "4",
+    "försörjningsstöd": "4",
+    "bistånd": "4",
+    "barnets bästa": "3",
+    "barn och unga": "5",
+    "barn": "3",
+    "förebyggande insatser": "6",
+    "frivillighet": "3",
+    "missbruksvård": "11",
+    "missbruk": "11",
+    "äldreomsorg": "5",
+    "särskilt boende": "5",
+    "anmälningsplikt": "14",
+    "sekretess": "1"
+  },
+  
+  "keywords": [
+    "socialtjänst", "sol", "ekonomiskt bistånd", "lvu", "placerade barn",
+    "hvb", "familjehem", "ivo", "socialstyrelsen", "kommun", "statistik"
+  ],
+  
+  "response_format": {
+    "include_source": true,
+    "include_attribution": true,
+    "format_template": "**{rubrik}**\n{innehåll}\n\n**Källa**: {källa}"
+  }
+}

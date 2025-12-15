@@ -221,22 +221,67 @@ async def call_api(
                 logger.error(result['error'])
                 return result
         
-        # Check if this API uses browse_page for HTML content extraction
-        if api_tool == 'browse_page' or api_method == 'BROWSE':
-            logger.info(f"Using browse_page_with_bert for {api_name}: {api_url}")
+        # Check if this API uses browse_page_chapter for HTML content extraction with chapter extraction
+        if api_tool == 'browse_page_chapter' or api_method == 'BROWSE_CHAPTER':
+            logger.info(f"Using browse_page_with_chapter_extraction for {api_name}: {api_url}")
             
-            if not BROWSE_PAGE_WITH_BERT_AVAILABLE or not browse_page_with_bert:
-                result['error'] = "browse_page_with_bert function not available"
+            if not BROWSE_PAGE_WITH_BERT_AVAILABLE:  # Re-using same availability flag
+                result['error'] = "browse_page_with_chapter_extraction function not available"
                 logger.error(result['error'])
                 return result
             
             try:
-                # Call browse_page_with_bert synchronously (it's not async)
-                # We need to run it in an executor to avoid blocking
+                # Import the function
+                from ml_service.api_integrations import browse_page_with_chapter_extraction
+                
+                # Get chapter parameter if provided
+                chapter = params.get('kapitel')  # Swedish parameter name
+                
+                # Call browse_page_with_chapter_extraction synchronously
                 loop = asyncio.get_running_loop()
-                # browse_page_with_bert fetches ENTIRE page and summarizes with BERT
-                # No character limit on input - BERT processes full content
-                text_content = await loop.run_in_executor(None, browse_page_with_bert, api_url)
+                text_content = await loop.run_in_executor(
+                    None, 
+                    browse_page_with_chapter_extraction, 
+                    api_url,
+                    chapter
+                )
+                
+                # Check if fetch was successful
+                is_error = text_content and (text_content.startswith("Kunde inte") or text_content.startswith("Ett"))
+                
+                if text_content and not is_error:
+                    result['success'] = True
+                    result['data'] = {'text': text_content, 'url': api_url}
+                    result['url'] = api_url
+                    chapter_info = f" (kapitel {chapter})" if chapter else ""
+                    logger.info(f"Successfully fetched HTML content from {api_name}{chapter_info} ({len(text_content)} chars)")
+                else:
+                    result['error'] = text_content or "Failed to fetch content"
+                    logger.error(f"browse_page_with_chapter_extraction failed for {api_name}: {result['error']}")
+                
+                return result
+                
+            except Exception as e:
+                result['error'] = f"browse_page_with_chapter_extraction error: {e}"
+                logger.error(result['error'])
+                return result
+        
+        # Check if this API uses browse_page for HTML content extraction
+        if api_tool == 'browse_page' or api_method == 'BROWSE':
+            logger.info(f"Using browse_page for {api_name}: {api_url} (max 6000 chars)")
+            
+            if not BROWSE_PAGE_WITH_BERT_AVAILABLE:  # Re-using same availability flag
+                result['error'] = "browse_page function not available"
+                logger.error(result['error'])
+                return result
+            
+            try:
+                # Import the function
+                from ml_service.api_integrations import browse_page
+                
+                # Call browse_page synchronously with 6000 char limit
+                loop = asyncio.get_running_loop()
+                text_content = await loop.run_in_executor(None, browse_page, api_url, 6000)
                 
                 # Check if fetch was successful (errors start with "Kunde inte" or "Ett oväntat fel")
                 is_error = text_content and (text_content.startswith("Kunde inte") or text_content.startswith("Ett oväntat fel"))
@@ -245,15 +290,15 @@ async def call_api(
                     result['success'] = True
                     result['data'] = {'text': text_content, 'url': api_url}
                     result['url'] = api_url
-                    logger.info(f"Successfully fetched and summarized HTML content from {api_name} ({len(text_content)} chars)")
+                    logger.info(f"Successfully fetched HTML content from {api_name} ({len(text_content)} chars)")
                 else:
                     result['error'] = text_content or "Failed to fetch content"
-                    logger.error(f"browse_page_with_bert failed for {api_name}: {result['error']}")
+                    logger.error(f"browse_page failed for {api_name}: {result['error']}")
                 
                 return result
                 
             except Exception as e:
-                result['error'] = f"browse_page_with_bert error: {e}"
+                result['error'] = f"browse_page error: {e}"
                 logger.error(result['error'])
                 return result
         
