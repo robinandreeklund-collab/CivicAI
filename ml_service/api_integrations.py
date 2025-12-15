@@ -2134,34 +2134,43 @@ def extract_chapter_from_riksdagen(html_content: str, chapter_number: str) -> Op
                                         next_b = next_sibling.find('b')
                                         if re.match(r'^\d+\s*§$', next_b.get_text(strip=True)):
                                             break
-                                    elif next_sibling.name in ['h4', 'h5']:
+                                    elif next_sibling.name in ['h4', 'h5', 'h2', 'h3']:
                                         break
-                                    # Skip empty <p> tags
+                                    # Skip empty <p> tags but continue collecting
                                     elif next_sibling.name == 'p':
                                         p_text = next_sibling.get_text(strip=True)
                                         if not p_text:
                                             j += 1
                                             continue
                                         else:
+                                            # Non-empty paragraph tag means end of this paragraph's text
                                             break
+                                    # For other tags, check if they're empty separators
+                                    elif next_sibling.name in ['br']:
+                                        j += 1
+                                        continue
                                     else:
-                                        # Other tags stop paragraph text
+                                        # Other substantial tags stop paragraph text collection
                                         break
                                 
-                                # Collect text nodes
-                                if hasattr(next_sibling, 'strip'):
+                                # Collect text nodes (NavigableString objects)
+                                elif hasattr(next_sibling, 'strip'):
                                     text = next_sibling.strip()
-                                    if text and len(text) > 10:
+                                    # Collect any non-empty text (not just > 10 chars)
+                                    if text:
                                         collected_text.append(text)
                                 
                                 j += 1
                             
                             # Add the collected text for this paragraph
                             if collected_text:
-                                content_parts.append(" ".join(collected_text))
+                                # Join with space and clean up excessive whitespace
+                                para_text = " ".join(collected_text)
+                                para_text = re.sub(r'\s+', ' ', para_text).strip()
+                                content_parts.append(para_text)
                                 i = j - 1  # Skip ahead to where we stopped
                 
-                # Handle paragraphs and other content containers
+                # Handle paragraphs and other content containers (only if not empty separators)
                 elif sibling.name in ['p', 'div', 'section', 'article']:
                     text = sibling.get_text(separator=" ", strip=True)
                     if text and len(text) > 10:
