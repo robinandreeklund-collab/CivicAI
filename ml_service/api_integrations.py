@@ -2085,7 +2085,7 @@ def browse_page_with_bert(url: str, ratio: float = 0.3, min_length: int = 100) -
         # Call the BERT summarizer Python script
         try:
             result = subprocess.run(
-                ["python3", str(bert_script)],
+                [sys.executable, str(bert_script)],
                 input=json_module.dumps(input_data, ensure_ascii=False),
                 capture_output=True,
                 text=True,
@@ -2136,8 +2136,9 @@ def browse_page(url: str, max_length: int = 3000) -> Optional[str]:
     Note: Uses regex-based HTML parsing for simplicity and minimal dependencies.
     For more robust parsing, consider upgrading to BeautifulSoup in the future.
     
-    DEPRECATED: Use browse_page_with_bert instead for better results.
-    This function is kept for backward compatibility and as a fallback.
+    .. deprecated:: 
+        Use browse_page_with_bert instead for better results.
+        This function is kept for backward compatibility and as a fallback.
     
     Args:
         url: The URL to fetch (may include anchor fragment like #K11P1)
@@ -2146,6 +2147,12 @@ def browse_page(url: str, max_length: int = 3000) -> Optional[str]:
     Returns:
         Extracted text content or error message
     """
+    import warnings
+    warnings.warn(
+        "browse_page is deprecated, use browse_page_with_bert instead",
+        DeprecationWarning,
+        stacklevel=2
+    )
     try:
         from urllib.parse import urlparse
         

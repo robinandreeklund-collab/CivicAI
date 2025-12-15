@@ -13,6 +13,22 @@ import aiohttp
 
 logger = logging.getLogger(__name__)
 
+# Pre-import functions that may be used frequently
+try:
+    from api_integrations import browse_page_with_bert
+    BROWSE_PAGE_WITH_BERT_AVAILABLE = True
+except ImportError:
+    BROWSE_PAGE_WITH_BERT_AVAILABLE = False
+    browse_page_with_bert = None
+
+try:
+    from tavily_search import tavily_search, format_tavily_sources
+    TAVILY_SEARCH_AVAILABLE = True
+except ImportError:
+    TAVILY_SEARCH_AVAILABLE = False
+    tavily_search = None
+    format_tavily_sources = None
+
 
 def parse_api_selection(model_response: str) -> Optional[Dict]:
     """
@@ -148,10 +164,13 @@ async def call_api(
         # Check if this API uses web_search for searching the web
         if api_tool == 'web_search' or api_method == 'SEARCH':
             logger.info(f"Using web_search (Tavily) for {api_name}")
-            # Import tavily_search function
+            
+            if not TAVILY_SEARCH_AVAILABLE or not tavily_search:
+                result['error'] = "web_search function not available"
+                logger.error(result['error'])
+                return result
+            
             try:
-                from tavily_search import tavily_search, format_tavily_sources
-                
                 # Get query_template and construct search query
                 query_template = api_config.get('query_template', '')
                 if query_template:
@@ -183,18 +202,21 @@ async def call_api(
                 
                 return result
                 
-            except ImportError as e:
-                result['error'] = f"web_search function not available: {e}"
+            except Exception as e:
+                result['error'] = f"web_search error: {e}"
                 logger.error(result['error'])
                 return result
         
         # Check if this API uses browse_page for HTML content extraction
         if api_tool == 'browse_page' or api_method == 'BROWSE':
             logger.info(f"Using browse_page_with_bert for {api_name}: {api_url}")
-            # Import browse_page_with_bert function
+            
+            if not BROWSE_PAGE_WITH_BERT_AVAILABLE or not browse_page_with_bert:
+                result['error'] = "browse_page_with_bert function not available"
+                logger.error(result['error'])
+                return result
+            
             try:
-                from api_integrations import browse_page_with_bert
-                
                 # Call browse_page_with_bert synchronously (it's not async)
                 # We need to run it in an executor to avoid blocking
                 loop = asyncio.get_running_loop()
@@ -216,8 +238,8 @@ async def call_api(
                 
                 return result
                 
-            except ImportError as e:
-                result['error'] = f"browse_page_with_bert function not available: {e}"
+            except Exception as e:
+                result['error'] = f"browse_page_with_bert error: {e}"
                 logger.error(result['error'])
                 return result
         

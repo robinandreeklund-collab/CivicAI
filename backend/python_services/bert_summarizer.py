@@ -52,6 +52,13 @@ def summarize_text(text, min_length=100, max_length=None, ratio=0.3):
         else:
             target_ratio = ratio
         
+        # Protect against empty text
+        if original_length == 0:
+            return {
+                "success": False,
+                "error": "Empty text provided"
+            }
+        
         # Generate extractive summary using BERT
         # No character limit - BERT will process the entire text
         summary_text = model(
