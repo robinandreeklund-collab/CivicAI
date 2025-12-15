@@ -161,6 +161,20 @@ async def call_api(
             logger.error(result['error'])
             return result
         
+        # Check if URL is a template (has placeholders like {lon}, {lat}, {anchor})
+        # Format it BEFORE using it with browse_page or web_search
+        is_template = api_config.get('url_template', False) or ('{' in api_url and '}' in api_url)
+        
+        if is_template:
+            # Replace placeholders in URL with actual parameter values
+            try:
+                api_url = api_url.format(**params)
+                logger.info(f"Formatted URL template for {api_name}: {api_url}")
+            except KeyError as e:
+                result['error'] = f"Missing required parameter {e} for URL template"
+                logger.error(result['error'])
+                return result
+        
         # Check if this API uses web_search for searching the web
         if api_tool == 'web_search' or api_method == 'SEARCH':
             logger.info(f"Using web_search (Tavily) for {api_name}")
@@ -243,19 +257,11 @@ async def call_api(
                 logger.error(result['error'])
                 return result
         
-        # Check if URL is a template (has placeholders like {lon}, {lat})
-        is_template = api_config.get('url_template', False) or ('{' in api_url and '}' in api_url)
-        
+        # Determine if we should send params as query parameters or not
+        # For templated URLs, params were already inserted into URL, so no query params needed
         if is_template:
-            # Replace placeholders in URL with actual parameter values
-            try:
-                api_url = api_url.format(**params)
-                logger.info(f"Calling API: {api_name} with templated URL: {api_url}")
-                params_to_send = {}  # No query parameters needed for templated URLs
-            except KeyError as e:
-                result['error'] = f"Missing required parameter {e} for URL template"
-                logger.error(result['error'])
-                return result
+            logger.info(f"Calling API: {api_name} with templated URL: {api_url}")
+            params_to_send = {}  # No query parameters needed for templated URLs
         else:
             logger.info(f"Calling API: {api_name} with params: {params}")
             params_to_send = params
