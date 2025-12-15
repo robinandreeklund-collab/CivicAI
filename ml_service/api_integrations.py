@@ -2097,8 +2097,11 @@ def extract_chapter_from_riksdagen(html_content: str, chapter_number: str) -> Op
         
         # Process all siblings and their descendants
         seen_para_markers = set()
+        i = 0
         
-        for sibling in siblings:
+        while i < len(siblings):
+            sibling = siblings[i]
+            
             if hasattr(sibling, 'name') and sibling.name:
                 # Handle subsection headers (h4, h5)
                 if sibling.name in ['h4', 'h5']:
@@ -2106,64 +2109,80 @@ def extract_chapter_from_riksdagen(html_content: str, chapter_number: str) -> Op
                     if text:
                         content_parts.append(f"\n{text}\n")
                 
+                # Handle <a> tags that might contain paragraph markers
+                # Structure: <a><b>1 §</b></a>  followed by text node with content
+                elif sibling.name == 'a':
+                    b_tag = sibling.find('b')
+                    if b_tag:
+                        b_text = b_tag.get_text(strip=True)
+                        # Check if it's a paragraph marker
+                        if re.match(r'^\d+\s*§$', b_text) and b_text not in seen_para_markers:
+                            # Add paragraph marker
+                            content_parts.append(f"\n{b_text}  ")
+                            seen_para_markers.add(b_text)
+                            
+                            # Collect text nodes that follow this <a> tag
+                            # The actual legal text comes as text nodes after <a><b>§</b></a>
+                            collected_text = []
+                            j = i + 1
+                            while j < len(siblings):
+                                next_sibling = siblings[j]
+                                
+                                # Stop if we hit another <a> with paragraph marker or heading
+                                if hasattr(next_sibling, 'name') and next_sibling.name:
+                                    if next_sibling.name == 'a' and next_sibling.find('b'):
+                                        next_b = next_sibling.find('b')
+                                        if re.match(r'^\d+\s*§$', next_b.get_text(strip=True)):
+                                            break
+                                    elif next_sibling.name in ['h4', 'h5']:
+                                        break
+                                    # Skip empty <p> tags
+                                    elif next_sibling.name == 'p':
+                                        p_text = next_sibling.get_text(strip=True)
+                                        if not p_text:
+                                            j += 1
+                                            continue
+                                        else:
+                                            break
+                                    else:
+                                        # Other tags stop paragraph text
+                                        break
+                                
+                                # Collect text nodes
+                                if hasattr(next_sibling, 'strip'):
+                                    text = next_sibling.strip()
+                                    if text and len(text) > 10:
+                                        collected_text.append(text)
+                                
+                                j += 1
+                            
+                            # Add the collected text for this paragraph
+                            if collected_text:
+                                content_parts.append(" ".join(collected_text))
+                                i = j - 1  # Skip ahead to where we stopped
+                
                 # Handle paragraphs and other content containers
                 elif sibling.name in ['p', 'div', 'section', 'article']:
-                    # Get all text content from this container
-                    all_text = []
-                    
-                    # First, check for any <b> tags with paragraph markers
-                    for b_tag in sibling.find_all('b', recursive=True):
-                        b_text = b_tag.get_text(strip=True)
-                        if re.match(r'^\d+\s*§$', b_text) and b_text not in seen_para_markers:
-                            all_text.append(f"\n{b_text}  ")
-                            seen_para_markers.add(b_text)
-                    
-                    # Then get the plain text content (this will include text nodes)
-                    plain_text = sibling.get_text(separator=" ", strip=True)
-                    if plain_text:
-                        # Remove paragraph markers from plain text since we already added them
-                        for marker in seen_para_markers:
-                            plain_text = plain_text.replace(marker, "").strip()
-                        if plain_text:
-                            all_text.append(plain_text)
-                    
-                    if all_text:
-                        content_parts.append("".join(all_text))
+                    text = sibling.get_text(separator=" ", strip=True)
+                    if text and len(text) > 10:
+                        content_parts.append(text)
                 
                 # Handle lists, tables, and other structured content
                 elif sibling.name in ['ul', 'ol', 'li', 'table', 'pre']:
                     text = sibling.get_text(separator=" ", strip=True)
                     if text:
                         content_parts.append(text)
-                
-                # Handle standalone <b> tags (paragraph markers outside containers)
-                elif sibling.name == 'b':
-                    text = sibling.get_text(strip=True)
-                    if re.match(r'^\d+\s*§$', text) and text not in seen_para_markers:
-                        content_parts.append(f"\n{text}  ")
-                        seen_para_markers.add(text)
-                
-                # Handle <a> tags (usually anchors, skip if they contain para markers we've seen)
-                elif sibling.name == 'a':
-                    b_tag = sibling.find('b')
-                    if b_tag:
-                        b_text = b_tag.get_text(strip=True)
-                        # Skip if it's a duplicate paragraph marker
-                        if not re.match(r'^\d+\s*§$', b_text):
-                            text = sibling.get_text(separator=" ", strip=True)
-                            if text and len(text) > 10:
-                                content_parts.append(text)
-                    else:
-                        text = sibling.get_text(separator=" ", strip=True)
-                        if text and len(text) > 10:
-                            content_parts.append(text)
             
             elif hasattr(sibling, 'strip'):
-                # This is a text node (NavigableString)
+                # This is a text node (NavigableString) - these are usually collected with their paragraph markers
+                # Only add if substantial and not already collected
                 text = sibling.strip()
-                # Collect substantial text nodes (more than just whitespace)
                 if text and len(text) > 10:
+                    # Check if this might be paragraph text not yet collected
+                    # (in case structure is different than expected)
                     content_parts.append(text)
+            
+            i += 1
         
         # Get the chapter header text
         header_text = chapter_header.get_text(strip=True)
