@@ -124,10 +124,21 @@ async def call_api(
         
         # Get API URL and source
         api_url = api_config.get('url')
+        api_url_template = api_config.get('url_template')
         api_source = api_config.get('source', api_name)
         api_tool = api_config.get('tool', None)
         api_method = api_config.get('method', 'GET')
         result['source'] = api_source
+        
+        # For url_template without url, we need to format it with params
+        if not api_url and api_url_template:
+            try:
+                api_url = api_url_template.format(**params)
+                logger.info(f"Formatted URL template: {api_url}")
+            except KeyError as e:
+                result['error'] = f"Missing required parameter {e} for URL template"
+                logger.error(result['error'])
+                return result
         
         if not api_url:
             result['error'] = f"No URL configured for API '{api_name}'"
