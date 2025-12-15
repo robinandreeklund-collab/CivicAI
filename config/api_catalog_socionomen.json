@@ -21,8 +21,8 @@
       "name": "lagen_nu_sol_ny",
       "source": "Sveriges Riksdag (ny SoL)",
       "frequency": "statisk (uppdateras vid lagändringar)",
-      "url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2025400_sfs-2025-400#{anchor}",
-      "url_template": true,
+      "url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2025400_sfs-2025-400",
+      "url_template": false,
       "tool": "browse_page",
       "keywords": [
         "socialtjänstlagen", "sol", "ekonomiskt bistånd", "§", "paragraf",
@@ -31,70 +31,31 @@
         "ny sol", "sol 2025:400", "nya socialtjänstlagen", "socialtjänstlagen 2025", "aktuell sol"
       ],
       "priority": 0,
-      "description": "Socialtjänstlagen (SoL 2025:400) – ny lag från 1 juli 2025 via Riksdagen. Använd anchor för specifikt kapitel (t.ex. K4 för 4 kap.)",
+      "description": "Socialtjänstlagen (SoL 2025:400) – ny lag från 1 juli 2025 via Riksdagen. Hämtar hela lagen och låter BERT summera relevant innehåll.",
       "method": "BROWSE",
-      "parameters": {
-        "anchor": {
-          "type": "string",
-          "required": false,
-          "description": "Kapitel-anchor i format 'K{kapitel}' (t.ex. 'K4' för 4 kap., 'K5' för 5 kap.). Extrahera kapitel-nummer från användarens fråga och konvertera till detta format. Om frågan är allmän (t.ex. 'skillnader mellan gamla och nya lagen'), utelämna anchor för att få hela lagen.",
-          "extraction_rules": [
-            "Identifiera kapitel-nummer före 'kap' (t.ex. '4 kap' → kapitel=4)",
-            "Konstruera anchor: 'K' + {kapitel}",
-            "Exempel: '4 kap. 1 §' → anchor='K4'",
-            "Exempel: '5 kap. 2 §' → anchor='K5'",
-            "Exempel: '11 kap. 5 §' → anchor='K11'",
-            "Exempel: 'Vad är skillnaderna mellan gamla och nya SoL?' → anchor='' (ingen anchor, hämta hela lagen)"
-          ],
-          "examples": [
-            {"user_query": "Vad säger 4 kap. 1 § SoL?", "extracted_anchor": "K4", "resulting_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2025400_sfs-2025-400#K4"},
-            {"user_query": "Vad står i 5 kap. 2 § i nya socialtjänstlagen?", "extracted_anchor": "K5", "resulting_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2025400_sfs-2025-400#K5"},
-            {"user_query": "Förklara 11 kap. 5 § SoL", "extracted_anchor": "K11", "resulting_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2025400_sfs-2025-400#K11"},
-            {"user_query": "Vad är skillnaderna mellan gamla och nya SoL?", "extracted_anchor": "", "resulting_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2025400_sfs-2025-400"}
-          ]
-        }
-      },
+      "parameters": {},
       "data_format": "HTML/Text",
-      "example_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2025400_sfs-2025-400#K4",
-      "notes": "Anchor-parametern är valfri. För specifika kapitel: använd anchor (t.ex. K4). För allmänna frågor om hela lagen: utelämna anchor. BERT sammanfattar sedan innehållet."
+      "example_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2025400_sfs-2025-400",
+      "notes": "Hämtar hela lagen från Riksdagen och använder BERT för att sammanfatta innehållet. BERT extraherar automatiskt relevant information baserat på användarens fråga."
     },
     {
       "name": "lagen_nu_sol_gammal",
       "source": "Sveriges Riksdag (gammal SoL)",
       "frequency": "statisk (historisk lag)",
-      "url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2001453_sfs-2001-453#{anchor}",
-      "url_template": true,
+      "url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2001453_sfs-2001-453",
+      "url_template": false,
       "tool": "browse_page",
       "keywords": [
         "gammal sol", "sol 2001:453", "gamla socialtjänstlagen", "sol före 2025", 
         "socialtjänstlagen 2001", "tidigare sol", "före nya lagen"
       ],
       "priority": 1,
-      "description": "Socialtjänstlagen (SoL 2001:453) – gammal lag före 1 juli 2025 via Riksdagen. Använd anchor för specifikt kapitel (t.ex. K4 för 4 kap.), eller utelämna för hela lagen.",
+      "description": "Socialtjänstlagen (SoL 2001:453) – gammal lag före 1 juli 2025 via Riksdagen. Hämtar hela lagen och låter BERT summera relevant innehåll.",
       "method": "BROWSE",
-      "parameters": {
-        "anchor": {
-          "type": "string",
-          "required": false,
-          "description": "Kapitel-anchor i format 'K{kapitel}' (t.ex. 'K4' för 4 kap., 'K5' för 5 kap.). Extrahera kapitel-nummer från användarens fråga och konvertera till detta format. Om frågan är allmän (t.ex. 'skillnader mellan gamla och nya lagen'), utelämna anchor för att få hela lagen.",
-          "extraction_rules": [
-            "Identifiera kapitel-nummer före 'kap' (t.ex. '4 kap' → kapitel=4)",
-            "Konstruera anchor: 'K' + {kapitel}",
-            "Exempel: '4 kap. 1 §' → anchor='K4'",
-            "Exempel: '5 kap. 2 §' → anchor='K5'",
-            "Exempel: '11 kap. 5 §' → anchor='K11'",
-            "Exempel: 'Vad är skillnaderna mellan gamla och nya SoL?' → anchor='' (ingen anchor, hämta hela lagen)"
-          ],
-          "examples": [
-            {"user_query": "Vad sade gamla SoL om 4 kap. 1 §?", "extracted_anchor": "K4", "resulting_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2001453_sfs-2001-453#K4"},
-            {"user_query": "Visa 5 kap. 2 § i gamla socialtjänstlagen", "extracted_anchor": "K5", "resulting_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2001453_sfs-2001-453#K5"},
-            {"user_query": "Vad är skillnaderna mellan gamla och nya SoL?", "extracted_anchor": "", "resulting_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2001453_sfs-2001-453"}
-          ]
-        }
-      },
+      "parameters": {},
       "data_format": "HTML/Text",
-      "example_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2001453_sfs-2001-453#K4",
-      "notes": "Anchor-parametern är valfri. För specifika kapitel: använd anchor (t.ex. K4). För allmänna frågor om hela lagen: utelämna anchor. BERT sammanfattar sedan innehållet."
+      "example_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2001453_sfs-2001-453",
+      "notes": "Hämtar hela lagen från Riksdagen och använder BERT för att sammanfatta innehållet. BERT extraherar automatiskt relevant information baserat på användarens fråga."
     },
     {
       "name": "lvu_lagtext",
