@@ -134,6 +134,49 @@ async def call_api(
             logger.error(result['error'])
             return result
         
+        # Check if this API uses web_search for searching the web
+        if api_tool == 'web_search' or api_method == 'SEARCH':
+            logger.info(f"Using web_search (Tavily) for {api_name}")
+            # Import tavily_search function
+            try:
+                from tavily_search import tavily_search, format_tavily_sources
+                
+                # Get query_template and construct search query
+                query_template = api_config.get('query_template', '')
+                if query_template:
+                    # Replace placeholders in query template
+                    try:
+                        search_query = query_template.format(**params)
+                    except KeyError as e:
+                        result['error'] = f"Missing required parameter {e} for query template"
+                        logger.error(result['error'])
+                        return result
+                else:
+                    # Use URL as query if no template provided
+                    search_query = api_url
+                
+                logger.info(f"Searching with query: {search_query}")
+                
+                # Call tavily_search synchronously
+                loop = asyncio.get_running_loop()
+                search_results = await loop.run_in_executor(None, tavily_search, search_query)
+                
+                if search_results and search_results.get('results'):
+                    result['success'] = True
+                    result['data'] = search_results
+                    result['url'] = None  # No single URL for search results
+                    logger.info(f"Successfully completed web search for {api_name} ({len(search_results.get('results', []))} results)")
+                else:
+                    result['error'] = "No search results found"
+                    logger.error(f"web_search failed for {api_name}: {result['error']}")
+                
+                return result
+                
+            except ImportError as e:
+                result['error'] = f"web_search function not available: {e}"
+                logger.error(result['error'])
+                return result
+        
         # Check if this API uses browse_page for HTML content extraction
         if api_tool == 'browse_page' or api_method == 'BROWSE':
             logger.info(f"Using browse_page_with_bert for {api_name}: {api_url}")
@@ -297,7 +340,38 @@ def format_api_data_for_model(api_results: List[Dict[str, Any]]) -> str:
         source = result.get('source', api_name)
         data = result.get('data', {})
         
-        # Format based on API type
+        # Format based on data type
+        
+        # Handle web search results (from Tavily)
+        if isinstance(data, dict) and 'results' in data:
+            search_results = data.get('results', [])
+            if search_results:
+                formatted = f"\n## Webbsökningsresultat från {source}\n\n"
+                for i, item in enumerate(search_results[:5], 1):
+                    title = item.get('title', 'Ingen titel')
+                    url = item.get('url', '')
+                    content = item.get('content', '')
+                    formatted += f"{i}. **{title}**\n"
+                    if content:
+                        formatted += f"   {content}\n"
+                    if url:
+                        formatted += f"   Källa: {url}\n"
+                    formatted += "\n"
+                formatted_parts.append(formatted)
+                continue
+        
+        # Handle browse_page results (HTML text)
+        if isinstance(data, dict) and 'text' in data:
+            text = data.get('text', '')
+            url = data.get('url', '')
+            if text:
+                formatted = f"\n## {source}\n\n{text}\n"
+                if url:
+                    formatted += f"\nKälla: {url}\n"
+                formatted_parts.append(formatted)
+                continue
+        
+        # Format based on API type (fallback for other formats)
         # This is a simple formatter - can be enhanced per API type
         formatted_parts.append(f"\n--- {source} ---")
         formatted_parts.append(json.dumps(data, ensure_ascii=False, indent=2))
