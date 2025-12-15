@@ -1072,6 +1072,11 @@ export default function SevenBZeroPage() {
         throw new Error('Ingen text mottagen från strömning. Modellen kan fortfarande laddas.');
       }
       
+      console.log('🔔 [FRONTEND STREAM] Finalizing message with metadata:', {
+        hasFollowUpOptions: !!metadata?.follow_up_options,
+        followUpOptions: metadata?.follow_up_options
+      });
+      
       setMessages(prev => prev.map(msg => 
         msg.id === aiMessageId 
           ? { 
@@ -1089,6 +1094,7 @@ export default function SevenBZeroPage() {
               contextWindow: metadata?.context_window || 16384,  // Use actual context window from llama-server (default to 16384 if not provided)
               thinkingChain: metadata?.thinking_steps || metadata?.thinking_chain || msg.thinkingChain || null,
               personality: metadata?.personality || null,
+              followUpOptions: metadata?.follow_up_options || null,  // Add follow-up options from WebSocket stream
             }
           : msg
       ));

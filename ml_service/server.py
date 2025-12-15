@@ -16174,6 +16174,88 @@ Du visar alltid källor när du hämtar fakta."""
                     "reasoning": final_reasoning
                 })
                 
+                # ============================================================================
+                # DETECT FOLLOW-UP QUESTIONS (for Socionomen case law)
+                # ============================================================================
+                follow_up_options = None
+                
+                # Check if response contains a follow-up question (case-insensitive Swedish patterns)
+                followup_patterns = [
+                    r'vill du (se|ha|läsa|titta på|att jag)',
+                    r'är du intresserad av',
+                    r'vill du att jag',
+                    r'ska jag (visa|söka|hämta)',
+                    r'önskar du',
+                    r'skulle du vilja',
+                    r'\?'  # Contains question mark anywhere
+                ]
+                
+                has_followup = any(re.search(pattern, full_response_llama.lower()) for pattern in followup_patterns)
+                
+                # If it's Socionomen and response contains follow-up about prejudikat/domar
+                if has_followup and personality_id == "socionomen":
+                    # Check if asking about case law / prejudikat
+                    case_law_patterns = [
+                        r'prejudikat',
+                        r'dom(ar|en)?',
+                        r'rättspraxis',
+                        r'kammarrätt',
+                        r'högsta förvaltningsdomstolen',
+                        r'hfd',
+                        r'tillämp(ning|ats|at|ad)',
+                        r'verkliga fall',
+                        r'exempel',
+                        r'praktiken'
+                    ]
+                    
+                    is_about_case_law = any(re.search(pattern, full_response_llama.lower()) for pattern in case_law_patterns)
+                    
+                    if is_about_case_law:
+                        # Extract paragraph reference from the response or original query
+                        paragraph_match = re.search(r'(\d+\s*kap\.?\s*\d+\s*§)', full_response_llama + " " + text, re.IGNORECASE)
+                        paragraph = paragraph_match.group(1) if paragraph_match else None
+                        
+                        # Extract law name
+                        law_patterns = {
+                            'Socialtjänstlagen': r'sol|socialtjänstlagen',
+                            'LVU': r'lvu|lagen om vård av unga',
+                            'LVM': r'lvm|lagen om vård av missbrukare'
+                        }
+                        
+                        law_name = None
+                        for law, pattern in law_patterns.items():
+                            if re.search(pattern, (full_response_llama + " " + text).lower()):
+                                law_name = law
+                                break
+                        
+                        if not law_name:
+                            law_name = "Socialtjänstlagen"  # Default for Socionomen
+                        
+                        # Create follow-up options
+                        follow_up_options = [
+                            {
+                                "id": "followup_yes",
+                                "label": "Ja, visa exempel",
+                                "action": "search_prejudikat",
+                                "parameters": {
+                                    "paragraf": paragraph if paragraph else "4 kap. 1 §",
+                                    "lag_namn": law_name,
+                                    "personality": personality_id
+                                }
+                            },
+                            {
+                                "id": "followup_no",
+                                "label": "Nej tack",
+                                "action": "decline_followup",
+                                "parameters": {}
+                            }
+                        ]
+                        
+                        logger.info(f"🔔 [STREAM] Detected follow-up question about case law: {paragraph} in {law_name}")
+                        logger.info(f"🔔 [STREAM] follow_up_options = {follow_up_options}")
+                        print(f"🔔 [STREAM] Detected follow-up question about case law: {paragraph} in {law_name}")
+                        print(f"🔔 [STREAM] follow_up_options = {follow_up_options}")
+                
                 metadata = {
                     "tokens": output_tokens,
                     "latency_ms": round(elapsed, 2),
@@ -16187,7 +16269,8 @@ Du visar alltid källor när du hämtar fakta."""
                     "personality": {"name": personality_name, "id": personality_id} if personality_name else None,
                     "selected_persona_id": personality_id if personality_id else "medveten",  # For frontend sync
                     "thinking_steps": thinking_steps,
-                    "api_sources": [api.get('name') for api in selected_apis] if selected_apis else []
+                    "api_sources": [api.get('name') for api in selected_apis] if selected_apis else [],
+                    "follow_up_options": follow_up_options  # Add follow-up options to metadata
                 }
                 
                 print(f"\n📊 FINAL METADATA:")
