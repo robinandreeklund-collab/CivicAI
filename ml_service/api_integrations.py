@@ -2082,68 +2082,88 @@ def extract_chapter_from_riksdagen(html_content: str, chapter_number: str) -> Op
         
         # Collect all content after the header until next chapter header
         content_parts = []
-        current = chapter_header
         header_tag_name = chapter_header.name
         
-        # Move to next sibling after the chapter header
-        current = current.next_sibling
-        
-        # Track last paragraph marker to avoid duplicates
-        last_para_marker = None
-        
-        # Continue collecting until we hit the next chapter
+        # Find all siblings after the chapter header
+        siblings = []
+        current = chapter_header.next_sibling
         while current:
-            if hasattr(current, 'name') and current.name:
-                # Stop if we hit another chapter header at same level
-                # For h3 chapter headers, stop at next h3 with "X kap."
-                # For h2 chapter headers, stop at next h2 with "X kap."
-                if current.name == header_tag_name:
-                    # Check if this is another chapter (contains "X kap.")
-                    if re.search(r'\d+\s+kap\.?', current.get_text(), re.IGNORECASE):
-                        break
+            # Stop if we hit another chapter header
+            if hasattr(current, 'name') and current.name == header_tag_name:
+                if re.search(r'\d+\s+kap\.?', current.get_text(), re.IGNORECASE):
+                    break
+            siblings.append(current)
+            current = current.next_sibling
+        
+        # Process all siblings and their descendants
+        seen_para_markers = set()
+        
+        for sibling in siblings:
+            if hasattr(sibling, 'name') and sibling.name:
+                # Handle subsection headers (h4, h5)
+                if sibling.name in ['h4', 'h5']:
+                    text = sibling.get_text(strip=True)
+                    if text:
+                        content_parts.append(f"\n{text}\n")
                 
-                # Collect text from content tags
-                # Include h4/h5 as subsection headers, p for paragraphs, etc.
-                if current.name in ['p', 'div', 'section', 'article', 'h4', 'h5', 'ul', 'ol', 'li', 'table', 'pre']:
-                    text = current.get_text(separator=" ", strip=True)
+                # Handle paragraphs and other content containers
+                elif sibling.name in ['p', 'div', 'section', 'article']:
+                    # Get all text content from this container
+                    all_text = []
+                    
+                    # First, check for any <b> tags with paragraph markers
+                    for b_tag in sibling.find_all('b', recursive=True):
+                        b_text = b_tag.get_text(strip=True)
+                        if re.match(r'^\d+\s*§$', b_text) and b_text not in seen_para_markers:
+                            all_text.append(f"\n{b_text}  ")
+                            seen_para_markers.add(b_text)
+                    
+                    # Then get the plain text content (this will include text nodes)
+                    plain_text = sibling.get_text(separator=" ", strip=True)
+                    if plain_text:
+                        # Remove paragraph markers from plain text since we already added them
+                        for marker in seen_para_markers:
+                            plain_text = plain_text.replace(marker, "").strip()
+                        if plain_text:
+                            all_text.append(plain_text)
+                    
+                    if all_text:
+                        content_parts.append("".join(all_text))
+                
+                # Handle lists, tables, and other structured content
+                elif sibling.name in ['ul', 'ol', 'li', 'table', 'pre']:
+                    text = sibling.get_text(separator=" ", strip=True)
                     if text:
                         content_parts.append(text)
-                # Handle <b> tags that might contain paragraph markers like "1 §", "2 §"
-                elif current.name == 'b':
-                    text = current.get_text(strip=True)
-                    # Check if it looks like a paragraph marker (e.g., "1 §", "2 §")
-                    if re.match(r'^\d+\s*§$', text):
-                        # Only add if it's different from the last one (avoid duplicates)
-                        if text != last_para_marker:
-                            content_parts.append(f"\n{text}")
-                            last_para_marker = text
-                # Handle <a> tags that might contain paragraph markers or anchors
-                elif current.name == 'a':
-                    # Check if anchor contains a <b> tag with paragraph marker
-                    b_tag = current.find('b')
+                
+                # Handle standalone <b> tags (paragraph markers outside containers)
+                elif sibling.name == 'b':
+                    text = sibling.get_text(strip=True)
+                    if re.match(r'^\d+\s*§$', text) and text not in seen_para_markers:
+                        content_parts.append(f"\n{text}  ")
+                        seen_para_markers.add(text)
+                
+                # Handle <a> tags (usually anchors, skip if they contain para markers we've seen)
+                elif sibling.name == 'a':
+                    b_tag = sibling.find('b')
                     if b_tag:
-                        text = b_tag.get_text(strip=True)
-                        # Skip if it looks like a paragraph marker (already handled by standalone <b>)
-                        if re.match(r'^\d+\s*§$', text):
-                            pass  # Skip duplicate
-                        else:
-                            # Other anchor content
-                            full_text = current.get_text(separator=" ", strip=True)
-                            if full_text and len(full_text) > 10:
-                                content_parts.append(full_text)
+                        b_text = b_tag.get_text(strip=True)
+                        # Skip if it's a duplicate paragraph marker
+                        if not re.match(r'^\d+\s*§$', b_text):
+                            text = sibling.get_text(separator=" ", strip=True)
+                            if text and len(text) > 10:
+                                content_parts.append(text)
                     else:
-                        # No <b> tag inside, collect anchor text
-                        text = current.get_text(separator=" ", strip=True)
+                        text = sibling.get_text(separator=" ", strip=True)
                         if text and len(text) > 10:
                             content_parts.append(text)
-            elif hasattr(current, 'strip'):
+            
+            elif hasattr(sibling, 'strip'):
                 # This is a text node (NavigableString)
-                text = current.strip()
+                text = sibling.strip()
                 # Collect substantial text nodes (more than just whitespace)
                 if text and len(text) > 10:
                     content_parts.append(text)
-            
-            current = current.next_sibling
         
         # Get the chapter header text
         header_text = chapter_header.get_text(strip=True)
