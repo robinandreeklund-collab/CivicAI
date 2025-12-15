@@ -98,7 +98,7 @@ export async function getMistralResponse(question, options = {}) {
       model: mlResult.data.model || 'mistral-7b-instruct',
       metadata: {
         temperature: options.temperature || 0.7,
-        maxTokens: options.maxTokens || 500,
+        maxTokens: options.maxTokens || 1500,  // Increased from 500 to support longer responses
         latency_ms: mlResult.data.latency_ms || latency,
         tokens: mlResult.data.tokens || Math.ceil(mlResult.data.response.split(' ').length * 1.3),
         simulated: false,
@@ -119,7 +119,7 @@ export async function getMistralResponse(question, options = {}) {
     model: 'mistral-7b-instruct',
     metadata: {
       temperature: options.temperature || 0.7,
-      maxTokens: options.maxTokens || 500,
+      maxTokens: options.maxTokens || 1500,  // Increased from 500 to support longer responses
       latency_ms: latency,
       tokens: Math.ceil(response.split(' ').length * 1.3),
       simulated: true,

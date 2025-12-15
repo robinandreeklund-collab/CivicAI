@@ -30,13 +30,13 @@
         "ekonomiskt bistånd", "bistånd nya sol", "barn nya sol", "förebyggande nya sol"
       ],
       "priority": 0,
-      "description": "Nya Socialtjänstlagen (2025:400) från Riksdagen. Använder smart kapitelextraktion - hämtar endast relevanta kapitel (3-6k chars).",
+      "description": "Nya Socialtjänstlagen (2025:400) från Riksdagen. Använder smart kapitelextraktion - hämtar endast relevanta kapitel (3-6k chars). FÖREDRAGEN API för nya SoL-frågor. När användare frågar om 'X kap. Y §', skicka kapitel=X (inte Y).",
       "method": "BROWSE_CHAPTER",
       "parameters": {
         "kapitel": {
           "type": "string",
           "required": false,
-          "description": "Kapitelnummer att extrahera (t.ex. '4' för 4 kap.). Om inte angivet, hämtas första 6000 tecken."
+          "description": "Kapitelnummer att extrahera (t.ex. '4' för 4 kap.). VIKTIGT: Vid '4 kap. 1 §' → kapitel='4' (det första numret, INTE paragrafnumret). Om inte angivet, hämtas första 6000 tecken."
         }
       },
       "data_format": "HTML/Text",
@@ -55,13 +55,13 @@
         "socialtjänstlagen 2001", "tidigare sol", "gamla lagen om", "vad sa gamla sol om"
       ],
       "priority": 1,
-      "description": "Gamla Socialtjänstlagen (2001:453) från Riksdagen. Använder smart kapitelextraktion.",
+      "description": "Gamla Socialtjänstlagen (2001:453) från Riksdagen. Använder smart kapitelextraktion. FÖREDRAGEN API för gamla SoL-frågor. När användare frågar om 'X kap. Y §', skicka kapitel=X (inte Y).",
       "method": "BROWSE_CHAPTER",
       "parameters": {
         "kapitel": {
           "type": "string",
           "required": false,
-          "description": "Kapitelnummer att extrahera (t.ex. '4' för 4 kap.)."
+          "description": "Kapitelnummer att extrahera (t.ex. '4' för 4 kap.). VIKTIGT: Vid '4 kap. 1 §' → kapitel='4' (det första numret, INTE paragrafnumret)."
         }
       },
       "data_format": "HTML/Text",

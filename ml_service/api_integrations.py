@@ -2032,12 +2032,20 @@ def extract_chapter_from_riksdagen(html_content: str, chapter_number: str) -> Op
     """
     Extract a specific chapter from Riksdagen.se law HTML using BeautifulSoup.
     
+    Supports full extraction including:
+    - Chapter headers (h2, h3, h4, strong tags)
+    - Subsection headers (h4, h5 tags)
+    - Paragraph markers including lettered paragraphs (e.g., "1 §", "1 a §", "1 b §")
+    - Italic legal references (<i> tags)
+    - Line breaks (<br> tags)
+    - Complex nested structures
+    
     Args:
         html_content: Full HTML content from Riksdagen
         chapter_number: Chapter number as string (e.g., "4" for "4 kap.")
         
     Returns:
-        Extracted chapter text or None if not found
+        Extracted chapter text with preserved structure or None if not found
     """
     try:
         soup = BeautifulSoup(html_content, 'html.parser')
@@ -2271,6 +2279,11 @@ def browse_page_with_bert(url: str, ratio: float = 0.3, min_length: int = 100) -
     This function is kept for backwards compatibility but is no longer recommended.
     BERT summarization was too slow (60-120s) and produced poor results for large documents.
     
+    For Riksdagen law pages, use browse_page_with_chapter_extraction which provides:
+    - Fast chapter-specific extraction (3-6k chars per chapter)
+    - Accurate paragraph markers and subsection headers
+    - Support for lettered paragraphs (1 a §, 1 b §)
+    
     Args:
         url: The URL to fetch (may include anchor fragment like #K11P1)
         ratio: Compression ratio for BERT summarization (0.2-0.5 recommended, default 0.3)
@@ -2279,6 +2292,12 @@ def browse_page_with_bert(url: str, ratio: float = 0.3, min_length: int = 100) -
     Returns:
         BERT-summarized content or error message
     """
+    import warnings
+    warnings.warn(
+        "browse_page_with_bert is deprecated. Use browse_page_with_chapter_extraction for Riksdagen pages.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     logger.warning("[browse_page_with_bert] DEPRECATED - Use browse_page_with_chapter_extraction instead")
     
     try:
