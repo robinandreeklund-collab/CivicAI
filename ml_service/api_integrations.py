@@ -2091,7 +2091,7 @@ def browse_page_with_bert(url: str, ratio: float = 0.3, min_length: int = 100) -
                 input=json_module.dumps(input_data, ensure_ascii=False),
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=120  # Increased to 120 seconds for large documents (100k+ chars)
             )
             
             if result.returncode == 0:
