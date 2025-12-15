@@ -126,44 +126,44 @@ class TestSocionomenCharacterPrompt:
             "YAML should contain preference instructions"
     
     def test_follow_up_schema_present(self):
-        """Test that YAML contains follow-up schema instructions."""
+        """Test that YAML contains follow-up instructions."""
         yaml_path = self.get_socionomen_yaml_path()
         with open(yaml_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # Check for follow-up schema section
-        assert "FOLLOW-UP SCHEMA" in content or "follow_up_options" in content, \
-            "YAML should contain follow-up schema instructions"
+        # Check for follow-up instructions section
+        assert "UPPFÖLJNINGSFRÅGA" in content or "FOLLOW-UP" in content, \
+            "YAML should contain follow-up instructions"
         
-        # Check for required fields in follow-up schema
-        assert "search_prejudikat" in content, \
-            "YAML should mention search_prejudikat action"
-        assert "decline_followup" in content, \
-            "YAML should mention decline_followup action"
-        assert '"id"' in content or "'id'" in content, \
-            "YAML should show follow-up option ID field"
-        assert '"action"' in content or "'action'" in content, \
-            "YAML should show follow-up action field"
-        assert '"parameters"' in content or "'parameters'" in content, \
-            "YAML should show follow-up parameters field"
+        # Check that it mentions asking natural questions about case law application
+        assert "domar" in content.lower() or "prejudikat" in content.lower(), \
+            "YAML should mention asking about domar/prejudikat"
+        
+        # Check that it instructs NOT to include JSON
+        assert "INTE" in content or "inte" in content, \
+            "YAML should instruct to NOT include JSON structures"
+        
+        # Check that it mentions automatic system behavior
+        assert "automatiskt" in content.lower() or "systemet" in content.lower(), \
+            "YAML should mention that system handles follow-up options automatically"
     
     def test_follow_up_examples_present(self):
-        """Test that YAML contains complete examples of follow-up options."""
+        """Test that YAML contains examples of how to ask follow-up questions."""
         yaml_path = self.get_socionomen_yaml_path()
         with open(yaml_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # Check that examples include the required structure
-        assert "prej_yes" in content or "prej_no" in content, \
-            "YAML should contain example follow-up option IDs"
+        # Check that examples show natural follow-up questions
+        assert "Vill du se" in content, \
+            "YAML should contain example follow-up question starting with 'Vill du se'"
         
-        # Check for parameter examples
-        assert '"paragraf"' in content or "'paragraf'" in content, \
-            "YAML should show paragraf parameter in examples"
-        assert '"lag_namn"' in content or "'lag_namn'" in content, \
-            "YAML should show lag_namn parameter in examples"
-        assert '"personality"' in content or "'personality'" in content, \
-            "YAML should show personality parameter in examples"
+        # Check for examples of responses
+        assert "Exempel 1" in content or "**Exempel" in content, \
+            "YAML should contain numbered or formatted examples"
+        
+        # Check that examples mention case law terminology
+        assert "tillämpats" in content or "rättspraxis" in content or "domstolspraxis" in content, \
+            "YAML should mention case law application in examples"
 
 
 class TestChapterExtractionPattern:

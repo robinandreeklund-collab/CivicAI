@@ -134,14 +134,15 @@ Socionomen använder två huvudsakliga verktyg för att hämta lagtexter:
 **Förväntat flöde**:
 1. **Initialt svar** på "Citera 4 kap. 1 § i gamla SoL":
    - Lagtext från 4 kap. med paragraf 1
-   - Uppföljningsfråga: "Vill du se hur denna paragraf har tillämpats i verkliga domar och prejudikat?"
-   - **MÅSTE inkludera** `follow_up_options` JSON:
+   - **Modellens textsvar** avslutar med naturlig fråga: "Vill du se hur denna paragraf har tillämpats i verkliga domar och prejudikat?"
+   - **Backend auto-genererar** (INTE i modellens text) `follow_up_options` i response JSON:
    ```json
    {
+     "response": "4 kap. 1 § Socialtjänstlagen...\n\nVill du se hur denna paragraf har tillämpats i verkliga domar och prejudikat?",
      "follow_up_options": [
        {
-         "id": "prej_yes",
-         "label": "Ja, visa domar och prejudikat",
+         "id": "followup_yes",
+         "label": "Ja, visa exempel",
          "action": "search_prejudikat",
          "parameters": {
            "paragraf": "4 kap. 1 §",
@@ -150,12 +151,10 @@ Socionomen använder två huvudsakliga verktyg för att hämta lagtexter:
          }
        },
        {
-         "id": "prej_no",
-         "label": "Nej, ställ ny fråga",
+         "id": "followup_no",
+         "label": "Nej tack",
          "action": "decline_followup",
-         "parameters": {
-           "personality": "socionomen"
-         }
+         "parameters": {}
        }
      ]
    }
@@ -167,8 +166,17 @@ Socionomen använder två huvudsakliga verktyg för att hämta lagtexter:
    - Svar innehåller sammanfattning av relevanta domstolsavgöranden
    - Högt token-limit (1200+) för att inkludera flera domstolsexempel
 
+**Backend Auto-generering**:
+Modellen skriver INTE JSON i sitt textsvar. Istället:
+- Modellen avslutar bara med en naturlig fråga: "Vill du se hur denna paragraf har tillämpats i verkliga domar och prejudikat?"
+- Backend (ml_service/server.py, generate_personality_response) detekterar automatiskt follow-up-mönster
+- Backend extraherar paragraf och lagnamn från svaret med regex
+- Backend skapar `follow_up_options` array med knappar
+- Frontend renderar interaktiva knappar
+
 **Validation**:
-- `follow_up_options` finns i response JSON
+- Modellens textsvar INNEHÅLLER INTE JSON (bara naturlig fråga)
+- `follow_up_options` finns i response JSON (skapad av backend)
 - Alla required fields finns: `id`, `label`, `action`, `parameters`
 - `action === "search_prejudikat"` för positiva alternativ
 - `parameters` innehåller `paragraf`, `lag_namn`, och `personality`
