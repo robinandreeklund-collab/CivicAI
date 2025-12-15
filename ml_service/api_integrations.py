@@ -2026,6 +2026,102 @@ def get_registry_summary() -> Dict[str, Any]:
 # BROWSE_PAGE - Web Content Fetching
 # =============================================================================
 
+def browse_page_with_bert(url: str, ratio: float = 0.3, min_length: int = 100) -> Optional[str]:
+    """
+    Fetch and extract text content from a web page, then summarize with BERT.
+    
+    This function fetches the ENTIRE page content (no character limit on input),
+    then uses BERT extractive summarization to create a concise, relevant summary.
+    This ensures the model receives high-quality summaries instead of raw HTML content.
+    
+    Args:
+        url: The URL to fetch (may include anchor fragment like #K11P1)
+        ratio: Compression ratio for BERT summarization (0.2-0.5 recommended, default 0.3)
+        min_length: Minimum summary length in characters (default 100)
+        
+    Returns:
+        BERT-summarized content or error message
+    """
+    try:
+        # First, fetch the full page content WITHOUT character limit
+        # browse_page with max_length=999999 fetches the entire content
+        full_text = browse_page(url, max_length=999999)
+        
+        # Check if fetch failed
+        if not full_text or full_text.startswith("Kunde inte") or full_text.startswith("Ett oväntat fel"):
+            return full_text
+        
+        # Remove the "Innehållet fortsätter på webbplatsen" suffix if present
+        full_text = re.sub(r'\.\.\.\n\n\[Innehållet fortsätter på webbplatsen\]$', '', full_text)
+        
+        # If text is very short, no need to summarize
+        if len(full_text) < min_length * 2:
+            logger.info(f"[browse_page_with_bert] Text too short to summarize ({len(full_text)} chars), returning as-is")
+            return full_text
+        
+        logger.info(f"[browse_page_with_bert] Summarizing {len(full_text)} chars with BERT (ratio={ratio})")
+        
+        # Call BERT summarizer
+        import subprocess
+        import json as json_module
+        from pathlib import Path
+        
+        # Path to bert_summarizer.py
+        bert_script = Path(__file__).parent.parent / "backend" / "python_services" / "bert_summarizer.py"
+        
+        if not bert_script.exists():
+            logger.warning(f"[browse_page_with_bert] BERT summarizer script not found at {bert_script}")
+            # Fall back to truncated content
+            return full_text[:3000] + "...\n\n[Innehållet fortsätter på webbplatsen]"
+        
+        # Prepare input for BERT summarizer
+        input_data = {
+            "text": full_text,
+            "ratio": ratio,
+            "min_length": min_length,
+            "max_length": None  # No limit on output
+        }
+        
+        # Call the BERT summarizer Python script
+        try:
+            result = subprocess.run(
+                ["python3", str(bert_script)],
+                input=json_module.dumps(input_data, ensure_ascii=False),
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode == 0:
+                output = json_module.loads(result.stdout)
+                if output.get("success"):
+                    summary = output.get("summary", "")
+                    metadata = output.get("metadata", {})
+                    logger.info(f"[browse_page_with_bert] BERT summarization successful: "
+                              f"{metadata.get('original_length', 0)} → {metadata.get('summary_length', 0)} chars "
+                              f"(compression: {metadata.get('compression_ratio', 0):.2%})")
+                    return summary
+                else:
+                    logger.error(f"[browse_page_with_bert] BERT summarization failed: {output.get('error')}")
+                    # Fall back to truncated content
+                    return full_text[:3000] + "...\n\n[Innehållet fortsätter på webbplatsen]"
+            else:
+                logger.error(f"[browse_page_with_bert] BERT script failed: {result.stderr}")
+                # Fall back to truncated content
+                return full_text[:3000] + "...\n\n[Innehållet fortsätter på webbplatsen]"
+                
+        except subprocess.TimeoutExpired:
+            logger.error(f"[browse_page_with_bert] BERT summarization timed out")
+            return full_text[:3000] + "...\n\n[Innehållet fortsätter på webbplatsen]"
+        except Exception as e:
+            logger.error(f"[browse_page_with_bert] Error calling BERT summarizer: {e}")
+            return full_text[:3000] + "...\n\n[Innehållet fortsätter på webbplatsen]"
+        
+    except Exception as e:
+        logger.error(f"[browse_page_with_bert] Unexpected error: {e}")
+        return f"Ett oväntat fel uppstod vid hämtning och summering av {url}"
+
+
 def browse_page(url: str, max_length: int = 3000) -> Optional[str]:
     """
     Fetch and extract text content from a web page.
@@ -2039,6 +2135,9 @@ def browse_page(url: str, max_length: int = 3000) -> Optional[str]:
     
     Note: Uses regex-based HTML parsing for simplicity and minimal dependencies.
     For more robust parsing, consider upgrading to BeautifulSoup in the future.
+    
+    DEPRECATED: Use browse_page_with_bert instead for better results.
+    This function is kept for backward compatibility and as a fallback.
     
     Args:
         url: The URL to fetch (may include anchor fragment like #K11P1)
@@ -2158,6 +2257,10 @@ __all__ = [
     'fetch_trafikverket_data',
     'fetch_saol_data',
     'fetch_open_data_search',
+    
+    # Web page fetching
+    'browse_page',
+    'browse_page_with_bert',
     'fetch_svt_news',
     'fetch_sr_ekot_news',
     'fetch_omni_news',

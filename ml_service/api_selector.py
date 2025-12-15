@@ -136,17 +136,17 @@ async def call_api(
         
         # Check if this API uses browse_page for HTML content extraction
         if api_tool == 'browse_page' or api_method == 'BROWSE':
-            logger.info(f"Using browse_page for {api_name}: {api_url}")
-            # Import browse_page function
+            logger.info(f"Using browse_page_with_bert for {api_name}: {api_url}")
+            # Import browse_page_with_bert function
             try:
-                from api_integrations import browse_page
+                from api_integrations import browse_page_with_bert
                 
-                # Call browse_page synchronously (it's not async)
+                # Call browse_page_with_bert synchronously (it's not async)
                 # We need to run it in an executor to avoid blocking
                 loop = asyncio.get_running_loop()
-                # Using max_length of 3000 - sufficient for paragraph-level content
-                # browse_page now extracts anchor-targeted elements for precise fetching
-                text_content = await loop.run_in_executor(None, browse_page, api_url, 3000)
+                # browse_page_with_bert fetches ENTIRE page and summarizes with BERT
+                # No character limit on input - BERT processes full content
+                text_content = await loop.run_in_executor(None, browse_page_with_bert, api_url)
                 
                 # Check if fetch was successful (errors start with "Kunde inte" or "Ett oväntat fel")
                 is_error = text_content and (text_content.startswith("Kunde inte") or text_content.startswith("Ett oväntat fel"))
@@ -155,15 +155,15 @@ async def call_api(
                     result['success'] = True
                     result['data'] = {'text': text_content, 'url': api_url}
                     result['url'] = api_url
-                    logger.info(f"Successfully fetched HTML content from {api_name} ({len(text_content)} chars)")
+                    logger.info(f"Successfully fetched and summarized HTML content from {api_name} ({len(text_content)} chars)")
                 else:
                     result['error'] = text_content or "Failed to fetch content"
-                    logger.error(f"browse_page failed for {api_name}: {result['error']}")
+                    logger.error(f"browse_page_with_bert failed for {api_name}: {result['error']}")
                 
                 return result
                 
             except ImportError as e:
-                result['error'] = f"browse_page function not available: {e}"
+                result['error'] = f"browse_page_with_bert function not available: {e}"
                 logger.error(result['error'])
                 return result
         
