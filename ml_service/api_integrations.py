@@ -2071,8 +2071,9 @@ def browse_page_with_bert(url: str, ratio: float = 0.3, min_length: int = 100) -
         
         if not bert_script.exists():
             logger.warning(f"[browse_page_with_bert] BERT summarizer script not found at {bert_script}")
-            # Fall back to truncated content
-            return full_text[:3000] + "...\n\n[Innehållet fortsätter på webbplatsen]"
+            # Fall back to truncated content with clear warning
+            logger.warning(f"[browse_page_with_bert] Returning truncated content (3000 chars) - BERT not available")
+            return full_text[:3000] + "...\n\n[VARNING: BERT ej tillgänglig - innehållet är trunkerat]"
         
         # Prepare input for BERT summarizer
         input_data = {
@@ -2103,19 +2104,23 @@ def browse_page_with_bert(url: str, ratio: float = 0.3, min_length: int = 100) -
                     return summary
                 else:
                     logger.error(f"[browse_page_with_bert] BERT summarization failed: {output.get('error')}")
-                    # Fall back to truncated content
-                    return full_text[:3000] + "...\n\n[Innehållet fortsätter på webbplatsen]"
+                    # Fall back to truncated content with clear warning
+                    logger.warning(f"[browse_page_with_bert] Returning truncated content (3000 chars) - BERT failed")
+                    return full_text[:3000] + "...\n\n[VARNING: BERT-summering misslyckades - innehållet är trunkerat]"
             else:
                 logger.error(f"[browse_page_with_bert] BERT script failed: {result.stderr}")
-                # Fall back to truncated content
-                return full_text[:3000] + "...\n\n[Innehållet fortsätter på webbplatsen]"
+                # Fall back to truncated content with clear warning
+                logger.warning(f"[browse_page_with_bert] Returning truncated content (3000 chars) - BERT script error")
+                return full_text[:3000] + "...\n\n[VARNING: BERT-summering misslyckades - innehållet är trunkerat]"
                 
         except subprocess.TimeoutExpired:
             logger.error(f"[browse_page_with_bert] BERT summarization timed out")
-            return full_text[:3000] + "...\n\n[Innehållet fortsätter på webbplatsen]"
+            logger.warning(f"[browse_page_with_bert] Returning truncated content (3000 chars) - BERT timeout")
+            return full_text[:3000] + "...\n\n[VARNING: BERT-summering tog för lång tid - innehållet är trunkerat]"
         except Exception as e:
             logger.error(f"[browse_page_with_bert] Error calling BERT summarizer: {e}")
-            return full_text[:3000] + "...\n\n[Innehållet fortsätter på webbplatsen]"
+            logger.warning(f"[browse_page_with_bert] Returning truncated content (3000 chars) - BERT error: {e}")
+            return full_text[:3000] + "...\n\n[VARNING: BERT-summering misslyckades - innehållet är trunkerat]"
         
     except Exception as e:
         logger.error(f"[browse_page_with_bert] Unexpected error: {e}")
