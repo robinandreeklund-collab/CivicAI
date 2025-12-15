@@ -12432,11 +12432,17 @@ async def personality_based_inference(request: Request, inference_request: Perso
         print(f"🎯 [ENDPOINT START] Query: {user_query[:100]}...")
         logger.info(f"[Personality/Non-Stream] Received query: {user_query[:100]}...")
         
+        # Use admin setting for max_tokens if not explicitly provided
+        max_tokens = inference_request.max_tokens
+        if max_tokens == 512:  # If using default, check admin setting
+            max_tokens = _admin_settings.get("outputMaxTokens", 1200)
+            logger.info(f"[ADMIN] Using outputMaxTokens from admin settings: {max_tokens}")
+        
         # Use three-stage inference pipeline (non-streaming version)
         print(f"🎯 [ENDPOINT] About to call generate_personality_response...")
         result = await generate_personality_response(
             text=user_query,
-            max_length=inference_request.max_tokens,
+            max_length=max_tokens,
             temperature=inference_request.temperature,
             top_p=0.9
         )
@@ -12709,7 +12715,8 @@ async def websocket_personality_inference(websocket: WebSocket):
                         
                         api_results = await fetch_apis_parallel(
                             api_selection,
-                            character_api_map
+                            character_api_map,
+                            admin_settings=_admin_settings
                         )
                         
                         successful_apis = [r for r in api_results if r.get('success')]
@@ -14430,6 +14437,10 @@ async def get_current_active_model():
 # Global settings storage (in-memory, can be extended to file/db)
 _admin_settings = {
     "typo_check_enabled": True,  # Default: typo checking is ON
+    "outputMaxTokens": 1200,  # Default max output tokens for responses
+    "contextWindow": 16384,  # Default context window size
+    "webMaxChars": 6000,  # Default max chars for web fetch (browse_page)
+    "autoFollowUpSocionomen": False,  # Default: auto follow-up disabled
 }
 
 @app.get("/api/settings/typo-check")
@@ -14464,10 +14475,88 @@ async def set_typo_check_setting(request: Request):
             content={"success": False, "error": str(e)}
         )
 
+@app.get("/api/admin/settings")
+async def get_admin_settings():
+    """
+    Get all admin configurable settings (memory-based).
+    Returns current values for outputMaxTokens, contextWindow, webMaxChars, autoFollowUpSocionomen.
+    """
+    return {
+        "success": True,
+        "settings": {
+            "outputMaxTokens": _admin_settings.get("outputMaxTokens", 1200),
+            "contextWindow": _admin_settings.get("contextWindow", 16384),
+            "webMaxChars": _admin_settings.get("webMaxChars", 6000),
+            "autoFollowUpSocionomen": _admin_settings.get("autoFollowUpSocionomen", False),
+        },
+        "defaults": {
+            "outputMaxTokens": 1200,
+            "contextWindow": 16384,
+            "webMaxChars": 6000,
+            "autoFollowUpSocionomen": False,
+        }
+    }
+
+@app.post("/api/admin/settings")
+async def update_admin_settings(request: Request):
+    """
+    Update admin configurable settings (memory-based).
+    Accepts: outputMaxTokens, contextWindow, webMaxChars, autoFollowUpSocionomen.
+    """
+    try:
+        data = await request.json()
+        
+        # Update only provided settings
+        if "outputMaxTokens" in data:
+            value = int(data["outputMaxTokens"])
+            if value < 100 or value > 8192:
+                raise ValueError("outputMaxTokens must be between 100 and 8192")
+            _admin_settings["outputMaxTokens"] = value
+        
+        if "contextWindow" in data:
+            value = int(data["contextWindow"])
+            if value < 2048 or value > 32768:
+                raise ValueError("contextWindow must be between 2048 and 32768")
+            _admin_settings["contextWindow"] = value
+        
+        if "webMaxChars" in data:
+            value = int(data["webMaxChars"])
+            if value < 1000 or value > 20000:
+                raise ValueError("webMaxChars must be between 1000 and 20000")
+            _admin_settings["webMaxChars"] = value
+        
+        if "autoFollowUpSocionomen" in data:
+            _admin_settings["autoFollowUpSocionomen"] = bool(data["autoFollowUpSocionomen"])
+        
+        logger.info(f"[ADMIN] Settings updated: {data}")
+        
+        return {
+            "success": True,
+            "settings": {
+                "outputMaxTokens": _admin_settings.get("outputMaxTokens", 1200),
+                "contextWindow": _admin_settings.get("contextWindow", 16384),
+                "webMaxChars": _admin_settings.get("webMaxChars", 6000),
+                "autoFollowUpSocionomen": _admin_settings.get("autoFollowUpSocionomen", False),
+            },
+            "message": "Settings updated successfully"
+        }
+    except ValueError as e:
+        logger.error(f"[ADMIN] Invalid setting value: {e}")
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": str(e)}
+        )
+    except Exception as e:
+        logger.error(f"[ADMIN] Error updating settings: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
 @app.get("/api/settings/all")
 async def get_all_settings():
     """
-    Get all admin settings.
+    Get all admin settings (legacy endpoint, kept for backward compatibility).
     """
     return {
         "settings": _admin_settings,
@@ -15105,9 +15194,9 @@ async def generate_personality_response(
         successful_api_names = []
         
         if selected_apis:
-            # Pass the resolved catalog to fetch_apis_parallel
+            # Pass the resolved catalog and admin settings to fetch_apis_parallel
             api_selection_dict = {"apis": selected_apis}
-            api_results = await fetch_apis_parallel(api_selection_dict, character_api)
+            api_results = await fetch_apis_parallel(api_selection_dict, character_api, admin_settings=_admin_settings)
             
             for result in api_results:
                 api_name = result.get('api_name', 'unknown')
@@ -15776,7 +15865,8 @@ Exempel:
                             api_results = await fetch_apis_parallel(
                                 api_selection_dict,
                                 character_api,
-                                max_concurrent=5
+                                max_concurrent=5,
+                                admin_settings=_admin_settings
                             )
                             print(f"✅ API fetch complete: {len(api_results)} results received")
                             

@@ -118,7 +118,8 @@ async def call_api(
     api_name: str,
     params: Dict[str, Any],
     api_catalog: Dict,
-    timeout: int = 10
+    timeout: int = 10,
+    admin_settings: Optional[Dict] = None
 ) -> Dict[str, Any]:
     """
     Call a specific API with given parameters.
@@ -286,7 +287,12 @@ async def call_api(
         
         # Check if this API uses browse_page for HTML content extraction
         if api_tool == 'browse_page' or api_method == 'BROWSE':
-            logger.info(f"Using browse_page for {api_name}: {api_url} (max 6000 chars)")
+            # Get webMaxChars from admin settings, default to 6000
+            web_max_chars = 6000
+            if admin_settings and 'webMaxChars' in admin_settings:
+                web_max_chars = admin_settings['webMaxChars']
+            
+            logger.info(f"Using browse_page for {api_name}: {api_url} (max {web_max_chars} chars)")
             
             if not CHAPTER_EXTRACTION_AVAILABLE:
                 result['error'] = "browse_page function not available"
@@ -297,9 +303,9 @@ async def call_api(
                 # Import the function
                 from ml_service.api_integrations import browse_page
                 
-                # Call browse_page synchronously with 6000 char limit
+                # Call browse_page synchronously with configurable char limit
                 loop = asyncio.get_running_loop()
-                text_content = await loop.run_in_executor(None, browse_page, api_url, 6000)
+                text_content = await loop.run_in_executor(None, browse_page, api_url, web_max_chars)
                 
                 # Check if fetch was successful (errors start with "Kunde inte" or "Ett oväntat fel")
                 is_error = text_content and (text_content.startswith("Kunde inte") or text_content.startswith("Ett oväntat fel"))
@@ -369,7 +375,8 @@ async def call_api(
 async def fetch_apis_parallel(
     api_selection: Dict,
     api_catalog: Dict,
-    max_concurrent: int = 5
+    max_concurrent: int = 5,
+    admin_settings: Optional[Dict] = None
 ) -> List[Dict[str, Any]]:
     """
     Fetch data from multiple APIs in parallel.
@@ -378,6 +385,7 @@ async def fetch_apis_parallel(
         api_selection: Dict with 'apis' list from model
         api_catalog: Full API catalog
         max_concurrent: Maximum number of concurrent requests
+        admin_settings: Optional admin settings dict (for webMaxChars, etc.)
         
     Returns:
         List of API response dicts
@@ -400,7 +408,7 @@ async def fetch_apis_parallel(
             logger.warning("Skipping API with no name")
             continue
         
-        task = call_api(api_name, params, api_catalog)
+        task = call_api(api_name, params, api_catalog, admin_settings=admin_settings)
         tasks.append(task)
     
     # Execute all tasks in parallel with semaphore for rate limiting
