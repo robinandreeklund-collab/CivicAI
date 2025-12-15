@@ -2082,33 +2082,47 @@ def extract_chapter_from_riksdagen(html_content: str, chapter_number: str) -> Op
         
         # Collect all content after the header until next chapter header
         content_parts = []
-        current = chapter_header.next_sibling
+        current = chapter_header
         header_tag_name = chapter_header.name
         
-        # Define what counts as a "next chapter" based on what we found
-        stop_tags = ['h1', 'h2', 'h3', 'h4'] if header_tag_name in ['h2', 'h3', 'h4'] else ['h2', 'h3']
+        # Move to next sibling after the chapter header
+        current = current.next_sibling
         
+        # Continue collecting until we hit the next chapter
         while current:
-            # Stop if we hit another chapter header of same or higher level
-            if hasattr(current, 'name'):
-                if current.name in stop_tags:
+            if hasattr(current, 'name') and current.name:
+                # Stop if we hit another chapter header at same level
+                # For h3 chapter headers, stop at next h3 with "X kap."
+                # For h2 chapter headers, stop at next h2 with "X kap."
+                if current.name == header_tag_name:
                     # Check if this is another chapter (contains "X kap.")
                     if re.search(r'\d+\s+kap\.?', current.get_text(), re.IGNORECASE):
                         break
                 
-                # Collect content from relevant tags
-                if current.name in ['p', 'div', 'section', 'article', 'h3', 'h4', 'h5', 'ul', 'ol', 'li', 'table']:
+                # Collect text from content tags
+                # Include h4/h5 as subsection headers, p for paragraphs, etc.
+                if current.name in ['p', 'div', 'section', 'article', 'h4', 'h5', 'ul', 'ol', 'li', 'table', 'pre']:
                     text = current.get_text(separator=" ", strip=True)
                     if text:
                         content_parts.append(text)
+            elif hasattr(current, 'strip'):
+                # This is a text node (NavigableString)
+                text = current.strip()
+                # Collect substantial text nodes (more than just whitespace)
+                if text and len(text) > 10:
+                    content_parts.append(text)
             
             current = current.next_sibling
         
+        # Get the chapter header text
         header_text = chapter_header.get_text(strip=True)
+        
+        # Join all collected content
         chapter_text = "\n\n".join(content_parts)
         
+        # Combine header and content
         result = f"{header_text}\n\n{chapter_text}"
-        logger.info(f"[extract_chapter] Successfully extracted chapter {chapter_number} ({len(result)} chars)")
+        logger.info(f"[extract_chapter] Successfully extracted chapter {chapter_number} ({len(result)} chars, {len(content_parts)} parts)")
         return result
         
     except Exception as e:
