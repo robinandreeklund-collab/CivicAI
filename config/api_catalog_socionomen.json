@@ -19,9 +19,9 @@
   "apis": [
     {
       "name": "lagen_nu_sol_ny",
-      "source": "Lagrummet / Lagen.nu (ny SoL)",
+      "source": "Sveriges Riksdag (ny SoL)",
       "frequency": "statisk (uppdateras vid lagändringar)",
-      "url": "https://lagen.nu/2025:400#{anchor}",
+      "url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2025400_sfs-2025-400#{anchor}",
       "url_template": true,
       "tool": "browse_page",
       "keywords": [
@@ -31,37 +31,36 @@
         "ny sol", "sol 2025:400", "nya socialtjänstlagen", "socialtjänstlagen 2025", "aktuell sol"
       ],
       "priority": 0,
-      "description": "Socialtjänstlagen (SoL 2025:400) – ny lag från 1 juli 2025 via Lagen.nu. Använd anchor för specifik paragraf (t.ex. K4P1 för 4 kap. 1 §)",
+      "description": "Socialtjänstlagen (SoL 2025:400) – ny lag från 1 juli 2025 via Riksdagen. Använd anchor för specifikt kapitel (t.ex. K4 för 4 kap.)",
       "method": "BROWSE",
       "parameters": {
         "anchor": {
           "type": "string",
           "required": true,
-          "description": "Paragraf-anchor i format 'K{kapitel}P{paragraf}' (t.ex. 'K4P1' för 4 kap. 1 §, 'K5P2' för 5 kap. 2 §). Extrahera kapitel och paragraf från användarens fråga och konvertera till detta format.",
+          "description": "Kapitel-anchor i format 'K{kapitel}' (t.ex. 'K4' för 4 kap., 'K5' för 5 kap.). Extrahera kapitel-nummer från användarens fråga och konvertera till detta format.",
           "extraction_rules": [
             "Identifiera kapitel-nummer före 'kap' (t.ex. '4 kap' → kapitel=4)",
-            "Identifiera paragraf-nummer efter 'kap' och före/efter '§' (t.ex. '1 §' → paragraf=1)",
-            "Konstruera anchor: 'K' + {kapitel} + 'P' + {paragraf}",
-            "Exempel: '4 kap. 1 §' → anchor='K4P1'",
-            "Exempel: '5 kap. 2 §' → anchor='K5P2'",
-            "Exempel: '11 kap. 5 §' → anchor='K11P5'"
+            "Konstruera anchor: 'K' + {kapitel}",
+            "Exempel: '4 kap. 1 §' → anchor='K4'",
+            "Exempel: '5 kap. 2 §' → anchor='K5'",
+            "Exempel: '11 kap. 5 §' → anchor='K11'"
           ],
           "examples": [
-            {"user_query": "Vad säger 4 kap. 1 § SoL?", "extracted_anchor": "K4P1", "resulting_url": "https://lagen.nu/2025:400#K4P1"},
-            {"user_query": "Vad står i 5 kap. 2 § i nya socialtjänstlagen?", "extracted_anchor": "K5P2", "resulting_url": "https://lagen.nu/2025:400#K5P2"},
-            {"user_query": "Förklara 11 kap. 5 § SoL", "extracted_anchor": "K11P5", "resulting_url": "https://lagen.nu/2025:400#K11P5"}
+            {"user_query": "Vad säger 4 kap. 1 § SoL?", "extracted_anchor": "K4", "resulting_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2025400_sfs-2025-400#K4"},
+            {"user_query": "Vad står i 5 kap. 2 § i nya socialtjänstlagen?", "extracted_anchor": "K5", "resulting_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2025400_sfs-2025-400#K5"},
+            {"user_query": "Förklara 11 kap. 5 § SoL", "extracted_anchor": "K11", "resulting_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2025400_sfs-2025-400#K11"}
           ]
         }
       },
       "data_format": "HTML/Text",
-      "example_url": "https://lagen.nu/2025:400#K4P1",
-      "notes": "KRITISKT: Använd ALLTID anchor-parametern! Detta hämtar endast relevant paragraf istället för hela lagen (20000 tecken → ~500 tecken). Utan anchor får du HELA lagen vilket är ineffektivt och saktar ner svaret. Extrahera kapitel och paragraf från användarens fråga, konstruera anchor enligt format K{kapitel}P{paragraf}, och lägg till i URL:en. Extrahera sedan DEN EXAKTA TEXTEN för den angivna paragrafen från resultatet."
+      "example_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2025400_sfs-2025-400#K4",
+      "notes": "KRITISKT: Använd ALLTID anchor-parametern! Detta hämtar endast relevant kapitel istället för hela lagen. Extrahera kapitel-nummer från användarens fråga och konstruera anchor enligt format K{kapitel}. BERT sammanfattar sedan kapitlet."
     },
     {
       "name": "lagen_nu_sol_gammal",
-      "source": "Lagrummet / Lagen.nu (gammal SoL)",
+      "source": "Sveriges Riksdag (gammal SoL)",
       "frequency": "statisk (historisk lag)",
-      "url": "https://lagen.nu/2001:453#{anchor}",
+      "url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2001453_sfs-2001-453#{anchor}",
       "url_template": true,
       "tool": "browse_page",
       "keywords": [
@@ -69,30 +68,29 @@
         "socialtjänstlagen 2001", "tidigare sol", "före nya lagen"
       ],
       "priority": 1,
-      "description": "Socialtjänstlagen (SoL 2001:453) – gammal lag före 1 juli 2025 via Lagen.nu. Använd anchor för specifik paragraf (t.ex. K4P1 för 4 kap. 1 §)",
+      "description": "Socialtjänstlagen (SoL 2001:453) – gammal lag före 1 juli 2025 via Riksdagen. Använd anchor för specifikt kapitel (t.ex. K4 för 4 kap.)",
       "method": "BROWSE",
       "parameters": {
         "anchor": {
           "type": "string",
           "required": true,
-          "description": "Paragraf-anchor i format 'K{kapitel}P{paragraf}' (t.ex. 'K4P1' för 4 kap. 1 §, 'K5P2' för 5 kap. 2 §). Extrahera kapitel och paragraf från användarens fråga och konvertera till detta format.",
+          "description": "Kapitel-anchor i format 'K{kapitel}' (t.ex. 'K4' för 4 kap., 'K5' för 5 kap.). Extrahera kapitel-nummer från användarens fråga och konvertera till detta format.",
           "extraction_rules": [
             "Identifiera kapitel-nummer före 'kap' (t.ex. '4 kap' → kapitel=4)",
-            "Identifiera paragraf-nummer efter 'kap' och före/efter '§' (t.ex. '1 §' → paragraf=1)",
-            "Konstruera anchor: 'K' + {kapitel} + 'P' + {paragraf}",
-            "Exempel: '4 kap. 1 §' → anchor='K4P1'",
-            "Exempel: '5 kap. 2 §' → anchor='K5P2'",
-            "Exempel: '11 kap. 5 §' → anchor='K11P5'"
+            "Konstruera anchor: 'K' + {kapitel}",
+            "Exempel: '4 kap. 1 §' → anchor='K4'",
+            "Exempel: '5 kap. 2 §' → anchor='K5'",
+            "Exempel: '11 kap. 5 §' → anchor='K11'"
           ],
           "examples": [
-            {"user_query": "Vad sade gamla SoL om 4 kap. 1 §?", "extracted_anchor": "K4P1", "resulting_url": "https://lagen.nu/2001:453#K4P1"},
-            {"user_query": "Visa 5 kap. 2 § i gamla socialtjänstlagen", "extracted_anchor": "K5P2", "resulting_url": "https://lagen.nu/2001:453#K5P2"}
+            {"user_query": "Vad sade gamla SoL om 4 kap. 1 §?", "extracted_anchor": "K4", "resulting_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2001453_sfs-2001-453#K4"},
+            {"user_query": "Visa 5 kap. 2 § i gamla socialtjänstlagen", "extracted_anchor": "K5", "resulting_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2001453_sfs-2001-453#K5"}
           ]
         }
       },
       "data_format": "HTML/Text",
-      "example_url": "https://lagen.nu/2001:453#K4P1",
-      "notes": "KRITISKT: Använd ALLTID anchor-parametern! Detta hämtar endast relevant paragraf istället för hela lagen (20000 tecken → ~500 tecken). Utan anchor får du HELA lagen vilket är ineffektivt och saktar ner svaret. Extrahera kapitel och paragraf från användarens fråga, konstruera anchor enligt format K{kapitel}P{paragraf}, och lägg till i URL:en. Extrahera sedan DEN EXAKTA TEXTEN för den angivna paragrafen från resultatet."
+      "example_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2001453_sfs-2001-453#K4",
+      "notes": "KRITISKT: Använd ALLTID anchor-parametern! Detta hämtar endast relevant kapitel istället för hela lagen. Extrahera kapitel-nummer från användarens fråga och konstruera anchor enligt format K{kapitel}. BERT sammanfattar sedan kapitlet."
     },
     {
       "name": "lvu_lagtext",
