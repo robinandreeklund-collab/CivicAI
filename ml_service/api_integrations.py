@@ -2042,23 +2042,66 @@ def extract_chapter_from_riksdagen(html_content: str, chapter_number: str) -> Op
     try:
         soup = BeautifulSoup(html_content, 'html.parser')
         
-        # Find chapter header (e.g., "4 kap. Ansvaret för uppgifter inom socialtjänsten")
-        chapter_pattern = re.compile(rf"^{chapter_number}\s+kap\.", re.IGNORECASE)
-        chapter_header = soup.find('h2', string=chapter_pattern)
+        # Find chapter header - try multiple tag types and search methods
+        # Pattern matches "4 kap." or "4 kap. Title text"
+        chapter_pattern = re.compile(rf"{chapter_number}\s+kap\.?", re.IGNORECASE)
+        chapter_header = None
+        
+        # Try h2 tags first
+        for h2 in soup.find_all('h2'):
+            if chapter_pattern.search(h2.get_text()):
+                chapter_header = h2
+                break
+        
+        # If not found, try h3 tags
+        if not chapter_header:
+            for h3 in soup.find_all('h3'):
+                if chapter_pattern.search(h3.get_text()):
+                    chapter_header = h3
+                    break
+        
+        # If still not found, try h4 tags
+        if not chapter_header:
+            for h4 in soup.find_all('h4'):
+                if chapter_pattern.search(h4.get_text()):
+                    chapter_header = h4
+                    break
+        
+        # If still not found, try strong/b tags
+        if not chapter_header:
+            for tag in soup.find_all(['strong', 'b']):
+                if chapter_pattern.search(tag.get_text()):
+                    chapter_header = tag
+                    break
         
         if not chapter_header:
-            logger.warning(f"[extract_chapter] Chapter {chapter_number} not found in HTML")
+            logger.warning(f"[extract_chapter] Chapter {chapter_number} not found in HTML (tried h2, h3, h4, strong tags)")
             return None
         
-        # Collect all content after the header until next <h2>
+        logger.info(f"[extract_chapter] Found chapter {chapter_number} in <{chapter_header.name}> tag")
+        
+        # Collect all content after the header until next chapter header
         content_parts = []
         current = chapter_header.next_sibling
+        header_tag_name = chapter_header.name
         
-        while current and getattr(current, 'name', None) != 'h2':
-            if hasattr(current, 'name') and current.name in ['p', 'h3', 'ul', 'ol', 'li', 'div']:
-                text = current.get_text(separator=" ", strip=True)
-                if text:
-                    content_parts.append(text)
+        # Define what counts as a "next chapter" based on what we found
+        stop_tags = ['h1', 'h2', 'h3', 'h4'] if header_tag_name in ['h2', 'h3', 'h4'] else ['h2', 'h3']
+        
+        while current:
+            # Stop if we hit another chapter header of same or higher level
+            if hasattr(current, 'name'):
+                if current.name in stop_tags:
+                    # Check if this is another chapter (contains "X kap.")
+                    if re.search(r'\d+\s+kap\.?', current.get_text(), re.IGNORECASE):
+                        break
+                
+                # Collect content from relevant tags
+                if current.name in ['p', 'div', 'section', 'article', 'h3', 'h4', 'h5', 'ul', 'ol', 'li', 'table']:
+                    text = current.get_text(separator=" ", strip=True)
+                    if text:
+                        content_parts.append(text)
+            
             current = current.next_sibling
         
         header_text = chapter_header.get_text(strip=True)
@@ -2069,7 +2112,7 @@ def extract_chapter_from_riksdagen(html_content: str, chapter_number: str) -> Op
         return result
         
     except Exception as e:
-        logger.error(f"[extract_chapter] Error extracting chapter: {e}")
+        logger.error(f"[extract_chapter] Error extracting chapter: {e}", exc_info=True)
         return None
 
 
