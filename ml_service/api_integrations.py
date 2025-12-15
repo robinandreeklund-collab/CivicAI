@@ -2022,6 +2022,102 @@ def get_registry_summary() -> Dict[str, Any]:
 # EXPORT ALL FUNCTIONS
 # =============================================================================
 
+# =============================================================================
+# BROWSE_PAGE - Web Content Fetching
+# =============================================================================
+
+def browse_page(url: str, max_length: int = 3000) -> Optional[str]:
+    """
+    Fetch and extract text content from a web page.
+    
+    This function is used by personalities like Socionomen to fetch legislation
+    texts, statistics, and official documents from government websites.
+    
+    Special handling for anchor fragments (e.g., #K11P1):
+    - If URL contains anchor, attempts to extract only that specific HTML element
+    - Falls back to full page content if anchor element not found
+    
+    Note: Uses regex-based HTML parsing for simplicity and minimal dependencies.
+    For more robust parsing, consider upgrading to BeautifulSoup in the future.
+    
+    Args:
+        url: The URL to fetch (may include anchor fragment like #K11P1)
+        max_length: Maximum length of returned text (default 3000 chars for paragraph-level content)
+        
+    Returns:
+        Extracted text content or error message
+    """
+    try:
+        from urllib.parse import urlparse
+        
+        logger.info(f"[browse_page] Fetching: {url}")
+        
+        # Parse URL to extract anchor fragment
+        parsed_url = urlparse(url)
+        anchor = parsed_url.fragment  # e.g., "K11P1" from "#K11P1"
+        
+        headers = {
+            'User-Agent': 'CivicAI/1.0 (Compatible; OneSeek Bot)',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'sv-SE,sv;q=0.9,en;q=0.8',
+        }
+        
+        # Note: HTTP GET ignores fragment (#...), so we fetch the full page
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        response.encoding = response.apparent_encoding or 'utf-8'
+        
+        text = response.text
+        
+        # If anchor present, try to extract only that element's content
+        if anchor:
+            # Remove script and style tags first (they might interfere with extraction)
+            text_clean = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
+            text_clean = re.sub(r'<style[^>]*>.*?</style>', '', text_clean, flags=re.DOTALL | re.IGNORECASE)
+            
+            # Find element with id matching anchor
+            # Pattern matches: <section id="K4P1"...>content</section> or <div id="K4P1"...>content</div>
+            # Uses non-greedy matching and captures all content including nested tags
+            pattern = rf'<(section|div)[^>]*\s+id=["\']?{re.escape(anchor)}["\']?[^>]*>(.*?)</\1>'
+            match = re.search(pattern, text_clean, flags=re.DOTALL | re.IGNORECASE)
+            
+            if match:
+                # Extract only the content within the matching element
+                html_content = match.group(2)
+                logger.info(f"[browse_page] Found anchor #{anchor}, extracted {len(html_content)} chars of HTML")
+                text = html_content
+            else:
+                # Anchor not found, log warning and use full page
+                logger.warning(f"[browse_page] Anchor #{anchor} not found in HTML, using full page content")
+                text = text_clean
+        
+        # Remove script and style tags (if not already done)
+        if not anchor:
+            text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
+        
+        # Remove HTML tags
+        text = re.sub(r'<[^>]+>', ' ', text)
+        
+        # Clean up whitespace
+        text = re.sub(r'\s+', ' ', text)
+        text = text.strip()
+        
+        # Limit length
+        if len(text) > max_length:
+            text = text[:max_length] + "...\n\n[Innehållet fortsätter på webbplatsen]"
+        
+        logger.info(f"[browse_page] Successfully fetched {len(text)} characters from {url}")
+        return text
+        
+    except requests.RequestException as e:
+        logger.error(f"[browse_page] Error fetching {url}: {e}")
+        return f"Kunde inte hämta innehåll från {url}. Fel: {str(e)}"
+    except Exception as e:
+        logger.error(f"[browse_page] Unexpected error for {url}: {e}")
+        return f"Ett oväntat fel uppstod vid hämtning av {url}"
+
+
 __all__ = [
     # Registry functions
     'APIIntegration',
@@ -2082,4 +2178,7 @@ __all__ = [
     'fetch_hemnet_data',
     'fetch_vinnova_data',
     'fetch_open_data',
+    
+    # Browse functionality
+    'browse_page',
 ]

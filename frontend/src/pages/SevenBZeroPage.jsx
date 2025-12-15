@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { formatAIResponse } from '../utils/formatMarkdown';
 import ThinkingChain from '../components/ThinkingChain';
+import FollowUpButtons from '../components/FollowUpButtons';
 import { sendPersonalityMessageViaWebSocket, isWebSocketSupported } from '../services/personalityWebSocket';
+import { handleFollowUpAction } from '../services/chat';
 import DebateRoundDisplay from '../components/DebateRoundDisplay';
 
 /**
@@ -1170,6 +1172,75 @@ export default function SevenBZeroPage() {
     }
   };
 
+  // Handle follow-up option selection (e.g., "Ja" for case law search)
+  const handleFollowUpSelection = async (option, messageId) => {
+    console.log('[Follow-Up] Option selected:', option);
+    
+    // Remove the follow-up options from the original message
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId ? { ...msg, followUpOptions: null } : msg
+    ));
+    
+    // If user declined, just acknowledge
+    if (option.action === 'decline_followup') {
+      const ackMessage = {
+        id: generateMessageId(),
+        type: 'ai',
+        text: 'Okej! Du kan ställa en ny fråga om du vill ha mer information.',
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, ackMessage]);
+      return;
+    }
+    
+    // If user accepted (search_prejudikat), show loading and fetch
+    const aiMessageId = generateMessageId();
+    const aiMessage = {
+      id: aiMessageId,
+      type: 'ai',
+      text: '',
+      isTyping: true,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, aiMessage]);
+    setIsTyping(true);
+    
+    try {
+      // Call backend to handle the follow-up action
+      const result = await handleFollowUpAction(option);
+      
+      const responseEndTime = Date.now();
+      
+      // Update the AI message with the result
+      setMessages(prev => prev.map(msg => 
+        msg.id === aiMessageId ? {
+          ...msg,
+          text: result.response || result.text,
+          isTyping: false,
+          thinkingChain: result.thinking_chain,
+          followUpOptions: result.follow_up_options,
+          timestamp: new Date().toISOString(),
+        } : msg
+      ));
+      
+      setIsTyping(false);
+    } catch (error) {
+      console.error('[Follow-Up] Error:', error);
+      
+      setMessages(prev => prev.map(msg => 
+        msg.id === aiMessageId ? {
+          ...msg,
+          text: `Ett fel uppstod vid sökning av prejudikat: ${error.message}`,
+          isTyping: false,
+          error: true,
+          timestamp: new Date().toISOString(),
+        } : msg
+      ));
+      
+      setIsTyping(false);
+    }
+  };
+
   // Handle message submission
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1331,6 +1402,12 @@ export default function SevenBZeroPage() {
                   }
                   
                   const responseText = data.response;
+                  console.log('🔔 [FRONTEND] onFinal received:', {
+                    hasFollowUpOptions: !!data.follow_up_options,
+                    followUpOptionsType: typeof data.follow_up_options,
+                    followUpOptions: data.follow_up_options,
+                    responseLength: responseText?.length
+                  });
                   if (responseText) {
                     setMessages(prev => prev.map(msg => 
                       msg.id === aiMessageId 
@@ -1344,9 +1421,11 @@ export default function SevenBZeroPage() {
                             tokens: data.tokens,
                             personality: data.personality,
                             currentThinkingStep: null, // Clear thinking step
+                            followUpOptions: data.follow_up_options || null, // Add follow-up options from WebSocket
                           }
                         : msg
                     ));
+                    console.log('🔔 [FRONTEND] Message updated with followUpOptions');
                     animateTyping(responseText, aiMessageId);
                   }
                 },
@@ -3522,6 +3601,17 @@ export default function SevenBZeroPage() {
                       <ThinkingChain 
                         thinkingChain={msg.thinkingChain} 
                         isExpanded={false} // Always start collapsed (minimized)
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Follow-Up Buttons - Interactive yes/no for case law etc. */}
+                  {!msg.debateMode && !msg.isTyping && msg.followUpOptions && Array.isArray(msg.followUpOptions) && msg.followUpOptions.length > 0 && (
+                    <div className="mt-4">
+                      <FollowUpButtons
+                        options={msg.followUpOptions}
+                        onOptionSelected={(option) => handleFollowUpSelection(option, msg.id)}
+                        disabled={isTyping}
                       />
                     </div>
                   )}

@@ -83,6 +83,8 @@ async def call_api(
     """
     Call a specific API with given parameters.
     
+    Supports both standard JSON APIs and browse_page for HTML content.
+    
     Args:
         api_name: Name of the API to call
         params: Parameters for the API call
@@ -123,12 +125,47 @@ async def call_api(
         # Get API URL and source
         api_url = api_config.get('url')
         api_source = api_config.get('source', api_name)
+        api_tool = api_config.get('tool', None)
+        api_method = api_config.get('method', 'GET')
         result['source'] = api_source
         
         if not api_url:
             result['error'] = f"No URL configured for API '{api_name}'"
             logger.error(result['error'])
             return result
+        
+        # Check if this API uses browse_page for HTML content extraction
+        if api_tool == 'browse_page' or api_method == 'BROWSE':
+            logger.info(f"Using browse_page for {api_name}: {api_url}")
+            # Import browse_page function
+            try:
+                from api_integrations import browse_page
+                
+                # Call browse_page synchronously (it's not async)
+                # We need to run it in an executor to avoid blocking
+                loop = asyncio.get_running_loop()
+                # Using max_length of 3000 - sufficient for paragraph-level content
+                # browse_page now extracts anchor-targeted elements for precise fetching
+                text_content = await loop.run_in_executor(None, browse_page, api_url, 3000)
+                
+                # Check if fetch was successful (errors start with "Kunde inte" or "Ett oväntat fel")
+                is_error = text_content and (text_content.startswith("Kunde inte") or text_content.startswith("Ett oväntat fel"))
+                
+                if text_content and not is_error:
+                    result['success'] = True
+                    result['data'] = {'text': text_content, 'url': api_url}
+                    result['url'] = api_url
+                    logger.info(f"Successfully fetched HTML content from {api_name} ({len(text_content)} chars)")
+                else:
+                    result['error'] = text_content or "Failed to fetch content"
+                    logger.error(f"browse_page failed for {api_name}: {result['error']}")
+                
+                return result
+                
+            except ImportError as e:
+                result['error'] = f"browse_page function not available: {e}"
+                logger.error(result['error'])
+                return result
         
         # Check if URL is a template (has placeholders like {lon}, {lat})
         is_template = api_config.get('url_template', False) or ('{' in api_url and '}' in api_url)

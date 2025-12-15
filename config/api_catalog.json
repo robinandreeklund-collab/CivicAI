@@ -20,6 +20,13 @@
     },
     "politik": {
       "$ref": "api_catalog_politik.json"
+    },
+    "juridik": {
+      "$ref": "api_catalog_juridik.json"
+    },
+    "socionom": {
+      "$ref": "api_catalog_socionomen.json",
+      "includes": ["juridik"]
     }
   },
   

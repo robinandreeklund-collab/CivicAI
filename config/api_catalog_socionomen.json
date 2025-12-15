@@ -1,0 +1,272 @@
+{
+  "name": "Socialtjänst Sverige",
+  "version": "1.0.0",
+  "description": "Komplett katalog över svensk socialrätt, socialtjänststatistik, IVO-rapporter, Socialstyrelsen och Riksdagen – för socionomer och socialtjänstfrågor",
+  "updated": "2025-12-14",
+  "provider": {
+    "name": "Sveriges Riksdag, Socialstyrelsen, IVO, SCB",
+    "url": "https://www.socialstyrelsen.se/",
+    "api_documentation": "https://www.riksdagen.se/sv/dokument-och-lagar/, https://www.socialstyrelsen.se/statistik-och-data/",
+    "license": "Öppen data (CC0 / PSI)",
+    "attribution": "© Sveriges Riksdag, Socialstyrelsen, IVO, SCB",
+    "requires_api_key": false
+  },
+  
+  "personality_tags": ["socionom"],
+  "default_api": "lagen_nu_sol_ny",
+  "max_results": 20,
+  
+  "apis": [
+    {
+      "name": "lagen_nu_sol_ny",
+      "source": "Lagrummet / Lagen.nu (ny SoL)",
+      "frequency": "statisk (uppdateras vid lagändringar)",
+      "url": "https://lagen.nu/2025:400#{anchor}",
+      "url_template": true,
+      "tool": "browse_page",
+      "keywords": [
+        "socialtjänstlagen", "sol", "ekonomiskt bistånd", "§", "paragraf",
+        "socialtjänstlag", "4 kap", "4 kap 1", "försörjningsstöd", "bistånd",
+        "vad säger sol", "enligt sol", "sol om", "socialtjänstlagens",
+        "ny sol", "sol 2025:400", "nya socialtjänstlagen", "socialtjänstlagen 2025", "aktuell sol"
+      ],
+      "priority": 0,
+      "description": "Socialtjänstlagen (SoL 2025:400) – ny lag från 1 juli 2025 via Lagen.nu. Använd anchor för specifik paragraf (t.ex. K4P1 för 4 kap. 1 §)",
+      "method": "BROWSE",
+      "parameters": {
+        "anchor": {
+          "type": "string",
+          "required": true,
+          "description": "Paragraf-anchor i format 'K{kapitel}P{paragraf}' (t.ex. 'K4P1' för 4 kap. 1 §, 'K5P2' för 5 kap. 2 §). Extrahera kapitel och paragraf från användarens fråga och konvertera till detta format.",
+          "extraction_rules": [
+            "Identifiera kapitel-nummer före 'kap' (t.ex. '4 kap' → kapitel=4)",
+            "Identifiera paragraf-nummer efter 'kap' och före/efter '§' (t.ex. '1 §' → paragraf=1)",
+            "Konstruera anchor: 'K' + {kapitel} + 'P' + {paragraf}",
+            "Exempel: '4 kap. 1 §' → anchor='K4P1'",
+            "Exempel: '5 kap. 2 §' → anchor='K5P2'",
+            "Exempel: '11 kap. 5 §' → anchor='K11P5'"
+          ],
+          "examples": [
+            {"user_query": "Vad säger 4 kap. 1 § SoL?", "extracted_anchor": "K4P1", "resulting_url": "https://lagen.nu/2025:400#K4P1"},
+            {"user_query": "Vad står i 5 kap. 2 § i nya socialtjänstlagen?", "extracted_anchor": "K5P2", "resulting_url": "https://lagen.nu/2025:400#K5P2"},
+            {"user_query": "Förklara 11 kap. 5 § SoL", "extracted_anchor": "K11P5", "resulting_url": "https://lagen.nu/2025:400#K11P5"}
+          ]
+        }
+      },
+      "data_format": "HTML/Text",
+      "example_url": "https://lagen.nu/2025:400#K4P1",
+      "notes": "KRITISKT: Använd ALLTID anchor-parametern! Detta hämtar endast relevant paragraf istället för hela lagen (20000 tecken → ~500 tecken). Utan anchor får du HELA lagen vilket är ineffektivt och saktar ner svaret. Extrahera kapitel och paragraf från användarens fråga, konstruera anchor enligt format K{kapitel}P{paragraf}, och lägg till i URL:en. Extrahera sedan DEN EXAKTA TEXTEN för den angivna paragrafen från resultatet."
+    },
+    {
+      "name": "lagen_nu_sol_gammal",
+      "source": "Lagrummet / Lagen.nu (gammal SoL)",
+      "frequency": "statisk (historisk lag)",
+      "url": "https://lagen.nu/2001:453#{anchor}",
+      "url_template": true,
+      "tool": "browse_page",
+      "keywords": [
+        "gammal sol", "sol 2001:453", "gamla socialtjänstlagen", "sol före 2025", 
+        "socialtjänstlagen 2001", "tidigare sol", "före nya lagen"
+      ],
+      "priority": 1,
+      "description": "Socialtjänstlagen (SoL 2001:453) – gammal lag före 1 juli 2025 via Lagen.nu. Använd anchor för specifik paragraf (t.ex. K4P1 för 4 kap. 1 §)",
+      "method": "BROWSE",
+      "parameters": {
+        "anchor": {
+          "type": "string",
+          "required": true,
+          "description": "Paragraf-anchor i format 'K{kapitel}P{paragraf}' (t.ex. 'K4P1' för 4 kap. 1 §, 'K5P2' för 5 kap. 2 §). Extrahera kapitel och paragraf från användarens fråga och konvertera till detta format.",
+          "extraction_rules": [
+            "Identifiera kapitel-nummer före 'kap' (t.ex. '4 kap' → kapitel=4)",
+            "Identifiera paragraf-nummer efter 'kap' och före/efter '§' (t.ex. '1 §' → paragraf=1)",
+            "Konstruera anchor: 'K' + {kapitel} + 'P' + {paragraf}",
+            "Exempel: '4 kap. 1 §' → anchor='K4P1'",
+            "Exempel: '5 kap. 2 §' → anchor='K5P2'",
+            "Exempel: '11 kap. 5 §' → anchor='K11P5'"
+          ],
+          "examples": [
+            {"user_query": "Vad sade gamla SoL om 4 kap. 1 §?", "extracted_anchor": "K4P1", "resulting_url": "https://lagen.nu/2001:453#K4P1"},
+            {"user_query": "Visa 5 kap. 2 § i gamla socialtjänstlagen", "extracted_anchor": "K5P2", "resulting_url": "https://lagen.nu/2001:453#K5P2"}
+          ]
+        }
+      },
+      "data_format": "HTML/Text",
+      "example_url": "https://lagen.nu/2001:453#K4P1",
+      "notes": "KRITISKT: Använd ALLTID anchor-parametern! Detta hämtar endast relevant paragraf istället för hela lagen (20000 tecken → ~500 tecken). Utan anchor får du HELA lagen vilket är ineffektivt och saktar ner svaret. Extrahera kapitel och paragraf från användarens fråga, konstruera anchor enligt format K{kapitel}P{paragraf}, och lägg till i URL:en. Extrahera sedan DEN EXAKTA TEXTEN för den angivna paragrafen från resultatet."
+    },
+    {
+      "name": "lvu_lagtext",
+      "source": "Sveriges Riksdag",
+      "frequency": "statisk (uppdateras vid lagändringar)",
+      "url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/lag-1990052-med-sarskilda-bestammelser-om_sfs-1990-52",
+      "url_template": false,
+      "tool": "browse_page",
+      "keywords": [
+        "lvu", "lag med särskilda bestämmelser", "tvångsvård", "ungdomsvård",
+        "omhändertagande", "vad säger lvu", "enligt lvu", "lvu om"
+      ],
+      "priority": 1,
+      "description": "Lag med särskilda bestämmelser om vård av unga (LVU) – fulltext via browse_page",
+      "method": "BROWSE",
+      "parameters": {},
+      "data_format": "HTML/Text",
+      "example_url": "https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/lag-1990052-med-sarskilda-bestammelser-om_sfs-1990-52",
+      "notes": "Använder browse_page för att hämta och tolka lagtext om vård av unga."
+    },
+    {
+      "name": "socialstyrelsen_statistik",
+      "source": "Socialstyrelsen",
+      "frequency": "årligen/månatligen",
+      "url": "https://www.socialstyrelsen.se/statistik-och-data/statistik/statistikamnen/",
+      "url_template": false,
+      "tool": "browse_page",
+      "keywords": [
+        "statistik", "socialstyrelsen statistik", "antal placerade barn",
+        "hur många barn", "placeringar", "vård utanför hemmet", "hvb-hem statistik",
+        "familjehem statistik", "ekonomiskt bistånd statistik", "äldrevård statistik"
+      ],
+      "priority": 2,
+      "description": "Socialstyrelsen statistik – barn i vård, ekonomiskt bistånd, äldreomsorg via browse_page",
+      "method": "BROWSE",
+      "parameters": {},
+      "data_format": "HTML/Text",
+      "example_url": "https://www.socialstyrelsen.se/statistik-och-data/statistik/statistikamnen/",
+      "notes": "Använder browse_page för att hämta officiell statistik från Socialstyrelsen"
+    },
+    {
+      "name": "socialstyrelsen_barn_vard",
+      "source": "Socialstyrelsen",
+      "frequency": "årligen",
+      "url": "https://www.socialstyrelsen.se/statistik-och-data/statistik/statistikamnen/barn-och-unga-i-socialtjansten/",
+      "url_template": false,
+      "tool": "browse_page",
+      "keywords": [
+        "barn i vård", "placerade barn", "hur många barn är placerade",
+        "barn utanför hemmet", "familjehemsvård", "hvb", "sis", "vård enligt lvu",
+        "vård enligt sol"
+      ],
+      "priority": 3,
+      "description": "Statistik om barn och unga i socialtjänsten – placeringar, HVB, familjehem",
+      "method": "BROWSE",
+      "parameters": {},
+      "data_format": "HTML/Text",
+      "example_url": "https://www.socialstyrelsen.se/statistik-och-data/statistik/statistikamnen/barn-och-unga-i-socialtjansten/",
+      "notes": "Särskild statistik för barn- och ungdomsvård"
+    },
+    {
+      "name": "ivo_rapporter",
+      "source": "IVO (Inspektionen för vård och omsorg)",
+      "frequency": "löpande",
+      "url": "https://www.ivo.se/tillsyn/publicerade-tillsynsbeslut/",
+      "url_template": false,
+      "tool": "browse_page",
+      "keywords": [
+        "ivo", "ivo-rapport", "tillsyn", "ivo om hvb", "ivo granskning",
+        "tillsynsbeslut", "kvalitetsbrister", "ivo inspektion", "missförhållanden"
+      ],
+      "priority": 4,
+      "description": "IVO:s tillsynsrapporter och beslut om vård och omsorg via browse_page",
+      "method": "BROWSE",
+      "parameters": {},
+      "data_format": "HTML/Text",
+      "example_url": "https://www.ivo.se/tillsyn/publicerade-tillsynsbeslut/",
+      "notes": "Använder browse_page för att hämta IVO:s offentliga tillsynsbeslut"
+    },
+    {
+      "name": "riksdagen_social_lagstiftning",
+      "source": "Sveriges Riksdag",
+      "frequency": "realtid",
+      "url": "https://data.riksdagen.se/dokumentlista/?sok={query}&doktyp=prop,mot,bet&utformat=json&sz=20&p=1",
+      "url_template": true,
+      "keywords": [
+        "proposition om socialtjänst", "motion om socialtjänst", "riksdagen om sol",
+        "riksdagen om bistånd", "socialutskottet", "lagförslag socialtjänst",
+        "riksdagsbeslut socialtjänst"
+      ],
+      "priority": 5,
+      "description": "Riksdagens dokument om socialtjänst och sociallagstiftning",
+      "method": "GET",
+      "parameters": {
+        "query": {
+          "type": "string",
+          "required": true,
+          "description": "Sökterm (t.ex. socialtjänst, ekonomiskt bistånd, familjehem)"
+        }
+      },
+      "data_format": "JSON",
+      "example_url": "https://data.riksdagen.se/dokumentlista/?sok=socialtjänst&doktyp=prop,mot,bet&utformat=json&sz=20&p=1",
+      "notes": "Standard API-anrop för riksdagsdokument relaterade till socialtjänst"
+    },
+    {
+      "name": "scb_kommun_statistik",
+      "source": "SCB Statistikdatabasen",
+      "frequency": "årligen/kvartalsvis",
+      "url": "https://www.statistikdatabasen.scb.se/pxweb/sv/ssd/START__LE/",
+      "url_template": false,
+      "tool": "browse_page",
+      "keywords": [
+        "kommun statistik", "ekonomiskt bistånd kommun", "socialtjänst kommun",
+        "statistik för", "kommun", "hjo kommun", "stockholm kommun", "göteborg kommun",
+        "hur ser statistiken ut i"
+      ],
+      "priority": 6,
+      "description": "SCB:s kommunstatistik för socialtjänst och ekonomiskt bistånd via browse_page",
+      "method": "BROWSE",
+      "parameters": {},
+      "data_format": "HTML/Text",
+      "example_url": "https://www.statistikdatabasen.scb.se/pxweb/sv/ssd/START__LE/",
+      "notes": "Använder browse_page för att hämta kommunspecifik socialstatistik från SCB"
+    }
+  ],
+  
+  "entity_config": {
+    "entity_required": false,
+    "entity_type": "social fråga",
+    "fallback_entity": "allmän socialtjänst",
+    "entity_extraction": {
+      "method": "social_topic_lookup",
+      "description": "Extrahera lagparagraf, kommun, statistikområde eller ämne från användarens fråga",
+      "patterns": {
+        "paragraf": "\\b(\\d+)\\s*kap\\.?\\s*(\\d+)?\\s*§?\\b",
+        "kommun": "\\b([A-ZÅÄÖ][a-zåäö]+)\\s+kommun\\b",
+        "lag": "\\b(SoL|LVU|LSS|HSL)\\b"
+      }
+    }
+  },
+  
+  "keywords": [
+    "socialtjänst", "sol", "ekonomiskt bistånd", "lvu", "placerade barn",
+    "hvb", "familjehem", "ivo", "socialstyrelsen", "kommun", "statistik"
+  ],
+  
+  "response_format": {
+    "include_source": true,
+    "include_attribution": true,
+    "format_template": "**{rubrik}**\n{innehåll}\n\n**Källa**: {källa} (Socialstyrelsen/IVO/Riksdagen)"
+  },
+  
+  "rate_limits": {
+    "requests_per_second": 3,
+    "requests_per_hour": 300,
+    "notes": "Respektfull användning rekommenderas, särskilt för browse_page-anrop"
+  },
+  
+  "caching_strategy": {
+    "lagtext": "7 dagar",
+    "statistik": "24 timmar",
+    "ivo_rapporter": "12 timmar",
+    "riksdagen_dokument": "30 minuter",
+    "kommun_statistik": "24 timmar"
+  },
+  
+  "error_handling": {
+    "fallback_message": "Kunde inte hämta socialdata just nu. Försök igen om en stund eller besök socialstyrelsen.se",
+    "retry_strategy": "exponential_backoff",
+    "max_retries": 3
+  },
+  
+  "examples": {
+    "query": "Vad säger SoL om ekonomiskt bistånd?",
+    "response": "**Socialtjänstlagen 4 kap. 1 §**\n\nDen som inte själv kan tillgodose sina behov eller kan få dem tillgodosedda på annat sätt har rätt till bistånd av socialnämnden för sin försörjning (försörjningsstöd) och för sin livsföring i övrigt.\n\n**Källa**: Socialtjänstlagen (2001:453) via Sveriges Riksdag"
+  }
+}
