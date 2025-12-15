@@ -2088,6 +2088,9 @@ def extract_chapter_from_riksdagen(html_content: str, chapter_number: str) -> Op
         # Move to next sibling after the chapter header
         current = current.next_sibling
         
+        # Track last paragraph marker to avoid duplicates
+        last_para_marker = None
+        
         # Continue collecting until we hit the next chapter
         while current:
             if hasattr(current, 'name') and current.name:
@@ -2105,6 +2108,34 @@ def extract_chapter_from_riksdagen(html_content: str, chapter_number: str) -> Op
                     text = current.get_text(separator=" ", strip=True)
                     if text:
                         content_parts.append(text)
+                # Handle <b> tags that might contain paragraph markers like "1 §", "2 §"
+                elif current.name == 'b':
+                    text = current.get_text(strip=True)
+                    # Check if it looks like a paragraph marker (e.g., "1 §", "2 §")
+                    if re.match(r'^\d+\s*§$', text):
+                        # Only add if it's different from the last one (avoid duplicates)
+                        if text != last_para_marker:
+                            content_parts.append(f"\n{text}")
+                            last_para_marker = text
+                # Handle <a> tags that might contain paragraph markers or anchors
+                elif current.name == 'a':
+                    # Check if anchor contains a <b> tag with paragraph marker
+                    b_tag = current.find('b')
+                    if b_tag:
+                        text = b_tag.get_text(strip=True)
+                        # Skip if it looks like a paragraph marker (already handled by standalone <b>)
+                        if re.match(r'^\d+\s*§$', text):
+                            pass  # Skip duplicate
+                        else:
+                            # Other anchor content
+                            full_text = current.get_text(separator=" ", strip=True)
+                            if full_text and len(full_text) > 10:
+                                content_parts.append(full_text)
+                    else:
+                        # No <b> tag inside, collect anchor text
+                        text = current.get_text(separator=" ", strip=True)
+                        if text and len(text) > 10:
+                            content_parts.append(text)
             elif hasattr(current, 'strip'):
                 # This is a text node (NavigableString)
                 text = current.strip()
