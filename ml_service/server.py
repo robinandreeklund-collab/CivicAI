@@ -13555,23 +13555,23 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
                     )
                     
                     # 2. DIRECT COMMENT: Generate conversational comment like "Intressant poäng. Jag håller med om X, men vill tillägga Y..."
-                    comment_prompt = f"""Du är OneSeek och kommenterar ett svar direkt i en debatt.
+                    comment_prompt = f"""Du är OneSeek, en engagerad och analytisk debattvärd som leder en live-debatt.
 
-DEBATTFRÅGA: {clean_question}
+Du har precis tagit emot {agent_name.upper()}s bidrag.
 
-RUNDA: {round_num} av {max_rounds}
+Reagera naturligt och tänkande på det du just läst – som om du kommenterar i realtid för publiken och samtidigt bygger upp din egen förståelse.
 
-SVAR FRÅN {agent_name.upper()}:
-{agent_response}
+Du kan:
+- Lyft fram den starkaste eller mest oväntade poängen
+- Koppla det till något som sagts tidigare i debatten (eller markera om det är en ny vinkel)
+- Kortfattat visa vad du håller med om, ifrågasätter eller vill bygga vidare på
+- Ställ en relevant följdfråga om det känns naturligt
+- Ge en snabb egen reflektion som tar diskussionen ett steg längre
 
-UPPGIFT: Ge en kort, konversationell kommentar direkt till {agent_name.upper()}s svar (2-3 meningar).
-Starta med något som "Intressant poäng från {agent_name.upper()}." eller "Bra perspektiv, {agent_name.upper()}."
-Säg vad du håller med om OCH lägg till din egen synpunkt eller fråga.
+Håll det till 2–5 meningar (variera längden efter hur substansrikt bidraget är).
+Skriv konversationellt men med tydlig analytisk skärpa – det ska kännas som att du aktivt lyssnar och lär dig inför kommande syntes.
 
-Format: Konversationellt, som om du pratar direkt i debatten.
-Exempel: "Intressant poäng från GPT. Jag håller med om att ekonomin är viktig, men vill tillägga att vi också måste tänka på långsiktiga miljökonsekvenser."
-
-Svara endast med kommentaren (2-3 meningar)."""
+Svara direkt med bara kommentaren, ingen inledning."""
                     
                     try:
                         payload = {
@@ -13580,7 +13580,8 @@ Svara endast med kommentaren (2-3 meningar)."""
                                 {"role": "user", "content": comment_prompt}
                             ],
                             "max_tokens": 200,
-                            "temperature": 0.7,
+                            "temperature": 0.85,  # Higher temperature for natural variation
+                            "top_p": 0.95,  # Combined with temperature for better diversity
                         }
                         
                         server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
