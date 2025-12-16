@@ -13450,7 +13450,7 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
             external_agents = ['gpt', 'gemini', 'deepseek', 'grok']
             
             async def get_external_response(agent_name):
-                """Get response from external AI service"""
+                """Get response from external AI service - ASYNC to avoid blocking"""
                 try:
                     service_endpoints = {
                         'gpt': f'{BACKEND_API_URL}/api/external/openai',
@@ -13463,10 +13463,16 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
                     if not endpoint:
                         raise Exception(f"Tjänst {agent_name} inte tillgänglig")
                     
-                    response = requests.post(
-                        endpoint,
-                        json={'question': debate_prompt},
-                        timeout=30
+                    # CRITICAL FIX: Run synchronous requests.post in executor to avoid blocking
+                    # This allows truly parallel fetching - responses arrive independently
+                    loop = asyncio.get_event_loop()
+                    response = await loop.run_in_executor(
+                        None,  # Use default ThreadPoolExecutor
+                        lambda: requests.post(
+                            endpoint,
+                            json={'question': debate_prompt},
+                            timeout=30
+                        )
                     )
                     response.raise_for_status()
                     result = response.json()
