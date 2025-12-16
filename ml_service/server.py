@@ -52,6 +52,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any, AsyncGenerator
 import requests  # For Tavily API and SMHI weather
 import yaml  # For loading personality YAML cards
+import random  # For voting randomization
 
 # =============================================================================
 # ONESEEK Δ+ MODULE IMPORTS
@@ -13407,7 +13408,7 @@ async def websocket_live_debate(websocket: WebSocket):
             "message": "[tänker...] OneSeek förbereder introduktion..."
         })
         
-        intro_message = f"Välkommen till debatten om {clean_question}! Runda 1 börjar nu – här är frågan: {clean_question}"
+        intro_message = f"Välkommen till debatten! Runda 1 börjar nu – här är frågan: {clean_question}"
         await websocket.send_json({
             "type": "debate_intro",
             "message": intro_message,
@@ -13564,7 +13565,7 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
                     )
                     
                     # 2. DIRECT COMMENT: Generate conversational comment like "Intressant poäng. Jag håller med om X, men vill tillägga Y..."
-                    reasoning_prompt = f"""Du är OneSeek och kommenterar ett svar direkt i en debatt.
+                    comment_prompt = f"""Du är OneSeek och kommenterar ett svar direkt i en debatt.
 
 DEBATTFRÅGA: {clean_question}
 
@@ -13586,7 +13587,7 @@ Svara endast med kommentaren (2-3 meningar)."""
                         payload = {
                             "messages": [
                                 {"role": "system", "content": "Du är OneSeek - en analytisk AI som ger koncisa, fokuserade analyser."},
-                                {"role": "user", "content": reasoning_prompt}
+                                {"role": "user", "content": comment_prompt}
                             ],
                             "max_tokens": 200,
                             "temperature": 0.7,
@@ -13602,38 +13603,38 @@ Svara endast med kommentaren (2-3 meningar)."""
                         result = llm_response.json()
                         
                         if 'choices' in result and len(result['choices']) > 0:
-                            reasoning_text = result['choices'][0].get('message', {}).get('content', '')
+                            comment_text = result['choices'][0].get('message', {}).get('content', '')
                         else:
-                            reasoning_text = result.get('content', '')
+                            comment_text = result.get('content', '')
                         
                         # Save to knowledge chain
                         knowledge_chain.append({
                             'round': round_num,
                             'agent': agent_name,
-                            'insight': reasoning_text
+                            'insight': comment_text
                         })
                         
-                        # Emit reasoning
+                        # Emit comment (using oneseek_reasoning event for compatibility)
                         await websocket.send_json({
                             "type": "oneseek_reasoning",
                             "round": round_num,
                             "agent": agent_name,
-                            "message": reasoning_text,
+                            "message": comment_text,
                             "data": {
-                                "reasoning": reasoning_text,
+                                "reasoning": comment_text,
                                 "agent_analyzed": agent_name
                             }
                         })
-                        logger.info(f"[WS-Debate] OneSeek reasoning generated for {agent_name}")
+                        logger.info(f"[WS-Debate] OneSeek comment generated for {agent_name}")
                         
                     except Exception as e:
-                        logger.error(f"[WS-Debate] Error generating reasoning for {agent_name}: {e}")
-                        reasoning_text = f"Analys: {agent_name.upper()} presenterar sitt perspektiv på frågan."
+                        logger.error(f"[WS-Debate] Error generating comment for {agent_name}: {e}")
+                        comment_text = f"Intressant poäng från {agent_name.upper()}."
                         await websocket.send_json({
                             "type": "oneseek_reasoning",
                             "round": round_num,
                             "agent": agent_name,
-                            "message": reasoning_text
+                            "message": comment_text
                         })
                     
                     # 3. LIVE INSIGHT: One-liner "sport commentator" style update
@@ -14022,8 +14023,8 @@ Välj från: {', '.join(other_agents)}
 """
                 
                 # Get vote with motivation
-                # Simplified - use random but with simple motivations
-                import random
+                # Simplified implementation - uses random selection
+                # In future, could use LLM to analyze and vote intelligently
                 vote_for = random.choice(other_agents)
                 
                 motivations = {

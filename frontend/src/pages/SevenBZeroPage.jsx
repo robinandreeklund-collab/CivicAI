@@ -2048,6 +2048,11 @@ export default function SevenBZeroPage() {
               votedFor: message.voted_for
             };
             setMessages(prev => [...prev, voteMsg]);
+            setConversationHistory(prev => [...prev, {
+              role: 'assistant',
+              content: message.message,
+              timestamp: voteMsg.timestamp
+            }]);
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
             
