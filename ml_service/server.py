@@ -14182,41 +14182,44 @@ Ge ditt svar nu:"""
             }
         })
         
-        # Step 5: ONESEEK creates objective summary with closing comment
-        # Build summary prompt
-        summary_prompt = f"""Du är Debattledaren och ska ge en avslutande kommentar om debatten.
-
-FRÅGA: {clean_question}
-
-DEBATTENS GÅNG:
-"""
-        for round_data in debate_rounds:
-            summary_prompt += f"\\n\\nRunda {round_data['round']}:\\n"
-            for resp in round_data['responses']:
-                summary_prompt += f"- {resp['agent'].upper()}: {resp['response'][:150]}...\\n"
-        
-        summary_prompt += f"""\\nVinnare: {winner.upper()} ({winner_votes} röster)
-
-RÖSTRESULTAT:
-"""
+        # Step 5: ONESEEK creates closing comment
+        # Build voting motivations string
+        voting_motivations = ""
         for vr in vote_results:
-            summary_prompt += f"{vr['voter'].upper()} → {vr['voted_for'].upper()}: {vr.get('motivation', '')}\n"
+            voting_motivations += f"{vr['voter'].upper()} röstade på {vr['voted_for'].upper()}:\n{vr.get('motivation', 'Ingen motivering angiven.')}\n\n"
+        
+        closing_comment_prompt = f"""Du är ONESEEK – en opartisk och reflekterande debattledare som nu ska avsluta debatten på ett värdigt och insiktsfullt sätt.
 
-        summary_prompt += f"""
-Ge en avslutande kommentar som Debattledaren (max 150 ord):
-1. Tacka för en fantastisk debatt
-2. Sammanfatta kortfattat vad debatten handlade om
-3. Förklara varför {winner.upper()} vann
-4. Ge en insikt om vad vi lärt oss"""
+Debatten om "{clean_question}" är nu över.
+
+{winner.upper()} vann med {winner_votes} röster.
+
+Röstningsmotiveringar från modellerna (använd dessa för att förklara resultatet):
+{voting_motivations}
+
+Skriv ett avslutande inlägg där du:
+- Tackar alla modeller för deras engagerade och tankeväckande bidrag
+- Summerar kort debattens huvudlinjer och hur diskussionen utvecklades över rundorna
+- Förklarar objektivt varför {winner.upper()} fick flest röster – baserat på röstningsmotiveringarna och vad som framkom i debatten (t.ex. konsekvens, logik, djup, förmåga att bemöta andra)
+- Lyfter fram minst ett starkt eller värdefullt bidrag från någon av de andra modellerna
+- Avsluta med en nyanserad reflektion över frågan: vad vi lärt oss, var det finns konsensus och vad som fortfarande är öppet
+
+Längd: 250–400 ord.
+
+Skriv som en erfaren och respektfull debattledare som talar direkt till publiken. 
+Börja direkt med ditt avslut – ingen rubrik, ingen inledning som "Som ONESEEK..." eller "Debatten är över...".
+
+Ton: Varm, saklig och auktoritativ."""
         
         try:
             payload = {
                 "messages": [
-                    {"role": "system", "content": "Du är Debattledaren. Sammanfatta objektivt."},
-                    {"role": "user", "content": summary_prompt}
+                    {"role": "system", "content": "Du är ONESEEK, en opartisk och reflekterande debattledare."},
+                    {"role": "user", "content": closing_comment_prompt}
                 ],
-                "max_tokens": 900,  # Increased from 600 to ensure complete summaries without truncation
+                "max_tokens": 1000,  # Increased for 250-400 word responses
                 "temperature": 0.7,
+                "top_p": 0.95
             }
             
             server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
