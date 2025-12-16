@@ -10,8 +10,14 @@ import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 
 export default function DebateRoundDisplay({ round, aiData, isActive = false }) {
-  // AI display order
-  const aiOrder = ['gpt', 'gemini', 'deepseek', 'grok', 'oneseek'];
+  // Use dynamic turn order from round data if available, otherwise fall back to fixed order
+  const turnOrder = aiData?.turnOrder || [];
+  const defaultOrder = ['gpt', 'gemini', 'deepseek', 'grok', 'oneseek'];
+  
+  // AI display order - use turn order + oneseek at the end
+  const aiOrder = turnOrder.length > 0 
+    ? [...turnOrder, 'oneseek']  // Turn order from backend + OneSeek at end
+    : defaultOrder;
   
   // Get all AIs that have data in this round
   const availableAIs = aiOrder.filter(ai => aiData && aiData[ai]);
@@ -138,11 +144,11 @@ export default function DebateRoundDisplay({ round, aiData, isActive = false }) 
                       <ReactMarkdown>{ai.text}</ReactMarkdown>
                     </div>
 
-                    {/* OneSeek's Reasoning - Small footnote at the end */}
-                    {ai.reasoning && (
+                    {/* OneSeek's Reasoning - Only show for OneSeek's own answers */}
+                    {isOneSeek && ai.reasoning && (
                       <div className="mt-3 pt-2 border-t border-[#1a1a1a]">
                         <div className="text-xs text-[#555] italic">
-                          Reasoning: {ai.reasoning}
+                          Resonemang: {ai.reasoning}
                         </div>
                       </div>
                     )}

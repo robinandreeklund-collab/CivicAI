@@ -96,11 +96,11 @@ AKTUELL RUNDA (1/3):
 Detta är en interaktiv AI-debatt där du nu ska ge ditt perspektiv.
 
 INSTRUKTIONER FÖR DITT SVAR:
-- Längd: 300-500 ord (håll denna begränsning strikt)
+- Längd: 150-250 ord (håll denna begränsning strikt)
 - Stil: Tydlig, engagerad och analytisk
 """
         
-        assert "300-500 ord" in prompt_template
+        assert "150-250 ord" in prompt_template
         assert "strikt" in prompt_template.lower()
     
     def test_behavioral_enforcement_in_prompts(self):

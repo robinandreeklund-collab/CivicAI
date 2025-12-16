@@ -13459,7 +13459,7 @@ AKTUELL RUNDA ({round_num}/{max_rounds}):
 Detta är en interaktiv AI-debatt där du nu ska ge ditt perspektiv.
 
 INSTRUKTIONER FÖR DITT SVAR:
-- Längd: 300-500 ord (håll denna begränsning strikt)
+- Längd: 150-250 ord (håll denna begränsning strikt)
 - Stil: Tydlig, engagerad och analytisk
 - Innehåll: Ge ditt unika perspektiv, bemöt tidigare argument om de finns, och bidra med nya insikter
 - Fokus: Var konkret och lösningsorienterad
@@ -13790,7 +13790,7 @@ BEHAVIORAL ENFORCEMENT - DU SKA:
 - Ta en tydlig ståndpunkt i frågan
 - Skriv med övertygelse och personlighet{next_round_instruction}
 
-LÄNGD: 300-500 ord (STRIKT - håll denna begränsning)
+LÄNGD: 150-250 ord (STRIKT - håll denna begränsning)
 
 STIL: Börja direkt med ditt bidrag, ingen rubrik eller meta-kommentarer.
 TON: Tänkande, självsäker, nyfiken och respektfull
@@ -13803,10 +13803,10 @@ GE DITT SVAR NU:"""
             try:
                 payload = {
                     "messages": [
-                        {"role": "system", "content": "Du är ONESEEK - en avancerad och självständig deltagare i AI-debatten som håller sig till 300-500 ord per bidrag."},
+                        {"role": "system", "content": "Du är ONESEEK - en avancerad och självständig deltagare i AI-debatten som håller sig till 150-250 ord per bidrag."},
                         {"role": "user", "content": oneseek_context}
                     ],
-                    "max_tokens": 800,  # Adjusted for 300-500 words (~600-800 tokens including Swedish)
+                    "max_tokens": 500,  # Adjusted for 150-250 words (~400-500 tokens including Swedish)
                     "temperature": 0.7,  # Thoughtful but with personality
                     "top_p": 0.95,
                 }
@@ -14041,26 +14041,26 @@ Svara ENDAST med ett tal 0-100, inget annat."""
                 # Build voting prompt
                 other_agents = [a for a in debate_agents if a != voter]
                 
-                # Build context with token management - use summaries of all rounds
+                # Build context with ONLY THE LAST ROUND for voting
                 all_responses_text = ""
                 if debate_rounds:
-                    all_responses_text += "\n\nDEBATTOVERSIKT (ALLA RUNDOR):\n"
-                    for round_data in debate_rounds:
-                        all_responses_text += f"\nRunda {round_data['round']}:\n"
-                        for resp in round_data['responses']:
-                            if resp['agent'] != voter and resp.get('success', False):
-                                # Limit each response to 300 chars to manage tokens
-                                response_text = resp['response'][:300]
-                                if len(resp['response']) > 300:
-                                    response_text += "..."
-                                all_responses_text += f"- {resp['agent'].upper()}: {response_text}\n"
+                    # Only use the last round (round 3) for voting
+                    last_round = debate_rounds[-1]
+                    all_responses_text += f"\n\nSISTA RUNDAN (Runda {last_round['round']}):\n"
+                    for resp in last_round['responses']:
+                        if resp['agent'] != voter and resp.get('success', False):
+                            # Include more of the response for better voting decision (up to 500 chars)
+                            response_text = resp['response'][:500]
+                            if len(resp['response']) > 500:
+                                response_text += "..."
+                            all_responses_text += f"\n{resp['agent'].upper()}:\n{response_text}\n"
                 
                 voting_prompt = f"""DEBATTFRÅGA: {clean_question}
 
 {all_responses_text}
 
 RÖSTNINGSUPPGIFT:
-Analysera alla bidrag ovan och rösta på den modell som var bäst genom hela debatten.
+Analysera bidragen ovan från sista rundan och rösta på den modell som var bäst.
 
 REGLER:
 - Du kan INTE rösta på dig själv
@@ -14076,85 +14076,34 @@ MOTIVERING: [Din motivering i 50-80 ord med konkreta argument från debatten]
 
 GE DITT SVAR NU:"""
                 
-                # Call EXTERNAL API to get REAL vote from this AI model
+                # Call BACKEND API to get vote from this AI model (backend handles API keys)
                 try:
-                    api_url = None
-                    payload = None
+                    service_endpoints = {
+                        'gpt': f'{BACKEND_API_URL}/api/external/openai',
+                        'gemini': f'{BACKEND_API_URL}/api/external/gemini',
+                        'deepseek': f'{BACKEND_API_URL}/api/external/deepseek',
+                        'grok': f'{BACKEND_API_URL}/api/external/grok'
+                    }
                     
-                    if voter == 'gpt':
-                        api_url = "https://api.openai.com/v1/chat/completions"
-                        payload = {
-                            "model": "gpt-4o-mini",
-                            "messages": [
-                                {"role": "system", "content": "Du är en AI-modell som röstar på bästa svaret i en debatt. Följ instruktionerna noggrant."},
-                                {"role": "user", "content": voting_prompt}
-                            ],
-                            "max_tokens": 300,
-                            "temperature": 0.7,
-                        }
-                        headers = {
-                            "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
-                            "Content-Type": "application/json"
-                        }
-                    elif voter == 'gemini':
-                        # Gemini uses different API format
-                        import google.generativeai as genai
-                        genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-                        model = genai.GenerativeModel('gemini-1.5-flash')
-                        
-                        # Call Gemini API directly (different from OpenAI format)
-                        loop = asyncio.get_event_loop()
-                        response = await loop.run_in_executor(
-                            None,
-                            lambda: model.generate_content(voting_prompt)
-                        )
-                        vote_response_text = response.text
-                        
-                    elif voter == 'deepseek':
-                        api_url = "https://api.deepseek.com/v1/chat/completions"
-                        payload = {
-                            "model": "deepseek-chat",
-                            "messages": [
-                                {"role": "system", "content": "Du är en AI-modell som röstar på bästa svaret i en debatt. Följ instruktionerna noggrant."},
-                                {"role": "user", "content": voting_prompt}
-                            ],
-                            "max_tokens": 300,
-                            "temperature": 0.7,
-                        }
-                        headers = {
-                            "Authorization": f"Bearer {os.getenv('DEEPSEEK_API_KEY')}",
-                            "Content-Type": "application/json"
-                        }
-                    elif voter == 'grok':
-                        api_url = "https://api.x.ai/v1/chat/completions"
-                        payload = {
-                            "model": "grok-beta",
-                            "messages": [
-                                {"role": "system", "content": "Du är en AI-modell som röstar på bästa svaret i en debatt. Följ instruktionerna noggrant."},
-                                {"role": "user", "content": voting_prompt}
-                            ],
-                            "max_tokens": 300,
-                            "temperature": 0.7,
-                        }
-                        headers = {
-                            "Authorization": f"Bearer {os.getenv('XAI_API_KEY')}",
-                            "Content-Type": "application/json"
-                        }
+                    endpoint = service_endpoints.get(voter)
+                    if not endpoint:
+                        raise Exception(f"Tjänst {voter} inte tillgänglig")
                     
-                    # Call external API (except Gemini which was handled above)
-                    if voter != 'gemini':
-                        loop = asyncio.get_event_loop()
-                        vote_response = await loop.run_in_executor(
-                            None,
-                            lambda: requests.post(api_url, json=payload, headers=headers, timeout=45)
+                    # Call backend API with voting prompt
+                    loop = asyncio.get_event_loop()
+                    vote_response = await loop.run_in_executor(
+                        None,
+                        lambda: requests.post(
+                            endpoint,
+                            json={'question': voting_prompt},
+                            timeout=45
                         )
-                        vote_response.raise_for_status()
-                        vote_result = vote_response.json()
-                        
-                        if 'choices' in vote_result and len(vote_result['choices']) > 0:
-                            vote_response_text = vote_result['choices'][0].get('message', {}).get('content', '').strip()
-                        else:
-                            vote_response_text = vote_result.get('content', '').strip()
+                    )
+                    vote_response.raise_for_status()
+                    vote_result = vote_response.json()
+                    
+                    # Backend API returns {'response': '...'}
+                    vote_response_text = vote_result.get('response', '').strip()
                     
                     # Parse RÖST and MOTIVERING from response
                     import re
