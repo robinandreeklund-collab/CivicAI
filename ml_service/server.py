@@ -13669,19 +13669,26 @@ GE DIN KOMMENTAR NU (ingen inledning):"""
                                 prev_agents = [r['agent'] for r in external_responses[:-1]]
                                 previous_context = f"\n\nTidigare i denna runda har {', '.join(prev_agents)} redan svarat."
                         
+                        # Include the actual response for context
+                        response_preview = agent_response[:200] if len(agent_response) > 200 else agent_response
+                        
                         insight_prompt = f"""Du är en skarp debattobservatör som ger publiken snabba live-kommentarer.
 
-Du har precis sett {agent_name.upper()}s bidrag i runda {round_num}.{previous_context}
+DEBATTFRÅGA: {clean_question}
+
+{agent_name.upper()}S SVAR I RUNDA {round_num}:
+{response_preview}...{previous_context}
 
 BEHAVIORAL ENFORCEMENT:
 - Längd: 15-25 ord (1-2 meningar, STRIKT)
 - Börja alltid med 💡
 - Variera stil - undvik upprepning av fraser
 - Känn som äkta live-kommentar
+- Basera kommentaren på det FAKTISKA svaret ovan och debattfrågan
 
 DU KAN:
-- Peka ut skifte i argumentationen
-- Lyfta stark, svag eller oväntad vinkel
+- Peka ut skifte i argumentationen relaterat till frågan
+- Lyfta stark, svag eller oväntad vinkel i svaret
 - Koppla till debattens dynamik eller tidigare rundor
 - Använd dramatik, humor eller överraskning naturligt
 
