@@ -1785,6 +1785,25 @@ export default function SevenBZeroPage() {
             setDebateData({...debateState});
             break;
             
+          case 'debate_intro':
+            // OneSeek introduces the topic
+            setThinkingStep(null);
+            const introMsg = {
+              id: `debate-intro-${Date.now()}`,
+              type: 'assistant',
+              text: message.message,
+              timestamp: new Date().toISOString(),
+              isDebateIntro: true
+            };
+            setMessages(prev => [...prev, introMsg]);
+            setConversationHistory(prev => [...prev, {
+              role: 'assistant',
+              content: message.message,
+              timestamp: introMsg.timestamp
+            }]);
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            break;
+            
           case 'round_start':
             setThinkingStep(`🎤 Runda ${message.round} startar...`);
             setCurrentRound(message.round);
@@ -1995,6 +2014,66 @@ export default function SevenBZeroPage() {
           case 'round_complete':
             // Legacy support - deprecated in new architecture
             console.log(`[Debate] Legacy round_complete event received`);
+            break;
+            
+          case 'voting_intro':
+            // OneSeek introduces voting phase
+            setThinkingStep(null);
+            const votingIntroMsg = {
+              id: `voting-intro-${Date.now()}`,
+              type: 'assistant',
+              text: message.message,
+              timestamp: new Date().toISOString(),
+              isVotingIntro: true
+            };
+            setMessages(prev => [...prev, votingIntroMsg]);
+            setConversationHistory(prev => [...prev, {
+              role: 'assistant',
+              content: message.message,
+              timestamp: votingIntroMsg.timestamp
+            }]);
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            break;
+            
+          case 'vote_received':
+            // Individual vote with motivation
+            console.log(`[Debate] Vote from ${message.voter} for ${message.voted_for}`);
+            const voteMsg = {
+              id: `vote-${message.voter}-${Date.now()}`,
+              type: 'assistant',
+              text: message.message,
+              timestamp: new Date().toISOString(),
+              isVote: true,
+              voter: message.voter,
+              votedFor: message.voted_for
+            };
+            setMessages(prev => [...prev, voteMsg]);
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            break;
+            
+          case 'winner':
+            // Winner announcement
+            setThinkingStep(null);
+            const winnerMsg = {
+              id: `winner-${Date.now()}`,
+              type: 'assistant',
+              text: message.message,
+              timestamp: new Date().toISOString(),
+              isWinner: true,
+              winner: message.data.winner,
+              votes: message.data.votes
+            };
+            setMessages(prev => [...prev, winnerMsg]);
+            setConversationHistory(prev => [...prev, {
+              role: 'assistant',
+              content: message.message,
+              timestamp: winnerMsg.timestamp
+            }]);
+            
+            // Show confetti for winner!
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 5000);
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
             
           case 'debate_complete':
