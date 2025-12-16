@@ -13663,7 +13663,6 @@ Svara bara med själva insighten, ingen extra inledning eller förklaring."""
                         insight_text = await generate_with_llama_server(
                             insight_prompt,
                             temperature=0.85,
-                            top_p=0.95,
                             max_tokens=100
                         )
                         insight_text = insight_text.strip()

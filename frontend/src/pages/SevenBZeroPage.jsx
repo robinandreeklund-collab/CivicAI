@@ -2756,7 +2756,7 @@ export default function SevenBZeroPage() {
           {/* Debate Rounds Display moved to message timeline - rendered at debate marker position */}
           {false && Object.keys(debateRounds).length > 0 && (
             <div className="mb-6">
-              {Object.keys(debateRounds).filter(k => k !== 'completion').sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
+              {Object.keys(debateRounds).filter(k => k !== 'completion' && k !== 'voting' && !isNaN(parseInt(k))).sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
                 <DebateRoundDisplay
                   key={roundNum}
                   round={parseInt(roundNum)}
@@ -2964,7 +2964,7 @@ export default function SevenBZeroPage() {
                   
                   {/* Debate rounds display - now in chronological position */}
                   <div className="mb-6">
-                    {Object.keys(debateRounds).filter(k => k !== 'completion').sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
+                    {Object.keys(debateRounds).filter(k => k !== 'completion' && k !== 'voting' && !isNaN(parseInt(k))).sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
                       <DebateRoundDisplay
                         key={roundNum}
                         round={parseInt(roundNum)}
