@@ -109,6 +109,12 @@ To enable data persistence and user authentication:
 - **[Firebase Step 2 Deployment Guide](docs/deployment/FIREBASE_STEP2_DEPLOYMENT_GUIDE.md)** - Complete production deployment guide (Swedish)
 - [Firebase Setup Guide](docs/guides/FIREBASE_SETUP.md) - Basic setup instructions
 
+**Live AI-Debate Documentation:**
+- **[debate.yaml](debate.yaml)** - Complete flow specification and configuration
+- **[DEBATE_CONFIG_GUIDE.md](DEBATE_CONFIG_GUIDE.md)** - Configuration guide for developers
+- **[DEBATE_IMPLEMENTATION.md](DEBATE_IMPLEMENTATION.md)** - Technical implementation details
+- **[docs/DEBATE_USER_GUIDE.md](docs/DEBATE_USER_GUIDE.md)** - User guide for the debate feature
+
 ---
 
 ## 📊 Current Status

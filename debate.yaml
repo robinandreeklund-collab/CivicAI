@@ -1,0 +1,92 @@
+### Uppdaterat och komplett realtidsflöde för debatten (3 rundor + röstning) för debatt läget på http://localhost:3000/7B-Zero
+Debattläget funkar bra idag och nu ska vi göra det ännu bättre. Här är vad vi vill uppnå. Fortfarande fokus på att allt ska vara i realtid. Oneseek ekar andras svar så fort dom kommer in och gör insikt. 
+Vi kommer alltså processa varje svar direkt. och låta modellen jobba i flera steg genom varje svar.  se nedan. analysera förstå och implmentera detta helt korrekt. Vi är ganska nöjda med nuvarande realtidskänsla. men detta är att göra det ännu bättre. Så förstör inget.
+Viktigt. Vi chunkar eller data dumpar aldrig!! allt ska vara i realtids känsla med stream så det känns Levande.!!!!
+
+#### Start
+- OneSeek introducerar ämnet och startar runda 1  
+  Exempel: "Välkommen till debatten om [ämne]. Runda 1 börjar nu – här är frågan: [fråga]"
+
+#### Runda 1–3 (samma realtidsflöde varje runda)
+
+1. **Parallella anrop**  
+   - Frågan + kontext från tidigare runda skickas till alla externa modeller samtidigt.
+
+2. **Så fort ett externt svar kommer in** (t.ex. GPT först):  
+   - OneSeek ekar svaret live genom sig själv (streaming):  
+     "GPT säger: [streaming av GPT:s svar ord för ord]"  
+   - När svaret är klart: OneSeek lägger till egen kommentar direkt:  
+     "Intressant poäng från GPT. Jag håller med om X, men vill tillägga att Y..."
+
+3. **Detta upprepas** för varje externt svar i den ordning de kommer in (Claude, Grok, Gemini).
+
+4. **När alla externa modeller har svarat i rundan**  
+   - OneSeek ger sitt eget starka, personliga svar för rundan  
+     (tar tydlig ställning, bemöter andras argument, använder insikter från dem)  
+   - Avslutar med en ny fråga som startar nästa runda  
+     Exempel: "Vad säger ni andra i nästa runda – håller ni med mig eller ser ni det annorlunda?"
+
+5. **Automatisk övergång**  
+   - Runda 2 och 3 körs exakt likadant.
+
+#### Röstningsfas (efter runda 3 – ingen ny debatt)
+
+1. **OneSeek inleder röstningen**  
+   "Debatten är avslutad efter tre rundor. Nu går vi till röstning!  
+   Jag ber alla modeller (inklusive mig själv) att rösta på det bästa svaret i hela debatten – men INTE sitt eget. Ge också en kort motivering."
+
+2. **Rösterna kommer in** (parallellt eller sekventiellt – gärna parallellt för realtidskänsla)  
+   - OneSeek ekar varje röst live:  
+     "GPT röstar på Claude – motivering: mest nyanserat."  
+     "Claude röstar på OneSeek – starkast argumentation."
+
+3. **OneSeek räknar rösterna och korar vinnare**  
+   - Visar rösterna tydligt  
+   - Korar vinnare (kan vara oavgjort)  
+   - Ger avslutande kommentar:  
+     "Tack för en fantastisk debatt! Vinnaren är [modell] med X röster."
+
+### Sammanfattning av känslan
+- **Full realtid** – svar och kommentarer droppar in live, OneSeek ekar allt genom sig själv för en sammanhängande skrivkänsla.
+- **OneSeek i centrum** – både aktiv debattör och ledare.
+- **Spänning till slutet** – röstningen blir en dramatisk final.
+
+
+### Jämförelse av debattflöden: Gamla vs Nya (realtidsflödet)
+
+#### Gamla flödet (batch-baserat)
+Runda 1
+├── Starta parallella anrop till externa modeller
+├── Vänta på alla externa svar
+├── Alla externa svar mottagna (visas gruppvis)
+├── OneSeek processar varje svar enskilt (genererar reasoning)
+├── Alla reasonings klara
+├── OneSeek genererar eget sammanfattande svar
+├── Hela runda 1 visas färdig i chatten
+└── Starta runda 2 (samma process upprepas för runda 2–3)
+text**Känsla**: Väntar på hela gruppen innan något visas – känns statiskt.
+
+
+#### Nya flödet (realtid med 3 rundor + röstning)
+Start debatt
+└── OneSeek introducerar ämnet och startar runda 1
+Runda 1–3 (realtid)
+├── Parallella anrop till externa modeller
+├── Så fort ett externt svar kommer in:
+│   ├── OneSeek ekar svaret live genom sig själv (streaming)
+│   │   Exempel: "GPT säger: [streaming av GPT:s svar]"
+│   └── OneSeek lägger till egen kommentar direkt
+│       insikt: "Intressant poäng. Jag håller med om X, men vill tillägga Y..." (visas på frontend och används internt. (skickas ej till övriga ai modeller.))
+├── Detta upprepas för varje externt svar i den ordning de kommer
+├── När alla externa svarat i rundan:
+│   └── OneSeek ger eget starka, personliga svar (som byggs från alla andra svaren och den insikt oneseek har fått + använder sin egen kunskap)
+│       └── Avslutar med fråga som startar nästa runda
+└── Automatisk övergång till runda 2 och 3
+Röstningsfas (efter runda 3 – ingen ny debatt)
+├── OneSeek inleder röstningen
+├── Alla modeller röstar på bästa svaret (inte sitt eget) och ger en kort motivering varför.
+├── Rösterna visas när de kommer in
+└── OneSeek räknar rösterna, korar vinnare och avslutar med en sammanfattning och  insikt varför.
+
+text**Känsla**: Levande realtid – svar och kommentarer droppar in löpande, OneSeek är alltid i centrum, spänning hela vägen till röstningsfinalen
+

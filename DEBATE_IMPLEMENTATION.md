@@ -26,12 +26,11 @@ Live AI-Debatt är en **separat, fristående funktion** integrerad i /7B-Zero me
 - Frågan skickas via **dedikerad WebSocket** till `/ws/debate`
 - Servern startar **separat debattflöde** med egen logik
 
-### 2. Personlighet & Prompt - Automatisk Laddning
-**VIKTIGT**: När Debatt-knappen trycks händer automatiskt:
-1. **Debattledare-personligheten laddas direkt** från `personality_catalog.json`
-2. **Debatt-specifik system prompt** aktiveras (neutral domare, objektiv)
-3. **Personlighetskortet** (`OneSeek-Debattledare.yaml`) laddas automatiskt
-4. Inget behov av automatisk nyckelordsanalys - knappen styr allt
+### 2. Introduktion - OneSeek Startar Debatten
+**NYTT**: OneSeek introducerar ämnet och välkomnar deltagarna:
+- **Debattledare-personligheten laddas direkt** från `personality_catalog.json`
+- OneSeek presenterar debattämnet: "Välkommen till debatten om [ämne]. Runda 1 börjar nu – här är frågan: [fråga]"
+- Event: `debate_intro` med introduktionsmeddelandet
 
 **Separat Flöde**: Debattlogiken använder:
 - Egen WebSocket-endpoint (`/ws/debate`)
@@ -41,7 +40,7 @@ Live AI-Debatt är en **separat, fristående funktion** integrerad i /7B-Zero me
 
 ### 3. Debattrundor (3 st) - QUEUE-BASED REAL-TIME FLOW
 
-**NY ARKITEKTUR**: Varje svar processas omedelbart när det anländer, ingen väntan på batch!
+**UPPDATERAD ARKITEKTUR**: Varje svar processas omedelbart när det anländer med konversationella kommentarer!
 
 #### Flöde per runda:
 
@@ -58,20 +57,23 @@ a) **Echo (Streaming)**: OneSeek ekar svaret token-för-token
    - Streaming: `{"type": "oneseek_echo", "text": "...", "complete": false}`
    - Simulerar realistisk AI-hastighet (~65 tokens/sek)
 
-b) **Fokuserad Reasoning**: OneSeek analyserar detta specifika svar
-   - Genererar 2-3 meningar om styrkor/svagheter/insikter
-   - Event: `{"type": "oneseek_reasoning", "message": "Analys av GPT..."}`
+b) **Direkt Kommentar (UPPDATERAD)**: OneSeek kommenterar konversationellt
+   - Genererar konversationell kommentar (2-3 meningar)
+   - Format: "Intressant poäng från GPT. Jag håller med om X, men vill tillägga Y..."
+   - Event: `{"type": "oneseek_reasoning", "message": "Intressant poäng från GPT..."}`
    - Sparas i kunskapskedjan
 
 c) **Live Insight**: En-raders "sport-commentator" uppdatering
    - Event: `{"type": "live_insight", "message": "💡 GPT fokuserar på ekonomi - 1/4 svar mottagna"}`
 
-**Steg 3: OneSeeks eget debattsvar (Streaming)**
+**Steg 3: OneSeeks eget starka debattsvar (Streaming)**
 Efter alla externa svar processats:
-- OneSeek genererar sitt EGET fullständiga debattsvar (400-600 ord)
+- OneSeek genererar sitt EGET starka, personliga debattsvar (400-600 ord)
+- **TAR TYDLIG STÄLLNING** och bemöter andras argument direkt
 - Event start: `{"type": "oneseek_own_answer_start"}`
 - Streaming: `{"type": "oneseek_own_answer", "text": "...", "complete": false}`
 - Reasoning: `{"type": "oneseek_own_reasoning", "message": "Min tankekedja..."}`
+- **AVSLUTAR MED FRÅGA** (om inte sista rundan): "Vad säger ni andra i nästa runda – håller ni med mig eller ser ni det annorlunda?"
 - **OneSeek är fullständig debattdeltagare**, inte bara domare!
 
 **Steg 4: Rundsammanfattning**
@@ -82,23 +84,31 @@ Efter alla externa svar processats:
 - Event: `{"type": "round_end", "round": 1}`
 - Kort paus (1s) innan nästa runda
 
-### 4. Röstning
-Efter 3 rundor:
-- Alla 5 AI:er röstar på bästa svaret
+### 4. Röstning (UPPDATERAD)
+**OneSeek inleder röstningen**:
+- Event: `{"type": "voting_intro", "message": "Debatten är avslutad efter tre rundor. Nu går vi till röstning! Jag ber alla modeller (inklusive mig själv) att rösta på det bästa svaret i hela debatten – men INTE sitt eget. Ge också en kort motivering."}`
+
+**Rösterna kommer in med motiveringar**:
+- Alla 5 AI:er röstar på bästa svaret **med kort motivering**
 - **Regel**: Ingen får rösta på sig själv
 - **ONESEEK**: Agerar som neutral domare och röstar objektivt
-- Format: `{"type": "voting", "message": "🗳️ Röstning pågår..."}`
+- **Live streaming**: Varje röst visas när den kommer in
+- Format: `{"type": "vote_received", "voter": "gpt", "voted_for": "claude", "message": "GPT röstar på Claude – motivering: mest nyanserat."}`
 
-### 5. Vinnare
+### 5. Vinnare (UPPDATERAD)
 - AI:n med flest röster vinner
-- Vinnaren annonseras live
+- **OneSeek räknar rösterna och korar vinnare**
+- Vinnaren annonseras live med röstresultat
 - **Confetti-effekt** visas i UI:t i 5 sekunder
-- Format: `{"type": "winner", "data": {"winner": "gpt", "votes": 3, "all_votes": {...}}}`
+- Event: `{"type": "winner", "message": "🏆 Vinnare: GPT med 3 röster!", "data": {"winner": "gpt", "votes": 3, "all_votes": {...}}}`
 
-### 6. Sammanfattning
-- ONESEEK skapar objektiv sammanfattning av debatten
-- Förklarar varför vinnaren vann
-- Format: `{"type": "summary", "message": "...", "data": {"summary": "..."}}`
+### 6. Avslutande Kommentar (UPPDATERAD)
+- ONESEEK ger avslutande kommentar om debatten:
+  1. Tackar för en fantastisk debatt
+  2. Sammanfattar kortfattat vad debatten handlade om
+  3. Förklarar varför vinnaren vann
+  4. Ger en insikt om vad vi lärt oss
+- Event: `{"type": "debate_complete", "data": {"summary": "Tack för en fantastisk debatt! Vinnaren är [modell] med X röster..."}}`
 
 ## API-Endpoints
 
@@ -133,6 +143,18 @@ Efter 3 rundor:
     "rounds": 3,
     "question": "Ska Sverige bygga nya kärnkraftverk?",
     "personality": "Debattledaren"
+  }
+}
+```
+
+3. **debate_intro** - OneSeek introduces the topic (NEW)
+```json
+{
+  "type": "debate_intro",
+  "message": "Välkommen till debatten om kärnkraft. Runda 1 börjar nu – här är frågan: Ska Sverige bygga nya kärnkraftverk?",
+  "data": {
+    "question": "Ska Sverige bygga nya kärnkraftverk?",
+    "round": 1
   }
 }
 ```
@@ -270,15 +292,25 @@ Efter 3 rundor:
 
 ### Voting & Winner Events
 
-14. **voting** - Voting phase (legacy, may be combined with debate_complete)
+14. **voting_intro** - OneSeek introduces voting phase (NEW)
 ```json
 {
-  "type": "voting",
-  "message": "🗳️ Röstning pågår..."
+  "type": "voting_intro",
+  "message": "Debatten är avslutad efter tre rundor. Nu går vi till röstning! Jag ber alla modeller (inklusive mig själv) att rösta på det bästa svaret i hela debatten – men INTE sitt eget. Ge också en kort motivering."
 }
 ```
 
-15. **winner** - Winner announcement (legacy, may be combined with debate_complete)
+15. **vote_received** - Individual vote with motivation (NEW)
+```json
+{
+  "type": "vote_received",
+  "voter": "gpt",
+  "voted_for": "claude",
+  "message": "GPT röstar på Claude – motivering: mest nyanserat."
+}
+```
+
+16. **winner** - Winner announcement (UPDATED with live streaming)
 ```json
 {
   "type": "winner",
@@ -288,8 +320,8 @@ Efter 3 rundor:
     "votes": 3,
     "all_votes": {"gpt": 3, "gemini": 1, "deepseek": 1},
     "vote_results": [
-      {"voter": "gemini", "voted_for": "gpt"},
-      {"voter": "deepseek", "voted_for": "gpt"},
+      {"voter": "gemini", "voted_for": "gpt", "motivation": "mest nyanserat"},
+      {"voter": "deepseek", "voted_for": "gpt", "motivation": "starkast argumentation"},
       ...
     ]
   }

@@ -1785,6 +1785,25 @@ export default function SevenBZeroPage() {
             setDebateData({...debateState});
             break;
             
+          case 'debate_intro':
+            // OneSeek introduces the topic
+            setThinkingStep(null);
+            const introMsg = {
+              id: `debate-intro-${Date.now()}`,
+              type: 'assistant',
+              text: message.message,
+              timestamp: new Date().toISOString(),
+              isDebateIntro: true
+            };
+            setMessages(prev => [...prev, introMsg]);
+            setConversationHistory(prev => [...prev, {
+              role: 'assistant',
+              content: message.message,
+              timestamp: introMsg.timestamp
+            }]);
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            break;
+            
           case 'round_start':
             setThinkingStep(`🎤 Runda ${message.round} startar...`);
             setCurrentRound(message.round);
@@ -1969,16 +1988,21 @@ export default function SevenBZeroPage() {
             // Round compression/summary
             console.log(`[Debate] Round ${message.round} summary received`);
             
-            const summaryText = message.data?.summary || message.message;
-            const consensus = message.data?.consensus || 50;
-            setDebateRounds(prev => ({
-              ...prev,
-              [message.round]: {
-                ...(prev[message.round] || {}),
-                summary: summaryText,
-                consensus: consensus
-              }
-            }));
+            // Ensure round number is valid
+            if (message.round && !isNaN(parseInt(message.round))) {
+              const summaryText = message.data?.summary || message.message;
+              const consensus = message.data?.consensus || 50;
+              setDebateRounds(prev => ({
+                ...prev,
+                [message.round]: {
+                  ...(prev[message.round] || {}),
+                  summary: summaryText,
+                  consensus: consensus
+                }
+              }));
+            } else {
+              console.warn('[Debate] round_summary received with invalid round number:', message.round);
+            }
             
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
@@ -1995,6 +2019,58 @@ export default function SevenBZeroPage() {
           case 'round_complete':
             // Legacy support - deprecated in new architecture
             console.log(`[Debate] Legacy round_complete event received`);
+            break;
+            
+          case 'voting_intro':
+            // OneSeek introduces voting phase - add to debate state, not general messages
+            setThinkingStep(null);
+            setDebateRounds(prev => ({
+              ...prev,
+              voting: {
+                ...(prev.voting || {}),
+                intro: message.message
+              }
+            }));
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            break;
+            
+          case 'vote_received':
+            // Individual vote with motivation - add to debate state
+            console.log(`[Debate] Vote from ${message.voter} for ${message.voted_for}`);
+            setDebateRounds(prev => ({
+              ...prev,
+              voting: {
+                ...(prev.voting || {}),
+                votes: [
+                  ...(prev.voting?.votes || []),
+                  {
+                    voter: message.voter,
+                    votedFor: message.voted_for,
+                    message: message.message
+                  }
+                ]
+              }
+            }));
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            break;
+            
+          case 'winner':
+            // Winner announcement - add to debate state
+            setThinkingStep(null);
+            setDebateRounds(prev => ({
+              ...prev,
+              voting: {
+                ...(prev.voting || {}),
+                winner: message.data.winner,
+                winnerVotes: message.data.votes,
+                winnerMessage: message.message
+              }
+            }));
+            
+            // Show confetti for winner!
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 5000);
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
             
           case 'debate_complete':
@@ -2680,7 +2756,7 @@ export default function SevenBZeroPage() {
           {/* Debate Rounds Display moved to message timeline - rendered at debate marker position */}
           {false && Object.keys(debateRounds).length > 0 && (
             <div className="mb-6">
-              {Object.keys(debateRounds).filter(k => k !== 'completion').sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
+              {Object.keys(debateRounds).filter(k => k !== 'completion' && k !== 'voting' && !isNaN(parseInt(k))).sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
                 <DebateRoundDisplay
                   key={roundNum}
                   round={parseInt(roundNum)}
@@ -2888,7 +2964,7 @@ export default function SevenBZeroPage() {
                   
                   {/* Debate rounds display - now in chronological position */}
                   <div className="mb-6">
-                    {Object.keys(debateRounds).filter(k => k !== 'completion').sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
+                    {Object.keys(debateRounds).filter(k => k !== 'completion' && k !== 'voting' && !isNaN(parseInt(k))).sort((a, b) => parseInt(a) - parseInt(b)).map(roundNum => (
                       <DebateRoundDisplay
                         key={roundNum}
                         round={parseInt(roundNum)}
