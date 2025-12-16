@@ -13383,7 +13383,8 @@ async def websocket_live_debate(websocket: WebSocket):
             logger.warning(f"[WS-Debate] Could not load Debattledare config: {e}")
         
         # Step 2: Initialize debate participants
-        debate_agents = ['gpt', 'gemini', 'deepseek', 'grok', 'oneseek']
+        # Note: 'oneseek' is NOT in this list - it's the moderator/participant but doesn't vote via external API
+        debate_agents = ['gpt', 'gemini', 'deepseek', 'grok']
         debate_rounds = []
         max_rounds = 3
         knowledge_chain = []  # Accumulated knowledge across rounds

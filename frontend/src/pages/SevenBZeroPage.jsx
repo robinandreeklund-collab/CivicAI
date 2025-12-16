@@ -1988,16 +1988,21 @@ export default function SevenBZeroPage() {
             // Round compression/summary
             console.log(`[Debate] Round ${message.round} summary received`);
             
-            const summaryText = message.data?.summary || message.message;
-            const consensus = message.data?.consensus || 50;
-            setDebateRounds(prev => ({
-              ...prev,
-              [message.round]: {
-                ...(prev[message.round] || {}),
-                summary: summaryText,
-                consensus: consensus
-              }
-            }));
+            // Ensure round number is valid
+            if (message.round && !isNaN(parseInt(message.round))) {
+              const summaryText = message.data?.summary || message.message;
+              const consensus = message.data?.consensus || 50;
+              setDebateRounds(prev => ({
+                ...prev,
+                [message.round]: {
+                  ...(prev[message.round] || {}),
+                  summary: summaryText,
+                  consensus: consensus
+                }
+              }));
+            } else {
+              console.warn('[Debate] round_summary received with invalid round number:', message.round);
+            }
             
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
