@@ -15080,8 +15080,7 @@ async def generate_personality_response(
             prompt=full_prompt,
             user_message="",
             max_tokens=200,
-            temperature=0.1,
-            stream=False
+            temperature=0.1
         )
         
         personality_id, reasoning_1 = parse_personality_response(stage1_response)
@@ -15170,8 +15169,7 @@ async def generate_personality_response(
             prompt=api_selection_prompt,
             user_message="",
             max_tokens=500,
-            temperature=0.1,
-            stream=False
+            temperature=0.1
         )
         
         api_selection, reasoning_2 = parse_api_selection_response(stage2_response)
@@ -15250,8 +15248,7 @@ async def generate_personality_response(
             prompt=enriched_system_prompt,
             user_message=text,
             max_tokens=max_length,
-            temperature=temperature,
-            stream=False
+            temperature=temperature
         )
         
         # Strip any remaining ChatML tokens
