@@ -13984,78 +13984,155 @@ Svara ENDAST med ett tal 0-100, inget annat."""
                 # Build voting prompt
                 other_agents = [a for a in debate_agents if a != voter]
                 
-                # Build context from all rounds
+                # Build context from all rounds with FULL responses for voting
                 all_responses_text = ""
                 for round_data in debate_rounds:
-                    all_responses_text += f"\\nRunda {round_data['round']}:\\n"
+                    all_responses_text += f"\n\nRUNDA {round_data['round']}:\n"
                     for resp in round_data['responses']:
                         if resp['agent'] != voter and resp.get('success', False):
-                            all_responses_text += f"{resp['agent'].upper()}: {resp['response'][:150]}...\\n"
+                            # Include full response for voting (not truncated)
+                            all_responses_text += f"\n{resp['agent'].upper()}:\n{resp['response']}\n"
                 
-                voting_prompt = f"""Du är {voter.upper()} och ska rösta på bästa svaret i hela debatten om: {clean_question}
+                voting_prompt = f"""Du ska rösta på det bästa svaret i hela debatten. Frågan var: {clean_question}
 
-ANDRA MODELLERS SVAR (ALLA RUNDOR):
+Här är alla andras svar genom alla rundor:
 {all_responses_text}
 
-UPPGIFT: Rösta på det svar/den modell du tycker var bäst genom hela debatten (INTE ditt eget).
+UPPGIFT: Analysera alla svar ovan och rösta på den modell du tycker var bäst genom hela debatten.
+
+Du kan INTE rösta på dig själv. Välj mellan: {', '.join(other_agents)}
 
 GE EN UTFÖRLIG MOTIVERING (3-4 meningar) som förklarar:
-1. Vad som var starkt med svaret/modellen
+1. Vad som var starkt med det svaret/modellen
 2. Specifika argument eller poänger som övertyagde dig
 3. Varför detta svar var bättre än de andra
 
-FORMAT:
-RÖST: [modellnamn]
-MOTIVERING: [3-4 meningar med detaljerad reasoning]
+VIKTIGT FORMAT - Svara EXAKT så här:
+RÖST: [modellnamn från listan ovan]
+MOTIVERING: [Din utförliga motivering i 3-4 meningar som refererar till konkreta argument från debatten]
 
-Välj från: {', '.join(other_agents)}
-
-VIKTIGT: Var specifik och referera till konkreta argument från debatten i din motivering."""
+Ge ditt svar nu:"""
                 
-                # Get vote with motivation using LLM for better reasoning
+                # Call EXTERNAL API to get REAL vote from this AI model
                 try:
-                    vote_for = random.choice(other_agents)
+                    api_url = None
+                    payload = None
                     
-                    # Generate detailed motivation using LLM
-                    payload = {
-                        "messages": [
-                            {"role": "system", "content": f"Du är {voter.upper()} och ska ge en utförlig motivering för varför du röstar på {vote_for.upper()} i debatten."},
-                            {"role": "user", "content": f"""Ge en detaljerad motivering (3-4 meningar) för varför {vote_for.upper()} hade det bästa svaret i debatten om: {clean_question}
-
-Förklara specifikt:
-1. Vilka starka argument {vote_for.upper()} hade
-2. Vad som gjorde svaret övertygande
-3. Varför det var bättre än de andra
-
-Svara ENDAST med motiveringen (3-4 meningar), ingen titel eller inledning."""}
-                        ],
-                        "max_tokens": 250,
-                        "temperature": 0.7,
-                    }
+                    if voter == 'gpt':
+                        api_url = "https://api.openai.com/v1/chat/completions"
+                        payload = {
+                            "model": "gpt-4o-mini",
+                            "messages": [
+                                {"role": "system", "content": "Du är en AI-modell som röstar på bästa svaret i en debatt. Följ instruktionerna noggrant."},
+                                {"role": "user", "content": voting_prompt}
+                            ],
+                            "max_tokens": 300,
+                            "temperature": 0.7,
+                        }
+                        headers = {
+                            "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
+                            "Content-Type": "application/json"
+                        }
+                    elif voter == 'gemini':
+                        # Gemini uses different API format
+                        import google.generativeai as genai
+                        genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+                        model = genai.GenerativeModel('gemini-1.5-flash')
+                        
+                        # Call Gemini API directly (different from OpenAI format)
+                        loop = asyncio.get_event_loop()
+                        response = await loop.run_in_executor(
+                            None,
+                            lambda: model.generate_content(voting_prompt)
+                        )
+                        vote_response_text = response.text
+                        
+                    elif voter == 'deepseek':
+                        api_url = "https://api.deepseek.com/v1/chat/completions"
+                        payload = {
+                            "model": "deepseek-chat",
+                            "messages": [
+                                {"role": "system", "content": "Du är en AI-modell som röstar på bästa svaret i en debatt. Följ instruktionerna noggrant."},
+                                {"role": "user", "content": voting_prompt}
+                            ],
+                            "max_tokens": 300,
+                            "temperature": 0.7,
+                        }
+                        headers = {
+                            "Authorization": f"Bearer {os.getenv('DEEPSEEK_API_KEY')}",
+                            "Content-Type": "application/json"
+                        }
+                    elif voter == 'grok':
+                        api_url = "https://api.x.ai/v1/chat/completions"
+                        payload = {
+                            "model": "grok-beta",
+                            "messages": [
+                                {"role": "system", "content": "Du är en AI-modell som röstar på bästa svaret i en debatt. Följ instruktionerna noggrant."},
+                                {"role": "user", "content": voting_prompt}
+                            ],
+                            "max_tokens": 300,
+                            "temperature": 0.7,
+                        }
+                        headers = {
+                            "Authorization": f"Bearer {os.getenv('XAI_API_KEY')}",
+                            "Content-Type": "application/json"
+                        }
                     
-                    server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
-                    llm_response = requests.post(
-                        f"{server_url}/v1/chat/completions",
-                        json=payload,
-                        timeout=30,
-                    )
-                    llm_response.raise_for_status()
-                    result = llm_response.json()
+                    # Call external API (except Gemini which was handled above)
+                    if voter != 'gemini':
+                        loop = asyncio.get_event_loop()
+                        vote_response = await loop.run_in_executor(
+                            None,
+                            lambda: requests.post(api_url, json=payload, headers=headers, timeout=45)
+                        )
+                        vote_response.raise_for_status()
+                        vote_result = vote_response.json()
+                        
+                        if 'choices' in vote_result and len(vote_result['choices']) > 0:
+                            vote_response_text = vote_result['choices'][0].get('message', {}).get('content', '').strip()
+                        else:
+                            vote_response_text = vote_result.get('content', '').strip()
                     
-                    if 'choices' in result and len(result['choices']) > 0:
-                        motivation = result['choices'][0].get('message', {}).get('content', '').strip()
-                    else:
-                        motivation = result.get('content', '').strip()
+                    # Parse RÖST and MOTIVERING from response
+                    import re
+                    vote_for = None
+                    motivation = ""
                     
-                    # Fallback if LLM fails or gives empty response
+                    # Look for RÖST: line
+                    rost_match = re.search(r'RÖST:\s*(\w+)', vote_response_text, re.IGNORECASE)
+                    if rost_match:
+                        vote_for = rost_match.group(1).lower()
+                    
+                    # Look for MOTIVERING: section
+                    motiv_match = re.search(r'MOTIVERING:\s*(.+)', vote_response_text, re.IGNORECASE | re.DOTALL)
+                    if motiv_match:
+                        motivation = motiv_match.group(1).strip()
+                    
+                    # Validate vote is for a valid agent (not self)
+                    if vote_for not in other_agents:
+                        logger.warning(f"[WS-Debate] {voter} voted for invalid agent '{vote_for}', choosing first from list")
+                        vote_for = other_agents[0]
+                    
+                    # Ensure motivation is not empty
                     if not motivation:
-                        motivation = f"{vote_for.upper()} presenterade de mest övertygande argumenten genom hela debatten. Svaren var välstrukturerade och byggde på solid reasoning. De specifika poängerna om ämnet var särskilt starka och visade djup förståelse."
+                        # Try to extract anything after the vote line
+                        lines = vote_response_text.split('\n')
+                        for i, line in enumerate(lines):
+                            if 'RÖST:' in line.upper() and i + 1 < len(lines):
+                                motivation = ' '.join(lines[i+1:]).strip()
+                                break
+                    
+                    # Final fallback
+                    if not motivation:
+                        motivation = f"{vote_for.upper()} presenterade de mest övertygande argumenten genom hela debatten. Svaren var välstrukturerade och byggde på solid reasoning."
+                    
+                    logger.info(f"[WS-Debate] {voter} AUTHENTICALLY voted for {vote_for}")
                 
                 except Exception as e:
-                    logger.error(f"[WS-Debate] Error generating motivation for {voter}: {e}")
-                    # Fallback motivation
-                    vote_for = random.choice(other_agents)
-                    motivation = f"{vote_for.upper()} hade de mest övertygande och välgrundade argumenten genom hela debatten. Svaren var både djupgående och lättförståeliga."
+                    logger.error(f"[WS-Debate] Error getting vote from {voter} API: {e}")
+                    # Fallback: use first available agent
+                    vote_for = other_agents[0]
+                    motivation = f"Tekniskt fel vid röstning. {vote_for.upper()} valdes som förval."
                 
                 votes[vote_for] = votes.get(vote_for, 0) + 1
                 vote_results.append({
