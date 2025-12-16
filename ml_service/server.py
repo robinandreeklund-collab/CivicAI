@@ -13422,8 +13422,7 @@ async def websocket_live_debate(websocket: WebSocket):
         
         # Conduct debate rounds with NEW queue-based architecture
         for round_num in range(1, max_rounds + 1):
-            # Generate randomized turn order for this round
-            import random
+            # Generate randomized turn order for this round (random is imported at top)
             round_turn_order = debate_agents.copy()
             random.shuffle(round_turn_order)
             turn_orders[round_num] = round_turn_order

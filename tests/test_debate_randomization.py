@@ -79,11 +79,11 @@ class TestPromptStructure:
         # Build context
         debate_context = ""
         if debate_rounds:
-            debate_context = "\\n\\nBAKGRUND - TIDIGARE RUNDOR:\\n"
+            debate_context = "\n\nBAKGRUND - TIDIGARE RUNDOR:\n"
             for prev_round in debate_rounds:
-                debate_context += f"\\nRunda {prev_round['round']}:\\n"
+                debate_context += f"\nRunda {prev_round['round']}:\n"
                 for resp in prev_round['responses']:
-                    debate_context += f"- {resp['agent'].upper()}: {resp['response'][:150]}...\\n"
+                    debate_context += f"- {resp['agent'].upper()}: {resp['response'][:150]}...\n"
         
         assert "BAKGRUND" in debate_context
         assert "TIDIGARE RUNDOR" in debate_context
