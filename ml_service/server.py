@@ -13628,31 +13628,74 @@ Svara direkt med bara kommentaren, ingen inledning."""
                             "message": comment_text
                         })
                     
-                    # 3. LIVE INSIGHT: One-liner "sport commentator" style update
-                    # Extract key themes for insight  
-                    insight_keywords = []
-                    for keyword in ['ekonomi', 'miljö', 'samhälle', 'teknologi', 'framtid', 'konsekvens']:
-                        if keyword in agent_response.lower() or keyword in comment_text.lower():
-                            insight_keywords.append(keyword)
-                    
-                    # Count how many responses we've received so far
-                    async with external_responses_lock:
-                        responses_so_far = len(external_responses)
-                    
-                    if insight_keywords:
-                        insight = f"💡 {agent_name.upper()} fokuserar på {', '.join(insight_keywords[:2])} - {responses_so_far}/{len(external_agents)} svar mottagna"
-                    else:
-                        insight = f"💡 {agent_name.upper()} har delat sitt perspektiv - {responses_so_far}/{len(external_agents)} svar mottagna"
-                    
-                    await websocket.send_json({
-                        "type": "live_insight",
-                        "round": round_num,
-                        "agent": agent_name,
-                        "message": insight,
-                        "data": {
-                            "progress": f"{responses_so_far}/{len(external_agents)}"
-                        }
-                    })
+                    # 3. LIVE INSIGHT: Generate engaging analytical observation
+                    try:
+                        # Count how many responses we've received so far
+                        async with external_responses_lock:
+                            responses_so_far = len(external_responses)
+                        
+                        # Build context about previous responses in this round
+                        previous_context = ""
+                        if responses_so_far > 1:
+                            async with external_responses_lock:
+                                prev_agents = [r['agent'] for r in external_responses[:-1]]
+                                previous_context = f"\n\nTidigare i denna runda har {', '.join(prev_agents)} redan svarat."
+                        
+                        insight_prompt = f"""Du är en skarp, engagerad och lyhörd debattobservatör som ger publiken snabba och träffsäkra kommentarer i realtid.
+
+Du har precis sett {agent_name.upper()}s bidrag i debatten.{previous_context}
+
+Ge EN kort analytisk observation (1–2 meningar) som fångar det mest intressande eller viktiga som just hände.
+
+Du kan t.ex.:
+- Pekar ut ett tydligt skifte i argumentationen
+- Lyfta fram en särskilt stark, svag eller oväntad vinkel
+- Koppla bidraget till debattens övergripande dynamik eller tidigare rundor
+- Använda lite dramatik, humor eller överraskning om det passar naturligt
+
+Börja alltid med 💡
+Skriv varierat – undvik att upprepa samma fraser eller strukturer varje gång (t.ex. inte alltid "kontrar hårt", "stärker positionen" etc.).
+Låt det kännas som en äkta live-kommentar från någon som verkligen följer och förstår debatten.
+
+Svara bara med själva insighten, ingen extra inledning eller förklaring."""
+
+                        insight_text = await generate_with_llama_server(
+                            insight_prompt,
+                            temperature=0.85,
+                            top_p=0.95,
+                            max_tokens=100
+                        )
+                        insight_text = insight_text.strip()
+                        
+                        # Fallback if generation fails or doesn't start with emoji
+                        if not insight_text or not insight_text.startswith('💡'):
+                            insight_text = f"💡 {agent_name.upper()} har delat sitt perspektiv - {responses_so_far}/{len(external_agents)} svar mottagna"
+                        
+                        await websocket.send_json({
+                            "type": "live_insight",
+                            "round": round_num,
+                            "agent": agent_name,
+                            "message": insight_text,
+                            "data": {
+                                "progress": f"{responses_so_far}/{len(external_agents)}"
+                            }
+                        })
+                        
+                    except Exception as e:
+                        logger.error(f"[WS-Debate] Error generating insight for {agent_name}: {e}")
+                        # Fallback insight
+                        async with external_responses_lock:
+                            responses_so_far = len(external_responses)
+                        insight_text = f"💡 {agent_name.upper()} har delat sitt perspektiv - {responses_so_far}/{len(external_agents)} svar mottagna"
+                        await websocket.send_json({
+                            "type": "live_insight",
+                            "round": round_num,
+                            "agent": agent_name,
+                            "message": insight_text,
+                            "data": {
+                                "progress": f"{responses_so_far}/{len(external_agents)}"
+                            }
+                        })
                     
                     logger.info(f"[WS-Debate] OneSeek finished processing {agent_name}'s answer")
                 
