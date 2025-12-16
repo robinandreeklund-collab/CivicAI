@@ -15076,7 +15076,7 @@ async def generate_personality_response(
         full_prompt = f"{personality_selection_system_prompt}\n\n**Tillgängliga personligheter:**\n{catalog_str}\n\n**Användarens fråga:** {text}"
         
         # First inference - personality ONLY
-        stage1_response = await generate_with_llama_server(
+        stage1_response = generate_with_llama_server(
             prompt=full_prompt,
             user_message="",
             max_tokens=200,
@@ -15165,7 +15165,7 @@ async def generate_personality_response(
             text
         )
         
-        stage2_response = await generate_with_llama_server(
+        stage2_response = generate_with_llama_server(
             prompt=api_selection_prompt,
             user_message="",
             max_tokens=500,
@@ -15244,7 +15244,7 @@ async def generate_personality_response(
         else:
             enriched_system_prompt = personality_system_prompt
         
-        final_response = await generate_with_llama_server(
+        final_response = generate_with_llama_server(
             prompt=enriched_system_prompt,
             user_message=text,
             max_tokens=max_length,
