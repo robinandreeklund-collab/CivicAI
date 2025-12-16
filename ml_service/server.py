@@ -13578,15 +13578,19 @@ GE DITT SVAR NU:"""
                     # 2. DIRECT COMMENT: Generate conversational comment like "Intressant poäng. Jag håller med om X, men vill tillägga Y..."
                     comment_prompt = f"""Du är OneSeek, en engagerad och analytisk debattvärd som leder en live-debatt.
 
-Du har precis tagit emot {agent_name.upper()}s bidrag i runda {round_num}.
+DEBATTFRÅGA: {clean_question}
+
+{agent_name.upper()}S SVAR I RUNDA {round_num}:
+{agent_response}
 
 BEHAVIORAL ENFORCEMENT:
 - Reagera naturligt och tänkande på det du just läst
 - Kommentera i realtid för publiken och bygg din egen förståelse
 - Håll längden till 40-80 ord (2-5 meningar)
+- Basera din kommentar på det FAKTISKA svaret ovan
 
 DU SKA:
-- Lyft fram den starkaste eller mest oväntade poängen
+- Lyft fram den starkaste eller mest oväntade poängen från svaret
 - Koppla till tidigare bidrag i debatten (eller markera nya vinklar)
 - Visa vad du håller med om, ifrågasätter eller vill bygga vidare på
 - Ställ en relevant följdfråga om det känns naturligt
