@@ -51,6 +51,7 @@ import uuid
 from datetime import datetime
 from typing import Optional, List, Dict, Any, AsyncGenerator
 import requests  # For Tavily API and SMHI weather
+import yaml  # For loading personality YAML cards
 
 # =============================================================================
 # ONESEEK Δ+ MODULE IMPORTS
@@ -12432,11 +12433,17 @@ async def personality_based_inference(request: Request, inference_request: Perso
         print(f"🎯 [ENDPOINT START] Query: {user_query[:100]}...")
         logger.info(f"[Personality/Non-Stream] Received query: {user_query[:100]}...")
         
+        # Use admin setting for max_length if not explicitly provided
+        max_length = inference_request.max_length
+        if max_length == 512:  # If using default, check admin setting
+            max_length = _admin_settings.get("outputMaxTokens", 1200)
+            logger.info(f"[ADMIN] Using outputMaxTokens from admin settings: {max_length}")
+        
         # Use three-stage inference pipeline (non-streaming version)
         print(f"🎯 [ENDPOINT] About to call generate_personality_response...")
         result = await generate_personality_response(
             text=user_query,
-            max_length=inference_request.max_tokens,
+            max_length=max_length,
             temperature=inference_request.temperature,
             top_p=0.9
         )
@@ -12709,7 +12716,8 @@ async def websocket_personality_inference(websocket: WebSocket):
                         
                         api_results = await fetch_apis_parallel(
                             api_selection,
-                            character_api_map
+                            character_api_map,
+                            admin_settings=_admin_settings
                         )
                         
                         successful_apis = [r for r in api_results if r.get('success')]
@@ -14430,6 +14438,10 @@ async def get_current_active_model():
 # Global settings storage (in-memory, can be extended to file/db)
 _admin_settings = {
     "typo_check_enabled": True,  # Default: typo checking is ON
+    "outputMaxTokens": 1200,  # Default max output tokens for responses
+    "contextWindow": 16384,  # Default context window size
+    "webMaxChars": 6000,  # Default max chars for web fetch (browse_page)
+    "autoFollowUpSocionomen": False,  # Default: auto follow-up disabled
 }
 
 @app.get("/api/settings/typo-check")
@@ -14464,10 +14476,88 @@ async def set_typo_check_setting(request: Request):
             content={"success": False, "error": str(e)}
         )
 
+@app.get("/api/admin/settings")
+async def get_admin_settings():
+    """
+    Get all admin configurable settings (memory-based).
+    Returns current values for outputMaxTokens, contextWindow, webMaxChars, autoFollowUpSocionomen.
+    """
+    return {
+        "success": True,
+        "settings": {
+            "outputMaxTokens": _admin_settings.get("outputMaxTokens", 1200),
+            "contextWindow": _admin_settings.get("contextWindow", 16384),
+            "webMaxChars": _admin_settings.get("webMaxChars", 6000),
+            "autoFollowUpSocionomen": _admin_settings.get("autoFollowUpSocionomen", False),
+        },
+        "defaults": {
+            "outputMaxTokens": 1200,
+            "contextWindow": 16384,
+            "webMaxChars": 6000,
+            "autoFollowUpSocionomen": False,
+        }
+    }
+
+@app.post("/api/admin/settings")
+async def update_admin_settings(request: Request):
+    """
+    Update admin configurable settings (memory-based).
+    Accepts: outputMaxTokens, contextWindow, webMaxChars, autoFollowUpSocionomen.
+    """
+    try:
+        data = await request.json()
+        
+        # Update only provided settings
+        if "outputMaxTokens" in data:
+            value = int(data["outputMaxTokens"])
+            if value < 100 or value > 8192:
+                raise ValueError("outputMaxTokens must be between 100 and 8192")
+            _admin_settings["outputMaxTokens"] = value
+        
+        if "contextWindow" in data:
+            value = int(data["contextWindow"])
+            if value < 2048 or value > 32768:
+                raise ValueError("contextWindow must be between 2048 and 32768")
+            _admin_settings["contextWindow"] = value
+        
+        if "webMaxChars" in data:
+            value = int(data["webMaxChars"])
+            if value < 1000 or value > 20000:
+                raise ValueError("webMaxChars must be between 1000 and 20000")
+            _admin_settings["webMaxChars"] = value
+        
+        if "autoFollowUpSocionomen" in data:
+            _admin_settings["autoFollowUpSocionomen"] = bool(data["autoFollowUpSocionomen"])
+        
+        logger.info(f"[ADMIN] Settings updated: {data}")
+        
+        return {
+            "success": True,
+            "settings": {
+                "outputMaxTokens": _admin_settings.get("outputMaxTokens", 1200),
+                "contextWindow": _admin_settings.get("contextWindow", 16384),
+                "webMaxChars": _admin_settings.get("webMaxChars", 6000),
+                "autoFollowUpSocionomen": _admin_settings.get("autoFollowUpSocionomen", False),
+            },
+            "message": "Settings updated successfully"
+        }
+    except ValueError as e:
+        logger.error(f"[ADMIN] Invalid setting value: {e}")
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": str(e)}
+        )
+    except Exception as e:
+        logger.error(f"[ADMIN] Error updating settings: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
 @app.get("/api/settings/all")
 async def get_all_settings():
     """
-    Get all admin settings.
+    Get all admin settings (legacy endpoint, kept for backward compatibility).
     """
     return {
         "settings": _admin_settings,
@@ -14776,25 +14866,37 @@ def parse_api_selection_response(text: str) -> tuple:
     api_selection = {"apis": []}
     reasoning = ""
     
-    # Try to find JSON block (handle nested structures)
-    json_match = re.search(r'\{(?:[^{}]|\{[^{}]*\})*"apis"(?:[^{}]|\{[^{}]*\})*\[(?:[^\[\]]|\{[^{}]*\})*\](?:[^{}]|\{[^{}]*\})*\}', text, re.DOTALL)
-    if json_match:
-        try:
-            api_selection = json.loads(json_match.group(0))
-            # Everything after JSON is reasoning
-            reasoning_start = json_match.end()
-            reasoning = text[reasoning_start:].strip()
-            # Remove common prefixes
-            reasoning = re.sub(r'^(Reasoning:|Förklaring:)\s*', '', reasoning, flags=re.IGNORECASE)
-        except json.JSONDecodeError:
-            # Fallback: extract API names from text
-            api_names = re.findall(r'"name":\s*"([^"]+)"', text)
-            if api_names:
-                api_selection = {"apis": [{"name": name, "params": {}} for name in api_names]}
+    try:
+        # Try to find JSON block (handle nested structures)
+        json_match = re.search(r'\{(?:[^{}]|\{[^{}]*\})*"apis"(?:[^{}]|\{[^{}]*\})*\[(?:[^\[\]]|\{[^{}]*\})*\](?:[^{}]|\{[^{}]*\})*\}', text, re.DOTALL)
+        if json_match:
+            try:
+                api_selection = json.loads(json_match.group(0))
+                # Everything after JSON is reasoning
+                reasoning_start = json_match.end()
+                reasoning = text[reasoning_start:].strip()
+                # Remove common prefixes
+                reasoning = re.sub(r'^(Reasoning:|Förklaring:)\s*', '', reasoning, flags=re.IGNORECASE)
+            except json.JSONDecodeError:
+                # Fallback: extract API names from text
+                api_names = re.findall(r'"name":\s*"([^"]+)"', text)
+                if api_names:
+                    api_selection = {"apis": [{"name": name, "params": {}} for name in api_names]}
+                reasoning = text
+        else:
+            # No JSON found, use the whole text as reasoning
             reasoning = text
-    else:
-        # No JSON found, use the whole text as reasoning
-        reasoning = text
+    except Exception as e:
+        # Safety net: if anything goes wrong, return empty APIs and full text as reasoning
+        print(f"⚠️  [PARSE] parse_api_selection_response error: {e}")
+        api_selection = {"apis": []}
+        reasoning = text if text else "Error parsing API selection"
+    
+    # Ensure we always return a valid tuple with dict and string
+    if not isinstance(api_selection, dict):
+        api_selection = {"apis": []}
+    if not isinstance(reasoning, str):
+        reasoning = ""
     
     return api_selection, reasoning
 
@@ -14986,12 +15088,11 @@ async def generate_personality_response(
         full_prompt = f"{personality_selection_system_prompt}\n\n**Tillgängliga personligheter:**\n{catalog_str}\n\n**Användarens fråga:** {text}"
         
         # First inference - personality ONLY
-        stage1_response = await generate_with_llama_server(
+        stage1_response = generate_with_llama_server(
             prompt=full_prompt,
             user_message="",
             max_tokens=200,
-            temperature=0.1,
-            stream=False
+            temperature=0.1
         )
         
         personality_id, reasoning_1 = parse_personality_response(stage1_response)
@@ -15076,15 +15177,18 @@ async def generate_personality_response(
             text
         )
         
-        stage2_response = await generate_with_llama_server(
+        stage2_response = generate_with_llama_server(
             prompt=api_selection_prompt,
             user_message="",
             max_tokens=500,
-            temperature=0.1,
-            stream=False
+            temperature=0.1
         )
         
         api_selection, reasoning_2 = parse_api_selection_response(stage2_response)
+        # Safety check: ensure api_selection is a dict
+        if not isinstance(api_selection, dict):
+            print(f"⚠️  [STAGE2] api_selection is not a dict, using empty dict")
+            api_selection = {"apis": []}
         selected_apis = api_selection.get('apis', [])
         
         print(f"✅ Stage 2 complete")
@@ -15105,9 +15209,9 @@ async def generate_personality_response(
         successful_api_names = []
         
         if selected_apis:
-            # Pass the resolved catalog to fetch_apis_parallel
+            # Pass the resolved catalog and admin settings to fetch_apis_parallel
             api_selection_dict = {"apis": selected_apis}
-            api_results = await fetch_apis_parallel(api_selection_dict, character_api)
+            api_results = await fetch_apis_parallel(api_selection_dict, character_api, admin_settings=_admin_settings)
             
             for result in api_results:
                 api_name = result.get('api_name', 'unknown')
@@ -15156,12 +15260,11 @@ async def generate_personality_response(
         else:
             enriched_system_prompt = personality_system_prompt
         
-        final_response = await generate_with_llama_server(
+        final_response = generate_with_llama_server(
             prompt=enriched_system_prompt,
             user_message=text,
             max_tokens=max_length,
-            temperature=temperature,
-            stream=False
+            temperature=temperature
         )
         
         # Strip any remaining ChatML tokens
@@ -15776,7 +15879,8 @@ Exempel:
                             api_results = await fetch_apis_parallel(
                                 api_selection_dict,
                                 character_api,
-                                max_concurrent=5
+                                max_concurrent=5,
+                                admin_settings=_admin_settings
                             )
                             print(f"✅ API fetch complete: {len(api_results)} results received")
                             
@@ -16084,6 +16188,88 @@ Du visar alltid källor när du hämtar fakta."""
                     "reasoning": final_reasoning
                 })
                 
+                # ============================================================================
+                # DETECT FOLLOW-UP QUESTIONS (for Socionomen case law)
+                # ============================================================================
+                follow_up_options = None
+                
+                # Check if response contains a follow-up question (case-insensitive Swedish patterns)
+                followup_patterns = [
+                    r'vill du (se|ha|läsa|titta på|att jag)',
+                    r'är du intresserad av',
+                    r'vill du att jag',
+                    r'ska jag (visa|söka|hämta)',
+                    r'önskar du',
+                    r'skulle du vilja',
+                    r'\?'  # Contains question mark anywhere
+                ]
+                
+                has_followup = any(re.search(pattern, full_response_llama.lower()) for pattern in followup_patterns)
+                
+                # If it's Socionomen and response contains follow-up about prejudikat/domar
+                if has_followup and personality_id == "socionomen":
+                    # Check if asking about case law / prejudikat
+                    case_law_patterns = [
+                        r'prejudikat',
+                        r'dom(ar|en)?',
+                        r'rättspraxis',
+                        r'kammarrätt',
+                        r'högsta förvaltningsdomstolen',
+                        r'hfd',
+                        r'tillämp(ning|ats|at|ad)',
+                        r'verkliga fall',
+                        r'exempel',
+                        r'praktiken'
+                    ]
+                    
+                    is_about_case_law = any(re.search(pattern, full_response_llama.lower()) for pattern in case_law_patterns)
+                    
+                    if is_about_case_law:
+                        # Extract paragraph reference from the response or original query
+                        paragraph_match = re.search(r'(\d+\s*kap\.?\s*\d+\s*§)', full_response_llama + " " + text, re.IGNORECASE)
+                        paragraph = paragraph_match.group(1) if paragraph_match else None
+                        
+                        # Extract law name
+                        law_patterns = {
+                            'Socialtjänstlagen': r'sol|socialtjänstlagen',
+                            'LVU': r'lvu|lagen om vård av unga',
+                            'LVM': r'lvm|lagen om vård av missbrukare'
+                        }
+                        
+                        law_name = None
+                        for law, pattern in law_patterns.items():
+                            if re.search(pattern, (full_response_llama + " " + text).lower()):
+                                law_name = law
+                                break
+                        
+                        if not law_name:
+                            law_name = "Socialtjänstlagen"  # Default for Socionomen
+                        
+                        # Create follow-up options
+                        follow_up_options = [
+                            {
+                                "id": "followup_yes",
+                                "label": "Ja, visa exempel",
+                                "action": "search_prejudikat",
+                                "parameters": {
+                                    "paragraf": paragraph if paragraph else "4 kap. 1 §",
+                                    "lag_namn": law_name,
+                                    "personality": personality_id
+                                }
+                            },
+                            {
+                                "id": "followup_no",
+                                "label": "Nej tack",
+                                "action": "decline_followup",
+                                "parameters": {}
+                            }
+                        ]
+                        
+                        logger.info(f"🔔 [STREAM] Detected follow-up question about case law: {paragraph} in {law_name}")
+                        logger.info(f"🔔 [STREAM] follow_up_options = {follow_up_options}")
+                        print(f"🔔 [STREAM] Detected follow-up question about case law: {paragraph} in {law_name}")
+                        print(f"🔔 [STREAM] follow_up_options = {follow_up_options}")
+                
                 metadata = {
                     "tokens": output_tokens,
                     "latency_ms": round(elapsed, 2),
@@ -16097,7 +16283,8 @@ Du visar alltid källor när du hämtar fakta."""
                     "personality": {"name": personality_name, "id": personality_id} if personality_name else None,
                     "selected_persona_id": personality_id if personality_id else "medveten",  # For frontend sync
                     "thinking_steps": thinking_steps,
-                    "api_sources": [api.get('name') for api in selected_apis] if selected_apis else []
+                    "api_sources": [api.get('name') for api in selected_apis] if selected_apis else [],
+                    "follow_up_options": follow_up_options  # Add follow-up options to metadata
                 }
                 
                 print(f"\n📊 FINAL METADATA:")

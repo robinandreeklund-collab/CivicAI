@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 # Pre-import functions that may be used frequently
 try:
     from api_integrations import browse_page_with_bert
-    BROWSE_PAGE_WITH_BERT_AVAILABLE = True
+    CHAPTER_EXTRACTION_AVAILABLE = True  # Renamed for clarity - supports chapter extraction from Riksdagen
 except ImportError:
-    BROWSE_PAGE_WITH_BERT_AVAILABLE = False
+    CHAPTER_EXTRACTION_AVAILABLE = False
     browse_page_with_bert = None
 
 try:
@@ -90,11 +90,36 @@ def parse_api_selection(model_response: str) -> Optional[Dict]:
         return None
 
 
+def format_url_with_params(url: str, params: Dict[str, Any], api_name: str) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Helper function to format URL templates with parameters.
+    
+    Args:
+        url: URL that may contain placeholders like {lon}, {lat}
+        params: Dictionary of parameter values
+        api_name: Name of the API (for logging)
+        
+    Returns:
+        Tuple of (formatted_url, error_message)
+        If successful, error_message is None
+        If failed, formatted_url is None and error_message contains the error
+    """
+    try:
+        formatted_url = url.format(**params)
+        logger.info(f"Formatted URL template for {api_name}: {formatted_url}")
+        return (formatted_url, None)
+    except KeyError as e:
+        error_msg = f"Missing required parameter {e} for URL template"
+        logger.error(error_msg)
+        return (None, error_msg)
+
+
 async def call_api(
     api_name: str,
     params: Dict[str, Any],
     api_catalog: Dict,
-    timeout: int = 10
+    timeout: int = 10,
+    admin_settings: Optional[Dict] = None
 ) -> Dict[str, Any]:
     """
     Call a specific API with given parameters.
@@ -148,12 +173,9 @@ async def call_api(
         
         # For url_template without url, we need to format it with params
         if not api_url and api_url_template:
-            try:
-                api_url = api_url_template.format(**params)
-                logger.info(f"Formatted URL template: {api_url}")
-            except KeyError as e:
-                result['error'] = f"Missing required parameter {e} for URL template"
-                logger.error(result['error'])
+            api_url, error = format_url_with_params(api_url_template, params, api_name)
+            if error:
+                result['error'] = error
                 return result
         
         if not api_url:
@@ -166,13 +188,10 @@ async def call_api(
         is_template = api_config.get('url_template', False) or ('{' in api_url and '}' in api_url)
         
         if is_template:
-            # Replace placeholders in URL with actual parameter values
-            try:
-                api_url = api_url.format(**params)
-                logger.info(f"Formatted URL template for {api_name}: {api_url}")
-            except KeyError as e:
-                result['error'] = f"Missing required parameter {e} for URL template"
-                logger.error(result['error'])
+            # Replace placeholders in URL with actual parameter values using helper
+            api_url, error = format_url_with_params(api_url, params, api_name)
+            if error:
+                result['error'] = error
                 return result
         
         # Check if this API uses web_search for searching the web
@@ -225,7 +244,7 @@ async def call_api(
         if api_tool == 'browse_page_chapter' or api_method == 'BROWSE_CHAPTER':
             logger.info(f"Using browse_page_with_chapter_extraction for {api_name}: {api_url}")
             
-            if not BROWSE_PAGE_WITH_BERT_AVAILABLE:  # Re-using same availability flag
+            if not CHAPTER_EXTRACTION_AVAILABLE:
                 result['error'] = "browse_page_with_chapter_extraction function not available"
                 logger.error(result['error'])
                 return result
@@ -268,9 +287,14 @@ async def call_api(
         
         # Check if this API uses browse_page for HTML content extraction
         if api_tool == 'browse_page' or api_method == 'BROWSE':
-            logger.info(f"Using browse_page for {api_name}: {api_url} (max 6000 chars)")
+            # Get webMaxChars from admin settings, default to 6000
+            web_max_chars = 6000
+            if admin_settings and 'webMaxChars' in admin_settings:
+                web_max_chars = admin_settings['webMaxChars']
             
-            if not BROWSE_PAGE_WITH_BERT_AVAILABLE:  # Re-using same availability flag
+            logger.info(f"Using browse_page for {api_name}: {api_url} (max {web_max_chars} chars)")
+            
+            if not CHAPTER_EXTRACTION_AVAILABLE:
                 result['error'] = "browse_page function not available"
                 logger.error(result['error'])
                 return result
@@ -279,9 +303,9 @@ async def call_api(
                 # Import the function
                 from ml_service.api_integrations import browse_page
                 
-                # Call browse_page synchronously with 6000 char limit
+                # Call browse_page synchronously with configurable char limit
                 loop = asyncio.get_running_loop()
-                text_content = await loop.run_in_executor(None, browse_page, api_url, 6000)
+                text_content = await loop.run_in_executor(None, browse_page, api_url, web_max_chars)
                 
                 # Check if fetch was successful (errors start with "Kunde inte" or "Ett oväntat fel")
                 is_error = text_content and (text_content.startswith("Kunde inte") or text_content.startswith("Ett oväntat fel"))
@@ -351,7 +375,8 @@ async def call_api(
 async def fetch_apis_parallel(
     api_selection: Dict,
     api_catalog: Dict,
-    max_concurrent: int = 5
+    max_concurrent: int = 5,
+    admin_settings: Optional[Dict] = None
 ) -> List[Dict[str, Any]]:
     """
     Fetch data from multiple APIs in parallel.
@@ -360,6 +385,7 @@ async def fetch_apis_parallel(
         api_selection: Dict with 'apis' list from model
         api_catalog: Full API catalog
         max_concurrent: Maximum number of concurrent requests
+        admin_settings: Optional admin settings dict (for webMaxChars, etc.)
         
     Returns:
         List of API response dicts
@@ -382,7 +408,7 @@ async def fetch_apis_parallel(
             logger.warning("Skipping API with no name")
             continue
         
-        task = call_api(api_name, params, api_catalog)
+        task = call_api(api_name, params, api_catalog, admin_settings=admin_settings)
         tasks.append(task)
     
     # Execute all tasks in parallel with semaphore for rate limiting

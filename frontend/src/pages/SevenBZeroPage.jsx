@@ -1072,6 +1072,11 @@ export default function SevenBZeroPage() {
         throw new Error('Ingen text mottagen från strömning. Modellen kan fortfarande laddas.');
       }
       
+      console.log('🔔 [FRONTEND STREAM] Finalizing message with metadata:', {
+        hasFollowUpOptions: !!metadata?.follow_up_options,
+        followUpOptions: metadata?.follow_up_options
+      });
+      
       setMessages(prev => prev.map(msg => 
         msg.id === aiMessageId 
           ? { 
@@ -1086,9 +1091,10 @@ export default function SevenBZeroPage() {
               tokensPerSecond: metadata?.tokens_per_second || null,
               promptTokens: metadata?.prompt_tokens || null,
               outputTokens: metadata?.output_tokens || tokenCount,
-              contextWindow: metadata?.context_window || 8192,  // Use actual context window from llama-server
+              contextWindow: metadata?.context_window || 16384,  // Use actual context window from llama-server (default to 16384 if not provided)
               thinkingChain: metadata?.thinking_steps || metadata?.thinking_chain || msg.thinkingChain || null,
               personality: metadata?.personality || null,
+              followUpOptions: metadata?.follow_up_options || null,  // Add follow-up options from WebSocket stream
             }
           : msg
       ));
@@ -1433,7 +1439,7 @@ export default function SevenBZeroPage() {
                   console.log('[7B-Zero] WebSocket not available:', errorMessage);
                   // Will fall back to REST below
                 },
-                maxTokens: 512,
+                maxTokens: 1600,  // Increased for Socionomen and other personalities that need longer responses
                 temperature: 0.7,
               });
               
@@ -1457,7 +1463,7 @@ export default function SevenBZeroPage() {
             },
             body: JSON.stringify({
               text: currentQuestion,
-              max_length: 512,
+              max_length: 1600,  // Increased for Socionomen and other personalities that need longer responses
               temperature: 0.7,
               stream_thinking: true,
             }),
@@ -1481,6 +1487,11 @@ export default function SevenBZeroPage() {
             }
             
             const responseText = data.response;
+            console.log('🔔 [FRONTEND REST] Received response:', {
+              hasFollowUpOptions: !!data.follow_up_options,
+              followUpOptions: data.follow_up_options,
+              responseLength: responseText?.length
+            });
             if (responseText) {
               setMessages(prev => prev.map(msg => 
                 msg.id === aiMessageId 
@@ -1493,9 +1504,11 @@ export default function SevenBZeroPage() {
                       apiData: data.api_data || null,
                       tokens: data.tokens,
                       personality: data.personality,
+                      followUpOptions: data.follow_up_options || null, // Add follow-up options from REST API
                     }
                   : msg
               ));
+              console.log('🔔 [FRONTEND REST] Message updated with followUpOptions');
               animateTyping(responseText, aiMessageId);
               return;
             }
@@ -3616,6 +3629,15 @@ export default function SevenBZeroPage() {
                     </div>
                   )}
                   
+                  {/* Debug: Show follow-up status */}
+                  {!msg.debateMode && !msg.isTyping && (
+                    <div className="mt-2 text-[10px] text-[#444] font-mono">
+                      {msg.followUpOptions ? 
+                        `[DEBUG] followUpOptions: ${JSON.stringify(msg.followUpOptions).substring(0, 100)}...` : 
+                        '[DEBUG] No followUpOptions'}
+                    </div>
+                  )}
+                  
                   {/* Legacy text-based thinking chain (fallback, NOT in debate mode!) */}
                   {!msg.debateMode && msg.thinkingChain && !msg.isTyping && typeof msg.thinkingChain === 'string' && (
                     <details className={`mt-4 ${whiteMode ? 'bg-[#f8f8f8]' : 'bg-[#0a0a0a]'} rounded-lg overflow-hidden`}>
@@ -3693,7 +3715,7 @@ export default function SevenBZeroPage() {
                             <span className="flex items-center gap-1">
                               <span className="opacity-60">Context:</span>
                               <span className="font-medium">
-                                {msg.promptTokens}/{msg.contextWindow || 8192} ({Math.round((msg.promptTokens / (msg.contextWindow || 8192)) * 100)}%)
+                                {msg.promptTokens}/{msg.contextWindow || 16384} ({Math.round((msg.promptTokens / (msg.contextWindow || 16384)) * 100)}%)
                               </span>
                             </span>
                           )}

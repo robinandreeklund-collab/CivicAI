@@ -93,7 +93,7 @@ export async function getOpenAIResponse(question) {
         },
       ],
       temperature: 0.7,
-      max_tokens: 500,
+      max_tokens: 2000,  // Increased from 500 to support longer responses
     });
 
     return {

@@ -118,17 +118,28 @@ export async function sendPersonalityChatMessage(message, options = {}) {
   const {
     overridePersonality = null,
     history = null,
-    maxTokens = 512,
+    maxTokens = null,  // Will be determined based on personality
     temperature = 0.7,
     streamThinking = true,
   } = options;
+  
+  // Set higher token limits for Socionomen to avoid truncation
+  // Default is 512, but Socionomen needs more for full legal text
+  let actualMaxTokens = maxTokens;
+  if (!actualMaxTokens) {
+    if (overridePersonality === 'socionomen' || overridePersonality === 'oneseek-socionomen') {
+      actualMaxTokens = 1600;  // Elevated default for Socionomen
+    } else {
+      actualMaxTokens = 512;  // Standard default
+    }
+  }
 
   const baseUrl = getMLServiceURL();
   const endpoint = `${baseUrl}/inference/personality`;
   
   const payload = {
     text: message,
-    max_length: maxTokens,
+    max_length: actualMaxTokens,
     temperature,
     stream_thinking: streamThinking,
   };
@@ -271,7 +282,7 @@ export async function handleFollowUpAction(followUpOption) {
     // Call personality inference with context that we're following up
     const response = await sendPersonalityChatMessage(searchQuery, {
       overridePersonality: personality,
-      maxTokens: 800  // Allow more tokens for case law summaries
+      maxTokens: 1200  // Allow more tokens for case law summaries
     });
     
     return response;

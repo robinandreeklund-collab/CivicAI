@@ -9,13 +9,14 @@ Socionomen har uppdaterats för att hantera både den gamla och nya Socialtjäns
 
 ## Lagversioner
 
-### Nya Socialtjänstlagen (2024:683)
+### Nya Socialtjänstlagen (2025:400)
 - **Giltighetstid**: Från 1 juli 2025 →
-- **Källa**: Lagrummet / Lagen.nu
-- **URL**: https://lagen.nu/2024:683
-- **API endpoint**: `lagen_nu_sol_ny`
-- **Nyckelord**: "ny sol", "sol 2024:683", "nya socialtjänstlagen", "socialtjänstlagen 2025", "aktuell sol"
+- **Källa**: Sveriges Riksdag
+- **URL**: https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2025400_sfs-2025-400
+- **API endpoint**: `sol_ny_kapitel` (browse_page_chapter)
+- **Nyckelord**: "ny sol", "sol 2025:400", "nya socialtjänstlagen", "socialtjänstlagen 2025", "aktuell sol"
 - **Prioritet**: 0 (default)
+- **Kapitelextraktion**: Smart extraktion av specifika kapitel (3-6k tecken per kapitel)
 
 **Viktiga ändringar i nya lagen**:
 - Stärkt barnperspektiv i alla beslut
@@ -26,59 +27,127 @@ Socionomen har uppdaterats för att hantera både den gamla och nya Socialtjäns
 
 ### Gamla Socialtjänstlagen (2001:453)
 - **Giltighetstid**: Till och med 30 juni 2025
-- **Källa**: Lagrummet / Lagen.nu
-- **URL**: https://lagen.nu/2001:453
-- **API endpoint**: `lagen_nu_sol_gammal`
+- **Källa**: Sveriges Riksdag
+- **URL**: https://www.riksdagen.se/sv/dokument-och-lagar/dokument/svensk-forfattningssamling/socialtjanstlag-2001453_sfs-2001-453
+- **API endpoint**: `sol_gammal_kapitel` (browse_page_chapter)
 - **Nyckelord**: "gammal sol", "sol 2001:453", "gamla socialtjänstlagen", "sol före 2025", "socialtjänstlagen 2001"
 - **Prioritet**: 1
+- **Kapitelextraktion**: Smart extraktion av specifika kapitel med bevarade paragrafmarkörer (inkl. bokstavsparagrafer)
+
+## Kapitel- vs Paragrafextraktion (KRITISKT VIKTIGT)
+
+När användare anger "X kap. Y §":
+- **X = Kapitelnummer** → skickas som parameter `kapitel="X"` till API:et
+- **Y = Paragrafnummer** → används endast för citat i svaret, INTE som API-parameter
+
+**Exempel på KORREKT extraktion:**
+1. "Citera 4 kap. 1 § i gamla SoL" → `sol_gammal_kapitel` med `{"kapitel": "4"}`
+2. "Vad säger 11 kap 5 § i nya SoL?" → `sol_ny_kapitel` med `{"kapitel": "11"}`
+3. "Jämför 4 kap. 1 § mellan gamla och nya SoL" → båda API:er med `{"kapitel": "4"}`
+
+**Regex-mönster för extraktion**: `(\d+)\s+kap\.?\s+(\d+\s*[a-z]?)?\s*§?`
+- Första gruppen = kapitelnummer (används som API-parameter)
+- Andra gruppen = paragrafnummer (används för citat)
 
 ## Användningsexempel
 
 ### Exempel 1: Fråga om aktuell lag (default)
 **Fråga**: "Vad säger SoL om ekonomiskt bistånd?"
 
-**Systemets val**: `lagen_nu_sol_ny` (2024:683)
+**Systemets val**: `sol_ny_kapitel` (2025:400) med automatiskt val av relevant kapitel
 
 **Förväntat svar**:
 ```
-4 kap. 1 § Socialtjänstlagen (2024:683):
+10 kap. 1 § Socialtjänstlagen (2025:400):
 
-[Exakt text från nya lagen]
+[Exakt text från nya lagen, kapitel 10 om ekonomiskt bistånd]
 
-Källa: Socialtjänstlagen (2024:683) via Lagrummet – hämtat i realtid 14 december 2025.
+Vill du se hur denna paragraf har tillämpats i verkliga domar och prejudikat?
+
+{
+  "follow_up_options": [
+    {
+      "id": "prej_yes",
+      "label": "Ja, visa domar och prejudikat",
+      "action": "search_prejudikat",
+      "parameters": {
+        "paragraf": "10 kap. 1 §",
+        "lag_namn": "Socialtjänstlagen (2025:400)",
+        "personality": "socionomen"
+      }
+    },
+    {
+      "id": "prej_no",
+      "label": "Nej, ställ ny fråga",
+      "action": "decline_followup",
+      "parameters": {
+        "personality": "socionomen"
+      }
+    }
+  ]
+}
+
+Källa: Socialtjänstlagen (2025:400) via Riksdagen – hämtat i realtid 15 december 2025.
 ```
 
-### Exempel 2: Explicit fråga om gamla lagen
-**Fråga**: "Vad sade gamla SoL om ekonomiskt bistånd?"
+### Exempel 2: Explicit fråga om specifik paragraf i gamla lagen
+**Fråga**: "Citera 4 kap. 1 § i gamla SoL"
 
-**Systemets val**: `lagen_nu_sol_gammal` (2001:453)
+**Systemets val**: `sol_gammal_kapitel` (2001:453) med `{"kapitel": "4"}`
+
+**VIKTIGT**: Parametern är `kapitel="4"`, INTE `kapitel="1"`!
 
 **Förväntat svar**:
 ```
 4 kap. 1 § Socialtjänstlagen (2001:453):
 
-[Exakt text från gamla lagen]
+Den som inte själv kan tillgodose sina behov eller kan få dem tillgodosedda 
+på annat sätt har rätt till bistånd av socialnämnden för sin försörjning 
+(försörjningsstöd) och för sin livsföring i övrigt.
 
-Källa: Socialtjänstlagen (2001:453) via Lagrummet – hämtat i realtid 14 december 2025.
+[Resten av kapitel 4 med alla paragrafer och underrubriker...]
+
+Vill du se hur denna paragraf har tillämpats i verkliga domar och prejudikat?
+
+[follow_up_options JSON...]
+
+Källa: Socialtjänstlagen (2001:453) via Riksdagen – hämtat i realtid 15 december 2025.
 ```
 
-### Exempel 3: Jämförelse mellan lagversioner
-**Fråga**: "Vad ändrades i 4 kap. 1 § SoL i nya lagen?"
+**Längd**: Svaret bör vara 900-1500 tokens (ingen trunkering).
 
-**Systemets val**: Både `lagen_nu_sol_gammal` och `lagen_nu_sol_ny`
+### Exempel 3: Jämförelse mellan lagversioner
+**Fråga**: "Jämför 4 kap. 1 § i gamla och nya Socialtjänstlagen"
+
+**Systemets val**: 
+- `sol_gammal_kapitel` (2001:453) med `{"kapitel": "4"}`
+- `sol_ny_kapitel` (2025:400) med relevant kapitel för bistånd
+
+**VIKTIGT**: Båda API:er får samma `kapitel="4"` när det refereras till gamla lagen!
 
 **Förväntat svar**:
 ```
 Gammal SoL (2001:453, 4 kap. 1 §):
-[Exakt text från gamla lagen]
+Den som inte själv kan tillgodose sina behov eller kan få dem tillgodosedda 
+på annat sätt har rätt till bistånd av socialnämnden...
 
-Ny SoL (2024:683, 4 kap. 1 §):
-[Exakt text från nya lagen]
+Ny SoL (2025:400, 10 kap. 1 §):
+Den som inte själv kan tillgodose sina behov eller få dem tillgodosedda 
+på annat sätt har rätt till bistånd...
 
-Huvudskillnad: Den nya lagen betonar tydligare förebyggande insatser och barnets bästa i alla beslut. Formuleringen har förtydligats för att ge starkare rättigheter och tydligare ansvar för socialtjänsten.
+Huvudskillnad: 
+1. Bestämmelserna om ekonomiskt bistånd har flyttats från kapitel 4 till kapitel 10-12 i nya lagen
+2. Den nya lagen betonar tydligare förebyggande insatser och barnets bästa i alla beslut
+3. Formuleringen har förtydligats för att ge starkare rättigheter och tydligare ansvar
 
-Källa: Lagrummet – hämtat i realtid 14 december 2025.
+Vill du se hur dessa paragrafer har tillämpats i domstolspraxis?
+
+[follow_up_options JSON med alternativ för båda lagversionerna...]
+
+Källa: Sveriges Riksdag – hämtat i realtid 15 december 2025.
 ```
+
+**Längd**: Svaret bör vara 1000-1800 tokens (ingen trunkering).
 
 ## API-konfiguration
 
