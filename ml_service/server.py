@@ -13831,7 +13831,6 @@ GE DITT SVAR NU:"""
                 
                 # New format: response goes directly into answer (no REASONING: or ANSWER: prefixes)
                 answer = oneseek_full_response.strip()
-                reasoning = ""  # No separate reasoning in the new format
                 
                 # Stream OneSeek's own answer
                 await websocket.send_json({
@@ -13847,6 +13846,62 @@ GE DITT SVAR NU:"""
                     agent="oneseek",
                     round=round_num
                 )
+                
+                # Generate reasoning/thought chain for OneSeek's own answer
+                # Show how OneSeek used insights from other responses to build its answer
+                reasoning = ""
+                try:
+                    # Build context from knowledge chain (comments on other AI responses)
+                    insights_context = ""
+                    for insight_item in knowledge_chain:
+                        if insight_item['round'] == round_num:
+                            insights_context += f"- {insight_item['agent'].upper()}: {insight_item['insight'][:100]}\n"
+                    
+                    reasoning_prompt = f"""Du är ONESEEK. Du har precis gett ditt debattsvar i runda {round_num}.
+
+DEBATTFRÅGA: {clean_question}
+
+DITT SVAR:
+{answer[:300]}...
+
+DINA KOMMENTARER PÅ ANDRA AI-SVAR:
+{insights_context}
+
+UPPGIFT:
+Förklara kort din tankegång bakom ditt svar (60-100 ord):
+- Vilka insights från andra AI-svar påverkade dig mest?
+- Hur använde du dina kommentarer för att bygga en djupare förståelse?
+- Varför valde du att fokusera på just dessa punkter?
+
+GE DITT RESONEMANG NU (direkt, ingen inledning):"""
+                    
+                    reasoning_payload = {
+                        "messages": [
+                            {"role": "system", "content": "Du är ONESEEK - förklara koncist hur du byggde ditt svar baserat på insights från andra AI-modeller."},
+                            {"role": "user", "content": reasoning_prompt}
+                        ],
+                        "max_tokens": 250,
+                        "temperature": 0.7,
+                    }
+                    
+                    reasoning_response = requests.post(
+                        f"{server_url}/v1/chat/completions",
+                        json=reasoning_payload,
+                        timeout=30,
+                    )
+                    reasoning_response.raise_for_status()
+                    reasoning_result = reasoning_response.json()
+                    
+                    if 'choices' in reasoning_result and len(reasoning_result['choices']) > 0:
+                        reasoning = reasoning_result['choices'][0].get('message', {}).get('content', '').strip()
+                    else:
+                        reasoning = reasoning_result.get('content', '').strip()
+                    
+                    logger.info(f"[WS-Debate] Generated reasoning for OneSeek's answer in round {round_num}")
+                    
+                except Exception as e:
+                    logger.error(f"[WS-Debate] Error generating OneSeek reasoning: {e}")
+                    reasoning = "Byggde mitt svar genom att syntetisera insikter från alla modeller och balansera olika perspektiv i debatten."
                 
                 # Emit OneSeek's reasoning for its own answer
                 if reasoning:
