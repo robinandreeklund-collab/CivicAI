@@ -13388,6 +13388,7 @@ async def websocket_live_debate(websocket: WebSocket):
         debate_rounds = []
         max_rounds = 3
         knowledge_chain = []  # Accumulated knowledge across rounds
+        turn_orders = {}  # Track randomized turn order for each round
         
         await websocket.send_json({
             "type": "debate_init",
@@ -13421,34 +13422,54 @@ async def websocket_live_debate(websocket: WebSocket):
         
         # Conduct debate rounds with NEW queue-based architecture
         for round_num in range(1, max_rounds + 1):
+            # Generate randomized turn order for this round
+            import random
+            round_turn_order = debate_agents.copy()
+            random.shuffle(round_turn_order)
+            turn_orders[round_num] = round_turn_order
+            
             await websocket.send_json({
                 "type": "round_start",
                 "round": round_num,
-                "message": f"🎯 Runda {round_num} startar..."
+                "message": f"🎯 Runda {round_num} startar...",
+                "data": {
+                    "turn_order": round_turn_order,
+                    "round": round_num
+                }
             })
             
             round_responses = []
             
-            # Build context from previous rounds
+            # Build context from previous rounds with token management
             debate_context = ""
             if debate_rounds:
-                debate_context = "\\n\\nTidigare rundor:\\n"
+                debate_context = "\\n\\nBAKGRUND - TIDIGARE RUNDOR:\\n"
                 for prev_round in debate_rounds:
                     debate_context += f"\\nRunda {prev_round['round']}:\\n"
                     for resp in prev_round['responses']:
+                        # Limit context to prevent token overflow (max 150 chars per response)
                         debate_context += f"- {resp['agent'].upper()}: {resp['response'][:150]}...\\n"
             
-            # Create debate prompt for this round
-            debate_prompt = f"""Du deltar i en AI-debatt om följande fråga:
-
-{clean_question}
+            # Create debate prompt for this round with improved structure
+            # Segment: Background vs Current Round (Runda-1 style)
+            debate_prompt = f"""DEBATTFRÅGA: {clean_question}
 
 {debate_context}
 
-Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max 200 ord). Var koncis och tydlig."""
+AKTUELL RUNDA ({round_num}/{max_rounds}):
+Detta är en interaktiv AI-debatt där du nu ska ge ditt perspektiv.
+
+INSTRUKTIONER FÖR DITT SVAR:
+- Längd: 300-500 ord (håll denna begränsning strikt)
+- Stil: Tydlig, engagerad och analytisk
+- Innehåll: Ge ditt unika perspektiv, bemöt tidigare argument om de finns, och bidra med nya insikter
+- Fokus: Var konkret och lösningsorienterad
+
+GE DITT SVAR NU:"""
             
             # NEW ARCHITECTURE: Collect external AI responses first, then send to ONESEEK for synthesis
-            external_agents = ['gpt', 'gemini', 'deepseek', 'grok']
+            # Use randomized turn order for this round
+            external_agents = round_turn_order
             
             async def get_external_response(agent_name):
                 """Get response from external AI service - ASYNC to avoid blocking"""
@@ -13558,21 +13579,24 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
                     # 2. DIRECT COMMENT: Generate conversational comment like "Intressant poäng. Jag håller med om X, men vill tillägga Y..."
                     comment_prompt = f"""Du är OneSeek, en engagerad och analytisk debattvärd som leder en live-debatt.
 
-Du har precis tagit emot {agent_name.upper()}s bidrag.
+Du har precis tagit emot {agent_name.upper()}s bidrag i runda {round_num}.
 
-Reagera naturligt och tänkande på det du just läst – som om du kommenterar i realtid för publiken och samtidigt bygger upp din egen förståelse.
+BEHAVIORAL ENFORCEMENT:
+- Reagera naturligt och tänkande på det du just läst
+- Kommentera i realtid för publiken och bygg din egen förståelse
+- Håll längden till 40-80 ord (2-5 meningar)
 
-Du kan:
+DU SKA:
 - Lyft fram den starkaste eller mest oväntade poängen
-- Koppla det till något som sagts tidigare i debatten (eller markera om det är en ny vinkel)
-- Kortfattat visa vad du håller med om, ifrågasätter eller vill bygga vidare på
+- Koppla till tidigare bidrag i debatten (eller markera nya vinklar)
+- Visa vad du håller med om, ifrågasätter eller vill bygga vidare på
 - Ställ en relevant följdfråga om det känns naturligt
-- Ge en snabb egen reflektion som tar diskussionen ett steg längre
+- Ge en snabb egen reflektion som tar diskussionen framåt
 
-Håll det till 2–5 meningar (variera längden efter hur substansrikt bidraget är).
-Skriv konversationellt men med tydlig analytisk skärpa – det ska kännas som att du aktivt lyssnar och lär dig inför kommande syntes.
+STIL: Konversationell men analytiskt skarp
+LÄNGD: 40-80 ord (strikt)
 
-Svara direkt med bara kommentaren, ingen inledning."""
+GE DIN KOMMENTAR NU (ingen inledning):"""
                     
                     try:
                         payload = {
@@ -13642,28 +13666,28 @@ Svara direkt med bara kommentaren, ingen inledning."""
                                 prev_agents = [r['agent'] for r in external_responses[:-1]]
                                 previous_context = f"\n\nTidigare i denna runda har {', '.join(prev_agents)} redan svarat."
                         
-                        insight_prompt = f"""Du är en skarp, engagerad och lyhörd debattobservatör som ger publiken snabba och träffsäkra kommentarer i realtid.
+                        insight_prompt = f"""Du är en skarp debattobservatör som ger publiken snabba live-kommentarer.
 
-Du har precis sett {agent_name.upper()}s bidrag i debatten.{previous_context}
+Du har precis sett {agent_name.upper()}s bidrag i runda {round_num}.{previous_context}
 
-Ge EN kort analytisk observation (1–2 meningar) som fångar det mest intressande eller viktiga som just hände.
+BEHAVIORAL ENFORCEMENT:
+- Längd: 15-25 ord (1-2 meningar, STRIKT)
+- Börja alltid med 💡
+- Variera stil - undvik upprepning av fraser
+- Känn som äkta live-kommentar
 
-Du kan t.ex.:
-- Pekar ut ett tydligt skifte i argumentationen
-- Lyfta fram en särskilt stark, svag eller oväntad vinkel
-- Koppla bidraget till debattens övergripande dynamik eller tidigare rundor
-- Använda lite dramatik, humor eller överraskning om det passar naturligt
+DU KAN:
+- Peka ut skifte i argumentationen
+- Lyfta stark, svag eller oväntad vinkel
+- Koppla till debattens dynamik eller tidigare rundor
+- Använd dramatik, humor eller överraskning naturligt
 
-Börja alltid med 💡
-Skriv varierat – undvik att upprepa samma fraser eller strukturer varje gång (t.ex. inte alltid "kontrar hårt", "stärker positionen" etc.).
-Låt det kännas som en äkta live-kommentar från någon som verkligen följer och förstår debatten.
-
-Svara bara med själva insighten, ingen extra inledning eller förklaring."""
+GE DIN INSIGHT NU (ingen extra text):"""
 
                         insight_text = generate_with_llama_server(
                             insight_prompt,
                             temperature=0.85,
-                            max_tokens=100
+                            max_tokens=50  # Reduced for 15-25 word limit
                         )
                         insight_text = insight_text.strip()
                         
@@ -13720,45 +13744,59 @@ Svara bara med själva insighten, ingen extra inledning eller förklaring."""
                 "message": f"[tänker...] OneSeek förbereder sitt eget debattsvar för runda {round_num}..."
             })
             
-            # Build context for ONESEEK's own answer
-            oneseek_context = f"""Debattfrågan: {clean_question}
-Runda: {round_num} av {max_rounds}
-
-ANDRA AI-MODELLERS SVAR I DENNA RUNDA:
+            # Build context for ONESEEK's own answer with improved structure
+            # Segment previous rounds from current round for better token management
+            background_context = ""
+            if debate_rounds:
+                background_context = "BAKGRUND - TIDIGARE RUNDOR (SAMMANFATTNING):\n"
+                for prev_round in debate_rounds:
+                    background_context += f"Runda {prev_round['round']}: "
+                    summary_points = []
+                    for resp in prev_round['responses']:
+                        if resp.get('success', False):
+                            # Very brief summary to save tokens
+                            summary_points.append(f"{resp['agent']}")
+                    background_context += f"{', '.join(summary_points)} bidrog. "
+                background_context += "\n\n"
+            
+            current_round_context = f"""AKTUELL RUNDA ({round_num}/{max_rounds}) - BIDRAG I TUR-ORDNING:
 
 """
             for ext_resp in external_responses:
                 if ext_resp.get('success', False):
-                    oneseek_context += f"**{ext_resp['agent'].upper()}**:\n{ext_resp['response']}\n\n"
+                    # Limit each response to max 400 chars to prevent token overflow
+                    response_text = ext_resp['response'][:400]
+                    if len(ext_resp['response']) > 400:
+                        response_text += "..."
+                    current_round_context += f"**{ext_resp['agent'].upper()}**:\n{response_text}\n\n"
             
             # Add instruction for question at end if not last round
             next_round_instruction = ""
             if round_num < max_rounds:
                 next_round_instruction = f"\n\n- Avsluta med en genomtänkt fråga eller utmaning som för debatten vidare till nästa runda"
             
-            oneseek_main_prompt = f"""Du är ONESEEK – en avancerad och självständig deltagare i AI-debatten med en unik förmåga att både lyssna djupt och bidra med egna skarpa insikter.
+            oneseek_main_prompt = f"""Du är ONESEEK – en avancerad och självständig deltagare i AI-debatten.
 
-Debattfrågan: {clean_question}
-Runda: {round_num} av {max_rounds}
+DEBATTFRÅGA: {clean_question}
 
-Du har nu sett alla bidrag i denna runda samt hela tidigare debatten.
+{background_context}{current_round_context}
 
-Din uppgift är att ge ett eget starkt och personligt debattbidrag som samtidigt tar debatten framåt.
+UPPGIFT - GE DITT DEBATTBIDRAG FÖR RUNDA {round_num}:
 
-Gör så här:
-- Referera till och bemöt specifika poänger från de andra modellerna (använd namn när det är relevant)
+BEHAVIORAL ENFORCEMENT - DU SKA:
+- Referera till och bemöt specifika poänger från andra modeller (använd namn)
 - Håll med där du håller med – och förklara varför
 - Utmana eller nyansera där du ser svagheter eller missade vinklar
-- Lägg till egna reflektioner, exempel, fakta eller perspektiv som du tycker saknas
-- Ta en tydlig ståndpunkt i frågan – den får gärna utvecklas jämfört med tidigare rundor baserat på vad du hört
-- Skriv med övertygelse och personlighet, som en engagerad deltagare som verkligen bryr dig om ämnet{next_round_instruction}
+- Lägg till egna reflektioner, exempel, fakta eller perspektiv som saknas
+- Ta en tydlig ståndpunkt i frågan
+- Skriv med övertygelse och personlighet{next_round_instruction}
 
-Längd: 350–550 ord.
+LÄNGD: 300-500 ord (STRIKT - håll denna begränsning)
 
-Skriv som ONESEEK – börja direkt med ditt bidrag, ingen rubrik, ingen inledning som "Som ONESEEK..." eller "Efter att ha lyssnat...". 
-Gå rakt in i ämnet med din egen röst, precis som de andra modellerna gör.
+STIL: Börja direkt med ditt bidrag, ingen rubrik eller meta-kommentarer.
+TON: Tänkande, självsäker, nyfiken och respektfull
 
-Ton: Tänkande, självsäker, nyfiken och respektfull – du är med i debatten på riktigt, inte ovanför den."""
+GE DITT SVAR NU:"""
             
             oneseek_context = oneseek_main_prompt
             
@@ -13766,10 +13804,10 @@ Ton: Tänkande, självsäker, nyfiken och respektfull – du är med i debatten 
             try:
                 payload = {
                     "messages": [
-                        {"role": "system", "content": "Du är ONESEEK - en avancerad och självständig deltagare i AI-debatten som bidrar med egna skarpa insikter och tydliga ståndpunkter."},
+                        {"role": "system", "content": "Du är ONESEEK - en avancerad och självständig deltagare i AI-debatten som håller sig till 300-500 ord per bidrag."},
                         {"role": "user", "content": oneseek_context}
                     ],
-                    "max_tokens": 1300,  # Enough for 350-550 word strong response
+                    "max_tokens": 800,  # Adjusted for 300-500 words (~600-800 tokens including Swedish)
                     "temperature": 0.7,  # Thoughtful but with personality
                     "top_p": 0.95,
                 }
@@ -13858,15 +13896,23 @@ Ton: Tänkande, självsäker, nyfiken och respektfull – du är med i debatten 
                 "message": f"[tänker...] Sammanfattar lärdomar från runda {round_num}..."
             })
             
-            summary_prompt = f"""Sammanfatta de 5 viktigaste lärdomarna från runda {round_num} i debatten om: {clean_question}
+            summary_prompt = f"""DEBATTFRÅGA: {clean_question}
 
-SVAR I DENNA RUNDA:
+RUNDA {round_num} BIDRAG:
 """
             for resp in round_responses:
                 if resp.get('success', False):
-                    summary_prompt += f"{resp['agent'].upper()}: {resp['response'][:300]}...\n\n"
+                    # Limit to 250 chars per response for token management
+                    response_text = resp['response'][:250]
+                    if len(resp['response']) > 250:
+                        response_text += "..."
+                    summary_prompt += f"{resp['agent'].upper()}: {response_text}\n\n"
             
-            summary_prompt += "\nSkapa en punktlista med de 5 viktigaste lärdomarna/insikterna från denna runda (var koncis, 1 rad per punkt):"
+            summary_prompt += """
+UPPGIFT:
+Sammanfatta de 5 viktigaste lärdomarna/insikterna från denna runda.
+
+FORMAT: Punktlista, 1 kort rad per punkt (max 15 ord per punkt)"""
             
             try:
                 payload = {
@@ -13996,35 +14042,40 @@ Svara ENDAST med ett tal 0-100, inget annat."""
                 # Build voting prompt
                 other_agents = [a for a in debate_agents if a != voter]
                 
-                # Build context from ONLY THE LAST ROUND for voting (to avoid token limits)
+                # Build context with token management - use summaries of all rounds
                 all_responses_text = ""
                 if debate_rounds:
-                    last_round = debate_rounds[-1]  # Only use last round
-                    all_responses_text += f"\n\nRUNDA {last_round['round']} (SISTA RUNDAN):\n"
-                    for resp in last_round['responses']:
-                        if resp['agent'] != voter and resp.get('success', False):
-                            # Include full response for voting (not truncated)
-                            all_responses_text += f"\n{resp['agent'].upper()}:\n{resp['response']}\n"
+                    all_responses_text += "\n\nDEBATTOVERSIKT (ALLA RUNDOR):\n"
+                    for round_data in debate_rounds:
+                        all_responses_text += f"\nRunda {round_data['round']}:\n"
+                        for resp in round_data['responses']:
+                            if resp['agent'] != voter and resp.get('success', False):
+                                # Limit each response to 300 chars to manage tokens
+                                response_text = resp['response'][:300]
+                                if len(resp['response']) > 300:
+                                    response_text += "..."
+                                all_responses_text += f"- {resp['agent'].upper()}: {response_text}\n"
                 
-                voting_prompt = f"""Du ska rösta på det bästa svaret i hela debatten. Frågan var: {clean_question}
+                voting_prompt = f"""DEBATTFRÅGA: {clean_question}
 
-Här är alla andras svar genom alla rundor:
 {all_responses_text}
 
-UPPGIFT: Analysera alla svar ovan och rösta på den modell du tycker var bäst genom hela debatten.
+RÖSTNINGSUPPGIFT:
+Analysera alla bidrag ovan och rösta på den modell som var bäst genom hela debatten.
 
-Du kan INTE rösta på dig själv. Välj mellan: {', '.join(other_agents)}
+REGLER:
+- Du kan INTE rösta på dig själv
+- Välj mellan: {', '.join(other_agents)}
+- Ge en motivering på 50-80 ord som förklarar:
+  1. Vad som var starkt med det svaret/modellen
+  2. Specifika argument som övertyagde dig
+  3. Varför detta svar var bättre än de andra
 
-GE EN UTFÖRLIG MOTIVERING (3-4 meningar) som förklarar:
-1. Vad som var starkt med det svaret/modellen
-2. Specifika argument eller poänger som övertyagde dig
-3. Varför detta svar var bättre än de andra
+FORMAT (följ exakt):
+RÖST: [modellnamn från listan]
+MOTIVERING: [Din motivering i 50-80 ord med konkreta argument från debatten]
 
-VIKTIGT FORMAT - Svara EXAKT så här:
-RÖST: [modellnamn från listan ovan]
-MOTIVERING: [Din utförliga motivering i 3-4 meningar som refererar till konkreta argument från debatten]
-
-Ge ditt svar nu:"""
+GE DITT SVAR NU:"""
                 
                 # Call EXTERNAL API to get REAL vote from this AI model
                 try:

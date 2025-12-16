@@ -1805,7 +1805,11 @@ export default function SevenBZeroPage() {
             break;
             
           case 'round_start':
-            setThinkingStep(`🎤 Runda ${message.round} startar...`);
+            const turnOrder = message.data?.turn_order || [];
+            const turnOrderText = turnOrder.length > 0 
+              ? ` (tur-ordning: ${turnOrder.map(a => a.toUpperCase()).join(' → ')})` 
+              : '';
+            setThinkingStep(`🎤 Runda ${message.round} startar...${turnOrderText}`);
             setCurrentRound(message.round);
             
             // Add debate marker message at round 1 start for chronological positioning
@@ -1827,10 +1831,12 @@ export default function SevenBZeroPage() {
               }]);
             }
             
-            // Initialize round data structure
+            // Initialize round data structure with turn order
             setDebateRounds(prev => ({
               ...prev,
-              [message.round]: {}
+              [message.round]: {
+                turnOrder: turnOrder
+              }
             }));
             break;
             
