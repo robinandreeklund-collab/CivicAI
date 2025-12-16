@@ -12432,17 +12432,17 @@ async def personality_based_inference(request: Request, inference_request: Perso
         print(f"🎯 [ENDPOINT START] Query: {user_query[:100]}...")
         logger.info(f"[Personality/Non-Stream] Received query: {user_query[:100]}...")
         
-        # Use admin setting for max_tokens if not explicitly provided
-        max_tokens = inference_request.max_tokens
-        if max_tokens == 512:  # If using default, check admin setting
-            max_tokens = _admin_settings.get("outputMaxTokens", 1200)
-            logger.info(f"[ADMIN] Using outputMaxTokens from admin settings: {max_tokens}")
+        # Use admin setting for max_length if not explicitly provided
+        max_length = inference_request.max_length
+        if max_length == 512:  # If using default, check admin setting
+            max_length = _admin_settings.get("outputMaxTokens", 1200)
+            logger.info(f"[ADMIN] Using outputMaxTokens from admin settings: {max_length}")
         
         # Use three-stage inference pipeline (non-streaming version)
         print(f"🎯 [ENDPOINT] About to call generate_personality_response...")
         result = await generate_personality_response(
             text=user_query,
-            max_length=max_tokens,
+            max_length=max_length,
             temperature=inference_request.temperature,
             top_p=0.9
         )
