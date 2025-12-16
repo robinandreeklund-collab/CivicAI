@@ -1851,20 +1851,31 @@ export default function SevenBZeroPage() {
             console.log(`[Debate] OneSeek echoing ${message.agent}'s answer`);
             setThinkingStep(`🔄 OneSeek ekar ${message.agent.toUpperCase()}s svar...`);
             
-            // Initialize AI data in round
-            setDebateRounds(prev => ({
-              ...prev,
-              [message.round]: {
-                ...(prev[message.round] || {}),
-                [message.agent]: {
-                  text: '',
-                  isStreaming: true,
-                  reasoning: null,
-                  insights: [],
-                  model: null
-                }
+            // Initialize AI data in round and track arrival order
+            setDebateRounds(prev => {
+              const currentRoundData = prev[message.round] || {};
+              const arrivalOrder = currentRoundData.arrivalOrder || [];
+              
+              // Add agent to arrival order if not already there
+              if (!arrivalOrder.includes(message.agent)) {
+                arrivalOrder.push(message.agent);
               }
-            }));
+              
+              return {
+                ...prev,
+                [message.round]: {
+                  ...currentRoundData,
+                  arrivalOrder: arrivalOrder,
+                  [message.agent]: {
+                    text: '',
+                    isStreaming: true,
+                    reasoning: null,
+                    insights: [],
+                    model: null
+                  }
+                }
+              };
+            });
             break;
             
           case 'oneseek_echo':
@@ -1934,19 +1945,30 @@ export default function SevenBZeroPage() {
             console.log(`[Debate] OneSeek generating own answer for round ${message.round}`);
             setThinkingStep(`🤖 ONESEEK ger sitt debattsvar...`);
             
-            setDebateRounds(prev => ({
-              ...prev,
-              [message.round]: {
-                ...(prev[message.round] || {}),
-                oneseek: {
-                  text: '',
-                  isStreaming: true,
-                  reasoning: null,
-                  insights: [],
-                  model: 'OneSeek-7B-Zero'
-                }
+            setDebateRounds(prev => {
+              const currentRoundData = prev[message.round] || {};
+              const arrivalOrder = currentRoundData.arrivalOrder || [];
+              
+              // Add oneseek to arrival order if not already there
+              if (!arrivalOrder.includes('oneseek')) {
+                arrivalOrder.push('oneseek');
               }
-            }));
+              
+              return {
+                ...prev,
+                [message.round]: {
+                  ...currentRoundData,
+                  arrivalOrder: arrivalOrder,
+                  oneseek: {
+                    text: '',
+                    isStreaming: true,
+                    reasoning: null,
+                    insights: [],
+                    model: 'OneSeek-7B-Zero'
+                  }
+                }
+              };
+            });
             break;
             
           case 'oneseek_own_answer':
@@ -2779,10 +2801,17 @@ export default function SevenBZeroPage() {
                   {/* Voting Results */}
                   <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
                     <div className="text-xs text-[#666] mb-2">Röstning</div>
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       {debateRounds.completion.voteResults?.map((vote, idx) => (
-                        <div key={idx} className="text-xs text-[#888]">
-                          {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
+                        <div key={idx} className="text-xs">
+                          <div className="text-[#888] font-medium">
+                            {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
+                          </div>
+                          {vote.motivation && (
+                            <div className="text-[#666] mt-1 italic">
+                              {vote.motivation}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -2987,10 +3016,17 @@ export default function SevenBZeroPage() {
                         {/* Voting Results */}
                         <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
                           <div className="text-xs text-[#666] mb-2">Röstning</div>
-                          <div className="space-y-1">
+                          <div className="space-y-2">
                             {debateRounds.completion.voteResults?.map((vote, idx) => (
-                              <div key={idx} className="text-xs text-[#888]">
-                                {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
+                              <div key={idx} className="text-xs">
+                                <div className="text-[#888] font-medium">
+                                  {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
+                                </div>
+                                {vote.motivation && (
+                                  <div className="text-[#666] mt-1 italic">
+                                    {vote.motivation}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>

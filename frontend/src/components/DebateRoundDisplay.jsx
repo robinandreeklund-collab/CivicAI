@@ -10,14 +10,20 @@ import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 
 export default function DebateRoundDisplay({ round, aiData, isActive = false }) {
-  // Use dynamic turn order from round data if available, otherwise fall back to fixed order
-  const turnOrder = aiData?.turnOrder || [];
+  // Use arrival order from round data if available (order responses actually arrived)
+  // This is different from turnOrder (planned order) - we want chronological arrival
+  const arrivalOrder = aiData?.arrivalOrder || [];
   const defaultOrder = ['gpt', 'gemini', 'deepseek', 'grok', 'oneseek'];
   
-  // AI display order - use turn order + oneseek at the end
-  const aiOrder = turnOrder.length > 0 
-    ? [...turnOrder, 'oneseek']  // Turn order from backend + OneSeek at end
-    : defaultOrder;
+  // AI display order - use arrival order (chronological) with oneseek always at end
+  let aiOrder;
+  if (arrivalOrder.length > 0) {
+    // Filter out oneseek from arrival order, then add it at the end
+    const withoutOneseek = arrivalOrder.filter(ai => ai !== 'oneseek');
+    aiOrder = [...withoutOneseek, 'oneseek'];
+  } else {
+    aiOrder = defaultOrder;
+  }
   
   // Get all AIs that have data in this round
   const availableAIs = aiOrder.filter(ai => aiData && aiData[ai]);
@@ -143,6 +149,17 @@ export default function DebateRoundDisplay({ round, aiData, isActive = false }) 
                     <div className="text-sm text-[#888] leading-relaxed prose prose-invert prose-sm max-w-none">
                       <ReactMarkdown>{ai.text}</ReactMarkdown>
                     </div>
+
+                    {/* Live Insights - Show after main response */}
+                    {ai.insights && ai.insights.length > 0 && (
+                      <div className="mt-3 pt-2 border-t border-[#1a1a1a]">
+                        {ai.insights.map((insight, idx) => (
+                          <div key={idx} className="text-xs text-[#888] mb-1">
+                            {insight}
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     {/* OneSeek's Commentary/Reasoning */}
                     {ai.reasoning && (
