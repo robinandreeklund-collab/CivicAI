@@ -13660,7 +13660,7 @@ Låt det kännas som en äkta live-kommentar från någon som verkligen följer 
 
 Svara bara med själva insighten, ingen extra inledning eller förklaring."""
 
-                        insight_text = await generate_with_llama_server(
+                        insight_text = generate_with_llama_server(
                             insight_prompt,
                             temperature=0.85,
                             max_tokens=100
@@ -13996,11 +13996,12 @@ Svara ENDAST med ett tal 0-100, inget annat."""
                 # Build voting prompt
                 other_agents = [a for a in debate_agents if a != voter]
                 
-                # Build context from all rounds with FULL responses for voting
+                # Build context from ONLY THE LAST ROUND for voting (to avoid token limits)
                 all_responses_text = ""
-                for round_data in debate_rounds:
-                    all_responses_text += f"\n\nRUNDA {round_data['round']}:\n"
-                    for resp in round_data['responses']:
+                if debate_rounds:
+                    last_round = debate_rounds[-1]  # Only use last round
+                    all_responses_text += f"\n\nRUNDA {last_round['round']} (SISTA RUNDAN):\n"
+                    for resp in last_round['responses']:
                         if resp['agent'] != voter and resp.get('success', False):
                             # Include full response for voting (not truncated)
                             all_responses_text += f"\n{resp['agent'].upper()}:\n{resp['response']}\n"
