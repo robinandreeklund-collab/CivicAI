@@ -1,0 +1,786 @@
+# Live AI-Debate Flow Configuration
+# Real-time, Queue-based, Event-driven Architecture
+# Version: 1.0.0
+# Last Updated: 2024-12-16
+
+metadata:
+  name: "Live AI-Debate Flow"
+  version: "1.0.0"
+  description: "Real-time debate flow with queue-based processing, live streaming, and automatic transitions"
+  architecture: "Queue-based, Event-driven"
+  status: "Production Ready"
+  breaking_from: "Batch processing architecture"
+
+# Core Configuration
+configuration:
+  max_rounds: 3
+  max_agents: 5
+  agents:
+    - gpt
+    - gemini
+    - deepseek
+    - grok
+    - oneseek
+  personality: "oneseek-debattledare"
+  personality_name: "Debattledaren"
+  websocket_endpoint: "/ws/debate"
+  
+  # Timing Configuration
+  timing:
+    ai_response_timeout: 60  # seconds
+    round_pause: 1  # seconds between rounds
+    confetti_duration: 5  # seconds
+    streaming_tokens_per_second: 65  # realistic AI typing speed
+  
+  # Voting Rules
+  voting:
+    self_voting_allowed: false
+    minimum_participants: 3
+    voting_method: "majority"
+
+# Real-time Flow Architecture
+flow_architecture:
+  type: "queue-based"
+  description: "Responses processed immediately upon arrival, no batch processing"
+  
+  principles:
+    - "No waiting for batch completion"
+    - "Constant live activity"
+    - "Token-by-token streaming"
+    - "Progressive knowledge building"
+    - "Real-time feedback loops"
+    - "Seamless visual/UX flow"
+  
+  comparison:
+    old_architecture:
+      type: "batch-based"
+      problems:
+        - "No live activity during gathering phase"
+        - "Batch dumps feel slow/unresponsive"
+        - "OneSeek not visible as active participant"
+        - "No progressive knowledge building"
+    
+    new_architecture:
+      type: "queue-based real-time"
+      benefits:
+        - "Constant live activity - no waiting"
+        - "Token-by-token streaming feels responsive"
+        - "OneSeek visible as active analyzer AND full debater"
+        - "Progressive knowledge chain building"
+        - "Real-time insights keep users engaged"
+        - "Round compression aids comprehension"
+
+# Debate Flow Sequence
+debate_sequence:
+  
+  # Phase 1: Initialization
+  initialization:
+    step: 1
+    description: "Initialize debate with participants and configuration"
+    actions:
+      - action: "receive_question"
+        description: "Receive debate question from user"
+        validation:
+          - "Question is non-empty"
+          - "Question length <= 5000 characters"
+      
+      - action: "load_personality"
+        description: "Automatically load Debattledare personality"
+        automatic: true
+        personality: "oneseek-debattledare"
+      
+      - action: "initialize_participants"
+        description: "Setup debate participants"
+        participants:
+          - gpt
+          - gemini
+          - deepseek
+          - grok
+          - oneseek
+      
+      - action: "setup_knowledge_chain"
+        description: "Initialize knowledge accumulation structure"
+        data_structure: "progressive_list"
+    
+    events:
+      - type: "thinking"
+        message: "[tänker...] Startar debattarena..."
+      - type: "debate_init"
+        message: "🎤 Debattarena redo! Debattledaren välkomnar alla deltagare."
+        data:
+          agents: ["gpt", "gemini", "deepseek", "grok", "oneseek"]
+          rounds: 3
+          question: "{clean_question}"
+          personality: "Debattledaren"
+  
+  # Phase 2: Debate Rounds (3 rounds)
+  debate_rounds:
+    step: 2
+    description: "Conduct 3 debate rounds with queue-based real-time processing"
+    rounds: 3
+    
+    round_flow:
+      # Step 2.1: Round Start
+      round_start:
+        step: "2.1"
+        description: "Begin new debate round"
+        events:
+          - type: "round_start"
+            message: "🎯 Runda {round_num} startar..."
+            data:
+              round: "{round_num}"
+        
+        context_building:
+          description: "Build context from previous rounds for continuity"
+          includes:
+            - "Previous round responses"
+            - "Arguments from each AI"
+            - "Progressive knowledge chain"
+      
+      # Step 2.2: Parallel Collection with Queue
+      parallel_collection:
+        step: "2.2"
+        description: "Collect responses from external AIs in parallel, queue immediately"
+        architecture: "async_queue"
+        
+        process:
+          - action: "send_to_external_ais"
+            description: "Send debate prompt to all external AIs concurrently"
+            targets: ["gpt", "gemini", "deepseek", "grok"]
+            execution: "parallel"
+          
+          - action: "queue_on_arrival"
+            description: "Each response queued IMMEDIATELY when it arrives"
+            queue_type: "FIFO"
+            data_structure: "asyncio.Queue()"
+          
+          - action: "emit_arrival_event"
+            description: "Notify frontend immediately when response arrives"
+            event:
+              type: "ai_response"
+              message: "✅ {AGENT} har svarat"
+              data:
+                agent: "{agent_name}"
+                success: true
+        
+        realtime_characteristics:
+          - "No waiting for all responses"
+          - "Immediate visibility of arriving responses"
+          - "FIFO processing maintains order"
+          - "Parallel execution maximizes speed"
+      
+      # Step 2.3: OneSeek Pipeline (Per Queued Answer)
+      oneseek_pipeline:
+        step: "2.3"
+        description: "Process each queued answer through OneSeek's analysis pipeline"
+        architecture: "sequential_streaming"
+        
+        for_each_queued_answer:
+          # Pipeline Stage 1: Echo
+          echo_stage:
+            step: "2.3.1"
+            description: "OneSeek echoes the answer token-by-token"
+            streaming: true
+            tokens_per_second: 65
+            
+            events:
+              start:
+                type: "oneseek_echo_start"
+                message: "🔄 OneSeek ekar {AGENT}s svar..."
+                data:
+                  agent: "{agent_name}"
+              
+              stream:
+                type: "oneseek_echo"
+                streaming: true
+                data:
+                  text: "{token_chunk}"
+                  complete: false
+                  agent: "{agent_name}"
+                  round: "{round_num}"
+              
+              complete:
+                type: "oneseek_echo"
+                data:
+                  complete: true
+            
+            purpose: "Simulate realistic AI processing speed for better UX"
+          
+          # Pipeline Stage 2: Focused Reasoning
+          reasoning_stage:
+            step: "2.3.2"
+            description: "OneSeek generates focused analysis of specific answer"
+            length: "2-3 sentences"
+            
+            focus_areas:
+              - "Strengths of argument"
+              - "Weaknesses or gaps"
+              - "Unique insights"
+              - "Comparison to other responses"
+            
+            events:
+              - type: "oneseek_reasoning"
+                message: "{analysis_text}"
+                data:
+                  reasoning: "{analysis_text}"
+                  agent_analyzed: "{agent_name}"
+            
+            storage:
+              action: "append_to_knowledge_chain"
+              description: "Save reasoning for later reference"
+          
+          # Pipeline Stage 3: Live Insight
+          insight_stage:
+            step: "2.3.3"
+            description: "One-liner sport-commentator style update"
+            style: "concise, engaging"
+            
+            events:
+              - type: "live_insight"
+                message: "💡 {AGENT} fokuserar på {key_topics} - {progress}"
+                data:
+                  agent: "{agent_name}"
+                  progress: "{responses_received}/{total_expected}"
+            
+            purpose: "Keep users engaged during processing"
+      
+      # Step 2.4: OneSeek's Own Answer
+      oneseek_own_answer:
+        step: "2.4"
+        description: "OneSeek generates its own comprehensive debate response"
+        timing: "after_all_external_responses_processed"
+        
+        characteristics:
+          - "OneSeek is FULL participant, not just moderator"
+          - "Leverages knowledge from all external answers"
+          - "Progressive understanding across rounds"
+          - "400-600 word comprehensive response"
+        
+        generation:
+          step: "2.4.1"
+          description: "Generate OneSeek's debate answer"
+          streaming: true
+          tokens_per_second: 65
+          
+          events:
+            start:
+              type: "oneseek_own_answer_start"
+              message: "🤖 ONESEEK ger sitt debattsvar..."
+            
+            stream:
+              type: "oneseek_own_answer"
+              streaming: true
+              data:
+                text: "{token_chunk}"
+                complete: false
+                agent: "oneseek"
+                round: "{round_num}"
+            
+            complete:
+              type: "oneseek_own_answer"
+              data:
+                complete: true
+        
+        reasoning:
+          step: "2.4.2"
+          description: "Explain OneSeek's reasoning"
+          
+          events:
+            - type: "oneseek_own_reasoning"
+              message: "{reasoning_text}"
+              data:
+                reasoning: "{reasoning_text}"
+                round: "{round_num}"
+          
+          purpose: "Transparency in OneSeek's thought process"
+      
+      # Step 2.5: Round Compression
+      round_summary:
+        step: "2.5"
+        description: "Compress round learnings into 10 key points"
+        format: "numbered_list"
+        points: 10
+        
+        purpose:
+          - "Aid comprehension"
+          - "Highlight key learnings"
+          - "Prepare for next round"
+        
+        events:
+          - type: "round_summary"
+            message: "📚 Lärdomar från runda {round_num}"
+            data:
+              summary: "1. ...\n2. ...\n...\n10. ..."
+              round: "{round_num}"
+        
+        content_focus:
+          - "Main arguments presented"
+          - "Points of agreement"
+          - "Points of disagreement"
+          - "Unique perspectives"
+          - "Knowledge gaps identified"
+      
+      # Step 2.6: Round End
+      round_end:
+        step: "2.6"
+        description: "Close current round and prepare for next"
+        
+        events:
+          - type: "round_end"
+            message: "✅ Runda {round_num} avslutad"
+            data:
+              round: "{round_num}"
+        
+        actions:
+          - "Save round data to debate history"
+          - "Update knowledge chain"
+          - "Pause briefly before next round"
+        
+        timing:
+          pause_duration: 1  # second
+  
+  # Phase 3: Voting
+  voting_phase:
+    step: 3
+    description: "All AIs vote for best answer with real-time visibility"
+    
+    rules:
+      - "All 5 AIs participate in voting"
+      - "No self-voting allowed"
+      - "OneSeek acts as neutral judge"
+      - "Votes are transparent"
+    
+    process:
+      - action: "collect_votes"
+        description: "Each AI analyzes all responses and votes"
+        method: "intelligent_analysis"
+        voting_criteria:
+          - "Argument quality"
+          - "Evidence provided"
+          - "Comprehensiveness"
+          - "Logical coherence"
+          - "Addressing counterarguments"
+      
+      - action: "validate_votes"
+        description: "Ensure no self-voting"
+        validation:
+          - "voter != voted_for"
+      
+      - action: "aggregate_votes"
+        description: "Count votes for each participant"
+        real_time: true
+    
+    events:
+      - type: "voting"
+        message: "🗳️ Röstning pågår..."
+        data:
+          status: "in_progress"
+    
+    visibility:
+      description: "Real-time vote visibility for transparency"
+      display:
+        - "Vote as they are cast"
+        - "Running totals"
+        - "Vote justifications"
+  
+  # Phase 4: Winner Announcement
+  winner_announcement:
+    step: 4
+    description: "Announce winner and trigger celebration"
+    
+    calculation:
+      method: "simple_majority"
+      description: "AI with most votes wins"
+      tiebreaker: "quality_assessment_by_oneseek"
+    
+    events:
+      - type: "winner"
+        message: "🏆 Vinnare: {WINNER} med {vote_count} röster!"
+        data:
+          winner: "{winner_agent}"
+          votes: "{vote_count}"
+          all_votes:
+            gpt: "{gpt_votes}"
+            gemini: "{gemini_votes}"
+            deepseek: "{deepseek_votes}"
+            grok: "{grok_votes}"
+            oneseek: "{oneseek_votes}"
+          vote_results:
+            - voter: "{voter_name}"
+              voted_for: "{voted_for_name}"
+              reasoning: "{vote_reasoning}"
+    
+    visual_feedback:
+      confetti:
+        enabled: true
+        duration: 5  # seconds
+        description: "Confetti animation celebrates winner"
+        trigger: "winner_event"
+  
+  # Phase 5: Final Summary
+  final_summary:
+    step: 5
+    description: "OneSeek provides objective debate summary"
+    
+    content:
+      - "Overview of debate topic"
+      - "Main arguments from each AI"
+      - "Points of consensus"
+      - "Points of divergence"
+      - "Why winner won"
+      - "Overall quality assessment"
+    
+    style:
+      - "Objective and neutral"
+      - "Comprehensive yet concise"
+      - "Educational value"
+    
+    events:
+      - type: "summary"
+        message: "{summary_text}"
+        data:
+          summary: "{summary_text}"
+      
+      - type: "debate_complete"
+        message: "Debatt avslutad!"
+        data:
+          question: "{original_question}"
+          rounds: 3
+          winner: "{winner_agent}"
+          winner_votes: "{winner_vote_count}"
+          total_votes: 5
+          vote_results: "{all_vote_results}"
+          all_votes: "{vote_breakdown}"
+          summary: "{summary_text}"
+
+# WebSocket Event Types
+websocket_events:
+  description: "Complete list of WebSocket events for real-time communication"
+  
+  initialization_events:
+    - name: "thinking"
+      description: "Progress updates during initialization"
+      example:
+        type: "thinking"
+        message: "[tänker...] Startar debattarena..."
+    
+    - name: "debate_init"
+      description: "Debate initialization with configuration"
+      example:
+        type: "debate_init"
+        message: "🎤 Debattarena redo!"
+        data:
+          agents: ["gpt", "gemini", "deepseek", "grok", "oneseek"]
+          rounds: 3
+          question: "{question}"
+          personality: "Debattledaren"
+    
+    - name: "round_start"
+      description: "Round begins"
+      example:
+        type: "round_start"
+        round: 1
+        message: "🎯 Runda 1 startar..."
+  
+  queue_processing_events:
+    - name: "ai_response"
+      description: "External AI answer arrived and queued"
+      real_time: true
+      example:
+        type: "ai_response"
+        round: 1
+        agent: "gpt"
+        message: "✅ GPT har svarat"
+        data:
+          agent: "gpt"
+          success: true
+    
+    - name: "oneseek_echo_start"
+      description: "OneSeek starts echoing an answer"
+      example:
+        type: "oneseek_echo_start"
+        round: 1
+        agent: "gpt"
+        message: "🔄 OneSeek ekar GPTs svar..."
+    
+    - name: "oneseek_echo"
+      description: "Token stream of echoed answer"
+      streaming: true
+      tokens_per_second: 65
+      example:
+        type: "oneseek_echo"
+        text: "Kärnkraft ger stabil elförsörjning..."
+        complete: false
+        agent: "gpt"
+        round: 1
+    
+    - name: "oneseek_reasoning"
+      description: "OneSeek's focused analysis of specific answer"
+      example:
+        type: "oneseek_reasoning"
+        round: 1
+        agent: "gpt"
+        message: "GPT lyfter ekonomiska aspekter..."
+        data:
+          reasoning: "{analysis_text}"
+          agent_analyzed: "gpt"
+    
+    - name: "live_insight"
+      description: "One-liner sport-commentator update"
+      style: "concise, engaging"
+      example:
+        type: "live_insight"
+        round: 1
+        agent: "gpt"
+        message: "💡 GPT fokuserar på ekonomi - 1/4 svar mottagna"
+        data:
+          progress: "1/4"
+  
+  oneseek_answer_events:
+    - name: "oneseek_own_answer_start"
+      description: "OneSeek starts its own comprehensive answer"
+      example:
+        type: "oneseek_own_answer_start"
+        round: 1
+        message: "🤖 ONESEEK ger sitt debattsvar..."
+    
+    - name: "oneseek_own_answer"
+      description: "Token stream of OneSeek's own answer"
+      streaming: true
+      example:
+        type: "oneseek_own_answer"
+        text: "För att besvara frågan..."
+        complete: false
+        agent: "oneseek"
+        round: 1
+    
+    - name: "oneseek_own_reasoning"
+      description: "OneSeek's reasoning for its own answer"
+      example:
+        type: "oneseek_own_reasoning"
+        round: 1
+        message: "Jag identifierar tre huvuddimensioner..."
+        data:
+          reasoning: "{reasoning_text}"
+  
+  round_summary_events:
+    - name: "round_summary"
+      description: "Compressed learnings from round (10 key points)"
+      example:
+        type: "round_summary"
+        round: 1
+        message: "📚 Lärdomar från runda 1"
+        data:
+          summary: "1. ...\n2. ...\n10. ..."
+          round: 1
+    
+    - name: "round_end"
+      description: "Round complete"
+      example:
+        type: "round_end"
+        round: 1
+        message: "✅ Runda 1 avslutad"
+  
+  voting_winner_events:
+    - name: "voting"
+      description: "Voting phase"
+      example:
+        type: "voting"
+        message: "🗳️ Röstning pågår..."
+    
+    - name: "winner"
+      description: "Winner announcement"
+      triggers: "confetti_animation"
+      example:
+        type: "winner"
+        message: "🏆 Vinnare: GPT med 3 röster!"
+        data:
+          winner: "gpt"
+          votes: 3
+          all_votes:
+            gpt: 3
+            gemini: 1
+            deepseek: 1
+            grok: 0
+            oneseek: 0
+          vote_results:
+            - voter: "gemini"
+              voted_for: "gpt"
+    
+    - name: "debate_complete"
+      description: "Final combined event with all results"
+      example:
+        type: "debate_complete"
+        message: "Debatt avslutad!"
+        data:
+          question: "{question}"
+          rounds: 3
+          winner: "gpt"
+          winner_votes: 3
+          total_votes: 5
+          vote_results: []
+          all_votes: {}
+          summary: "{summary_text}"
+  
+  error_events:
+    - name: "error"
+      description: "Error occurred"
+      example:
+        type: "error"
+        message: "{error_message}"
+
+# Data Transitions & Synchronization
+data_transitions:
+  description: "Ensuring correctness of data flow between rounds"
+  
+  round_to_round_transition:
+    preserved_data:
+      - "Previous round responses"
+      - "Accumulated knowledge chain"
+      - "Progressive understanding"
+      - "Debate context"
+    
+    validation:
+      - "Verify all responses stored"
+      - "Ensure knowledge chain integrity"
+      - "Validate context completeness"
+    
+    synchronization:
+      - "Timestamps on all events"
+      - "Sequence numbers for ordering"
+      - "Real-time state consistency"
+  
+  feedback_loops:
+    description: "Real-time feedback integration"
+    
+    oneseek_to_frontend:
+      - "Token streaming maintains sync"
+      - "Events emitted in strict order"
+      - "Progress updates keep users informed"
+    
+    frontend_to_backend:
+      - "WebSocket acknowledgments"
+      - "State synchronization checks"
+      - "Error recovery mechanisms"
+  
+  seamless_ux_flow:
+    principles:
+      - "No perceived delays"
+      - "Smooth transitions"
+      - "Consistent visual feedback"
+      - "Progressive disclosure"
+    
+    timestamps:
+      - "Event emission time"
+      - "Processing time"
+      - "Display time"
+      - "User perception time"
+
+# Error Handling
+error_handling:
+  external_ai_failures:
+    strategy: "graceful_degradation"
+    actions:
+      - "Mark AI as failed"
+      - "Continue with successful responses"
+      - "Require minimum 3 participants"
+      - "Notify user of failure"
+  
+  websocket_errors:
+    strategy: "immediate_notification"
+    actions:
+      - "Send error event to frontend"
+      - "Log error details"
+      - "Optionally: auto-reconnect"
+  
+  timeout_handling:
+    timeout: 60  # seconds per AI
+    actions:
+      - "Mark as timeout"
+      - "Include partial response if available"
+      - "Continue with other AIs"
+
+# Testing & Validation
+testing:
+  unit_tests:
+    location: "tests/test_debate_flow.py"
+    coverage:
+      - "Event types"
+      - "Queue processing"
+      - "Vote validation"
+      - "Data transitions"
+  
+  integration_tests:
+    location: "tests/test_debate_simple.py"
+    scenarios:
+      - "Complete debate flow"
+      - "External AI failures"
+      - "WebSocket disconnections"
+      - "Concurrent requests"
+  
+  validation_checks:
+    - "All events emit correctly"
+    - "Queue maintains FIFO order"
+    - "No self-voting occurs"
+    - "Knowledge chain builds correctly"
+    - "Timestamps are synchronized"
+    - "Streaming is smooth"
+
+# Performance Characteristics
+performance:
+  streaming_speed:
+    tokens_per_second: 65
+    description: "Realistic AI typing feel"
+  
+  queue_processing:
+    type: "asyncio-based"
+    description: "Immediate, non-blocking"
+  
+  round_timing:
+    pause_between_rounds: 1  # second
+    purpose: "User comprehension"
+  
+  total_debate_duration:
+    typical: "30-45 seconds"
+    factors:
+      - "Number of rounds (3)"
+      - "External AI response times"
+      - "Streaming speed"
+      - "Network latency"
+
+# Future Enhancements
+future_enhancements:
+  short_term:
+    - "Intelligent voting with actual AI analysis"
+    - "Better error messages"
+    - "Debate pause/resume functionality"
+  
+  medium_term:
+    - "Firebase persistence"
+    - "Debate history viewer"
+    - "Searchable debate archive"
+  
+  long_term:
+    - "Additional AI models (Claude, LLaMA 3)"
+    - "Configurable rules (rounds, participants)"
+    - "Public voting feature"
+    - "Video replay functionality"
+    - "Export to PDF/Markdown"
+
+# References
+references:
+  documentation:
+    - "DEBATE_IMPLEMENTATION.md"
+    - "IMPLEMENTATION_SUMMARY_REALTIME_DEBATE.md"
+    - "docs/DEBATE_README.md"
+    - "docs/DEBATE_USER_GUIDE.md"
+  
+  implementation:
+    - "ml_service/server.py (WebSocket endpoint)"
+    - "frontend/src/pages/SevenBZeroPage.jsx (UI)"
+    - "frontend/public/characters/OneSeek-Debattledare.yaml"
+    - "config/personality_catalog.json"
+  
+  tests:
+    - "tests/test_debate_flow.py"
+    - "tests/test_debate_simple.py"
