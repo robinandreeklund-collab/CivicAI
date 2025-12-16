@@ -14866,25 +14866,37 @@ def parse_api_selection_response(text: str) -> tuple:
     api_selection = {"apis": []}
     reasoning = ""
     
-    # Try to find JSON block (handle nested structures)
-    json_match = re.search(r'\{(?:[^{}]|\{[^{}]*\})*"apis"(?:[^{}]|\{[^{}]*\})*\[(?:[^\[\]]|\{[^{}]*\})*\](?:[^{}]|\{[^{}]*\})*\}', text, re.DOTALL)
-    if json_match:
-        try:
-            api_selection = json.loads(json_match.group(0))
-            # Everything after JSON is reasoning
-            reasoning_start = json_match.end()
-            reasoning = text[reasoning_start:].strip()
-            # Remove common prefixes
-            reasoning = re.sub(r'^(Reasoning:|Förklaring:)\s*', '', reasoning, flags=re.IGNORECASE)
-        except json.JSONDecodeError:
-            # Fallback: extract API names from text
-            api_names = re.findall(r'"name":\s*"([^"]+)"', text)
-            if api_names:
-                api_selection = {"apis": [{"name": name, "params": {}} for name in api_names]}
+    try:
+        # Try to find JSON block (handle nested structures)
+        json_match = re.search(r'\{(?:[^{}]|\{[^{}]*\})*"apis"(?:[^{}]|\{[^{}]*\})*\[(?:[^\[\]]|\{[^{}]*\})*\](?:[^{}]|\{[^{}]*\})*\}', text, re.DOTALL)
+        if json_match:
+            try:
+                api_selection = json.loads(json_match.group(0))
+                # Everything after JSON is reasoning
+                reasoning_start = json_match.end()
+                reasoning = text[reasoning_start:].strip()
+                # Remove common prefixes
+                reasoning = re.sub(r'^(Reasoning:|Förklaring:)\s*', '', reasoning, flags=re.IGNORECASE)
+            except json.JSONDecodeError:
+                # Fallback: extract API names from text
+                api_names = re.findall(r'"name":\s*"([^"]+)"', text)
+                if api_names:
+                    api_selection = {"apis": [{"name": name, "params": {}} for name in api_names]}
+                reasoning = text
+        else:
+            # No JSON found, use the whole text as reasoning
             reasoning = text
-    else:
-        # No JSON found, use the whole text as reasoning
-        reasoning = text
+    except Exception as e:
+        # Safety net: if anything goes wrong, return empty APIs and full text as reasoning
+        print(f"⚠️  [PARSE] parse_api_selection_response error: {e}")
+        api_selection = {"apis": []}
+        reasoning = text if text else "Error parsing API selection"
+    
+    # Ensure we always return a valid tuple with dict and string
+    if not isinstance(api_selection, dict):
+        api_selection = {"apis": []}
+    if not isinstance(reasoning, str):
+        reasoning = ""
     
     return api_selection, reasoning
 
@@ -15173,6 +15185,10 @@ async def generate_personality_response(
         )
         
         api_selection, reasoning_2 = parse_api_selection_response(stage2_response)
+        # Safety check: ensure api_selection is a dict
+        if not isinstance(api_selection, dict):
+            print(f"⚠️  [STAGE2] api_selection is not a dict, using empty dict")
+            api_selection = {"apis": []}
         selected_apis = api_selection.get('apis', [])
         
         print(f"✅ Stage 2 complete")
