@@ -51,6 +51,7 @@ import uuid
 from datetime import datetime
 from typing import Optional, List, Dict, Any, AsyncGenerator
 import requests  # For Tavily API and SMHI weather
+import yaml  # For loading personality YAML cards
 
 # =============================================================================
 # ONESEEK Δ+ MODULE IMPORTS
