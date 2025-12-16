@@ -13487,18 +13487,23 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
                         'success': False
                     }
             
-            # NEW ARCHITECTURE: Process responses as they arrive using a queue
-            logger.info(f"[WS-Debate] Starting to collect responses from {len(external_agents)} external AIs...")
+            # NEW ARCHITECTURE: Process EACH response IMMEDIATELY as it arrives - NO QUEUING!
+            logger.info(f"[WS-Debate] Starting parallel requests to {len(external_agents)} external AIs...")
             
-            # Queue to store responses in arrival order
-            response_queue = asyncio.Queue()
+            # Track all responses for later use (but don't queue processing!)
+            external_responses = []
+            external_responses_lock = asyncio.Lock()
             
-            async def get_and_queue_response(agent_name):
-                """Get response from external AI and immediately queue it"""
+            async def get_and_process_immediately(agent_name):
+                """Get response from external AI and process it IMMEDIATELY - no queuing!"""
+                # Get the response
                 response = await get_external_response(agent_name)
-                await response_queue.put(response)
                 
-                # Emit ai_response event immediately when answer arrives
+                # Save to external_responses list
+                async with external_responses_lock:
+                    external_responses.append(response)
+                
+                # Emit ai_response event when answer arrives
                 await websocket.send_json({
                     "type": "ai_response",
                     "round": round_num,
@@ -13509,63 +13514,35 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
                         "success": response.get('success', False)
                     }
                 })
-                logger.info(f"[WS-Debate] {agent_name.upper()} response queued")
-                return response
-            
-            # Start all external AI requests concurrently - tasks start immediately in background
-            external_tasks = [asyncio.create_task(get_and_queue_response(agent)) for agent in external_agents]
-            logger.info(f"[WS-Debate] Started {len(external_tasks)} background tasks for external AIs")
-            
-            # Process responses from queue as they arrive
-            # Track all responses for later use
-            external_responses = []
-            
-            # Start background task to collect all responses (just to ensure all complete)
-            # Create coroutine for gathering and then create task from it
-            async def collect_all_responses():
-                return await asyncio.gather(*external_tasks, return_exceptions=True)
-            
-            collect_task = asyncio.create_task(collect_all_responses())
-            
-            # Process each queued response immediately with OneSeek
-            # Process responses as they arrive - don't wait for all to be queued
-            processed_count = 0
-            while True:
-                try:
-                    # Wait for next response with timeout
-                    response = await asyncio.wait_for(response_queue.get(), timeout=2.0)
-                    external_responses.append(response)
-                    processed_count += 1
-                    
-                    if not response.get('success', False):
-                        # Skip failed responses
-                        logger.warning(f"[WS-Debate] Skipping failed response from {response.get('agent', 'unknown')}")
-                        continue
-                    
-                    agent_name = response.get('agent', 'unknown')
-                    agent_response = response.get('response', '')
-                    
-                    # OneSeek pipeline for this answer: Echo → Reasoning → Insight
-                    logger.info(f"[WS-Debate] OneSeek processing {agent_name}'s answer...")
-                    
-                    # 1. ECHO: Stream the answer token-by-token
-                    await websocket.send_json({
-                        "type": "oneseek_echo_start",
-                        "round": round_num,
-                        "agent": agent_name,
-                        "message": f"🔄 OneSeek ekar {agent_name.upper()}s svar..."
-                    })
-                    
-                    await stream_text_tokens(
-                        websocket, 
-                        agent_response, 
-                        "oneseek_echo",
-                        agent=agent_name,
-                        round=round_num
-                    )
-                    
-                    # 2. DIRECT COMMENT: Generate conversational comment like "Intressant poäng. Jag håller med om X, men vill tillägga Y..."
-                    comment_prompt = f"""Du är OneSeek och kommenterar ett svar direkt i en debatt.
+                
+                if not response.get('success', False):
+                    # Skip failed responses
+                    logger.warning(f"[WS-Debate] Skipping failed response from {agent_name}")
+                    return response
+                
+                agent_response = response.get('response', '')
+                
+                # IMMEDIATELY process this answer: Echo → Comment → Insight
+                logger.info(f"[WS-Debate] OneSeek IMMEDIATELY processing {agent_name}'s answer...")
+                
+                # 1. ECHO: Stream the answer token-by-token
+                await websocket.send_json({
+                    "type": "oneseek_echo_start",
+                    "round": round_num,
+                    "agent": agent_name,
+                    "message": f"🔄 OneSeek ekar {agent_name.upper()}s svar..."
+                })
+                
+                await stream_text_tokens(
+                    websocket, 
+                    agent_response, 
+                    "oneseek_echo",
+                    agent=agent_name,
+                    round=round_num
+                )
+                
+                # 2. DIRECT COMMENT: Generate conversational comment like "Intressant poäng. Jag håller med om X, men vill tillägga Y..."
+                comment_prompt = f"""Du är OneSeek och kommenterar ett svar direkt i en debatt.
 
 DEBATTFRÅGA: {clean_question}
 
@@ -13582,104 +13559,97 @@ Format: Konversationellt, som om du pratar direkt i debatten.
 Exempel: "Intressant poäng från GPT. Jag håller med om att ekonomin är viktig, men vill tillägga att vi också måste tänka på långsiktiga miljökonsekvenser."
 
 Svara endast med kommentaren (2-3 meningar)."""
+                
+                try:
+                    payload = {
+                        "messages": [
+                            {"role": "system", "content": "Du är OneSeek - en analytisk AI som ger koncisa, fokuserade analyser."},
+                            {"role": "user", "content": comment_prompt}
+                        ],
+                        "max_tokens": 200,
+                        "temperature": 0.7,
+                    }
                     
-                    try:
-                        payload = {
-                            "messages": [
-                                {"role": "system", "content": "Du är OneSeek - en analytisk AI som ger koncisa, fokuserade analyser."},
-                                {"role": "user", "content": comment_prompt}
-                            ],
-                            "max_tokens": 200,
-                            "temperature": 0.7,
-                        }
-                        
-                        server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
-                        llm_response = requests.post(
-                            f"{server_url}/v1/chat/completions",
-                            json=payload,
-                            timeout=30,
-                        )
-                        llm_response.raise_for_status()
-                        result = llm_response.json()
-                        
-                        if 'choices' in result and len(result['choices']) > 0:
-                            comment_text = result['choices'][0].get('message', {}).get('content', '')
-                        else:
-                            comment_text = result.get('content', '')
-                        
-                        # Save to knowledge chain
-                        knowledge_chain.append({
-                            'round': round_num,
-                            'agent': agent_name,
-                            'insight': comment_text
-                        })
-                        
-                        # Emit comment (using oneseek_reasoning event for compatibility)
-                        await websocket.send_json({
-                            "type": "oneseek_reasoning",
-                            "round": round_num,
-                            "agent": agent_name,
-                            "message": comment_text,
-                            "data": {
-                                "reasoning": comment_text,
-                                "agent_analyzed": agent_name
-                            }
-                        })
-                        logger.info(f"[WS-Debate] OneSeek comment generated for {agent_name}")
-                        
-                    except Exception as e:
-                        logger.error(f"[WS-Debate] Error generating comment for {agent_name}: {e}")
-                        comment_text = f"Intressant poäng från {agent_name.upper()}."
-                        await websocket.send_json({
-                            "type": "oneseek_reasoning",
-                            "round": round_num,
-                            "agent": agent_name,
-                            "message": comment_text
-                        })
+                    server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                    llm_response = requests.post(
+                        f"{server_url}/v1/chat/completions",
+                        json=payload,
+                        timeout=30,
+                    )
+                    llm_response.raise_for_status()
+                    result = llm_response.json()
                     
-                    # 3. LIVE INSIGHT: One-liner "sport commentator" style update
-                    # Extract key themes for insight
-                    insight_keywords = []
-                    for keyword in ['ekonomi', 'miljö', 'samhälle', 'teknologi', 'framtid', 'konsekvens']:
-                        if keyword in agent_response.lower() or keyword in reasoning_text.lower():
-                            insight_keywords.append(keyword)
-                    
-                    if insight_keywords:
-                        insight = f"💡 {agent_name.upper()} fokuserar på {', '.join(insight_keywords[:2])} - {processed_count}/{len(external_agents)} svar mottagna"
+                    if 'choices' in result and len(result['choices']) > 0:
+                        comment_text = result['choices'][0].get('message', {}).get('content', '')
                     else:
-                        insight = f"💡 {agent_name.upper()} har delat sitt perspektiv - {processed_count}/{len(external_agents)} svar mottagna"
+                        comment_text = result.get('content', '')
                     
-                    await websocket.send_json({
-                        "type": "live_insight",
-                        "round": round_num,
-                        "agent": agent_name,
-                        "message": insight,
-                        "data": {
-                            "progress": f"{processed_count}/{len(external_agents)}"
-                        }
+                    # Save to knowledge chain
+                    knowledge_chain.append({
+                        'round': round_num,
+                        'agent': agent_name,
+                        'insight': comment_text
                     })
                     
-                    # Small delay before next answer
-                    await asyncio.sleep(0.5)
+                    # Emit comment (using oneseek_reasoning event for compatibility)
+                    await websocket.send_json({
+                        "type": "oneseek_reasoning",
+                        "round": round_num,
+                        "agent": agent_name,
+                        "message": comment_text,
+                        "data": {
+                            "reasoning": comment_text,
+                            "agent_analyzed": agent_name
+                        }
+                    })
+                    logger.info(f"[WS-Debate] OneSeek comment generated for {agent_name}")
                     
-                    # Check if we've processed all expected responses
-                    if processed_count >= len(external_agents):
-                        break
-                    
-                except asyncio.TimeoutError:
-                    # Check if all tasks are done
-                    if collect_task.done():
-                        logger.info(f"[WS-Debate] All external tasks completed, processed {processed_count} responses")
-                        break
-                    # If tasks still running but queue empty, continue waiting
-                    logger.debug(f"[WS-Debate] Queue empty but tasks still running, waiting...")
-                    continue
                 except Exception as e:
-                    logger.error(f"[WS-Debate] Error processing queued response: {e}")
-                    break
+                    logger.error(f"[WS-Debate] Error generating comment for {agent_name}: {e}")
+                    comment_text = f"Intressant poäng från {agent_name.upper()}."
+                    await websocket.send_json({
+                        "type": "oneseek_reasoning",
+                        "round": round_num,
+                        "agent": agent_name,
+                        "message": comment_text
+                    })
+                
+                # 3. LIVE INSIGHT: One-liner "sport commentator" style update
+                # Extract key themes for insight  
+                insight_keywords = []
+                for keyword in ['ekonomi', 'miljö', 'samhälle', 'teknologi', 'framtid', 'konsekvens']:
+                    if keyword in agent_response.lower() or keyword in comment_text.lower():
+                        insight_keywords.append(keyword)
+                
+                # Count how many responses we've received so far
+                async with external_responses_lock:
+                    responses_so_far = len(external_responses)
+                
+                if insight_keywords:
+                    insight = f"💡 {agent_name.upper()} fokuserar på {', '.join(insight_keywords[:2])} - {responses_so_far}/{len(external_agents)} svar mottagna"
+                else:
+                    insight = f"💡 {agent_name.upper()} har delat sitt perspektiv - {responses_so_far}/{len(external_agents)} svar mottagna"
+                
+                await websocket.send_json({
+                    "type": "live_insight",
+                    "round": round_num,
+                    "agent": agent_name,
+                    "message": insight,
+                    "data": {
+                        "progress": f"{responses_so_far}/{len(external_agents)}"
+                    }
+                })
+                
+                logger.info(f"[WS-Debate] OneSeek finished processing {agent_name}'s answer")
+                return response
             
-            # Wait for all collection tasks to complete
-            await collect_task
+            # Start all external AI requests concurrently - each will process IMMEDIATELY when it arrives
+            external_tasks = [asyncio.create_task(get_and_process_immediately(agent)) for agent in external_agents]
+            logger.info(f"[WS-Debate] Started {len(external_tasks)} parallel tasks - each will process IMMEDIATELY on arrival")
+            
+            # Wait for all tasks to complete
+            await asyncio.gather(*external_tasks, return_exceptions=True)
+            logger.info(f"[WS-Debate] All {len(external_agents)} external responses received and processed")
             
             # Filter successful responses only
             round_responses.extend([r for r in external_responses if r.get('success', False)])
