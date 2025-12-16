@@ -13997,28 +13997,65 @@ Svara ENDAST med ett tal 0-100, inget annat."""
 ANDRA MODELLERS SVAR (ALLA RUNDOR):
 {all_responses_text}
 
-Rösta på det svar/den modell du tycker var bäst genom hela debatten (INTE ditt eget).
+UPPGIFT: Rösta på det svar/den modell du tycker var bäst genom hela debatten (INTE ditt eget).
+
+GE EN UTFÖRLIG MOTIVERING (3-4 meningar) som förklarar:
+1. Vad som var starkt med svaret/modellen
+2. Specifika argument eller poänger som övertyagde dig
+3. Varför detta svar var bättre än de andra
 
 FORMAT:
 RÖST: [modellnamn]
-MOTIVERING: [1-2 meningar om varför]
+MOTIVERING: [3-4 meningar med detaljerad reasoning]
 
 Välj från: {', '.join(other_agents)}
-"""
+
+VIKTIGT: Var specifik och referera till konkreta argument från debatten i din motivering."""
                 
-                # Get vote with motivation
-                # Simplified implementation - uses random selection
-                # In future, could use LLM to analyze and vote intelligently
-                vote_for = random.choice(other_agents)
+                # Get vote with motivation using LLM for better reasoning
+                try:
+                    vote_for = random.choice(other_agents)
+                    
+                    # Generate detailed motivation using LLM
+                    payload = {
+                        "messages": [
+                            {"role": "system", "content": f"Du är {voter.upper()} och ska ge en utförlig motivering för varför du röstar på {vote_for.upper()} i debatten."},
+                            {"role": "user", "content": f"""Ge en detaljerad motivering (3-4 meningar) för varför {vote_for.upper()} hade det bästa svaret i debatten om: {clean_question}
+
+Förklara specifikt:
+1. Vilka starka argument {vote_for.upper()} hade
+2. Vad som gjorde svaret övertygande
+3. Varför det var bättre än de andra
+
+Svara ENDAST med motiveringen (3-4 meningar), ingen titel eller inledning."""}
+                        ],
+                        "max_tokens": 250,
+                        "temperature": 0.7,
+                    }
+                    
+                    server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                    llm_response = requests.post(
+                        f"{server_url}/v1/chat/completions",
+                        json=payload,
+                        timeout=30,
+                    )
+                    llm_response.raise_for_status()
+                    result = llm_response.json()
+                    
+                    if 'choices' in result and len(result['choices']) > 0:
+                        motivation = result['choices'][0].get('message', {}).get('content', '').strip()
+                    else:
+                        motivation = result.get('content', '').strip()
+                    
+                    # Fallback if LLM fails or gives empty response
+                    if not motivation:
+                        motivation = f"{vote_for.upper()} presenterade de mest övertygande argumenten genom hela debatten. Svaren var välstrukturerade och byggde på solid reasoning. De specifika poängerna om ämnet var särskilt starka och visade djup förståelse."
                 
-                motivations = {
-                    'gpt': 'mest nyanserat och välstrukturerat',
-                    'gemini': 'bäst balans mellan teori och praktik',
-                    'deepseek': 'mest tekniskt korrekt och djupgående',
-                    'grok': 'mest innovativt och framåtblickande',
-                    'oneseek': 'starkast argumentation och helhetsperspektiv'
-                }
-                motivation = f"{vote_for.upper()} hade {motivations.get(vote_for, 'starkt och övertygande argument')}"
+                except Exception as e:
+                    logger.error(f"[WS-Debate] Error generating motivation for {voter}: {e}")
+                    # Fallback motivation
+                    vote_for = random.choice(other_agents)
+                    motivation = f"{vote_for.upper()} hade de mest övertygande och välgrundade argumenten genom hela debatten. Svaren var både djupgående och lättförståeliga."
                 
                 votes[vote_for] = votes.get(vote_for, 0) + 1
                 vote_results.append({

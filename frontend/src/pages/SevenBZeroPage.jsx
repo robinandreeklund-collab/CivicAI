@@ -2017,63 +2017,50 @@ export default function SevenBZeroPage() {
             break;
             
           case 'voting_intro':
-            // OneSeek introduces voting phase
+            // OneSeek introduces voting phase - add to debate state, not general messages
             setThinkingStep(null);
-            const votingIntroMsg = {
-              id: `voting-intro-${Date.now()}`,
-              type: 'assistant',
-              text: message.message,
-              timestamp: new Date().toISOString(),
-              isVotingIntro: true
-            };
-            setMessages(prev => [...prev, votingIntroMsg]);
-            setConversationHistory(prev => [...prev, {
-              role: 'assistant',
-              content: message.message,
-              timestamp: votingIntroMsg.timestamp
-            }]);
+            setDebateRounds(prev => ({
+              ...prev,
+              voting: {
+                ...(prev.voting || {}),
+                intro: message.message
+              }
+            }));
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
             
           case 'vote_received':
-            // Individual vote with motivation
+            // Individual vote with motivation - add to debate state
             console.log(`[Debate] Vote from ${message.voter} for ${message.voted_for}`);
-            const voteMsg = {
-              id: `vote-${message.voter}-${Date.now()}`,
-              type: 'assistant',
-              text: message.message,
-              timestamp: new Date().toISOString(),
-              isVote: true,
-              voter: message.voter,
-              votedFor: message.voted_for
-            };
-            setMessages(prev => [...prev, voteMsg]);
-            setConversationHistory(prev => [...prev, {
-              role: 'assistant',
-              content: message.message,
-              timestamp: voteMsg.timestamp
-            }]);
+            setDebateRounds(prev => ({
+              ...prev,
+              voting: {
+                ...(prev.voting || {}),
+                votes: [
+                  ...(prev.voting?.votes || []),
+                  {
+                    voter: message.voter,
+                    votedFor: message.voted_for,
+                    message: message.message
+                  }
+                ]
+              }
+            }));
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
             
           case 'winner':
-            // Winner announcement
+            // Winner announcement - add to debate state
             setThinkingStep(null);
-            const winnerMsg = {
-              id: `winner-${Date.now()}`,
-              type: 'assistant',
-              text: message.message,
-              timestamp: new Date().toISOString(),
-              isWinner: true,
-              winner: message.data.winner,
-              votes: message.data.votes
-            };
-            setMessages(prev => [...prev, winnerMsg]);
-            setConversationHistory(prev => [...prev, {
-              role: 'assistant',
-              content: message.message,
-              timestamp: winnerMsg.timestamp
-            }]);
+            setDebateRounds(prev => ({
+              ...prev,
+              voting: {
+                ...(prev.voting || {}),
+                winner: message.data.winner,
+                winnerVotes: message.data.votes,
+                winnerMessage: message.message
+              }
+            }));
             
             // Show confetti for winner!
             setShowConfetti(true);
