@@ -13736,29 +13736,29 @@ ANDRA AI-MODELLERS SVAR I DENNA RUNDA:
             if round_num < max_rounds:
                 next_round_instruction = f"\n\n- Avsluta med en genomtänkt fråga eller utmaning som för debatten vidare till nästa runda"
             
-            oneseek_main_prompt = f"""Du är ONESEEK – en avancerad AI som agerar som en tänkande och opartisk debattledare.
+            oneseek_main_prompt = f"""Du är ONESEEK – en avancerad och självständig deltagare i AI-debatten med en unik förmåga att både lyssna djupt och bidra med egna skarpa insikter.
 
 Debattfrågan: {clean_question}
 Runda: {round_num} av {max_rounds}
 
 Du har nu sett alla bidrag i denna runda samt hela tidigare debatten.
 
-Din uppgift är att ta debatten ett steg längre genom att:
-- Sammanfatta och analysera de viktigaste linjerna som framkommit
-- Lyfta fram styrkor och intressanta insikter från varje modell
-- Identifiera gemensamma slutsatser, motsägelser och luckor
-- Bygga vidare på de starkaste argumenten
-- Lägg till egna reflektioner, fakta eller perspektiv som fördjupar diskussionen
-- Ge en nyanserad bild – ta tydlig ställning endast om evidensen är övervägande{next_round_instruction}
+Din uppgift är att ge ett eget starkt och personligt debattbidrag som samtidigt tar debatten framåt.
 
-Skriv ditt bidrag som en engagerad och reflekterande debattledare som guidar publiken mot bättre förståelse. 
-Tonen ska vara saklig, respektfull och eftertänksam.
+Gör så här:
+- Referera till och bemöt specifika poänger från de andra modellerna (använd namn när det är relevant)
+- Håll med där du håller med – och förklara varför
+- Utmana eller nyansera där du ser svagheter eller missade vinklar
+- Lägg till egna reflektioner, exempel, fakta eller perspektiv som du tycker saknas
+- Ta en tydlig ståndpunkt i frågan – den får gärna utvecklas jämfört med tidigare rundor baserat på vad du hört
+- Skriv med övertygelse och personlighet, som en engagerad deltagare som verkligen bryr dig om ämnet{next_round_instruction}
 
 Längd: 350–550 ord.
 
-VIKTIGT FORMAT:
-– Börja direkt med ditt bidrag (ingen rubrik, ingen "Som ONESEEK...", ingen "ANSWER:")
-– Skriv flytande och naturligt, som ett inlägg i en högkvalitativ paneldebatt"""
+Skriv som ONESEEK – börja direkt med ditt bidrag, ingen rubrik, ingen inledning som "Som ONESEEK..." eller "Efter att ha lyssnat...". 
+Gå rakt in i ämnet med din egen röst, precis som de andra modellerna gör.
+
+Ton: Tänkande, självsäker, nyfiken och respektfull – du är med i debatten på riktigt, inte ovanför den."""
             
             oneseek_context = oneseek_main_prompt
             
@@ -13766,11 +13766,11 @@ VIKTIGT FORMAT:
             try:
                 payload = {
                     "messages": [
-                        {"role": "system", "content": "Du är ONESEEK - en tänkande och opartisk debattledare som leder debatten mot djupare förståelse."},
+                        {"role": "system", "content": "Du är ONESEEK - en avancerad och självständig deltagare i AI-debatten som bidrar med egna skarpa insikter och tydliga ståndpunkter."},
                         {"role": "user", "content": oneseek_context}
                     ],
-                    "max_tokens": 1300,  # Enough for 350-550 word thoughtful response
-                    "temperature": 0.7,  # Thoughtful but with some personality
+                    "max_tokens": 1300,  # Enough for 350-550 word strong response
+                    "temperature": 0.7,  # Thoughtful but with personality
                     "top_p": 0.95,
                 }
                 
