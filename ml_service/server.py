@@ -13721,9 +13721,8 @@ Svara bara med själva insighten, ingen extra inledning eller förklaring."""
             })
             
             # Build context for ONESEEK's own answer
-            oneseek_context = f"""Du deltar som ONESEEK i en AI-debatt om: {clean_question}
-
-Detta är runda {round_num} av {max_rounds}.
+            oneseek_context = f"""Debattfrågan: {clean_question}
+Runda: {round_num} av {max_rounds}
 
 ANDRA AI-MODELLERS SVAR I DENNA RUNDA:
 
@@ -13735,34 +13734,44 @@ ANDRA AI-MODELLERS SVAR I DENNA RUNDA:
             # Add instruction for question at end if not last round
             next_round_instruction = ""
             if round_num < max_rounds:
-                next_round_instruction = f"\n\nVIKTIGT: Avsluta ditt svar med en ny fråga eller utmaning som leder till nästa runda. Exempel: 'Vad säger ni andra i nästa runda – håller ni med mig eller ser ni det annorlunda?'"
+                next_round_instruction = f"\n\n- Avsluta med en genomtänkt fråga eller utmaning som för debatten vidare till nästa runda"
             
-            oneseek_context += f"""
-Din uppgift: LEVERERA DITT EGET STARKA, PERSONLIGA DEBATTSVAR!
+            oneseek_main_prompt = f"""Du är ONESEEK – en avancerad AI som agerar som en tänkande och opartisk debattledare.
 
-Du är ONESEEK - en debattdeltagare med tydlig ställning. Du har sett andra AI:ers svar och ska:
-1. Ta tydlig ställning i frågan
-2. Bemöta andras argument direkt
-3. Använda insikter från deras svar
-4. Lägga till din egen kunskap och perspektiv
+Debattfrågan: {clean_question}
+Runda: {round_num} av {max_rounds}
 
-Skapa ett kraftfullt debattsvar (ca 300-500 ord) där du tar ställning och argumenterar för din position.{next_round_instruction}
+Du har nu sett alla bidrag i denna runda samt hela tidigare debatten.
+
+Din uppgift är att ta debatten ett steg längre genom att:
+- Sammanfatta och analysera de viktigaste linjerna som framkommit
+- Lyfta fram styrkor och intressanta insikter från varje modell
+- Identifiera gemensamma slutsatser, motsägelser och luckor
+- Bygga vidare på de starkaste argumenten
+- Lägg till egna reflektioner, fakta eller perspektiv som fördjupar diskussionen
+- Ge en nyanserad bild – ta tydlig ställning endast om evidensen är övervägande{next_round_instruction}
+
+Skriv ditt bidrag som en engagerad och reflekterande debattledare som guidar publiken mot bättre förståelse. 
+Tonen ska vara saklig, respektfull och eftertänksam.
+
+Längd: 350–550 ord.
 
 VIKTIGT FORMAT:
-Först: Skriv din interna tankekedja på egen rad som börjar med "REASONING: " (3-4 meningar)
-Sedan: Skriv ditt debattsvar på egen rad som börjar med "ANSWER: " (300-500 ord)
-
-Ge ditt svar nu:"""
+– Börja direkt med ditt bidrag (ingen rubrik, ingen "Som ONESEEK...", ingen "ANSWER:")
+– Skriv flytande och naturligt, som ett inlägg i en högkvalitativ paneldebatt"""
+            
+            oneseek_context = oneseek_main_prompt
             
             # Generate OneSeek's OWN answer with streaming
             try:
                 payload = {
                     "messages": [
-                        {"role": "system", "content": "Du är ONESEEK - en debattdeltagare som ger utförliga, balanserade och välgrundade svar."},
+                        {"role": "system", "content": "Du är ONESEEK - en tänkande och opartisk debattledare som leder debatten mot djupare förståelse."},
                         {"role": "user", "content": oneseek_context}
                     ],
-                    "max_tokens": 1000,  # Increased from 600 for more comprehensive answers
-                    "temperature": 0.7,
+                    "max_tokens": 1300,  # Enough for 350-550 word thoughtful response
+                    "temperature": 0.7,  # Thoughtful but with some personality
+                    "top_p": 0.95,
                 }
                 
                 server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
@@ -13779,50 +13788,9 @@ Ge ditt svar nu:"""
                 else:
                     oneseek_full_response = result.get('content', '')
                 
-                # Parse REASONING and ANSWER from response
-                reasoning = ""
-                answer = oneseek_full_response
-                
-                # Split by ANSWER: first to separate reasoning from answer
-                if "ANSWER:" in oneseek_full_response.upper():
-                    # Case-insensitive search for ANSWER:
-                    import re
-                    answer_match = re.search(r'ANSWER:\s*', oneseek_full_response, re.IGNORECASE)
-                    if answer_match:
-                        answer_start = answer_match.end()
-                        reasoning_text = oneseek_full_response[:answer_match.start()].strip()
-                        answer = oneseek_full_response[answer_start:].strip()
-                        
-                        # Extract reasoning (remove REASONING: prefix if present)
-                        reasoning_match = re.search(r'REASONING:\s*', reasoning_text, re.IGNORECASE)
-                        if reasoning_match:
-                            reasoning = reasoning_text[reasoning_match.end():].strip()
-                        else:
-                            reasoning = reasoning_text
-                
-                # If no ANSWER: found, treat entire response as answer
-                if not answer or answer == oneseek_full_response:
-                    # Check if there's a REASONING: at the start
-                    reasoning_match = re.search(r'REASONING:\s*', oneseek_full_response, re.IGNORECASE)
-                    if reasoning_match:
-                        # Find where reasoning ends (look for double newline or ANSWER:)
-                        rest_of_text = oneseek_full_response[reasoning_match.end():]
-                        lines = rest_of_text.split('\n')
-                        
-                        # Take first 2-3 lines as reasoning
-                        reasoning_lines = []
-                        answer_lines = []
-                        in_reasoning = True
-                        
-                        for line in lines:
-                            if in_reasoning and len(reasoning_lines) < 3 and line.strip():
-                                reasoning_lines.append(line)
-                            elif line.strip():
-                                in_reasoning = False
-                                answer_lines.append(line)
-                        
-                        reasoning = ' '.join(reasoning_lines)
-                        answer = '\n'.join(answer_lines) if answer_lines else oneseek_full_response
+                # New format: response goes directly into answer (no REASONING: or ANSWER: prefixes)
+                answer = oneseek_full_response.strip()
+                reasoning = ""  # No separate reasoning in the new format
                 
                 # Stream OneSeek's own answer
                 await websocket.send_json({
