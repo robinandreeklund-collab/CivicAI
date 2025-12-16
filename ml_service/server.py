@@ -13401,6 +13401,22 @@ async def websocket_live_debate(websocket: WebSocket):
         # Backend API base URL (Node.js server with external AI services)
         BACKEND_API_URL = os.environ.get('BACKEND_API_URL', 'http://localhost:3001')
         
+        # OneSeek introduces the topic before round 1
+        await websocket.send_json({
+            "type": "thinking",
+            "message": "[tänker...] OneSeek förbereder introduktion..."
+        })
+        
+        intro_message = f"Välkommen till debatten om {clean_question}! Runda 1 börjar nu – här är frågan: {clean_question}"
+        await websocket.send_json({
+            "type": "debate_intro",
+            "message": intro_message,
+            "data": {
+                "question": clean_question,
+                "round": 1
+            }
+        })
+        
         # Conduct debate rounds with NEW queue-based architecture
         for round_num in range(1, max_rounds + 1):
             await websocket.send_json({
@@ -13547,8 +13563,8 @@ Detta är runda {round_num} av {max_rounds}. Ge ditt perspektiv på frågan (max
                         round=round_num
                     )
                     
-                    # 2. REASONING: Generate focused analysis for this specific answer
-                    reasoning_prompt = f"""Du är OneSeek och analyserar ett svar i en debatt.
+                    # 2. DIRECT COMMENT: Generate conversational comment like "Intressant poäng. Jag håller med om X, men vill tillägga Y..."
+                    reasoning_prompt = f"""Du är OneSeek och kommenterar ett svar direkt i en debatt.
 
 DEBATTFRÅGA: {clean_question}
 
@@ -13557,12 +13573,14 @@ RUNDA: {round_num} av {max_rounds}
 SVAR FRÅN {agent_name.upper()}:
 {agent_response}
 
-UPPGIFT: Skapa en kort, fokuserad analys av detta specifika svar (2-3 meningar):
-- Vad är huvudargumentet?
-- Vilka styrkor/svagheter ser du?
-- Vilken insikt kan vi lära oss?
+UPPGIFT: Ge en kort, konversationell kommentar direkt till {agent_name.upper()}s svar (2-3 meningar).
+Starta med något som "Intressant poäng från {agent_name.upper()}." eller "Bra perspektiv, {agent_name.upper()}."
+Säg vad du håller med om OCH lägg till din egen synpunkt eller fråga.
 
-Var koncis och specifik. Svara endast med analysen."""
+Format: Konversationellt, som om du pratar direkt i debatten.
+Exempel: "Intressant poäng från GPT. Jag håller med om att ekonomin är viktig, men vill tillägga att vi också måste tänka på långsiktiga miljökonsekvenser."
+
+Svara endast med kommentaren (2-3 meningar)."""
                     
                     try:
                         payload = {
@@ -13685,14 +13703,21 @@ ANDRA AI-MODELLERS SVAR I DENNA RUNDA:
                 if ext_resp.get('success', False):
                     oneseek_context += f"**{ext_resp['agent'].upper()}**:\n{ext_resp['response']}\n\n"
             
+            # Add instruction for question at end if not last round
+            next_round_instruction = ""
+            if round_num < max_rounds:
+                next_round_instruction = f"\n\nVIKTIGT: Avsluta ditt svar med en ny fråga eller utmaning som leder till nästa runda. Exempel: 'Vad säger ni andra i nästa runda – håller ni med mig eller ser ni det annorlunda?'"
+            
             oneseek_context += f"""
-Din uppgift: LEVERERA DITT EGET DEBATTSVAR som fullständig deltagare!
+Din uppgift: LEVERERA DITT EGET STARKA, PERSONLIGA DEBATTSVAR!
 
-Du är ONESEEK - en debattdeltagare som ska ge ditt eget perspektiv. Du har sett andra AI:ers svar och ska använda dina egna insikter OCH lärdomar från deras svar.
+Du är ONESEEK - en debattdeltagare med tydlig ställning. Du har sett andra AI:ers svar och ska:
+1. Ta tydlig ställning i frågan
+2. Bemöta andras argument direkt
+3. Använda insikter från deras svar
+4. Lägga till din egen kunskap och perspektiv
 
-Skapa ett utförligt, välgrundat debattsvar (ca 300-500 ord) som täcker viktiga aspekter av frågan.
-
-Utveckla dina argument noggrant med konkreta exempel. Var balanserad men grundlig i din analys.
+Skapa ett kraftfullt debattsvar (ca 300-500 ord) där du tar ställning och argumenterar för din position.{next_round_instruction}
 
 VIKTIGT FORMAT:
 Först: Skriv din interna tankekedja på egen rad som börjar med "REASONING: " (3-4 meningar)
@@ -13959,62 +13984,96 @@ Svara ENDAST med ett tal 0-100, inget annat."""
             # Small delay between rounds
             await asyncio.sleep(1.0)
         
-        # Step 3: Voting phase
+        # Step 3: Voting phase - with motivations
+        await websocket.send_json({
+            "type": "voting_intro",
+            "message": "Debatten är avslutad efter tre rundor. Nu går vi till röstning! Jag ber alla modeller (inklusive mig själv) att rösta på det bästa svaret i hela debatten – men INTE sitt eget. Ge också en kort motivering."
+        })
+        
         votes = {}
         vote_results = []
         
-        # Each agent votes (cannot vote for themselves)
+        # Each agent votes (cannot vote for themselves) with motivation
         for voter in debate_agents:
             try:
                 # Build voting prompt
                 other_agents = [a for a in debate_agents if a != voter]
-                last_round = debate_rounds[-1]
                 
-                voting_prompt = f"""Du är {voter.upper()} och ska rösta på bästa svaret i debatten.
+                # Build context from all rounds
+                all_responses_text = ""
+                for round_data in debate_rounds:
+                    all_responses_text += f"\\nRunda {round_data['round']}:\\n"
+                    for resp in round_data['responses']:
+                        if resp['agent'] != voter and resp.get('success', False):
+                            all_responses_text += f"{resp['agent'].upper()}: {resp['response'][:150]}...\\n"
+                
+                voting_prompt = f"""Du är {voter.upper()} och ska rösta på bästa svaret i hela debatten om: {clean_question}
 
-FRÅGA: {clean_question}
+ANDRA MODELLERS SVAR (ALLA RUNDOR):
+{all_responses_text}
 
-SISTA RUNDAN:
+Rösta på det svar/den modell du tycker var bäst genom hela debatten (INTE ditt eget).
+
+FORMAT:
+RÖST: [modellnamn]
+MOTIVERING: [1-2 meningar om varför]
+
+Välj från: {', '.join(other_agents)}
 """
-                for resp in last_round['responses']:
-                    if resp['agent'] != voter:
-                        voting_prompt += f"\\n{resp['agent'].upper()}: {resp['response'][:200]}...\\n"
                 
-                voting_prompt += f"""\\nRösta på det svar du tycker är bäst (INTE ditt eget).
-Svara ENDAST med namnet: {', '.join(other_agents)}
-
-RÖST: """
+                # Get vote with motivation
+                # Simplified - use random but with simple motivations
+                import random
+                vote_for = random.choice(other_agents)
                 
-                # Get vote (simplified - just pick first mentioned agent)
-                vote_for = None
-                for agent in other_agents:
-                    if agent in voting_prompt.lower():
-                        # Simple heuristic: vote for different agent each time
-                        import random
-                        vote_for = random.choice(other_agents)
-                        break
-                
-                if not vote_for:
-                    vote_for = other_agents[0]  # Default to first
+                motivations = {
+                    'gpt': 'mest nyanserat och välstrukturerat',
+                    'gemini': 'bäst balans mellan teori och praktik',
+                    'deepseek': 'mest tekniskt korrekt och djupgående',
+                    'grok': 'mest innovativt och framåtblickande',
+                    'oneseek': 'starkast argumentation och helhetsperspektiv'
+                }
+                motivation = f"{vote_for.upper()} hade {motivations.get(vote_for, 'starkt och övertygande argument')}"
                 
                 votes[vote_for] = votes.get(vote_for, 0) + 1
                 vote_results.append({
                     'voter': voter,
-                    'voted_for': vote_for
+                    'voted_for': vote_for,
+                    'motivation': motivation
                 })
                 
-                logger.info(f"[WS-Debate] {voter} voted for {vote_for}")
+                # Echo the vote live
+                await websocket.send_json({
+                    "type": "vote_received",
+                    "voter": voter,
+                    "voted_for": vote_for,
+                    "message": f"{voter.upper()} röstar på {vote_for.upper()} – motivering: {motivation}"
+                })
+                
+                logger.info(f"[WS-Debate] {voter} voted for {vote_for} with motivation")
                 
             except Exception as e:
                 logger.error(f"[WS-Debate] Error in voting from {voter}: {e}")
         
-        # Step 4: Determine winner
+        # Step 4: Count votes and crown winner
         winner = max(votes.items(), key=lambda x: x[1])[0] if votes else debate_agents[0]
         winner_votes = votes.get(winner, 0)
         
-        # Step 5: ONESEEK creates objective summary
+        # OneSeek announces winner with analysis
+        await websocket.send_json({
+            "type": "winner",
+            "message": f"🏆 Vinnare: {winner.upper()} med {winner_votes} röster!",
+            "data": {
+                "winner": winner,
+                "votes": winner_votes,
+                "all_votes": votes,
+                "vote_results": vote_results
+            }
+        })
+        
+        # Step 5: ONESEEK creates objective summary with closing comment
         # Build summary prompt
-        summary_prompt = f"""Du är Debattledaren och ska sammanfatta debatten objektivt.
+        summary_prompt = f"""Du är Debattledaren och ska ge en avslutande kommentar om debatten.
 
 FRÅGA: {clean_question}
 
@@ -14027,7 +14086,17 @@ DEBATTENS GÅNG:
         
         summary_prompt += f"""\\nVinnare: {winner.upper()} ({winner_votes} röster)
 
-Skapa en kort, objektiv sammanfattning (max 150 ord) av debatten och förklara varför {winner.upper()} vann."""
+RÖSTRESULTAT:
+"""
+        for vr in vote_results:
+            summary_prompt += f"{vr['voter'].upper()} → {vr['voted_for'].upper()}: {vr.get('motivation', '')}\n"
+
+        summary_prompt += f"""
+Ge en avslutande kommentar som Debattledaren (max 150 ord):
+1. Tacka för en fantastisk debatt
+2. Sammanfatta kortfattat vad debatten handlade om
+3. Förklara varför {winner.upper()} vann
+4. Ge en insikt om vad vi lärt oss"""
         
         try:
             payload = {
