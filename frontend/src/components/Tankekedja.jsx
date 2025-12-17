@@ -44,9 +44,13 @@ function calculateDuration(start, end) {
 
 /**
  * Modal for displaying raw JSON/text data
+ * Fixed: Added null/undefined safety checks to prevent black screens
  */
 function DataModal({ isOpen, onClose, title, data, type = 'json' }) {
   if (!isOpen) return null;
+  
+  // Safety check for data
+  const safeData = data !== null && data !== undefined ? data : (type === 'json' ? {} : '');
   
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -57,7 +61,7 @@ function DataModal({ isOpen, onClose, title, data, type = 'json' }) {
         </div>
         <div className="flex-1 overflow-auto p-4">
           <pre className="text-[10px] font-mono text-[#0a0] whitespace-pre-wrap">
-            {type === 'json' ? JSON.stringify(data, null, 2) : data}
+            {type === 'json' ? JSON.stringify(safeData, null, 2) : (safeData || '')}
           </pre>
         </div>
       </div>
@@ -66,136 +70,17 @@ function DataModal({ isOpen, onClose, title, data, type = 'json' }) {
 }
 
 /**
- * MTA-DO Longitudinal Visualization Component
- * Shows trends across rounds with sparklines and tables
+ * MTA-DO Longitudinal Visualization Component - MOVED TO SevenBZeroPage
+ * This component has been removed from Tankekedja to maintain consistent tree structure.
+ * The MTA longitudinal analysis now appears in the main debate view instead of embedded in the sidebar tree.
+ * 
+ * Note: MTA data is still tracked and exported from Tankekedja via the mtaDataByRound object,
+ * but visualization is handled by a separate component in SevenBZeroPage.
  */
-function MTALongitudinalView({ mtaData }) {
-  console.log('[MTALongitudinalView] Received mtaData:', mtaData);
-  
-  if (!mtaData || mtaData.length === 0) {
-    console.log('[MTALongitudinalView] No data available');
-    return (
-      <div className="mt-2 p-2 bg-[#0a0a0a] border border-[#222] rounded text-[10px] text-[#666]">
-        MTA-DO Longitudinal Analysis: Ingen data tillgänglig
-      </div>
-    );
-  }
-  
-  const dimensions = ['relevance', 'argument_depth', 'factual_anchoring', 'clarity', 'logical_coherence', 'risk_hallucination'];
-  const dimensionLabels = {
-    relevance: 'Relevans',
-    argument_depth: 'Argumentdjup',
-    factual_anchoring: 'Faktaförankring',
-    clarity: 'Klarhet',
-    logical_coherence: 'Logisk koherens',
-    risk_hallucination: 'Risk/Hallucination'
-  };
-  
-  // Calculate sparkline data for each dimension
-  const getSparklineData = (dimension) => {
-    return mtaData.map(round => {
-      const agents = Object.keys(round).filter(k => k !== 'round');
-      const scores = agents.map(agent => {
-        const analysis = round[agent]?.analysis;
-        return analysis?.[dimension]?.score || 0;
-      });
-      return scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
-    });
-  };
-  
-  // Simple sparkline component
-  const Sparkline = ({ data, color = '#0a0' }) => {
-    if (!data || data.length === 0) return null;
-    const max = Math.max(...data, 10);
-    const min = Math.min(...data, 0);
-    const range = max - min || 1;
-    
-    const points = data.map((value, index) => {
-      const x = (index / (data.length - 1)) * 60;
-      const y = 20 - ((value - min) / range) * 15;
-      return `${x},${y}`;
-    }).join(' ');
-    
-    return (
-      <svg width="60" height="20" className="inline-block">
-        <polyline
-          fill="none"
-          stroke={color}
-          strokeWidth="1"
-          points={points}
-        />
-      </svg>
-    );
-  };
-  
-  return (
-    <div className="bg-[#0a0a0a] rounded border border-[#1a1a1a] p-3 mt-2">
-      <div className="text-xs text-[#888] mb-2">MTA-DO Longitudinal Analysis</div>
-      <div className="space-y-2">
-        {dimensions.map(dim => {
-          const sparkData = getSparklineData(dim);
-          const avgScore = sparkData.length > 0 
-            ? (sparkData.reduce((a, b) => a + b, 0) / sparkData.length).toFixed(1)
-            : 'N/A';
-          
-          return (
-            <div key={dim} className="flex items-center gap-3 text-[10px]">
-              <div className="w-32 text-[#777]">{dimensionLabels[dim]}</div>
-              <Sparkline data={sparkData} />
-              <div className="text-[#0a0]">{avgScore}/10</div>
-            </div>
-          );
-        })}
-      </div>
-      
-      {/* Longitudinal table */}
-      <div className="mt-3 border-t border-[#1a1a1a] pt-2">
-        <div className="text-[9px] text-[#666] mb-1">Trend per runda</div>
-        <div className="grid grid-cols-4 gap-2 text-[9px]">
-          <div className="text-[#555]">Runda</div>
-          <div className="text-[#555]">Avg Score</div>
-          <div className="text-[#555]">Best Dim</div>
-          <div className="text-[#555]">Weak Dim</div>
-          
-          {mtaData.map((round, idx) => {
-            const agents = Object.keys(round).filter(k => k !== 'round');
-            const allScores = {};
-            
-            agents.forEach(agent => {
-              const analysis = round[agent]?.analysis;
-              dimensions.forEach(dim => {
-                if (!allScores[dim]) allScores[dim] = [];
-                allScores[dim].push(analysis?.[dim]?.score || 0);
-              });
-            });
-            
-            const avgScores = {};
-            Object.keys(allScores).forEach(dim => {
-              const scores = allScores[dim];
-              avgScores[dim] = scores.reduce((a, b) => a + b, 0) / scores.length;
-            });
-            
-            const totalAvg = Object.values(avgScores).reduce((a, b) => a + b, 0) / dimensions.length;
-            const bestDim = Object.entries(avgScores).sort((a, b) => b[1] - a[1])[0];
-            const weakDim = Object.entries(avgScores).sort((a, b) => a[1] - b[1])[0];
-            
-            return (
-              <React.Fragment key={idx}>
-                <div className="text-[#777]">{idx + 1}</div>
-                <div className="text-[#0a0]">{totalAvg.toFixed(1)}</div>
-                <div className="text-[#6a6]">{dimensionLabels[bestDim[0]].substring(0, 8)}</div>
-                <div className="text-[#a66]">{dimensionLabels[weakDim[0]].substring(0, 8)}</div>
-              </React.Fragment>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /**
  * Build tree structure with deep API details
+ * Fixed: Enhanced data safety checks to prevent null/undefined access
  */
 function buildTreeStructure(events) {
   const tree = {
@@ -645,10 +530,7 @@ function TreeNode({ node, depth = 0, isLast = false, previousNode = null, active
               </div>
             )}
             
-            {/* MTA Longitudinal View for final summary */}
-            {node.type === 'final_summary' && node.mtaData && (
-              <MTALongitudinalView mtaData={node.mtaData} />
-            )}
+            {/* Note: MTA Longitudinal View has been moved to SevenBZeroPage to maintain consistent tree structure */}
             
             {/* Thinking steps */}
             {node.steps && (
