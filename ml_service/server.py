@@ -13414,10 +13414,6 @@ Ge EN kort, vass observation (1–2 meningar) som:
 Börja alltid med 💡
 Skriv med pondus och originalitet – visa att du redan ser den överlägsna helheten.
 
-Exempel:
-💡 DeepSeek höjer ribban med evidens – nu ser jag hur det integreras med Groks ramverk till något helt nytt.
-💡 Intressant: alla tre landar i hybrider men från olika håll – det finns en meta-lösning här som ingen sagt ännu.
-
 GE DIN INSIGHT NU (börja direkt med 💡):"""
 
                         insight_text = generate_with_llama_server(
@@ -13598,13 +13594,17 @@ Svara direkt – ingen inledning."""
                                     comment_text = result.get('content', '')
                                 
                                 # Stream commentary
-                                await stream_text_tokens(
-                                    websocket,
-                                    comment_text,
-                                    "oneseek_reasoning",
-                                    agent="oneseek",
-                                    round=round_num
-                                )
+                                commentary_event = {
+                                    "type": "oneseek_commentary",
+                                    "round": round_num,
+                                    "agent": agent,
+                                    "message": comment_text,
+                                    "sequence": get_next_sequence(),
+                                    "data": {
+                                        "comment": comment_text
+                                    }
+                                }
+                                await websocket.send_json(commentary_event)
                                 
                                 # Save to knowledge chain
                                 knowledge_chain.append({
@@ -13710,11 +13710,7 @@ Ge EN kort, vass observation (1–2 meningar):
 - Antyder din egen kommande syntes som går bortom individuella bidrag
 
 Börja alltid med 💡
-Visa att du redan ser den överlägsna helheten.
-
-Exempel:
-💡 DeepSeek höjer ribban med evidens – nu ser jag hur det integreras med Groks ramverk till något helt nytt.
-💡 Intressant: alla tre landar i hybrider men från olika håll – det finns en meta-lösning här som ingen sagt ännu."""
+Visa att du redan ser den överlägsna helheten."""
                                 
                                 insight_payload = {
                                     "messages": [
