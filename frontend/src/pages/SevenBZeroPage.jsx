@@ -7,7 +7,7 @@ import FollowUpButtons from '../components/FollowUpButtons';
 import { sendPersonalityMessageViaWebSocket, isWebSocketSupported } from '../services/personalityWebSocket';
 import { handleFollowUpAction } from '../services/chat';
 import DebateRoundDisplay from '../components/DebateRoundDisplay';
-import TankekedjaS sidebar from '../components/TankekedjaS sidebar';
+import Tankekedja from "../components/Tankekedja";
 
 /**
  * 7B-Zero Page - Integrated OQI Interface
@@ -4418,7 +4418,7 @@ export default function SevenBZeroPage() {
 
       {/* Tankekedja Sidebar - Real-time Transparency */}
       {debateMode && (
-        <TankekedjaS sidebar 
+        <Tankekedja 
           events={tankekedjaEvents} 
           isVisible={showTankekedja}
           onToggle={() => setShowTankekedja(!showTankekedja)}
