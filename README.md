@@ -1107,41 +1107,67 @@ for mta in mta_analyses:
 
 After Round 3, all participants vote on the best response.
 
-**All Voters:**
-- GPT, Gemini, DeepSeek, Grok (external agents via API)
+**All Voters (5 total):**
+- GPT, Gemini, DeepSeek, Grok (external agents via their respective APIs)
 - ONESEEK (internal, via local LLAMA server)
+
+**✅ Voting IS Authentic:** All participants vote via their respective backend systems. External AI agents vote through their API endpoints, ONESEEK votes using its local LLAMA server.
+
+**Voting Context:**
+- Sees **Round 3 responses only** (up to 500 chars/response)
+- Includes all participants (GPT, Gemini, DeepSeek, Grok, ONESEEK)
+- Excludes voter's own response
 
 **Voting Rules:**
 - Cannot vote for self
 - Must provide motivation (50-80 words)
-- Sees all Round 3 responses (including ONESEEK's)
+- Must explain specific strengths of chosen response
 
-**Voting Prompt:**
+**Voting Prompt Format:**
 ```
 DEBATTFRÅGA: {question}
 
-ALLA RUNDORS 3-SVAR:
-- GPT: {response}
-- Gemini: {response}
-- DeepSeek: {response}
-- Grok: {response}
-- ONESEEK: {response}
+SISTA RUNDAN (Runda 3):
 
-Rösta på det BÄSTA svaret (inte ditt eget).
-Motivering (50-80 ord): Förklara varför.
+GPT:
+[First 500 chars of response]...
+
+GEMINI:
+[First 500 chars of response]...
+
+DEEPSEEK:
+[First 500 chars of response]...
+
+GROK:
+[First 500 chars of response]...
+
+ONESEEK:
+[First 500 chars of response]...
+
+RÖSTNINGSUPPGIFT:
+Analysera bidragen ovan och rösta på den modell som var bäst.
+
+REGLER:
+- Du kan INTE rösta på dig själv
+- Välj mellan: [list of other agents]
+- Ge en motivering på 50-80 ord
+
+FORMAT:
+RÖST: [modellnamn]
+MOTIVERING: [Din motivering med konkreta argument från debatten]
 ```
 
 **Example Voting Output:**
 ```
-GPT röstar på ONESEEK – GPT's motivation: ONESEEKs syntes var balanserad och inkluderade perspektiv från alla. Argumentationen var koherent och byggde vidare på våra individuella poänger.
+GPT röstar på ONESEEK – motivering: ONESEEKs syntes var balanserad och inkluderade perspektiv från alla. Argumentationen var koherent och byggde vidare på våra individuella poänger med stark logisk struktur.
 
-ONESEEK röstar på GPT – ONESEEK's motivation: GPT visade starkast faktaförankring (8.3/10 MTA) och logisk struktur. Argumenten var välgrundade i data och presenterades tydligt.
+ONESEEK röstar på GPT – motivering: GPT visade starkast faktaförankring (8.3/10 MTA) och logisk struktur. Argumenten var välgrundade i data och presenterades tydligt med konkreta exempel.
 
-Gemini röstar på GPT – Gemini's motivation: GPT:s svar hade starkast evidensbasering och mest konkreta förslag för klimatåtgärder.
+Gemini röstar på GPT – motivering: GPT:s svar hade starkast evidensbasering och mest konkreta förslag för klimatåtgärder med verifierbara påståenden.
 
-DeepSeek röstar på ONESEEK – DeepSeek's motivation: ONESEEK syntetiserade alla perspektiv på ett balanserat sätt och lade till värdefulla nya dimensioner.
+DeepSeek röstar på ONESEEK – motivering: ONESEEK syntetiserade alla perspektiv på ett balanserat sätt och lade till värdefulla nya dimensioner som integrerade styrkor från alla.
 
-Grok röstar på GPT – Grok's motivation: GPT:s faktabaserade approach och tydliga handlingsplan var mest övertygande.
+Grok röstar på GPT – motivering: GPT:s faktabaserade approach och tydliga handlingsplan var mest övertygande med praktiska steg.
 
 🏆 VINNARE: GPT med 3 röster!
 ```
@@ -1227,40 +1253,54 @@ ROUND 3: [Same structure] + VOTING
 ### Technical Implementation
 
 **Backend:** `ml_service/server.py`
-- WebSocket endpoint: `/ws/live-debate`
-- Main function: `websocket_live_debate(websocket, question, agents, rounds)`
-- MTA-DO function: `analyze_mta_do_response(agent_name, round_num, response_text, question)`
-- Voting function: `get_vote_from_agent(voter, candidates, question, context)`
+- **WebSocket endpoint**: `/ws/live-debate`
+- **Main function**: `websocket_live_debate()` (Lines 13706-14750)
+- **MTA-DO function**: `analyze_mta_do_response()` (Lines 13306-13530)
+- **Echo**: Lines 13845-13858
+- **Comments**: Lines 13890-13999
+- **Insights**: Lines 14010-14102
+- **ONESEEK Answer**: Lines 14120-14348
+- **Voting**: Lines 14495-14650
 
 **Key Implementation Details:**
-- Parallel agent requests using `asyncio.create_task()`
-- Immediate processing on agent response arrival
-- Non-blocking MTA-DO analysis (async with timeout)
-- Knowledge chain for selective memory
-- Token-optimized context building
-- Fair voting system (all participants included)
+- **Parallel agent API requests** using `asyncio.create_task()`
+- **Sequential processing** via `oneseek_processing_lock` (responses processed one at a time)
+- **Non-blocking MTA-DO** analysis (async with timeout)
+- **Knowledge chain** for selective memory (meta-info only)
+- **Token-optimized** context building (~2000-3000 tokens total)
+- **Authentic voting** system (all participants via their respective APIs/servers)
 
-**Configuration:**
-- Max rounds: 3 (configurable)
-- External agents: GPT, Gemini, DeepSeek, Grok
-- MTA-DO timeout: 30 seconds
-- Comment timeout: 60 seconds
-- Insight timeout: 45 seconds
-- Voting timeout: 45 seconds
+**Timeouts:**
+- MTA-DO analysis: 30 seconds (with fallback to 6.7/10)
+- Comment generation: 60 seconds
+- Insight generation: 120 seconds (via `generate_with_llama_server`)
+- ONESEEK answer: 45 seconds
+- ONESEEK reasoning: 45 seconds
+- Voting: 45 seconds per voter
 
 **Performance:**
-- Agent responses: Parallel (near-simultaneous)
+- Agent API requests: Parallel (launched simultaneously)
+- Agent processing: Sequential (one at a time via lock)
 - MTA-DO analysis: ~2-3 seconds per response
-- ONESEEK commentary: ~3-5 seconds per comment
-- Total round time: ~30-45 seconds (depending on API latency)
+- ONESEEK commentary: ~5-10 seconds per comment
+- ONESEEK insights: ~3-5 seconds
+- Total round time: ~30-60 seconds (depending on API latency)
+
+**Context Management:**
+| Component | Storage | Tokens | Code Lines |
+|-----------|---------|--------|------------|
+| Previous Rounds | Agent names only | ~100 | 14129-14140 |
+| Current Round | 400 chars/agent | ~1600 | 14146-14151 |
+| Knowledge Chain | Meta-info only | ~500-1000 | 13869-13888 |
+| **TOTAL** | | **~2000-3000** | |
 
 ### Related Documentation
 
+- **[LIVE_DEBATE_FLOW_COMPLETE.md](LIVE_DEBATE_FLOW_COMPLETE.md)** - ✅ **Complete, verified flow documentation** with all details
 - **[mta-do.yaml](mta-do.yaml)** - MTA-DO specification and configuration
-- **[DEBATE_FLOW_ANALYSIS.md](DEBATE_FLOW_ANALYSIS.md)** - Detailed flow analysis
+- **[DEBATE_FLOW_ANALYSIS.md](DEBATE_FLOW_ANALYSIS.md)** - High-level flow analysis
 - **[docs/MTA_DEBATE_OBSERVER.md](docs/MTA_DEBATE_OBSERVER.md)** - MTA-DO implementation guide
 - **[MTA_DO_IMPLEMENTATION_SUMMARY.md](MTA_DO_IMPLEMENTATION_SUMMARY.md)** - Implementation summary
-- **[debate.yaml](debate.yaml)** - Complete debate system specification
 
 ---
 
