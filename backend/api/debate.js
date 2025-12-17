@@ -14,6 +14,9 @@ import {
   getDebatesByQuestion,
   getDebateConfig,
   analyzeWinningAnswer,
+  generateDebateMTACommentary,
+  generateDebateMTAInsight,
+  getDebateMTAAnalyses,
 } from '../services/consensusDebate.js';
 import { logAuditEvent, AuditEventType } from '../services/auditTrail.js';
 
@@ -302,6 +305,124 @@ router.get('/', (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching debates:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * GET /api/debate/:debateId/mta-analyses
+ * Get all MTA analyses for a debate
+ */
+router.get('/:debateId/mta-analyses', (req, res) => {
+  try {
+    const { debateId } = req.params;
+    
+    if (!debateId) {
+      return res.status(400).json({
+        error: 'Invalid request',
+        message: 'debateId is required',
+      });
+    }
+    
+    const mtaAnalyses = getDebateMTAAnalyses(debateId);
+    
+    res.json({
+      debateId,
+      analyses: mtaAnalyses,
+      total: mtaAnalyses.length,
+    });
+  } catch (error) {
+    console.error('Error fetching MTA analyses:', error);
+    
+    if (error.message.includes('not found')) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: error.message,
+      });
+    }
+    
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/debate/:debateId/mta-commentary
+ * Generate MTA commentary for a specific response
+ */
+router.post('/:debateId/mta-commentary', async (req, res) => {
+  try {
+    const { debateId } = req.params;
+    const { roundNumber, agentName } = req.body;
+    
+    if (!debateId || !roundNumber || !agentName) {
+      return res.status(400).json({
+        error: 'Invalid request',
+        message: 'debateId, roundNumber, and agentName are required',
+      });
+    }
+    
+    const commentary = await generateDebateMTACommentary(debateId, roundNumber, agentName);
+    
+    res.json({
+      debateId,
+      roundNumber,
+      agentName,
+      commentary,
+    });
+  } catch (error) {
+    console.error('Error generating MTA commentary:', error);
+    
+    if (error.message.includes('not found')) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: error.message,
+      });
+    }
+    
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * GET /api/debate/:debateId/mta-insight
+ * Generate MTA insight for the current debate state
+ */
+router.get('/:debateId/mta-insight', async (req, res) => {
+  try {
+    const { debateId } = req.params;
+    
+    if (!debateId) {
+      return res.status(400).json({
+        error: 'Invalid request',
+        message: 'debateId is required',
+      });
+    }
+    
+    const insight = await generateDebateMTAInsight(debateId);
+    
+    res.json({
+      debateId,
+      insight,
+    });
+  } catch (error) {
+    console.error('Error generating MTA insight:', error);
+    
+    if (error.message.includes('not found')) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: error.message,
+      });
+    }
+    
     res.status(500).json({
       error: 'Internal server error',
       message: error.message,
