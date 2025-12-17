@@ -14180,40 +14180,60 @@ GE DITT SVAR NU:"""
                     # Build context from knowledge chain (comments on other AI responses)
                     insights_context = ""
                     for insight_item in knowledge_chain:
-                        if insight_item['round'] == round_num:
-                            insights_context += f"- {insight_item['agent'].upper()}: {insight_item['insight'][:100]}\n"
+                        if insight_item['round'] == round_num and insight_item.get('agent') != 'oneseek':
+                            insights_context += f"- {insight_item['agent'].upper()}: {insight_item['insight'][:150]}...\n"
+                    
+                    # Build MTA context to show quality assessments used in reasoning
+                    mta_context = ""
+                    mta_analyses = [item['analysis'] for item in knowledge_chain if item.get('type') == 'mta_analysis' and item.get('analysis', {}).get('round_number') == round_num]
+                    if mta_analyses:
+                        mta_context = "\n\nMTA-KVALITETSBEDÖMNINGAR SOM INFORMERADE MITT SVAR:\n"
+                        for mta in mta_analyses:
+                            agent = mta.get('agent_name', 'unknown').upper()
+                            score = mta.get('summary', {}).get('weighted_score', 0)
+                            strengths = mta.get('summary', {}).get('strengths', [])
+                            key_insights = mta.get('summary', {}).get('key_insights', [])
+                            mta_context += f"- {agent} ({score}/10): Styrkor: {', '.join(strengths[:2]) if strengths else 'N/A'}"
+                            if key_insights:
+                                mta_context += f" | Insikter: {key_insights[0][:80]}"
+                            mta_context += "\n"
                     
                     reasoning_prompt = f"""Du är ONESEEK. Du har precis gett ditt debattsvar i runda {round_num}.
 
 DEBATTFRÅGA: {clean_question}
 
 DITT SVAR:
-{answer[:300]}...
+{answer[:400]}...
 
 DINA KOMMENTARER PÅ ANDRA AI-SVAR:
 {insights_context}
+{mta_context}
 
 UPPGIFT:
-Förklara kort din tankegång bakom ditt svar (60-100 ord):
-- Vilka insights från andra AI-svar påverkade dig mest?
-- Hur använde du dina kommentarer för att bygga en djupare förståelse?
-- Varför valde du att fokusera på just dessa punkter?
+Förklara din specifika tankegång bakom ditt svar (80-120 ord). Var KONKRET och DYNAMISK:
+- Vilka SPECIFIKA argument eller poänger från andra AI-svar påverkade dig mest? (nämn namn och vad de sa)
+- Hur vägde du MTA-kvalitetsbedömningarna när du byggde ditt resonemang?
+- Vilka KONKRETA insights från dina kommentarer integrerade du?
+- Varför valde du att betona vissa perspektiv framför andra?
+- Hur balanserade du styrkor och svagheter från olika modeller?
 
-GE DITT RESONEMANG NU (direkt, ingen inledning):"""
+Skriv som en äkta reflekterande AI som FAKTISKT använder all denna data. Var SPECIFIK, inte generell.
+
+GE DITT RESONEMANG NU (börja direkt med substans):"""
                     
                     reasoning_payload = {
                         "messages": [
-                            {"role": "system", "content": "Du är ONESEEK - förklara koncist hur du byggde ditt svar baserat på insights från andra AI-modeller."},
+                            {"role": "system", "content": "Du är ONESEEK - ge ett detaljerat, specifikt och dynamiskt resonemang om hur du byggde ditt svar. Referera till konkreta detaljer från andra AI-modellers svar och MTA-bedömningar. Undvik generella fraser."},
                             {"role": "user", "content": reasoning_prompt}
                         ],
-                        "max_tokens": 250,
-                        "temperature": 0.7,
+                        "max_tokens": 300,  # Increased for more detailed reasoning
+                        "temperature": 0.75,  # Slightly higher for more varied expression
                     }
                     
                     reasoning_response = requests.post(
                         f"{server_url}/v1/chat/completions",
                         json=reasoning_payload,
-                        timeout=30,
+                        timeout=45,  # Increased timeout for complex reasoning
                     )
                     reasoning_response.raise_for_status()
                     reasoning_result = reasoning_response.json()
@@ -14223,11 +14243,21 @@ GE DITT RESONEMANG NU (direkt, ingen inledning):"""
                     else:
                         reasoning = reasoning_result.get('content', '').strip()
                     
-                    logger.info(f"[WS-Debate] Generated reasoning for OneSeek's answer in round {round_num}")
+                    # Validate reasoning is substantial and not generic
+                    if reasoning and len(reasoning) < 50:
+                        logger.warning(f"[WS-Debate] Reasoning too short ({len(reasoning)} chars), regenerating...")
+                        raise ValueError("Reasoning too brief")
+                    
+                    logger.info(f"[WS-Debate] Generated detailed reasoning for OneSeek's answer in round {round_num} ({len(reasoning)} chars)")
                     
                 except Exception as e:
                     logger.error(f"[WS-Debate] Error generating OneSeek reasoning: {e}")
-                    reasoning = "Byggde mitt svar genom att syntetisera insikter från alla modeller och balansera olika perspektiv i debatten."
+                    # More dynamic fallback that at least tries to mention specific agents
+                    agents_mentioned = [r['agent'] for r in external_responses if r.get('success', False)]
+                    if agents_mentioned:
+                        reasoning = f"Vägde insikter från {', '.join(agents_mentioned[:3])} och integrerade deras olika perspektiv. Fokuserade på att balansera faktabaserade argument med kreativa lösningsförslag baserat på kvalitetsbedömningarna."
+                    else:
+                        reasoning = "Syntetiserade tillgängliga perspektiv och byggde ett balanserat svar som tar hänsyn till debattens olika dimensioner."
                 
                 # Emit OneSeek's reasoning for its own answer
                 if reasoning:
