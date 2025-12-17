@@ -6,7 +6,6 @@
  * - Randomized agent order per round
  * - Full API call details (URL, model, prompt, params)
  * - Sent payloads and received responses (clickable)
- * - MTA-DO analysis with all 6 dimensions
  * - OneSeek internal thinking steps
  * - Context building across rounds
  * 
@@ -69,14 +68,7 @@ function DataModal({ isOpen, onClose, title, data, type = 'json' }) {
   );
 }
 
-/**
- * MTA-DO Longitudinal Visualization Component - MOVED TO SevenBZeroPage
- * This component has been removed from Tankekedja to maintain consistent tree structure.
- * The MTA longitudinal analysis now appears in the main debate view instead of embedded in the sidebar tree.
- * 
- * Note: MTA data is still tracked and exported from Tankekedja via the mtaDataByRound object,
- * but visualization is handled by a separate component in SevenBZeroPage.
- */
+
 
 /**
  * Build tree structure with deep API details
@@ -131,7 +123,6 @@ function buildTreeStructure(events) {
   const rounds = {};
   const voting = [];
   const final = [];
-  const mtaDataByRound = {}; // For longitudinal analysis
   
   events.forEach(event => {
     if (event.round) {
@@ -200,30 +191,6 @@ function buildTreeStructure(events) {
         round.apiCalls.push(apiCall);
       }
       
-      // Handle MTA-DO analysis
-      if (event.type === 'mta_analysis' && event.agent) {
-        const lastApiCall = round.apiCalls.find(a => a.agent === event.agent);
-        if (lastApiCall) {
-          lastApiCall.children.push({
-            id: `mta-${event.round}-${event.agent}`,
-            type: 'mta_analysis',
-            label: 'MTA-DO analys',
-            analysis: event.analysis,
-            clickable: true,
-            timestamp: event.timestamp,
-            tokens: event.tokens || 0
-          });
-          
-          // Track MTA data for longitudinal analysis
-          if (!mtaDataByRound[event.round]) {
-            mtaDataByRound[event.round] = { round: event.round };
-          }
-          mtaDataByRound[event.round][event.agent] = {
-            analysis: event.analysis,
-            timestamp: event.timestamp
-          };
-        }
-      }
       
       // Handle OneSeek reasoning/commentary
       if (event.type === 'oneseek_reasoning' && event.agent) {
@@ -270,7 +237,7 @@ function buildTreeStructure(events) {
               label: 'Tankekedja interna steg',
               clickable: true,
               steps: [
-                'Steg 1: Analysera externa svar + MTA-DO',
+                'Steg 1: Analysera externa svar',
                 'Steg 2: Identifiera bias',
                 'Steg 3: Egen syntes'
               ]
@@ -329,12 +296,11 @@ function buildTreeStructure(events) {
         id: 'final-summary',
         type: 'final_summary',
         label: 'Final sammanfattning',
-        text: event.summary || event.text || event.message || 'Sammanfattning med röster + MTA-DO-trender',
+        text: event.summary || event.text || event.message || 'Sammanfattning med röster',
         timestamp: event.timestamp,
         tokens: event.tokens || 0,
         clickable: true,
-        data: event,
-        mtaData: Object.values(mtaDataByRound) // Include MTA longitudinal data
+        data: event
       });
     }
   });
@@ -408,9 +374,9 @@ function TreeNode({ node, depth = 0, isLast = false, previousNode = null, active
         // For responses, show the text first
         dataToShow = node.text || node.data || {};
         dataType = 'text';
-      } else if (node.type === 'payload' || node.type === 'vote_payload' || node.type === 'mta_analysis') {
-        // For payloads and analysis, show JSON
-        dataToShow = node.data || node.analysis || {};
+      } else if (node.type === 'payload' || node.type === 'vote_payload') {
+        // For payloads, show JSON
+        dataToShow = node.data || {};
         dataType = 'json';
       } else if (node.type === 'commentary' || node.type === 'insight') {
         // For commentary and insights, show text
@@ -519,18 +485,9 @@ function TreeNode({ node, depth = 0, isLast = false, previousNode = null, active
                 onClick={handleClick}
                 className="text-[#559] hover:text-[#77b] text-[9px] underline mt-0.5"
               >
-                [Klicka för {node.type === 'payload' ? 'rå JSON' : node.type === 'mta_analysis' ? 'JSON med 6 dimensioner' : 'rådata'}]
+                [Klicka för {node.type === 'payload' ? 'rå JSON' : 'rådata'}]
               </button>
             )}
-            
-            {/* MTA-DO summary inline */}
-            {node.analysis?.summary && (
-              <div className="text-[10px] text-[#888] mt-1">
-                Vägt poäng: {node.analysis.summary.weighted_score?.toFixed(1) || 'N/A'}/10
-              </div>
-            )}
-            
-            {/* Note: MTA Longitudinal View has been moved to SevenBZeroPage to maintain consistent tree structure */}
             
             {/* Thinking steps */}
             {node.steps && (
