@@ -8,7 +8,6 @@ import { sendPersonalityMessageViaWebSocket, isWebSocketSupported } from '../ser
 import { handleFollowUpAction } from '../services/chat';
 import DebateRoundDisplay from '../components/DebateRoundDisplay';
 import Tankekedja from "../components/Tankekedja";
-import MTALongitudinalView from "../components/MTALongitudinalView";
 
 /**
  * 7B-Zero Page - Integrated OQI Interface
@@ -272,33 +271,6 @@ export default function SevenBZeroPage() {
   // Tankekedja Sidebar state - Real-time transparency tracking
   const [tankekedjaEvents, setTankekedjaEvents] = useState([]);
   const [showTankekedja, setShowTankekedja] = useState(false);
-  
-  // MTA Longitudinal Analysis state - extracted from Tankekedja events
-  const [mtaLongitudinalData, setMtaLongitudinalData] = useState([]);
-  
-  // Extract MTA data from Tankekedja events for longitudinal analysis
-  useEffect(() => {
-    const mtaDataByRound = {};
-    
-    // Process all MTA analysis events
-    tankekedjaEvents.forEach(event => {
-      if (event.type === 'mta_analysis' && event.round && event.agent && event.analysis) {
-        if (!mtaDataByRound[event.round]) {
-          mtaDataByRound[event.round] = { round: event.round };
-        }
-        mtaDataByRound[event.round][event.agent] = {
-          analysis: event.analysis,
-          timestamp: event.timestamp
-        };
-      }
-    });
-    
-    // Convert to array and update state
-    const mtaArray = Object.values(mtaDataByRound).sort((a, b) => a.round - b.round);
-    setMtaLongitudinalData(mtaArray);
-    
-    console.log('[SevenBZeroPage] MTA Longitudinal data extracted:', mtaArray);
-  }, [tankekedjaEvents]);
   
   // Load typo check setting from admin
   useEffect(() => {
@@ -1851,11 +1823,6 @@ export default function SevenBZeroPage() {
         event.response = message.data?.full_response || message.response || message;
         break;
         
-      case 'mta_analysis':
-        // Extract MTA-DO analysis with all 6 dimensions
-        event.analysis = message.data?.analysis || message.analysis || {};
-        event.tokens = message.data?.tokens || message.tokens || 0;
-        break;
         
       case 'oneseek_reasoning':
         // Extract OneSeek commentary/reasoning
@@ -1897,7 +1864,6 @@ export default function SevenBZeroPage() {
         event.winner = message.data?.winner || message.winner;
         event.vote_analysis = message.data?.vote_analysis || message.vote_analysis;
         event.debate_stats = message.data?.stats || message.stats;
-        event.mta_trends = message.data?.mta_trends;
         break;
     }
     
@@ -1927,7 +1893,7 @@ export default function SevenBZeroPage() {
     
     try {
       const ws = new WebSocket(`ws://localhost:5000/ws/debate`);
-      wsRef.current = ws; // Store reference for MTA-43 analysis
+      wsRef.current = ws; // Store WebSocket reference
       
       const debateState = {
         question,
@@ -2329,24 +2295,11 @@ export default function SevenBZeroPage() {
               { role: 'assistant', content: debateSummary }
             ]);
             
-            // Don't close yet - wait for potential analysis_offer
             break;
             
           case 'message':
-            // Handle regular messages (including analysis offer/progress/results)
-            if (message.analysis_offer) {
-              // This is the MTA-16 analysis offer - add as message with buttons
-              const offerMsgId = generateMessageId();
-              setMessages(prev => [...prev, {
-                id: offerMsgId,
-                role: 'ai',
-                text: message.message,
-                agent: message.agent || 'oneseek',
-                timestamp: new Date(),
-                isTyping: false,
-                analysisOffer: true  // Flag to show Ja/Nej buttons
-              }]);
-            } else if (message.thinking || message.isThinking) {
+            // Handle regular messages
+            if (message.thinking || message.isThinking) {
               // Analysis progress message - add as message with isThinking flag for grouped display
               const thinkingMsgId = generateMessageId();
               setMessages(prev => [...prev, {
@@ -2358,33 +2311,6 @@ export default function SevenBZeroPage() {
                 isThinking: true,
                 isTyping: false
               }]);
-            } else if (message.analysis_complete) {
-              // Analysis complete - add as regular message
-              setThinkingStep(null);
-              const completeMsgId = generateMessageId();
-              setMessages(prev => [...prev, {
-                id: completeMsgId,
-                role: 'ai',
-                text: message.message,
-                agent: message.agent || 'oneseek',
-                timestamp: new Date(),
-                isTyping: false,
-                analysisData: message.analysis_data
-              }]);
-              
-              // Add MTA-16 analysis summary to conversationHistory for context
-              const analysisData = message.analysis_data || {};
-              const aiCount = Object.keys(analysisData.per_round_analyses || {}).length;
-              const aiList = Object.keys(analysisData.per_round_analyses || {}).join(', ').toUpperCase();
-              const dimensions = 'sentiment, emotion, tonfall, politisk_riktning, ideologisk_dimension, bias, framing, retorik, propaganda, claim_detection, moral_foundations, toxicitet, osäkerhet, koherens, klarhet, sammanfattning';
-              const analysisSummary = `MTA-16 analys slutförd på ${aiCount} AI-tjänster (${aiList}). Analyserade alla 3 rundor för varje AI. Tillgänglig data: per-round analyses, helhetsprofil (medelvärden), förändringar över tid, OneSeek slutinsikt. Dimensioner analyserade: ${dimensions}.`;
-              setConversationHistory(prev => [
-                ...prev,
-                { role: 'assistant', content: analysisSummary }
-              ]);
-              
-              // Close websocket
-              ws.close();
             } else {
               // Regular message
               const msgId = generateMessageId();
@@ -2400,13 +2326,6 @@ export default function SevenBZeroPage() {
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
             
-          // Legacy events - remove these handlers
-          case 'analysis_offer':
-          case 'analysis_start':
-          case 'analysis_progress':
-          case 'analysis_result':
-            // These are now handled via 'message' type
-            break;
             
           // Legacy events - kept for backward compatibility
           case 'voting':
@@ -3005,80 +2924,6 @@ export default function SevenBZeroPage() {
                 <DebateCompletionSection completion={debateRounds.completion} />
               )}
               
-              {/* MTA-16 Analysis Offer - now handled via regular messages, remove this */}
-              
-              {/* MTA-16 Analysis Progress */}
-              {debateRounds.analysisRunning && (
-                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
-                  <div className="text-sm text-[#aaa] mb-2">MTA-16 Analys pågår...</div>
-                  <div className="w-full bg-[#1a1a1a] rounded-full h-2">
-                    <div 
-                      className="bg-[#333] h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${debateRounds.analysisProgress || 0}%` }}
-                    />
-                  </div>
-                  <div className="text-xs text-[#666] mt-2 text-right">
-                    {debateRounds.analysisProgress || 0}%
-                  </div>
-                </div>
-              )}
-              
-              {/* MTA-16 Analysis Results */}
-              {debateRounds.analysisComplete && debateRounds.analysisResults && (
-                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
-                  <div className="text-sm font-medium text-[#888] mb-3">
-                    MTA-16 Analys - {debateRounds.analysisResults.total_analyzed} svar analyserade
-                  </div>
-                  
-                  {/* Results by round */}
-                  {debateRounds.analysisResults.analyses?.map((analysis, idx) => (
-                    <details key={idx} className="mb-3 border-b border-[#1a1a1a] pb-3 last:border-0">
-                      <summary className="cursor-pointer text-xs text-[#888] hover:text-[#aaa] mb-2">
-                        Runda {analysis.round} - {analysis.agent.toUpperCase()}
-                      </summary>
-                      <div className="pl-4 mt-2 space-y-2">
-                        {/* Show key dimensions with high scores */}
-                        {Object.entries(analysis.analysis || {}).filter(([key, val]) => val?.skala >= 5).slice(0, 10).map(([dimension, data]) => (
-                          <div key={dimension} className="text-xs">
-                            <span className="text-[#666]">{dimension}:</span>
-                            <span className="text-[#888] ml-2">{data.värde}</span>
-                            <span className="text-[#555] ml-2">({data.skala}/10)</span>
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Messages - Show ALL messages in one view (debate button only controls model behavior, not view) */}
-          {messages.reduce((acc, msg, idx, arr) => {
-            // Group consecutive isThinking messages into a single entry
-            if (msg.isThinking) {
-              // Check if the last item in accumulator is already a thinking group
-              if (acc.length > 0 && acc[acc.length - 1].isThinkingGroup) {
-                // Add to existing group
-                acc[acc.length - 1].messages.push(msg);
-              } else {
-                // Create new thinking group
-                acc.push({
-                  isThinkingGroup: true,
-                  messages: [msg],
-                  id: `thinking-group-${msg.id}`,
-                  timestamp: msg.timestamp
-                });
-              }
-            } else {
-              // Regular message
-              acc.push(msg);
-            }
-            return acc;
-          }, []).map((msg, idx) => {
-            // Calculate opacity based on position - newer messages are more visible
-            const totalMessages = messages.length;
-            const distanceFromEnd = totalMessages - 1 - idx;
             const opacityValue = distanceFromEnd > 6 ? 0.4 : distanceFromEnd > 3 ? 0.6 : distanceFromEnd > 1 ? 0.8 : 1;
             const isRecent = distanceFromEnd <= 1;
             const isHighlighted = highlightedMessage === msg.id;
@@ -3480,13 +3325,6 @@ export default function SevenBZeroPage() {
                             </div>
                           )}
                           
-                          {/* MTA-DO Longitudinal Analysis */}
-                          {msg.debateData.winner && mtaLongitudinalData.length > 0 && (
-                            <MTALongitudinalView 
-                              mtaData={mtaLongitudinalData}
-                              whiteMode={whiteMode}
-                            />
-                          )}
                         </div>
                       ) : msg.isRoundComplete ? (
                         /* Collapsible round message */
@@ -3538,49 +3376,6 @@ export default function SevenBZeroPage() {
                     </div>
                   )}
                   
-                  {/* MTA-16 Analysis Offer Buttons */}
-                  {msg.analysisOffer && !msg.isTyping && (
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        onClick={() => {
-                          // Send analysis request
-                          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                            wsRef.current.send(JSON.stringify({
-                              type: 'analysis_request',
-                              approved: true
-                            }));
-                          }
-                          // Hide buttons by removing the flag
-                          setMessages(prev => prev.map(m => 
-                            m.id === msg.id ? { ...m, analysisOffer: false } : m
-                          ));
-                        }}
-                        className="px-4 py-2 bg-[#1a1a1a] hover:bg-[#222] text-[#aaa] text-sm rounded border border-[#333] transition-colors"
-                      >
-                        Ja
-                      </button>
-                      <button
-                        onClick={() => {
-                          // Decline analysis - close websocket
-                          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                            wsRef.current.send(JSON.stringify({
-                              type: 'analysis_request',
-                              approved: false
-                            }));
-                            wsRef.current.close();
-                          }
-                          // Hide buttons
-                          setMessages(prev => prev.map(m => 
-                            m.id === msg.id ? { ...m, analysisOffer: false } : m
-                          ));
-                        }}
-                        className="px-4 py-2 bg-[#0a0a0a] hover:bg-[#1a1a1a] text-[#666] text-sm rounded border border-[#1a1a1a] transition-colors"
-                      >
-                        Nej
-                      </button>
-                    </div>
-                  )}
-                  
                   {/* Live Thinking Step - Show current thinking while processing */}
                   {msg.isTyping && msg.currentThinkingStep && (
                     <div className={`mt-3 flex items-center gap-2 px-3 py-2 rounded-lg ${
@@ -3590,295 +3385,6 @@ export default function SevenBZeroPage() {
                       <span className={`text-sm ${whiteMode ? 'text-blue-700' : 'text-blue-300'}`}>
                         {msg.currentThinkingStep}
                       </span>
-                    </div>
-                  )}
-                  
-                  {/* MTA-16 Analysis Results Display */}
-                  {msg.analysisData && msg.analysisData.analyses && (
-                    <div className={`mt-4 ${whiteMode ? 'bg-[#f8f8f8]' : 'bg-[#0a0a0a]'} rounded-lg overflow-hidden px-4 py-3 max-w-none`}>
-                      <div className={`text-[11px] font-medium uppercase tracking-wider flex items-center gap-2 mb-3 ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
-                        <span>🔬</span>
-                        <span>MTA-16 Analys Resultat</span>
-                        <span className={`ml-auto text-[10px] ${whiteMode ? 'text-[#999]' : 'text-[#555]'}`}>
-                          ({msg.analysisData.total_analyzed} AI-tjänster analyserade)
-                        </span>
-                      </div>
-                      
-                      {/* Per-Runda Tables - All AIs side-by-side - COLLAPSED by default */}
-                      {[1, 2, 3].map(roundNum => (
-                        <details key={roundNum} className="mb-2">
-                          <summary className={`cursor-pointer text-xs font-medium py-2 px-3 rounded ${whiteMode ? 'bg-[#f0f0f0] hover:bg-[#e8e8e8] text-[#444]' : 'bg-[#151515] hover:bg-[#1a1a1a] text-[#aaa]'}`}>
-                            📊 Runda {roundNum} - Alla AI sida vid sida (klicka för att expandera)
-                          </summary>
-                          <div className="mt-2 overflow-x-auto max-w-none">
-                            <table className={`w-full text-[10px] border-collapse ${whiteMode ? 'border-[#e0e0e0]' : 'border-[#333]'}`}>
-                              <thead>
-                                <tr className={`${whiteMode ? 'bg-[#f0f0f0] border-b border-[#ddd]' : 'bg-[#151515] border-b border-[#333]'}`}>
-                                  <th className={`text-left py-1 px-3 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>Dimension</th>
-                                  {msg.analysisData.analyses.map((a) => (
-                                    <th key={a.agent} className={`text-center py-1 px-3 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>
-                                      {a.agent.toUpperCase()}
-                                    </th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {['sentiment', 'emotion', 'tonfall', 'politisk_riktning', 'ideologisk_dimension', 'bias', 'framing', 'retorik', 'propaganda', 'claim_detection', 'moral_foundations', 'toxicitet', 'osäkerhet', 'koherens', 'klarhet', 'sammanfattning'].map((dim) => (
-                                  <tr key={dim} className={`border-b ${whiteMode ? 'border-[#e8e8e8]' : 'border-[#1a1a1a]'}`}>
-                                    <td className={`py-1 px-3 font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
-                                      {dim.replace(/_/g, ' ')}
-                                    </td>
-                                    {msg.analysisData.analyses.map((a) => {
-                                      // Access per-round data
-                                      const perRoundData = a.per_round_analyses && a.per_round_analyses[`round_${roundNum}`];
-                                      const dimData = perRoundData && perRoundData[dim];
-                                      return (
-                                        <td key={a.agent} className={`py-1 px-3 text-center ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
-                                          {dimData ? `${dimData.skala}/10` : 'N/A'}
-                                        </td>
-                                      );
-                                    })}
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </details>
-                      ))}
-                      
-                      {/* Helhetsprofil - All AIs side-by-side (Medelvärden) - CALCULATE AVERAGES */}
-                      <div className="mb-4">
-                        <h3 className={`text-xs font-medium mb-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
-                          📈 Helhetsprofil - Alla AI sida vid sida (medelvärden)
-                        </h3>
-                        <div className="overflow-x-auto max-w-none">
-                          <table className={`w-full text-[10px] border-collapse ${whiteMode ? 'border-[#e0e0e0]' : 'border-[#333]'}`}>
-                            <thead>
-                              <tr className={`${whiteMode ? 'bg-[#f0f0f0] border-b border-[#ddd]' : 'bg-[#151515] border-b border-[#333]'}`}>
-                                <th className={`text-left py-1 px-3 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>Dimension</th>
-                                {msg.analysisData.analyses.map((a) => (
-                                  <th key={a.agent} className={`text-center py-1 px-3 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>
-                                    {a.agent.toUpperCase()}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {['sentiment', 'emotion', 'tonfall', 'politisk_riktning', 'ideologisk_dimension', 'bias', 'framing', 'retorik', 'propaganda', 'claim_detection', 'moral_foundations', 'toxicitet', 'osäkerhet', 'koherens', 'klarhet', 'sammanfattning'].map((dim) => (
-                                <tr key={dim} className={`border-b ${whiteMode ? 'border-[#e8e8e8]' : 'border-[#1a1a1a]'}`}>
-                                  <td className={`py-1 px-3 font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
-                                    {dim.replace(/_/g, ' ')}
-                                  </td>
-                                  {msg.analysisData.analyses.map((a) => {
-                                    // Calculate average across all rounds
-                                    const perRoundData = a.per_round_analyses || {};
-                                    const values = [];
-                                    for (let r = 1; r <= 3; r++) {
-                                      const roundData = perRoundData[`round_${r}`];
-                                      if (roundData && roundData[dim] && roundData[dim].skala !== undefined) {
-                                        values.push(roundData[dim].skala);
-                                      }
-                                    }
-                                    const avg = values.length > 0 ? (values.reduce((sum, v) => sum + v, 0) / values.length).toFixed(1) : 'N/A';
-                                    return (
-                                      <td key={a.agent} className={`py-1 px-3 text-center ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
-                                        {avg !== 'N/A' ? `${avg}/10` : 'N/A'}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                      
-                      {/* Förändringar över tid - All AIs side-by-side - CALCULATE TRENDS */}
-                      <div className="mb-4">
-                        <h3 className={`text-xs font-medium mb-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
-                          📉 Förändringar över tid - Alla AI sida vid sida
-                        </h3>
-                        <div className="overflow-x-auto max-w-none">
-                          <table className={`w-full text-[10px] border-collapse ${whiteMode ? 'border-[#e0e0e0]' : 'border-[#333]'}`}>
-                            <thead>
-                              <tr className={`${whiteMode ? 'bg-[#f0f0f0] border-b border-[#ddd]' : 'bg-[#151515] border-b border-[#333]'}`}>
-                                <th className={`text-left py-1 px-3 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>Dimension</th>
-                                {msg.analysisData.analyses.map((a) => (
-                                  <th key={a.agent} className={`text-center py-1 px-3 font-medium ${whiteMode ? 'text-[#555]' : 'text-[#777]'}`}>
-                                    {a.agent.toUpperCase()}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {['sentiment', 'emotion', 'tonfall', 'politisk_riktning', 'ideologisk_dimension', 'bias', 'framing', 'retorik', 'propaganda', 'claim_detection', 'moral_foundations', 'toxicitet', 'osäkerhet', 'koherens', 'klarhet', 'sammanfattning'].map((dim) => (
-                                <tr key={dim} className={`border-b ${whiteMode ? 'border-[#e8e8e8]' : 'border-[#1a1a1a]'}`}>
-                                  <td className={`py-1 px-3 font-medium ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
-                                    {dim.replace(/_/g, ' ')}
-                                  </td>
-                                  {msg.analysisData.analyses.map((a) => {
-                                    // Calculate trend: compare round 1 vs round 3
-                                    const perRoundData = a.per_round_analyses || {};
-                                    const r1Data = perRoundData['round_1'];
-                                    const r3Data = perRoundData['round_3'];
-                                    let trend = 'N/A';
-                                    if (r1Data && r3Data && r1Data[dim] && r3Data[dim]) {
-                                      const r1Val = r1Data[dim].skala;
-                                      const r3Val = r3Data[dim].skala;
-                                      const change = r3Val - r1Val;
-                                      if (Math.abs(change) <= 1) {
-                                        trend = 'Stabil';
-                                      } else if (change >= 2) {
-                                        trend = `Ökar +${change}`;
-                                      } else if (change <= -2) {
-                                        trend = `Minskar ${change}`;
-                                      }
-                                    }
-                                    return (
-                                      <td key={a.agent} className={`py-1 px-3 text-center ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
-                                        {trend}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                      
-                      {/* Sparkline-Grid: Top 5 Dimensions with Most Change */}
-                      <div className="mb-4">
-                        <h3 className={`text-xs font-medium mb-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
-                          📊 Sparkline-Grid - Top 5 dimensioner med störst förändring
-                        </h3>
-                        <div className={`p-3 rounded ${whiteMode ? 'bg-[#f8f8f8]' : 'bg-[#0f0f0f]'}`}>
-                          {(() => {
-                            // Calculate top 5 dimensions by change magnitude
-                            const dimensions = ['sentiment', 'emotion', 'tonfall', 'politisk_riktning', 'ideologisk_dimension', 'bias', 'framing', 'retorik', 'propaganda', 'claim_detection', 'moral_foundations', 'toxicitet', 'osäkerhet', 'koherens', 'klarhet', 'sammanfattning'];
-                            const dimChanges = [];
-                            
-                            dimensions.forEach(dim => {
-                              let maxChange = 0;
-                              msg.analysisData.analyses.forEach(a => {
-                                const perRoundData = a.per_round_analyses || {};
-                                const r1Data = perRoundData['round_1'];
-                                const r3Data = perRoundData['round_3'];
-                                if (r1Data && r3Data && r1Data[dim] && r3Data[dim]) {
-                                  const change = Math.abs(r3Data[dim].skala - r1Data[dim].skala);
-                                  if (change > maxChange) maxChange = change;
-                                }
-                              });
-                              dimChanges.push({ dim, maxChange });
-                            });
-                            
-                            // Sort by max change and take top 5
-                            const top5 = dimChanges.sort((a, b) => b.maxChange - a.maxChange).slice(0, 5);
-                            
-                            // AI colors
-                            const aiColors = {
-                              'gpt': '#60a5fa',
-                              'gemini': '#34d399',
-                              'deepseek': '#f472b6',
-                              'grok': '#fbbf24',
-                              'oneseek': '#a78bfa'
-                            };
-                            
-                            return (
-                              <div className="grid grid-cols-1 gap-3">
-                                {top5.map(({ dim }) => (
-                                  <div key={dim} className={`p-2 rounded ${whiteMode ? 'bg-white' : 'bg-[#1a1a1a]'}`}>
-                                    <div className={`text-[10px] font-medium mb-2 ${whiteMode ? 'text-[#555]' : 'text-[#999]'}`}>
-                                      {dim.replace(/_/g, ' ')}
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                      {msg.analysisData.analyses.map(a => {
-                                        const perRoundData = a.per_round_analyses || {};
-                                        const values = [];
-                                        for (let r = 1; r <= 3; r++) {
-                                          const roundData = perRoundData[`round_${r}`];
-                                          if (roundData && roundData[dim] && roundData[dim].skala !== undefined) {
-                                            values.push(roundData[dim].skala);
-                                          } else {
-                                            values.push(null);
-                                          }
-                                        }
-                                        
-                                        // Skip if no data
-                                        if (values.every(v => v === null)) return null;
-                                        
-                                        const color = aiColors[a.agent.toLowerCase()] || '#888';
-                                        
-                                        return (
-                                          <div key={a.agent} className="flex-1">
-                                            <div className={`text-[8px] mb-1 ${whiteMode ? 'text-[#666]' : 'text-[#888]'}`}>
-                                              {a.agent.toUpperCase()}
-                                            </div>
-                                            <svg width="50" height="24" className="w-full">
-                                              {/* Grid lines */}
-                                              <line x1="0" y1="2" x2="50" y2="2" stroke={whiteMode ? '#e0e0e0' : '#333'} strokeWidth="0.5" />
-                                              <line x1="0" y1="12" x2="50" y2="12" stroke={whiteMode ? '#e0e0e0' : '#333'} strokeWidth="0.5" />
-                                              <line x1="0" y1="22" x2="50" y2="22" stroke={whiteMode ? '#e0e0e0' : '#333'} strokeWidth="0.5" />
-                                              
-                                              {/* Line chart */}
-                                              {values.filter(v => v !== null).length >= 2 && (
-                                                <polyline
-                                                  points={values.map((v, i) => {
-                                                    if (v === null) return null;
-                                                    const x = i * 25; // 0, 25, 50 for rounds 1, 2, 3
-                                                    const y = 22 - (v / 10 * 20); // Scale 0-10 to 22-2 (inverted)
-                                                    return `${x},${y}`;
-                                                  }).filter(p => p !== null).join(' ')}
-                                                  fill="none"
-                                                  stroke={color}
-                                                  strokeWidth="1.5"
-                                                />
-                                              )}
-                                              
-                                              {/* Data points */}
-                                              {values.map((v, i) => {
-                                                if (v === null) return null;
-                                                const x = i * 25;
-                                                const y = 22 - (v / 10 * 20);
-                                                return (
-                                                  <circle
-                                                    key={i}
-                                                    cx={x}
-                                                    cy={y}
-                                                    r="1.5"
-                                                    fill={color}
-                                                  />
-                                                );
-                                              })}
-                                            </svg>
-                                            <div className={`text-[7px] flex justify-between ${whiteMode ? 'text-[#999]' : 'text-[#666]'}`}>
-                                              <span>R1</span>
-                                              <span>R2</span>
-                                              <span>R3</span>
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                      
-                      {/* OneSeek Slutinsikt */}
-                      {msg.analysisData.oneseek_insight && (
-                        <div className={`p-3 rounded ${whiteMode ? 'bg-[#f0f0f0]' : 'bg-[#151515]'}`}>
-                          <div className={`text-xs font-medium mb-2 ${whiteMode ? 'text-[#444]' : 'text-[#aaa]'}`}>
-                            💡 OneSeek Slutinsikt
-                          </div>
-                          <div className={`text-xs ${whiteMode ? 'text-[#555]' : 'text-[#bbb]'} leading-relaxed`}>
-                            {msg.analysisData.oneseek_insight}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
                   
