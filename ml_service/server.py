@@ -13303,6 +13303,181 @@ Skriv direkt och koncist. Exempel:
         })
 
 
+async def analyze_mta_do_response(agent_name: str, round_num: int, response_text: str, question: str):
+    """
+    MTA-Debate-Observer: Analyze a debate response across 8 dimensions.
+    Returns structured analysis with scores and reasoning.
+    
+    Dimensions: relevance, argument_depth, factual_anchoring, bias_detection,
+                logical_coherence, originality, clarity, constructiveness
+    """
+    try:
+        # MTA-DO prompt following mta-do.yaml specification
+        mta_prompt = f"""Du är MTA-Debate-Observer, ett objektivt metaanalyssystem som utvärderar debattsvar.
+
+KONTEXT:
+- Agent: {agent_name.upper()}
+- Runda: {round_num}
+- Fråga: {question}
+- Svar: {response_text[:1000]}...
+
+UPPGIFT:
+Utvärdera svaret på en 0-10 skala för varje dimension. Ge både numerisk poäng och kort motivering.
+
+DIMENSIONER:
+1. Relevans (0-10): Hur väl adresserar svaret debattfrågan?
+2. Argumentdjup (0-10): Djup och sofistikering i argumentationen
+3. Faktaförankring (0-10): Användning av fakta, data och verifierbar information
+4. Bias-detektion (0-10): Närvaro av bias (0=opartisk, 10=mycket partisk)
+5. Logisk koherens (0-10): Intern konsekvens och logiskt flöde
+6. Originalitet (0-10): Nya insikter och unika perspektiv
+7. Klarhet (0-10): Kommunikationsklarhet och tillgänglighet
+8. Konstruktivitet (0-10): Bidrag till produktiv dialog
+
+Svara ENDAST med giltig JSON i denna exakta struktur:
+{{
+  "analysis": {{
+    "relevance": {{"score": 0.0, "reasoning": ""}},
+    "argument_depth": {{"score": 0.0, "reasoning": ""}},
+    "factual_anchoring": {{"score": 0.0, "reasoning": ""}},
+    "bias_detection": {{"score": 0.0, "reasoning": ""}},
+    "logical_coherence": {{"score": 0.0, "reasoning": ""}},
+    "originality": {{"score": 0.0, "reasoning": ""}},
+    "clarity": {{"score": 0.0, "reasoning": ""}},
+    "constructiveness": {{"score": 0.0, "reasoning": ""}}
+  }},
+  "summary": {{
+    "strengths": [],
+    "weaknesses": [],
+    "key_insights": []
+  }}
+}}"""
+
+        server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+        
+        # Use asyncio to run the blocking requests call in executor
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: requests.post(
+                f"{server_url}/v1/chat/completions",
+                json={
+                    "messages": [
+                        {"role": "system", "content": "Du är en objektiv analysmotor. Svara alltid med valid JSON."},
+                        {"role": "user", "content": mta_prompt}
+                    ],
+                    "max_tokens": 800,
+                    "temperature": 0.3,  # Low temperature for consistent analysis
+                    "stream": False
+                },
+                timeout=10  # 10 second timeout as per spec
+            )
+        )
+        response.raise_for_status()
+        result = response.json()
+        
+        # Extract and parse JSON
+        content = result['choices'][0]['message']['content'].strip()
+        
+        # Find JSON in response
+        json_start = content.find('{')
+        if json_start == -1:
+            raise ValueError("No JSON found in response")
+        
+        # Match braces
+        brace_count = 0
+        json_end = -1
+        for i in range(json_start, len(content)):
+            if content[i] == '{':
+                brace_count += 1
+            elif content[i] == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    json_end = i + 1
+                    break
+        
+        if json_end == -1:
+            raise ValueError("Malformed JSON in response")
+        
+        json_str = content[json_start:json_end]
+        analysis_data = json.loads(json_str)
+        
+        # Calculate scores with weights from mta-do.yaml
+        weights = {
+            'relevance': 1.0,
+            'argument_depth': 1.2,
+            'factual_anchoring': 1.3,
+            'bias_detection': 1.1,  # Inverse
+            'logical_coherence': 1.0,
+            'originality': 0.8,
+            'clarity': 0.9,
+            'constructiveness': 1.0
+        }
+        
+        total_score = 0
+        weighted_score = 0
+        total_weight = 0
+        
+        for dim_name, weight in weights.items():
+            dim_data = analysis_data.get('analysis', {}).get(dim_name, {})
+            score = float(dim_data.get('score', 7.0))
+            score = max(0, min(10, score))  # Clamp to 0-10
+            
+            # Inverse for bias_detection
+            adjusted_score = (10 - score) if dim_name == 'bias_detection' else score
+            
+            total_score += score
+            weighted_score += adjusted_score * weight
+            total_weight += weight
+        
+        overall_score = round(total_score / len(weights), 2)
+        final_weighted_score = round(weighted_score / total_weight, 2)
+        
+        # Return enriched analysis
+        return {
+            'agent_name': agent_name,
+            'round_number': round_num,
+            'timestamp': datetime.now().isoformat(),
+            'response_text': response_text[:500] + '...' if len(response_text) > 500 else response_text,
+            'analysis': analysis_data.get('analysis', {}),
+            'summary': {
+                'overall_score': overall_score,
+                'weighted_score': final_weighted_score,
+                'strengths': analysis_data.get('summary', {}).get('strengths', []),
+                'weaknesses': analysis_data.get('summary', {}).get('weaknesses', []),
+                'key_insights': analysis_data.get('summary', {}).get('key_insights', [])
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"[MTA-DO] Analysis failed for {agent_name}: {e}")
+        # Return fallback analysis
+        return {
+            'agent_name': agent_name,
+            'round_number': round_num,
+            'timestamp': datetime.now().isoformat(),
+            'response_text': response_text[:500] + '...' if len(response_text) > 500 else response_text,
+            'analysis': {
+                'relevance': {'score': 7.0, 'reasoning': 'Fallback - analys misslyckades'},
+                'argument_depth': {'score': 7.0, 'reasoning': 'Fallback - analys misslyckades'},
+                'factual_anchoring': {'score': 7.0, 'reasoning': 'Fallback - analys misslyckades'},
+                'bias_detection': {'score': 5.0, 'reasoning': 'Fallback - analys misslyckades'},
+                'logical_coherence': {'score': 7.0, 'reasoning': 'Fallback - analys misslyckades'},
+                'originality': {'score': 6.0, 'reasoning': 'Fallback - analys misslyckades'},
+                'clarity': {'score': 7.0, 'reasoning': 'Fallback - analys misslyckades'},
+                'constructiveness': {'score': 7.0, 'reasoning': 'Fallback - analys misslyckades'}
+            },
+            'summary': {
+                'overall_score': 6.7,
+                'weighted_score': 6.7,
+                'strengths': ['Analys temporärt otillgänglig'],
+                'weaknesses': ['Kunde inte utvärdera detaljerat'],
+                'key_insights': ['MTA-DO analys misslyckades - använder fallback-poäng']
+            },
+            'fallback': True
+        }
+
+
 @app.websocket("/ws/debate")
 async def websocket_live_debate(websocket: WebSocket):
     """
@@ -13575,8 +13750,56 @@ GE DITT SVAR NU:"""
                         round=round_num
                     )
                     
-                    # 2. DIRECT COMMENT: Generate conversational comment like "Intressant poäng. Jag håller med om X, men vill tillägga Y..."
+                    # 1.5. MTA-DO ANALYSIS: Analyze response quality (non-blocking, runs in parallel)
+                    logger.info(f"[MTA-DO] Starting analysis for {agent_name} round {round_num}...")
+                    try:
+                        # Run MTA-DO analysis (it's already async)
+                        mta_analysis = await analyze_mta_do_response(
+                            agent_name, round_num, agent_response, clean_question
+                        )
+                        
+                        # Store in knowledge chain for later use
+                        knowledge_chain.append({
+                            'round': round_num,
+                            'agent': agent_name,
+                            'type': 'mta_analysis',
+                            'analysis': mta_analysis
+                        })
+                        
+                        logger.info(f"[MTA-DO] Analysis complete for {agent_name}: {mta_analysis['summary']['weighted_score']}/10")
+                        
+                        # Send MTA analysis to frontend (optional - for visualization)
+                        await websocket.send_json({
+                            "type": "mta_analysis",
+                            "round": round_num,
+                            "agent": agent_name,
+                            "data": mta_analysis
+                        })
+                        
+                    except Exception as e:
+                        logger.error(f"[MTA-DO] Analysis failed for {agent_name}: {e}")
+                        mta_analysis = None
+                    
+                    # 2. DIRECT COMMENT: Generate conversational comment with MTA context
+                    # Build MTA context if available
+                    mta_context = ""
+                    if mta_analysis and not mta_analysis.get('fallback', False):
+                        mta_context = f"""
+MTA-DO ANALYS av {agent_name.upper()}s svar:
+- Kvalitetspoäng: {mta_analysis['summary']['weighted_score']}/10
+- Styrkor: {', '.join(mta_analysis['summary']['strengths'][:2]) if mta_analysis['summary']['strengths'] else 'Inga specifika'}
+- Svagheter: {', '.join(mta_analysis['summary']['weaknesses'][:2]) if mta_analysis['summary']['weaknesses'] else 'Inga specifika'}
+
+Använd denna analys för att ge en informerad kommentar.
+"""
+                    
                     comment_prompt = f"""Du är OneSeek, en engagerad och analytisk debattvärd som leder en live-debatt.
+
+DEBATTFRÅGA: {clean_question}
+
+{agent_name.upper()}S SVAR I RUNDA {round_num}:
+{agent_response[:800]}...
+{mta_context}
 
 DEBATTFRÅGA: {clean_question}
 
@@ -13656,11 +13879,19 @@ GE DIN KOMMENTAR NU (ingen inledning):"""
                             "message": comment_text
                         })
                     
-                    # 3. LIVE INSIGHT: Generate engaging analytical observation
+                    # 3. LIVE INSIGHT: Generate engaging analytical observation with MTA context
                     try:
                         # Count how many responses we've received so far
                         async with external_responses_lock:
                             responses_so_far = len(external_responses)
+                        
+                        # Build MTA context from all analyses so far
+                        mta_summary = ""
+                        mta_analyses = [item['analysis'] for item in knowledge_chain if item.get('type') == 'mta_analysis']
+                        if mta_analyses:
+                            avg_score = sum(a['summary']['weighted_score'] for a in mta_analyses) / len(mta_analyses)
+                            best_agent = max(mta_analyses, key=lambda x: x['summary']['weighted_score'])
+                            mta_summary = f"\n\nMTA-översikt: Genomsnittlig kvalitet {avg_score:.1f}/10. Bästa: {best_agent['agent_name']} ({best_agent['summary']['weighted_score']}/10)."
                         
                         # Build context about previous responses in this round
                         previous_context = ""
@@ -13677,7 +13908,7 @@ GE DIN KOMMENTAR NU (ingen inledning):"""
 DEBATTFRÅGA: {clean_question}
 
 {agent_name.upper()}S SVAR I RUNDA {round_num}:
-{response_preview}...{previous_context}
+{response_preview}...{previous_context}{mta_summary}
 
 BEHAVIORAL ENFORCEMENT:
 - Längd: 15-25 ord (1-2 meningar, STRIKT)

@@ -96,49 +96,57 @@ def test_mta_service_exports():
     print("✓ MTA service exports all required functions")
 
 
-def test_mta_integration_consensusDebate():
-    """Test that MTA-DO is integrated into consensusDebate.js"""
-    consensus_debate_path = PROJECT_ROOT / 'backend' / 'services' / 'consensusDebate.js'
-    assert consensus_debate_path.exists(), "consensusDebate.js not found"
+def test_mta_integration_python():
+    """Test that MTA-DO is integrated into ml_service/server.py"""
+    server_path = PROJECT_ROOT / 'ml_service' / 'server.py'
+    assert server_path.exists(), "ml_service/server.py not found"
     
-    with open(consensus_debate_path, 'r', encoding='utf-8') as f:
+    with open(server_path, 'r', encoding='utf-8') as f:
         content = f.read()
     
-    # Check for MTA imports
-    assert 'mtaDebateObserver' in content, "MTA-DO not imported in consensusDebate.js"
-    assert 'analyzeMTADebateResponse' in content or 'batchAnalyzeMTAResponses' in content, \
-        "MTA analysis functions not used in consensusDebate.js"
+    # Check for MTA-DO function
+    assert 'analyze_mta_do_response' in content, "MTA-DO function not found in server.py"
     
-    # Check for MTA storage in debate object
-    assert 'mtaAnalyses' in content, "mtaAnalyses not added to debate object"
+    # Check for integration in debate flow
+    assert 'MTA-DO ANALYSIS' in content, "MTA-DO analysis not integrated in debate flow"
+    assert 'mta_analysis' in content, "mta_analysis variable not used"
     
-    print("✓ MTA-DO integrated into consensusDebate.js")
+    # Check for MTA context in prompts
+    assert 'mta_context' in content or 'MTA-DO ANALYS' in content, "MTA context not added to prompts"
+    
+    print("✓ MTA-DO integrated into ml_service/server.py")
 
 
-def test_mta_api_endpoints():
-    """Test that MTA API endpoints are added to debate.js"""
-    debate_api_path = PROJECT_ROOT / 'backend' / 'api' / 'debate.js'
-    assert debate_api_path.exists(), "debate.js API file not found"
+def test_mta_python_implementation():
+    """Test that MTA-DO Python implementation exists and is complete"""
+    server_path = PROJECT_ROOT / 'ml_service' / 'server.py'
     
-    with open(debate_api_path, 'r', encoding='utf-8') as f:
+    with open(server_path, 'r', encoding='utf-8') as f:
         content = f.read()
     
-    # Check for MTA function imports
-    mta_functions = [
-        'generateDebateMTACommentary',
-        'generateDebateMTAInsight',
-        'getDebateMTAAnalyses',
+    # Check for all 8 dimensions in the prompt
+    dimensions = [
+        'Relevans',
+        'Argumentdjup',
+        'Faktaförankring',
+        'Bias-detektion',
+        'Logisk koherens',
+        'Originalitet',
+        'Klarhet',
+        'Konstruktivitet'
     ]
     
-    for func in mta_functions:
-        assert func in content, f"MTA function {func} not imported in debate API"
+    for dim in dimensions:
+        assert dim in content, f"Dimension {dim} not found in MTA-DO prompt"
     
-    # Check for MTA endpoints
-    assert '/mta-analyses' in content, "MTA analyses endpoint not found"
-    assert '/mta-commentary' in content, "MTA commentary endpoint not found"
-    assert '/mta-insight' in content, "MTA insight endpoint not found"
+    # Check for scoring logic
+    assert 'weighted_score' in content, "Weighted score calculation not found"
+    assert 'overall_score' in content, "Overall score calculation not found"
     
-    print("✓ MTA API endpoints added to debate.js")
+    # Check for fallback handling
+    assert 'fallback' in content, "Fallback analysis not implemented"
+    
+    print("✓ MTA-DO Python implementation complete")
 
 
 def test_mta_flow_alignment():
@@ -265,8 +273,8 @@ def run_all_tests():
         test_mta_evaluation_dimensions,
         test_mta_service_exists,
         test_mta_service_exports,
-        test_mta_integration_consensusDebate,
-        test_mta_api_endpoints,
+        test_mta_integration_python,
+        test_mta_python_implementation,
         test_mta_flow_alignment,
         test_mta_output_structure,
         test_mta_prompts_defined,

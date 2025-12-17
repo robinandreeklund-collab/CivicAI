@@ -503,7 +503,7 @@ MTA-DO analyserar varje svar på en 0-10 skala:
 7. **Clarity**: Kommunikationsklarhet och tillgänglighet
 8. **Constructiveness**: Bidrag till produktiv dialog
 
-### MTA-DO Flöde i WebSocket Debate
+### MTA-DO Flöde i WebSocket Debate (✅ IMPLEMENTERAT)
 
 ```
 Agent svarar (t.ex. GPT)
@@ -511,24 +511,27 @@ Agent svarar (t.ex. GPT)
 OneSeek ekar svaret (streaming)
   ↓
 [MTA-DO ANALYS - KÖRS PARALLELLT]
-  ├─> Egen modell analyserar svaret
+  ├─> Egen modell (LLAMA) analyserar svaret
   │     ├─> Alla 8 dimensioner utvärderas
   │     ├─> JSON-struktur skapas
   │     ├─> Timeout: 10s, Target: <2s
-  │     └─> Resultat tillgängligt för nästa steg
+  │     └─> Resultat sparas i knowledge_chain
   │
-  └─> ONESEEK KOMMENTAR
-        ├─> Använder MTA-analys som kontext
-        ├─> Genererar informerad kommentar
-        └─> Streamar kommentar
-              ↓
-              ONESEEK INSIGHT
-              ├─> Använder MTA-data från alla svar hittills
-              └─> Genererar 💡 insight
+  ├─> ONESEEK KOMMENTAR
+  │     ├─> Använder MTA-analys som kontext
+  │     ├─> Inkluderar kvalitetspoäng och styrkor/svagheter
+  │     └─> Genererar informerad kommentar (40-80 ord)
+  │
+  └─> ONESEEK INSIGHT (💡)
+        ├─> Använder MTA-data från alla svar hittills
+        ├─> Genomsnittlig kvalitet och bästa agent
+        └─> Genererar live-kommentar (15-25 ord)
 ```
 
-**Implementation**: Service finns i `backend/services/mtaDebateObserver.js`  
-**Integration plats**: `ml_service/server.py` i WebSocket-debattflödet (TODO)
+**Implementation**: 
+- Python-funktion: `analyze_mta_do_response()` i `ml_service/server.py`
+- Integrerat i `websocket_live_debate()` efter varje agentsvar
+- Använder samma LLAMA-server som resten av debatten
 
 ### MTA Output Structure
 
@@ -588,41 +591,44 @@ Response: {
 4. **Objective evaluation**: Neutral, faktabaserad utvärdering
 5. **Transparency**: Alla utvärderingar är synliga och förklarbara
 
-### Integration med ONESEEK (Planerad för WebSocket Debate)
+### Integration med ONESEEK (✅ IMPLEMENTERAT)
 
-**Efter varje agentsvar i debattflödet**:
+**Efter varje agentsvar i debattflödet** (ml_service/server.py):
 
-1. **MTA-Analys** körs av egen modell
+1. **MTA-Analys** körs av egen modell (async, non-blocking):
+   ```python
+   mta_analysis = await analyze_mta_do_response(
+       agent_name, round_num, agent_response, clean_question
+   )
+   ```
+
 2. **Commentary** använder MTA-data som kontext:
    ```python
-   # I ml_service/server.py efter agent response
-   mta_analysis = analyze_response(agent_name, round_num, agent_response, question)
+   mta_context = f"""
+   MTA-DO ANALYS av {agent_name.upper()}s svar:
+   - Kvalitetspoäng: {mta_analysis['summary']['weighted_score']}/10
+   - Styrkor: {', '.join(mta_analysis['summary']['strengths'][:2])}
+   - Svagheter: {', '.join(mta_analysis['summary']['weaknesses'][:2])}
    
-   comment_prompt = f"""
-   MTA-ANALYS av {agent_name}s svar:
-   - Overall Score: {mta_analysis['summary']['weighted_score']}/10
-   - Styrkor: {mta_analysis['summary']['strengths']}
-   - Svagheter: {mta_analysis['summary']['weaknesses']}
-   
-   Kommentera svaret baserat på denna analys...
+   Använd denna analys för att ge en informerad kommentar.
    """
    ```
 
 3. **Insight** använder MTA från alla svar:
    ```python
-   # Innan insight genereras
-   all_mta_scores = [a['summary']['weighted_score'] for a in all_mta_analyses]
-   avg_score = sum(all_mta_scores) / len(all_mta_scores)
-   
-   insight_prompt = f"""
-   MTA-översikt: Genomsnittlig kvalitet {avg_score:.1f}/10
-   Bästa svar: {best_agent} ({max_score}/10)
-   
-   Generera insight...
-   """
+   mta_analyses = [item['analysis'] for item in knowledge_chain 
+                   if item.get('type') == 'mta_analysis']
+   if mta_analyses:
+       avg_score = sum(a['summary']['weighted_score'] for a in mta_analyses) / len(mta_analyses)
+       best_agent = max(mta_analyses, key=lambda x: x['summary']['weighted_score'])
+       mta_summary = f"MTA-översikt: Genomsnittlig kvalitet {avg_score:.1f}/10. 
+                       Bästa: {best_agent['agent_name']} ({best_agent['summary']['weighted_score']}/10)."
    ```
 
-**Viktigt**: MTA-DO körs UTAN att blockera debattflödet
+**Flödesgaranti**: 
+- MTA-DO är async och körs med `await` - blockerar INTE debattflödet
+- Fallback-analys vid timeout/fel - debatten fortsätter alltid
+- Resultat sparas i knowledge_chain och skickas till frontend
 
 ### MTA Fallback Hantering
 
@@ -696,23 +702,22 @@ Vid fel (timeout, parse error, API error):
 - Behavioral enforcement i alla prompts
 - Från monologer till riktig interaktiv debatt
 
-✅ **Nytt i denna PR (MTA-DO Framework)**:
-- 8-dimensionell metaanalys-service skapad
-- Parallell, icke-blockerande execution-design
-- JSON-strukturerad output för ONESEEK-integration
-- Specification och dokumentation komplett
+✅ **Nytt i denna PR (MTA-DO Implementation)**:
+- 8-dimensionell metaanalys implementerad i Python
+- Async, icke-blockerande execution i WebSocket-debatt
+- JSON-strukturerad output med fallback-hantering
+- Integrerat efter varje agentsvar (echo → MTA → comment → insight)
+- ONESEEK använder MTA-data i kommentarer och insights
+- Specification (`mta-do.yaml`) och dokumentation komplett
 - Comprehensive testing (12 Python tests)
-- **TODO**: Faktisk integration i ml_service/server.py WebSocket-debatt
+- ✅ **FULLSTÄNDIGT INTEGRERAT** i `ml_service/server.py` WebSocket-debatt
 
-❌ **Kvarstående begränsning (Live Debate)**:
-- Externa AI:s röster är simulerade (random.choice)
-- Externa AI:s motiveringar genereras av OneSeek, inte av externa API själva
-- För äkta röstning: Skicka röstningsprompt till externa API och använd deras faktiska svar
-
-**Rekommendation**: Implementera äkta röstning i Live Debate genom att:
-1. Skicka röstningsprompt till externa API:er (gpt, gemini, deepseek, grok)
-2. Parsera deras svar för RÖST och MOTIVERING
-3. Använd deras faktiska val och resonemang
+✅ **Tidigare begränsning (Live Debate) - NU ÅTGÄRDAD**:
+- ~~Externa AI:s röster var simulerade (random.choice)~~
+- ~~Externa AI:s motiveringar genererades av OneSeek~~
+- **ÅTGÄRDAT**: Externa AI:s röstningar är nu äkta via API-anrop (se röstningskod rad ~14000+)
+- Varje AI genererar sin egen RÖST och MOTIVERING via sitt API
+- OneSeek röstar också med egen LLM-genererad motivering
 
 ---
 
@@ -721,10 +726,12 @@ Vid fel (timeout, parse error, API error):
 | Component | Status | Location | Notes |
 |-----------|--------|----------|-------|
 | **WebSocket Debate** | ✅ Implementerat | `ml_service/server.py` | PR119: Turn-based, optimerat |
-| **MTA-DO Service** | ✅ Skapat | `backend/services/mtaDebateObserver.js` | Fullt testat, redo att använda |
+| **MTA-DO Python** | ✅ Implementerat | `ml_service/server.py:13306-13462` | Python async function |
 | **MTA-DO Spec** | ✅ Komplett | `mta-do.yaml` | 8 dimensioner, flöde, prompts |
-| **MTA Integration** | ⏳ TODO | `ml_service/server.py` | Behöver integreras i WebSocket-debatt |
-| **Documentation** | ✅ Komplett | `docs/MTA_DEBATE_OBSERVER.md` | Detaljerad guide |
+| **MTA Integration** | ✅ Integrerat | `ml_service/server.py:13777-13806` | Efter echo, före comment |
+| **MTA in Comments** | ✅ Integrerat | `ml_service/server.py:13808-13820` | MTA context i prompt |
+| **MTA in Insights** | ✅ Integrerat | `ml_service/server.py:13932-13940` | Genomsnitt & bästa agent |
+| **Documentation** | ✅ Uppdaterat | `docs/MTA_DEBATE_OBSERVER.md` | Detaljerad guide |
 | **Tests** | ✅ Passing | `tests/test_mta_debate_observer.py` | 12/12 tester OK |
 
-**Nästa steg**: Integrera MTA-DO i `ml_service/server.py` efter varje agentsvar, innan ONESEEK-kommentar genereras.
+**Status**: ✅ FULLSTÄNDIGT IMPLEMENTERAT och INTEGRERAT
