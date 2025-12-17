@@ -13439,42 +13439,29 @@ GE DIN INSIGHT NU (ingen extra text):"""
                 round_responses.extend([r for r in external_responses if r.get('success', False)])
             else:
                 # Rounds 2 & 3: Process agents sequentially in turn order (including ONESEEK)
-                # No echo/comment/insight in rounds 2-3 - agents just respond in order
                 logger.info(f"[WS-Debate] Round {round_num}: Processing {len(round_turn_order)} agents in turn order: {round_turn_order}")
                 
-                # Find ONESEEK's position in turn order
-                oneseek_position = round_turn_order.index('oneseek') if 'oneseek' in round_turn_order else -1
-                
-                # Process all agents BEFORE ONESEEK
-                for i, agent_name in enumerate(round_turn_order):
+                for agent_name in round_turn_order:
                     if agent_name == 'oneseek':
-                        # ONESEEK's turn - stop here and generate ONESEEK's response
-                        logger.info(f"[WS-Debate] ONESEEK's turn at position {i + 1}/{len(round_turn_order)}")
-                        break
+                        # ONESEEK's turn in the rotation
+                        logger.info(f"[WS-Debate] ONESEEK's turn at position {round_turn_order.index(agent_name) + 1}/{len(round_turn_order)}")
+                        # Skip to ONESEEK answer generation below
+                        break  # Process ONESEEK after gathering any remaining external responses
                     else:
-                        # External agent's turn - just get response (no echo/comment in rounds 2-3)
-                        logger.info(f"[WS-Debate] Processing {agent_name} at position {i + 1}/{len(round_turn_order)}")
-                        response = await get_external_response(agent_name)
-                        
-                        # Emit ai_response event
-                        await websocket.send_json({
-                            "type": "ai_response",
-                            "round": round_num,
-                            "agent": agent_name,
-                            "message": f"✅ {agent_name.upper()} har svarat",
-                            "data": {
-                                "agent": agent_name,
-                                "success": response.get('success', False)
-                            }
-                        })
-                        
+                        # External agent's turn
+                        response = await get_and_process_immediately(agent_name)
                         if response.get('success', False):
                             round_responses.append(response)
-                            # Add to external_responses for context building
-                            async with external_responses_lock:
-                                external_responses.append(response)
                 
-                # Note: Agents AFTER ONESEEK will be processed after ONESEEK's response (see below)
+                # If ONESEEK hasn't appeared yet in turn order, it means it comes after current position
+                oneseek_position = round_turn_order.index('oneseek') if 'oneseek' in round_turn_order else -1
+                
+                # Process any remaining external agents after ONESEEK's turn (for rounds 2-3)
+                if oneseek_position >= 0:
+                    remaining_agents = round_turn_order[oneseek_position + 1:]
+                    if remaining_agents:
+                        logger.info(f"[WS-Debate] {len(remaining_agents)} agents remain after ONESEEK: {remaining_agents}")
+                        # These will be processed after ONESEEK's response
             
             # Generate ONESEEK's own answer (this happens at different positions in rounds 2-3)
             logger.info(f"[WS-Debate] OneSeek generating its own comprehensive answer for round {round_num}...")
@@ -13720,26 +13707,12 @@ GE DITT RESONEMANG NU (börja direkt med substans):"""
                     logger.info(f"[WS-Debate] Processing {len(remaining_agents)} agents after ONESEEK: {remaining_agents}")
                     
                     for agent_name in remaining_agents:
-                        # Get response from external agent
-                        response = await get_external_response(agent_name)
-                        
-                        # Emit ai_response event
-                        await websocket.send_json({
-                            "type": "ai_response",
-                            "round": round_num,
-                            "agent": agent_name,
-                            "message": f"✅ {agent_name.upper()} har svarat",
-                            "data": {
-                                "agent": agent_name,
-                                "success": response.get('success', False)
-                            }
-                        })
+                        # Process with full echo/comment/insight flow (same as agents before ONESEEK)
+                        # This maintains real-time feel and builds knowledge for next rounds
+                        response = await get_and_process_immediately(agent_name)
                         
                         if response.get('success', False):
                             round_responses.append(response)
-                            # Add to external_responses for context building
-                            async with external_responses_lock:
-                                external_responses.append(response)
                             logger.info(f"[WS-Debate] {agent_name} responded after ONESEEK in round {round_num}")
             
             # Generate round summary/compression (5 key learnings)
