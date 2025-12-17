@@ -13340,14 +13340,14 @@ GE DIN KOMMENTAR NU (ingen inledning):"""
                             "message": comment_text
                         })
                     
-                    # 3. LIVE INSIGHT: Generate engaging analytical observation
+                    # 3. INSIGHT: Generate engaging analytical observation
                     try:
                         # Count how many responses we've received so far
                         async with external_responses_lock:
                             responses_so_far = len(external_responses)
                         
                         # Build insight prompt
-                        insight_prompt = f"""Du är en skarp debattobservatör som ger publiken snabba live-kommentarer.
+                        insight_prompt = f"""Du är ONESEEK som ger publiken snabba live-insikter om debatten.
 
 DEBATTFRÅGA: {clean_question}
 
