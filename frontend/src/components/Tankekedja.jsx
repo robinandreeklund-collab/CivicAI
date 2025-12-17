@@ -226,14 +226,42 @@ function buildTreeStructure(events) {
 }
 
 /**
- * Tree Node Component
+ * Format UTC timestamp
  */
-function TreeNode({ node, depth = 0, isLast = false, parentPath = '' }) {
+function formatUTCTimestamp(timestamp) {
+  if (!timestamp) return 'N/A';
+  try {
+    const date = new Date(timestamp);
+    return date.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+  } catch {
+    return timestamp;
+  }
+}
+
+/**
+ * Calculate duration in seconds
+ */
+function calculateDuration(startTime, endTime) {
+  if (!startTime || !endTime) return null;
+  try {
+    const duration = (new Date(endTime) - new Date(startTime)) / 1000;
+    return duration > 0 ? duration.toFixed(1) + ' sek' : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Tree Node Component with Detailed Information Display
+ */
+function TreeNode({ node, depth = 0, isLast = false, parentPath = '', previousNode = null }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
+  const [showRawJSON, setShowRawJSON] = useState(false);
   
   const hasChildren = node.children && node.children.length > 0;
   const indent = depth * 20;
+  const duration = previousNode?.timestamp ? calculateDuration(previousNode.timestamp, node.timestamp) : null;
   
   // Get icon and color based on node type
   const getNodeStyle = () => {
@@ -325,36 +353,241 @@ function TreeNode({ node, depth = 0, isLast = false, parentPath = '' }) {
             )}
           </div>
           
-          {/* Details */}
+          {/* Detailed Information Panel */}
           {showDetails && hasDetails && (
-            <div className="mt-2 text-xs space-y-1 bg-[#0a0a0a] rounded p-2 border border-[#1a1a1a]">
-              {node.text && (
-                <div className="text-[#aaa] whitespace-pre-wrap max-h-40 overflow-y-auto">
-                  {node.text}
-                </div>
-              )}
-              
-              {node.analysis && node.analysis.summary && (
-                <div className="space-y-1">
-                  <div className="text-[#888] font-medium">MTA-DO Score:</div>
+            <div className="mt-2 text-[11px] space-y-2 bg-[#0a0a0a] rounded p-3 border border-[#1a1a1a]">
+              {/* Timestamp Information */}
+              {node.timestamp && (
+                <div className="space-y-1 pb-2 border-b border-[#1a1a1a]">
+                  <div className="text-[#666]">⏰ Tidsinformation</div>
                   <div className="text-[#aaa]">
-                    {node.analysis.summary.weighted_score?.toFixed(1) || 'N/A'}/10
+                    <span className="text-[#888]">Starttid:</span> {formatUTCTimestamp(node.timestamp)}
                   </div>
-                  {node.analysis.summary.strengths && (
-                    <div className="text-[#6a6]">
-                      ✓ {node.analysis.summary.strengths.join(', ')}
+                  {duration && (
+                    <div className="text-[#aaa]">
+                      <span className="text-[#888]">Tid från föregående:</span> {duration}
                     </div>
                   )}
                 </div>
               )}
-              
-              {node.motivation && (
-                <div className="text-[#aaa] italic">"{node.motivation}"</div>
+
+              {/* Agent Response Details */}
+              {node.type === 'agent_response' && (
+                <div className="space-y-1 pb-2 border-b border-[#1a1a1a]">
+                  <div className="text-[#666]">📡 API-anrop</div>
+                  <div className="text-[#aaa]">
+                    <span className="text-[#888]">API:</span> {node.agent?.toUpperCase()} API
+                  </div>
+                  <div className="text-[#aaa]">
+                    <span className="text-[#888]">Tokens ut:</span> {node.tokens_out || 'N/A'}
+                  </div>
+                  <div className="text-[#aaa]">
+                    <span className="text-[#888]">Tokens in:</span> {node.tokens_in || 'N/A'}
+                  </div>
+                  <button
+                    onClick={() => setShowRawJSON(!showRawJSON)}
+                    className="text-[#66a] hover:text-[#88c] underline text-[10px] mt-1"
+                  >
+                    [Klicka för skickad payload (råJSON)]
+                  </button>
+                </div>
+              )}
+
+              {/* Response Text */}
+              {node.text && (
+                <div className="space-y-1 pb-2 border-b border-[#1a1a1a]">
+                  <div className="text-[#666]">💬 Svar</div>
+                  <div className="text-[#aaa] whitespace-pre-wrap max-h-40 overflow-y-auto bg-[#050505] rounded p-2">
+                    {node.text}
+                  </div>
+                  <button
+                    onClick={() => setShowRawJSON(!showRawJSON)}
+                    className="text-[#66a] hover:text-[#88c] underline text-[10px]"
+                  >
+                    [Klicka för råsvar]
+                  </button>
+                </div>
               )}
               
+              {/* MTA-DO Analysis with 6 Dimensions */}
+              {node.analysis && (
+                <div className="space-y-2 pb-2 border-b border-[#1a1a1a]">
+                  <div className="text-[#666]">📊 MTA-DO Analys (6 dimensioner)</div>
+                  
+                  {/* Overall Score */}
+                  {node.analysis.summary && (
+                    <div className="bg-[#050505] rounded p-2 space-y-1">
+                      <div className="text-[#aaa]">
+                        <span className="text-[#888]">Vägt poäng:</span>{' '}
+                        <span className="text-[#0a0] font-bold">
+                          {node.analysis.summary.weighted_score?.toFixed(1) || 'N/A'}/10
+                        </span>
+                      </div>
+                      {node.analysis.summary.overall_score !== undefined && (
+                        <div className="text-[#aaa]">
+                          <span className="text-[#888]">Övergripande poäng:</span>{' '}
+                          {node.analysis.summary.overall_score.toFixed(1)}/10
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* 6 Dimensions */}
+                  {node.analysis && (
+                    <div className="space-y-1.5 bg-[#050505] rounded p-2">
+                      {['relevance', 'argument_depth', 'factual_anchoring', 'clarity', 'logical_coherence', 'risk_hallucination'].map((dim, idx) => {
+                        const dimData = node.analysis[dim];
+                        if (!dimData) return null;
+                        
+                        const labels = {
+                          relevance: '1. Relevans',
+                          argument_depth: '2. Argumentdjup',
+                          factual_anchoring: '3. Faktaförankring',
+                          clarity: '4. Klarhet',
+                          logical_coherence: '5. Logisk koherens',
+                          risk_hallucination: '6. Risk/Hallucination'
+                        };
+                        
+                        return (
+                          <div key={dim} className="text-[10px]">
+                            <div className="text-[#888]">{labels[dim]}:</div>
+                            <div className="text-[#aaa] ml-2">
+                              Poäng: <span className="text-[#0a0]">{dimData.score?.toFixed(1) || 'N/A'}/10</span>
+                            </div>
+                            {dimData.reasoning && (
+                              <div className="text-[#777] ml-2 italic text-[9px]">
+                                {dimData.reasoning}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  
+                  {/* Strengths & Weaknesses */}
+                  {node.analysis.summary && (
+                    <div className="space-y-1">
+                      {node.analysis.summary.strengths && node.analysis.summary.strengths.length > 0 && (
+                        <div className="text-[10px]">
+                          <div className="text-[#6a6]">✓ Styrkor:</div>
+                          <ul className="ml-3 text-[#888] list-disc">
+                            {node.analysis.summary.strengths.map((s, i) => (
+                              <li key={i}>{s}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {node.analysis.summary.weaknesses && node.analysis.summary.weaknesses.length > 0 && (
+                        <div className="text-[10px]">
+                          <div className="text-[#a66]">✗ Svagheter:</div>
+                          <ul className="ml-3 text-[#888] list-disc">
+                            {node.analysis.summary.weaknesses.map((w, i) => (
+                              <li key={i}>{w}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  <button
+                    onClick={() => setShowRawJSON(!showRawJSON)}
+                    className="text-[#66a] hover:text-[#88c] underline text-[10px]"
+                  >
+                    [Klicka för MTA-DO JSON med alla dimensioner]
+                  </button>
+                </div>
+              )}
+              
+              {/* OneSeek Commentary */}
+              {node.type === 'oneseek_reasoning' && (
+                <div className="space-y-1 pb-2 border-b border-[#1a1a1a]">
+                  <div className="text-[#666]">🧠 ONESEEK Commentary</div>
+                  <div className="text-[#aaa]">
+                    <span className="text-[#888]">Tokens:</span> {node.tokens || 'N/A'}
+                  </div>
+                  {node.text && (
+                    <div className="text-[#aaa] bg-[#050505] rounded p-2 whitespace-pre-wrap">
+                      {node.text}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setShowRawJSON(!showRawJSON)}
+                    className="text-[#66a] hover:text-[#88c] underline text-[10px]"
+                  >
+                    [Visa prompt + klicka för rådata]
+                  </button>
+                </div>
+              )}
+              
+              {/* Insight */}
+              {node.type === 'live_insight' && (
+                <div className="space-y-1 pb-2 border-b border-[#1a1a1a]">
+                  <div className="text-[#666]">💡 ONESEEK Insight</div>
+                  <div className="text-[#aaa]">
+                    <span className="text-[#888]">Tokens:</span> {node.tokens || 'N/A'}
+                  </div>
+                  {node.text && (
+                    <div className="text-[#aaa] bg-[#050505] rounded p-2 whitespace-pre-wrap">
+                      {node.text}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setShowRawJSON(!showRawJSON)}
+                    className="text-[#66a] hover:text-[#88c] underline text-[10px]"
+                  >
+                    [Klicka för rådata]
+                  </button>
+                </div>
+              )}
+              
+              {/* Vote Motivation */}
+              {node.motivation && (
+                <div className="space-y-1 pb-2 border-b border-[#1a1a1a]">
+                  <div className="text-[#666]">🗳️ Röstmotivering</div>
+                  <div className="text-[#aaa] italic bg-[#050505] rounded p-2">
+                    "{node.motivation}"
+                  </div>
+                  {node.tokens && (
+                    <div className="text-[#888]">Tokens: {node.tokens}</div>
+                  )}
+                </div>
+              )}
+              
+              {/* Blockchain Lock */}
+              {node.blockchain_hash && (
+                <div className="space-y-1 pb-2 border-b border-[#1a1a1a]">
+                  <div className="text-[#666]">🔒 Blockchain Lock</div>
+                  <div className="text-[#aaa] text-[9px] font-mono bg-[#050505] rounded p-1 break-all">
+                    Hash: {node.blockchain_hash}
+                  </div>
+                  <div className="text-[#888]">
+                    Låst: {node.blockchain_locked_at ? formatUTCTimestamp(node.blockchain_locked_at) : 'N/A'}
+                  </div>
+                </div>
+              )}
+              
+              {/* Raw JSON Toggle */}
+              {showRawJSON && (
+                <div className="mt-2 pt-2 border-t border-[#1a1a1a]">
+                  <div className="text-[#666] mb-1">📄 Rådata (JSON)</div>
+                  <div className="bg-[#000] rounded p-2 text-[9px] font-mono text-[#0a0] max-h-60 overflow-auto">
+                    {JSON.stringify({
+                      ...node,
+                      children: node.children?.length || 0
+                    }, null, 2)}
+                  </div>
+                </div>
+              )}
+              
+              {/* General Data */}
               {node.data && (
-                <div className="text-[#888] text-[10px] font-mono">
-                  {JSON.stringify(node.data, null, 2).substring(0, 200)}...
+                <div className="space-y-1">
+                  <div className="text-[#666]">📋 Data</div>
+                  <div className="text-[#888] text-[9px] font-mono bg-[#050505] rounded p-2 max-h-32 overflow-auto">
+                    {JSON.stringify(node.data, null, 2)}
+                  </div>
                 </div>
               )}
             </div>
@@ -382,6 +615,7 @@ function TreeNode({ node, depth = 0, isLast = false, parentPath = '' }) {
               depth={depth + 1}
               isLast={index === node.children.length - 1}
               parentPath={`${parentPath}/${node.id}`}
+              previousNode={index > 0 ? node.children[index - 1] : node}
             />
           ))}
         </div>
