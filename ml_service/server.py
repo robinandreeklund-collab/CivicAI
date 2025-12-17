@@ -13370,7 +13370,7 @@ Svara ENDAST med giltig JSON i denna exakta struktur:
                     "temperature": 0.3,  # Low temperature for consistent analysis
                     "stream": False
                 },
-                timeout=10  # 10 second timeout as per spec
+                timeout=30  # 30 second timeout for robust analysis
             )
         )
         response.raise_for_status()
@@ -13782,25 +13782,51 @@ GE DITT SVAR NU:"""
                         mta_analysis = None
                     
                     # 2. DIRECT COMMENT: Generate conversational comment with MTA context
-                    # Build MTA context if available
-                    mta_context = ""
-                    if mta_analysis and not mta_analysis.get('fallback', False):
-                        mta_context = f"""
-MTA-DO ANALYS av {agent_name.upper()}s svar:
-- Kvalitetspoäng: {mta_analysis['summary']['weighted_score']}/10
-- Styrkor: {', '.join(mta_analysis['summary']['strengths'][:2]) if mta_analysis['summary']['strengths'] else 'Inga specifika'}
-- Svagheter: {', '.join(mta_analysis['summary']['weaknesses'][:2]) if mta_analysis['summary']['weaknesses'] else 'Inga specifika'}
-
-Använd denna analys för att ge en informerad kommentar.
-"""
+                    # Format all previous MTA analyses for context
+                    all_mta_analyses_formatted = ""
+                    mta_analyses = [item['analysis'] for item in knowledge_chain if item.get('type') == 'mta_analysis']
+                    if mta_analyses:
+                        all_mta_analyses_formatted = "\n".join([
+                            f"- {a['agent_name'].upper()} (Runda {a['round_number']}): {a['summary']['weighted_score']}/10"
+                            for a in mta_analyses
+                        ])
                     
-                    comment_prompt = f"""Du är OneSeek, en engagerad och analytisk debattvärd som leder en live-debatt.
+                    # Build MTA-aware comment prompt following YAML spec
+                    if mta_analysis and not mta_analysis.get('fallback', False):
+                        comment_prompt = f"""Du är ONESEEK som ger meta-kommentarer på debatten.
+
+KONTEXT:
+- Agent: {agent_name.upper()}
+- Runda: {round_num}
+- Svar: {agent_response[:500]}...
+- MTA-Analys: 
+  * Overall Score: {mta_analysis['summary']['weighted_score']}/10
+  * Relevans: {mta_analysis['analysis']['relevance']['score']}/10 - {mta_analysis['analysis']['relevance']['reasoning']}
+  * Argumentdjup: {mta_analysis['analysis']['argument_depth']['score']}/10 - {mta_analysis['analysis']['argument_depth']['reasoning']}
+  * Faktaförankring: {mta_analysis['analysis']['factual_anchoring']['score']}/10 - {mta_analysis['analysis']['factual_anchoring']['reasoning']}
+  * Styrkor: {', '.join(mta_analysis['summary']['strengths'])}
+  * Svagheter: {', '.join(mta_analysis['summary']['weaknesses'])}
+
+TIDIGARE ANALYSER:
+{all_mta_analyses_formatted}
+
+UPPGIFT:
+Ge en kort, insiktsfull kommentar (2-3 meningar) som:
+1. Bekräftar svarets kvalitet baserat på MTA-poäng
+2. Lyfter fram viktiga styrkor eller bekymmer från analysen
+3. Kontextualiserar inom det bredare debattflödet
+
+Var neutral, konstruktiv och transparent om analysen. Skriv på svenska.
+
+GE DIN KOMMENTAR NU:"""
+                    else:
+                        # Fallback if no MTA analysis available
+                        comment_prompt = f"""Du är OneSeek, en engagerad och analytisk debattvärd som leder en live-debatt.
 
 DEBATTFRÅGA: {clean_question}
 
 {agent_name.upper()}S SVAR I RUNDA {round_num}:
 {agent_response[:800]}...
-{mta_context}
 
 BEHAVIORAL ENFORCEMENT:
 - Reagera naturligt och tänkande på det du just läst
@@ -13835,7 +13861,7 @@ GE DIN KOMMENTAR NU (ingen inledning):"""
                         llm_response = requests.post(
                             f"{server_url}/v1/chat/completions",
                             json=payload,
-                            timeout=30,
+                            timeout=60,  # Increased timeout for reliable comment generation
                         )
                         llm_response.raise_for_status()
                         result = llm_response.json()
@@ -13881,30 +13907,41 @@ GE DIN KOMMENTAR NU (ingen inledning):"""
                         async with external_responses_lock:
                             responses_so_far = len(external_responses)
                         
-                        # Build MTA context from all analyses so far
-                        mta_summary = ""
+                        # Build formatted MTA analyses list following YAML spec
                         mta_analyses = [item['analysis'] for item in knowledge_chain if item.get('type') == 'mta_analysis']
+                        all_mta_analyses_formatted = ""
                         if mta_analyses:
-                            avg_score = sum(a['summary']['weighted_score'] for a in mta_analyses) / len(mta_analyses)
-                            best_agent = max(mta_analyses, key=lambda x: x['summary']['weighted_score'])
-                            mta_summary = f"\n\nMTA-översikt: Genomsnittlig kvalitet {avg_score:.1f}/10. Bästa: {best_agent['agent_name']} ({best_agent['summary']['weighted_score']}/10)."
+                            all_mta_analyses_formatted = "\n".join([
+                                f"- {a['agent_name'].upper()} (Runda {a['round_number']}): {a['summary']['weighted_score']}/10 - Styrkor: {', '.join(a['summary']['strengths'][:2]) if a['summary']['strengths'] else 'N/A'}"
+                                for a in mta_analyses
+                            ])
                         
-                        # Build context about previous responses in this round
-                        previous_context = ""
-                        if responses_so_far > 1:
-                            async with external_responses_lock:
-                                prev_agents = [r['agent'] for r in external_responses[:-1]]
-                                previous_context = f"\n\nTidigare i denna runda har {', '.join(prev_agents)} redan svarat."
-                        
-                        # Include the actual response for context
-                        response_preview = agent_response[:200] if len(agent_response) > 200 else agent_response
-                        
-                        insight_prompt = f"""Du är en skarp debattobservatör som ger publiken snabba live-kommentarer.
+                        # Build insight prompt following YAML spec
+                        if mta_analyses:
+                            insight_prompt = f"""Du är ONESEEK som genererar en syntes-insikt (💡) för det aktuella debattläget.
+
+KONTEXT:
+- Runda: {round_num}
+- Alla MTA-analyser: 
+{all_mta_analyses_formatted}
+
+UPPGIFT:
+Generera en kort insikt (1-2 meningar) som:
+1. Syntetiserar mönster över alla svar
+2. Identifierar växande konsensus eller divergenser
+3. Lyfter fram de mest värdefulla bidragen
+
+Markera med 💡 och var koncis men upplysande. Skriv på svenska.
+
+GE DIN INSIKT NU:"""
+                        else:
+                            # Fallback if no MTA analyses yet
+                            insight_prompt = f"""Du är en skarp debattobservatör som ger publiken snabba live-kommentarer.
 
 DEBATTFRÅGA: {clean_question}
 
 {agent_name.upper()}S SVAR I RUNDA {round_num}:
-{response_preview}...{previous_context}{mta_summary}
+{agent_response[:200]}...
 
 BEHAVIORAL ENFORCEMENT:
 - Längd: 15-25 ord (1-2 meningar, STRIKT)
