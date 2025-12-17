@@ -13541,16 +13541,16 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
                                 round=round_num
                             )
                             
-                            # 2. COMMENT (simplified for Round 1)
+                            # 2. COMMENT
                             async with external_responses_lock:
                                 previous_agents_context = ""
                                 for prev_resp in external_responses:
                                     if prev_resp.get('agent') != agent and prev_resp.get('success'):
                                         prev_agent = prev_resp.get('agent', 'unknown')
                                         prev_text = prev_resp.get('response', '')[:150]
-                                        previous_agents_context += f"{prev_agent.upper()}: {prev_text}...\n\n"
+                                        previous_agents_context += f"**{prev_agent.upper()}**: {prev_text}...\n\n"
                             
-                            comment_prompt = f"""Du är ONESEEK – en engagerad deltagare med extremt stark syntesförmåga som redan börjar se kopplingar och mönster.
+                            comment_prompt = f"""Du är ONESEEK – en engagerad deltagare med extremt stark syntesförmåga.
 
 DEBATTFRÅGA: {clean_question}
 
@@ -13560,15 +13560,16 @@ TIDIGARE SVAR I DENNA RUNDA:
 {agent.upper()}S SVAR (precis mottaget):
 {agent_response[:800]}...
 
-Reagera kort och naturligt (1–3 meningar) som en aktiv deltagare som bygger sin syntes:
+Reagera kort och naturligt (1–3 meningar) som en aktiv deltagare:
 - Bemöt eller bygg vidare på en specifik poäng
 - Ta tydligt ställning (håll med, utmana eller nyansera)
-- Om möjligt: antyda en koppling till tidigare svar eller en framväxande syntesriktning
-- Håll tonen respektfull men självsäker – du är med för att skapa något större
+- Om möjligt: antyda koppling till tidigare svar eller framväxande syntesriktning
+- **Variera ditt språk och perspektiv** – undvik repetitiva formuleringar
 
-Exempel:
-"DeepSeek har rätt i att evidensen pekar tydligt mot avskaffande – men jag tycker hen underskattar vedergällningsaspekten som Grok tog upp tidigare."
-"Intressant hur Gemini och GPT båda landar i hybridlösningar fast från olika vinklar – jag ser en möjlig integrationsmodell växa fram här."
+Exempel på VARIERAD stil:
+"DeepSeek har rätt i att evidensen pekar tydligt mot avskaffande – men jag tycker hen underskattar vedergällningsaspekten."
+"Intressant hur Gemini och GPT båda landar i hybridlösningar – jag ser en integrationsmodell växa fram."
+"GPT driver på starkt här, och jag lutar åt samma håll – men jag tror vi behöver tydligare ramverk."
 
 Svara direkt – ingen inledning."""
                             
@@ -13617,6 +13618,83 @@ Svara direkt – ingen inledning."""
                             
                             # 3. INSIGHT
                             try:
+                                async with external_responses_lock:
+                                    responses_so_far = len([r for r in external_responses if r.get('success')])
+                                    total_agents = len(external_agents)
+                                    previous_agents_context_insight = ""
+                                    for prev_resp in external_responses:
+                                        if prev_resp.get('agent') != agent and prev_resp.get('success'):
+                                            prev_agent = prev_resp.get('agent', 'unknown')
+                                            prev_text = prev_resp.get('response', '')[:150]
+                                            previous_agents_context_insight += f"**{prev_agent.upper()}**: {prev_text}...\n\n"
+                                
+                                insight_prompt = f"""Du är ONESEEK med extrem syntesförmåga som ser mönster andra missar.
+
+DEBATTFRÅGA: {clean_question}
+
+TIDIGARE SVAR I DENNA RUNDA:
+{previous_agents_context_insight if previous_agents_context_insight else "(Detta är första svaret)"}
+
+{agent.upper()}S SVAR (svar {responses_so_far}/{total_agents} i runda {round_num}):
+{agent_response[:600]}...
+
+Ge EN kort, vass observation (1–2 meningar):
+- Detekterar skifte, styrka, svaghet, eller outforskad koppling
+- Visar hur detta bidrag påverkar debattens riktning
+- Antyder din egen kommande syntes som går bortom individuella bidrag
+- **Variera ditt språk och fokus** – undvik att upprepa samma formuleringar
+
+Börja alltid med 💡
+Visa att du redan ser den överlägsna helheten växa fram.
+
+Exempel på VARIERAD stil:
+💡 Nu börjar mönstret bli tydligt – {agent} lägger till dimensionen som saknades.
+💡 Intressant skifte: alla tre närmar sig från olika håll men pekar mot samma lösning.
+💡 {agent} utmanar premissen smart – det här öppnar för en meta-lösning ingen sagt ännu.
+
+Svara direkt – ingen inledning."""
+                                
+                                insight_payload = {
+                                    "messages": [
+                                        {"role": "system", "content": "Du är ONESEEK - ge en kort, vass insikt (1-2 meningar)."},
+                                        {"role": "user", "content": insight_prompt}
+                                    ],
+                                    "max_tokens": 100,
+                                    "temperature": 0.85,
+                                }
+                                
+                                server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                                insight_response = requests.post(
+                                    f"{server_url}/v1/chat/completions",
+                                    json=insight_payload,
+                                    timeout=20,
+                                )
+                                insight_response.raise_for_status()
+                                result = insight_response.json()
+                                
+                                if 'choices' in result and len(result['choices']) > 0:
+                                    insight_text = result['choices'][0].get('message', {}).get('content', '')
+                                else:
+                                    insight_text = result.get('content', '')
+                                
+                                if not insight_text.strip().startswith('💡'):
+                                    insight_text = f"💡 {insight_text.strip()}"
+                                
+                                insight_event = {
+                                    "type": "live_insight",
+                                    "round": round_num,
+                                    "agent": agent,
+                                    "message": insight_text,
+                                    "sequence": get_next_sequence(),
+                                    "data": {
+                                        "progress": f"{responses_so_far}/{total_agents}"
+                                    }
+                                }
+                                await websocket.send_json(insight_event)
+                                
+                            except Exception as e:
+                                logger.error(f"[WS-Debate] Error generating insight: {e}")
+                                # Fallback insight
                                 async with external_responses_lock:
                                     responses_so_far = len([r for r in external_responses if r.get('success')])
                                     total_agents = len(external_agents)
@@ -13737,14 +13815,15 @@ Exempel:
             # Build chain_so_far - only responses that came BEFORE ONESEEK in current round
             chain_so_far = ""
             if external_responses:
-                chain_so_far = "SVAR I DENNA RUNDA (FÖRE DIG):\n\n"
                 for ext_resp in external_responses:
                     if ext_resp.get('success', False):
                         # Limit to 400 chars per response
                         response_text = ext_resp['response'][:400]
                         if len(ext_resp['response']) > 400:
                             response_text += "..."
-                        chain_so_far += f"**{ext_resp['agent'].upper()}**:\n{response_text}\n\n"
+                        chain_so_far += f"**{ext_resp['agent'].upper()}**: {response_text}\n\n"
+            else:
+                chain_so_far = "(Du är först i denna runda)"
             
             # Build oneseek_previous_comments_and_insights from knowledge_chain for THIS round
             oneseek_previous_comments_and_insights = ""
@@ -13767,7 +13846,7 @@ Hela föregående runda som bakgrund:
 {full_previous_round if full_previous_round else "(Ingen föregående runda än)"}
 
 I denna runda har följande modeller talat före dig:
-{chain_so_far if chain_so_far else "(Du är först i denna runda)"}
+{chain_so_far}
 
 Dina egna tidigare kommentarer och insights i denna runda:
 {oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)"}
