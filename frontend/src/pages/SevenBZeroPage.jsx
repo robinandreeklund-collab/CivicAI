@@ -147,6 +147,66 @@ const convertEmojis = (text) => {
   return result;
 };
 
+/**
+ * Debate Completion Section Component
+ * Displays voting results (collapsible), winner, and summary when debate is completed
+ */
+function DebateCompletionSection({ completion }) {
+  const [votingExpanded, setVotingExpanded] = useState(false);
+
+  return (
+    <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+      <div className="text-sm font-medium text-[#888] mb-3">✅ Debatt avslutad</div>
+      
+      {/* Voting Results - Collapsible */}
+      <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
+        <button 
+          onClick={() => setVotingExpanded(!votingExpanded)}
+          className="flex items-center justify-between w-full text-xs text-[#666] hover:text-[#888] transition-colors mb-2"
+        >
+          <span>🗳️ Röstning avslutad</span>
+          <span className="text-[#444]">{votingExpanded ? '▼' : '▶'}</span>
+        </button>
+        {votingExpanded && (
+          <div className="space-y-2 mt-2">
+            {completion.voteResults?.map((vote, idx) => (
+              <div key={idx} className="text-xs">
+                <div className="text-[#888] font-medium">
+                  {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
+                </div>
+                {vote.motivation && (
+                  <div className="text-[#666] mt-1 italic">
+                    {vote.motivation}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      
+      {/* Winner */}
+      <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
+        <div className="text-xs text-[#666] mb-1">🏆 Vinnare</div>
+        <div className="text-sm text-[#aaa]">
+          {completion.winner?.toUpperCase()}
+          <span className="text-xs text-[#666] ml-2">
+            ({completion.winnerVotes}/{completion.totalVotes} röster)
+          </span>
+        </div>
+      </div>
+      
+      {/* Summary */}
+      <div>
+        <div className="text-xs text-[#666] mb-2">📋 Sammanfattning</div>
+        <div className="text-xs text-[#888] leading-relaxed">
+          {completion.summary}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SevenBZeroPage() {
   // Core state
   const [modelStatus, setModelStatus] = useState(null);
@@ -2793,8 +2853,8 @@ export default function SevenBZeroPage() {
                 />
               ))}
               
-              {/* Live Voting Display - Show votes as they come in */}
-              {debateRounds.voting && debateRounds.voting.votes && debateRounds.voting.votes.length > 0 && (
+              {/* Live Voting Display - Show votes as they come in, hide when completed */}
+              {debateRounds.voting && debateRounds.voting.votes && debateRounds.voting.votes.length > 0 && !debateRounds.completion && (
                 <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
                   <div className="text-sm font-medium text-[#888] mb-3">🗳️ Röstning pågår...</div>
                   <div className="space-y-2">
@@ -2816,47 +2876,7 @@ export default function SevenBZeroPage() {
               
               {/* Debate Completion - Integrated into flow */}
               {debateRounds.completion && (
-                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
-                  <div className="text-sm font-medium text-[#888] mb-3">Debatt avslutad</div>
-                  
-                  {/* Voting Results */}
-                  <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
-                    <div className="text-xs text-[#666] mb-2">Röstning</div>
-                    <div className="space-y-2">
-                      {debateRounds.completion.voteResults?.map((vote, idx) => (
-                        <div key={idx} className="text-xs">
-                          <div className="text-[#888] font-medium">
-                            {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
-                          </div>
-                          {vote.motivation && (
-                            <div className="text-[#666] mt-1 italic">
-                              {vote.motivation}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  {/* Winner */}
-                  <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
-                    <div className="text-xs text-[#666] mb-1">Vinnare</div>
-                    <div className="text-sm text-[#aaa]">
-                      {debateRounds.completion.winner?.toUpperCase()}
-                      <span className="text-xs text-[#666] ml-2">
-                        ({debateRounds.completion.winnerVotes}/{debateRounds.completion.totalVotes} röster)
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {/* Summary */}
-                  <div>
-                    <div className="text-xs text-[#666] mb-2">Sammanfattning</div>
-                    <div className="text-xs text-[#888] leading-relaxed">
-                      {debateRounds.completion.summary}
-                    </div>
-                  </div>
-                </div>
+                <DebateCompletionSection completion={debateRounds.completion} />
               )}
               
               {/* MTA-16 Analysis Offer - now handled via regular messages, remove this */}
@@ -3029,8 +3049,8 @@ export default function SevenBZeroPage() {
                       />
                     ))}
                     
-                    {/* Live Voting Display - Show votes as they come in */}
-                    {debateRounds.voting && debateRounds.voting.votes && debateRounds.voting.votes.length > 0 && (
+                    {/* Live Voting Display - Show votes as they come in, hide when completed */}
+                    {debateRounds.voting && debateRounds.voting.votes && debateRounds.voting.votes.length > 0 && !debateRounds.completion && (
                       <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
                         <div className="text-sm font-medium text-[#888] mb-3">🗳️ Röstning pågår...</div>
                         <div className="space-y-2">
@@ -3052,47 +3072,7 @@ export default function SevenBZeroPage() {
                     
                     {/* Debate Completion */}
                     {debateRounds.completion && (
-                      <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
-                        <div className="text-sm font-medium text-[#888] mb-3">Debatt avslutad</div>
-                        
-                        {/* Voting Results */}
-                        <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
-                          <div className="text-xs text-[#666] mb-2">Röstning</div>
-                          <div className="space-y-2">
-                            {debateRounds.completion.voteResults?.map((vote, idx) => (
-                              <div key={idx} className="text-xs">
-                                <div className="text-[#888] font-medium">
-                                  {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
-                                </div>
-                                {vote.motivation && (
-                                  <div className="text-[#666] mt-1 italic">
-                                    {vote.motivation}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        
-                        {/* Winner */}
-                        <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
-                          <div className="text-xs text-[#666] mb-1">Vinnare</div>
-                          <div className="text-sm text-[#aaa]">
-                            {debateRounds.completion.winner?.toUpperCase()}
-                            <span className="text-xs text-[#666] ml-2">
-                              ({debateRounds.completion.winnerVotes}/{debateRounds.completion.totalVotes} röster)
-                            </span>
-                          </div>
-                        </div>
-                        
-                        {/* Summary */}
-                        <div>
-                          <div className="text-xs text-[#666] mb-2">Sammanfattning</div>
-                          <div className="text-xs text-[#888] leading-relaxed">
-                            {debateRounds.completion.summary}
-                          </div>
-                        </div>
-                      </div>
+                      <DebateCompletionSection completion={debateRounds.completion} />
                     )}
                   </div>
                 </div>

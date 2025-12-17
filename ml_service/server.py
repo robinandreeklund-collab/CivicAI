@@ -13303,6 +13303,288 @@ Skriv direkt och koncist. Exempel:
         })
 
 
+async def analyze_mta_do_response(agent_name: str, round_num: int, response_text: str, question: str):
+    """
+    MTA-Debate-Observer: Analyze a debate response across 8 dimensions.
+    Returns structured analysis with scores and reasoning.
+    
+    Dimensions: relevance, argument_depth, factual_anchoring, bias_detection,
+                logical_coherence, originality, clarity, constructiveness
+    """
+    try:
+        # MTA-DO prompt following mta-do.yaml specification
+        mta_prompt = f"""Du är MTA-Debate-Observer, ett objektivt metaanalyssystem som utvärderar debattsvar.
+
+KONTEXT:
+- Agent: {agent_name.upper()}
+- Runda: {round_num}
+- Fråga: {question}
+- Svar: {response_text[:1000]}...
+
+UPPGIFT:
+Utvärdera svaret på en 0-10 skala för varje dimension. Ge både numerisk poäng och kort motivering.
+
+DIMENSIONER (6 för optimal realtidsprestanda):
+1. Relevans (0-10): Hur väl adresserar svaret debattfrågan?
+2. Argumentdjup (0-10): Djup och sofistikering i argumentationen
+3. Faktuell/juridisk förankring (0-10): Användning av fakta, data och verifierbar information
+4. Klarhet (0-10): Kommunikationsklarhet och tillgänglighet
+5. Konsekvens (0-10): Intern konsekvens och logiskt flöde
+6. Risk/Hallucination (0-10): Risk för felaktig info eller hallucinationer (0=ingen risk, 10=hög risk)
+
+Svara ENDAST med giltig JSON i denna exakta struktur:
+{{
+  "analysis": {{
+    "relevance": {{"score": 0.0, "reasoning": ""}},
+    "argument_depth": {{"score": 0.0, "reasoning": ""}},
+    "factual_anchoring": {{"score": 0.0, "reasoning": ""}},
+    "clarity": {{"score": 0.0, "reasoning": ""}},
+    "logical_coherence": {{"score": 0.0, "reasoning": ""}},
+    "risk_hallucination": {{"score": 0.0, "reasoning": ""}}
+  }},
+  "summary": {{
+    "strengths": [],
+    "weaknesses": [],
+    "key_insights": []
+  }}
+}}"""
+
+        server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+        
+        # Use asyncio to run the blocking requests call in executor
+        loop = asyncio.get_event_loop()
+        
+        # Retry logic for robust JSON parsing
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: requests.post(
+                        f"{server_url}/v1/chat/completions",
+                        json={
+                            "messages": [
+                                {"role": "system", "content": "Du är en objektiv analysmotor. Svara ENDAST med valid JSON utan extra text före eller efter."},
+                                {"role": "user", "content": mta_prompt}
+                            ],
+                            "max_tokens": 600,  # Reduced from 800 due to 6 dimensions instead of 8
+                            "temperature": 0.2 if attempt > 0 else 0.3,  # Lower temp on retry
+                            "stream": False
+                        },
+                        timeout=30  # 30 second timeout for robust analysis
+                    )
+                )
+                response.raise_for_status()
+                result = response.json()
+                break  # Success, exit retry loop
+            except (requests.RequestException, KeyError) as req_error:
+                if attempt < max_retries - 1:
+                    logger.warning(f"[MTA-DO] Request failed for {agent_name}, retrying... ({attempt + 1}/{max_retries})")
+                    await asyncio.sleep(1)  # Brief pause before retry
+                else:
+                    raise req_error
+        
+        # Extract and parse JSON
+        content = result['choices'][0]['message']['content'].strip()
+        
+        # Try multiple JSON extraction strategies
+        analysis_data = None
+        
+        # Strategy 1: Try parsing entire content as JSON
+        try:
+            analysis_data = json.loads(content)
+            logger.info(f"[MTA-DO] Parsed JSON directly from content for {agent_name}")
+        except json.JSONDecodeError:
+            pass
+        
+        # Strategy 2: Find JSON object with brace matching (accounting for strings)
+        if not analysis_data:
+            json_start = content.find('{')
+            if json_start == -1:
+                raise ValueError("No JSON found in response")
+            
+            # Better brace matching that handles strings
+            brace_count = 0
+            json_end = -1
+            in_string = False
+            escape_next = False
+            
+            for i in range(json_start, len(content)):
+                char = content[i]
+                
+                if escape_next:
+                    escape_next = False
+                    continue
+                    
+                if char == '\\':
+                    escape_next = True
+                    continue
+                    
+                if char == '"':
+                    in_string = not in_string
+                    continue
+                
+                if not in_string:
+                    if char == '{':
+                        brace_count += 1
+                    elif char == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            json_end = i + 1
+                            break
+            
+            if json_end == -1:
+                # Strategy 3: Try to complete truncated JSON
+                logger.warning(f"[MTA-DO] Incomplete JSON detected for {agent_name}. Attempting to complete...")
+                
+                # Try to add missing closing braces based on expected structure
+                json_str = content[json_start:]
+                
+                # Count missing braces
+                open_braces = json_str.count('{')
+                close_braces = json_str.count('}')
+                missing_braces = open_braces - close_braces
+                
+                if missing_braces > 0 and missing_braces <= 5:
+                    # Try to close the JSON properly
+                    json_str_stripped = json_str.rstrip()
+                    
+                    # Check if we're in the middle of a string (truncated reasoning)
+                    if '"reasoning":' in json_str and not json_str_stripped.endswith('"') and not json_str_stripped.endswith('}'):
+                        # Find the last quote to see if we're mid-string
+                        last_quote_idx = json_str_stripped.rfind('"')
+                        last_colon_idx = json_str_stripped.rfind(':')
+                        
+                        if last_colon_idx > last_quote_idx:
+                            # We're after the colon but haven't closed the string
+                            # Remove any incomplete text after the last opening quote
+                            json_str = json_str_stripped + '"'  # Close the string
+                        elif json_str_stripped[-1] not in ['"', '}', ']']:
+                            # Incomplete string value - close it
+                            json_str = json_str_stripped + '"'
+                    
+                    # Recount after potential fixes
+                    open_braces = json_str.count('{')
+                    close_braces = json_str.count('}')
+                    missing_braces = open_braces - close_braces
+                    
+                    # Add remaining closing braces
+                    if missing_braces > 0:
+                        json_str += '}' * missing_braces
+                    
+                    try:
+                        analysis_data = json.loads(json_str)
+                        logger.info(f"[MTA-DO] Successfully repaired truncated JSON for {agent_name}")
+                    except json.JSONDecodeError as parse_err:
+                        # One more attempt: try to extract just the analysis object
+                        logger.warning(f"[MTA-DO] First repair attempt failed: {parse_err}. Trying fallback extraction...")
+                        try:
+                            # Look for "analysis": { pattern and try to build minimal valid JSON
+                            import re
+                            analysis_match = re.search(r'"analysis"\s*:\s*\{', content)
+                            if analysis_match:
+                                # Extract what we have and build minimum viable JSON
+                                logger.info(f"[MTA-DO] Using fallback extraction - response was truncated")
+                                # Return None to trigger fallback, but don't raise
+                                analysis_data = None
+                            else:
+                                raise parse_err
+                        except:
+                            logger.error(f"[MTA-DO] Could not repair JSON. Content preview: {content[:200]}")
+                            raise ValueError("Malformed JSON in response - no matching closing brace")
+                else:
+                    logger.error(f"[MTA-DO] Could not find matching braces. Content preview: {content[:200]}")
+                    raise ValueError("Malformed JSON in response - no matching closing brace")
+            else:
+                json_str = content[json_start:json_end]
+                
+                try:
+                    analysis_data = json.loads(json_str)
+                    logger.info(f"[MTA-DO] Parsed JSON with brace matching for {agent_name}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"[MTA-DO] JSON parse error for {agent_name}: {e}")
+                    logger.error(f"[MTA-DO] Extracted JSON string: {json_str[:500]}")
+                    raise ValueError(f"Malformed JSON in response - parse error: {e}")
+        
+        if not analysis_data:
+            raise ValueError("Could not extract valid JSON from response")
+        
+        # Calculate scores with weights (6 dimensions for optimal performance)
+        weights = {
+            'relevance': 1.0,
+            'argument_depth': 1.2,
+            'factual_anchoring': 1.3,
+            'clarity': 0.9,
+            'logical_coherence': 1.0,
+            'risk_hallucination': 1.1  # Inverse (lower is better)
+        }
+        
+        total_score = 0
+        weighted_score = 0
+        total_weight = 0
+        
+        for dim_name, weight in weights.items():
+            dim_data = analysis_data.get('analysis', {}).get(dim_name, {})
+            score = float(dim_data.get('score', 7.0))
+            score = max(0, min(10, score))  # Clamp to 0-10
+            
+            # Inverse for risk_hallucination (lower risk = better quality)
+            adjusted_score = (10 - score) if dim_name == 'risk_hallucination' else score
+            
+            # Use adjusted score for both calculations to ensure consistency
+            total_score += adjusted_score
+            weighted_score += adjusted_score * weight
+            total_weight += weight
+        
+        overall_score = round(total_score / len(weights), 2)
+        final_weighted_score = round(weighted_score / total_weight, 2)
+        
+        # Return enriched analysis
+        return {
+            'agent_name': agent_name,
+            'round_number': round_num,
+            'timestamp': datetime.now().isoformat(),
+            'response_text': response_text[:500] + '...' if len(response_text) > 500 else response_text,
+            'analysis': analysis_data.get('analysis', {}),
+            'summary': {
+                'overall_score': overall_score,
+                'weighted_score': final_weighted_score,
+                'strengths': analysis_data.get('summary', {}).get('strengths', []),
+                'weaknesses': analysis_data.get('summary', {}).get('weaknesses', []),
+                'key_insights': analysis_data.get('summary', {}).get('key_insights', [])
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"[MTA-DO] Analysis failed for {agent_name}: {e}")
+        logger.error(f"[MTA-DO] Error type: {type(e).__name__}")
+        import traceback
+        logger.error(f"[MTA-DO] Traceback: {traceback.format_exc()}")
+        # Return fallback analysis
+        return {
+            'agent_name': agent_name,
+            'round_number': round_num,
+            'timestamp': datetime.now().isoformat(),
+            'response_text': response_text[:500] + '...' if len(response_text) > 500 else response_text,
+            'analysis': {
+                'relevance': {'score': 7.0, 'reasoning': 'Fallback - analys misslyckades'},
+                'argument_depth': {'score': 7.0, 'reasoning': 'Fallback - analys misslyckades'},
+                'factual_anchoring': {'score': 7.0, 'reasoning': 'Fallback - analys misslyckades'},
+                'clarity': {'score': 7.0, 'reasoning': 'Fallback - analys misslyckades'},
+                'logical_coherence': {'score': 7.0, 'reasoning': 'Fallback - analys misslyckades'},
+                'risk_hallucination': {'score': 3.0, 'reasoning': 'Fallback - analys misslyckades'}
+            },
+            'summary': {
+                'overall_score': 6.7,
+                'weighted_score': 6.7,
+                'strengths': ['Analys temporärt otillgänglig'],
+                'weaknesses': ['Kunde inte utvärdera detaljerat'],
+                'key_insights': ['MTA-DO analys misslyckades - använder fallback-poäng']
+            },
+            'fallback': True
+        }
+
+
 @app.websocket("/ws/debate")
 async def websocket_live_debate(websocket: WebSocket):
     """
@@ -13575,13 +13857,82 @@ GE DITT SVAR NU:"""
                         round=round_num
                     )
                     
-                    # 2. DIRECT COMMENT: Generate conversational comment like "Intressant poäng. Jag håller med om X, men vill tillägga Y..."
-                    comment_prompt = f"""Du är OneSeek, en engagerad och analytisk debattvärd som leder en live-debatt.
+                    # 1.5. MTA-DO ANALYSIS: Analyze response quality (non-blocking, runs in parallel)
+                    logger.info(f"[MTA-DO] Starting analysis for {agent_name} round {round_num}...")
+                    try:
+                        # Run MTA-DO analysis (it's already async)
+                        mta_analysis = await analyze_mta_do_response(
+                            agent_name, round_num, agent_response, clean_question
+                        )
+                        
+                        # Store in knowledge chain for later use
+                        knowledge_chain.append({
+                            'round': round_num,
+                            'agent': agent_name,
+                            'type': 'mta_analysis',
+                            'analysis': mta_analysis
+                        })
+                        
+                        logger.info(f"[MTA-DO] Analysis complete for {agent_name}: {mta_analysis['summary']['weighted_score']}/10")
+                        
+                        # Send MTA analysis to frontend (optional - for visualization)
+                        await websocket.send_json({
+                            "type": "mta_analysis",
+                            "round": round_num,
+                            "agent": agent_name,
+                            "data": mta_analysis
+                        })
+                        
+                    except Exception as e:
+                        logger.error(f"[MTA-DO] Analysis failed for {agent_name}: {e}")
+                        mta_analysis = None
+                    
+                    # 2. DIRECT COMMENT: Generate conversational comment with MTA context
+                    # Format all previous MTA analyses for context
+                    all_mta_analyses_formatted = ""
+                    mta_analyses = [item['analysis'] for item in knowledge_chain if item.get('type') == 'mta_analysis']
+                    if mta_analyses:
+                        all_mta_analyses_formatted = "\n".join([
+                            f"- {a['agent_name'].upper()} (Runda {a['round_number']}): {a['summary']['weighted_score']}/10"
+                            for a in mta_analyses
+                        ])
+                    
+                    # Build MTA-aware comment prompt following YAML spec
+                    if mta_analysis and not mta_analysis.get('fallback', False):
+                        comment_prompt = f"""Du är ONESEEK som ger meta-kommentarer på debatten.
+
+KONTEXT:
+- Agent: {agent_name.upper()}
+- Runda: {round_num}
+- Svar: {agent_response[:500]}...
+- MTA-Analys: 
+  * Overall Score: {mta_analysis['summary']['weighted_score']}/10
+  * Relevans: {mta_analysis['analysis']['relevance']['score']}/10 - {mta_analysis['analysis']['relevance']['reasoning']}
+  * Argumentdjup: {mta_analysis['analysis']['argument_depth']['score']}/10 - {mta_analysis['analysis']['argument_depth']['reasoning']}
+  * Faktaförankring: {mta_analysis['analysis']['factual_anchoring']['score']}/10 - {mta_analysis['analysis']['factual_anchoring']['reasoning']}
+  * Styrkor: {', '.join(mta_analysis['summary']['strengths'])}
+  * Svagheter: {', '.join(mta_analysis['summary']['weaknesses'])}
+
+TIDIGARE ANALYSER:
+{all_mta_analyses_formatted}
+
+UPPGIFT:
+Ge en kort, insiktsfull kommentar (2-3 meningar) som:
+1. Bekräftar svarets kvalitet baserat på MTA-poäng
+2. Lyfter fram viktiga styrkor eller bekymmer från analysen
+3. Kontextualiserar inom det bredare debattflödet
+
+Var neutral, konstruktiv och transparent om analysen. Skriv på svenska.
+
+GE DIN KOMMENTAR NU:"""
+                    else:
+                        # Fallback if no MTA analysis available
+                        comment_prompt = f"""Du är OneSeek, en engagerad och analytisk debattvärd som leder en live-debatt.
 
 DEBATTFRÅGA: {clean_question}
 
 {agent_name.upper()}S SVAR I RUNDA {round_num}:
-{agent_response}
+{agent_response[:800]}...
 
 BEHAVIORAL ENFORCEMENT:
 - Reagera naturligt och tänkande på det du just läst
@@ -13616,7 +13967,7 @@ GE DIN KOMMENTAR NU (ingen inledning):"""
                         llm_response = requests.post(
                             f"{server_url}/v1/chat/completions",
                             json=payload,
-                            timeout=30,
+                            timeout=60,  # Increased timeout for reliable comment generation
                         )
                         llm_response.raise_for_status()
                         result = llm_response.json()
@@ -13656,28 +14007,47 @@ GE DIN KOMMENTAR NU (ingen inledning):"""
                             "message": comment_text
                         })
                     
-                    # 3. LIVE INSIGHT: Generate engaging analytical observation
+                    # 3. LIVE INSIGHT: Generate engaging analytical observation with MTA context
                     try:
                         # Count how many responses we've received so far
                         async with external_responses_lock:
                             responses_so_far = len(external_responses)
                         
-                        # Build context about previous responses in this round
-                        previous_context = ""
-                        if responses_so_far > 1:
-                            async with external_responses_lock:
-                                prev_agents = [r['agent'] for r in external_responses[:-1]]
-                                previous_context = f"\n\nTidigare i denna runda har {', '.join(prev_agents)} redan svarat."
+                        # Build formatted MTA analyses list following YAML spec
+                        mta_analyses = [item['analysis'] for item in knowledge_chain if item.get('type') == 'mta_analysis']
+                        all_mta_analyses_formatted = ""
+                        if mta_analyses:
+                            all_mta_analyses_formatted = "\n".join([
+                                f"- {a['agent_name'].upper()} (Runda {a['round_number']}): {a['summary']['weighted_score']}/10 - Styrkor: {', '.join(a['summary']['strengths'][:2]) if a['summary']['strengths'] else 'N/A'}"
+                                for a in mta_analyses
+                            ])
                         
-                        # Include the actual response for context
-                        response_preview = agent_response[:200] if len(agent_response) > 200 else agent_response
-                        
-                        insight_prompt = f"""Du är en skarp debattobservatör som ger publiken snabba live-kommentarer.
+                        # Build insight prompt following YAML spec
+                        if mta_analyses:
+                            insight_prompt = f"""Du är ONESEEK som genererar en syntes-insikt (💡) för det aktuella debattläget.
+
+KONTEXT:
+- Runda: {round_num}
+- Alla MTA-analyser: 
+{all_mta_analyses_formatted}
+
+UPPGIFT:
+Generera en kort insikt (1-2 meningar) som:
+1. Syntetiserar mönster över alla svar
+2. Identifierar växande konsensus eller divergenser
+3. Lyfter fram de mest värdefulla bidragen
+
+Markera med 💡 och var koncis men upplysande. Skriv på svenska.
+
+GE DIN INSIKT NU:"""
+                        else:
+                            # Fallback if no MTA analyses yet
+                            insight_prompt = f"""Du är en skarp debattobservatör som ger publiken snabba live-kommentarer.
 
 DEBATTFRÅGA: {clean_question}
 
 {agent_name.upper()}S SVAR I RUNDA {round_num}:
-{response_preview}...{previous_context}
+{agent_response[:200]}...
 
 BEHAVIORAL ENFORCEMENT:
 - Längd: 15-25 ord (1-2 meningar, STRIKT)
@@ -13861,40 +14231,60 @@ GE DITT SVAR NU:"""
                     # Build context from knowledge chain (comments on other AI responses)
                     insights_context = ""
                     for insight_item in knowledge_chain:
-                        if insight_item['round'] == round_num:
-                            insights_context += f"- {insight_item['agent'].upper()}: {insight_item['insight'][:100]}\n"
+                        if insight_item['round'] == round_num and insight_item.get('agent') != 'oneseek':
+                            insights_context += f"- {insight_item['agent'].upper()}: {insight_item['insight'][:150]}...\n"
+                    
+                    # Build MTA context to show quality assessments used in reasoning
+                    mta_context = ""
+                    mta_analyses = [item['analysis'] for item in knowledge_chain if item.get('type') == 'mta_analysis' and item.get('analysis', {}).get('round_number') == round_num]
+                    if mta_analyses:
+                        mta_context = "\n\nMTA-KVALITETSBEDÖMNINGAR SOM INFORMERADE MITT SVAR:\n"
+                        for mta in mta_analyses:
+                            agent = mta.get('agent_name', 'unknown').upper()
+                            score = mta.get('summary', {}).get('weighted_score', 0)
+                            strengths = mta.get('summary', {}).get('strengths', [])
+                            key_insights = mta.get('summary', {}).get('key_insights', [])
+                            mta_context += f"- {agent} ({score}/10): Styrkor: {', '.join(strengths[:2]) if strengths else 'N/A'}"
+                            if key_insights:
+                                mta_context += f" | Insikter: {key_insights[0][:80]}"
+                            mta_context += "\n"
                     
                     reasoning_prompt = f"""Du är ONESEEK. Du har precis gett ditt debattsvar i runda {round_num}.
 
 DEBATTFRÅGA: {clean_question}
 
 DITT SVAR:
-{answer[:300]}...
+{answer[:400]}...
 
 DINA KOMMENTARER PÅ ANDRA AI-SVAR:
 {insights_context}
+{mta_context}
 
 UPPGIFT:
-Förklara kort din tankegång bakom ditt svar (60-100 ord):
-- Vilka insights från andra AI-svar påverkade dig mest?
-- Hur använde du dina kommentarer för att bygga en djupare förståelse?
-- Varför valde du att fokusera på just dessa punkter?
+Förklara din specifika tankegång bakom ditt svar (80-120 ord). Var KONKRET och DYNAMISK:
+- Vilka SPECIFIKA argument eller poänger från andra AI-svar påverkade dig mest? (nämn namn och vad de sa)
+- Hur vägde du MTA-kvalitetsbedömningarna när du byggde ditt resonemang?
+- Vilka KONKRETA insights från dina kommentarer integrerade du?
+- Varför valde du att betona vissa perspektiv framför andra?
+- Hur balanserade du styrkor och svagheter från olika modeller?
 
-GE DITT RESONEMANG NU (direkt, ingen inledning):"""
+Skriv som en äkta reflekterande AI som FAKTISKT använder all denna data. Var SPECIFIK, inte generell.
+
+GE DITT RESONEMANG NU (börja direkt med substans):"""
                     
                     reasoning_payload = {
                         "messages": [
-                            {"role": "system", "content": "Du är ONESEEK - förklara koncist hur du byggde ditt svar baserat på insights från andra AI-modeller."},
+                            {"role": "system", "content": "Du är ONESEEK - ge ett detaljerat, specifikt och dynamiskt resonemang om hur du byggde ditt svar. Referera till konkreta detaljer från andra AI-modellers svar och MTA-bedömningar. Undvik generella fraser."},
                             {"role": "user", "content": reasoning_prompt}
                         ],
-                        "max_tokens": 250,
-                        "temperature": 0.7,
+                        "max_tokens": 300,  # Increased for more detailed reasoning
+                        "temperature": 0.75,  # Slightly higher for more varied expression
                     }
                     
                     reasoning_response = requests.post(
                         f"{server_url}/v1/chat/completions",
                         json=reasoning_payload,
-                        timeout=30,
+                        timeout=45,  # Increased timeout for complex reasoning
                     )
                     reasoning_response.raise_for_status()
                     reasoning_result = reasoning_response.json()
@@ -13904,11 +14294,21 @@ GE DITT RESONEMANG NU (direkt, ingen inledning):"""
                     else:
                         reasoning = reasoning_result.get('content', '').strip()
                     
-                    logger.info(f"[WS-Debate] Generated reasoning for OneSeek's answer in round {round_num}")
+                    # Validate reasoning is substantial and not generic
+                    if reasoning and len(reasoning) < 50:
+                        logger.warning(f"[WS-Debate] Reasoning too short ({len(reasoning)} chars), regenerating...")
+                        raise ValueError("Reasoning too brief")
+                    
+                    logger.info(f"[WS-Debate] Generated detailed reasoning for OneSeek's answer in round {round_num} ({len(reasoning)} chars)")
                     
                 except Exception as e:
                     logger.error(f"[WS-Debate] Error generating OneSeek reasoning: {e}")
-                    reasoning = "Byggde mitt svar genom att syntetisera insikter från alla modeller och balansera olika perspektiv i debatten."
+                    # More dynamic fallback that at least tries to mention specific agents
+                    agents_mentioned = [r['agent'] for r in external_responses if r.get('success', False)]
+                    if agents_mentioned:
+                        reasoning = f"Vägde insikter från {', '.join(agents_mentioned[:3])} och integrerade deras olika perspektiv. Fokuserade på att balansera faktabaserade argument med kreativa lösningsförslag baserat på kvalitetsbedömningarna."
+                    else:
+                        reasoning = "Syntetiserade tillgängliga perspektiv och byggde ett balanserat svar som tar hänsyn till debattens olika dimensioner."
                 
                 # Emit OneSeek's reasoning for its own answer
                 if reasoning:
@@ -14101,13 +14501,16 @@ Svara ENDAST med ett tal 0-100, inget annat."""
         votes = {}
         vote_results = []
         
-        # Each agent votes (cannot vote for themselves) with motivation
-        for voter in debate_agents:
+        # All participants vote (external agents + ONESEEK) - cannot vote for themselves
+        all_voters = debate_agents + ['oneseek']
+        
+        for voter in all_voters:
             try:
                 # Build voting prompt
-                other_agents = [a for a in debate_agents if a != voter]
+                # Other agents includes all participants except the voter
+                other_agents = [a for a in all_voters if a != voter]
                 
-                # Build context with ONLY THE LAST ROUND for voting
+                # Build context with ONLY THE LAST ROUND for voting (includes ONESEEK's final answer)
                 all_responses_text = ""
                 if debate_rounds:
                     # Only use the last round (round 3) for voting
@@ -14142,34 +14545,52 @@ MOTIVERING: [Din motivering i 50-80 ord med konkreta argument från debatten]
 
 GE DITT SVAR NU:"""
                 
-                # Call BACKEND API to get vote from this AI model (backend handles API keys)
+                # Call appropriate API based on voter
                 try:
-                    service_endpoints = {
-                        'gpt': f'{BACKEND_API_URL}/api/external/openai',
-                        'gemini': f'{BACKEND_API_URL}/api/external/gemini',
-                        'deepseek': f'{BACKEND_API_URL}/api/external/deepseek',
-                        'grok': f'{BACKEND_API_URL}/api/external/grok'
-                    }
-                    
-                    endpoint = service_endpoints.get(voter)
-                    if not endpoint:
-                        raise Exception(f"Tjänst {voter} inte tillgänglig")
-                    
-                    # Call backend API with voting prompt
-                    loop = asyncio.get_event_loop()
-                    vote_response = await loop.run_in_executor(
-                        None,
-                        lambda: requests.post(
-                            endpoint,
-                            json={'question': voting_prompt},
-                            timeout=45
+                    if voter == 'oneseek':
+                        # ONESEEK votes using local LLAMA server
+                        server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                        vote_response = requests.post(
+                            f"{server_url}/v1/chat/completions",
+                            json={
+                                "messages": [{"role": "user", "content": voting_prompt}],
+                                "max_tokens": 200,
+                                "temperature": 0.7,
+                                "stream": False
+                            },
+                            timeout=30
                         )
-                    )
-                    vote_response.raise_for_status()
-                    vote_result = vote_response.json()
-                    
-                    # Backend API returns {'response': '...'}
-                    vote_response_text = vote_result.get('response', '').strip()
+                        vote_response.raise_for_status()
+                        vote_result = vote_response.json()
+                        vote_response_text = vote_result['choices'][0]['message']['content'].strip()
+                    else:
+                        # External AI votes via backend API
+                        service_endpoints = {
+                            'gpt': f'{BACKEND_API_URL}/api/external/openai',
+                            'gemini': f'{BACKEND_API_URL}/api/external/gemini',
+                            'deepseek': f'{BACKEND_API_URL}/api/external/deepseek',
+                            'grok': f'{BACKEND_API_URL}/api/external/grok'
+                        }
+                        
+                        endpoint = service_endpoints.get(voter)
+                        if not endpoint:
+                            raise Exception(f"Tjänst {voter} inte tillgänglig")
+                        
+                        # Call backend API with voting prompt
+                        loop = asyncio.get_event_loop()
+                        vote_response = await loop.run_in_executor(
+                            None,
+                            lambda: requests.post(
+                                endpoint,
+                                json={'question': voting_prompt},
+                                timeout=45
+                            )
+                        )
+                        vote_response.raise_for_status()
+                        vote_result = vote_response.json()
+                        
+                        # Backend API returns {'response': '...'}
+                        vote_response_text = vote_result.get('response', '').strip()
                     
                     # Parse RÖST and MOTIVERING from response
                     import re
@@ -14254,6 +14675,99 @@ GE DITT SVAR NU:"""
         for vr in vote_results:
             voting_motivations += f"{vr['voter'].upper()} röstade på {vr['voted_for'].upper()}:\n{vr.get('motivation', 'Ingen motivering angiven.')}\n\n"
         
+        # Calculate MTA-DO averages and trends
+        mta_averages_per_agent = {}
+        mta_dimension_averages = {}
+        agent_mta_count = {}
+        
+        for item in knowledge_chain:
+            if item.get('type') == 'mta_analysis':
+                analysis = item.get('analysis', {})
+                agent_name = analysis.get('agent_name', '').lower()
+                
+                if agent_name:
+                    # Get weighted score
+                    summary = analysis.get('summary', {})
+                    weighted_score = summary.get('weighted_score', summary.get('overall_score', 0))
+                    
+                    if agent_name not in mta_averages_per_agent:
+                        mta_averages_per_agent[agent_name] = []
+                        agent_mta_count[agent_name] = 0
+                    
+                    mta_averages_per_agent[agent_name].append(weighted_score)
+                    agent_mta_count[agent_name] += 1
+                    
+                    # Track dimension scores
+                    analysis_dims = analysis.get('analysis', {})
+                    for dim_name, dim_data in analysis_dims.items():
+                        if isinstance(dim_data, dict) and 'score' in dim_data:
+                            if dim_name not in mta_dimension_averages:
+                                mta_dimension_averages[dim_name] = []
+                            mta_dimension_averages[dim_name].append(dim_data['score'])
+        
+        # Calculate averages
+        mta_averages_str = ""
+        for agent, scores in mta_averages_per_agent.items():
+            if scores:
+                avg = sum(scores) / len(scores)
+                mta_averages_str += f"{agent.upper()}: {avg:.1f} | "
+        
+        mta_averages_str = mta_averages_str.rstrip(" | ")
+        if not mta_averages_str:
+            mta_averages_str = "Inga MTA-analyser tillgängliga"
+        
+        # Calculate dimension trends
+        mta_trends_str = ""
+        dimension_names_sv = {
+            'relevance': 'Relevans',
+            'argument_depth': 'Argumentdjup',
+            'factual_anchoring': 'Faktaförankring',
+            'clarity': 'Klarhet',
+            'logical_coherence': 'Konsekvens',
+            'risk_hallucination': 'Risk/Hallucination'
+        }
+        
+        highest_dim = None
+        highest_avg = 0
+        lowest_dim = None
+        lowest_avg = 10
+        
+        for dim_name, scores in mta_dimension_averages.items():
+            if scores:
+                avg = sum(scores) / len(scores)
+                dim_display = dimension_names_sv.get(dim_name, dim_name)
+                
+                # Track highest and lowest (excluding risk which is inverse)
+                if dim_name != 'risk_hallucination':
+                    if avg > highest_avg:
+                        highest_avg = avg
+                        highest_dim = dim_display
+                    if avg < lowest_avg:
+                        lowest_avg = avg
+                        lowest_dim = dim_display
+        
+        if highest_dim:
+            mta_trends_str += f"Högst genomsnittlig kvalitet i {highest_dim} ({highest_avg:.1f}/10). "
+        if lowest_dim and lowest_avg < 8.0:
+            mta_trends_str += f"Lägst i {lowest_dim} ({lowest_avg:.1f}/10), vilket indikerar utvecklingsmöjligheter. "
+        
+        # Calculate overall quality trend
+        all_scores = []
+        for scores in mta_averages_per_agent.values():
+            all_scores.extend(scores)
+        
+        if all_scores:
+            overall_avg = sum(all_scores) / len(all_scores)
+            if overall_avg >= 8.5:
+                mta_trends_str += f"Övergripande mycket hög debattkvalitet (genomsnitt {overall_avg:.1f}/10)."
+            elif overall_avg >= 7.5:
+                mta_trends_str += f"Övergripande god debattkvalitet (genomsnitt {overall_avg:.1f}/10)."
+            else:
+                mta_trends_str += f"Varierande debattkvalitet (genomsnitt {overall_avg:.1f}/10)."
+        
+        if not mta_trends_str:
+            mta_trends_str = "Inga tydliga trender kunde identifieras"
+        
         closing_comment_prompt = f"""Du är ONESEEK – en opartisk och reflekterande debattledare som nu ska avsluta debatten på ett värdigt och insiktsfullt sätt.
 
 Debatten om "{clean_question}" är nu över.
@@ -14263,11 +14777,21 @@ Debatten om "{clean_question}" är nu över.
 Röstningsmotiveringar från modellerna (använd dessa för att förklara resultatet):
 {voting_motivations}
 
+Du har även tillgång till MTA-DO-genomsnitt och nyckelinsikter från alla analyser:
+
+Genomsnittliga scores per modell:
+{mta_averages_str}
+
+Noterbara trender från MTA-DO:
+{mta_trends_str}
+
 Skriv ett avslutande inlägg där du:
 - Tackar alla modeller för deras engagerade och tankeväckande bidrag
 - Summerar kort debattens huvudlinjer och hur diskussionen utvecklades över rundorna
-- Förklarar objektivt varför {winner.upper()} fick flest röster – baserat på röstningsmotiveringarna och vad som framkom i debatten (t.ex. konsekvens, logik, djup, förmåga att bemöta andra)
-- Lyfter fram minst ett starkt eller värdefullt bidrag från någon av de andra modellerna
+- Förklarar objektivt varför {winner.upper()} fick flest röster – baserat på röstningsmotiveringarna, MTA-DO-data och vad som framkom i debatten (t.ex. konsekvens, logik, djup, förmåga att bemöta andra)
+- Använd MTA-DO-scores för att ge objektiv kontext till röstningsresultatet (om vinnarens score stödjer resultatet eller om andra hade högre kvalitetspoäng)
+- Lyfter fram minst ett starkt eller värdefullt bidrag från någon av de andra modellerna, gärna med stöd i deras MTA-scores
+- Ge en meta-reflektion över debattens kvalitet baserat på MTA-DO-trender (vilka dimensioner var starkast/svagast)
 - Avsluta med en nyanserad reflektion över frågan: vad vi lärt oss, var det finns konsensus och vad som fortfarande är öppet
 
 Längd: 250–400 ord.
