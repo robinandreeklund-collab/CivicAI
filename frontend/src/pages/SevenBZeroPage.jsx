@@ -1805,7 +1805,11 @@ export default function SevenBZeroPage() {
             break;
             
           case 'round_start':
-            setThinkingStep(`🎤 Runda ${message.round} startar...`);
+            const turnOrder = message.data?.turn_order || [];
+            const turnOrderText = turnOrder.length > 0 
+              ? ` (tur-ordning: ${turnOrder.map(a => a.toUpperCase()).join(' → ')})` 
+              : '';
+            setThinkingStep(`🎤 Runda ${message.round} startar...${turnOrderText}`);
             setCurrentRound(message.round);
             
             // Add debate marker message at round 1 start for chronological positioning
@@ -1827,10 +1831,12 @@ export default function SevenBZeroPage() {
               }]);
             }
             
-            // Initialize round data structure
+            // Initialize round data structure with turn order
             setDebateRounds(prev => ({
               ...prev,
-              [message.round]: {}
+              [message.round]: {
+                turnOrder: turnOrder
+              }
             }));
             break;
             
@@ -1845,20 +1851,31 @@ export default function SevenBZeroPage() {
             console.log(`[Debate] OneSeek echoing ${message.agent}'s answer`);
             setThinkingStep(`🔄 OneSeek ekar ${message.agent.toUpperCase()}s svar...`);
             
-            // Initialize AI data in round
-            setDebateRounds(prev => ({
-              ...prev,
-              [message.round]: {
-                ...(prev[message.round] || {}),
-                [message.agent]: {
-                  text: '',
-                  isStreaming: true,
-                  reasoning: null,
-                  insights: [],
-                  model: null
-                }
+            // Initialize AI data in round and track arrival order
+            setDebateRounds(prev => {
+              const currentRoundData = prev[message.round] || {};
+              const arrivalOrder = currentRoundData.arrivalOrder || [];
+              
+              // Add agent to arrival order if not already there
+              if (!arrivalOrder.includes(message.agent)) {
+                arrivalOrder.push(message.agent);
               }
-            }));
+              
+              return {
+                ...prev,
+                [message.round]: {
+                  ...currentRoundData,
+                  arrivalOrder: arrivalOrder,
+                  [message.agent]: {
+                    text: '',
+                    isStreaming: true,
+                    reasoning: null,
+                    insights: [],
+                    model: null
+                  }
+                }
+              };
+            });
             break;
             
           case 'oneseek_echo':
@@ -1928,19 +1945,30 @@ export default function SevenBZeroPage() {
             console.log(`[Debate] OneSeek generating own answer for round ${message.round}`);
             setThinkingStep(`🤖 ONESEEK ger sitt debattsvar...`);
             
-            setDebateRounds(prev => ({
-              ...prev,
-              [message.round]: {
-                ...(prev[message.round] || {}),
-                oneseek: {
-                  text: '',
-                  isStreaming: true,
-                  reasoning: null,
-                  insights: [],
-                  model: 'OneSeek-7B-Zero'
-                }
+            setDebateRounds(prev => {
+              const currentRoundData = prev[message.round] || {};
+              const arrivalOrder = currentRoundData.arrivalOrder || [];
+              
+              // Add oneseek to arrival order if not already there
+              if (!arrivalOrder.includes('oneseek')) {
+                arrivalOrder.push('oneseek');
               }
-            }));
+              
+              return {
+                ...prev,
+                [message.round]: {
+                  ...currentRoundData,
+                  arrivalOrder: arrivalOrder,
+                  oneseek: {
+                    text: '',
+                    isStreaming: true,
+                    reasoning: null,
+                    insights: [],
+                    model: 'OneSeek-7B-Zero'
+                  }
+                }
+              };
+            });
             break;
             
           case 'oneseek_own_answer':
@@ -2765,6 +2793,27 @@ export default function SevenBZeroPage() {
                 />
               ))}
               
+              {/* Live Voting Display - Show votes as they come in */}
+              {debateRounds.voting && debateRounds.voting.votes && debateRounds.voting.votes.length > 0 && (
+                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                  <div className="text-sm font-medium text-[#888] mb-3">🗳️ Röstning pågår...</div>
+                  <div className="space-y-2">
+                    {debateRounds.voting.votes.map((vote, idx) => (
+                      <div key={idx} className="text-xs">
+                        <div className="text-[#888] font-medium">
+                          {vote.voter.toUpperCase()} → {vote.votedFor.toUpperCase()}
+                        </div>
+                        {vote.message && (
+                          <div className="text-[#666] mt-1 italic">
+                            {vote.message}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
               {/* Debate Completion - Integrated into flow */}
               {debateRounds.completion && (
                 <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
@@ -2773,10 +2822,17 @@ export default function SevenBZeroPage() {
                   {/* Voting Results */}
                   <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
                     <div className="text-xs text-[#666] mb-2">Röstning</div>
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       {debateRounds.completion.voteResults?.map((vote, idx) => (
-                        <div key={idx} className="text-xs text-[#888]">
-                          {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
+                        <div key={idx} className="text-xs">
+                          <div className="text-[#888] font-medium">
+                            {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
+                          </div>
+                          {vote.motivation && (
+                            <div className="text-[#666] mt-1 italic">
+                              {vote.motivation}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -2973,6 +3029,27 @@ export default function SevenBZeroPage() {
                       />
                     ))}
                     
+                    {/* Live Voting Display - Show votes as they come in */}
+                    {debateRounds.voting && debateRounds.voting.votes && debateRounds.voting.votes.length > 0 && (
+                      <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                        <div className="text-sm font-medium text-[#888] mb-3">🗳️ Röstning pågår...</div>
+                        <div className="space-y-2">
+                          {debateRounds.voting.votes.map((vote, idx) => (
+                            <div key={idx} className="text-xs">
+                              <div className="text-[#888] font-medium">
+                                {vote.voter.toUpperCase()} → {vote.votedFor.toUpperCase()}
+                              </div>
+                              {vote.message && (
+                                <div className="text-[#666] mt-1 italic">
+                                  {vote.message}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* Debate Completion */}
                     {debateRounds.completion && (
                       <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
@@ -2981,10 +3058,17 @@ export default function SevenBZeroPage() {
                         {/* Voting Results */}
                         <div className="mb-3 pb-3 border-b border-[#1a1a1a]">
                           <div className="text-xs text-[#666] mb-2">Röstning</div>
-                          <div className="space-y-1">
+                          <div className="space-y-2">
                             {debateRounds.completion.voteResults?.map((vote, idx) => (
-                              <div key={idx} className="text-xs text-[#888]">
-                                {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
+                              <div key={idx} className="text-xs">
+                                <div className="text-[#888] font-medium">
+                                  {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
+                                </div>
+                                {vote.motivation && (
+                                  <div className="text-[#666] mt-1 italic">
+                                    {vote.motivation}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>

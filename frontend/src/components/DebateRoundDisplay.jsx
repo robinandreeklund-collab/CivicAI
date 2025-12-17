@@ -10,8 +10,20 @@ import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 
 export default function DebateRoundDisplay({ round, aiData, isActive = false }) {
-  // AI display order
-  const aiOrder = ['gpt', 'gemini', 'deepseek', 'grok', 'oneseek'];
+  // Use arrival order from round data if available (order responses actually arrived)
+  // This is different from turnOrder (planned order) - we want chronological arrival
+  const arrivalOrder = aiData?.arrivalOrder || [];
+  const defaultOrder = ['gpt', 'gemini', 'deepseek', 'grok', 'oneseek'];
+  
+  // AI display order - use arrival order (chronological) with oneseek always at end
+  let aiOrder;
+  if (arrivalOrder.length > 0) {
+    // Filter out oneseek from arrival order, then add it at the end
+    const withoutOneseek = arrivalOrder.filter(ai => ai !== 'oneseek');
+    aiOrder = [...withoutOneseek, 'oneseek'];
+  } else {
+    aiOrder = defaultOrder;
+  }
   
   // Get all AIs that have data in this round
   const availableAIs = aiOrder.filter(ai => aiData && aiData[ai]);
@@ -138,11 +150,22 @@ export default function DebateRoundDisplay({ round, aiData, isActive = false }) 
                       <ReactMarkdown>{ai.text}</ReactMarkdown>
                     </div>
 
-                    {/* OneSeek's Reasoning - Small footnote at the end */}
+                    {/* Live Insights - Show after main response */}
+                    {ai.insights && ai.insights.length > 0 && (
+                      <div className="mt-3 pt-2 border-t border-[#1a1a1a]">
+                        {ai.insights.map((insight, idx) => (
+                          <div key={idx} className="text-xs text-[#888] mb-1">
+                            {insight}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* OneSeek's Commentary/Reasoning */}
                     {ai.reasoning && (
                       <div className="mt-3 pt-2 border-t border-[#1a1a1a]">
                         <div className="text-xs text-[#555] italic">
-                          Reasoning: {ai.reasoning}
+                          {isOneSeek ? 'Resonemang:' : 'OneSeek kommenterar:'} {ai.reasoning}
                         </div>
                       </div>
                     )}
