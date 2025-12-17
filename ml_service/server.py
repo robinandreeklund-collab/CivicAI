@@ -13224,7 +13224,7 @@ GE DITT SVAR NU:"""
             # This prevents parallel processing which creates "chunks" of responses
             oneseek_processing_lock = asyncio.Lock()
             
-            async def get_and_process_immediately(agent_name):
+            async def get_and_process_immediately(agent_name, position=None):
                 """Get response from external AI and process it IMMEDIATELY - ONE AT A TIME!"""
                 # Get the response (this can happen in parallel for all AIs)
                 response = await get_external_response(agent_name)
@@ -13234,7 +13234,7 @@ GE DITT SVAR NU:"""
                     external_responses.append(response)
                 
                 # Emit ai_response event when answer arrives
-                await websocket.send_json({
+                event_data = {
                     "type": "ai_response",
                     "round": round_num,
                     "agent": agent_name,
@@ -13243,7 +13243,13 @@ GE DITT SVAR NU:"""
                         "agent": agent_name,
                         "success": response.get('success', False)
                     }
-                })
+                }
+                # Add position for rounds 2-3 to help frontend order responses correctly
+                if position is not None:
+                    event_data["data"]["position"] = position
+                    event_data["data"]["turn_order_position"] = position
+                
+                await websocket.send_json(event_data)
                 
                 if not response.get('success', False):
                     # Skip failed responses
@@ -13441,6 +13447,9 @@ GE DIN INSIGHT NU (ingen extra text):"""
                 # Rounds 2 & 3: Process agents sequentially in turn order (including ONESEEK)
                 logger.info(f"[WS-Debate] Round {round_num}: Processing {len(round_turn_order)} agents in turn order: {round_turn_order}")
                 
+                # Store position info for later use when processing agents after ONESEEK
+                agent_positions = {agent: idx for idx, agent in enumerate(round_turn_order)}
+                
                 for agent_name in round_turn_order:
                     if agent_name == 'oneseek':
                         # ONESEEK's turn in the rotation
@@ -13448,8 +13457,8 @@ GE DIN INSIGHT NU (ingen extra text):"""
                         # Skip to ONESEEK answer generation below
                         break  # Process ONESEEK after gathering any remaining external responses
                     else:
-                        # External agent's turn
-                        response = await get_and_process_immediately(agent_name)
+                        # External agent's turn - pass position for frontend ordering
+                        response = await get_and_process_immediately(agent_name, position=agent_positions[agent_name])
                         if response.get('success', False):
                             round_responses.append(response)
                 
@@ -13709,11 +13718,12 @@ GE DITT RESONEMANG NU (börja direkt med substans):"""
                     for agent_name in remaining_agents:
                         # Process with full echo/comment/insight flow (same as agents before ONESEEK)
                         # This maintains real-time feel and builds knowledge for next rounds
-                        response = await get_and_process_immediately(agent_name)
+                        # Pass position to help frontend order responses correctly
+                        response = await get_and_process_immediately(agent_name, position=agent_positions[agent_name])
                         
                         if response.get('success', False):
                             round_responses.append(response)
-                            logger.info(f"[WS-Debate] {agent_name} responded after ONESEEK in round {round_num}")
+                            logger.info(f"[WS-Debate] {agent_name} responded after ONESEEK in round {round_num} at position {agent_positions[agent_name]}")
             
             # Generate round summary/compression (5 key learnings)
             logger.info(f"[WS-Debate] Generating round {round_num} summary...")
