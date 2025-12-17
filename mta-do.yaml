@@ -1,0 +1,299 @@
+# MTA-Debate-Observer (MTA-DO) Specification
+# Meta-Transparency Analysis for Debate Observation
+# Version: 1.0.0
+
+name: "MTA-Debate-Observer"
+version: "1.0.0"
+description: "Lightweight real-time analysis layer for debate transparency and meta-awareness"
+
+# Core Purpose
+purpose:
+  primary: "Enhance transparency and meta-awareness in debates without affecting interactive flow"
+  secondary: "Enable ONESEEK and internal mechanisms to harness analysis for deeper insights"
+  
+# Evaluation Dimensions (8 core metrics)
+evaluation_dimensions:
+  - name: "relevance"
+    description: "How well the response addresses the debate question"
+    scale: "0-10"
+    weight: 1.0
+    
+  - name: "argument_depth"
+    description: "Depth and sophistication of argumentation"
+    scale: "0-10"
+    weight: 1.2
+    
+  - name: "factual_anchoring"
+    description: "Use of facts, data, and verifiable information"
+    scale: "0-10"
+    weight: 1.3
+    
+  - name: "bias_detection"
+    description: "Presence and degree of bias (0=unbiased, 10=highly biased)"
+    scale: "0-10"
+    weight: 1.1
+    inverse: true  # Lower is better
+    
+  - name: "logical_coherence"
+    description: "Internal consistency and logical flow"
+    scale: "0-10"
+    weight: 1.0
+    
+  - name: "originality"
+    description: "Novel insights and unique perspectives"
+    scale: "0-10"
+    weight: 0.8
+    
+  - name: "clarity"
+    description: "Communication clarity and accessibility"
+    scale: "0-10"
+    weight: 0.9
+    
+  - name: "constructiveness"
+    description: "Contribution to productive dialogue"
+    scale: "0-10"
+    weight: 1.0
+
+# Flow Integration
+flow:
+  description: "External response → MTA-DO analysis → Commentary → Insight (💡)"
+  stages:
+    - stage: "response_received"
+      action: "Receive external agent response"
+      timing: "immediate"
+      
+    - stage: "mta_analysis"
+      action: "Run MTA-DO evaluation in parallel"
+      timing: "parallel_non_blocking"
+      duration_target: "<2s"
+      
+    - stage: "commentary"
+      action: "ONESEEK generates commentary using MTA data"
+      timing: "after_response_display"
+      depends_on: ["response_received", "mta_analysis"]
+      
+    - stage: "insight"
+      action: "Generate insight marker (💡) with synthesis"
+      timing: "after_commentary"
+      depends_on: ["commentary", "mta_analysis"]
+
+# Output Structure
+output:
+  format: "json"
+  structure:
+    agent_name: "string"
+    round_number: "integer"
+    timestamp: "ISO8601"
+    response_text: "string"
+    analysis:
+      relevance:
+        score: "float (0-10)"
+        reasoning: "string"
+      argument_depth:
+        score: "float (0-10)"
+        reasoning: "string"
+      factual_anchoring:
+        score: "float (0-10)"
+        reasoning: "string"
+      bias_detection:
+        score: "float (0-10)"
+        reasoning: "string"
+      logical_coherence:
+        score: "float (0-10)"
+        reasoning: "string"
+      originality:
+        score: "float (0-10)"
+        reasoning: "string"
+      clarity:
+        score: "float (0-10)"
+        reasoning: "string"
+      constructiveness:
+        score: "float (0-10)"
+        reasoning: "string"
+    summary:
+      overall_score: "float (0-10)"
+      weighted_score: "float (0-10)"
+      strengths: "array[string]"
+      weaknesses: "array[string]"
+      key_insights: "array[string]"
+
+# Example Output
+example_output:
+  agent_name: "gpt-4"
+  round_number: 1
+  timestamp: "2025-12-17T07:30:00Z"
+  response_text: "Climate change requires immediate action..."
+  analysis:
+    relevance:
+      score: 9.2
+      reasoning: "Directly addresses the debate topic with focused arguments"
+    argument_depth:
+      score: 8.5
+      reasoning: "Provides multi-layered reasoning with cause-effect relationships"
+    factual_anchoring:
+      score: 7.8
+      reasoning: "References scientific consensus but lacks specific data points"
+    bias_detection:
+      score: 3.2
+      reasoning: "Slight environmental advocacy bias detected in language choices"
+    logical_coherence:
+      score: 9.0
+      reasoning: "Arguments flow logically with clear connections"
+    originality:
+      score: 6.5
+      reasoning: "Mostly conventional perspectives with some unique framing"
+    clarity:
+      score: 8.8
+      reasoning: "Clear, accessible language with good structure"
+    constructiveness:
+      score: 9.1
+      reasoning: "Promotes productive dialogue and solution-oriented thinking"
+  summary:
+    overall_score: 7.8
+    weighted_score: 8.1
+    strengths:
+      - "Strong logical coherence and relevance"
+      - "Constructive tone promoting dialogue"
+      - "Clear and accessible communication"
+    weaknesses:
+      - "Could benefit from more specific data points"
+      - "Slight bias in perspective framing"
+    key_insights:
+      - "Emphasis on urgency and action"
+      - "Balances scientific basis with accessibility"
+
+# Prompts
+prompts:
+  mta_analysis_prompt: |
+    You are the MTA-Debate-Observer, an objective meta-analysis system evaluating debate responses.
+    
+    CONTEXT:
+    - Agent: {agent_name}
+    - Round: {round_num}
+    - Question: {question}
+    - Response: {response}
+    
+    TASK:
+    Evaluate the response across 8 dimensions using a 0-10 scale. Provide both a numerical score and brief reasoning for each.
+    
+    DIMENSIONS:
+    1. Relevance (0-10): How well does the response address the debate question?
+    2. Argument Depth (0-10): Depth and sophistication of argumentation
+    3. Factual Anchoring (0-10): Use of facts, data, and verifiable information
+    4. Bias Detection (0-10): Presence of bias (0=unbiased, 10=highly biased)
+    5. Logical Coherence (0-10): Internal consistency and logical flow
+    6. Originality (0-10): Novel insights and unique perspectives
+    7. Clarity (0-10): Communication clarity and accessibility
+    8. Constructiveness (0-10): Contribution to productive dialogue
+    
+    Respond ONLY with valid JSON matching the output structure.
+    
+  commentary_prompt: |
+    You are ONESEEK providing meta-commentary on the debate.
+    
+    CONTEXT:
+    - Agent: {agent_name}
+    - Round: {round_num}
+    - Response: {response}
+    - MTA Analysis: {mta_analysis}
+    
+    PREVIOUS ANALYSES:
+    {all_mta_analyses_formatted}
+    
+    TASK:
+    Provide a brief, insightful commentary (2-3 sentences) that:
+    1. Acknowledges the response quality based on MTA scores
+    2. Highlights key strengths or concerns from the analysis
+    3. Contextualizes within the broader debate flow
+    
+    Be neutral, constructive, and transparent about the analysis.
+    
+  insight_prompt: |
+    You are ONESEEK generating a synthesis insight (💡) for the current debate state.
+    
+    CONTEXT:
+    - Round: {round_num}
+    - All MTA Analyses: {all_mta_analyses_formatted}
+    
+    TASK:
+    Generate a brief insight (1-2 sentences) that:
+    1. Synthesizes patterns across all responses
+    2. Identifies emerging consensus or divergences
+    3. Highlights the most valuable contributions
+    
+    Mark with 💡 and be concise yet illuminating.
+
+# Technical Requirements
+technical:
+  parallelization:
+    enabled: true
+    method: "async_non_blocking"
+    max_concurrent: 5
+    timeout: "10s"
+    
+  performance:
+    target_latency: "<2s per analysis"
+    zero_impact: "Must not delay debate streaming"
+    
+  compatibility:
+    oneseek_integration: true
+    debate_flow_preservation: true
+    streaming_compatible: true
+    
+  storage:
+    persist_analyses: true
+    format: "json"
+    retention: "per_debate_session"
+
+# Validation Rules
+validation:
+  input:
+    agent_name: "required, non-empty string"
+    round_num: "required, positive integer"
+    response: "required, non-empty string, max 10000 chars"
+    question: "required, non-empty string"
+    
+  output:
+    all_scores: "must be 0-10 float"
+    reasoning: "required for each dimension"
+    json_structure: "must match schema exactly"
+    
+  quality:
+    min_reasoning_length: 10
+    max_reasoning_length: 200
+    require_summary: true
+
+# Integration Points
+integration:
+  - component: "consensusDebate.js"
+    method: "Add MTA analysis call after each response"
+    location: "conductDebateRound() function"
+    
+  - component: "debate.js API"
+    method: "Expose MTA analyses in debate object"
+    location: "Round response structure"
+    
+  - component: "ONESEEK commentary"
+    method: "Use MTA data in commentary prompts"
+    location: "Commentary generation phase"
+    
+  - component: "Frontend display"
+    method: "Visualize MTA scores (optional)"
+    location: "Debate UI components"
+
+# Principles
+principles:
+  - name: "Non-intrusiveness"
+    description: "External debate flow and logic remain completely unaffected"
+    
+  - name: "Dual utility"
+    description: "Serves both user-facing transparency and internal processing"
+    
+  - name: "Zero latency impact"
+    description: "Analysis runs in parallel without blocking debate streaming"
+    
+  - name: "Objective evaluation"
+    description: "MTA-DO remains neutral and fact-based in all assessments"
+    
+  - name: "Transparency"
+    description: "All evaluations are visible and explainable"
