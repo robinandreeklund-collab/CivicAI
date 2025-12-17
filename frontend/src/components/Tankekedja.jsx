@@ -13,8 +13,34 @@
  * Design: Minimal, clean, focused on depth over decoration
  */
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+
+/**
+ * Format timestamp to readable format
+ */
+function formatTimestamp(timestamp) {
+  if (!timestamp) return '';
+  try {
+    const date = new Date(timestamp);
+    return date.toISOString().substring(11, 19); // HH:MM:SS
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Calculate duration between two timestamps
+ */
+function calculateDuration(start, end) {
+  if (!start || !end) return null;
+  try {
+    const duration = (new Date(end) - new Date(start)) / 1000;
+    return duration > 0 ? duration.toFixed(1) + 's' : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Modal for displaying raw JSON/text data
@@ -33,6 +59,126 @@ function DataModal({ isOpen, onClose, title, data, type = 'json' }) {
           <pre className="text-[10px] font-mono text-[#0a0] whitespace-pre-wrap">
             {type === 'json' ? JSON.stringify(data, null, 2) : data}
           </pre>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * MTA-DO Longitudinal Visualization Component
+ * Shows trends across rounds with sparklines and tables
+ */
+function MTALongitudinalView({ mtaData }) {
+  if (!mtaData || mtaData.length === 0) return null;
+  
+  const dimensions = ['relevance', 'argument_depth', 'factual_anchoring', 'clarity', 'logical_coherence', 'risk_hallucination'];
+  const dimensionLabels = {
+    relevance: 'Relevans',
+    argument_depth: 'Argumentdjup',
+    factual_anchoring: 'Faktaförankring',
+    clarity: 'Klarhet',
+    logical_coherence: 'Logisk koherens',
+    risk_hallucination: 'Risk/Hallucination'
+  };
+  
+  // Calculate sparkline data for each dimension
+  const getSparklineData = (dimension) => {
+    return mtaData.map(round => {
+      const agents = Object.keys(round).filter(k => k !== 'round');
+      const scores = agents.map(agent => {
+        const analysis = round[agent]?.analysis;
+        return analysis?.[dimension]?.score || 0;
+      });
+      return scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+    });
+  };
+  
+  // Simple sparkline component
+  const Sparkline = ({ data, color = '#0a0' }) => {
+    if (!data || data.length === 0) return null;
+    const max = Math.max(...data, 10);
+    const min = Math.min(...data, 0);
+    const range = max - min || 1;
+    
+    const points = data.map((value, index) => {
+      const x = (index / (data.length - 1)) * 60;
+      const y = 20 - ((value - min) / range) * 15;
+      return `${x},${y}`;
+    }).join(' ');
+    
+    return (
+      <svg width="60" height="20" className="inline-block">
+        <polyline
+          fill="none"
+          stroke={color}
+          strokeWidth="1"
+          points={points}
+        />
+      </svg>
+    );
+  };
+  
+  return (
+    <div className="bg-[#0a0a0a] rounded border border-[#1a1a1a] p-3 mt-2">
+      <div className="text-xs text-[#888] mb-2">MTA-DO Longitudinal Analysis</div>
+      <div className="space-y-2">
+        {dimensions.map(dim => {
+          const sparkData = getSparklineData(dim);
+          const avgScore = sparkData.length > 0 
+            ? (sparkData.reduce((a, b) => a + b, 0) / sparkData.length).toFixed(1)
+            : 'N/A';
+          
+          return (
+            <div key={dim} className="flex items-center gap-3 text-[10px]">
+              <div className="w-32 text-[#777]">{dimensionLabels[dim]}</div>
+              <Sparkline data={sparkData} />
+              <div className="text-[#0a0]">{avgScore}/10</div>
+            </div>
+          );
+        })}
+      </div>
+      
+      {/* Longitudinal table */}
+      <div className="mt-3 border-t border-[#1a1a1a] pt-2">
+        <div className="text-[9px] text-[#666] mb-1">Trend per runda</div>
+        <div className="grid grid-cols-4 gap-2 text-[9px]">
+          <div className="text-[#555]">Runda</div>
+          <div className="text-[#555]">Avg Score</div>
+          <div className="text-[#555]">Best Dim</div>
+          <div className="text-[#555]">Weak Dim</div>
+          
+          {mtaData.map((round, idx) => {
+            const agents = Object.keys(round).filter(k => k !== 'round');
+            const allScores = {};
+            
+            agents.forEach(agent => {
+              const analysis = round[agent]?.analysis;
+              dimensions.forEach(dim => {
+                if (!allScores[dim]) allScores[dim] = [];
+                allScores[dim].push(analysis?.[dim]?.score || 0);
+              });
+            });
+            
+            const avgScores = {};
+            Object.keys(allScores).forEach(dim => {
+              const scores = allScores[dim];
+              avgScores[dim] = scores.reduce((a, b) => a + b, 0) / scores.length;
+            });
+            
+            const totalAvg = Object.values(avgScores).reduce((a, b) => a + b, 0) / dimensions.length;
+            const bestDim = Object.entries(avgScores).sort((a, b) => b[1] - a[1])[0];
+            const weakDim = Object.entries(avgScores).sort((a, b) => a[1] - b[1])[0];
+            
+            return (
+              <React.Fragment key={idx}>
+                <div className="text-[#777]">{idx + 1}</div>
+                <div className="text-[#0a0]">{totalAvg.toFixed(1)}</div>
+                <div className="text-[#6a6]">{dimensionLabels[bestDim[0]].substring(0, 8)}</div>
+                <div className="text-[#a66]">{dimensionLabels[weakDim[0]].substring(0, 8)}</div>
+              </React.Fragment>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -91,6 +237,7 @@ function buildTreeStructure(events) {
   const rounds = {};
   const voting = [];
   const final = [];
+  const mtaDataByRound = {}; // For longitudinal analysis
   
   events.forEach(event => {
     if (event.round) {
@@ -115,6 +262,9 @@ function buildTreeStructure(events) {
           agent: event.agent,
           label: `API-anrop till ${event.agent.toUpperCase()}`,
           timestamp: event.timestamp,
+          tokens_in: event.tokens_in || event.tokens || 0,
+          tokens_out: event.tokens_out || 0,
+          duration: event.duration || null,
           children: []
         };
         
@@ -124,13 +274,16 @@ function buildTreeStructure(events) {
           type: 'payload',
           label: 'Skickad payload',
           clickable: true,
+          timestamp: event.timestamp,
+          tokens: event.tokens_out || 0,
           data: {
             url: event.api_url || `https://api.${event.agent}.com/v1/chat/completions`,
             model: event.model || `${event.agent}-model`,
             prompt: event.prompt || '[Full prompt]',
             temperature: event.temperature || 0.7,
             max_tokens: event.max_tokens || 500,
-            context: event.context || {}
+            context: event.context || {},
+            tokens_out: event.tokens_out || 0
           }
         });
         
@@ -141,7 +294,8 @@ function buildTreeStructure(events) {
           label: 'Mottaget svar',
           text: event.text,
           clickable: true,
-          timestamp: event.timestamp
+          timestamp: event.timestamp,
+          tokens: event.tokens_in || event.tokens || 0
         });
         
         round.apiCalls.push(apiCall);
@@ -157,8 +311,18 @@ function buildTreeStructure(events) {
             label: 'MTA-DO analys',
             analysis: event.analysis,
             clickable: true,
-            timestamp: event.timestamp
+            timestamp: event.timestamp,
+            tokens: event.tokens || 0
           });
+          
+          // Track MTA data for longitudinal analysis
+          if (!mtaDataByRound[event.round]) {
+            mtaDataByRound[event.round] = { round: event.round };
+          }
+          mtaDataByRound[event.round][event.agent] = {
+            analysis: event.analysis,
+            timestamp: event.timestamp
+          };
         }
       }
       
@@ -171,7 +335,8 @@ function buildTreeStructure(events) {
             type: 'commentary',
             label: 'ONESEEK commentary',
             text: event.text || event.message,
-            timestamp: event.timestamp
+            timestamp: event.timestamp,
+            tokens: event.tokens || 0
           });
         }
       }
@@ -185,7 +350,8 @@ function buildTreeStructure(events) {
             type: 'insight',
             label: 'Insight',
             text: event.text || event.message,
-            timestamp: event.timestamp
+            timestamp: event.timestamp,
+            tokens: event.tokens || 0
           });
         }
       }
@@ -248,7 +414,8 @@ function buildTreeStructure(events) {
         type: 'final_summary',
         label: 'Final sammanfattning',
         text: event.summary || 'Sammanfattning med röster + MTA-DO-trender',
-        timestamp: event.timestamp
+        timestamp: event.timestamp,
+        mtaData: Object.values(mtaDataByRound) // Include MTA longitudinal data
       });
     }
   });
@@ -288,15 +455,30 @@ function buildTreeStructure(events) {
 }
 
 /**
- * Tree Node Component - Minimalist Design
+ * Tree Node Component - Minimalist Design with Metadata
  */
-function TreeNode({ node, depth = 0, isLast = false }) {
-  const [isExpanded, setIsExpanded] = useState(true);
+function TreeNode({ node, depth = 0, isLast = false, previousNode = null, activeRound = null }) {
+  // Auto-minimize rounds when not active
+  const [isExpanded, setIsExpanded] = useState(
+    node.type === 'round' ? (activeRound === null || node.round === activeRound) : true
+  );
   const [showModal, setShowModal] = useState(false);
   const [modalData, setModalData] = useState(null);
   
+  // Update expansion when active round changes
+  useEffect(() => {
+    if (node.type === 'round' && activeRound !== null) {
+      setIsExpanded(node.round === activeRound);
+    }
+  }, [activeRound, node.type, node.round]);
+  
   const hasChildren = node.children && node.children.length > 0;
   const indent = depth * 16;
+  
+  // Calculate duration from previous node
+  const duration = previousNode?.timestamp && node.timestamp 
+    ? calculateDuration(previousNode.timestamp, node.timestamp)
+    : null;
   
   const handleClick = () => {
     if (node.clickable) {
@@ -346,9 +528,28 @@ function TreeNode({ node, depth = 0, isLast = false }) {
           
           {/* Label */}
           <div className="flex-1 min-w-0 text-[11px]">
-            <div className="text-[#aaa]">
-              {node.label}
-              {node.agent && ` (${node.agent.toUpperCase()})`}
+            <div className="flex items-baseline gap-2">
+              <span className="text-[#aaa]">
+                {node.label}
+                {node.agent && ` (${node.agent.toUpperCase()})`}
+              </span>
+              
+              {/* Timestamp, duration, tokens */}
+              <span className="text-[9px] text-[#555] flex items-center gap-2">
+                {node.timestamp && (
+                  <span>{formatTimestamp(node.timestamp)}</span>
+                )}
+                {duration && (
+                  <span className="text-[#666]">+{duration}</span>
+                )}
+                {(node.tokens || node.tokens_in || node.tokens_out) && (
+                  <span className="text-[#777]">
+                    {node.tokens_out ? `↑${node.tokens_out}` : ''}
+                    {node.tokens_in ? ` ↓${node.tokens_in}` : ''}
+                    {node.tokens && !node.tokens_in && !node.tokens_out ? `${node.tokens}t` : ''}
+                  </span>
+                )}
+              </span>
             </div>
             
             {/* Details inline */}
@@ -382,6 +583,11 @@ function TreeNode({ node, depth = 0, isLast = false }) {
               </div>
             )}
             
+            {/* MTA Longitudinal View for final summary */}
+            {node.type === 'final_summary' && node.mtaData && (
+              <MTALongitudinalView mtaData={node.mtaData} />
+            )}
+            
             {/* Thinking steps */}
             {node.steps && (
               <div className="text-[10px] text-[#666] mt-1 space-y-0.5">
@@ -402,6 +608,8 @@ function TreeNode({ node, depth = 0, isLast = false }) {
                 node={child}
                 depth={depth + 1}
                 isLast={index === node.children.length - 1}
+                previousNode={index > 0 ? node.children[index - 1] : node}
+                activeRound={activeRound}
               />
             ))}
           </div>
@@ -431,6 +639,12 @@ export default function Tankekedja({ events = [], isVisible = true }) {
   const containerRef = useRef(null);
   
   const tree = buildTreeStructure(events);
+  
+  // Determine active round (most recent round with activity)
+  const activeRound = events
+    .filter(e => e.round)
+    .map(e => e.round)
+    .reduce((max, r) => Math.max(max, r), 0) || null;
   
   useEffect(() => {
     if (autoScroll && treeEndRef.current) {
@@ -467,7 +681,7 @@ export default function Tankekedja({ events = [], isVisible = true }) {
         ) : (
           <div>
             {tree.children.map((node) => (
-              <TreeNode key={node.id} node={node} depth={0} />
+              <TreeNode key={node.id} node={node} depth={0} activeRound={activeRound} />
             ))}
             <div ref={treeEndRef} />
           </div>
