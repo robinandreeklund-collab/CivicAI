@@ -13107,8 +13107,17 @@ async def websocket_live_debate(websocket: WebSocket):
         # Conduct debate rounds with NEW queue-based architecture
         for round_num in range(1, max_rounds + 1):
             # Generate randomized turn order for this round (random is imported at top)
-            round_turn_order = debate_agents.copy()
-            random.shuffle(round_turn_order)
+            # In rounds 2 and 3, ONESEEK is included in the random turn order
+            if round_num >= 2:
+                # Rounds 2 & 3: ONESEEK participates in random position
+                all_participants = debate_agents.copy() + ['oneseek']
+                random.shuffle(all_participants)
+                round_turn_order = all_participants
+            else:
+                # Round 1: External agents go first, ONESEEK goes last (original behavior)
+                round_turn_order = debate_agents.copy()
+                random.shuffle(round_turn_order)
+            
             turn_orders[round_num] = round_turn_order
             
             await websocket.send_json({
@@ -13150,9 +13159,15 @@ INSTRUKTIONER FÖR DITT SVAR:
 
 GE DITT SVAR NU:"""
             
-            # NEW ARCHITECTURE: Collect external AI responses first, then send to ONESEEK for synthesis
-            # Use randomized turn order for this round
-            external_agents = round_turn_order
+            # NEW ARCHITECTURE: Process agents in turn order
+            # In rounds 2 & 3, ONESEEK is included in the turn order
+            # For round 1, keep original behavior where external agents go first, ONESEEK last
+            if round_num == 1:
+                # Round 1: Original flow - external agents processed in parallel, ONESEEK echoes and then gives own answer
+                external_agents = round_turn_order
+            else:
+                # Rounds 2 & 3: Process all participants (including ONESEEK) in turn order
+                external_agents = [a for a in round_turn_order if a != 'oneseek']
             
             async def get_external_response(agent_name):
                 """Get response from external AI service - ASYNC to avoid blocking"""
@@ -13410,18 +13425,45 @@ GE DIN INSIGHT NU (ingen extra text):"""
                 
                 return response
             
-            # Start all external AI requests concurrently - each will process IMMEDIATELY when it arrives
-            external_tasks = [asyncio.create_task(get_and_process_immediately(agent)) for agent in external_agents]
-            logger.info(f"[WS-Debate] Started {len(external_tasks)} parallel tasks - each will process IMMEDIATELY on arrival")
+            # Different flow for Round 1 vs Rounds 2-3
+            if round_num == 1:
+                # Round 1: Original flow - external agents process in parallel, ONESEEK echoes and goes last
+                external_tasks = [asyncio.create_task(get_and_process_immediately(agent)) for agent in external_agents]
+                logger.info(f"[WS-Debate] Round 1: Started {len(external_tasks)} parallel tasks - each will process IMMEDIATELY on arrival")
+                
+                # Wait for all tasks to complete
+                await asyncio.gather(*external_tasks, return_exceptions=True)
+                logger.info(f"[WS-Debate] All {len(external_agents)} external responses received and processed")
+                
+                # Filter successful responses only
+                round_responses.extend([r for r in external_responses if r.get('success', False)])
+            else:
+                # Rounds 2 & 3: Process agents sequentially in turn order (including ONESEEK)
+                logger.info(f"[WS-Debate] Round {round_num}: Processing {len(round_turn_order)} agents in turn order: {round_turn_order}")
+                
+                for agent_name in round_turn_order:
+                    if agent_name == 'oneseek':
+                        # ONESEEK's turn in the rotation
+                        logger.info(f"[WS-Debate] ONESEEK's turn at position {round_turn_order.index(agent_name) + 1}/{len(round_turn_order)}")
+                        # Skip to ONESEEK answer generation below
+                        break  # Process ONESEEK after gathering any remaining external responses
+                    else:
+                        # External agent's turn
+                        response = await get_and_process_immediately(agent_name)
+                        if response.get('success', False):
+                            round_responses.append(response)
+                
+                # If ONESEEK hasn't appeared yet in turn order, it means it comes after current position
+                oneseek_position = round_turn_order.index('oneseek') if 'oneseek' in round_turn_order else -1
+                
+                # Process any remaining external agents after ONESEEK's turn (for rounds 2-3)
+                if oneseek_position >= 0:
+                    remaining_agents = round_turn_order[oneseek_position + 1:]
+                    if remaining_agents:
+                        logger.info(f"[WS-Debate] {len(remaining_agents)} agents remain after ONESEEK: {remaining_agents}")
+                        # These will be processed after ONESEEK's response
             
-            # Wait for all tasks to complete
-            await asyncio.gather(*external_tasks, return_exceptions=True)
-            logger.info(f"[WS-Debate] All {len(external_agents)} external responses received and processed")
-            
-            # Filter successful responses only
-            round_responses.extend([r for r in external_responses if r.get('success', False)])
-            
-            # After processing all queued external responses, OneSeek generates its OWN answer
+            # Generate ONESEEK's own answer (this happens at different positions in rounds 2-3)
             logger.info(f"[WS-Debate] OneSeek generating its own comprehensive answer for round {round_num}...")
             
             await websocket.send_json({
@@ -13460,26 +13502,40 @@ GE DIN INSIGHT NU (ingen extra text):"""
             if round_num < max_rounds:
                 next_round_instruction = f"\n\n- Avsluta med en genomtänkt fråga eller utmaning som för debatten vidare till nästa runda"
             
+            # Determine ONESEEK's position context for rounds 2-3
+            position_context = ""
+            if round_num >= 2 and 'oneseek' in round_turn_order:
+                oneseek_pos = round_turn_order.index('oneseek') + 1
+                total_participants = len(round_turn_order)
+                if oneseek_pos < total_participants:
+                    position_context = f"\n\nDIN POSITION: Du svarar som nummer {oneseek_pos} av {total_participants} i denna runda. Vissa svar kommer efter dig."
+                elif oneseek_pos == total_participants:
+                    position_context = f"\n\nDIN POSITION: Du svarar sist i denna runda och har sett alla andras perspektiv."
+                else:
+                    position_context = f"\n\nDIN POSITION: Du svarar tidigt i denna runda (position {oneseek_pos}/{total_participants})."
+            
             oneseek_main_prompt = f"""Du är ONESEEK – en avancerad och självständig deltagare i AI-debatten.
 
 DEBATTFRÅGA: {clean_question}
 
-{background_context}{current_round_context}
+{background_context}{current_round_context}{position_context}
 
 UPPGIFT - GE DITT DEBATTBIDRAG FÖR RUNDA {round_num}:
 
 BEHAVIORAL ENFORCEMENT - DU SKA:
-- Referera till och bemöt specifika poänger från andra modeller (använd namn)
+- Referera till och bemöt specifika poänger från andra modeller som redan svarat (använd namn)
 - Håll med där du håller med – och förklara varför
 - Utmana eller nyansera där du ser svagheter eller missade vinklar
 - Lägg till egna reflektioner, exempel, fakta eller perspektiv som saknas
-- Ta en tydlig ståndpunkt i frågan
+- Ta en tydlig ståndpunkt i frågan med konkreta rekommendationer
 - Skriv med övertygelse och personlighet{next_round_instruction}
+- Om du svarar tidigt: Sätt agendan och introducera perspektiv som behöver diskuteras
+- Om du svarar sent: Syntetisera insikter från tidigare svar och dra samman trådar
 
 LÄNGD: 150-250 ord (STRIKT - håll denna begränsning)
 
 STIL: Börja direkt med ditt bidrag, ingen rubrik eller meta-kommentarer.
-TON: Tänkande, självsäker, nyfiken och respektfull
+TON: Tänkande, självsäker, nyfiken och respektfull. Balanserad men beslutsam.
 
 GE DITT SVAR NU:"""
             
@@ -13641,6 +13697,37 @@ GE DITT RESONEMANG NU (börja direkt med substans):"""
                     "complete": True,
                     "agent": "oneseek"
                 })
+            
+            # Process remaining agents after ONESEEK (for rounds 2-3)
+            if round_num >= 2 and 'oneseek' in round_turn_order:
+                oneseek_position = round_turn_order.index('oneseek')
+                remaining_agents = [a for a in round_turn_order[oneseek_position + 1:] if a != 'oneseek']
+                
+                if remaining_agents:
+                    logger.info(f"[WS-Debate] Processing {len(remaining_agents)} agents after ONESEEK: {remaining_agents}")
+                    
+                    for agent_name in remaining_agents:
+                        # Get response from external agent
+                        response = await get_external_response(agent_name)
+                        
+                        # Emit ai_response event
+                        await websocket.send_json({
+                            "type": "ai_response",
+                            "round": round_num,
+                            "agent": agent_name,
+                            "message": f"✅ {agent_name.upper()} har svarat",
+                            "data": {
+                                "agent": agent_name,
+                                "success": response.get('success', False)
+                            }
+                        })
+                        
+                        if response.get('success', False):
+                            round_responses.append(response)
+                            
+                            # ONESEEK can still echo and comment on late responses in round 1 style
+                            # But for rounds 2-3, we skip the echo/comment to keep flow natural
+                            logger.info(f"[WS-Debate] {agent_name} responded after ONESEEK in round {round_num}")
             
             # Generate round summary/compression (5 key learnings)
             logger.info(f"[WS-Debate] Generating round {round_num} summary...")
@@ -13819,12 +13906,21 @@ Svara ENDAST med ett tal 0-100, inget annat."""
 RÖSTNINGSUPPGIFT:
 Analysera bidragen ovan från sista rundan och rösta på den modell som var bäst.
 
+UTVÄRDERINGSKRITERIER (i prioritetsordning):
+1. **Syntesförmåga** - Förmågan att integrera insikter från flera perspektiv
+2. **Balanserad Argumentation** - Väger för- och nackdelar objektivt
+3. **Djup och Substans** - Ger konkreta exempel, fakta och nyanserade resonemang
+4. **Praktisk Tillämpbarhet** - Erbjuder konkreta rekommendationer eller slutsatser
+5. **Klarhet och Struktur** - Välformulerat och lätt att följa
+6. **Originalitet** - Lägger till unika perspektiv som andra missat
+
 REGLER:
 - Du kan INTE rösta på dig själv
 - Välj mellan: {', '.join(other_agents)}
+- Värdera särskilt högt bidrag som syntetiserar olika perspektiv till en helhet
 - Ge en motivering på 50-80 ord som förklarar:
-  1. Vad som var starkt med det svaret/modellen
-  2. Specifika argument som övertyagde dig
+  1. Vilka av ovanstående kriterier modellen uppfyllde bäst
+  2. Specifika exempel från svaret som övertyagade dig
   3. Varför detta svar var bättre än de andra
 
 FORMAT (följ exakt):
