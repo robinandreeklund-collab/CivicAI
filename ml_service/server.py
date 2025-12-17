@@ -14675,6 +14675,99 @@ GE DITT SVAR NU:"""
         for vr in vote_results:
             voting_motivations += f"{vr['voter'].upper()} röstade på {vr['voted_for'].upper()}:\n{vr.get('motivation', 'Ingen motivering angiven.')}\n\n"
         
+        # Calculate MTA-DO averages and trends
+        mta_averages_per_agent = {}
+        mta_dimension_averages = {}
+        agent_mta_count = {}
+        
+        for item in knowledge_chain:
+            if item.get('type') == 'mta_analysis':
+                analysis = item.get('analysis', {})
+                agent_name = analysis.get('agent_name', '').lower()
+                
+                if agent_name:
+                    # Get weighted score
+                    summary = analysis.get('summary', {})
+                    weighted_score = summary.get('weighted_score', summary.get('overall_score', 0))
+                    
+                    if agent_name not in mta_averages_per_agent:
+                        mta_averages_per_agent[agent_name] = []
+                        agent_mta_count[agent_name] = 0
+                    
+                    mta_averages_per_agent[agent_name].append(weighted_score)
+                    agent_mta_count[agent_name] += 1
+                    
+                    # Track dimension scores
+                    analysis_dims = analysis.get('analysis', {})
+                    for dim_name, dim_data in analysis_dims.items():
+                        if isinstance(dim_data, dict) and 'score' in dim_data:
+                            if dim_name not in mta_dimension_averages:
+                                mta_dimension_averages[dim_name] = []
+                            mta_dimension_averages[dim_name].append(dim_data['score'])
+        
+        # Calculate averages
+        mta_averages_str = ""
+        for agent, scores in mta_averages_per_agent.items():
+            if scores:
+                avg = sum(scores) / len(scores)
+                mta_averages_str += f"{agent.upper()}: {avg:.1f} | "
+        
+        mta_averages_str = mta_averages_str.rstrip(" | ")
+        if not mta_averages_str:
+            mta_averages_str = "Inga MTA-analyser tillgängliga"
+        
+        # Calculate dimension trends
+        mta_trends_str = ""
+        dimension_names_sv = {
+            'relevance': 'Relevans',
+            'argument_depth': 'Argumentdjup',
+            'factual_anchoring': 'Faktaförankring',
+            'clarity': 'Klarhet',
+            'logical_coherence': 'Konsekvens',
+            'risk_hallucination': 'Risk/Hallucination'
+        }
+        
+        highest_dim = None
+        highest_avg = 0
+        lowest_dim = None
+        lowest_avg = 10
+        
+        for dim_name, scores in mta_dimension_averages.items():
+            if scores:
+                avg = sum(scores) / len(scores)
+                dim_display = dimension_names_sv.get(dim_name, dim_name)
+                
+                # Track highest and lowest (excluding risk which is inverse)
+                if dim_name != 'risk_hallucination':
+                    if avg > highest_avg:
+                        highest_avg = avg
+                        highest_dim = dim_display
+                    if avg < lowest_avg:
+                        lowest_avg = avg
+                        lowest_dim = dim_display
+        
+        if highest_dim:
+            mta_trends_str += f"Högst genomsnittlig kvalitet i {highest_dim} ({highest_avg:.1f}/10). "
+        if lowest_dim and lowest_avg < 8.0:
+            mta_trends_str += f"Lägst i {lowest_dim} ({lowest_avg:.1f}/10), vilket indikerar utvecklingsmöjligheter. "
+        
+        # Calculate overall quality trend
+        all_scores = []
+        for scores in mta_averages_per_agent.values():
+            all_scores.extend(scores)
+        
+        if all_scores:
+            overall_avg = sum(all_scores) / len(all_scores)
+            if overall_avg >= 8.5:
+                mta_trends_str += f"Övergripande mycket hög debattkvalitet (genomsnitt {overall_avg:.1f}/10)."
+            elif overall_avg >= 7.5:
+                mta_trends_str += f"Övergripande god debattkvalitet (genomsnitt {overall_avg:.1f}/10)."
+            else:
+                mta_trends_str += f"Varierande debattkvalitet (genomsnitt {overall_avg:.1f}/10)."
+        
+        if not mta_trends_str:
+            mta_trends_str = "Inga tydliga trender kunde identifieras"
+        
         closing_comment_prompt = f"""Du är ONESEEK – en opartisk och reflekterande debattledare som nu ska avsluta debatten på ett värdigt och insiktsfullt sätt.
 
 Debatten om "{clean_question}" är nu över.
@@ -14684,11 +14777,21 @@ Debatten om "{clean_question}" är nu över.
 Röstningsmotiveringar från modellerna (använd dessa för att förklara resultatet):
 {voting_motivations}
 
+Du har även tillgång till MTA-DO-genomsnitt och nyckelinsikter från alla analyser:
+
+Genomsnittliga scores per modell:
+{mta_averages_str}
+
+Noterbara trender från MTA-DO:
+{mta_trends_str}
+
 Skriv ett avslutande inlägg där du:
 - Tackar alla modeller för deras engagerade och tankeväckande bidrag
 - Summerar kort debattens huvudlinjer och hur diskussionen utvecklades över rundorna
-- Förklarar objektivt varför {winner.upper()} fick flest röster – baserat på röstningsmotiveringarna och vad som framkom i debatten (t.ex. konsekvens, logik, djup, förmåga att bemöta andra)
-- Lyfter fram minst ett starkt eller värdefullt bidrag från någon av de andra modellerna
+- Förklarar objektivt varför {winner.upper()} fick flest röster – baserat på röstningsmotiveringarna, MTA-DO-data och vad som framkom i debatten (t.ex. konsekvens, logik, djup, förmåga att bemöta andra)
+- Använd MTA-DO-scores för att ge objektiv kontext till röstningsresultatet (om vinnarens score stödjer resultatet eller om andra hade högre kvalitetspoäng)
+- Lyfter fram minst ett starkt eller värdefullt bidrag från någon av de andra modellerna, gärna med stöd i deras MTA-scores
+- Ge en meta-reflektion över debattens kvalitet baserat på MTA-DO-trender (vilka dimensioner var starkast/svagast)
 - Avsluta med en nyanserad reflektion över frågan: vad vi lärt oss, var det finns konsensus och vad som fortfarande är öppet
 
 Längd: 250–400 ord.
