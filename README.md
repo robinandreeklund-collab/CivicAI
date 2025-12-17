@@ -1083,7 +1083,7 @@ for mta in mta_analyses:
     mta_context += f"- {mta['agent_name']} ({mta['summary']['weighted_score']}/10)"
 ```
 
-**Result:** ONESEEK maintains rich contextual awareness while staying well within token limits (~3K vs potential ~8K if full debate was carried).
+**Result:** ONESEEK maintains rich contextual awareness while staying well within token limits (~2000-3000 tokens vs potential ~8000+ if full debate was carried).
 
 ### ONESEEK's Dual Role
 
