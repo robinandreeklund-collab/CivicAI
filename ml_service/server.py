@@ -13298,30 +13298,36 @@ GE DITT SVAR NU:"""
                     )
                     
                     # 2. COMMENT: Generate conversational comment
-                    comment_prompt = f"""Du är OneSeek, en engagerad och analytisk debattvärd som leder en live-debatt.
+                    # Build context of previous responses in this round
+                    async with external_responses_lock:
+                        previous_agents_context = ""
+                        for prev_resp in external_responses[:-1]:  # Exclude current response
+                            if prev_resp.get('success'):
+                                prev_agent = prev_resp.get('agent', 'unknown')
+                                prev_text = prev_resp.get('response', '')[:150]
+                                previous_agents_context += f"{prev_agent.upper()}: {prev_text}...\n\n"
+                    
+                    comment_prompt = f"""Du är ONESEEK – en engagerad deltagare med extremt stark syntesförmåga som redan börjar se kopplingar och mönster.
 
 DEBATTFRÅGA: {clean_question}
 
-{agent_name.upper()}S SVAR I RUNDA {round_num}:
+TIDIGARE SVAR I DENNA RUNDA:
+{previous_agents_context if previous_agents_context else "(Du är första att reagera)"}
+
+{agent_name.upper()}S SVAR (precis mottaget):
 {agent_response[:800]}...
 
-BEHAVIORAL ENFORCEMENT:
-- Reagera naturligt och tänkande på det du just läst
-- Kommentera i realtid för publiken och bygg din egen förståelse
-- Håll längden till 40-80 ord (2-5 meningar)
-- Basera din kommentar på det FAKTISKA svaret ovan
+Reagera kort och naturligt (1–3 meningar) som en aktiv deltagare som bygger sin syntes:
+- Bemöt eller bygg vidare på en specifik poäng
+- Ta tydligt ställning (håll med, utmana eller nyansera)
+- Om möjligt: antyda en koppling till tidigare svar eller en framväxande syntesriktning
+- Håll tonen respektfull men självsäker – du är med för att skapa något större
 
-DU SKA:
-- Lyft fram den starkaste eller mest oväntade poängen från svaret
-- Koppla till tidigare bidrag i debatten (eller markera nya vinklar)
-- Visa vad du håller med om, ifrågasätter eller vill bygga vidare på
-- Ställ en relevant följdfråga om det känns naturligt
-- Ge en snabb egen reflektion som tar diskussionen framåt
+Exempel:
+"DeepSeek har rätt i att evidensen pekar tydligt mot avskaffande – men jag tycker hen underskattar vedergällningsaspekten som Grok tog upp tidigare."
+"Intressant hur Gemini och GPT båda landar i hybridlösningar fast från olika vinklar – jag ser en möjlig integrationsmodell växa fram här."
 
-STIL: Konversationell men analytiskt skarp
-LÄNGD: 40-80 ord (strikt)
-
-GE DIN KOMMENTAR NU (ingen inledning):"""
+Svara direkt – ingen inledning."""
                     
                     try:
                         payload = {
@@ -13388,27 +13394,31 @@ GE DIN KOMMENTAR NU (ingen inledning):"""
                             responses_so_far = len(external_responses)
                         
                         # Build insight prompt
-                        insight_prompt = f"""Du är ONESEEK som ger publiken snabba live-insikter om debatten.
+                        # Get progress context
+                        async with external_responses_lock:
+                            responses_so_far = len(external_responses)
+                            total_agents = len(external_agents)
+                            
+                        insight_prompt = f"""Du är ONESEEK med extrem syntesförmåga som ser mönster andra missar.
 
 DEBATTFRÅGA: {clean_question}
 
-{agent_name.upper()}S SVAR I RUNDA {round_num}:
-{agent_response[:200]}...
+{agent_name.upper()}S SVAR (svar {responses_so_far}/{total_agents} i runda {round_num}):
+{agent_response[:250]}...
 
-BEHAVIORAL ENFORCEMENT:
-- Längd: 15-25 ord (1-2 meningar, STRIKT)
-- Börja alltid med 💡
-- Variera stil - undvik upprepning av fraser
-- Känn som äkta live-kommentar
-- Basera kommentaren på det FAKTISKA svaret ovan och debattfrågan
+Ge EN kort, vass observation (1–2 meningar) som:
+- Detekterar ett skifte, styrka, svaghet eller outforskad koppling
+- Visar hur bidraget påverkar debattens riktning
+- Antyder din egen kommande syntes eller lösning som går bortom individuella bidrag
 
-DU KAN:
-- Peka ut skifte i argumentationen relaterat till frågan
-- Lyfta stark, svag eller oväntad vinkel i svaret
-- Koppla till debattens dynamik eller tidigare rundor
-- Använd dramatik, humor eller överraskning naturligt
+Börja alltid med 💡
+Skriv med pondus och originalitet – visa att du redan ser den överlägsna helheten.
 
-GE DIN INSIGHT NU (ingen extra text):"""
+Exempel:
+💡 DeepSeek höjer ribban med evidens – nu ser jag hur det integreras med Groks ramverk till något helt nytt.
+💡 Intressant: alla tre landar i hybrider men från olika håll – det finns en meta-lösning här som ingen sagt ännu.
+
+GE DIN INSIGHT NU (börja direkt med 💡):"""
 
                         insight_text = generate_with_llama_server(
                             insight_prompt,
