@@ -13886,7 +13886,17 @@ Svara ENDAST med ett tal 0-100, inget annat."""
                 if debate_rounds:
                     # Only use the last round (round 3) for voting
                     last_round = debate_rounds[-1]
-                    all_responses_text += f"\n\nSISTA RUNDAN (Runda {last_round['round']}):\n"
+                    last_round_num = last_round['round']
+                    
+                    # Get the turn order for the last round to show voters the actual order
+                    last_round_turn_order = turn_orders.get(last_round_num, [])
+                    if last_round_turn_order:
+                        turn_order_str = " → ".join([a.upper() for a in last_round_turn_order])
+                        all_responses_text += f"\n\nSISTA RUNDAN (Runda {last_round_num}) - SVARSORDNING: {turn_order_str}\n"
+                    else:
+                        all_responses_text += f"\n\nSISTA RUNDAN (Runda {last_round_num}):\n"
+                    
+                    # Show responses in the order they appear (which matches turn_order)
                     for resp in last_round['responses']:
                         if resp['agent'] != voter and resp.get('success', False):
                             # Include more of the response for better voting decision (up to 500 chars)
