@@ -13603,20 +13603,38 @@ GE DITT SVAR NU:"""
                 answer = oneseek_full_response.strip()
                 
                 # Stream OneSeek's own answer
+                # Get ONESEEK's position in turn order for rounds 2-3
+                oneseek_turn_position = agent_positions.get('oneseek', -1) if round_num >= 2 else -1
+                
                 oneseek_start_event = {
                     "type": "oneseek_own_answer_start",
                     "round": round_num,
                     "message": "🤖 ONESEEK ger sitt debattsvar...",
                     "sequence": get_next_sequence()
                 }
+                # Add position metadata for rounds 2-3
+                if oneseek_turn_position >= 0:
+                    oneseek_start_event["position"] = oneseek_turn_position
+                    oneseek_start_event["turn_order_position"] = oneseek_turn_position
+                    oneseek_start_event["data"] = {
+                        "position": oneseek_turn_position,
+                        "turn_order_position": oneseek_turn_position
+                    }
+                
                 await websocket.send_json(oneseek_start_event)
+                
+                # Pass position metadata to streaming tokens for rounds 2-3
+                stream_extra_data = {"round": round_num}
+                if oneseek_turn_position >= 0:
+                    stream_extra_data["position"] = oneseek_turn_position
+                    stream_extra_data["turn_order_position"] = oneseek_turn_position
                 
                 await stream_text_tokens(
                     websocket,
                     answer,
                     "oneseek_own_answer",
                     agent="oneseek",
-                    round=round_num
+                    **stream_extra_data
                 )
                 
                 # Generate reasoning/thought chain for OneSeek's own answer
@@ -13699,6 +13717,13 @@ GE DITT RESONEMANG NU (börja direkt med substans):"""
                         },
                         "sequence": get_next_sequence()
                     }
+                    # Add position metadata for rounds 2-3
+                    if oneseek_turn_position >= 0:
+                        oneseek_reasoning_event["position"] = oneseek_turn_position
+                        oneseek_reasoning_event["turn_order_position"] = oneseek_turn_position
+                        oneseek_reasoning_event["data"]["position"] = oneseek_turn_position
+                        oneseek_reasoning_event["data"]["turn_order_position"] = oneseek_turn_position
+                    
                     await websocket.send_json(oneseek_reasoning_event)
                     knowledge_chain.append({
                         'round': round_num,
