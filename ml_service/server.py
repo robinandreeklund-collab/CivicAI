@@ -13445,22 +13445,53 @@ Svara ENDAST med giltig JSON i denna exakta struktur:
                 close_braces = json_str.count('}')
                 missing_braces = open_braces - close_braces
                 
-                if missing_braces > 0 and missing_braces <= 3:
+                if missing_braces > 0 and missing_braces <= 5:
                     # Try to close the JSON properly
-                    # Check if we're in the middle of a string
-                    if not json_str.rstrip().endswith('"') and '"reasoning":' in json_str:
-                        json_str = json_str.rstrip() + '"}'  # Close the reasoning string and object
-                        missing_braces -= 1
+                    json_str_stripped = json_str.rstrip()
+                    
+                    # Check if we're in the middle of a string (truncated reasoning)
+                    if '"reasoning":' in json_str and not json_str_stripped.endswith('"') and not json_str_stripped.endswith('}'):
+                        # Find the last quote to see if we're mid-string
+                        last_quote_idx = json_str_stripped.rfind('"')
+                        last_colon_idx = json_str_stripped.rfind(':')
+                        
+                        if last_colon_idx > last_quote_idx:
+                            # We're after the colon but haven't closed the string
+                            # Remove any incomplete text after the last opening quote
+                            json_str = json_str_stripped + '"'  # Close the string
+                        elif json_str_stripped[-1] not in ['"', '}', ']']:
+                            # Incomplete string value - close it
+                            json_str = json_str_stripped + '"'
+                    
+                    # Recount after potential fixes
+                    open_braces = json_str.count('{')
+                    close_braces = json_str.count('}')
+                    missing_braces = open_braces - close_braces
                     
                     # Add remaining closing braces
-                    json_str += '}' * missing_braces
+                    if missing_braces > 0:
+                        json_str += '}' * missing_braces
                     
                     try:
                         analysis_data = json.loads(json_str)
                         logger.info(f"[MTA-DO] Successfully repaired truncated JSON for {agent_name}")
-                    except json.JSONDecodeError:
-                        logger.error(f"[MTA-DO] Could not repair JSON. Content preview: {content[:200]}")
-                        raise ValueError("Malformed JSON in response - no matching closing brace")
+                    except json.JSONDecodeError as parse_err:
+                        # One more attempt: try to extract just the analysis object
+                        logger.warning(f"[MTA-DO] First repair attempt failed: {parse_err}. Trying fallback extraction...")
+                        try:
+                            # Look for "analysis": { pattern and try to build minimal valid JSON
+                            import re
+                            analysis_match = re.search(r'"analysis"\s*:\s*\{', content)
+                            if analysis_match:
+                                # Extract what we have and build minimum viable JSON
+                                logger.info(f"[MTA-DO] Using fallback extraction - response was truncated")
+                                # Return None to trigger fallback, but don't raise
+                                analysis_data = None
+                            else:
+                                raise parse_err
+                        except:
+                            logger.error(f"[MTA-DO] Could not repair JSON. Content preview: {content[:200]}")
+                            raise ValueError("Malformed JSON in response - no matching closing brace")
                 else:
                     logger.error(f"[MTA-DO] Could not find matching braces. Content preview: {content[:200]}")
                     raise ValueError("Malformed JSON in response - no matching closing brace")
@@ -14470,13 +14501,16 @@ Svara ENDAST med ett tal 0-100, inget annat."""
         votes = {}
         vote_results = []
         
-        # Each agent votes (cannot vote for themselves) with motivation
-        for voter in debate_agents:
+        # All participants vote (external agents + ONESEEK) - cannot vote for themselves
+        all_voters = debate_agents + ['oneseek']
+        
+        for voter in all_voters:
             try:
                 # Build voting prompt
-                other_agents = [a for a in debate_agents if a != voter]
+                # Other agents includes all participants except the voter
+                other_agents = [a for a in all_voters if a != voter]
                 
-                # Build context with ONLY THE LAST ROUND for voting
+                # Build context with ONLY THE LAST ROUND for voting (includes ONESEEK's final answer)
                 all_responses_text = ""
                 if debate_rounds:
                     # Only use the last round (round 3) for voting
@@ -14511,34 +14545,52 @@ MOTIVERING: [Din motivering i 50-80 ord med konkreta argument från debatten]
 
 GE DITT SVAR NU:"""
                 
-                # Call BACKEND API to get vote from this AI model (backend handles API keys)
+                # Call appropriate API based on voter
                 try:
-                    service_endpoints = {
-                        'gpt': f'{BACKEND_API_URL}/api/external/openai',
-                        'gemini': f'{BACKEND_API_URL}/api/external/gemini',
-                        'deepseek': f'{BACKEND_API_URL}/api/external/deepseek',
-                        'grok': f'{BACKEND_API_URL}/api/external/grok'
-                    }
-                    
-                    endpoint = service_endpoints.get(voter)
-                    if not endpoint:
-                        raise Exception(f"Tjänst {voter} inte tillgänglig")
-                    
-                    # Call backend API with voting prompt
-                    loop = asyncio.get_event_loop()
-                    vote_response = await loop.run_in_executor(
-                        None,
-                        lambda: requests.post(
-                            endpoint,
-                            json={'question': voting_prompt},
-                            timeout=45
+                    if voter == 'oneseek':
+                        # ONESEEK votes using local LLAMA server
+                        server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                        vote_response = requests.post(
+                            f"{server_url}/v1/chat/completions",
+                            json={
+                                "messages": [{"role": "user", "content": voting_prompt}],
+                                "max_tokens": 200,
+                                "temperature": 0.7,
+                                "stream": False
+                            },
+                            timeout=30
                         )
-                    )
-                    vote_response.raise_for_status()
-                    vote_result = vote_response.json()
-                    
-                    # Backend API returns {'response': '...'}
-                    vote_response_text = vote_result.get('response', '').strip()
+                        vote_response.raise_for_status()
+                        vote_result = vote_response.json()
+                        vote_response_text = vote_result['choices'][0]['message']['content'].strip()
+                    else:
+                        # External AI votes via backend API
+                        service_endpoints = {
+                            'gpt': f'{BACKEND_API_URL}/api/external/openai',
+                            'gemini': f'{BACKEND_API_URL}/api/external/gemini',
+                            'deepseek': f'{BACKEND_API_URL}/api/external/deepseek',
+                            'grok': f'{BACKEND_API_URL}/api/external/grok'
+                        }
+                        
+                        endpoint = service_endpoints.get(voter)
+                        if not endpoint:
+                            raise Exception(f"Tjänst {voter} inte tillgänglig")
+                        
+                        # Call backend API with voting prompt
+                        loop = asyncio.get_event_loop()
+                        vote_response = await loop.run_in_executor(
+                            None,
+                            lambda: requests.post(
+                                endpoint,
+                                json={'question': voting_prompt},
+                                timeout=45
+                            )
+                        )
+                        vote_response.raise_for_status()
+                        vote_result = vote_response.json()
+                        
+                        # Backend API returns {'response': '...'}
+                        vote_response_text = vote_result.get('response', '').strip()
                     
                     # Parse RÖST and MOTIVERING from response
                     import re
