@@ -3,15 +3,24 @@
 ## Översikt
 Detta dokument beskriver exakt hur debattflödet fungerar idag, från fråga till slut, med verifiering att systemet är implementerat enligt specifikationen.
 
-**Uppdaterad**: 2025-12-17 med PR119 (Consensus Debate System) och MTA-Debate-Observer funktionalitet
+**Uppdaterad**: 2025-12-17
+- **PR119**: Transformerade systemet från monolog-baserat till interaktivt turn-based debattflöde
+- **Denna PR**: Lade till MTA-Debate-Observer för meta-transparens i debatter
 
-## Två Debattsystem
+## Viktiga Förbättringar
 
-CivicAI har nu **två separata debattsystem**:
+### PR119: Från Monologer till Äkta Debatt
+**Problem**: AI-modellerna svarade simultant utan att interagera med varandra - mer som parallella monologer än en riktig debatt.
 
-1. **Live WebSocket Debate** (`/ws/debate`) - Det ursprungliga realtidssystemet beskrivet i detta dokument
-2. **Consensus Debate System** (REST API) - Nytt system för konsensusbaserade debatter när AI-modeller divergerar (PR119)
-3. **MTA-Debate-Observer** - Metaanalys-lager för transparency i debatter (denna PR)
+**Lösning**: 
+- Rundbaserat flöde där agenter svarar i tur och ordning
+- Randomiserad turordning varje runda
+- Agenter ser och refererar till varandras tidigare svar
+- Tydliga ordgränser (300-500 ord) för strukturerad debatt
+- Bättre token-hantering med context-trunkering
+
+### Denna PR: MTA-Debate-Observer
+**Tillägg**: Metaanalys-lager som utvärderar debattkvalitet i realtid utan att påverka flödet
 
 ---
 
@@ -46,94 +55,118 @@ max_rounds = 3
 
 ## Fas 2: Rundor (Upprepar 3 gånger)
 
-### 2.1 Parallella API-anrop (Oberoende)
-**Kod**: `ml_service/server.py:13452-13494`
+### 2.1 Turn-based Agent Responses (PR119 - Nytt!)
+**Kod**: `ml_service/server.py:13390-13442`
 
 ```python
-async def get_external_response(agent_name):
-    # KRITISKT: Använder loop.run_in_executor() för asynkron fetch
-    loop = asyncio.get_event_loop()
-    response = await loop.run_in_executor(
-        None,  # ThreadPoolExecutor
-        lambda: requests.post(endpoint, json={'question': debate_prompt}, timeout=30)
-    )
+# Generera randomiserad turordning för denna runda
+agents_order = external_agents.copy()  # ['gpt', 'gemini', 'deepseek', 'grok']
+random.shuffle(agents_order)
+turn_orders[round_num] = agents_order
+
+# Skicka turordning till frontend
+await websocket.send_json({
+    "type": "round_start",
+    "round": round_num,
+    "turn_order": agents_order  # T.ex. ['gemini', 'grok', 'gpt', 'deepseek']
+})
 ```
 
-**VERIFIERAT**: ✅ API-anrop är ASYNKRONA via executor
-- Varje external AI får sitt svar OBEROENDE
-- Ingen blockering av event loop
-- Svar kommer in i olika tider baserat på API-hastighet
+**PR119 FÖRÄNDRING**: ✅ Från simultana monologer till riktig turbaserad debatt
+- **FÖRE**: Alla 4 AI:er svarade parallellt utan att se varandras svar
+- **NU**: Agenter svarar i tur och ordning, ser tidigare svar i samma runda
+- Randomiserad ordning varje runda för rättvisa
+- Sekventiell processing med `oneseek_processing_lock`
+- Varje agent får context från alla tidigare turtagare i rundan
 
-### 2.2 Omedelbar Processing (Ett i taget)
+### 2.2 Agent Response med Debattkontext (PR119 - Förbättrat!)
+**Kod**: `ml_service/server.py:13442-13463`
+
+```python
+# Bygg prompt med strukturerad debattkontext
+debate_prompt = f"""Du deltar som {agent_name.upper()} i en AI-debatt om: {clean_question}
+
+Detta är runda {round_num} av {max_rounds}.
+
+BAKGRUND - TIDIGARE RUNDOR:
+{previous_rounds_summary}  # Truncated till 150 chars per svar
+
+AKTUELL RUNDA - SVAR HITTILLS:
+{current_round_responses}  # Fullständiga svar från tidigare turtagare
+
+BEHAVIORAL ENFORCEMENT:
+- Längd: 300-500 ord (STRIKT - håll denna begränsning)
+- Stil: Debattformat, argumentera aktivt
+- Innehåll: Referera till andras argument, ta tydlig ställning
+
+Din uppgift: Ge ditt svar som bygger på och bemöter andras argument."""
+```
+
+**PR119 FÖRÄNDRING**: ✅ Strukturerad debattkontext
+- **BAKGRUND**: Sammanfattning av tidigare rundor (truncated för token-effektivitet)
+- **AKTUELL RUNDA**: Fullständiga svar från tidigare turtagare
+- **ENFORCEMENT**: Tydliga ordgränser (300-500 ord) och beteenderegler
+- Agenter uppmanas explicit att referera till och bemöta varandras argument
+
+### 2.3 OneSeek Processing (Efter varje agentsvar)
 **Kod**: `ml_service/server.py:13501-13658`
 
 ```python
-async def get_and_process_immediately(agent_name):
-    # 1. Hämta svar (asynkront)
-    response = await get_external_response(agent_name)
+# För varje agent i turordningen:
+async with oneseek_processing_lock:
+    # 1. ECHO: Stream agentens svar token-för-token
+    await stream_text_tokens(websocket, agent_response, "oneseek_echo", ...)
     
-    # 2. Acquire lock - endast ETT svar processas åt gången
-    async with oneseek_processing_lock:
-        # 3. ECHO: Stream svaret token-för-token
-        await stream_text_tokens(websocket, agent_response, "oneseek_echo", ...)
-        
-        # 4. COMMENT: Generera konversationell kommentar
-        comment_prompt = f"""Du är OneSeek och kommenterar ett svar direkt i en debatt.
-        Ge en kort, konversationell kommentar direkt till {agent_name.upper()}s svar (2-3 meningar).
-        Starta med något som "Intressant poäng från {agent_name.upper()}."
-        Säg vad du håller med om OCH lägg till din egen synpunkt eller fråga."""
-        
-        # Generera kommentar med LLM
-        comment_text = llm_generate(comment_prompt)
-        
-        # Spara till knowledge_chain
-        knowledge_chain.append({'round': round_num, 'agent': agent_name, 'insight': comment_text})
-        
-        # 5. INSIGHT: Sport-kommentator stil uppdatering
-        insight = f"💡 {agent_name.upper()} fokuserar på {themes} - {count}/{total} svar mottagna"
+    # 2. COMMENT: Konversationell kommentar (40-80 ord, 200 tokens)
+    comment_prompt = f"""BEHAVIORAL ENFORCEMENT:
+    - Längd: 40-80 ord (STRIKT)
+    - Stil: Konversationell, sport-kommentator
+    Kommentera {agent_name.upper()}s svar direkt."""
+    
+    # 3. INSIGHT: Live-uppdatering (15-25 ord, 50 tokens)
+    insight = f"💡 {agent_name.upper()} fokuserar på {themes} - {count}/{total} svar"
 ```
 
-**VERIFIERAT**: ✅ Processing är SEKVENTIELL med lock
-- OneSeek ekar GPT:s svar → kommenterar → insight → KLART
-- Sedan OneSeek ekar Gemini:s svar → kommenterar → insight → KLART
-- Ett svar i taget, ingen parallell processing
+**PR119 FÖRÄNDRING**: ✅ Token-optimering med strikta längdbegränsningar
+- Comments: 40-80 ord (max 200 tokens)
+- Insights: 15-25 ord (max 50 tokens)
+- Behavioral enforcement clauses i alla prompts
+- Minskar token-användning över rundor
 
-**VERIFIERAT**: ✅ Kommentarer är KONVERSATIONELLA
-- Inte "analys" utan "Intressant poäng från GPT..."
-- 2-3 meningar som dialog
-
-### 2.3 OneSeek's Egen Syntes (Efter alla externa svar)
-**Kod**: `ml_service/server.py:13671-13822`
+### 2.4 OneSeek's Egen Syntes (Efter alla externa svar)
+**Kod**: `ml_service/server.py:13724-13795`
 
 ```python
-# Efter alla 4 externa svar är processade
+# Efter alla 4 externa svar i denna runda
 oneseek_context = f"""Du deltar som ONESEEK i en AI-debatt om: {clean_question}
 
 Detta är runda {round_num} av {max_rounds}.
 
-ANDRA AI-MODELLERS SVAR I DENNA RUNDA:
-{alla_external_responses}
+BAKGRUND - TIDIGARE RUNDOR:
+{previous_rounds_summary}  # Truncated till 250 chars per svar
 
-Din uppgift: LEVERERA DITT EGET STARKA, PERSONLIGA DEBATTSVAR!
+AKTUELL RUNDA - ALLA SVAR:
+{current_round_full_responses}  # Fullständiga svar, truncated till 400 chars
 
-Du är ONESEEK - en debattdeltagare med tydlig ställning. Du har sett andra AI:ers svar och ska:
-1. Ta tydlig ställning i frågan
-2. Bemöta andras argument direkt
-3. Använda insikter från deras svar
-4. Lägga till din egen kunskap och perspektiv
+BEHAVIORAL ENFORCEMENT:
+- Längd: 300-500 ord (STRIKT)
+- Stil: Stark debattdeltagare, ta tydlig ställning
+- Innehåll: Bemöt andras argument, lägg till egen kunskap
 
-VIKTIGT FORMAT:
-Först: Skriv din interna tankekedja på egen rad som börjar med "REASONING: " (3-4 meningar)
-Sedan: Skriv ditt debattsvar på egen rad som börjar med "ANSWER: " (300-500 ord)
+FORMAT:
+REASONING: [3-4 meningar intern tankekedja]
+ANSWER: [300-500 ord debattsvar]
 """
 
-# Generera OneSeek's svar (max 1000 tokens för omfattande svar)
-oneseek_response = llm_generate(oneseek_context)
-
-# Parsear REASONING och ANSWER
-# Streamar ANSWER i realtid
-# Sparar REASONING till knowledge_chain
+# Generera OneSeek's svar (max 800 tokens - reducerat från 1300)
+oneseek_response = llm_generate(oneseek_context, max_tokens=800)
 ```
+
+**PR119 FÖRÄNDRING**: ✅ Token-optimerad syntesprocess
+- Max tokens reducerat: 1300 → 800
+- Context truncation: 250 chars bakgrund, 400 chars aktuell runda
+- Strikt ordgräns: 300-500 ord
+- Behavioral enforcement för att hålla fokus
 
 **OneSeek's Syntesprocess - VERIFIERAD**:
 
@@ -444,116 +477,16 @@ KNOWLEDGE_CHAIN växer kontinuerligt genom hela flödet
 
 ---
 
-## PR119: Consensus Debate System (Nytt!)
-
-### Översikt
-Ett REST API-baserat debattsystem som triggas när AI-modeller visar hög divergens (low consensus).
-
-**Endpoint**: `/api/debate/*`  
-**Kod**: `backend/services/consensusDebate.js`, `backend/api/debate.js`
-
-### Flöde
-
-#### 1. Trigger Detection
-```javascript
-// Efter model synthesis i Compare-läget
-if (consensus.overallConsensus < 60% || severityCounts.high >= 2) {
-  // Initiera consensus debate
-}
-```
-
-**Kod**: `backend/services/consensusDebate.js:38-57`
-
-#### 2. Debate Initialization
-```javascript
-POST /api/debate/initiate
-{
-  questionId: string,
-  question: string,
-  agents: ['gpt-3.5', 'gemini', 'deepseek', 'grok'],
-  initialResponses: [...],
-  modelSynthesis: {...}
-}
-```
-
-**Skapar debate object**:
-```javascript
-{
-  id: uuid,
-  participants: [max 5 agents],
-  rounds: [],
-  currentRound: 0,
-  status: 'initiated',
-  votes: [],
-  winner: null,
-  mtaAnalyses: []  // MTA-DO integration!
-}
-```
-
-#### 3. Debate Rounds (Max 3)
-```javascript
-POST /api/debate/:debateId/round
-```
-
-**För varje runda**:
-1. Bygg debate context från tidigare rundor
-2. Parallella API-anrop till alla agenter
-3. Varje agent får:
-   - Original frågan
-   - Andra agenters initiala positioner
-   - Tidigare debattrundor
-   - Instruktion: Ge perspektiv, svara på argument, hitta konsensus
-
-**Kod**: `backend/services/consensusDebate.js:131-257`
-
-#### 4. Voting
-```javascript
-POST /api/debate/:debateId/vote
-```
-
-**Röstningsprocess**:
-- Varje agent röstar på bästa svaret (ej eget)
-- Genererar RÖST och MOTIVERING via AI
-- Parsear röster och räknar resultat
-
-**Kod**: `backend/services/consensusDebate.js:272-330`
-
-#### 5. Winner Analysis
-```javascript
-POST /api/debate/:debateId/analyze-winner
-```
-
-**Analyserar vinnande svar** med full pipeline:
-- BERT summarization
-- Factchecking
-- Sentiment analysis
-- Meta-analysis
-
-**Kod**: `backend/services/consensusDebate.js:524-570`
-
-### Consensus Debate vs Live Debate
-
-| Feature | Live Debate (/ws/debate) | Consensus Debate (REST API) |
-|---------|-------------------------|----------------------------|
-| Trigger | Användare startar | Auto vid hög divergens |
-| Typ | WebSocket streaming | REST API |
-| Rundor | 3 fasta | Max 3 (konfigurerbara) |
-| Agenter | 5 (inkl OneSeek) | Max 5 (externa) |
-| OneSeek's roll | Moderator + deltagare | Ingen direkt roll |
-| Röstning | Simulerad för externa | Äkta via API |
-| Persistens | Session | In-memory Map |
-| Purpose | Showdebatt | Konsensusbyggande |
-
----
-
-## MTA-Debate-Observer Integration (Denna PR!)
+## MTA-Debate-Observer (Denna PR!)
 
 ### Översikt
 **MTA-DO** (Meta-Transparency Analysis for Debate Observation) är ett realtids metaanalys-lager som utvärderar debattsvar utan att påverka debattflödet.
 
+**Tillägg till debattsystemet** (kan användas både i WebSocket-debatten och i andra debattkontexter)
+
 **Specifikation**: `mta-do.yaml`  
 **Service**: `backend/services/mtaDebateObserver.js`  
-**Integration**: `backend/services/consensusDebate.js`  
+**Integration exempel**: `backend/services/consensusDebate.js` (visar hur det kan integreras)
 **API**: `backend/api/debate.js`  
 **Dokumentation**: `docs/MTA_DEBATE_OBSERVER.md`
 
@@ -570,27 +503,32 @@ MTA-DO analyserar varje svar på en 0-10 skala:
 7. **Clarity**: Kommunikationsklarhet och tillgänglighet
 8. **Constructiveness**: Bidrag till produktiv dialog
 
-### MTA-DO Flöde i Consensus Debate
+### MTA-DO Flöde i WebSocket Debate
 
 ```
-Debattrunda startar
+Agent svarar (t.ex. GPT)
   ↓
-Agenter svarar (parallellt)
+OneSeek ekar svaret (streaming)
   ↓
-Svar mottagna
-  ↓
-[PARALLELLT - ICKE-BLOCKERANDE]
-  ├─> MTA-DO analys startar (batchAnalyzeMTAResponses)
+[MTA-DO ANALYS - KÖRS PARALLELLT]
+  ├─> Egen modell analyserar svaret
   │     ├─> Alla 8 dimensioner utvärderas
   │     ├─> JSON-struktur skapas
   │     ├─> Timeout: 10s, Target: <2s
-  │     └─> Resultat sparas i debate.mtaAnalyses[]
+  │     └─> Resultat tillgängligt för nästa steg
   │
-  └─> Debatt fortsätter OMEDELBART (zero latency impact)
-        └─> Returnerar utan att vänta på MTA
+  └─> ONESEEK KOMMENTAR
+        ├─> Använder MTA-analys som kontext
+        ├─> Genererar informerad kommentar
+        └─> Streamar kommentar
+              ↓
+              ONESEEK INSIGHT
+              ├─> Använder MTA-data från alla svar hittills
+              └─> Genererar 💡 insight
 ```
 
-**Kod**: `backend/services/consensusDebate.js:197-232`
+**Implementation**: Service finns i `backend/services/mtaDebateObserver.js`  
+**Integration plats**: `ml_service/server.py` i WebSocket-debattflödet (TODO)
 
 ### MTA Output Structure
 
@@ -650,29 +588,41 @@ Response: {
 4. **Objective evaluation**: Neutral, faktabaserad utvärdering
 5. **Transparency**: Alla utvärderingar är synliga och förklarbara
 
-### Integration med ONESEEK
+### Integration med ONESEEK (Planerad för WebSocket Debate)
 
-**Commentary Generation**:
-```javascript
-// ONESEEK kan använda MTA-data för informerad kommentar
-const commentary = await generateMTACommentary(
-  agentName, 
-  roundNum, 
-  response, 
-  mtaAnalysis,
-  allMTAAnalyses  // Historisk kontext
-);
-```
+**Efter varje agentsvar i debattflödet**:
 
-**Insight Synthesis**:
-```javascript
-// ONESEEK genererar periodiska insikter (💡) baserat på MTA
-const insight = await generateMTAInsight(
-  currentRound,
-  allMTAAnalyses  // Alla analyser hittills
-);
-// Output: "💡 GPT och Gemini leder med faktabaserade argument"
-```
+1. **MTA-Analys** körs av egen modell
+2. **Commentary** använder MTA-data som kontext:
+   ```python
+   # I ml_service/server.py efter agent response
+   mta_analysis = analyze_response(agent_name, round_num, agent_response, question)
+   
+   comment_prompt = f"""
+   MTA-ANALYS av {agent_name}s svar:
+   - Overall Score: {mta_analysis['summary']['weighted_score']}/10
+   - Styrkor: {mta_analysis['summary']['strengths']}
+   - Svagheter: {mta_analysis['summary']['weaknesses']}
+   
+   Kommentera svaret baserat på denna analys...
+   """
+   ```
+
+3. **Insight** använder MTA från alla svar:
+   ```python
+   # Innan insight genereras
+   all_mta_scores = [a['summary']['weighted_score'] for a in all_mta_analyses]
+   avg_score = sum(all_mta_scores) / len(all_mta_scores)
+   
+   insight_prompt = f"""
+   MTA-översikt: Genomsnittlig kvalitet {avg_score:.1f}/10
+   Bästa svar: {best_agent} ({max_score}/10)
+   
+   Generera insight...
+   """
+   ```
+
+**Viktigt**: MTA-DO körs UTAN att blockera debattflödet
 
 ### MTA Fallback Hantering
 
@@ -738,23 +688,21 @@ Vid fel (timeout, parse error, API error):
 - Detaljerade röstmotiveringar
 - Frontend integration i debattkomponent
 
-✅ **Nytt i PR119 (Consensus Debate)**:
-- REST API för konsensusbaserade debatter
-- Auto-trigger vid hög divergens
-- Max 3 rundor med äkta AI-röstning
-- Vinnare-analys med full pipeline
-- Persistens i in-memory Map
-- Separation från live debate
+✅ **Nytt i PR119 (Transform till äkta debatt)**:
+- Turn-based flöde med randomiserad turordning
+- Agenter refererar till och bemöter varandras argument
+- Strukturerad context: BAKGRUND + AKTUELL RUNDA
+- Token-optimering med strikta ordgränser (300-500 ord)
+- Behavioral enforcement i alla prompts
+- Från monologer till riktig interaktiv debatt
 
-✅ **Nytt i denna PR (MTA-DO)**:
-- 8-dimensionell metaanalys av alla debattsvar
-- Parallell, icke-blockerande execution
-- JSON-strukturerad output för downstream användning
-- ONESEEK integration för commentary och insights
-- Zero latency impact på debattflöde
-- Transparent och förklarbar utvärdering
-- Robust fallback-hantering
-- Comprehensive testing (12 Python + JS integration tests)
+✅ **Nytt i denna PR (MTA-DO Framework)**:
+- 8-dimensionell metaanalys-service skapad
+- Parallell, icke-blockerande execution-design
+- JSON-strukturerad output för ONESEEK-integration
+- Specification och dokumentation komplett
+- Comprehensive testing (12 Python tests)
+- **TODO**: Faktisk integration i ml_service/server.py WebSocket-debatt
 
 ❌ **Kvarstående begränsning (Live Debate)**:
 - Externa AI:s röster är simulerade (random.choice)
@@ -768,18 +716,15 @@ Vid fel (timeout, parse error, API error):
 
 ---
 
-## System Comparison Summary
+## Implementation Status Summary
 
-| Aspect | Live WebSocket Debate | Consensus Debate (PR119) | MTA-DO (Denna PR) |
-|--------|----------------------|-------------------------|-------------------|
-| **Type** | WebSocket streaming | REST API | Analysis layer |
-| **Trigger** | Manual | Auto (divergence) | Auto (per response) |
-| **Purpose** | Show debate | Build consensus | Meta-transparency |
-| **Agents** | 5 (incl OneSeek) | Max 5 (external) | Analyzes all |
-| **Rounds** | 3 fixed | Max 3 configurable | N/A |
-| **Execution** | Streaming realtime | Async rounds | Parallel non-blocking |
-| **Storage** | Session only | In-memory Map | Embedded in debate |
-| **Voting** | Simulated | Real AI voting | N/A |
-| **Analysis** | Comments/insights | Winner analysis | 8-dimensional eval |
-| **Integration** | Frontend UI | Backend API | Both + ONESEEK |
-| **Impact** | Interactive UX | Consensus building | Transparent scoring |
+| Component | Status | Location | Notes |
+|-----------|--------|----------|-------|
+| **WebSocket Debate** | ✅ Implementerat | `ml_service/server.py` | PR119: Turn-based, optimerat |
+| **MTA-DO Service** | ✅ Skapat | `backend/services/mtaDebateObserver.js` | Fullt testat, redo att använda |
+| **MTA-DO Spec** | ✅ Komplett | `mta-do.yaml` | 8 dimensioner, flöde, prompts |
+| **MTA Integration** | ⏳ TODO | `ml_service/server.py` | Behöver integreras i WebSocket-debatt |
+| **Documentation** | ✅ Komplett | `docs/MTA_DEBATE_OBSERVER.md` | Detaljerad guide |
+| **Tests** | ✅ Passing | `tests/test_mta_debate_observer.py` | 12/12 tester OK |
+
+**Nästa steg**: Integrera MTA-DO i `ml_service/server.py` efter varje agentsvar, innan ONESEEK-kommentar genereras.

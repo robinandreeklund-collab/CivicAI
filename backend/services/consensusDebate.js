@@ -18,12 +18,6 @@ import { getDeepSeekResponse } from './deepseek.js';
 import { getGrokResponse } from './grok.js';
 import { logAuditEvent, AuditEventType } from './auditTrail.js';
 import { executeAnalysisPipeline } from './analysisPipeline.js';
-import { 
-  analyzeMTADebateResponse, 
-  generateMTACommentary, 
-  generateMTAInsight,
-  batchAnalyzeMTAResponses 
-} from './mtaDebateObserver.js';
 
 // In-memory storage for debates (replace with database in production)
 const debates = new Map();
@@ -90,7 +84,6 @@ export function initiateDebate(questionId, question, agents, initialResponses, m
     status: 'initiated',
     votes: [],
     winner: null,
-    mtaAnalyses: [], // MTA-DO analyses for all responses
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -194,46 +187,6 @@ export async function conductDebateRound(debateId) {
   const responses = await Promise.all(roundPromises);
   round.responses = responses.filter(r => r !== null);
   
-  // MTA-DO: Analyze all responses in parallel (non-blocking)
-  console.log(`🔬 Starting MTA analysis for round ${roundNumber}...`);
-  const mtaPromise = batchAnalyzeMTAResponses(
-    round.responses
-      .filter(r => !r.error)
-      .map(r => ({
-        agentName: r.agent,
-        roundNum: roundNumber,
-        response: r.response,
-        question: debate.question,
-      }))
-  ).then(mtaResults => {
-    // Store MTA analyses with the round responses
-    round.responses.forEach((response, idx) => {
-      if (!response.error) {
-        const mtaAnalysis = mtaResults.find(m => m.agent_name === response.agent);
-        if (mtaAnalysis) {
-          response.mtaAnalysis = mtaAnalysis;
-          // Add to debate-wide MTA analyses only if not already present
-          const alreadyExists = debate.mtaAnalyses.some(
-            m => m.agent_name === mtaAnalysis.agent_name && 
-                 m.round_number === mtaAnalysis.round_number &&
-                 m.timestamp === mtaAnalysis.timestamp
-          );
-          if (!alreadyExists) {
-            debate.mtaAnalyses.push(mtaAnalysis);
-          }
-        }
-      }
-    });
-    
-    console.log(`✅ MTA analysis completed for round ${roundNumber}`);
-    debates.set(debateId, debate);
-    return mtaResults;
-  }).catch(error => {
-    console.error(`❌ MTA analysis failed for round ${roundNumber}:`, error);
-    return [];
-  });
-  
-  // Don't wait for MTA analysis - proceed immediately (parallel execution)
   debate.rounds.push(round);
   debate.currentRound = roundNumber;
   debate.updatedAt = new Date().toISOString();
@@ -251,12 +204,6 @@ export async function conductDebateRound(debateId) {
     debateId,
     roundNumber,
     participantCount: round.responses.length,
-  });
-  
-  // MTA analysis continues in background - don't wait for it (true non-blocking)
-  // The promise will complete asynchronously and update the debate object
-  mtaPromise.catch(error => {
-    console.error('MTA analysis error (non-critical):', error);
   });
   
   return debate;
@@ -573,78 +520,4 @@ export async function analyzeWinningAnswer(debateId) {
   });
   
   return debate.winningAnalysis;
-}
-
-/**
- * Generate MTA commentary for a specific response
- * @param {string} debateId - The debate ID
- * @param {number} roundNumber - The round number
- * @param {string} agentName - The agent name
- * @returns {Promise<string>} Commentary text
- */
-export async function generateDebateMTACommentary(debateId, roundNumber, agentName) {
-  const debate = debates.get(debateId);
-  
-  if (!debate) {
-    throw new Error('Debate not found');
-  }
-  
-  const round = debate.rounds.find(r => r.roundNumber === roundNumber);
-  if (!round) {
-    throw new Error(`Round ${roundNumber} not found`);
-  }
-  
-  const response = round.responses.find(r => r.agent === agentName);
-  if (!response || !response.mtaAnalysis) {
-    throw new Error(`Response or MTA analysis not found for ${agentName} in round ${roundNumber}`);
-  }
-  
-  const commentary = await generateMTACommentary(
-    agentName,
-    roundNumber,
-    response.response,
-    response.mtaAnalysis,
-    debate.mtaAnalyses
-  );
-  
-  return commentary;
-}
-
-/**
- * Generate MTA insight for the current debate state
- * @param {string} debateId - The debate ID
- * @returns {Promise<string>} Insight text with 💡
- */
-export async function generateDebateMTAInsight(debateId) {
-  const debate = debates.get(debateId);
-  
-  if (!debate) {
-    throw new Error('Debate not found');
-  }
-  
-  if (debate.mtaAnalyses.length === 0) {
-    return '💡 Väntar på MTA-analyser...';
-  }
-  
-  const insight = await generateMTAInsight(
-    debate.currentRound,
-    debate.mtaAnalyses
-  );
-  
-  return insight;
-}
-
-/**
- * Get all MTA analyses for a debate
- * @param {string} debateId - The debate ID
- * @returns {array} Array of MTA analyses
- */
-export function getDebateMTAAnalyses(debateId) {
-  const debate = debates.get(debateId);
-  
-  if (!debate) {
-    throw new Error('Debate not found');
-  }
-  
-  return debate.mtaAnalyses || [];
 }
