@@ -11,7 +11,7 @@ purpose:
   primary: "Enhance transparency and meta-awareness in debates without affecting interactive flow"
   secondary: "Enable ONESEEK and internal mechanisms to harness analysis for deeper insights"
   
-# Evaluation Dimensions (8 core metrics)
+# Evaluation Dimensions (6 core metrics for optimal real-time performance)
 evaluation_dimensions:
   - name: "relevance"
     description: "How well the response addresses the debate question"
@@ -24,30 +24,25 @@ evaluation_dimensions:
     weight: 1.2
     
   - name: "factual_anchoring"
-    description: "Use of facts, data, and verifiable information"
+    description: "Use of facts, data, and verifiable information (legal/factual grounding)"
     scale: "0-10"
     weight: 1.3
-    
-  - name: "bias_detection"
-    description: "Presence and degree of bias (0=unbiased, 10=highly biased)"
-    scale: "0-10"
-    weight: 1.1
-    inverse: true  # Lower is better
-    
-  - name: "logical_coherence"
-    description: "Internal consistency and logical flow"
-    scale: "0-10"
-    weight: 1.0
-    
-  - name: "originality"
-    description: "Novel insights and unique perspectives"
-    scale: "0-10"
-    weight: 0.8
     
   - name: "clarity"
     description: "Communication clarity and accessibility"
     scale: "0-10"
     weight: 0.9
+    
+  - name: "logical_coherence"
+    description: "Internal consistency and logical flow (consequence)"
+    scale: "0-10"
+    weight: 1.0
+    
+  - name: "risk_hallucination"
+    description: "Risk of incorrect information or hallucinations (0=no risk, 10=high risk)"
+    scale: "0-10"
+    weight: 1.1
+    inverse: true  # Lower is better
     
   - name: "constructiveness"
     description: "Contribution to productive dialogue"
@@ -95,19 +90,13 @@ output:
       factual_anchoring:
         score: "float (0-10)"
         reasoning: "string"
-      bias_detection:
+      clarity:
         score: "float (0-10)"
         reasoning: "string"
       logical_coherence:
         score: "float (0-10)"
         reasoning: "string"
-      originality:
-        score: "float (0-10)"
-        reasoning: "string"
-      clarity:
-        score: "float (0-10)"
-        reasoning: "string"
-      constructiveness:
+      risk_hallucination:
         score: "float (0-10)"
         reasoning: "string"
     summary:
@@ -133,21 +122,15 @@ example_output:
     factual_anchoring:
       score: 7.8
       reasoning: "References scientific consensus but lacks specific data points"
-    bias_detection:
-      score: 3.2
-      reasoning: "Slight environmental advocacy bias detected in language choices"
-    logical_coherence:
-      score: 9.0
-      reasoning: "Arguments flow logically with clear connections"
-    originality:
-      score: 6.5
-      reasoning: "Mostly conventional perspectives with some unique framing"
     clarity:
       score: 8.8
       reasoning: "Clear, accessible language with good structure"
-    constructiveness:
-      score: 9.1
-      reasoning: "Promotes productive dialogue and solution-oriented thinking"
+    logical_coherence:
+      score: 9.0
+      reasoning: "Arguments flow logically with clear connections"
+    risk_hallucination:
+      score: 2.1
+      reasoning: "Low risk of factual errors, grounded in verifiable claims"
   summary:
     overall_score: 7.8
     weighted_score: 8.1
@@ -174,17 +157,15 @@ prompts:
     - Response: {response}
     
     TASK:
-    Evaluate the response across 8 dimensions using a 0-10 scale. Provide both a numerical score and brief reasoning for each.
+    Evaluate the response across 6 dimensions using a 0-10 scale for optimal real-time performance. Provide both a numerical score and brief reasoning for each.
     
     DIMENSIONS:
     1. Relevance (0-10): How well does the response address the debate question?
     2. Argument Depth (0-10): Depth and sophistication of argumentation
-    3. Factual Anchoring (0-10): Use of facts, data, and verifiable information
-    4. Bias Detection (0-10): Presence of bias (0=unbiased, 10=highly biased)
-    5. Logical Coherence (0-10): Internal consistency and logical flow
-    6. Originality (0-10): Novel insights and unique perspectives
-    7. Clarity (0-10): Communication clarity and accessibility
-    8. Constructiveness (0-10): Contribution to productive dialogue
+    3. Factual/Legal Anchoring (0-10): Use of facts, data, and verifiable information
+    4. Clarity (0-10): Communication clarity and accessibility
+    5. Consequence (0-10): Internal consistency and logical flow
+    6. Risk/Hallucination (0-10): Risk of incorrect information (0=no risk, 10=high risk)
     
     Respond ONLY with valid JSON matching the output structure.
     

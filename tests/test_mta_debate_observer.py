@@ -46,16 +46,14 @@ def test_mta_yaml_structure():
 
 
 def test_mta_evaluation_dimensions():
-    """Test that MTA-DO has all 8 evaluation dimensions"""
+    """Test that MTA-DO has all 6 evaluation dimensions (optimized for performance)"""
     expected_dimensions = [
         'relevance',
         'argument_depth',
         'factual_anchoring',
-        'bias_detection',
-        'logical_coherence',
-        'originality',
         'clarity',
-        'constructiveness',
+        'logical_coherence',
+        'risk_hallucination',
     ]
     
     mta_yaml_path = PROJECT_ROOT / 'mta-do.yaml'
@@ -124,16 +122,14 @@ def test_mta_python_implementation():
     with open(server_path, 'r', encoding='utf-8') as f:
         content = f.read()
     
-    # Check for all 8 dimensions in the prompt
+    # Check for all 6 dimensions in the prompt (optimized for performance)
     dimensions = [
         'Relevans',
         'Argumentdjup',
-        'Faktaförankring',
-        'Bias-detektion',
-        'Logisk koherens',
-        'Originalitet',
+        'Faktuell',  # Part of "Faktuell/juridisk förankring"
         'Klarhet',
-        'Konstruktivitet'
+        'Konsekvens',
+        'Risk/Hallucination'
     ]
     
     for dim in dimensions:

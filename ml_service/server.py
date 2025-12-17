@@ -13324,15 +13324,13 @@ KONTEXT:
 UPPGIFT:
 Utvärdera svaret på en 0-10 skala för varje dimension. Ge både numerisk poäng och kort motivering.
 
-DIMENSIONER:
+DIMENSIONER (6 för optimal realtidsprestanda):
 1. Relevans (0-10): Hur väl adresserar svaret debattfrågan?
 2. Argumentdjup (0-10): Djup och sofistikering i argumentationen
-3. Faktaförankring (0-10): Användning av fakta, data och verifierbar information
-4. Bias-detektion (0-10): Närvaro av bias (0=opartisk, 10=mycket partisk)
-5. Logisk koherens (0-10): Intern konsekvens och logiskt flöde
-6. Originalitet (0-10): Nya insikter och unika perspektiv
-7. Klarhet (0-10): Kommunikationsklarhet och tillgänglighet
-8. Konstruktivitet (0-10): Bidrag till produktiv dialog
+3. Faktuell/juridisk förankring (0-10): Användning av fakta, data och verifierbar information
+4. Klarhet (0-10): Kommunikationsklarhet och tillgänglighet
+5. Konsekvens (0-10): Intern konsekvens och logiskt flöde
+6. Risk/Hallucination (0-10): Risk för felaktig info eller hallucinationer (0=ingen risk, 10=hög risk)
 
 Svara ENDAST med giltig JSON i denna exakta struktur:
 {{
@@ -13340,11 +13338,9 @@ Svara ENDAST med giltig JSON i denna exakta struktur:
     "relevance": {{"score": 0.0, "reasoning": ""}},
     "argument_depth": {{"score": 0.0, "reasoning": ""}},
     "factual_anchoring": {{"score": 0.0, "reasoning": ""}},
-    "bias_detection": {{"score": 0.0, "reasoning": ""}},
-    "logical_coherence": {{"score": 0.0, "reasoning": ""}},
-    "originality": {{"score": 0.0, "reasoning": ""}},
     "clarity": {{"score": 0.0, "reasoning": ""}},
-    "constructiveness": {{"score": 0.0, "reasoning": ""}}
+    "logical_coherence": {{"score": 0.0, "reasoning": ""}},
+    "risk_hallucination": {{"score": 0.0, "reasoning": ""}}
   }},
   "summary": {{
     "strengths": [],
@@ -13371,7 +13367,7 @@ Svara ENDAST med giltig JSON i denna exakta struktur:
                                 {"role": "system", "content": "Du är en objektiv analysmotor. Svara ENDAST med valid JSON utan extra text före eller efter."},
                                 {"role": "user", "content": mta_prompt}
                             ],
-                            "max_tokens": 800,
+                            "max_tokens": 600,  # Reduced from 800 due to 6 dimensions instead of 8
                             "temperature": 0.2 if attempt > 0 else 0.3,  # Lower temp on retry
                             "stream": False
                         },
@@ -13438,32 +13434,58 @@ Svara ENDAST med giltig JSON i denna exakta struktur:
                             break
             
             if json_end == -1:
-                logger.error(f"[MTA-DO] Could not find matching braces. Content preview: {content[:200]}")
-                raise ValueError("Malformed JSON in response - no matching closing brace")
-            
-            json_str = content[json_start:json_end]
-            
-            try:
-                analysis_data = json.loads(json_str)
-                logger.info(f"[MTA-DO] Parsed JSON with brace matching for {agent_name}")
-            except json.JSONDecodeError as e:
-                logger.error(f"[MTA-DO] JSON parse error for {agent_name}: {e}")
-                logger.error(f"[MTA-DO] Extracted JSON string: {json_str[:500]}")
-                raise ValueError(f"Malformed JSON in response - parse error: {e}")
+                # Strategy 3: Try to complete truncated JSON
+                logger.warning(f"[MTA-DO] Incomplete JSON detected for {agent_name}. Attempting to complete...")
+                
+                # Try to add missing closing braces based on expected structure
+                json_str = content[json_start:]
+                
+                # Count missing braces
+                open_braces = json_str.count('{')
+                close_braces = json_str.count('}')
+                missing_braces = open_braces - close_braces
+                
+                if missing_braces > 0 and missing_braces <= 3:
+                    # Try to close the JSON properly
+                    # Check if we're in the middle of a string
+                    if not json_str.rstrip().endswith('"') and '"reasoning":' in json_str:
+                        json_str = json_str.rstrip() + '"}'  # Close the reasoning string and object
+                        missing_braces -= 1
+                    
+                    # Add remaining closing braces
+                    json_str += '}' * missing_braces
+                    
+                    try:
+                        analysis_data = json.loads(json_str)
+                        logger.info(f"[MTA-DO] Successfully repaired truncated JSON for {agent_name}")
+                    except json.JSONDecodeError:
+                        logger.error(f"[MTA-DO] Could not repair JSON. Content preview: {content[:200]}")
+                        raise ValueError("Malformed JSON in response - no matching closing brace")
+                else:
+                    logger.error(f"[MTA-DO] Could not find matching braces. Content preview: {content[:200]}")
+                    raise ValueError("Malformed JSON in response - no matching closing brace")
+            else:
+                json_str = content[json_start:json_end]
+                
+                try:
+                    analysis_data = json.loads(json_str)
+                    logger.info(f"[MTA-DO] Parsed JSON with brace matching for {agent_name}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"[MTA-DO] JSON parse error for {agent_name}: {e}")
+                    logger.error(f"[MTA-DO] Extracted JSON string: {json_str[:500]}")
+                    raise ValueError(f"Malformed JSON in response - parse error: {e}")
         
         if not analysis_data:
             raise ValueError("Could not extract valid JSON from response")
         
-        # Calculate scores with weights from mta-do.yaml
+        # Calculate scores with weights (6 dimensions for optimal performance)
         weights = {
             'relevance': 1.0,
             'argument_depth': 1.2,
             'factual_anchoring': 1.3,
-            'bias_detection': 1.1,  # Inverse
-            'logical_coherence': 1.0,
-            'originality': 0.8,
             'clarity': 0.9,
-            'constructiveness': 1.0
+            'logical_coherence': 1.0,
+            'risk_hallucination': 1.1  # Inverse (lower is better)
         }
         
         total_score = 0
@@ -13475,8 +13497,8 @@ Svara ENDAST med giltig JSON i denna exakta struktur:
             score = float(dim_data.get('score', 7.0))
             score = max(0, min(10, score))  # Clamp to 0-10
             
-            # Inverse for bias_detection (lower bias = better quality)
-            adjusted_score = (10 - score) if dim_name == 'bias_detection' else score
+            # Inverse for risk_hallucination (lower risk = better quality)
+            adjusted_score = (10 - score) if dim_name == 'risk_hallucination' else score
             
             # Use adjusted score for both calculations to ensure consistency
             total_score += adjusted_score
@@ -13517,11 +13539,9 @@ Svara ENDAST med giltig JSON i denna exakta struktur:
                 'relevance': {'score': 7.0, 'reasoning': 'Fallback - analys misslyckades'},
                 'argument_depth': {'score': 7.0, 'reasoning': 'Fallback - analys misslyckades'},
                 'factual_anchoring': {'score': 7.0, 'reasoning': 'Fallback - analys misslyckades'},
-                'bias_detection': {'score': 5.0, 'reasoning': 'Fallback - analys misslyckades'},
-                'logical_coherence': {'score': 7.0, 'reasoning': 'Fallback - analys misslyckades'},
-                'originality': {'score': 6.0, 'reasoning': 'Fallback - analys misslyckades'},
                 'clarity': {'score': 7.0, 'reasoning': 'Fallback - analys misslyckades'},
-                'constructiveness': {'score': 7.0, 'reasoning': 'Fallback - analys misslyckades'}
+                'logical_coherence': {'score': 7.0, 'reasoning': 'Fallback - analys misslyckades'},
+                'risk_hallucination': {'score': 3.0, 'reasoning': 'Fallback - analys misslyckades'}
             },
             'summary': {
                 'overall_score': 6.7,
