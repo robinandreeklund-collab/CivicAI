@@ -13357,50 +13357,102 @@ Svara ENDAST med giltig JSON i denna exakta struktur:
         
         # Use asyncio to run the blocking requests call in executor
         loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(
-            None,
-            lambda: requests.post(
-                f"{server_url}/v1/chat/completions",
-                json={
-                    "messages": [
-                        {"role": "system", "content": "Du är en objektiv analysmotor. Svara alltid med valid JSON."},
-                        {"role": "user", "content": mta_prompt}
-                    ],
-                    "max_tokens": 800,
-                    "temperature": 0.3,  # Low temperature for consistent analysis
-                    "stream": False
-                },
-                timeout=30  # 30 second timeout for robust analysis
-            )
-        )
-        response.raise_for_status()
-        result = response.json()
+        
+        # Retry logic for robust JSON parsing
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: requests.post(
+                        f"{server_url}/v1/chat/completions",
+                        json={
+                            "messages": [
+                                {"role": "system", "content": "Du är en objektiv analysmotor. Svara ENDAST med valid JSON utan extra text före eller efter."},
+                                {"role": "user", "content": mta_prompt}
+                            ],
+                            "max_tokens": 800,
+                            "temperature": 0.2 if attempt > 0 else 0.3,  # Lower temp on retry
+                            "stream": False
+                        },
+                        timeout=30  # 30 second timeout for robust analysis
+                    )
+                )
+                response.raise_for_status()
+                result = response.json()
+                break  # Success, exit retry loop
+            except (requests.RequestException, KeyError) as req_error:
+                if attempt < max_retries - 1:
+                    logger.warning(f"[MTA-DO] Request failed for {agent_name}, retrying... ({attempt + 1}/{max_retries})")
+                    await asyncio.sleep(1)  # Brief pause before retry
+                else:
+                    raise req_error
         
         # Extract and parse JSON
         content = result['choices'][0]['message']['content'].strip()
         
-        # Find JSON in response
-        json_start = content.find('{')
-        if json_start == -1:
-            raise ValueError("No JSON found in response")
+        # Try multiple JSON extraction strategies
+        analysis_data = None
         
-        # Match braces
-        brace_count = 0
-        json_end = -1
-        for i in range(json_start, len(content)):
-            if content[i] == '{':
-                brace_count += 1
-            elif content[i] == '}':
-                brace_count -= 1
-                if brace_count == 0:
-                    json_end = i + 1
-                    break
+        # Strategy 1: Try parsing entire content as JSON
+        try:
+            analysis_data = json.loads(content)
+            logger.info(f"[MTA-DO] Parsed JSON directly from content for {agent_name}")
+        except json.JSONDecodeError:
+            pass
         
-        if json_end == -1:
-            raise ValueError("Malformed JSON in response")
+        # Strategy 2: Find JSON object with brace matching (accounting for strings)
+        if not analysis_data:
+            json_start = content.find('{')
+            if json_start == -1:
+                raise ValueError("No JSON found in response")
+            
+            # Better brace matching that handles strings
+            brace_count = 0
+            json_end = -1
+            in_string = False
+            escape_next = False
+            
+            for i in range(json_start, len(content)):
+                char = content[i]
+                
+                if escape_next:
+                    escape_next = False
+                    continue
+                    
+                if char == '\\':
+                    escape_next = True
+                    continue
+                    
+                if char == '"':
+                    in_string = not in_string
+                    continue
+                
+                if not in_string:
+                    if char == '{':
+                        brace_count += 1
+                    elif char == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            json_end = i + 1
+                            break
+            
+            if json_end == -1:
+                logger.error(f"[MTA-DO] Could not find matching braces. Content preview: {content[:200]}")
+                raise ValueError("Malformed JSON in response - no matching closing brace")
+            
+            json_str = content[json_start:json_end]
+            
+            try:
+                analysis_data = json.loads(json_str)
+                logger.info(f"[MTA-DO] Parsed JSON with brace matching for {agent_name}")
+            except json.JSONDecodeError as e:
+                logger.error(f"[MTA-DO] JSON parse error for {agent_name}: {e}")
+                logger.error(f"[MTA-DO] Extracted JSON string: {json_str[:500]}")
+                raise ValueError(f"Malformed JSON in response - parse error: {e}")
         
-        json_str = content[json_start:json_end]
-        analysis_data = json.loads(json_str)
+        if not analysis_data:
+            raise ValueError("Could not extract valid JSON from response")
         
         # Calculate scores with weights from mta-do.yaml
         weights = {
@@ -13452,6 +13504,9 @@ Svara ENDAST med giltig JSON i denna exakta struktur:
         
     except Exception as e:
         logger.error(f"[MTA-DO] Analysis failed for {agent_name}: {e}")
+        logger.error(f"[MTA-DO] Error type: {type(e).__name__}")
+        import traceback
+        logger.error(f"[MTA-DO] Traceback: {traceback.format_exc()}")
         # Return fallback analysis
         return {
             'agent_name': agent_name,
