@@ -13259,7 +13259,7 @@ GE DITT SVAR NU:"""
                         round=round_num
                     )
                     
-                    # 2. DIRECT COMMENT: Generate conversational comment
+                    # 2. COMMENT: Generate conversational comment
                     comment_prompt = f"""Du är OneSeek, en engagerad och analytisk debattvärd som leder en live-debatt.
 
 DEBATTFRÅGA: {clean_question}

@@ -2923,7 +2923,12 @@ export default function SevenBZeroPage() {
               {debateRounds.completion && (
                 <DebateCompletionSection completion={debateRounds.completion} />
               )}
-              
+            </div>
+          )}
+
+          {/* Messages Timeline */}
+          {messages.map((msg, idx) => {
+            const distanceFromEnd = messages.length - idx - 1;
             const opacityValue = distanceFromEnd > 6 ? 0.4 : distanceFromEnd > 3 ? 0.6 : distanceFromEnd > 1 ? 0.8 : 1;
             const isRecent = distanceFromEnd <= 1;
             const isHighlighted = highlightedMessage === msg.id;
