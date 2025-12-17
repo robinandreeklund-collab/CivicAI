@@ -29,12 +29,10 @@ This document provides a complete, accurate description of the Live Debate Syste
 The Live Debate System is a **3-round, turn-based debate** where:
 - **4 external AI agents** (GPT, Gemini, DeepSeek, Grok) respond to a question
 - **ONESEEK** acts as observer (echoes, comments, insights) AND participant (generates own answer)
-- **MTA-DO** analyzes each response across 6 dimensions in real-time
 - **All participants** vote on the best response in Round 3
 
 **Key Characteristics**:
 - Sequential processing (via `oneseek_processing_lock`) - responses processed ONE AT A TIME
-- Non-blocking MTA-DO analysis (async, parallel to debate flow)
 - Context-optimized (~2000-3000 tokens total)
 - Authentic voting (all participants vote via their respective APIs/servers)
 

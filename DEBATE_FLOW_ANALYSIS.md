@@ -5,7 +5,7 @@ Detta dokument beskriver exakt hur debattflödet fungerar idag, från fråga til
 
 **Uppdaterad**: 2025-12-17
 - **PR119**: Transformerade systemet från monolog-baserat till interaktivt turn-based debattflöde
-- **Denna PR**: Lade till MTA-Debate-Observer för meta-transparens i debatter
+- **Latest**: Removed MTA-Debate-Observer integration for performance optimization
 
 ## Viktiga Förbättringar
 
@@ -18,9 +18,6 @@ Detta dokument beskriver exakt hur debattflödet fungerar idag, från fråga til
 - Agenter ser och refererar till varandras tidigare svar
 - Tydliga ordgränser (300-500 ord) för strukturerad debatt
 - Bättre token-hantering med context-trunkering
-
-### Denna PR: MTA-Debate-Observer
-**Tillägg**: Metaanalys-lager som utvärderar debattkvalitet i realtid utan att påverka flödet
 
 ---
 
