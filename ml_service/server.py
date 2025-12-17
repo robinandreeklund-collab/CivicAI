@@ -13132,6 +13132,14 @@ async def websocket_live_debate(websocket: WebSocket):
             
             round_responses = []
             
+            # Event sequence counter for this round to ensure frontend can display in correct order
+            event_sequence = {'counter': 0}
+            
+            def get_next_sequence():
+                """Get next sequence number for events in this round"""
+                event_sequence['counter'] += 1
+                return event_sequence['counter']
+            
             # Build context from previous rounds with token management
             debate_context = ""
             if debate_rounds:
@@ -13224,7 +13232,7 @@ GE DITT SVAR NU:"""
             # This prevents parallel processing which creates "chunks" of responses
             oneseek_processing_lock = asyncio.Lock()
             
-            async def get_and_process_immediately(agent_name, position=None):
+            async def get_and_process_immediately(agent_name, position=None, get_sequence=None):
                 """Get response from external AI and process it IMMEDIATELY - ONE AT A TIME!"""
                 # Get the response (this can happen in parallel for all AIs)
                 response = await get_external_response(agent_name)
@@ -13248,6 +13256,9 @@ GE DITT SVAR NU:"""
                 if position is not None:
                     event_data["data"]["position"] = position
                     event_data["data"]["turn_order_position"] = position
+                # Add sequence number for strict ordering
+                if get_sequence:
+                    event_data["data"]["sequence"] = get_sequence()
                 
                 await websocket.send_json(event_data)
                 
@@ -13265,12 +13276,15 @@ GE DITT SVAR NU:"""
                     logger.info(f"[WS-Debate] OneSeek IMMEDIATELY processing {agent_name}'s answer...")
                     
                     # 1. ECHO: Stream the answer token-by-token
-                    await websocket.send_json({
+                    echo_event = {
                         "type": "oneseek_echo_start",
                         "round": round_num,
                         "agent": agent_name,
                         "message": f"🔄 OneSeek ekar {agent_name.upper()}s svar..."
-                    })
+                    }
+                    if get_sequence:
+                        echo_event["sequence"] = get_sequence()
+                    await websocket.send_json(echo_event)
                     
                     await stream_text_tokens(
                         websocket, 
@@ -13339,7 +13353,7 @@ GE DIN KOMMENTAR NU (ingen inledning):"""
                         })
                         
                         # Emit comment (using oneseek_reasoning event for compatibility)
-                        await websocket.send_json({
+                        reasoning_event = {
                             "type": "oneseek_reasoning",
                             "round": round_num,
                             "agent": agent_name,
@@ -13348,7 +13362,10 @@ GE DIN KOMMENTAR NU (ingen inledning):"""
                                 "reasoning": comment_text,
                                 "agent_analyzed": agent_name
                             }
-                        })
+                        }
+                        if get_sequence:
+                            reasoning_event["sequence"] = get_sequence()
+                        await websocket.send_json(reasoning_event)
                         logger.info(f"[WS-Debate] OneSeek comment generated for {agent_name}")
                         
                     except Exception as e:
@@ -13401,7 +13418,7 @@ GE DIN INSIGHT NU (ingen extra text):"""
                         if not insight_text or not insight_text.startswith('💡'):
                             insight_text = f"💡 {agent_name.upper()} har delat sitt perspektiv - {responses_so_far}/{len(external_agents)} svar mottagna"
                         
-                        await websocket.send_json({
+                        insight_event = {
                             "type": "live_insight",
                             "round": round_num,
                             "agent": agent_name,
@@ -13409,7 +13426,10 @@ GE DIN INSIGHT NU (ingen extra text):"""
                             "data": {
                                 "progress": f"{responses_so_far}/{len(external_agents)}"
                             }
-                        })
+                        }
+                        if get_sequence:
+                            insight_event["sequence"] = get_sequence()
+                        await websocket.send_json(insight_event)
                         
                     except Exception as e:
                         logger.error(f"[WS-Debate] Error generating insight for {agent_name}: {e}")
@@ -13417,7 +13437,7 @@ GE DIN INSIGHT NU (ingen extra text):"""
                         async with external_responses_lock:
                             responses_so_far = len(external_responses)
                         insight_text = f"💡 {agent_name.upper()} har delat sitt perspektiv - {responses_so_far}/{len(external_agents)} svar mottagna"
-                        await websocket.send_json({
+                        fallback_insight_event = {
                             "type": "live_insight",
                             "round": round_num,
                             "agent": agent_name,
@@ -13425,7 +13445,10 @@ GE DIN INSIGHT NU (ingen extra text):"""
                             "data": {
                                 "progress": f"{responses_so_far}/{len(external_agents)}"
                             }
-                        })
+                        }
+                        if get_sequence:
+                            fallback_insight_event["sequence"] = get_sequence()
+                        await websocket.send_json(fallback_insight_event)
                     
                     logger.info(f"[WS-Debate] OneSeek finished processing {agent_name}'s answer")
                 
@@ -13457,8 +13480,8 @@ GE DIN INSIGHT NU (ingen extra text):"""
                         # Skip to ONESEEK answer generation below
                         break  # Process ONESEEK after gathering any remaining external responses
                     else:
-                        # External agent's turn - pass position for frontend ordering
-                        response = await get_and_process_immediately(agent_name, position=agent_positions[agent_name])
+                        # External agent's turn - pass position and sequence for frontend ordering
+                        response = await get_and_process_immediately(agent_name, position=agent_positions[agent_name], get_sequence=get_next_sequence)
                         if response.get('success', False):
                             round_responses.append(response)
                 
@@ -13580,11 +13603,13 @@ GE DITT SVAR NU:"""
                 answer = oneseek_full_response.strip()
                 
                 # Stream OneSeek's own answer
-                await websocket.send_json({
+                oneseek_start_event = {
                     "type": "oneseek_own_answer_start",
                     "round": round_num,
-                    "message": "🤖 ONESEEK ger sitt debattsvar..."
-                })
+                    "message": "🤖 ONESEEK ger sitt debattsvar...",
+                    "sequence": get_next_sequence()
+                }
+                await websocket.send_json(oneseek_start_event)
                 
                 await stream_text_tokens(
                     websocket,
@@ -13665,14 +13690,16 @@ GE DITT RESONEMANG NU (börja direkt med substans):"""
                 
                 # Emit OneSeek's reasoning for its own answer
                 if reasoning:
-                    await websocket.send_json({
+                    oneseek_reasoning_event = {
                         "type": "oneseek_own_reasoning",
                         "round": round_num,
                         "message": reasoning,
                         "data": {
                             "reasoning": reasoning
-                        }
-                    })
+                        },
+                        "sequence": get_next_sequence()
+                    }
+                    await websocket.send_json(oneseek_reasoning_event)
                     knowledge_chain.append({
                         'round': round_num,
                         'agent': 'oneseek',
@@ -13718,8 +13745,8 @@ GE DITT RESONEMANG NU (börja direkt med substans):"""
                     for agent_name in remaining_agents:
                         # Process with full echo/comment/insight flow (same as agents before ONESEEK)
                         # This maintains real-time feel and builds knowledge for next rounds
-                        # Pass position to help frontend order responses correctly
-                        response = await get_and_process_immediately(agent_name, position=agent_positions[agent_name])
+                        # Pass position and sequence to help frontend order responses correctly
+                        response = await get_and_process_immediately(agent_name, position=agent_positions[agent_name], get_sequence=get_next_sequence)
                         
                         if response.get('success', False):
                             round_responses.append(response)
