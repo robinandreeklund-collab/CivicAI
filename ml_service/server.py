@@ -13503,73 +13503,72 @@ GE DIN INSIGHT NU (ingen extra text):"""
                 "message": f"[tänker...] OneSeek förbereder sitt eget debattsvar för runda {round_num}..."
             })
             
-            # Build context for ONESEEK's own answer with improved structure
-            # Segment previous rounds from current round for better token management
-            background_context = ""
+            # Build unified ONESEEK prompt - works for all positions
+            # Build full_previous_round context
+            full_previous_round = ""
             if debate_rounds:
-                background_context = "BAKGRUND - TIDIGARE RUNDOR (SAMMANFATTNING):\n"
-                for prev_round in debate_rounds:
-                    background_context += f"Runda {prev_round['round']}: "
-                    summary_points = []
-                    for resp in prev_round['responses']:
-                        if resp.get('success', False):
-                            # Very brief summary to save tokens
-                            summary_points.append(f"{resp['agent']}")
-                    background_context += f"{', '.join(summary_points)} bidrog. "
-                background_context += "\n\n"
+                # Get the most recent complete round
+                last_round = debate_rounds[-1]
+                full_previous_round = f"RUNDA {last_round['round']} (KOMPLETT):\n\n"
+                for resp in last_round['responses']:
+                    if resp.get('success', False):
+                        # Include more context from previous rounds (up to 500 chars per response)
+                        response_text = resp['response'][:500]
+                        if len(resp['response']) > 500:
+                            response_text += "..."
+                        full_previous_round += f"**{resp['agent'].upper()}**:\n{response_text}\n\n"
             
-            current_round_context = f"""AKTUELL RUNDA ({round_num}/{max_rounds}) - BIDRAG I TUR-ORDNING:
-
-"""
-            for ext_resp in external_responses:
-                if ext_resp.get('success', False):
-                    # Limit each response to max 400 chars to prevent token overflow
-                    response_text = ext_resp['response'][:400]
-                    if len(ext_resp['response']) > 400:
-                        response_text += "..."
-                    current_round_context += f"**{ext_resp['agent'].upper()}**:\n{response_text}\n\n"
+            # Build chain_so_far - only responses that came BEFORE ONESEEK in current round
+            chain_so_far = ""
+            if external_responses:
+                chain_so_far = "SVAR I DENNA RUNDA (FÖRE DIG):\n\n"
+                for ext_resp in external_responses:
+                    if ext_resp.get('success', False):
+                        # Limit to 400 chars per response
+                        response_text = ext_resp['response'][:400]
+                        if len(ext_resp['response']) > 400:
+                            response_text += "..."
+                        chain_so_far += f"**{ext_resp['agent'].upper()}**:\n{response_text}\n\n"
             
-            # Add instruction for question at end if not last round
-            next_round_instruction = ""
-            if round_num < max_rounds:
-                next_round_instruction = f"\n\n- Avsluta med en genomtänkt fråga eller utmaning som för debatten vidare till nästa runda"
+            # Build oneseek_previous_comments_and_insights from knowledge_chain for THIS round
+            oneseek_previous_comments_and_insights = ""
+            for insight_item in knowledge_chain:
+                if insight_item['round'] == round_num and insight_item.get('agent') != 'oneseek':
+                    # These are ONESEEK's comments on other agents in THIS round
+                    agent = insight_item.get('agent', 'unknown')
+                    insight = insight_item.get('insight', '')
+                    if insight:
+                        oneseek_previous_comments_and_insights += f"- Om {agent.upper()}: {insight[:200]}\n"
             
-            # Determine ONESEEK's position context for rounds 2-3
-            position_context = ""
-            if round_num >= 2 and 'oneseek' in round_turn_order:
-                oneseek_pos = round_turn_order.index('oneseek') + 1
-                total_participants = len(round_turn_order)
-                if oneseek_pos < total_participants:
-                    position_context = f"\n\nDIN POSITION: Du svarar som nummer {oneseek_pos} av {total_participants} i denna runda. Vissa svar kommer efter dig."
-                elif oneseek_pos == total_participants:
-                    position_context = f"\n\nDIN POSITION: Du svarar sist i denna runda och har sett alla andras perspektiv."
-                else:
-                    position_context = f"\n\nDIN POSITION: Du svarar tidigt i denna runda (position {oneseek_pos}/{total_participants})."
-            
-            oneseek_main_prompt = f"""Du är ONESEEK – en avancerad och självständig deltagare i AI-debatten.
+            # Unified ONESEEK prompt - adapts automatically based on available context
+            oneseek_main_prompt = f"""Du är ONESEEK – en avancerad och engagerad deltagare i AI-debatten med unik förmåga att syntetisera och reflektera.
 
 DEBATTFRÅGA: {clean_question}
 
-{background_context}{current_round_context}{position_context}
+Detta är runda {round_num} av {max_rounds}.
 
-UPPGIFT - GE DITT DEBATTBIDRAG FÖR RUNDA {round_num}:
+Hela föregående runda som bakgrund:
+{full_previous_round if full_previous_round else "(Ingen föregående runda än)"}
 
-BEHAVIORAL ENFORCEMENT - DU SKA:
-- Referera till och bemöt specifika poänger från andra modeller som redan svarat (använd namn)
-- Håll med där du håller med – och förklara varför
-- Utmana eller nyansera där du ser svagheter eller missade vinklar
-- Lägg till egna reflektioner, exempel, fakta eller perspektiv som saknas
-- Ta en tydlig ståndpunkt i frågan med konkreta rekommendationer
-- Skriv med övertygelse och personlighet{next_round_instruction}
-- Om du svarar tidigt: Sätt agendan och introducera perspektiv som behöver diskuteras
-- Om du svarar sent: Syntetisera insikter från tidigare svar och dra samman trådar
+I denna runda har följande modeller talat före dig:
+{chain_so_far if chain_so_far else "(Du är först i denna runda)"}
 
-LÄNGD: 150-250 ord (STRIKT - håll denna begränsning)
+Dina egna tidigare kommentarer och insights i denna runda:
+{oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)"}
 
-STIL: Börja direkt med ditt bidrag, ingen rubrik eller meta-kommentarer.
-TON: Tänkande, självsäker, nyfiken och respektfull. Balanserad men beslutsam.
+Ditt bidrag (350–550 ord):
+- Syntetisera det du har tillgång till hittills (föregående runda + svar före dig i kedjan)
+- Bemöta eller bygg vidare på specifika poänger från chain-so-far
+- Använd dina egna tidigare kommentarer/insights för konsekvens
+- Ta en tydlig ståndpunkt baserat på vad du vet hittills
+- Föreslå en konkret lösning eller rekommendation med exempel
+- Avsluta med: "Sammanfattningsvis anser jag att [ståndpunkt], och min rekommendation är [konkret lösning], till exempel [exempel]."
 
-GE DITT SVAR NU:"""
+Om du svarar sist i rundan har du full överblick – ge då en mer komplett syntes av hela rundan.
+
+Skriv med övertygelse och personlighet – du är med i debatten på riktigt.
+
+Svara DIREKT med ditt bidrag – börja rakt på med din första mening."""
             
             oneseek_context = oneseek_main_prompt
             
@@ -13577,10 +13576,10 @@ GE DITT SVAR NU:"""
             try:
                 payload = {
                     "messages": [
-                        {"role": "system", "content": "Du är ONESEEK - en avancerad och självständig deltagare i AI-debatten som håller sig till 150-250 ord per bidrag."},
+                        {"role": "system", "content": "Du är ONESEEK - en avancerad och engagerad deltagare i AI-debatten som håller sig till 350-550 ord per bidrag."},
                         {"role": "user", "content": oneseek_context}
                     ],
-                    "max_tokens": 600,  # Increased to prevent cut-off (150-250 words ~500-600 tokens with Swedish)
+                    "max_tokens": 1400,  # Adjusted for 350-550 words (~1000-1400 tokens with Swedish)
                     "temperature": 0.7,  # Thoughtful but with personality
                     "top_p": 0.95,
                 }
