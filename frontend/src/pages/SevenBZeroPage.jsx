@@ -1799,16 +1799,21 @@ export default function SevenBZeroPage() {
     ));
   };
 
+  // Helper: Create Tankekedja event with timestamp
+  const createTankekedjaEvent = (eventData) => ({
+    ...eventData,
+    timestamp: eventData.timestamp || new Date().toISOString()
+  });
+
   // Live Debate Flow via WebSocket
   const startLiveDebate = async (question, aiMessageId) => {
     console.log('[Debate] Starting live AI debate...');
     
     // Clear previous debate events and add initial user question event
-    setTankekedjaEvents([{
+    setTankekedjaEvents([createTankekedjaEvent({
       type: 'user_question',
-      text: question,
-      timestamp: new Date().toISOString()
-    }]);
+      text: question
+    })]);
     
     // Ensure the AI message doesn't have thinkingChain to prevent ThinkingChain component rendering
     setMessages(prev => prev.map(msg =>
@@ -1846,11 +1851,7 @@ export default function SevenBZeroPage() {
         console.log('[Debate] Message received:', message.type);
         
         // Track event in Tankekedja sidebar
-        const eventWithTimestamp = {
-          ...message,
-          timestamp: message.timestamp || new Date().toISOString()
-        };
-        setTankekedjaEvents(prev => [...prev, eventWithTimestamp]);
+        setTankekedjaEvents(prev => [...prev, createTankekedjaEvent(message)]);
         
         // Auto-show sidebar when debate starts
         if (message.type === 'debate_init' || message.type === 'debate_start') {

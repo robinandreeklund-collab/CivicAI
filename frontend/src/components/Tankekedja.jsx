@@ -55,7 +55,7 @@ function getEventStyle(eventType) {
     // Voting
     'voting_intro': { icon: Vote, color: 'text-amber-400', bg: 'bg-amber-500/10', label: 'Röstning startar' },
     'vote_received': { icon: Vote, color: 'text-amber-400', bg: 'bg-amber-500/10', label: 'Röst mottagen' },
-    'winner': { icon: Trophy, color: 'text-gold-400', bg: 'bg-yellow-500/10', label: 'Vinnare' },
+    'winner': { icon: Trophy, color: 'text-yellow-400', bg: 'bg-yellow-500/10', label: 'Vinnare' },
     
     // Completion
     'debate_complete': { icon: CheckCircle, color: 'text-green-400', bg: 'bg-green-500/10', label: 'Debatt avslutad' },
@@ -77,7 +77,15 @@ function getEventStyle(eventType) {
 function formatTimestamp(timestamp) {
   if (!timestamp) return '';
   const date = new Date(timestamp);
-  return date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+  try {
+    // Try with fractionalSecondDigits (modern browsers)
+    return date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+  } catch {
+    // Fallback for older browsers
+    const time = date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const ms = String(date.getMilliseconds()).padStart(3, '0');
+    return `${time}.${ms}`;
+  }
 }
 
 /**
