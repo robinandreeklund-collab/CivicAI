@@ -13254,10 +13254,13 @@ GE DITT SVAR NU:"""
                 }
                 # Add position for rounds 2-3 to help frontend order responses correctly
                 if position is not None:
+                    event_data["position"] = position  # Top level for frontend
+                    event_data["turn_order_position"] = position  # Top level for frontend
                     event_data["data"]["position"] = position
                     event_data["data"]["turn_order_position"] = position
                 # Add sequence number for strict ordering
                 if get_sequence:
+                    event_data["sequence"] = get_sequence()  # Top level for frontend
                     event_data["data"]["sequence"] = get_sequence()
                 
                 await websocket.send_json(event_data)
