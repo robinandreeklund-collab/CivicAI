@@ -360,19 +360,36 @@ router.post('/:debateId/mta-commentary', async (req, res) => {
     const { debateId } = req.params;
     const { roundNumber, agentName } = req.body;
     
-    if (!debateId || !roundNumber || !agentName) {
+    if (!debateId || roundNumber === undefined || !agentName) {
       return res.status(400).json({
         error: 'Invalid request',
         message: 'debateId, roundNumber, and agentName are required',
       });
     }
     
-    const commentary = await generateDebateMTACommentary(debateId, roundNumber, agentName);
+    // Validate roundNumber is a positive integer
+    const roundNum = parseInt(roundNumber, 10);
+    if (isNaN(roundNum) || roundNum < 1) {
+      return res.status(400).json({
+        error: 'Invalid request',
+        message: 'roundNumber must be a positive integer',
+      });
+    }
+    
+    // Validate agentName is a non-empty string
+    if (typeof agentName !== 'string' || agentName.trim().length === 0) {
+      return res.status(400).json({
+        error: 'Invalid request',
+        message: 'agentName must be a non-empty string',
+      });
+    }
+    
+    const commentary = await generateDebateMTACommentary(debateId, roundNum, agentName.trim());
     
     res.json({
       debateId,
-      roundNumber,
-      agentName,
+      roundNumber: roundNum,
+      agentName: agentName.trim(),
       commentary,
     });
   } catch (error) {

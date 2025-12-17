@@ -212,8 +212,15 @@ export async function conductDebateRound(debateId) {
         const mtaAnalysis = mtaResults.find(m => m.agent_name === response.agent);
         if (mtaAnalysis) {
           response.mtaAnalysis = mtaAnalysis;
-          // Add to debate-wide MTA analyses
-          debate.mtaAnalyses.push(mtaAnalysis);
+          // Add to debate-wide MTA analyses only if not already present
+          const alreadyExists = debate.mtaAnalyses.some(
+            m => m.agent_name === mtaAnalysis.agent_name && 
+                 m.round_number === mtaAnalysis.round_number &&
+                 m.timestamp === mtaAnalysis.timestamp
+          );
+          if (!alreadyExists) {
+            debate.mtaAnalyses.push(mtaAnalysis);
+          }
         }
       }
     });
@@ -246,12 +253,11 @@ export async function conductDebateRound(debateId) {
     participantCount: round.responses.length,
   });
   
-  // Wait for MTA analysis to complete before returning (but debate flow continues)
-  try {
-    await mtaPromise;
-  } catch (error) {
+  // MTA analysis continues in background - don't wait for it (true non-blocking)
+  // The promise will complete asynchronously and update the debate object
+  mtaPromise.catch(error => {
     console.error('MTA analysis error (non-critical):', error);
-  }
+  });
   
   return debate;
 }

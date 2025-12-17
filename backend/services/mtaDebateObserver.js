@@ -27,6 +27,7 @@ const MTA_CONFIG = {
   ],
   timeout: 10000, // 10 seconds max
   parallelExecution: true,
+  maxResponseTextLength: 500, // Maximum length for stored response text
 };
 
 /**
@@ -56,16 +57,33 @@ export async function analyzeMTADebateResponse(agentName, roundNum, response, qu
     let analysis;
     try {
       // Extract JSON from the response (handle cases where AI adds text before/after JSON)
-      const jsonMatch = result.response.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        analysis = JSON.parse(jsonMatch[0]);
-      } else {
+      // Use a more precise extraction: find first { and matching }
+      let jsonStart = result.response.indexOf('{');
+      if (jsonStart === -1) {
         throw new Error('No JSON found in response');
       }
+      
+      let braceCount = 0;
+      let jsonEnd = -1;
+      for (let i = jsonStart; i < result.response.length; i++) {
+        if (result.response[i] === '{') braceCount++;
+        if (result.response[i] === '}') braceCount--;
+        if (braceCount === 0) {
+          jsonEnd = i + 1;
+          break;
+        }
+      }
+      
+      if (jsonEnd === -1) {
+        throw new Error('Malformed JSON in response');
+      }
+      
+      const jsonStr = result.response.substring(jsonStart, jsonEnd);
+      analysis = JSON.parse(jsonStr);
     } catch (parseError) {
       console.error('❌ Failed to parse MTA analysis JSON:', parseError);
-      // Return fallback analysis
-      analysis = createFallbackAnalysis(agentName, roundNum, response);
+      // Return fallback analysis directly
+      return createFallbackAnalysis(agentName, roundNum, response);
     }
     
     // Validate and enrich the analysis
@@ -151,11 +169,12 @@ function enrichAnalysis(analysis, agentName, roundNum, responseText) {
   const overallScore = totalScore / MTA_CONFIG.dimensions.length;
   const finalWeightedScore = weightedScore / totalWeight;
   
+  const maxLen = MTA_CONFIG.maxResponseTextLength;
   return {
     agent_name: agentName,
     round_number: roundNum,
     timestamp: new Date().toISOString(),
-    response_text: responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''),
+    response_text: responseText.substring(0, maxLen) + (responseText.length > maxLen ? '...' : ''),
     analysis: analysis.analysis || {},
     summary: {
       overall_score: parseFloat(overallScore.toFixed(2)),
@@ -173,11 +192,12 @@ function enrichAnalysis(analysis, agentName, roundNum, responseText) {
 function createFallbackAnalysis(agentName, roundNum, responseText) {
   console.warn(`⚠️  Using fallback MTA analysis for ${agentName}`);
   
+  const maxLen = MTA_CONFIG.maxResponseTextLength;
   return {
     agent_name: agentName,
     round_number: roundNum,
     timestamp: new Date().toISOString(),
-    response_text: responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''),
+    response_text: responseText.substring(0, maxLen) + (responseText.length > maxLen ? '...' : ''),
     analysis: {
       relevance: { score: 7.0, reasoning: 'Fallback analysis - unable to evaluate' },
       argument_depth: { score: 7.0, reasoning: 'Fallback analysis - unable to evaluate' },
