@@ -13798,6 +13798,21 @@ Exempel:
             })
             
             # Build unified ONESEEK prompt - works for all positions
+            
+            # NEW: Build round_summaries_context - compressed learnings from ALL previous rounds
+            round_summaries_context = ""
+            if debate_rounds:
+                for prev_round in debate_rounds:
+                    round_num_prev = prev_round.get('round', 0)
+                    summary = prev_round.get('summary', '')
+                    consensus = prev_round.get('consensus', 50)
+                    
+                    if summary:
+                        round_summaries_context += f"""RUNDA {round_num_prev} SAMMANFATTNING (Konsensus: {consensus}%):
+{summary}
+
+"""
+            
             # Build full_previous_round context
             full_previous_round = ""
             if debate_rounds:
@@ -13841,6 +13856,9 @@ Exempel:
 DEBATTFRÅGA: {clean_question}
 
 Detta är runda {round_num} av {max_rounds}.
+
+**SAMMANFATTNINGAR FRÅN TIDIGARE RUNDOR:**
+{round_summaries_context if round_summaries_context else "(Ingen föregående runda än)"}
 
 Hela föregående runda som bakgrund:
 {full_previous_round if full_previous_round else "(Ingen föregående runda än)"}
@@ -14205,10 +14223,12 @@ Svara ENDAST med ett tal 0-100, inget annat."""
                     }
                 })
             
-            # Save round data
+            # Save round data (including summary for ONESEEK context in next rounds)
             debate_rounds.append({
                 'round': round_num,
-                'responses': round_responses
+                'responses': round_responses,
+                'summary': summary_text if 'summary_text' in locals() else '',
+                'consensus': consensus_pct if 'consensus_pct' in locals() else 50
             })
             
             await websocket.send_json({
