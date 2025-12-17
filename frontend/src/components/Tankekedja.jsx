@@ -70,7 +70,16 @@ function DataModal({ isOpen, onClose, title, data, type = 'json' }) {
  * Shows trends across rounds with sparklines and tables
  */
 function MTALongitudinalView({ mtaData }) {
-  if (!mtaData || mtaData.length === 0) return null;
+  console.log('[MTALongitudinalView] Received mtaData:', mtaData);
+  
+  if (!mtaData || mtaData.length === 0) {
+    console.log('[MTALongitudinalView] No data available');
+    return (
+      <div className="mt-2 p-2 bg-[#0a0a0a] border border-[#222] rounded text-[10px] text-[#666]">
+        MTA-DO Longitudinal Analysis: Ingen data tillgänglig
+      </div>
+    );
+  }
   
   const dimensions = ['relevance', 'argument_depth', 'factual_anchoring', 'clarity', 'logical_coherence', 'risk_hallucination'];
   const dimensionLabels = {
@@ -275,15 +284,16 @@ function buildTreeStructure(events) {
           label: 'Skickad payload',
           clickable: true,
           timestamp: event.timestamp,
-          tokens: event.tokens_out || 0,
+          tokens_out: event.tokens_out || 0,
           data: {
             url: event.api_url || `https://api.${event.agent}.com/v1/chat/completions`,
             model: event.model || `${event.agent}-model`,
-            prompt: event.prompt || '[Full prompt]',
+            prompt: event.prompt || event.full_prompt || '[Full prompt from agent]',
             temperature: event.temperature || 0.7,
             max_tokens: event.max_tokens || 500,
-            context: event.context || {},
-            tokens_out: event.tokens_out || 0
+            context: event.context || event.previous_context || (event.round > 1 ? { note: `Includes context from previous ${event.round - 1} rounds` } : {}),
+            tokens_out: event.tokens_out || 0,
+            full_payload: event.payload || event
           }
         });
         
@@ -292,10 +302,14 @@ function buildTreeStructure(events) {
           id: `response-${event.round}-${event.agent}`,
           type: 'response',
           label: 'Mottaget svar',
-          text: event.text,
+          text: event.text || event.message || '[Response text]',
           clickable: true,
           timestamp: event.timestamp,
-          tokens: event.tokens_in || event.tokens || 0
+          tokens_in: event.tokens_in || event.tokens || 0,
+          data: {
+            response_text: event.text || event.message,
+            full_response: event.response || event
+          }
         });
         
         round.apiCalls.push(apiCall);
@@ -388,33 +402,53 @@ function buildTreeStructure(events) {
         type: 'vote_call',
         label: `API-anrop till ${(event.voter || event.agent || 'Unknown').toUpperCase()} röstning`,
         timestamp: event.timestamp,
+        tokens_in: event.tokens_in || 0,
+        tokens_out: event.tokens_out || 0,
         children: [
           {
             id: `vote-payload-${event.voter}`,
             type: 'vote_payload',
             label: 'Skickad payload',
             clickable: true,
-            data: event.payload || {}
+            timestamp: event.timestamp,
+            tokens_out: event.tokens_out || 0,
+            data: {
+              voter: event.voter || event.agent,
+              prompt: event.prompt || '[Voting prompt]',
+              candidates: event.candidates || [],
+              context: event.context || {},
+              full_payload: event.payload || event
+            }
           },
           {
             id: `vote-response-${event.voter}`,
             type: 'vote_response',
             label: 'Mottaget svar',
-            text: `Vinnare: ${event.voted_for?.toUpperCase() || 'N/A'}. Motivering: ${event.motivation || 'N/A'}`,
-            clickable: true
+            text: `Röstar på: ${event.voted_for?.toUpperCase() || 'N/A'}\n\nMotivering: ${event.motivation || 'N/A'}`,
+            clickable: true,
+            timestamp: event.timestamp,
+            tokens_in: event.tokens_in || 0,
+            data: {
+              voted_for: event.voted_for,
+              motivation: event.motivation,
+              full_response: event
+            }
           }
         ]
       });
     }
     
     // Handle final summary
-    if (event.type === 'debate_complete') {
+    if (event.type === 'debate_complete' || event.type === 'final' || event.type === 'summary') {
       final.push({
         id: 'final-summary',
         type: 'final_summary',
         label: 'Final sammanfattning',
-        text: event.summary || 'Sammanfattning med röster + MTA-DO-trender',
+        text: event.summary || event.text || event.message || 'Sammanfattning med röster + MTA-DO-trender',
         timestamp: event.timestamp,
+        tokens: event.tokens || 0,
+        clickable: true,
+        data: event,
         mtaData: Object.values(mtaDataByRound) // Include MTA longitudinal data
       });
     }
@@ -482,10 +516,31 @@ function TreeNode({ node, depth = 0, isLast = false, previousNode = null, active
   
   const handleClick = () => {
     if (node.clickable) {
+      // Determine if we should show JSON or text
+      let dataToShow, dataType;
+      
+      if (node.type === 'response' || node.type === 'vote_response' || node.type === 'final_summary') {
+        // For responses, show the text first
+        dataToShow = node.text || node.data || {};
+        dataType = 'text';
+      } else if (node.type === 'payload' || node.type === 'vote_payload' || node.type === 'mta_analysis') {
+        // For payloads and analysis, show JSON
+        dataToShow = node.data || node.analysis || {};
+        dataType = 'json';
+      } else if (node.type === 'commentary' || node.type === 'insight') {
+        // For commentary and insights, show text
+        dataToShow = node.text || node.data || {};
+        dataType = 'text';
+      } else {
+        // Default behavior
+        dataToShow = node.data || node.text || node.analysis || {};
+        dataType = typeof dataToShow === 'string' ? 'text' : 'json';
+      }
+      
       setModalData({
         title: node.label,
-        data: node.data || node.text || node.analysis || {},
-        type: node.data ? 'json' : 'text'
+        data: dataToShow,
+        type: dataType
       });
       setShowModal(true);
     }
@@ -560,9 +615,16 @@ function TreeNode({ node, depth = 0, isLast = false, previousNode = null, active
             )}
             
             {/* Short text preview */}
-            {node.text && !node.details && (
+            {node.text && !node.details && node.type !== 'final_summary' && (
               <div className="text-[#777] text-[10px] mt-0.5 truncate">
                 {node.text.substring(0, 80)}...
+              </div>
+            )}
+            
+            {/* Full text for final summary */}
+            {node.type === 'final_summary' && node.text && (
+              <div className="text-[#888] text-[10px] mt-1 mb-2 max-h-40 overflow-y-auto whitespace-pre-wrap">
+                {node.text}
               </div>
             )}
             
