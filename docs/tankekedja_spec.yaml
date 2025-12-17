@@ -1,0 +1,69 @@
+Exempel på uppdaterad tankekedja (visas i sidebar eller dedikerad panel) 
+Gör också mer minimal för att passa våran grafiska profil. just nu är det för mycket ikoner och skit som gör att den blir mer löjlig än tydlig.
+Den saknar fortfarande djupet i det vi vill uppnå. 
+
+Debatt: Bör dödsstraff avskaffas i fler länder?
+
+└─ Input (start av debatt)
+   ├── Användarfråga: "Bör dödsstraff avskaffas i fler länder?" (råinput)
+   ├── Bearbetning: Rengör frågan → clean_question = "Bör dödsstraff avskaffas i fler länder?"
+   └── Initiera runda 1: Slumpa ordning (exempel: Grok → GPT → Gemini → DeepSeek)
+
+   ├── Runda 1
+   │   ├── API-anrop till Grok (första agent)
+   │   │   ├── Skickad payload: (klickbar för rå JSON)
+   │   │   │   - URL: https://api.x.ai/v1/chat/completions
+   │   │   │   - Model: grok-beta
+   │   │   │   - Prompt: "Du är Grok... [full prompt]"
+   │   │   │   - Temperature: 0.7
+   │   │   │   - Max tokens: 500
+   │   │   ├── Mottaget svar: (klickbar för rå response)
+   │   │   │   - Grok: "Mot dödstraff: Avskaffa det omedelbart..." (full text)
+   │   │   ├── MTA-DO analys: (klickbar för JSON)
+   │   │   │   - Relevans: 9/10 – [reason]
+   │   │   │   - ... (alla 6 dimensioner)
+   │   │   ├── ONESEEK commentary: "Intressant poäng från Grok..." (använder MTA-DO)
+   │   │   └── Insight: "💡 Grok kontrar hårt med fokus på rättvisa!"
+   │   ├── API-anrop till GPT (nästa i kedja)
+   │   │   ├── Skickad payload: (klickbar)
+   │   │   │   - ... (inkl. chain_so_far med Groks svar)
+   │   │   ├── Mottaget svar: (klickbar)
+   │   │   ├── MTA-DO analys
+   │   │   ├── Commentary
+   │   │   └── Insight
+   │   └── ONESEEK huvudbidrag (slut av runda)
+   │       ├── Tankekedja interna steg: (klickbar för detaljer)
+   │       │   - Steg 1: Analysera externa svar + MTA-DO
+   │       │   - Steg 2: Identifiera bias
+   │       │   - Steg 3: Egen syntes
+   │       └── Bidrag: "Jag anser att dödstraff bör avskaffas..."
+
+   ├── Runda 2
+   │   ├── API-anrop till Gemini (slumpad först)
+   │   │   ├── Skickad payload: (med full runda 1 som kontext)
+   │   │   └── ...
+   │   └── ...
+
+   ├── Runda 3
+   │   └── ...
+
+└─ Avslut (efter runda 3)
+   ├── Röstning
+   │   ├── API-anrop till Grok röstning
+   │   │   ├── Skickad payload: (med sista rundan)
+   │   │   └── Mottaget svar: "Vinnare: DeepSeek. Motivering: ..."
+   │   ├── API-anrop till GPT röstning
+   │   └── ...
+   └── Final sammanfattning: (med röster + MTA-DO-trender)
+Hur implementera i UX
+
+Bibliotek: Använd React Flow för träd + pilar, eller Ant Design Tree för enkel treeview med expanderbara noder.
+Klickbart: Varje "payload" eller "rådata" öppnar en modal med JSON/text.
+Live-byggande: Lägg till noder i realtid (WebSocket pushar uppdateringar).
+Sidebar eller dedikerad panel: Behåll sidebaren, men gör den till en scrollbar tree – användaren ser kedjan växa.
+
+Fördelar
+
+Full insyn: Användaren ser exakt vad som skickas/mottas – inga hemligheter.
+Djup från input: Börjar med frågan och visar varje API-anrop som en gren.
+Bygger på ert nuvarande: Ni har redan data – bara visualisera som träd istället för flat lista.

@@ -7,6 +7,8 @@ import FollowUpButtons from '../components/FollowUpButtons';
 import { sendPersonalityMessageViaWebSocket, isWebSocketSupported } from '../services/personalityWebSocket';
 import { handleFollowUpAction } from '../services/chat';
 import DebateRoundDisplay from '../components/DebateRoundDisplay';
+import Tankekedja from "../components/Tankekedja";
+import MTALongitudinalView from "../components/MTALongitudinalView";
 
 /**
  * 7B-Zero Page - Integrated OQI Interface
@@ -266,6 +268,37 @@ export default function SevenBZeroPage() {
   
   // Progressive thinking step display
   const [thinkingStep, setThinkingStep] = useState(null);
+  
+  // Tankekedja Sidebar state - Real-time transparency tracking
+  const [tankekedjaEvents, setTankekedjaEvents] = useState([]);
+  const [showTankekedja, setShowTankekedja] = useState(false);
+  
+  // MTA Longitudinal Analysis state - extracted from Tankekedja events
+  const [mtaLongitudinalData, setMtaLongitudinalData] = useState([]);
+  
+  // Extract MTA data from Tankekedja events for longitudinal analysis
+  useEffect(() => {
+    const mtaDataByRound = {};
+    
+    // Process all MTA analysis events
+    tankekedjaEvents.forEach(event => {
+      if (event.type === 'mta_analysis' && event.round && event.agent && event.analysis) {
+        if (!mtaDataByRound[event.round]) {
+          mtaDataByRound[event.round] = { round: event.round };
+        }
+        mtaDataByRound[event.round][event.agent] = {
+          analysis: event.analysis,
+          timestamp: event.timestamp
+        };
+      }
+    });
+    
+    // Convert to array and update state
+    const mtaArray = Object.values(mtaDataByRound).sort((a, b) => a.round - b.round);
+    setMtaLongitudinalData(mtaArray);
+    
+    console.log('[SevenBZeroPage] MTA Longitudinal data extracted:', mtaArray);
+  }, [tankekedjaEvents]);
   
   // Load typo check setting from admin
   useEffect(() => {
@@ -1794,9 +1827,92 @@ export default function SevenBZeroPage() {
     ));
   };
 
+  // Helper: Create Tankekedja event with timestamp and properly extract data
+  const createTankekedjaEvent = (message) => {
+    const event = {
+      ...message,
+      timestamp: message.timestamp || new Date().toISOString()
+    };
+    
+    // Extract and structure data based on event type
+    switch (message.type) {
+      case 'ai_response':
+        // Extract full AI response data
+        event.text = message.text || message.message || message.data?.response || `${(message.agent || 'AI').toUpperCase()} response`;
+        event.prompt = message.data?.prompt || message.prompt || message.data?.full_prompt;
+        event.model = message.data?.model || message.model || `${message.agent}-model`;
+        event.api_url = message.data?.api_url || message.api_url || `https://api.${message.agent}.com/v1/chat/completions`;
+        event.context = message.data?.context || message.context;
+        event.temperature = message.data?.temperature || message.temperature || 0.7;
+        event.max_tokens = message.data?.max_tokens || message.max_tokens || 500;
+        event.tokens_in = message.data?.tokens_in || message.tokens_in || message.tokens || 0;
+        event.tokens_out = message.data?.tokens_out || message.tokens_out || 0;
+        event.payload = message.data?.payload || message.payload || message.data;
+        event.response = message.data?.full_response || message.response || message;
+        break;
+        
+      case 'mta_analysis':
+        // Extract MTA-DO analysis with all 6 dimensions
+        event.analysis = message.data?.analysis || message.analysis || {};
+        event.tokens = message.data?.tokens || message.tokens || 0;
+        break;
+        
+      case 'oneseek_reasoning':
+        // Extract OneSeek commentary/reasoning
+        event.text = message.message || message.text || message.data?.commentary || message.data?.reasoning;
+        event.tokens = message.data?.tokens || message.tokens || 0;
+        break;
+        
+      case 'live_insight':
+        // Extract insight data
+        event.text = message.message || message.text || message.data?.insight;
+        event.tokens = message.data?.tokens || message.tokens || 0;
+        break;
+        
+      case 'oneseek_own_answer':
+        // Extract OneSeek's own synthesis answer
+        event.text = message.text || message.message || message.data?.answer;
+        event.thinking_steps = message.data?.thinking_steps || message.data?.internal_reasoning || message.thinking_steps;
+        event.internal_reasoning = message.data?.internal_reasoning;
+        break;
+        
+      case 'vote_received':
+        // Extract complete voting data
+        event.voted_for = message.data?.voted_for || message.voted_for;
+        event.motivation = message.data?.motivation || message.motivation;
+        event.voter = message.data?.voter || message.voter || message.agent;
+        event.candidates = message.data?.candidates || message.candidates || [];
+        event.voting_prompt = message.data?.prompt || message.prompt || message.data?.voting_prompt;
+        event.voting_context = message.data?.context || message.context;
+        event.tokens_in = message.data?.tokens_in || message.tokens_in || 0;
+        event.tokens_out = message.data?.tokens_out || message.tokens_out || 0;
+        event.payload = message.data?.payload || message.payload || message.data;
+        break;
+        
+      case 'debate_complete':
+      case 'final':
+      case 'summary':
+        // Extract final summary data
+        event.summary = message.data?.summary || message.summary || message.text || message.message;
+        event.winner = message.data?.winner || message.winner;
+        event.vote_analysis = message.data?.vote_analysis || message.vote_analysis;
+        event.debate_stats = message.data?.stats || message.stats;
+        event.mta_trends = message.data?.mta_trends;
+        break;
+    }
+    
+    return event;
+  };
+
   // Live Debate Flow via WebSocket
   const startLiveDebate = async (question, aiMessageId) => {
     console.log('[Debate] Starting live AI debate...');
+    
+    // Clear previous debate events and add initial user question event
+    setTankekedjaEvents([createTankekedjaEvent({
+      type: 'user_question',
+      text: question
+    })]);
     
     // Ensure the AI message doesn't have thinkingChain to prevent ThinkingChain component rendering
     setMessages(prev => prev.map(msg =>
@@ -1832,6 +1948,14 @@ export default function SevenBZeroPage() {
       ws.onmessage = (event) => {
         const message = JSON.parse(event.data);
         console.log('[Debate] Message received:', message.type);
+        
+        // Track event in Tankekedja sidebar
+        setTankekedjaEvents(prev => [...prev, createTankekedjaEvent(message)]);
+        
+        // Auto-show sidebar when debate starts
+        if (message.type === 'debate_init' || message.type === 'debate_start') {
+          setShowTankekedja(true);
+        }
         
         switch (message.type) {
           case 'thinking':
@@ -2357,10 +2481,12 @@ export default function SevenBZeroPage() {
       if (e.key.toLowerCase() === 'q') setQuantumMode(p => !p);
       if (e.key.toLowerCase() === 'f') setFocusMode(p => !p);
       if (e.key.toLowerCase() === 'w') setWhiteMode(p => !p);
+      if (e.key.toLowerCase() === 't') setShowTankekedja(p => !p);
       if (e.key === 'Escape') {
         setFocusMode(false);
         setWhiteMode(false);
         setShowDebatePanel(false);
+        setShowTankekedja(false);
       }
     };
     window.addEventListener('keydown', handler);
@@ -3352,6 +3478,14 @@ export default function SevenBZeroPage() {
                                 {msg.debateData.summary}
                               </div>
                             </div>
+                          )}
+                          
+                          {/* MTA-DO Longitudinal Analysis */}
+                          {msg.debateData.winner && mtaLongitudinalData.length > 0 && (
+                            <MTALongitudinalView 
+                              mtaData={mtaLongitudinalData}
+                              whiteMode={whiteMode}
+                            />
                           )}
                         </div>
                       ) : msg.isRoundComplete ? (
@@ -4387,8 +4521,17 @@ export default function SevenBZeroPage() {
       <div className={`fixed bottom-4 left-6 text-[9px] transition-opacity duration-500 ${showUI ? 'opacity-100' : 'opacity-0'} ${
         whiteMode ? 'text-[#ccc]' : 'text-[#2a2a2a]'
       }`}>
-        Q = Quantum · F = Focus · W = White
+        Q = Quantum · F = Focus · W = White · T = Tankekedja
       </div>
+
+      {/* Tankekedja Sidebar - Real-time Transparency */}
+      {debateMode && (
+        <Tankekedja 
+          events={tankekedjaEvents} 
+          isVisible={showTankekedja}
+          onToggle={() => setShowTankekedja(!showTankekedja)}
+        />
+      )}
     </div>
   );
 }
