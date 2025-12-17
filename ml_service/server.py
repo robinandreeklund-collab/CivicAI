@@ -13457,7 +13457,9 @@ GE DIN INSIGHT NU (ingen extra text):"""
             # Different flow for Round 1 vs Rounds 2-3
             if round_num == 1:
                 # Round 1: Original flow - external agents process in parallel, ONESEEK echoes and goes last
-                external_tasks = [asyncio.create_task(get_and_process_immediately(agent)) for agent in external_agents]
+                # Add position metadata for frontend ordering even though processing is parallel
+                agent_positions = {agent: idx for idx, agent in enumerate(round_turn_order)}
+                external_tasks = [asyncio.create_task(get_and_process_immediately(agent, position=agent_positions[agent], get_sequence=get_next_sequence)) for agent in external_agents]
                 logger.info(f"[WS-Debate] Round 1: Started {len(external_tasks)} parallel tasks - each will process IMMEDIATELY on arrival")
                 
                 # Wait for all tasks to complete
