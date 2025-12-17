@@ -8,6 +8,7 @@ import { sendPersonalityMessageViaWebSocket, isWebSocketSupported } from '../ser
 import { handleFollowUpAction } from '../services/chat';
 import DebateRoundDisplay from '../components/DebateRoundDisplay';
 import Tankekedja from "../components/Tankekedja";
+import MTALongitudinalView from "../components/MTALongitudinalView";
 
 /**
  * 7B-Zero Page - Integrated OQI Interface
@@ -271,6 +272,33 @@ export default function SevenBZeroPage() {
   // Tankekedja Sidebar state - Real-time transparency tracking
   const [tankekedjaEvents, setTankekedjaEvents] = useState([]);
   const [showTankekedja, setShowTankekedja] = useState(false);
+  
+  // MTA Longitudinal Analysis state - extracted from Tankekedja events
+  const [mtaLongitudinalData, setMtaLongitudinalData] = useState([]);
+  
+  // Extract MTA data from Tankekedja events for longitudinal analysis
+  useEffect(() => {
+    const mtaDataByRound = {};
+    
+    // Process all MTA analysis events
+    tankekedjaEvents.forEach(event => {
+      if (event.type === 'mta_analysis' && event.round && event.agent && event.analysis) {
+        if (!mtaDataByRound[event.round]) {
+          mtaDataByRound[event.round] = { round: event.round };
+        }
+        mtaDataByRound[event.round][event.agent] = {
+          analysis: event.analysis,
+          timestamp: event.timestamp
+        };
+      }
+    });
+    
+    // Convert to array and update state
+    const mtaArray = Object.values(mtaDataByRound).sort((a, b) => a.round - b.round);
+    setMtaLongitudinalData(mtaArray);
+    
+    console.log('[SevenBZeroPage] MTA Longitudinal data extracted:', mtaArray);
+  }, [tankekedjaEvents]);
   
   // Load typo check setting from admin
   useEffect(() => {
@@ -3379,6 +3407,14 @@ export default function SevenBZeroPage() {
                                 {msg.debateData.summary}
                               </div>
                             </div>
+                          )}
+                          
+                          {/* MTA-DO Longitudinal Analysis */}
+                          {msg.debateData.winner && mtaLongitudinalData.length > 0 && (
+                            <MTALongitudinalView 
+                              mtaData={mtaLongitudinalData}
+                              whiteMode={whiteMode}
+                            />
                           )}
                         </div>
                       ) : msg.isRoundComplete ? (
