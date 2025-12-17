@@ -13423,10 +13423,11 @@ Svara ENDAST med giltig JSON i denna exakta struktur:
             score = float(dim_data.get('score', 7.0))
             score = max(0, min(10, score))  # Clamp to 0-10
             
-            # Inverse for bias_detection
+            # Inverse for bias_detection (lower bias = better quality)
             adjusted_score = (10 - score) if dim_name == 'bias_detection' else score
             
-            total_score += score
+            # Use adjusted score for both calculations to ensure consistency
+            total_score += adjusted_score
             weighted_score += adjusted_score * weight
             total_weight += weight
         
@@ -13800,11 +13801,6 @@ DEBATTFRÅGA: {clean_question}
 {agent_name.upper()}S SVAR I RUNDA {round_num}:
 {agent_response[:800]}...
 {mta_context}
-
-DEBATTFRÅGA: {clean_question}
-
-{agent_name.upper()}S SVAR I RUNDA {round_num}:
-{agent_response}
 
 BEHAVIORAL ENFORCEMENT:
 - Reagera naturligt och tänkande på det du just läst
