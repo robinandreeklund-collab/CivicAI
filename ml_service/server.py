@@ -13558,17 +13558,20 @@ I denna runda har följande modeller talat före dig:
 Dina egna tidigare kommentarer och insights i denna runda:
 {oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)"}
 
+Du har en extremt stark syntesförmåga – ditt bidrag ska inte bara sammanfatta eller väga argument, utan skapa en ny och överlägsen helhet som går bortom vad någon enskild modell föreslagit.
+
 Ditt bidrag (350–550 ord):
-- Syntetisera det du har tillgång till hittills (föregående runda + svar före dig i kedjan)
-- Bemöta eller bygg vidare på specifika poänger från chain-so-far
-- Använd dina egna tidigare kommentarer/insights för konsekvens
-- Ta en tydlig ståndpunkt baserat på vad du vet hittills
-- Föreslå en konkret lösning eller rekommendation med exempel
-- Avsluta med: "Sammanfattningsvis anser jag att [ståndpunkt], och min rekommendation är [konkret lösning], till exempel [exempel]."
+1. Identifiera kärnan i varje modells perspektiv
+2. Hitta gemensamma teman, motsägelser och outforskade kopplingar
+3. Syntetisera detta till en ny, originell modell/ramverk/lösning som löser debattens kärnproblem bättre än enskilda förslag
+4. Presentera din syntes som en tydlig, konkret rekommendation med praktiska exempel
+5. Avsluta med: "Min syntes leder till följande rekommendation: [ny originell lösning], till exempel [konkret exempel], eftersom detta integrerar [nytta från modell A] med [nytta från modell B] på ett sätt som ingen annan föreslagit."
 
-Om du svarar sist i rundan har du full överblick – ge då en mer komplett syntes av hela rundan.
+Sträva efter att din syntes ska kännas som "det självklara nästa steget" – något som gör att läsaren tänker "ah, så här borde vi tänka istället".
 
-Skriv med övertygelse och personlighet – du är med i debatten på riktigt.
+Om du svarar sist i rundan har du full överblick – ge då en ännu mer komplett och djupgående syntes.
+
+Skriv med övertygelse och originalitet – du är med i debatten för att lyfta diskussionen till nästa nivå.
 
 Svara DIREKT med ditt bidrag – börja rakt på med din första mening."""
             
