@@ -7,6 +7,7 @@ import FollowUpButtons from '../components/FollowUpButtons';
 import { sendPersonalityMessageViaWebSocket, isWebSocketSupported } from '../services/personalityWebSocket';
 import { handleFollowUpAction } from '../services/chat';
 import DebateRoundDisplay from '../components/DebateRoundDisplay';
+import TankekedjaS sidebar from '../components/TankekedjaS sidebar';
 
 /**
  * 7B-Zero Page - Integrated OQI Interface
@@ -266,6 +267,10 @@ export default function SevenBZeroPage() {
   
   // Progressive thinking step display
   const [thinkingStep, setThinkingStep] = useState(null);
+  
+  // Tankekedja Sidebar state - Real-time transparency tracking
+  const [tankekedjaEvents, setTankekedjaEvents] = useState([]);
+  const [showTankekedja, setShowTankekedja] = useState(false);
   
   // Load typo check setting from admin
   useEffect(() => {
@@ -1798,6 +1803,13 @@ export default function SevenBZeroPage() {
   const startLiveDebate = async (question, aiMessageId) => {
     console.log('[Debate] Starting live AI debate...');
     
+    // Clear previous debate events and add initial user question event
+    setTankekedjaEvents([{
+      type: 'user_question',
+      text: question,
+      timestamp: new Date().toISOString()
+    }]);
+    
     // Ensure the AI message doesn't have thinkingChain to prevent ThinkingChain component rendering
     setMessages(prev => prev.map(msg =>
       msg.id === aiMessageId
@@ -1832,6 +1844,18 @@ export default function SevenBZeroPage() {
       ws.onmessage = (event) => {
         const message = JSON.parse(event.data);
         console.log('[Debate] Message received:', message.type);
+        
+        // Track event in Tankekedja sidebar
+        const eventWithTimestamp = {
+          ...message,
+          timestamp: message.timestamp || new Date().toISOString()
+        };
+        setTankekedjaEvents(prev => [...prev, eventWithTimestamp]);
+        
+        // Auto-show sidebar when debate starts
+        if (message.type === 'debate_init' || message.type === 'debate_start') {
+          setShowTankekedja(true);
+        }
         
         switch (message.type) {
           case 'thinking':
@@ -2357,10 +2381,12 @@ export default function SevenBZeroPage() {
       if (e.key.toLowerCase() === 'q') setQuantumMode(p => !p);
       if (e.key.toLowerCase() === 'f') setFocusMode(p => !p);
       if (e.key.toLowerCase() === 'w') setWhiteMode(p => !p);
+      if (e.key.toLowerCase() === 't') setShowTankekedja(p => !p);
       if (e.key === 'Escape') {
         setFocusMode(false);
         setWhiteMode(false);
         setShowDebatePanel(false);
+        setShowTankekedja(false);
       }
     };
     window.addEventListener('keydown', handler);
@@ -4387,8 +4413,17 @@ export default function SevenBZeroPage() {
       <div className={`fixed bottom-4 left-6 text-[9px] transition-opacity duration-500 ${showUI ? 'opacity-100' : 'opacity-0'} ${
         whiteMode ? 'text-[#ccc]' : 'text-[#2a2a2a]'
       }`}>
-        Q = Quantum · F = Focus · W = White
+        Q = Quantum · F = Focus · W = White · T = Tankekedja
       </div>
+
+      {/* Tankekedja Sidebar - Real-time Transparency */}
+      {debateMode && (
+        <TankekedjaS sidebar 
+          events={tankekedjaEvents} 
+          isVisible={showTankekedja}
+          onToggle={() => setShowTankekedja(!showTankekedja)}
+        />
+      )}
     </div>
   );
 }
