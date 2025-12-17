@@ -2793,6 +2793,27 @@ export default function SevenBZeroPage() {
                 />
               ))}
               
+              {/* Live Voting Display - Show votes as they come in */}
+              {debateRounds.voting && debateRounds.voting.votes && debateRounds.voting.votes.length > 0 && (
+                <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                  <div className="text-sm font-medium text-[#888] mb-3">🗳️ Röstning pågår...</div>
+                  <div className="space-y-2">
+                    {debateRounds.voting.votes.map((vote, idx) => (
+                      <div key={idx} className="text-xs">
+                        <div className="text-[#888] font-medium">
+                          {vote.voter.toUpperCase()} → {vote.votedFor.toUpperCase()}
+                        </div>
+                        {vote.message && (
+                          <div className="text-[#666] mt-1 italic">
+                            {vote.message}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
               {/* Debate Completion - Integrated into flow */}
               {debateRounds.completion && (
                 <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
@@ -3007,6 +3028,27 @@ export default function SevenBZeroPage() {
                         isActive={parseInt(roundNum) === currentRound}
                       />
                     ))}
+                    
+                    {/* Live Voting Display - Show votes as they come in */}
+                    {debateRounds.voting && debateRounds.voting.votes && debateRounds.voting.votes.length > 0 && (
+                      <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
+                        <div className="text-sm font-medium text-[#888] mb-3">🗳️ Röstning pågår...</div>
+                        <div className="space-y-2">
+                          {debateRounds.voting.votes.map((vote, idx) => (
+                            <div key={idx} className="text-xs">
+                              <div className="text-[#888] font-medium">
+                                {vote.voter.toUpperCase()} → {vote.votedFor.toUpperCase()}
+                              </div>
+                              {vote.message && (
+                                <div className="text-[#666] mt-1 italic">
+                                  {vote.message}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Debate Completion */}
                     {debateRounds.completion && (

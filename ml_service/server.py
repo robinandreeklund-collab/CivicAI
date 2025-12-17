@@ -13697,7 +13697,7 @@ GE DIN INSIGHT NU (ingen extra text):"""
                         insight_text = generate_with_llama_server(
                             insight_prompt,
                             temperature=0.85,
-                            max_tokens=50  # Reduced for 15-25 word limit
+                            max_tokens=80  # Increased to prevent cut-off (15-25 words ~60-80 tokens with Swedish)
                         )
                         insight_text = insight_text.strip()
                         
@@ -13817,7 +13817,7 @@ GE DITT SVAR NU:"""
                         {"role": "system", "content": "Du är ONESEEK - en avancerad och självständig deltagare i AI-debatten som håller sig till 150-250 ord per bidrag."},
                         {"role": "user", "content": oneseek_context}
                     ],
-                    "max_tokens": 500,  # Adjusted for 150-250 words (~400-500 tokens including Swedish)
+                    "max_tokens": 600,  # Increased to prevent cut-off (150-250 words ~500-600 tokens with Swedish)
                     "temperature": 0.7,  # Thoughtful but with personality
                     "top_p": 0.95,
                 }
