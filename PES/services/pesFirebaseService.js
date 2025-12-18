@@ -97,6 +97,7 @@ export async function savePromptVersion(promptVersion) {
       throw new Error('Firebase not initialized');
     }
     
+    const timestamp = new Date().toISOString();
     const data = {
       prompt_text: promptVersion.promptText,
       version: promptVersion.version,
@@ -107,8 +108,8 @@ export async function savePromptVersion(promptVersion) {
         average_score: 0,
         win_rate: 0,
       },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      created_at: timestamp,
+      updated_at: timestamp,
       status: promptVersion.status || 'active',
     };
     

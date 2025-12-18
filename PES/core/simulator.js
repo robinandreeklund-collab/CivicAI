@@ -259,6 +259,9 @@ function analyzeSimulationResponse(response, debate) {
   return analysis;
 }
 
+// Swedish stop words for keyword extraction
+const SWEDISH_STOP_WORDS = ['är', 'och', 'det', 'att', 'i', 'en', 'på', 'för', 'med', 'av', 'som', 'den', 'till', 'från', 'har', 'om', 'kan', 'när', 'var', 'hur', 'vad', 'vem'];
+
 /**
  * Extract keywords from text
  * @param {string} text - Input text
@@ -266,12 +269,10 @@ function analyzeSimulationResponse(response, debate) {
  */
 function extractKeywords(text) {
   // Simple keyword extraction - remove common words
-  const stopWords = ['är', 'och', 'det', 'att', 'i', 'en', 'på', 'för', 'med', 'av', 'som', 'den', 'till', 'från', 'har', 'om', 'kan', 'när', 'var', 'hur', 'vad', 'vem'];
-  
   const words = text.toLowerCase()
     .replace(/[^\wåäöÅÄÖ\s]/g, ' ')
     .split(/\s+/)
-    .filter(w => w.length > 3 && !stopWords.includes(w));
+    .filter(w => w.length > 3 && !SWEDISH_STOP_WORDS.includes(w));
   
   return [...new Set(words)]; // Remove duplicates
 }
@@ -351,7 +352,8 @@ function generateRecommendations(metrics, promptVersion) {
   }
   
   // Inference time recommendations
-  if (metrics.averageInferenceTime > 60000) { // > 1 minute
+  const INFERENCE_TIME_THRESHOLD_MS = 60000; // 1 minute
+  if (metrics.averageInferenceTime > INFERENCE_TIME_THRESHOLD_MS) {
     recommendations.push({
       type: 'performance',
       severity: 'medium',

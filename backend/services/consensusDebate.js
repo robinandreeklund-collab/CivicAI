@@ -31,6 +31,9 @@ const DEBATE_CONFIG = {
   severityThreshold: 2, // Number of high-severity divergences to trigger debate
 };
 
+// Swedish stop words for keyword extraction (used in Firebase debate saving)
+const SWEDISH_STOP_WORDS = ['är', 'och', 'det', 'att', 'i', 'en', 'på', 'för', 'med', 'av', 'som', 'den', 'till', 'från', 'har', 'om', 'kan', 'när', 'var', 'hur', 'vad', 'vem'];
+
 /**
  * Check if debate should be triggered based on model synthesis
  * @param {object} modelSynthesis - The synthesis result from synthesizeModelResponses

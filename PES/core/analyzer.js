@@ -265,13 +265,16 @@ function generateInsights(metrics, trends, simulationCount) {
   }
   
   // Consistency insights
-  if (metrics.stdDeviation < 0.1) {
+  const STD_DEV_LOW_THRESHOLD = 0.1;
+  const STD_DEV_HIGH_THRESHOLD = 0.2;
+  
+  if (metrics.stdDeviation < STD_DEV_LOW_THRESHOLD) {
     insights.push({
       type: 'consistency',
       level: 'positive',
       message: 'High consistency across simulations',
     });
-  } else if (metrics.stdDeviation > 0.2) {
+  } else if (metrics.stdDeviation > STD_DEV_HIGH_THRESHOLD) {
     insights.push({
       type: 'consistency',
       level: 'warning',
