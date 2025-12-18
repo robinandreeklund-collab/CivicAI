@@ -18,6 +18,7 @@ import { getDeepSeekResponse } from './deepseek.js';
 import { getGrokResponse } from './grok.js';
 import { logAuditEvent, AuditEventType } from './auditTrail.js';
 import { executeAnalysisPipeline } from './analysisPipeline.js';
+import { getDb } from './firebaseService.js';
 
 // In-memory storage for debates (replace with database in production)
 const debates = new Map();
@@ -63,9 +64,9 @@ export function shouldTriggerDebate(modelSynthesis) {
  * @param {Array} agents - Array of agent names participating in debate
  * @param {Array} initialResponses - Initial responses from agents
  * @param {object} modelSynthesis - The synthesis showing divergences
- * @returns {object} Created debate object
+ * @returns {Promise<object>} Created debate object
  */
-export function initiateDebate(questionId, question, agents, initialResponses, modelSynthesis) {
+export async function initiateDebate(questionId, question, agents, initialResponses, modelSynthesis) {
   const debateId = uuidv4();
   
   // Limit to max 5 agents
@@ -98,6 +99,9 @@ export function initiateDebate(questionId, question, agents, initialResponses, m
     participants: participatingAgents,
     reason: `Consensus: ${modelSynthesis.consensus.overallConsensus}%`,
   });
+  
+  // Save debate to Firebase for PES
+  await saveDebateToFirebase(debate);
   
   return debate;
 }
@@ -205,6 +209,9 @@ export async function conductDebateRound(debateId) {
     roundNumber,
     participantCount: round.responses.length,
   });
+  
+  // Update debate in Firebase
+  await saveDebateToFirebase(debate);
   
   return debate;
 }
@@ -325,6 +332,9 @@ export async function conductDebateVoting(debateId) {
     winner: debate.winner,
     voteCount: debate.votes.length,
   });
+  
+  // Update debate in Firebase with voting results
+  await saveDebateToFirebase(debate);
   
   return debate;
 }
@@ -519,5 +529,49 @@ export async function analyzeWinningAnswer(debateId) {
     winningAgent: debate.winner.agent,
   });
   
+  // Update debate in Firebase with winning analysis
+  await saveDebateToFirebase(debate);
+  
   return debate.winningAnalysis;
+}
+
+/**
+ * Save debate to Firebase debates collection for PES
+ * @param {object} debate - The debate object to save
+ */
+async function saveDebateToFirebase(debate) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      console.warn('[Debate] Firebase not initialized, skipping debate save');
+      return;
+    }
+    
+    // Prepare debate data for Firebase
+    const debateData = {
+      debate_id: debate.id,
+      question_id: debate.questionId,
+      question: debate.question,
+      participants: debate.participants,
+      initial_responses: debate.initialResponses,
+      divergences: debate.divergences,
+      consensus: debate.consensus,
+      rounds: debate.rounds,
+      current_round: debate.currentRound,
+      status: debate.status,
+      votes: debate.votes || [],
+      winner: debate.winner || null,
+      winning_analysis: debate.winningAnalysis || null,
+      created_at: debate.createdAt,
+      updated_at: debate.updatedAt,
+    };
+    
+    // Use debate ID as document ID for easy retrieval
+    await db.collection('debates').doc(debate.id).set(debateData, { merge: true });
+    
+    console.log(`[Debate] Saved debate ${debate.id} to Firebase`);
+  } catch (error) {
+    console.error('[Debate] Error saving debate to Firebase:', error);
+    // Don't throw - this is a non-critical operation
+  }
 }
