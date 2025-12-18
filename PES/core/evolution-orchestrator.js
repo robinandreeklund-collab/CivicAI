@@ -227,7 +227,16 @@ async function fetchHistoricalDebates(count) {
       // - winner: string like "deepseek" OR object like {agent: "deepseek"}
       const hasVoteResults = debate.vote_results && Array.isArray(debate.vote_results) && debate.vote_results.length > 0;
       const hasVotes = debate.votes && typeof debate.votes === 'object' && Object.keys(debate.votes).length > 0;
-      const hasWinner = debate.winner && (typeof debate.winner === 'string' || debate.winner.agent);
+      
+      // Check winner - can be string OR object with agent property
+      let hasWinner = false;
+      if (debate.winner) {
+        if (typeof debate.winner === 'string') {
+          hasWinner = debate.winner.length > 0;
+        } else if (typeof debate.winner === 'object' && debate.winner.agent) {
+          hasWinner = true;
+        }
+      }
       
       if ((!hasVoteResults && !hasVotes) || !hasWinner) {
         console.log(`  - REJECTED: no voting data (vote_results=${hasVoteResults}, votes=${hasVotes}) or winner=${hasWinner}`);
