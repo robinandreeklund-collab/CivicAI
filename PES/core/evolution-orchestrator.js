@@ -193,7 +193,8 @@ async function fetchHistoricalDebates(count) {
       console.log(`  - participants: ${JSON.stringify(debate.participants)}`);
       console.log(`  - has rounds: ${debate.rounds ? true : false}, count: ${debate.rounds ? debate.rounds.length : 0}`);
       console.log(`  - has vote_results: ${debate.vote_results ? true : false}, count: ${debate.vote_results ? debate.vote_results.length : 0}`);
-      console.log(`  - has winner: ${debate.winner ? true : false}, agent: ${debate.winner ? debate.winner.agent : 'none'}`);
+      console.log(`  - has votes: ${debate.votes ? true : false}, votes: ${JSON.stringify(debate.votes)}`);
+      console.log(`  - has winner: ${debate.winner ? true : false}, winner: ${typeof debate.winner === 'string' ? debate.winner : JSON.stringify(debate.winner)}`);
       
       // Must have completed status
       if (debate.status !== 'completed') {
@@ -219,12 +220,17 @@ async function fetchHistoricalDebates(count) {
         return false;
       }
       
-      // Must have voting data to analyze (vote_results field)
+      // Must have voting data to analyze
+      // Firebase structure has:
+      // - vote_results: array of {voter, voted_for, motivation}
+      // - votes: object/map like {deepseek: 3, gemini: 1, gpt: 1}
+      // - winner: string like "deepseek" OR object like {agent: "deepseek"}
       const hasVoteResults = debate.vote_results && Array.isArray(debate.vote_results) && debate.vote_results.length > 0;
-      const hasWinner = debate.winner && debate.winner.agent;
+      const hasVotes = debate.votes && typeof debate.votes === 'object' && Object.keys(debate.votes).length > 0;
+      const hasWinner = debate.winner && (typeof debate.winner === 'string' || debate.winner.agent);
       
-      if (!hasVoteResults || !hasWinner) {
-        console.log(`  - REJECTED: no vote_results or winner`);
+      if ((!hasVoteResults && !hasVotes) || !hasWinner) {
+        console.log(`  - REJECTED: no voting data (vote_results=${hasVoteResults}, votes=${hasVotes}) or winner=${hasWinner}`);
         return false;
       }
       
