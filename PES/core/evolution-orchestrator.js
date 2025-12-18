@@ -84,10 +84,12 @@ export async function runEvolutionLoop(config, progressCallback = null) {
     updateProgress(progress, 'generating_variants', 'Generating prompt variants...', progressCallback);
     
     const variantCount = config.variant_count || 5;
+    // PHASE 3: Pass category distribution for category-aware generation
     const variants = await generatePromptVariants(
       config.baseline_prompt,
       insights,
-      variantCount
+      variantCount,
+      categoryDistribution
     );
     
     results.variants_generated = variants.length;

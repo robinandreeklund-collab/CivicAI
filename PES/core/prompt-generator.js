@@ -6,15 +6,18 @@
  */
 
 import { generateWithOneseek } from '../services/oneseekService.js';
+// PHASE 3: Category-aware prompt generation
+import { getCategorySpecificGuidance } from './debate-classifier.js';
 
 /**
  * Generate prompt variants based on baseline and insights
  * @param {string} baselinePrompt - Current baseline prompt
  * @param {Object} insights - Aggregated insights from debate analysis
  * @param {number} count - Number of variants to generate (default: 5)
+ * @param {Array} categoryDistribution - PHASE 3: Category distribution for category-aware generation
  * @returns {Promise<Array>} Array of prompt variants
  */
-export async function generatePromptVariants(baselinePrompt, insights, count = 5) {
+export async function generatePromptVariants(baselinePrompt, insights, count = 5, categoryDistribution = null) {
   console.log(`[Prompt Generator] Generating ${count} prompt variants...`);
   
   if (!baselinePrompt || !insights) {
@@ -22,7 +25,7 @@ export async function generatePromptVariants(baselinePrompt, insights, count = 5
   }
   
   // Build generation prompt for LLM
-  const generationPrompt = buildGenerationPrompt(baselinePrompt, insights, count);
+  const generationPrompt = buildGenerationPrompt(baselinePrompt, insights, count, categoryDistribution);
   
   try {
     // Use ONESEEK to generate variants based on insights
@@ -86,9 +89,26 @@ export async function generatePromptVariants(baselinePrompt, insights, count = 5
  * @param {string} baselinePrompt - Current baseline prompt
  * @param {Object} insights - Aggregated insights
  * @param {number} count - Number of variants
+ * @param {Array} categoryDistribution - PHASE 3: Category distribution
  * @returns {string} Generation prompt
  */
-function buildGenerationPrompt(baselinePrompt, insights, count) {
+function buildGenerationPrompt(baselinePrompt, insights, count, categoryDistribution = null) {
+  // PHASE 3: Category-aware prompt generation
+  let categorySection = '';
+  if (categoryDistribution && categoryDistribution.length > 0) {
+    const dominantCategory = categoryDistribution[0];
+    const categoryGuidance = getCategorySpecificGuidance(dominantCategory.main);
+    
+    categorySection = `
+KATEGORI-DISTRIBUTION I DENNA EVOLUTION:
+${categoryDistribution.slice(0, 3).map(c => `- ${c.main}/${c.sub}: ${c.count} debatter (${c.percentage}%)`).join('\n')}
+
+DOMINERANDE KATEGORI: ${dominantCategory.main}/${dominantCategory.sub}
+KATEGORI-SPECIFIK VÄGLEDNING FÖR ${dominantCategory.main}:
+${categoryGuidance}
+`;
+  }
+
   return `Du är en expert på prompt engineering som optimerar ONESEEK AI:s debatt-prompt baserat på prestandadata.
 
 NUVARANDE BASELINE PROMPT:
@@ -100,7 +120,7 @@ PRESTANDAINSIKTER FRÅN ${insights.debates_analyzed} DEBATTER:
 - Genomsnittliga röster per debatt: ${insights.overall_metrics?.avg_votes_per_debate?.toFixed(1) || 'N/A'}
 - Vinstfrekvens: ${((insights.overall_metrics?.win_rate || 0) * 100).toFixed(1)}%
 - Genomsnittliga omnämnanden: ${insights.overall_metrics?.avg_mentions?.toFixed(1) || 'N/A'}
-
+${categorySection}
 Framgångsrika Mönster (vad som fungerade bra):
 ${insights.successful_patterns?.slice(0, 8).map((p, i) => `${i + 1}. ${p}`).join('\n') || 'Inga identifierade'}
 
@@ -121,6 +141,7 @@ Generera ${count} distinkta promptvariationer som:
 4. Betonar röst-vinnande egenskaper
 5. Behåller ONESEEK:s kärnidentitet (objektiv, balanserad, syntetiserande AI)
 6. Håller förändringar fokuserade och mätbara
+${categoryDistribution && categoryDistribution.length > 0 ? `7. ANPASSAR STIL TILL DOMINERANDE KATEGORI (${categoryDistribution[0].main}) enligt kategori-specifik vägledning ovan` : ''}
 
 KRAV:
 - Varje variant ska testa en specifik hypotes
