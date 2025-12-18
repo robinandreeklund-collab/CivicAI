@@ -753,25 +753,25 @@ Get complete results after evolution completes
 
 ## 🚀 Implementation Roadmap
 
-### Week 1: Core Infrastructure
+### : Core Infrastructure
 - [ ] Evolution Orchestrator skeleton
 - [ ] Debate Analyzer with LLM integration
 - [ ] Firebase schema updates
 - [ ] API endpoints (start, progress, results)
 
-### Week 2: Simulation Engine
+### : Simulation Engine
 - [ ] Historical Simulator (replay with variants)
 - [ ] Voting Simulator with LLM
 - [ ] Performance Aggregator
 - [ ] Winner selection logic
 
-### Week 3: Prompt Generation
+### : Prompt Generation
 - [ ] Prompt Variant Generator with LLM
 - [ ] Insight extraction from analysis
 - [ ] Template variable substitution
 - [ ] Validation and testing
 
-### Week 4: Frontend & Polish
+### : Frontend & Polish
 - [ ] Evolution dashboard UI
 - [ ] Real-time progress display
 - [ ] Results visualization
