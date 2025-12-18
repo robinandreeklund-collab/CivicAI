@@ -1,11 +1,11 @@
 /**
  * PES Phase 2: Debate Analyzer
  * 
- * Analyzes historical debates using LLM to identify success patterns
- * and generate insights for prompt improvement
+ * Analyzes historical debates to identify success patterns
+ * Based on actual voting data, motivations, and mentions from database
  */
 
-import { generateWithLLM } from '../services/llmService.js';
+import { generateWithOneseek } from '../services/oneseekService.js';
 
 /**
  * Analyze debate patterns from historical debates
@@ -90,14 +90,26 @@ Provide structured analysis in JSON format:
 }`;
 
   try {
-    const analysisResponse = await generateWithLLM(analysisPrompt, {
-      model: 'gpt-4-turbo-preview',
+    // Use ONESEEK to analyze based on historical voting patterns
+    const analysisResponse = await generateWithOneseek(analysisPrompt, {
       temperature: 0.3,
-      max_tokens: 1000,
-      response_format: { type: 'json_object' }
+      max_tokens: 1000
     });
     
-    const analysis = JSON.parse(analysisResponse);
+    // Parse JSON from ONESEEK response
+    let analysis;
+    try {
+      // Try to extract JSON from response
+      const jsonMatch = analysisResponse.response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        analysis = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('No JSON found in response');
+      }
+    } catch (parseError) {
+      console.warn('[Debate Analyzer] Could not parse JSON, using heuristic analysis');
+      analysis = buildHeuristicAnalysis(debate, votesReceived, mentions);
+    }
     
     return {
       debate_id: debate.id,
@@ -194,14 +206,25 @@ Return JSON:
 }`;
 
   try {
-    const metaAnalysis = await generateWithLLM(metaPrompt, {
-      model: 'gpt-4-turbo-preview',
+    // Use ONESEEK for meta-analysis based on aggregated patterns
+    const metaAnalysis = await generateWithOneseek(metaPrompt, {
       temperature: 0.4,
-      max_tokens: 1500,
-      response_format: { type: 'json_object' }
+      max_tokens: 1500
     });
     
-    const insights = JSON.parse(metaAnalysis);
+    // Parse JSON from ONESEEK response
+    let insights;
+    try {
+      const jsonMatch = metaAnalysis.response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        insights = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('No JSON found in response');
+      }
+    } catch (parseError) {
+      console.warn('[Debate Analyzer] Could not parse meta-analysis JSON, using heuristic aggregation');
+      insights = buildHeuristicInsights(patterns);
+    }
     
     return {
       debates_analyzed: totalDebates,
@@ -366,6 +389,96 @@ function countFrequency(items) {
     }
   });
   return freq;
+}
+
+/**
+ * Build heuristic analysis when ONESEEK response can't be parsed
+ * @param {Object} debate - Debate object
+ * @param {Array} votesReceived - Votes for ONESEEK
+ * @param {number} mentions - Mention count
+ * @returns {Object} Heuristic analysis
+ */
+function buildHeuristicAnalysis(debate, votesReceived, mentions) {
+  const effectiveness = Math.min(10, (votesReceived.length * 2) + mentions);
+  
+  // Extract patterns from vote motivations
+  const successful = [];
+  const unsuccessful = [];
+  
+  votesReceived.forEach(vote => {
+    if (vote.motivation) {
+      const motivation = vote.motivation.toLowerCase();
+      if (motivation.includes('clear') || motivation.includes('struktur')) {
+        successful.push('Clear structure and organization');
+      }
+      if (motivation.includes('data') || motivation.includes('evidens')) {
+        successful.push('Data-driven analysis');
+      }
+      if (motivation.includes('balans') || motivation.includes('objektiv')) {
+        successful.push('Balanced and objective approach');
+      }
+      if (motivation.includes('syntes')) {
+        successful.push('Good synthesis of perspectives');
+      }
+    }
+  });
+  
+  // Identify weaknesses
+  if (effectiveness < 5) {
+    unsuccessful.push('Low vote count indicates room for improvement');
+  }
+  if (mentions === 0) {
+    unsuccessful.push('Not mentioned by other AIs');
+  }
+  
+  return {
+    effectiveness_score: effectiveness,
+    successful_elements: [...new Set(successful)],
+    unsuccessful_elements: [...new Set(unsuccessful)],
+    synthesis_approach: 'Based on historical voting patterns',
+    voter_preferences: votesReceived.map(v => v.category).join(', '),
+    improvement_suggestions: [
+      'Analyze top-voted responses for patterns',
+      'Emphasize elements that received votes',
+      'Study motivations from voters'
+    ]
+  };
+}
+
+/**
+ * Build heuristic insights from patterns
+ * @param {Array} patterns - Pattern array
+ * @returns {Object} Heuristic insights
+ */
+function buildHeuristicInsights(patterns) {
+  // Aggregate successful elements
+  const allSuccessful = patterns.flatMap(p => p.analysis?.successful_elements || []);
+  const successfulFreq = countFrequency(allSuccessful);
+  
+  const allUnsuccessful = patterns.flatMap(p => p.analysis?.unsuccessful_elements || []);
+  const unsuccessfulFreq = countFrequency(allUnsuccessful);
+  
+  return {
+    successful_patterns: Object.entries(successfulFreq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([el]) => el),
+    weaknesses: Object.entries(unsuccessfulFreq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([el]) => el),
+    winning_styles: [
+      'Evidence-based synthesis',
+      'Clear structure',
+      'Balanced perspective'
+    ],
+    strategic_recommendations: [
+      'Maintain successful patterns',
+      'Address identified weaknesses',
+      'Study top-performing debates'
+    ],
+    question_type_insights: {}
+  };
 }
 
 export default {

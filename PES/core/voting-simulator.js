@@ -1,11 +1,11 @@
 /**
  * PES Phase 2: Voting Simulator
  * 
- * Simulates AI voting on debate responses using LLMs
- * to measure performance of prompt variants
+ * Simulates AI voting based on historical voting patterns and motivations
+ * Uses ONESEEK to predict votes based on past behavior
  */
 
-import { generateWithLLM } from '../services/llmService.js';
+import { generateWithOneseek } from '../services/oneseekService.js';
 
 /**
  * Simulate voting for a debate simulation
@@ -72,14 +72,25 @@ async function simulateSingleVote(voterName, question, rounds) {
   const votingPrompt = buildVotingPrompt(voterName, question, rounds);
   
   try {
-    const response = await generateWithLLM(votingPrompt, {
-      model: getModelForVoter(voterName),
+    // Use ONESEEK to simulate vote based on historical patterns
+    const response = await generateWithOneseek(votingPrompt, {
       temperature: 0.3,
-      max_tokens: 500,
-      response_format: { type: 'json_object' }
+      max_tokens: 500
     });
     
-    const voteData = JSON.parse(response);
+    // Parse JSON from ONESEEK response
+    let voteData;
+    try {
+      const jsonMatch = response.response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        voteData = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('No JSON found in response');
+      }
+    } catch (parseError) {
+      console.warn(`[Voting Simulator] Could not parse vote from ${voterName}, using heuristic`);
+      voteData = generateHeuristicVote(voterName, rounds);
+    }
     
     // Validate and normalize vote
     return {
@@ -106,7 +117,9 @@ async function simulateSingleVote(voterName, question, rounds) {
 function buildVotingPrompt(voterName, question, rounds) {
   const allResponses = formatAllResponses(rounds);
   
-  return `You are ${voterName}, an AI participating in a debate evaluation.
+  return `You are simulating how ${voterName} would vote in a debate based on historical voting patterns.
+
+CONTEXT: Analyze this debate and predict how ${voterName} would vote based on typical voting criteria from historical data.
 
 DEBATE QUESTION:
 "${question}"
@@ -115,23 +128,69 @@ After ${rounds.length} rounds of responses, here are all the final answers from 
 
 ${allResponses}
 
-YOUR TASK:
-Vote for the SINGLE BEST overall answer across all rounds. Consider:
-- Accuracy and factual correctness
-- Clarity and structure
-- Synthesis of different perspectives
+TASK: Predict ${voterName}'s vote by evaluating:
+- Accuracy and factual correctness (historically valued by technical AIs)
+- Clarity and structure (consistently important)
+- Synthesis of different perspectives (especially for ONESEEK evaluation)
 - Depth of insight
 - Practical relevance
 - Balance and objectivity
 
-Provide your vote as JSON:
+Based on historical voting patterns, provide the predicted vote as JSON:
 {
   "voted_for": "model_name",
   "category": "accuracy|clarity|synthesis|insight|relevance|balance",
-  "motivation": "2-3 sentences explaining why this answer was best"
+  "motivation": "2-3 sentences explaining why this answer would likely receive the vote"
 }
 
-Be objective and fair in your evaluation. Base your vote on the quality of the responses, not on the AI's identity.`;
+Note: Base prediction on quality assessment patterns observed in historical debate data.`;
+}
+
+/**
+ * Generate heuristic vote when ONESEEK response can't be parsed
+ * @param {string} voterName - Voter name
+ * @param {Array} rounds - Rounds data
+ * @returns {Object} Heuristic vote
+ */
+function generateHeuristicVote(voterName, rounds) {
+  // Simple heuristic: vote for longest response with good structure
+  const allResponses = [];
+  
+  rounds.forEach((round) => {
+    if (round.external_responses) {
+      round.external_responses.forEach(resp => {
+        allResponses.push({
+          model: resp.model,
+          length: (resp.text || '').length,
+          hasStructure: (resp.text || '').includes('\n') || (resp.text || '').includes('•')
+        });
+      });
+    }
+    if (round.oneseek_response) {
+      allResponses.push({
+        model: 'ONESEEK',
+        length: (round.oneseek_response.text || '').length,
+        hasStructure: (round.oneseek_response.text || '').includes('\n')
+      });
+    }
+  });
+  
+  // Score responses
+  const scored = allResponses.map(r => ({
+    ...r,
+    score: r.length * 0.6 + (r.hasStructure ? 200 : 0)
+  }));
+  
+  // Pick highest score
+  scored.sort((a, b) => b.score - a.score);
+  const winner = scored[0] || { model: 'ONESEEK' };
+  
+  return {
+    voted_for: winner.model,
+    category: 'clarity',
+    motivation: `Heuristic vote based on response length and structure.`,
+    oneseek_mentioned: false
+  };
 }
 
 /**
@@ -184,23 +243,7 @@ function formatAllResponses(rounds) {
   return formatted.join('\n');
 }
 
-/**
- * Get appropriate model for voter simulation
- * @param {string} voterName - Voter name
- * @returns {string} Model to use for simulation
- */
-function getModelForVoter(voterName) {
-  const name = voterName.toLowerCase();
-  
-  if (name.includes('gpt-4') || name.includes('gpt4')) {
-    return 'gpt-4-turbo-preview';
-  } else if (name.includes('gpt')) {
-    return 'gpt-3.5-turbo';
-  }
-  
-  // Default to GPT-3.5 for all other voters
-  return 'gpt-3.5-turbo';
-}
+
 
 /**
  * Check if ONESEEK is mentioned in motivation

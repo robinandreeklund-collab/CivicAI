@@ -1,11 +1,11 @@
 /**
  * PES Phase 2: Prompt Variant Generator
  * 
- * Generates intelligent prompt variations using LLM based on
+ * Generates intelligent prompt variations using ONESEEK based on
  * insights from debate analysis
  */
 
-import { generateWithLLM } from '../services/llmService.js';
+import { generateWithOneseek } from '../services/oneseekService.js';
 
 /**
  * Generate prompt variants based on baseline and insights
@@ -25,14 +25,25 @@ export async function generatePromptVariants(baselinePrompt, insights, count = 5
   const generationPrompt = buildGenerationPrompt(baselinePrompt, insights, count);
   
   try {
-    const response = await generateWithLLM(generationPrompt, {
-      model: 'gpt-4-turbo-preview',
+    // Use ONESEEK to generate variants based on insights
+    const response = await generateWithOneseek(generationPrompt, {
       temperature: 0.7,
-      max_tokens: 4000,
-      response_format: { type: 'json_object' }
+      max_tokens: 4000
     });
     
-    const parsed = JSON.parse(response);
+    // Parse JSON from ONESEEK response
+    let parsed;
+    try {
+      const jsonMatch = response.response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('No JSON found in response');
+      }
+    } catch (parseError) {
+      console.warn('[Prompt Generator] Could not parse JSON, using rule-based generation');
+      return generateFallbackVariants(baselinePrompt, insights, count);
+    }
     const rawVariants = parsed.variants || [];
     
     if (!Array.isArray(rawVariants) || rawVariants.length === 0) {

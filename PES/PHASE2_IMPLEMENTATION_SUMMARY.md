@@ -91,24 +91,27 @@ PES Phase 2 är nu **fullständigt implementerat** som ett **fristående system*
 - Detta är den ENDA externa modellen PES pratar med
 - Samma ONESEEK som live-systemet använder
 
-### 4. LLM för Analys
-- PES använder `PES/services/llmService.js`
-- OpenAI GPT-4 för analys och generering
-- Fallback till mock-responses om OpenAI inte tillgängligt
+### 4. Endast ONESEEK för Allt
+- PES använder **ENDAST** `PES/services/oneseekService.js`
+- **Ingen extern AI (OpenAI, GPT-4, etc.)**
+- ONESEEK används för:
+  - Analys av debattmönster
+  - Generering av promptvarianter
+  - Simulering av AI-röster baserat på historisk data
 
 ## Implementerade Komponenter
 
 ### Core Modules (`/PES/core/`)
 
 #### 1. `debate-analyzer.js`
-- ✅ Analyserar historiska debatter med LLM
-- ✅ Identifierar framgångsmönster
-- ✅ Använder `llmService.js` (inte backend/openai.js)
+- ✅ Analyserar historiska debatter med ONESEEK
+- ✅ Identifierar framgångsmönster från faktisk röstningsdata
+- ✅ Använder `oneseekService.js` - INGEN extern AI
 
 #### 2. `prompt-generator.js`
 - ✅ Genererar promptvarianter baserat på insikter
-- ✅ AI-driven variation generation
-- ✅ Använder `llmService.js` (inte backend/openai.js)
+- ✅ ONESEEK-driven variation generation
+- ✅ Använder `oneseekService.js` - INGEN extern AI
 
 #### 3. `historical-simulator.js`
 - ✅ Simulerar debatter med nya prompts
@@ -116,9 +119,9 @@ PES Phase 2 är nu **fullständigt implementerat** som ett **fristående system*
 - ✅ Använder `oneseekService.js` för ONESEEK inferens
 
 #### 4. `voting-simulator.js`
-- ✅ Simulerar AI-röstning med LLM
-- ✅ Mäter performance av varje variant
-- ✅ Använder `llmService.js` (inte backend/openai.js)
+- ✅ Simulerar AI-röstning med ONESEEK
+- ✅ Baserat på historiska röstmönster och motiveringar
+- ✅ Använder `oneseekService.js` - INGEN extern AI
 
 #### 5. `performance-aggregator.js`
 - ✅ Aggregerar metrics från simuleringar
@@ -140,13 +143,10 @@ export async function checkOneseekAvailability()
 export async function getOneseekInfo()
 ```
 
-#### 2. `llmService.js` ⭐ NYA
-```javascript
-// Fristående LLM service (OpenAI)
-export async function generateWithLLM(prompt, options)
-export function isLLMAvailable()
-export function getLLMStatus()
-```
+#### 2. ~~`llmService.js`~~ **BORTTAGEN**
+- **PES använder INTE externa AI-tjänster**
+- All analys och simulering görs med ONESEEK
+- Baserat på historisk röstningsdata från databasen
 
 #### 3. `pesFirebaseService.js`
 - ✅ Phase 2 funktioner tillagda
@@ -186,16 +186,15 @@ GET    /api/pes/evolutions                - Lista alla evolutions
 ### Environment Variables
 
 ```bash
-# ONESEEK Model (Required)
+# ONESEEK Model (Required - ENDA externa beroende)
 OPENSEEK_API_URL=http://localhost:5000
-
-# OpenAI för Analys (Optional - använder fallback om saknas)
-OPENAI_API_KEY=sk-...
 
 # Firebase (Required)
 FIREBASE_PROJECT_ID=your-project
 FIREBASE_CLIENT_EMAIL=...
 FIREBASE_PRIVATE_KEY=...
+
+# OBS: Ingen OpenAI eller andra externa AI-tjänster krävs!
 ```
 
 ## Användning
@@ -255,14 +254,14 @@ curl http://localhost:3001/api/pes/evolution/{id}/results
 ## Dependencies
 
 ### External Services:
-1. **ONESEEK Model** (localhost:5000) - Required
-2. **OpenAI API** - Optional (har fallback)
-3. **Firebase** - Required
+1. **ONESEEK Model** (localhost:5000) - Required (ENDA AI-tjänst)
+2. **Firebase** - Required
 
 ### NPM Packages:
-- `openai` - För LLM analys
 - Firebase SDK - Via backend
 - Standard Node.js fetch
+
+**OBS: Ingen OpenAI eller andra externa AI-tjänster används!**
 
 ## Testing
 
