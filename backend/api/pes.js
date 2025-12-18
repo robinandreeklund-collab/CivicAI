@@ -345,6 +345,20 @@ router.post('/evolution/start', async (req, res) => {
       auto_iterate: auto_iterate || false
     };
     
+    // Save initial evolution record to Firebase
+    await saveEvolution({
+      evolution_id: evolutionId,
+      timestamp: new Date().toISOString(),
+      status: 'running',
+      config: config,
+      debates_used: [],
+      variants_tested: [],
+      winner: null,
+      duration_seconds: 0
+    });
+    
+    console.log(`[PES API] Created evolution record ${evolutionId}`);
+    
     // Run in background and save to Firebase
     runEvolutionLoop(config, async (progress) => {
       // Save progress updates to Firebase
