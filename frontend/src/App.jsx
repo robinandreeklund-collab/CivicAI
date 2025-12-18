@@ -25,6 +25,8 @@ import MessageBuilderPage from './pages/MessageBuilderPage';
 import ApiAdminPage from './pages/ApiAdminPage';
 import ApiAdminPageNew from './pages/ApiAdminPageNew';
 import SevenBZeroPage from './pages/SevenBZeroPage';
+import PESEvolutionPage from './pages/PESEvolutionPage';
+import PESEvolutionResultsPage from './pages/PESEvolutionResultsPage';
 import DemoIndex from './designDemos';
 
 /**
@@ -143,6 +145,8 @@ function AppContent() {
           <Route path="/design-demos" element={<DemoIndex />} />
           <Route path="/chat-v2" element={<ChatV2Page />} />
           <Route path="/7b-zero" element={<SevenBZeroPage />} />
+          <Route path="/pes/evolution" element={<PESEvolutionPage />} />
+          <Route path="/pes/evolution/:evolutionId/results" element={<PESEvolutionResultsPage />} />
         </Routes>
       </div>
     </div>
