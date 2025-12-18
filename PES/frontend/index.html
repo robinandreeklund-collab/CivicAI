@@ -532,19 +532,19 @@
                 document.getElementById('statistics').innerHTML = `
                     <div class="metric">
                         <span class="label">Totalt antal prompts</span>
-                        <span class="value">${prompts.total}</span>
+                        <span class="value">${prompts.total || 0}</span>
                     </div>
                     <div class="metric">
                         <span class="label">Totalt antal simuleringar</span>
-                        <span class="value">${simulations.total}</span>
+                        <span class="value">${simulations.total || 0}</span>
                     </div>
                     <div class="metric">
                         <span class="label">Tillgängliga debatter</span>
-                        <span class="value">${debates.total}</span>
+                        <span class="value">${debates.total || 0}</span>
                     </div>
                     <div class="metric">
                         <span class="label">Aktiva prompts</span>
-                        <span class="value">${prompts.prompts.filter(p => p.status === 'active').length}</span>
+                        <span class="value">${(prompts.prompts && prompts.prompts.filter(p => p.status === 'active').length) || 0}</span>
                     </div>
                 `;
 
@@ -675,9 +675,15 @@
         async function loadDebates() {
             try {
                 const response = await fetch(`${API_BASE}/debates?limit=20`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const data = await response.json();
+                console.log('Debates data received:', data);
 
-                if (data.debates.length === 0) {
+                if (!data.debates || data.debates.length === 0) {
                     document.getElementById('debates-list').innerHTML = '<p>Inga debatter hittades. Kör några live-debatter för att generera träningsdata.</p>';
                     return;
                 }
@@ -698,12 +704,12 @@
                             <tbody>
                                 ${data.debates.map(d => `
                                     <tr>
-                                        <td>${d.question.substring(0, 60)}...</td>
+                                        <td>${d.question ? d.question.substring(0, 60) + '...' : 'N/A'}</td>
                                         <td>${d.participants?.length || 0}</td>
-                                        <td>${d.current_round}</td>
-                                        <td><span class="badge ${d.status === 'completed' ? 'success' : 'info'}">${d.status}</span></td>
-                                        <td>${d.winner?.agent || 'N/A'}</td>
-                                        <td>${new Date(d.created_at).toLocaleDateString('sv-SE')}</td>
+                                        <td>${d.current_round || d.rounds?.length || 0}</td>
+                                        <td><span class="badge ${d.status === 'completed' ? 'success' : 'info'}">${d.status || 'unknown'}</span></td>
+                                        <td>${d.winner?.agent || d.winner || 'N/A'}</td>
+                                        <td>${d.created_at ? new Date(d.created_at).toLocaleDateString('sv-SE') : 'N/A'}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
