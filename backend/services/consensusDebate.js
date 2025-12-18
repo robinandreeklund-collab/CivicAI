@@ -27,7 +27,7 @@ const debates = new Map();
 const DEBATE_CONFIG = {
   maxAgents: 5,
   maxRoundsPerAgent: 3, // Changed from 5 to 3
-  divergenceThreshold: 60, // Percentage - if consensus < 40%, trigger debate
+  divergenceThreshold: 70, // Percentage - if consensus < 70%, trigger debate (lowered from 60 for easier testing)
   severityThreshold: 2, // Number of high-severity divergences to trigger debate
 };
 
@@ -544,11 +544,15 @@ export async function analyzeWinningAnswer(debateId) {
  */
 async function saveDebateToFirebase(debate) {
   try {
+    console.log(`[Debate] Attempting to save debate ${debate.id} to Firebase...`);
     const db = await getDb();
     if (!db) {
-      console.warn('[Debate] Firebase not initialized, skipping debate save');
+      console.warn('[Debate] ⚠️  Firebase not initialized, skipping debate save');
+      console.warn('[Debate] Please check Firebase credentials in .env file');
       return;
     }
+    
+    console.log('[Debate] ✓ Firebase connection established');
     
     // Prepare debate data for Firebase
     const debateData = {
@@ -569,12 +573,18 @@ async function saveDebateToFirebase(debate) {
       updated_at: debate.updatedAt,
     };
     
+    console.log(`[Debate] Writing to collection: debates, doc: ${debate.id}`);
+    
     // Use debate ID as document ID for easy retrieval
     await db.collection('debates').doc(debate.id).set(debateData, { merge: true });
     
-    console.log(`[Debate] Saved debate ${debate.id} to Firebase`);
+    console.log(`[Debate] ✅ Successfully saved debate ${debate.id} to Firebase debates collection`);
+    console.log(`[Debate] Question: "${debate.question.substring(0, 50)}..."`);
+    console.log(`[Debate] Participants: ${debate.participants.join(', ')}`);
   } catch (error) {
-    console.error('[Debate] Error saving debate to Firebase:', error);
+    console.error('[Debate] ❌ Error saving debate to Firebase:', error);
+    console.error('[Debate] Error details:', error.message);
+    console.error('[Debate] Stack trace:', error.stack);
     // Don't throw - this is a non-critical operation
   }
 }

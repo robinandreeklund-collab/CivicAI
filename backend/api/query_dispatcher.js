@@ -1023,6 +1023,12 @@ router.post('/query', async (req, res) => {
     // Check if consensus debate should be triggered
     const debateTrigger = shouldTriggerDebate(modelSynthesis);
     console.log('🎯 Debate trigger check:', debateTrigger ? 'YES - High divergence detected' : 'NO - Consensus acceptable');
+    console.log('📊 Consensus metrics:', {
+      overallConsensus: modelSynthesis.consensus?.overallConsensus,
+      threshold: 70,
+      willTrigger: modelSynthesis.consensus?.overallConsensus < 70,
+      highSeverityCount: modelSynthesis.divergences?.severityCounts?.high || 0
+    });
 
     // Automatically initiate debate if triggered
     let debateInfo = null;
@@ -1032,6 +1038,8 @@ router.post('/query', async (req, res) => {
         const agents = responses
           .filter(r => !r.metadata?.error)
           .map(r => r.agent);
+        
+        console.log(`🎭 Debate participants: ${agents.join(', ')}`);
         
         const debate = await initiateDebate(
           firebaseDocId || 'temp-' + Date.now(),
@@ -1048,11 +1056,15 @@ router.post('/query', async (req, res) => {
           createdAt: debate.createdAt
         };
         
-        console.log(`✅ Debate initiated and saved to Firebase: ${debate.id}`);
+        console.log(`✅ Debate initiated successfully: ${debate.id}`);
+        console.log(`✅ Debate should now be in Firebase debates collection`);
       } catch (error) {
         console.error('❌ Failed to auto-initiate debate:', error);
+        console.error('❌ Error details:', error.message);
         // Don't fail the request if debate initiation fails
       }
+    } else {
+      console.log('ℹ️  No debate triggered - consensus is acceptable or insufficient divergence');
     }
 
     // NEW: Change Detection - Analyze each response for changes
