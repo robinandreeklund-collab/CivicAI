@@ -332,8 +332,12 @@ router.post('/evolution/start', async (req, res) => {
     const { runEvolutionLoop } = await import('../../PES/core/evolution-orchestrator.js');
     const { saveEvolution } = await import('../../PES/services/pesFirebaseService.js');
     
+    // Generate evolution ID first
+    const evolutionId = `evo_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    
     // Start evolution loop asynchronously
     const config = {
+      evolution_id: evolutionId,
       baseline_prompt,
       baseline_version: baseline_version || 'v1.0.0',
       debate_count: debate_count || 15,
@@ -365,7 +369,7 @@ router.post('/evolution/start', async (req, res) => {
         // Save failed status
         try {
           const { updateEvolution } = await import('../../PES/services/pesFirebaseService.js');
-          await updateEvolution(config.evolution_id, {
+          await updateEvolution(evolutionId, {
             status: 'failed',
             error: error.message
           });
@@ -373,9 +377,6 @@ router.post('/evolution/start', async (req, res) => {
           console.error('[PES API] Error saving failed status:', err);
         }
       });
-    
-    // Return immediately with evolution ID
-    const evolutionId = `evo_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     
     res.status(202).json({
       evolution_id: evolutionId,

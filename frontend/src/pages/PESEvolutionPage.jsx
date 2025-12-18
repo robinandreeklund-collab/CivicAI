@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Alert, AlertDescription } from '../components/ui/alert';
@@ -9,10 +10,12 @@ import { Play, RefreshCw, CheckCircle, XCircle, Clock } from 'lucide-react';
  * Main page for managing and monitoring PES Phase 2 evolution loops
  */
 const PESEvolutionPage = () => {
+  const navigate = useNavigate();
   const [evolutions, setEvolutions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
   const [showStartForm, setShowStartForm] = useState(false);
   
   // Form state
@@ -72,7 +75,8 @@ const PESEvolutionPage = () => {
         setShowStartForm(false);
         loadEvolutions();
         // Show success message
-        alert(`Evolution started! ID: ${data.evolution_id}\n\nEstimated time: ${data.estimated_time_minutes} minutes`);
+        setSuccess(`Evolution started! ID: ${data.evolution_id}. Estimated time: ${data.estimated_time_minutes} minutes`);
+        setTimeout(() => setSuccess(null), 10000); // Clear after 10 seconds
       } else {
         setError(data.error || 'Failed to start evolution');
       }
@@ -134,6 +138,13 @@ const PESEvolutionPage = () => {
       {error && (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Success Alert */}
+      {success && (
+        <Alert className="mb-4 bg-green-50 border-green-200">
+          <AlertDescription className="text-green-800">{success}</AlertDescription>
         </Alert>
       )}
 
@@ -331,7 +342,7 @@ const PESEvolutionPage = () => {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => window.location.href = `/pes/evolution/${evolution.evolution_id}/progress`}
+                          onClick={() => navigate(`/pes/evolution/${evolution.evolution_id}/progress`)}
                         >
                           View Progress
                         </Button>
@@ -340,7 +351,7 @@ const PESEvolutionPage = () => {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => window.location.href = `/pes/evolution/${evolution.evolution_id}/results`}
+                          onClick={() => navigate(`/pes/evolution/${evolution.evolution_id}/results`)}
                         >
                           View Results
                         </Button>

@@ -24,7 +24,8 @@ import { getDebates } from '../services/pesFirebaseService.js';
  * @returns {Promise<Object>} Evolution results
  */
 export async function runEvolutionLoop(config, progressCallback = null) {
-  const evolutionId = generateEvolutionId();
+  // Use provided evolution_id or generate new one
+  const evolutionId = config.evolution_id || generateEvolutionId();
   
   console.log(`[Evolution Orchestrator] Starting evolution loop ${evolutionId}`);
   
