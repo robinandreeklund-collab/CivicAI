@@ -70,7 +70,7 @@ ${votesReceived.length > 0 ? `Vote Details:\n${votesReceived.map(v => `- ${v.vot
 
 MENTIONS BY OTHER AIs: ${mentions}
 
-DEBATE OUTCOME: ${debate.winner?.model || 'Unknown'} won
+DEBATE OUTCOME: ${debate.winner?.agent || debate.winner?.model || 'Unknown'} won
 
 Analyze ONESEEK's performance and identify:
 1. What specific approaches or phrases made ONESEEK's responses effective or ineffective?
@@ -118,7 +118,7 @@ Provide structured analysis in JSON format:
       oneseek_responses_count: oneseekResponses.length,
       votes_received: votesReceived.length,
       mentions_count: mentions,
-      won: debate.winner?.model === 'ONESEEK',
+      won: (debate.winner?.agent || debate.winner?.model || '').toLowerCase() === 'oneseek',
       analysis: analysis,
       raw_data: {
         votes: votesReceived,
@@ -135,7 +135,7 @@ Provide structured analysis in JSON format:
       oneseek_responses_count: oneseekResponses.length,
       votes_received: votesReceived.length,
       mentions_count: mentions,
-      won: debate.winner?.model === 'ONESEEK',
+      won: (debate.winner?.agent || debate.winner?.model || '').toLowerCase() === 'oneseek',
       analysis: {
         effectiveness_score: votesReceived.length * 2, // Basic score
         successful_elements: [],
@@ -306,14 +306,15 @@ function extractOneseekResponses(debate) {
  * @returns {Array} Votes for ONESEEK
  */
 function extractVotesForOneseek(debate) {
-  if (!debate.votes || !Array.isArray(debate.votes)) {
+  const voteArray = debate.vote_results || debate.votes;
+  if (!voteArray || !Array.isArray(voteArray)) {
     return [];
   }
   
-  return debate.votes.filter(vote => 
+  return voteArray.filter(vote => 
+    vote.voted_for === 'oneseek' || 
     vote.voted_for === 'ONESEEK' || 
-    vote.voted_for?.includes('oneseek') ||
-    vote.voted_for?.includes('ONESEEK')
+    vote.voted_for?.toLowerCase().includes('oneseek')
   );
 }
 
@@ -330,8 +331,9 @@ function countOneseekMentions(debate) {
     debate.rounds.forEach(round => {
       if (round.responses && Array.isArray(round.responses)) {
         round.responses.forEach(resp => {
-          if (resp.model !== 'ONESEEK') {
-            const text = (resp.text || resp.response || '').toLowerCase();
+          const agent = (resp.agent || resp.model || '').toLowerCase();
+          if (agent !== 'oneseek') {
+            const text = (resp.response || resp.text || '').toLowerCase();
             if (text.includes('oneseek')) {
               mentions++;
             }
@@ -342,10 +344,12 @@ function countOneseekMentions(debate) {
   }
   
   // Check in vote motivations
-  if (debate.votes && Array.isArray(debate.votes)) {
-    debate.votes.forEach(vote => {
+  const voteArray = debate.vote_results || debate.votes;
+  if (voteArray && Array.isArray(voteArray)) {
+    voteArray.forEach(vote => {
       const motivation = (vote.motivation || '').toLowerCase();
-      if (motivation.includes('oneseek') && vote.voted_for !== 'ONESEEK') {
+      const votedFor = (vote.voted_for || '').toLowerCase();
+      if (motivation.includes('oneseek') && votedFor !== 'oneseek') {
         mentions++;
       }
     });

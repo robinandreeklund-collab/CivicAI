@@ -185,27 +185,34 @@ async function fetchHistoricalDebates(count) {
     });
     
     // Filter debates that have valid structure with responses
-    // Note: Debates don't contain ONESEEK as participant - they contain external AI agents
-    // PES analyzes these historical debates to understand voting patterns and response quality
+    // ONESEEK participates in debates - filter for debates where ONESEEK is a participant
     const validDebates = debates.filter(debate => {
       // Must have completed status
       if (debate.status !== 'completed') {
         return false;
       }
       
-      // Must have rounds with responses OR initial_responses
-      const hasRounds = debate.rounds && Array.isArray(debate.rounds) && debate.rounds.length > 0;
-      const hasInitialResponses = debate.initial_responses && Array.isArray(debate.initial_responses) && debate.initial_responses.length > 0;
+      // Must have ONESEEK as participant
+      const hasOneseek = debate.participants && 
+                         Array.isArray(debate.participants) && 
+                         debate.participants.some(p => p && p.toLowerCase() === 'oneseek');
       
-      if (!hasRounds && !hasInitialResponses) {
+      if (!hasOneseek) {
         return false;
       }
       
-      // Must have voting data to analyze
-      const hasVotes = debate.votes && Array.isArray(debate.votes) && debate.votes.length > 0;
+      // Must have rounds with responses
+      const hasRounds = debate.rounds && Array.isArray(debate.rounds) && debate.rounds.length > 0;
+      
+      if (!hasRounds) {
+        return false;
+      }
+      
+      // Must have voting data to analyze (vote_results field)
+      const hasVoteResults = debate.vote_results && Array.isArray(debate.vote_results) && debate.vote_results.length > 0;
       const hasWinner = debate.winner && debate.winner.agent;
       
-      return hasVotes || hasWinner;
+      return hasVoteResults && hasWinner;
     });
     
     console.log(`[Evolution Orchestrator] Found ${validDebates.length} valid debates with ONESEEK participation`);

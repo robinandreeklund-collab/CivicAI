@@ -49,6 +49,30 @@ const PESEvolutionPage = () => {
     }
   };
 
+  const deleteEvolution = async (evolutionId) => {
+    if (!confirm(`Are you sure you want to delete evolution ${evolutionId}?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/pes/evolution/${evolutionId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        setSuccess(`Evolution ${evolutionId} deleted successfully`);
+        setTimeout(() => setSuccess(null), 5000);
+        loadEvolutions();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to delete evolution');
+      }
+    } catch (err) {
+      console.error('Error deleting evolution:', err);
+      setError('Failed to delete evolution');
+    }
+  };
+
   const startEvolution = async () => {
     if (!config.baseline_prompt.trim()) {
       setError('Baseline prompt is required');
@@ -348,6 +372,13 @@ const PESEvolutionPage = () => {
                           View Results
                         </button>
                       )}
+                      <button
+                        className="px-3 py-1 text-sm border border-red-300 hover:bg-red-50 rounded text-red-700 bg-white"
+                        onClick={() => deleteEvolution(evolution.evolution_id)}
+                        title="Delete this evolution run"
+                      >
+                        🗑️ Delete
+                      </button>
                     </div>
                   </div>
                 </div>

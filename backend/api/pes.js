@@ -532,6 +532,32 @@ router.get('/evolutions', async (req, res) => {
 });
 
 /**
+ * DELETE /api/pes/evolution/:id
+ * Delete an evolution run
+ */
+router.delete('/evolution/:id', async (req, res) => {
+  try {
+    const evolutionId = req.params.id;
+    
+    const { deleteEvolution } = await import('../../PES/services/pesFirebaseService.js');
+    await deleteEvolution(evolutionId);
+    
+    res.json({
+      success: true,
+      evolution_id: evolutionId,
+      message: 'Evolution run deleted successfully'
+    });
+    
+  } catch (error) {
+    console.error('[PES API] Error deleting evolution:', error);
+    res.status(500).json({
+      error: 'Failed to delete evolution',
+      message: error.message
+    });
+  }
+});
+
+/**
  * Calculate estimated remaining time
  * @param {Object} progress - Progress object
  * @returns {number} Estimated minutes remaining

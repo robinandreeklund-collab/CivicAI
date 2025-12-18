@@ -482,6 +482,27 @@ export async function getAllEvolutions(options = {}) {
 }
 
 /**
+ * Delete evolution by ID
+ * @param {string} evolutionId - Evolution ID to delete
+ * @returns {Promise<void>}
+ */
+export async function deleteEvolution(evolutionId) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('Firebase not initialized');
+    }
+    
+    await db.collection('evolutions').doc(evolutionId).delete();
+    
+    console.log(`[PES Phase 2] Deleted evolution ${evolutionId}`);
+  } catch (error) {
+    console.error('[PES Phase 2] Error deleting evolution:', error);
+    throw error;
+  }
+}
+
+/**
  * Save simulation run details (for Phase 2)
  * @param {Object} simulationRun - Simulation run data
  * @returns {Promise<string>} Document ID
