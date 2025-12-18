@@ -279,14 +279,18 @@ function extractOneseekResponses(debate) {
   
   if (debate.rounds && Array.isArray(debate.rounds)) {
     debate.rounds.forEach((round, index) => {
-      const oneseekResp = round.responses?.find(r => 
-        r.model === 'ONESEEK' || r.model?.includes('oneseek') || r.model?.includes('ONESEEK')
+      if (!round.responses || !Array.isArray(round.responses)) {
+        return;
+      }
+      
+      const oneseekResp = round.responses.find(r => 
+        r.agent === 'ONESEEK' || r.agent?.includes('oneseek') || r.agent?.includes('ONESEEK')
       );
       
       if (oneseekResp) {
         responses.push({
           round: index + 1,
-          text: oneseekResp.text || oneseekResp.response || '',
+          text: oneseekResp.response || oneseekResp.text || '',
           timestamp: oneseekResp.timestamp
         });
       }

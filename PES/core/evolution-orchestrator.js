@@ -191,12 +191,15 @@ async function fetchHistoricalDebates(count) {
       }
       
       // Check if ONESEEK participated
-      const hasOneseek = debate.rounds.some(round => 
-        round.responses?.some(r => 
-          r.model === 'ONESEEK' || 
-          r.model?.toLowerCase().includes('oneseek')
-        )
-      );
+      const hasOneseek = debate.rounds.some(round => {
+        if (!round.responses || !Array.isArray(round.responses)) {
+          return false;
+        }
+        return round.responses.some(r => 
+          r.agent === 'ONESEEK' || 
+          r.agent?.toLowerCase().includes('oneseek')
+        );
+      });
       
       return hasOneseek;
     });

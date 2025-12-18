@@ -133,13 +133,13 @@ function extractExternalResponses(round) {
   
   return round.responses
     .filter(r => {
-      const model = r.model || r.ai || '';
-      return model !== 'ONESEEK' && 
-             !model.toLowerCase().includes('oneseek');
+      const agent = r.agent || r.model || r.ai || '';
+      return agent !== 'ONESEEK' && 
+             !agent.toLowerCase().includes('oneseek');
     })
     .map(r => ({
-      model: r.model || r.ai,
-      text: r.text || r.response || '',
+      model: r.agent || r.model || r.ai,
+      text: r.response || r.text || '',
       timestamp: r.timestamp
     }));
 }
@@ -155,7 +155,7 @@ function extractParticipants(round) {
   }
   
   return round.responses
-    .map(r => r.model || r.ai)
+    .map(r => r.agent || r.model || r.ai)
     .filter(Boolean);
 }
 
