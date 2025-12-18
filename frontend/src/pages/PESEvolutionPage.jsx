@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 /**
  * PES Evolution Dashboard
@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
  */
 const PESEvolutionPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [evolutions, setEvolutions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
@@ -22,6 +23,22 @@ const PESEvolutionPage = () => {
     variant_count: 5,
     auto_iterate: false
   });
+
+  // Check if navigated from results page with baseline
+  useEffect(() => {
+    if (location.state?.baselinePrompt) {
+      setConfig(prev => ({
+        ...prev,
+        baseline_prompt: location.state.baselinePrompt,
+        baseline_version: location.state.baselineVersion || 'winner',
+      }));
+      setShowStartForm(true);
+      setSuccess(`Loaded winning prompt from evolution ${location.state.fromEvolution}. Ready to start new run!`);
+      setTimeout(() => setSuccess(null), 10000);
+      // Clear state so it doesn't persist on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   // Load evolutions on mount
   useEffect(() => {

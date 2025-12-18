@@ -11,6 +11,8 @@ const PESEvolutionResultsPage = () => {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [expandedVariant, setExpandedVariant] = useState(null);
+  const [copyingBaseline, setCopyingBaseline] = useState(false);
 
   useEffect(() => {
     loadResults();
@@ -32,6 +34,30 @@ const PESEvolutionResultsPage = () => {
       setError('Failed to load results: ' + err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUseAsBaseline = async () => {
+    if (!winner || !winner.prompt_text) {
+      alert('Winner prompt text not available');
+      return;
+    }
+
+    setCopyingBaseline(true);
+    try {
+      // Navigate to evolution page with winner prompt as baseline
+      navigate('/pes/evolution', {
+        state: {
+          baselinePrompt: winner.prompt_text,
+          baselineVersion: winner.version,
+          fromEvolution: evolutionId
+        }
+      });
+    } catch (err) {
+      console.error('Error using as baseline:', err);
+      alert('Failed to use as baseline');
+    } finally {
+      setCopyingBaseline(false);
     }
   };
 
@@ -113,10 +139,22 @@ const PESEvolutionResultsPage = () => {
       {winner && (
         <div className="mb-6 bg-white rounded-lg shadow-md border-2 border-green-500">
           <div className="p-6 bg-green-50 border-b border-green-200">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">🏆</span>
-              <h3 className="text-lg font-semibold text-gray-900">Winner: {winner.version}</h3>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🏆</span>
+                <h3 className="text-lg font-semibold text-gray-900">Winner: {winner.version}</h3>
+              </div>
+              <button
+                onClick={handleUseAsBaseline}
+                disabled={copyingBaseline}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {copyingBaseline ? '...' : '🔄 Use as Baseline for Next Run'}
+              </button>
             </div>
+            {winner.hypothesis && (
+              <p className="mt-2 text-sm text-gray-700">{winner.hypothesis}</p>
+            )}
           </div>
           <div className="p-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -183,7 +221,7 @@ const PESEvolutionResultsPage = () => {
                     }`}
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <div>
+                      <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-mono font-semibold text-gray-900">{variant.version}</span>
                           {isWinner && (
@@ -191,8 +229,23 @@ const PESEvolutionResultsPage = () => {
                               WINNER
                             </span>
                           )}
+                          <button
+                            onClick={() => setExpandedVariant(expandedVariant === variant.version ? null : variant.version)}
+                            className="ml-2 text-xs text-blue-600 hover:text-blue-800"
+                          >
+                            {expandedVariant === variant.version ? '▼ Hide Prompt' : '▶ View Prompt'}
+                          </button>
                         </div>
                         <p className="text-sm text-gray-600 mt-1">{variant.hypothesis}</p>
+                        
+                        {expandedVariant === variant.version && variant.prompt_text && (
+                          <div className="mt-3 p-3 bg-gray-50 border border-gray-300 rounded-lg">
+                            <div className="text-xs font-semibold text-gray-700 mb-2">Prompt Text:</div>
+                            <div className="text-xs text-gray-800 whitespace-pre-wrap font-mono max-h-60 overflow-y-auto">
+                              {variant.prompt_text}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -200,7 +253,7 @@ const PESEvolutionResultsPage = () => {
                       <div>
                         <div className="text-xs text-gray-500">Avg Votes</div>
                         <div className="text-lg font-semibold text-gray-900">
-                          {variant.avg_votes_per_debate?.toFixed(1) || 'N/A'}
+                          {variant.avg_votes_per_debate !== undefined ? variant.avg_votes_per_debate.toFixed(1) : '0.0'}
                         </div>
                       </div>
                       <div>
@@ -212,7 +265,7 @@ const PESEvolutionResultsPage = () => {
                       <div>
                         <div className="text-xs text-gray-500">Mentions</div>
                         <div className="text-lg font-semibold text-gray-900">
-                          {variant.avg_mentions_per_debate?.toFixed(1) || 'N/A'}
+                          {variant.avg_mentions_per_debate !== undefined ? variant.avg_mentions_per_debate.toFixed(1) : '0.0'}
                         </div>
                       </div>
                       <div>
@@ -244,12 +297,16 @@ const PESEvolutionResultsPage = () => {
           </div>
           <div className="p-6">
             <div className="space-y-4">
+              <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+                <strong>🤖 AI-Generated:</strong> These insights are generated by ONESEEK analyzing {results.debates_analyzed || results.debates_count} debates. Not hardcoded.
+              </div>
+
               {results.insights.successful_patterns && results.insights.successful_patterns.length > 0 && (
                 <div>
                   <h4 className="font-semibold mb-2 text-green-700">✓ Successful Patterns</h4>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
+                  <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
                     {results.insights.successful_patterns.slice(0, 5).map((pattern, i) => (
-                      <li key={i}>{pattern}</li>
+                      <li key={i} className="text-gray-700">{pattern}</li>
                     ))}
                   </ul>
                 </div>
@@ -258,9 +315,9 @@ const PESEvolutionResultsPage = () => {
               {results.insights.weaknesses && results.insights.weaknesses.length > 0 && (
                 <div>
                   <h4 className="font-semibold mb-2 text-red-700">⚠ Areas for Improvement</h4>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
+                  <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
                     {results.insights.weaknesses.slice(0, 5).map((weakness, i) => (
-                      <li key={i}>{weakness}</li>
+                      <li key={i} className="text-gray-700">{weakness}</li>
                     ))}
                   </ul>
                 </div>
@@ -269,9 +326,9 @@ const PESEvolutionResultsPage = () => {
               {results.insights.winning_styles && results.insights.winning_styles.length > 0 && (
                 <div>
                   <h4 className="font-semibold mb-2 text-blue-700">🎯 Winning Styles</h4>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
+                  <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
                     {results.insights.winning_styles.slice(0, 5).map((style, i) => (
-                      <li key={i}>{style}</li>
+                      <li key={i} className="text-gray-700">{style}</li>
                     ))}
                   </ul>
                 </div>
@@ -280,9 +337,9 @@ const PESEvolutionResultsPage = () => {
               {results.insights.strategic_recommendations && results.insights.strategic_recommendations.length > 0 && (
                 <div>
                   <h4 className="font-semibold mb-2 text-purple-700">💡 Recommendations</h4>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
+                  <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
                     {results.insights.strategic_recommendations.slice(0, 5).map((rec, i) => (
-                      <li key={i}>{rec}</li>
+                      <li key={i} className="text-gray-700">{rec}</li>
                     ))}
                   </ul>
                 </div>

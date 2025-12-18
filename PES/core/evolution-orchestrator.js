@@ -82,7 +82,8 @@ export async function runEvolutionLoop(config, progressCallback = null) {
     results.variants = variants.map(v => ({
       version: v.version,
       hypothesis: v.hypothesis,
-      expected_improvement: v.expected_improvement
+      expected_improvement: v.expected_improvement,
+      prompt_text: v.prompt_text  // Include full prompt text for display
     }));
     
     console.log(`[Evolution Orchestrator] Generated ${variants.length} variants`);
@@ -127,6 +128,15 @@ export async function runEvolutionLoop(config, progressCallback = null) {
     
     const aggregatedMetrics = aggregatePerformance(votingResults);
     const winnerResult = selectWinner(aggregatedMetrics, config.baseline_version);
+    
+    // Add prompt_text and hypothesis from variants to aggregated metrics
+    for (const variant of variants) {
+      if (aggregatedMetrics[variant.version]) {
+        aggregatedMetrics[variant.version].prompt_text = variant.prompt_text;
+        aggregatedMetrics[variant.version].hypothesis = variant.hypothesis;
+        aggregatedMetrics[variant.version].expected_improvement = variant.expected_improvement;
+      }
+    }
     
     results.all_variant_metrics = aggregatedMetrics;
     results.winner = winnerResult.winner;
