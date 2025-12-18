@@ -11,6 +11,9 @@ import { simulateMultipleDebates } from './historical-simulator.js';
 import { simulateVotingForMultiple } from './voting-simulator.js';
 import { aggregatePerformance, selectWinner, generateComparisonReport } from './performance-aggregator.js';
 import { getDebates } from '../services/pesFirebaseService.js';
+// PHASE 3: Category classification and weight learning
+import { classifyDebatesBatch, analyzeCategoryDistribution } from './debate-classifier.js';
+import { getCategoryWeights } from '../config/category-weights.js';
 
 /**
  * Run a complete evolution loop
@@ -34,7 +37,7 @@ export async function runEvolutionLoop(config, progressCallback = null) {
     status: 'running',
     current_step: 'initialization',
     steps_completed: 0,
-    total_steps: 6,
+    total_steps: 7,  // PHASE 3: Added classification step
     start_time: new Date().toISOString()
   };
   
@@ -49,16 +52,25 @@ export async function runEvolutionLoop(config, progressCallback = null) {
     updateProgress(progress, 'fetching_debates', 'Fetching historical debates...', progressCallback);
     
     const debateCount = config.debate_count || 15;
-    const debates = await fetchHistoricalDebates(debateCount);
+    let debates = await fetchHistoricalDebates(debateCount);
     
     if (debates.length === 0) {
       throw new Error('No historical debates available for analysis');
     }
     
+    // PHASE 3: Classify debates automatically
+    updateProgress(progress, 'classifying_debates', 'Classifying debates by category...', progressCallback);
+    debates = await classifyDebatesBatch(debates);
+    
+    // Analyze category distribution
+    const categoryDistribution = analyzeCategoryDistribution(debates);
+    results.category_distribution = categoryDistribution;
+    
     results.debates_used = debates.map(d => d.id || d.debate_id);
     results.debates_count = debates.length;
     
     console.log(`[Evolution Orchestrator] Fetched ${debates.length} debates`);
+    console.log(`[Evolution Orchestrator] Category distribution:`, categoryDistribution);
     
     // Step 2: Analyze debate patterns
     updateProgress(progress, 'analyzing_patterns', 'Analyzing debate patterns with AI...', progressCallback);
@@ -126,7 +138,11 @@ export async function runEvolutionLoop(config, progressCallback = null) {
     // Step 6: Aggregate performance and select winner
     updateProgress(progress, 'analyzing_results', 'Analyzing results and selecting winner...', progressCallback);
     
-    const aggregatedMetrics = aggregatePerformance(votingResults);
+    // PHASE 3: Get category-specific weights for dominant category
+    const dominantCategory = categoryDistribution.length > 0 ? categoryDistribution[0].main : null;
+    const categoryWeights = dominantCategory ? getCategoryWeights(dominantCategory) : null;
+    
+    const aggregatedMetrics = aggregatePerformance(votingResults, categoryWeights);
     const winnerResult = selectWinner(aggregatedMetrics, config.baseline_version);
     
     // Add prompt_text and hypothesis from variants to aggregated metrics
@@ -142,6 +158,13 @@ export async function runEvolutionLoop(config, progressCallback = null) {
     results.winner = winnerResult.winner;
     results.improvement_percentage = winnerResult.improvement_percentage;
     results.baseline_metrics = winnerResult.baseline;
+    
+    // PHASE 3: Add category-aware information
+    results.dominant_category = dominantCategory;
+    results.category_weights_used = categoryWeights;
+    
+    // Calculate performance per category
+    results.category_performance = calculateCategoryPerformance(votingResults, debates);
     
     // Generate comparison report
     const report = generateComparisonReport(aggregatedMetrics, winnerResult);
@@ -319,12 +342,13 @@ function getStepNumber(status) {
   const steps = {
     'initialization': 0,
     'fetching_debates': 1,
-    'analyzing_patterns': 2,
-    'generating_variants': 3,
-    'running_simulations': 4,
-    'simulating_votes': 5,
-    'analyzing_results': 6,
-    'completed': 6,
+    'classifying_debates': 2,  // PHASE 3
+    'analyzing_patterns': 3,
+    'generating_variants': 4,
+    'running_simulations': 5,
+    'simulating_votes': 6,
+    'analyzing_results': 7,
+    'completed': 7,
     'failed': 0
   };
   
@@ -340,6 +364,57 @@ function calculateDuration(startTime) {
   const start = new Date(startTime);
   const end = new Date();
   return Math.round((end - start) / 1000);
+}
+
+/**
+ * Calculate performance breakdown by category
+ * PHASE 3: Category-aware performance tracking
+ * @param {Array} votingResults - Voting results
+ * @param {Array} debates - Debates with classification
+ * @returns {Object} Performance per category
+ */
+function calculateCategoryPerformance(votingResults, debates) {
+  const categoryPerformance = {};
+  
+  // Match voting results with debates to get category
+  for (const result of votingResults) {
+    const debate = debates.find(d => (d.id || d.debate_id) === result.debate_id);
+    if (!debate || !debate.classification) continue;
+    
+    const categoryKey = `${debate.classification.main}-${debate.classification.sub}`;
+    
+    if (!categoryPerformance[categoryKey]) {
+      categoryPerformance[categoryKey] = {
+        category: categoryKey,
+        main: debate.classification.main,
+        sub: debate.classification.sub,
+        debates_count: 0,
+        total_votes: 0,
+        wins: 0,
+        total_mentions: 0
+      };
+    }
+    
+    const cat = categoryPerformance[categoryKey];
+    cat.debates_count++;
+    
+    if (result.voting && !result.voting.error) {
+      cat.total_votes += result.voting.oneseek_votes || 0;
+      cat.wins += result.voting.oneseek_won ? 1 : 0;
+      cat.total_mentions += result.voting.oneseek_mentions || 0;
+    }
+  }
+  
+  // Calculate averages
+  for (const cat of Object.values(categoryPerformance)) {
+    if (cat.debates_count > 0) {
+      cat.avg_votes = cat.total_votes / cat.debates_count;
+      cat.win_rate = cat.wins / cat.debates_count;
+      cat.avg_mentions = cat.total_mentions / cat.debates_count;
+    }
+  }
+  
+  return categoryPerformance;
 }
 
 /**
