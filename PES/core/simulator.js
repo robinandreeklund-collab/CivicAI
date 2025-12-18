@@ -127,7 +127,7 @@ async function simulateDebateWithPrompt(debate, promptVersion) {
     // Call ONESEEK inference endpoint
     const startTime = Date.now();
     const response = await getOpenSeekResponse(prompt, {
-      systemPrompt: promptVersion.prompt_text,
+      systemPrompt: promptVersion.prompt_text || promptVersion.promptText,
       max_tokens: 1024,
       temperature: 0.7,
       timeout: PES_CONFIG.simulation.inferenceTimeout,

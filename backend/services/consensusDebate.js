@@ -64,7 +64,7 @@ export function shouldTriggerDebate(modelSynthesis) {
  * @param {Array} agents - Array of agent names participating in debate
  * @param {Array} initialResponses - Initial responses from agents
  * @param {object} modelSynthesis - The synthesis showing divergences
- * @returns {Promise<object>} Created debate object
+ * @returns {Promise<object>} Promise resolving to created debate object
  */
 export async function initiateDebate(questionId, question, agents, initialResponses, modelSynthesis) {
   const debateId = uuidv4();
