@@ -266,6 +266,31 @@
             color: white;
         }
 
+        .badge.error {
+            background: #f44336;
+            color: white;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .info-item {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .info-item strong {
+            color: #667eea;
+            display: block;
+            margin-bottom: 5px;
+        }
+
         .loading {
             text-align: center;
             padding: 40px;
@@ -690,6 +715,104 @@
             }
         }
 
+        // View simulation details
+        async function viewSimulationDetails(simulationId) {
+            try {
+                const response = await fetch(`${API_BASE}/simulations?limit=100`);
+                const data = await response.json();
+                const simulation = data.simulations.find(s => s.id === simulationId);
+                
+                if (!simulation) {
+                    alert('Simulation not found');
+                    return;
+                }
+                
+                const metrics = simulation.performance_metrics || {};
+                const recommendations = simulation.recommendations || [];
+                
+                const detailsHtml = `
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <strong>Simulation ID:</strong><br>${simulation.id}
+                        </div>
+                        <div class="info-item">
+                            <strong>Prompt Version:</strong><br>${simulation.prompt_version_id.substring(0, 12)}...
+                        </div>
+                        <div class="info-item">
+                            <strong>Status:</strong><br><span class="badge ${simulation.status === 'completed' ? 'success' : 'info'}">${simulation.status}</span>
+                        </div>
+                        <div class="info-item">
+                            <strong>Created:</strong><br>${new Date(simulation.created_at).toLocaleString('sv-SE')}
+                        </div>
+                    </div>
+                    
+                    <h3 style="margin-top: 30px; margin-bottom: 15px;">Performance Metrics</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <strong>Quality Score:</strong><br>
+                            <span style="font-size: 1.5em; color: ${metrics.averageScore >= 0.7 ? '#4caf50' : metrics.averageScore >= 0.5 ? '#ff9800' : '#f44336'}">
+                                ${(metrics.averageScore * 100).toFixed(1)}%
+                            </span>
+                            <br><small>Based on: response length, structure, keyword relevance</small>
+                        </div>
+                        <div class="info-item">
+                            <strong>Success Rate:</strong><br>
+                            <span style="font-size: 1.5em;">${(metrics.successRate * 100).toFixed(1)}%</span>
+                            <br><small>${metrics.successfulDebates || 0} of ${metrics.totalDebates || 0} debates succeeded</small>
+                        </div>
+                        <div class="info-item">
+                            <strong>Avg Response Length:</strong><br>
+                            <span style="font-size: 1.5em;">${Math.round(metrics.averageResponseLength || 0)}</span>
+                            <br><small>characters per response</small>
+                        </div>
+                        <div class="info-item">
+                            <strong>Avg Inference Time:</strong><br>
+                            <span style="font-size: 1.5em;">${((metrics.averageInferenceTime || 0) / 1000).toFixed(1)}s</span>
+                            <br><small>per debate simulation</small>
+                        </div>
+                    </div>
+                    
+                    ${recommendations.length > 0 ? `
+                        <h3 style="margin-top: 30px; margin-bottom: 15px;">Recommendations</h3>
+                        <div style="background: #f5f5f5; padding: 15px; border-radius: 8px;">
+                            ${recommendations.map(r => `
+                                <div style="margin-bottom: 15px; padding: 10px; background: white; border-left: 4px solid ${r.severity === 'high' ? '#f44336' : r.severity === 'medium' ? '#ff9800' : '#2196f3'}; border-radius: 4px;">
+                                    <strong>${r.type.toUpperCase()}</strong> - ${r.message}
+                                    <br><small style="color: #666;">${r.suggestion}</small>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                    
+                    <h3 style="margin-top: 30px; margin-bottom: 15px;">Debates Used</h3>
+                    <div style="background: #f5f5f5; padding: 15px; border-radius: 8px;">
+                        <strong>Total Debates:</strong> ${simulation.debate_ids?.length || 0}<br>
+                        <details style="margin-top: 10px;">
+                            <summary style="cursor: pointer; user-select: none;">Show Debate IDs</summary>
+                            <ul style="margin-top: 10px;">
+                                ${(simulation.debate_ids || []).map(id => `<li><code>${id}</code></li>`).join('')}
+                            </ul>
+                        </details>
+                    </div>
+                    
+                    <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px;">
+                        <strong>💡 Understanding the Score:</strong><br>
+                        The quality score (0-100%) measures how well ONESEEK's responses match expected characteristics:<br>
+                        • <strong>30%</strong> - Response length (optimal: 200-800 characters)<br>
+                        • <strong>30%</strong> - Structure (multiple paragraphs, formatting)<br>
+                        • <strong>40%</strong> - Question relevance (keyword overlap with original question)<br><br>
+                        <em>Note: This is a simplified heuristic. Real debate performance depends on semantic understanding, synthesis quality, and human evaluation.</em>
+                    </div>
+                `;
+                
+                document.getElementById('simulation-details-content').innerHTML = detailsHtml;
+                document.getElementById('simulation-details-modal').style.display = 'block';
+            } catch (error) {
+                console.error('Error viewing simulation details:', error);
+                alert('Error loading simulation details: ' + error.message);
+            }
+        }
+
         // Load simulations
         async function loadSimulations() {
             try {
@@ -710,23 +833,44 @@
                                     <th>Debatter</th>
                                     <th>Avg Score</th>
                                     <th>Success Rate</th>
+                                    <th>Avg Response Length</th>
+                                    <th>Avg Inference Time</th>
                                     <th>Status</th>
                                     <th>Skapad</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${data.simulations.map(s => `
+                                ${data.simulations.map(s => {
+                                    const scoreValue = s.performance_metrics?.averageScore || 0;
+                                    const scoreDisplay = (scoreValue * 100).toFixed(1);
+                                    const scoreColor = scoreValue >= 0.7 ? 'success' : scoreValue >= 0.5 ? 'warning' : 'error';
+                                    
+                                    return `
                                     <tr>
-                                        <td>${s.prompt_version_id.substring(0, 8)}...</td>
+                                        <td title="${s.prompt_version_id}">${s.prompt_version_id.substring(0, 8)}...</td>
                                         <td>${s.debate_ids?.length || 0}</td>
-                                        <td>${s.performance_metrics?.averageScore?.toFixed(3) || 'N/A'}</td>
+                                        <td><span class="badge ${scoreColor}">${scoreDisplay}%</span></td>
                                         <td>${s.performance_metrics?.successRate ? (s.performance_metrics.successRate * 100).toFixed(1) + '%' : 'N/A'}</td>
+                                        <td>${s.performance_metrics?.averageResponseLength ? Math.round(s.performance_metrics.averageResponseLength) + ' chars' : 'N/A'}</td>
+                                        <td>${s.performance_metrics?.averageInferenceTime ? (s.performance_metrics.averageInferenceTime / 1000).toFixed(1) + 's' : 'N/A'}</td>
                                         <td><span class="badge ${s.status === 'completed' ? 'success' : 'info'}">${s.status}</span></td>
                                         <td>${new Date(s.created_at).toLocaleDateString('sv-SE')}</td>
+                                        <td><button class="btn-small" onclick="viewSimulationDetails('${s.id}')">Details</button></td>
                                     </tr>
-                                `).join('')}
+                                `;
+                                }).join('')}
                             </tbody>
                         </table>
+                    </div>
+                    <div id="simulation-details-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; padding: 20px; overflow-y: auto;">
+                        <div style="max-width: 900px; margin: 20px auto; background: white; border-radius: 10px; padding: 30px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                                <h2>Simulation Details</h2>
+                                <button onclick="document.getElementById('simulation-details-modal').style.display='none'" style="padding: 10px 20px;">Close</button>
+                            </div>
+                            <div id="simulation-details-content"></div>
+                        </div>
                     </div>
                 `;
 
