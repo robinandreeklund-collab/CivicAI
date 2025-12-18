@@ -184,24 +184,28 @@ async function fetchHistoricalDebates(count) {
       orderDirection: 'desc'
     });
     
-    // Filter debates that have ONESEEK responses
+    // Filter debates that have valid structure with responses
+    // Note: Debates don't contain ONESEEK as participant - they contain external AI agents
+    // PES analyzes these historical debates to understand voting patterns and response quality
     const validDebates = debates.filter(debate => {
-      if (!debate.rounds || !Array.isArray(debate.rounds)) {
+      // Must have completed status
+      if (debate.status !== 'completed') {
         return false;
       }
       
-      // Check if ONESEEK participated
-      const hasOneseek = debate.rounds.some(round => {
-        if (!round.responses || !Array.isArray(round.responses)) {
-          return false;
-        }
-        return round.responses.some(r => 
-          r.agent === 'ONESEEK' || 
-          r.agent?.toLowerCase().includes('oneseek')
-        );
-      });
+      // Must have rounds with responses OR initial_responses
+      const hasRounds = debate.rounds && Array.isArray(debate.rounds) && debate.rounds.length > 0;
+      const hasInitialResponses = debate.initial_responses && Array.isArray(debate.initial_responses) && debate.initial_responses.length > 0;
       
-      return hasOneseek;
+      if (!hasRounds && !hasInitialResponses) {
+        return false;
+      }
+      
+      // Must have voting data to analyze
+      const hasVotes = debate.votes && Array.isArray(debate.votes) && debate.votes.length > 0;
+      const hasWinner = debate.winner && debate.winner.agent;
+      
+      return hasVotes || hasWinner;
     });
     
     console.log(`[Evolution Orchestrator] Found ${validDebates.length} valid debates with ONESEEK participation`);
