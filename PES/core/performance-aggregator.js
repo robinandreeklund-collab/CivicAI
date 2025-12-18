@@ -121,6 +121,12 @@ export function selectWinner(variantMetrics, baselineVersion = null) {
     throw new Error('No variants to compare');
   }
   
+  // Calculate composite scores for ALL variants (including baseline)
+  for (const version in variantMetrics) {
+    const variant = variantMetrics[version];
+    variant.composite_score = calculateCompositeScore(variant);
+  }
+  
   if (versions.length === 1) {
     return {
       winner: variantMetrics[versions[0]],
@@ -134,25 +140,19 @@ export function selectWinner(variantMetrics, baselineVersion = null) {
   let bestVariant = null;
   let bestScore = -Infinity;
   
-  // Score each variant
+  // Find best variant (can include baseline if it's actually the best)
   for (const version in variantMetrics) {
-    if (version === baselineVersion) continue; // Skip baseline itself
-    
     const variant = variantMetrics[version];
     
-    // Calculate composite score
-    const score = calculateCompositeScore(variant);
-    variant.composite_score = score;
-    
-    if (score > bestScore) {
-      bestScore = score;
+    if (variant.composite_score > bestScore) {
+      bestScore = variant.composite_score;
       bestVariant = variant;
     }
   }
   
   // Calculate improvement vs baseline
   let improvementPercentage = 0;
-  if (baseline && bestVariant) {
+  if (baseline && bestVariant && bestVariant.version !== baselineVersion) {
     improvementPercentage = calculateImprovement(baseline, bestVariant);
   }
   

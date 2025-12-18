@@ -70,8 +70,8 @@ const PESEvolutionResultsPage = () => {
   const improvement = results.improvement_percentage;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-50 p-6 overflow-y-auto max-h-screen">
+      <div className="max-w-7xl mx-auto pb-12">
         {/* Header */}
         <div className="mb-6">
           <button 
@@ -196,8 +196,35 @@ const PESEvolutionResultsPage = () => {
                       </div>
                     </div>
 
-                    <div className="text-sm text-gray-500 mb-2">
-                      Expected: {variant.expected_improvement}
+                    <div className="grid grid-cols-4 gap-4 mb-3">
+                      <div>
+                        <div className="text-xs text-gray-500">Avg Votes</div>
+                        <div className="text-lg font-semibold text-gray-900">
+                          {variant.avg_votes_per_debate?.toFixed(1) || 'N/A'}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">Win Rate</div>
+                        <div className="text-lg font-semibold text-gray-900">
+                          {((variant.win_rate || 0) * 100).toFixed(1)}%
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">Mentions</div>
+                        <div className="text-lg font-semibold text-gray-900">
+                          {variant.avg_mentions_per_debate?.toFixed(1) || 'N/A'}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">Score</div>
+                        <div className="text-lg font-semibold text-blue-600">
+                          {((variant.composite_score || 0) * 100).toFixed(1)}%
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="text-sm text-gray-600">
+                      {variant.expected_improvement || variant.hypothesis || 'Testing variant with prompt changes'}
                     </div>
                   </div>
                 );
