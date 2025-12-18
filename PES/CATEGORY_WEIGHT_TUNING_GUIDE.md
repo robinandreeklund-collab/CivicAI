@@ -2,7 +2,45 @@
 
 ## Overview
 
-This guide explains how to tune category-specific vector weights to optimize PES performance for different debate topics. Category weights determine how much each of the 8 dimensions (syntesförmåga, originalitet, etc.) contributes to the overall score for debates in a specific category.
+This guide explains how PES **automatically learns and tunes** category-specific vector weights to optimize performance for different debate topics. Category weights determine how much each of the 8 dimensions (syntesförmåga, originalitet, etc.) contributes to the overall score for debates in a specific category.
+
+**Important:** Weight tuning happens **automatically** during evolution loops. The system learns from patterns in winning prompts and adjusts weights progressively. Manual intervention is rarely needed.
+
+---
+
+## Automatic Weight Learning
+
+### How It Works
+
+After each evolution loop:
+
+1. **Pattern Analysis**: System analyzes vector patterns in winning prompts
+2. **Consistency Check**: If consistency >70%, patterns are considered reliable
+3. **Weight Adjustment**: Weights automatically adjust based on which dimensions consistently score high
+4. **Storage**: Learned weights saved to Firebase (`learned_weights` collection)
+5. **Future Use**: Next evolution automatically loads learned weights
+
+**Learning Rate:** Conservative 5% adjustment per evolution to ensure stability
+
+**Example:**
+```
+Evolution 1: ekonomi uses default weights → Winner has high konkret_praktisk (0.85)
+→ System increases konkret_praktisk weight: 1.0 → 1.0 (already max)
+
+Evolution 2: Uses learned weights → Winner still strong on konkret_praktisk (0.82)
+→ Weights confirmed as good, minor adjustments to other dimensions
+
+Evolution 3-5: Weights stabilize, performance optimizes
+```
+
+### When Manual Tuning Is Needed
+
+Manual tuning is **only needed** if:
+- Initial evolutions show consistently poor performance (<50% win rate)
+- Real validation shows large, persistent dimension deltas (>0.20)
+- You want to experiment with different weight profiles
+
+Otherwise, let the system learn automatically!
 
 ---
 

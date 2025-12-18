@@ -1336,13 +1336,14 @@ Automated AI-driven system for optimizing ONESEEK's debate prompts:
 - **Adaptive Learning**: Weights self-calibrate based on validation feedback
 
 **Phase 3 Features:**
+- **Automatic Weight Learning**: System learns optimal weights from patterns across evolution loops
 - Vector analysis reveals what makes prompts effective
 - Category-aware scoring with topic-specific weights
-- Manual validation for accuracy calibration
+- Optional manual validation for accuracy calibration
 - Performance tracking per category
 - Category distribution visualization
 - Winner vector profile analysis
-- Calibration reports with recommendations
+- Weights adjust progressively based on consistency (5% learning rate)
 
 **Quick Start:**
 ```javascript
