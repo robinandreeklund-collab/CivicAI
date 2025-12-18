@@ -54,15 +54,20 @@ router.get('/status', async (req, res) => {
  */
 router.get('/debates', async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 10;
-    const status = req.query.status || 'completed';
+    const limit = parseInt(req.query.limit) || 100; // Increased default to show all debates
+    const status = req.query.status; // Only filter if explicitly provided
     
-    const debates = await getDebates({ limit, status });
+    const options = { limit };
+    if (status) {
+      options.status = status;
+    }
+    
+    const debates = await getDebates(options);
     
     res.json({
       debates,
       total: debates.length,
-      filter: { limit, status }
+      filter: options
     });
   } catch (error) {
     console.error('[PES API] Error fetching debates:', error);

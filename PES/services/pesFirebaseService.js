@@ -26,22 +26,12 @@ export async function getDebates(options = {}) {
     
     let query = db.collection('debates');
     
-    // Apply filters
-    if (options.status) {
-      query = query.where('status', '==', options.status);
-    }
-    
-    // Order by creation date (newest first)
-    query = query.orderBy('created_at', 'desc');
-    
-    // Apply limit
-    if (options.limit) {
-      query = query.limit(options.limit);
-    }
+    // Note: We cannot combine where() and orderBy() on different fields without a composite index
+    // For now, we'll fetch all and filter/sort in memory to avoid requiring index setup
     
     const snapshot = await query.get();
     
-    const debates = [];
+    let debates = [];
     snapshot.forEach(doc => {
       debates.push({
         id: doc.id,
@@ -49,7 +39,24 @@ export async function getDebates(options = {}) {
       });
     });
     
-    console.log(`[PES] Retrieved ${debates.length} debates from Firebase`);
+    // Apply status filter in memory if specified
+    if (options.status) {
+      debates = debates.filter(d => d.status === options.status);
+    }
+    
+    // Sort by created_at (newest first)
+    debates.sort((a, b) => {
+      const dateA = a.created_at || a.createdAt || '';
+      const dateB = b.created_at || b.createdAt || '';
+      return dateB.localeCompare(dateA);
+    });
+    
+    // Apply limit if specified
+    if (options.limit) {
+      debates = debates.slice(0, options.limit);
+    }
+    
+    console.log(`[PES] Retrieved ${debates.length} debates from Firebase (total: ${snapshot.size})`);
     return debates;
   } catch (error) {
     console.error('[PES] Error fetching debates:', error);
