@@ -13599,10 +13599,7 @@ Svara direkt – ingen inledning."""
                                     "round": round_num,
                                     "agent": agent,
                                     "message": comment_text,
-                                    "sequence": get_next_sequence(),
-                                    "data": {
-                                        "comment": comment_text
-                                    }
+                                    "sequence": get_next_sequence()
                                 }
                                 await websocket.send_json(commentary_event)
                                 
