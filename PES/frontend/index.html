@@ -191,6 +191,32 @@
             cursor: not-allowed;
         }
 
+        .btn-small {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 5px;
+            font-size: 0.85em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn-small:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-small:active {
+            transform: translateY(0);
+        }
+
+        .btn-small:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
         .table-container {
             overflow-x: auto;
         }
@@ -599,6 +625,7 @@
                                     <th>Avg Score</th>
                                     <th>Simuleringar</th>
                                     <th>Skapad</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -610,6 +637,7 @@
                                         <td>${p.performance_data?.average_score?.toFixed(3) || 'N/A'}</td>
                                         <td>${p.performance_data?.simulations_count || 0}</td>
                                         <td>${new Date(p.created_at).toLocaleDateString('sv-SE')}</td>
+                                        <td><button class="btn-small" onclick="runSimulationForPrompt('${p.id}', '${p.version}', '${p.topic}')">Run Simulation</button></td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -621,6 +649,44 @@
             } catch (error) {
                 console.error('Error loading prompts:', error);
                 document.getElementById('prompts-list').innerHTML = `<div class="error">Fel vid laddning: ${error.message}</div>`;
+            }
+        }
+
+        // Run simulation for a specific prompt
+        async function runSimulationForPrompt(promptId, version, topic) {
+            if (!confirm(`Kör simulering för prompt ${version}?`)) {
+                return;
+            }
+
+            const button = event.target;
+            button.disabled = true;
+            button.textContent = 'Running...';
+
+            try {
+                const response = await fetch(`${API_BASE}/simulations`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt_id: promptId,
+                        topic: topic
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert(`✅ Simulering startad för ${version}!\n\nSimulation ID: ${data.simulation_id}\nGå till Simulations-fliken för att se resultatet.`);
+                    // Reload prompts to show updated simulation count
+                    await loadPrompts();
+                } else {
+                    alert(`❌ Fel: ${data.error || 'Kunde inte starta simulering'}`);
+                }
+            } catch (error) {
+                console.error('Error running simulation:', error);
+                alert(`❌ Fel vid start av simulering: ${error.message}`);
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Run Simulation';
             }
         }
 
