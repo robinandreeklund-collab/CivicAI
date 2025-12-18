@@ -6,6 +6,7 @@
  */
 
 import { generateWithOneseek } from '../services/oneseekService.js';
+import { analyzeMotivationVectors } from '../services/vectorAnalysisService.js';
 
 /**
  * Simulate voting for a debate simulation
@@ -37,6 +38,18 @@ export async function simulateVoting(question, rounds, participants) {
   for (const voter of voters) {
     try {
       const vote = await simulateSingleVote(voter, question, rounds);
+      
+      // PHASE 3: Analyze motivation with vector extraction
+      if (vote.motivation && !vote.error) {
+        try {
+          vote.vector_analysis = await analyzeMotivationVectors(vote.motivation);
+          vote.analyzed_at = new Date().toISOString();
+        } catch (vectorError) {
+          console.warn(`[Voting Simulator] Vector analysis failed for ${voter}:`, vectorError.message);
+          // Continue without vector analysis
+        }
+      }
+      
       votes.push(vote);
     } catch (error) {
       console.error(`[Voting Simulator] Error getting vote from ${voter}:`, error.message);
