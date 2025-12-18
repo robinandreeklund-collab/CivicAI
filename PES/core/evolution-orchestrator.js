@@ -187,8 +187,17 @@ async function fetchHistoricalDebates(count) {
     // Filter debates that have valid structure with responses
     // ONESEEK participates in debates - filter for debates where ONESEEK is a participant
     const validDebates = debates.filter(debate => {
+      // Debug: Log debate structure
+      console.log(`[DEBUG] Checking debate ${debate.debate_id}:`);
+      console.log(`  - status: ${debate.status}`);
+      console.log(`  - participants: ${JSON.stringify(debate.participants)}`);
+      console.log(`  - has rounds: ${debate.rounds ? true : false}, count: ${debate.rounds ? debate.rounds.length : 0}`);
+      console.log(`  - has vote_results: ${debate.vote_results ? true : false}, count: ${debate.vote_results ? debate.vote_results.length : 0}`);
+      console.log(`  - has winner: ${debate.winner ? true : false}, agent: ${debate.winner ? debate.winner.agent : 'none'}`);
+      
       // Must have completed status
       if (debate.status !== 'completed') {
+        console.log(`  - REJECTED: status is not completed`);
         return false;
       }
       
@@ -198,6 +207,7 @@ async function fetchHistoricalDebates(count) {
                          debate.participants.some(p => p && p.toLowerCase() === 'oneseek');
       
       if (!hasOneseek) {
+        console.log(`  - REJECTED: no oneseek participant`);
         return false;
       }
       
@@ -205,6 +215,7 @@ async function fetchHistoricalDebates(count) {
       const hasRounds = debate.rounds && Array.isArray(debate.rounds) && debate.rounds.length > 0;
       
       if (!hasRounds) {
+        console.log(`  - REJECTED: no rounds`);
         return false;
       }
       
@@ -212,7 +223,13 @@ async function fetchHistoricalDebates(count) {
       const hasVoteResults = debate.vote_results && Array.isArray(debate.vote_results) && debate.vote_results.length > 0;
       const hasWinner = debate.winner && debate.winner.agent;
       
-      return hasVoteResults && hasWinner;
+      if (!hasVoteResults || !hasWinner) {
+        console.log(`  - REJECTED: no vote_results or winner`);
+        return false;
+      }
+      
+      console.log(`  - ACCEPTED!`);
+      return true;
     });
     
     console.log(`[Evolution Orchestrator] Found ${validDebates.length} valid debates with ONESEEK participation`);
