@@ -17,7 +17,7 @@ import { batchFactCheck, compareFactChecks } from '../services/factChecker.js';
 import { performCompleteEnhancedAnalysis } from '../utils/nlpProcessors.js';
 import { synthesizeModelResponses } from '../services/modelSynthesis.js';
 import { executeAnalysisPipeline } from '../services/analysisPipeline.js';
-import { shouldTriggerDebate } from '../services/consensusDebate.js';
+import { shouldTriggerDebate, initiateDebate } from '../services/consensusDebate.js';
 import { executeChangeDetection } from './change_detection.js';
 import { 
   isFirebaseAvailable,
@@ -1024,6 +1024,37 @@ router.post('/query', async (req, res) => {
     const debateTrigger = shouldTriggerDebate(modelSynthesis);
     console.log('🎯 Debate trigger check:', debateTrigger ? 'YES - High divergence detected' : 'NO - Consensus acceptable');
 
+    // Automatically initiate debate if triggered
+    let debateInfo = null;
+    if (debateTrigger) {
+      try {
+        console.log('🎭 Auto-initiating debate due to high divergence...');
+        const agents = responses
+          .filter(r => !r.metadata?.error)
+          .map(r => r.agent);
+        
+        const debate = await initiateDebate(
+          firebaseDocId || 'temp-' + Date.now(),
+          question,
+          agents,
+          responses,
+          modelSynthesis
+        );
+        
+        debateInfo = {
+          debateId: debate.id,
+          participants: debate.participants,
+          status: debate.status,
+          createdAt: debate.createdAt
+        };
+        
+        console.log(`✅ Debate initiated and saved to Firebase: ${debate.id}`);
+      } catch (error) {
+        console.error('❌ Failed to auto-initiate debate:', error);
+        // Don't fail the request if debate initiation fails
+      }
+    }
+
     // NEW: Change Detection - Analyze each response for changes
     console.log('🔍 Running change detection analysis...');
     const changeDetections = await Promise.all(
@@ -1208,6 +1239,7 @@ router.post('/query', async (req, res) => {
       factCheckComparison: factCheckComparison,
       modelSynthesis: modelSynthesis,
       debateTrigger: debateTrigger,
+      debate: debateInfo,  // NEW: Include debate info if initiated
       change_detection: significantChange || null,  // NEW: Include change detection
       firebaseDocId: firebaseDocId || null, // Return the doc ID for reference
       timestamp: new Date().toISOString(),
