@@ -168,22 +168,32 @@ function buildSimulationContext(debate) {
   let context = `Original Question: ${debate.question}\n\n`;
   
   context += `Initial Responses:\n`;
+  // Handle both array and object formats for initial_responses
   if (debate.initial_responses) {
-    debate.initial_responses.forEach(resp => {
-      if (!resp.metadata?.error) {
-        context += `- ${resp.agent}: ${resp.response.substring(0, 200)}...\n`;
-      }
-    });
+    if (Array.isArray(debate.initial_responses)) {
+      debate.initial_responses.forEach(resp => {
+        if (!resp.metadata?.error) {
+          context += `- ${resp.agent}: ${resp.response.substring(0, 200)}...\n`;
+        }
+      });
+    } else if (typeof debate.initial_responses === 'object') {
+      // Handle object format from live debates
+      Object.entries(debate.initial_responses).forEach(([agent, response]) => {
+        context += `- ${agent}: ${response.substring(0, 200)}...\n`;
+      });
+    }
   }
   
-  if (debate.rounds && debate.rounds.length > 0) {
+  if (debate.rounds && Array.isArray(debate.rounds) && debate.rounds.length > 0) {
     context += `\nDebate Rounds:\n`;
-    debate.rounds.forEach(round => {
-      context += `\nRound ${round.roundNumber}:\n`;
-      if (round.responses) {
+    debate.rounds.forEach((round, idx) => {
+      const roundNum = round.round || round.roundNumber || idx + 1;
+      context += `\nRound ${roundNum}:\n`;
+      if (round.responses && Array.isArray(round.responses)) {
         round.responses.forEach(resp => {
-          if (!resp.error) {
-            context += `- ${resp.agent}: ${resp.response.substring(0, 150)}...\n`;
+          if (!resp.error && resp.response) {
+            const responseText = typeof resp.response === 'string' ? resp.response : JSON.stringify(resp.response);
+            context += `- ${resp.agent}: ${responseText.substring(0, 150)}...\n`;
           }
         });
       }
