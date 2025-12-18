@@ -72,7 +72,7 @@ router.post('/check-trigger', (req, res) => {
  * POST /api/debate/initiate
  * Initiate a new debate
  */
-router.post('/initiate', (req, res) => {
+router.post('/initiate', async (req, res) => {
   try {
     const { questionId, question, agents, initialResponses, modelSynthesis } = req.body;
     
@@ -108,7 +108,7 @@ router.post('/initiate', (req, res) => {
       });
     }
     
-    const debate = initiateDebate(questionId, question, agents, initialResponses, modelSynthesis);
+    const debate = await initiateDebate(questionId, question, agents, initialResponses, modelSynthesis);
     console.log('✅ Debate initiated successfully:', debate.id);
     
     res.status(201).json(debate);

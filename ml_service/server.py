@@ -14505,6 +14505,40 @@ Ton: Varm, saklig och auktoritativ."""
         
         logger.info("[WS-Debate] Debate complete message sent")
         
+        # Save debate to Firebase via Node.js backend API for PES
+        try:
+            debate_id = str(uuid.uuid4())
+            save_debate_payload = {
+                "debate_id": debate_id,
+                "question": clean_question,
+                "participants": debate_agents + ['oneseek'],
+                "initial_responses": {},
+                "rounds": [{"round": i+1, "responses": debate_rounds[i]} for i in range(len(debate_rounds))],
+                "current_round": len(debate_rounds),
+                "status": "completed",
+                "votes": votes,
+                "vote_results": vote_results,
+                "winner": winner,
+                "winning_analysis": summary_text,
+                "created_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat()
+            }
+            
+            save_response = requests.post(
+                f"{BACKEND_API_URL}/api/pes/debates",
+                json=save_debate_payload,
+                timeout=5
+            )
+            
+            if save_response.status_code == 200 or save_response.status_code == 201:
+                logger.info(f"[WS-Debate] ✅ Debate {debate_id} saved to Firebase via backend API")
+            else:
+                logger.warning(f"[WS-Debate] ⚠️  Failed to save debate to Firebase: {save_response.status_code} - {save_response.text}")
+                
+        except Exception as save_error:
+            logger.error(f"[WS-Debate] ❌ Error saving debate to Firebase: {save_error}")
+            # Don't fail the debate if saving fails
+        
         # Small delay to ensure debate_complete is processed
         await asyncio.sleep(0.5)
         

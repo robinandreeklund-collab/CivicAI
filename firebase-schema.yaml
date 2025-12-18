@@ -648,3 +648,271 @@ usage_instructions: |
   ### Option 4: Firebase Console Import
   Some Firebase tools support direct YAML/JSON import.
   Check your Firebase project settings for import options.
+
+# ===================================================================
+# PES (Prompt Evolution System) Collections - Phase 1
+# ===================================================================
+
+  # Collection: debates
+  debates:
+    description: "Stores all real debates from live system for PES training and analysis"
+    fields:
+      - name: debate_id
+        type: string
+        required: true
+        description: "Unique debate identifier"
+        
+      - name: question_id
+        type: string
+        required: true
+        description: "Original question ID reference"
+        
+      - name: question
+        type: string
+        required: true
+        description: "The debate question"
+        
+      - name: participants
+        type: array
+        required: true
+        description: "Array of participating agent names"
+        
+      - name: initial_responses
+        type: array
+        required: true
+        description: "Initial responses from all agents"
+        
+      - name: divergences
+        type: object
+        required: true
+        description: "Divergence data from model synthesis"
+        
+      - name: consensus
+        type: object
+        required: true
+        description: "Consensus metrics from model synthesis"
+        
+      - name: rounds
+        type: array
+        required: true
+        description: "All debate rounds with responses"
+        
+      - name: current_round
+        type: number
+        required: true
+        description: "Current round number"
+        
+      - name: status
+        type: string
+        required: true
+        description: "Debate status"
+        enum:
+          - initiated
+          - voting
+          - completed
+          
+      - name: votes
+        type: array
+        required: false
+        description: "Voting results from agents"
+        
+      - name: winner
+        type: object
+        required: false
+        nullable: true
+        description: "Winner information after voting"
+        
+      - name: winning_analysis
+        type: object
+        required: false
+        nullable: true
+        description: "Full pipeline analysis of winning answer"
+        
+      - name: created_at
+        type: timestamp
+        required: true
+        description: "Debate creation timestamp"
+        
+      - name: updated_at
+        type: timestamp
+        required: true
+        description: "Last update timestamp"
+    
+    indexes:
+      - fields:
+          - status: ASC
+          - created_at: DESC
+        description: "Query debates by status and date"
+        
+      - fields:
+          - question_id: ASC
+          - created_at: DESC
+        description: "Query debates for specific question"
+        
+      - fields:
+          - created_at: DESC
+        description: "Query all debates by date"
+    
+    security_rules: |
+      allow read: if request.auth != null;
+      allow write: if false; // Backend only
+
+  # Collection: prompt_versions
+  prompt_versions:
+    description: "Stores all prompt versions with metadata and performance tracking for PES"
+    fields:
+      - name: prompt_text
+        type: string
+        required: true
+        description: "The complete prompt text"
+        
+      - name: version
+        type: string
+        required: true
+        description: "Version identifier (e.g., v1.2.0)"
+        
+      - name: topic
+        type: string
+        required: true
+        description: "Topic category for prompt specialization"
+        default: "general"
+        enum:
+          - general
+          - politics
+          - science
+          - ethics
+          - economics
+          
+      - name: metadata
+        type: object
+        required: false
+        description: "Additional metadata about the prompt"
+        properties:
+          author: string
+          description: string
+          created_for: string
+          
+      - name: performance_data
+        type: object
+        required: true
+        description: "Aggregated performance metrics"
+        properties:
+          simulations_count: number
+          average_score: number
+          success_rate: number
+          win_rate: number
+          
+      - name: status
+        type: string
+        required: true
+        description: "Prompt version status"
+        default: "testing"
+        enum:
+          - active
+          - testing
+          - archived
+          - deprecated
+          
+      - name: created_at
+        type: timestamp
+        required: true
+        description: "Prompt version creation timestamp"
+        
+      - name: updated_at
+        type: timestamp
+        required: true
+        description: "Last update timestamp"
+    
+    indexes:
+      - fields:
+          - topic: ASC
+          - status: ASC
+          - created_at: DESC
+        description: "Query prompts by topic and status"
+        
+      - fields:
+          - status: ASC
+          - created_at: DESC
+        description: "Query prompts by status"
+        
+      - fields:
+          - created_at: DESC
+        description: "Query all prompts by date"
+    
+    security_rules: |
+      allow read: if request.auth != null;
+      allow write: if false; // Backend only
+
+  # Collection: simulations
+  simulations:
+    description: "Stores simulation runs and results for prompt version testing"
+    fields:
+      - name: prompt_version_id
+        type: string
+        required: true
+        description: "Reference to prompt version being tested"
+        
+      - name: debate_ids
+        type: array
+        required: true
+        description: "Array of debate IDs used in simulation"
+        
+      - name: results
+        type: array
+        required: true
+        description: "Array of individual simulation results per debate"
+        
+      - name: recommendations
+        type: array
+        required: true
+        description: "Generated recommendations based on results"
+        
+      - name: performance_metrics
+        type: object
+        required: true
+        description: "Aggregate performance metrics"
+        properties:
+          averageScore: number
+          successRate: number
+          averageInferenceTime: number
+          totalDebates: number
+          successfulDebates: number
+          
+      - name: metadata
+        type: object
+        required: false
+        description: "Additional simulation metadata"
+        
+      - name: created_at
+        type: timestamp
+        required: true
+        description: "Simulation timestamp"
+        
+      - name: status
+        type: string
+        required: true
+        description: "Simulation status"
+        default: "completed"
+        enum:
+          - running
+          - completed
+          - failed
+    
+    indexes:
+      - fields:
+          - prompt_version_id: ASC
+          - created_at: DESC
+        description: "Query simulations by prompt version"
+        
+      - fields:
+          - status: ASC
+          - created_at: DESC
+        description: "Query simulations by status"
+        
+      - fields:
+          - created_at: DESC
+        description: "Query all simulations by date"
+    
+    security_rules: |
+      allow read: if request.auth != null;
+      allow write: if false; // Backend only

@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PES - Prompt Evolution System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .tabs {
+            display: flex;
+            background: #f5f5f5;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px 20px;
+            text-align: center;
+            cursor: pointer;
+            background: #f5f5f5;
+            border: none;
+            font-size: 1em;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            background: #e0e0e0;
+        }
+
+        .tab.active {
+            background: white;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .status-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .status-card h3 {
+            margin-bottom: 15px;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .status-item {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .status-item .value {
+            font-size: 2em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .status-item .label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: #f9f9f9;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .card h3 {
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-small {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 5px;
+            font-size: 0.85em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn-small:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-small:active {
+            transform: translateY(0);
+        }
+
+        .btn-small:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: #f5f5f5;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .badge.success {
+            background: #4caf50;
+            color: white;
+        }
+
+        .badge.warning {
+            background: #ff9800;
+            color: white;
+        }
+
+        .badge.info {
+            background: #2196f3;
+            color: white;
+        }
+
+        .badge.error {
+            background: #f44336;
+            color: white;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .info-item {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .info-item strong {
+            color: #667eea;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #c62828;
+        }
+
+        .success-message {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #4caf50;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+        }
+
+        .metric .label {
+            font-weight: 600;
+            color: #666;
+        }
+
+        .metric .value {
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .flex-row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .flex-row > * {
+            flex: 1;
+            min-width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 PES - Prompt Evolution System</h1>
+            <p>Data-driven prompt optimization for ONESEEK</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('dashboard')">Dashboard</button>
+            <button class="tab" onclick="switchTab('prompts')">Prompts</button>
+            <button class="tab" onclick="switchTab('simulations')">Simuleringar</button>
+            <button class="tab" onclick="switchTab('debates')">Debatter</button>
+            <button class="tab" onclick="switchTab('create')">Skapa Prompt</button>
+        </div>
+
+        <div class="content">
+            <!-- Dashboard Tab -->
+            <div id="dashboard" class="tab-content active">
+                <div class="status-card">
+                    <h3>System Status</h3>
+                    <div id="status-info">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p>Laddar status...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>📊 Statistik</h3>
+                    <div id="statistics">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>🏆 Top Prompts</h3>
+                    <div id="top-prompts">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prompts Tab -->
+            <div id="prompts" class="tab-content">
+                <div class="card">
+                    <h3>Alla Prompts</h3>
+                    <div class="form-group">
+                        <label>Filtrera:</label>
+                        <div style="display: flex; gap: 10px;">
+                            <select id="prompt-topic-filter" onchange="loadPrompts()">
+                                <option value="">Alla ämnen</option>
+                                <option value="general">General</option>
+                                <option value="politics">Politics</option>
+                                <option value="science">Science</option>
+                                <option value="ethics">Ethics</option>
+                                <option value="economics">Economics</option>
+                            </select>
+                            <select id="prompt-status-filter" onchange="loadPrompts()">
+                                <option value="">Alla status</option>
+                                <option value="active">Active</option>
+                                <option value="testing">Testing</option>
+                                <option value="archived">Archived</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="prompts-list">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Simulations Tab -->
+            <div id="simulations" class="tab-content">
+                <div class="card">
+                    <h3>Simuleringar</h3>
+                    <div id="simulations-list">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Debates Tab -->
+            <div id="debates" class="tab-content">
+                <div class="card">
+                    <h3>Debatter</h3>
+                    <div id="debates-list">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Create Prompt Tab -->
+            <div id="create" class="tab-content">
+                <div class="card">
+                    <h3>Skapa Ny Prompt</h3>
+                    <form id="create-prompt-form">
+                        <div class="form-group">
+                            <label for="prompt-text">Prompt Text *</label>
+                            <textarea id="prompt-text" required placeholder="Du är ONESEEK-7B-Zero..."></textarea>
+                        </div>
+
+                        <div class="flex-row">
+                            <div class="form-group">
+                                <label for="prompt-version">Version *</label>
+                                <input type="text" id="prompt-version" required placeholder="v1.0.0">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="prompt-topic">Ämne</label>
+                                <select id="prompt-topic">
+                                    <option value="general">General</option>
+                                    <option value="politics">Politics</option>
+                                    <option value="science">Science</option>
+                                    <option value="ethics">Ethics</option>
+                                    <option value="economics">Economics</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="prompt-author">Författare</label>
+                            <input type="text" id="prompt-author" placeholder="Ditt namn">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="prompt-description">Beskrivning</label>
+                            <input type="text" id="prompt-description" placeholder="Kort beskrivning av ändringarna">
+                        </div>
+
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="run-simulation" checked>
+                                Kör simulering direkt efter skapande
+                            </label>
+                        </div>
+
+                        <button type="submit">Skapa Prompt</button>
+                    </form>
+
+                    <div id="create-result"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001/api/pes';
+
+        // Tab switching
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+
+            // Load data for the active tab
+            if (tabName === 'dashboard') {
+                loadDashboard();
+            } else if (tabName === 'prompts') {
+                loadPrompts();
+            } else if (tabName === 'simulations') {
+                loadSimulations();
+            } else if (tabName === 'debates') {
+                loadDebates();
+            }
+        }
+
+        // Load dashboard
+        async function loadDashboard() {
+            try {
+                // Load status
+                const statusResponse = await fetch(`${API_BASE}/status`);
+                const status = await statusResponse.json();
+                
+                document.getElementById('status-info').innerHTML = `
+                    <div class="status-grid">
+                        <div class="status-item">
+                            <div class="label">Status</div>
+                            <div class="value">${status.status === 'operational' ? '✅' : '❌'}</div>
+                        </div>
+                        <div class="status-item">
+                            <div class="label">Debatter</div>
+                            <div class="value">${status.data_available.debates ? '✓' : '✗'}</div>
+                        </div>
+                        <div class="status-item">
+                            <div class="label">Prompts</div>
+                            <div class="value">${status.data_available.prompt_versions ? '✓' : '✗'}</div>
+                        </div>
+                        <div class="status-item">
+                            <div class="label">Simuleringar</div>
+                            <div class="value">${status.data_available.simulations ? '✓' : '✗'}</div>
+                        </div>
+                    </div>
+                `;
+
+                // Load statistics
+                const [promptsRes, simulationsRes, debatesRes] = await Promise.all([
+                    fetch(`${API_BASE}/prompts?limit=100`),
+                    fetch(`${API_BASE}/simulations?limit=100`),
+                    fetch(`${API_BASE}/debates?limit=100`)
+                ]);
+
+                const prompts = await promptsRes.json();
+                const simulations = await simulationsRes.json();
+                const debates = await debatesRes.json();
+
+                document.getElementById('statistics').innerHTML = `
+                    <div class="metric">
+                        <span class="label">Totalt antal prompts</span>
+                        <span class="value">${prompts.total || 0}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">Totalt antal simuleringar</span>
+                        <span class="value">${simulations.total || 0}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">Tillgängliga debatter</span>
+                        <span class="value">${debates.total || 0}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">Aktiva prompts</span>
+                        <span class="value">${(prompts.prompts && prompts.prompts.filter(p => p.status === 'active').length) || 0}</span>
+                    </div>
+                `;
+
+                // Load top prompts report
+                const reportRes = await fetch(`${API_BASE}/report`);
+                const report = await reportRes.json();
+
+                if (report.topPerformers && report.topPerformers.length > 0) {
+                    const topHtml = report.topPerformers.map((p, i) => `
+                        <div class="metric">
+                            <span class="label">#${i + 1} ${p.version}</span>
+                            <span class="value">Score: ${p.averageScore.toFixed(3)} (${p.simulationCount} sims)</span>
+                        </div>
+                    `).join('');
+                    document.getElementById('top-prompts').innerHTML = topHtml;
+                } else {
+                    document.getElementById('top-prompts').innerHTML = '<p>Ingen data tillgänglig ännu. Skapa och testa prompts för att se resultat.</p>';
+                }
+
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+                document.getElementById('status-info').innerHTML = `<div class="error">Fel vid laddning av dashboard: ${error.message}</div>`;
+            }
+        }
+
+        // Load prompts
+        async function loadPrompts() {
+            try {
+                const topic = document.getElementById('prompt-topic-filter').value;
+                const status = document.getElementById('prompt-status-filter').value;
+                
+                let url = `${API_BASE}/prompts?limit=50`;
+                if (topic) url += `&topic=${topic}`;
+                if (status) url += `&status=${status}`;
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.prompts.length === 0) {
+                    document.getElementById('prompts-list').innerHTML = '<p>Inga prompts hittades.</p>';
+                    return;
+                }
+
+                const tableHtml = `
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Version</th>
+                                    <th>Ämne</th>
+                                    <th>Status</th>
+                                    <th>Avg Score</th>
+                                    <th>Simuleringar</th>
+                                    <th>Skapad</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.prompts.map(p => `
+                                    <tr>
+                                        <td><strong>${p.version}</strong></td>
+                                        <td>${p.topic}</td>
+                                        <td><span class="badge ${p.status === 'active' ? 'success' : p.status === 'testing' ? 'info' : 'warning'}">${p.status}</span></td>
+                                        <td>${p.performance_data?.average_score?.toFixed(3) || 'N/A'}</td>
+                                        <td>${p.performance_data?.simulations_count || 0}</td>
+                                        <td>${new Date(p.created_at).toLocaleDateString('sv-SE')}</td>
+                                        <td><button class="btn-small" onclick="runSimulationForPrompt('${p.id}', '${p.version}', '${p.topic}')">Run Simulation</button></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+
+                document.getElementById('prompts-list').innerHTML = tableHtml;
+            } catch (error) {
+                console.error('Error loading prompts:', error);
+                document.getElementById('prompts-list').innerHTML = `<div class="error">Fel vid laddning: ${error.message}</div>`;
+            }
+        }
+
+        // Run simulation for a specific prompt
+        async function runSimulationForPrompt(promptId, version, topic) {
+            if (!confirm(`Kör simulering för prompt ${version}?`)) {
+                return;
+            }
+
+            const button = event.target;
+            button.disabled = true;
+            button.textContent = 'Running...';
+
+            try {
+                const response = await fetch(`${API_BASE}/simulations`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        promptId: promptId,
+                        topic: topic
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert(`✅ Simulering startad för ${version}!\n\nSimulation ID: ${data.simulation_id}\nGå till Simulations-fliken för att se resultatet.`);
+                    // Reload prompts to show updated simulation count
+                    await loadPrompts();
+                } else {
+                    alert(`❌ Fel: ${data.error || 'Kunde inte starta simulering'}`);
+                }
+            } catch (error) {
+                console.error('Error running simulation:', error);
+                alert(`❌ Fel vid start av simulering: ${error.message}`);
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Run Simulation';
+            }
+        }
+
+        // View simulation details
+        async function viewSimulationDetails(simulationId) {
+            try {
+                const response = await fetch(`${API_BASE}/simulations?limit=100`);
+                const data = await response.json();
+                const simulation = data.simulations.find(s => s.id === simulationId);
+                
+                if (!simulation) {
+                    alert('Simulation not found');
+                    return;
+                }
+                
+                const metrics = simulation.performance_metrics || {};
+                const recommendations = simulation.recommendations || [];
+                
+                const detailsHtml = `
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <strong>Simulation ID:</strong><br>${simulation.id}
+                        </div>
+                        <div class="info-item">
+                            <strong>Prompt Version:</strong><br>${simulation.prompt_version_id.substring(0, 12)}...
+                        </div>
+                        <div class="info-item">
+                            <strong>Status:</strong><br><span class="badge ${simulation.status === 'completed' ? 'success' : 'info'}">${simulation.status}</span>
+                        </div>
+                        <div class="info-item">
+                            <strong>Created:</strong><br>${new Date(simulation.created_at).toLocaleString('sv-SE')}
+                        </div>
+                    </div>
+                    
+                    <h3 style="margin-top: 30px; margin-bottom: 15px;">Performance Metrics</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <strong>Quality Score:</strong><br>
+                            <span style="font-size: 1.5em; color: ${metrics.averageScore >= 0.7 ? '#4caf50' : metrics.averageScore >= 0.5 ? '#ff9800' : '#f44336'}">
+                                ${(metrics.averageScore * 100).toFixed(1)}%
+                            </span>
+                            <br><small>Based on: response length, structure, keyword relevance</small>
+                        </div>
+                        <div class="info-item">
+                            <strong>Success Rate:</strong><br>
+                            <span style="font-size: 1.5em;">${(metrics.successRate * 100).toFixed(1)}%</span>
+                            <br><small>${metrics.successfulDebates || 0} of ${metrics.totalDebates || 0} debates succeeded</small>
+                        </div>
+                        <div class="info-item">
+                            <strong>Avg Response Length:</strong><br>
+                            <span style="font-size: 1.5em;">${Math.round(metrics.averageResponseLength || 0)}</span>
+                            <br><small>characters per response</small>
+                        </div>
+                        <div class="info-item">
+                            <strong>Avg Inference Time:</strong><br>
+                            <span style="font-size: 1.5em;">${((metrics.averageInferenceTime || 0) / 1000).toFixed(1)}s</span>
+                            <br><small>per debate simulation</small>
+                        </div>
+                    </div>
+                    
+                    ${recommendations.length > 0 ? `
+                        <h3 style="margin-top: 30px; margin-bottom: 15px;">Recommendations</h3>
+                        <div style="background: #f5f5f5; padding: 15px; border-radius: 8px;">
+                            ${recommendations.map(r => `
+                                <div style="margin-bottom: 15px; padding: 10px; background: white; border-left: 4px solid ${r.severity === 'high' ? '#f44336' : r.severity === 'medium' ? '#ff9800' : '#2196f3'}; border-radius: 4px;">
+                                    <strong>${r.type.toUpperCase()}</strong> - ${r.message}
+                                    <br><small style="color: #666;">${r.suggestion}</small>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                    
+                    <h3 style="margin-top: 30px; margin-bottom: 15px;">Debates Used</h3>
+                    <div style="background: #f5f5f5; padding: 15px; border-radius: 8px;">
+                        <strong>Total Debates:</strong> ${simulation.debate_ids?.length || 0}<br>
+                        <details style="margin-top: 10px;">
+                            <summary style="cursor: pointer; user-select: none;">Show Debate IDs</summary>
+                            <ul style="margin-top: 10px;">
+                                ${(simulation.debate_ids || []).map(id => `<li><code>${id}</code></li>`).join('')}
+                            </ul>
+                        </details>
+                    </div>
+                    
+                    <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px;">
+                        <strong>💡 Understanding the Score:</strong><br>
+                        The quality score (0-100%) measures how well ONESEEK's responses match expected characteristics:<br>
+                        • <strong>30%</strong> - Response length (optimal: 200-800 characters)<br>
+                        • <strong>30%</strong> - Structure (multiple paragraphs, formatting)<br>
+                        • <strong>40%</strong> - Question relevance (keyword overlap with original question)<br><br>
+                        <em>Note: This is a simplified heuristic. Real debate performance depends on semantic understanding, synthesis quality, and human evaluation.</em>
+                    </div>
+                `;
+                
+                document.getElementById('simulation-details-content').innerHTML = detailsHtml;
+                document.getElementById('simulation-details-modal').style.display = 'block';
+            } catch (error) {
+                console.error('Error viewing simulation details:', error);
+                alert('Error loading simulation details: ' + error.message);
+            }
+        }
+
+        // Load simulations
+        async function loadSimulations() {
+            try {
+                const response = await fetch(`${API_BASE}/simulations?limit=20`);
+                const data = await response.json();
+
+                if (data.simulations.length === 0) {
+                    document.getElementById('simulations-list').innerHTML = '<p>Inga simuleringar hittades.</p>';
+                    return;
+                }
+
+                const tableHtml = `
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Prompt ID</th>
+                                    <th>Debatter</th>
+                                    <th>Avg Score</th>
+                                    <th>Success Rate</th>
+                                    <th>Avg Response Length</th>
+                                    <th>Avg Inference Time</th>
+                                    <th>Status</th>
+                                    <th>Skapad</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.simulations.map(s => {
+                                    const scoreValue = s.performance_metrics?.averageScore || 0;
+                                    const scoreDisplay = (scoreValue * 100).toFixed(1);
+                                    const scoreColor = scoreValue >= 0.7 ? 'success' : scoreValue >= 0.5 ? 'warning' : 'error';
+                                    
+                                    return `
+                                    <tr>
+                                        <td title="${s.prompt_version_id}">${s.prompt_version_id.substring(0, 8)}...</td>
+                                        <td>${s.debate_ids?.length || 0}</td>
+                                        <td><span class="badge ${scoreColor}">${scoreDisplay}%</span></td>
+                                        <td>${s.performance_metrics?.successRate ? (s.performance_metrics.successRate * 100).toFixed(1) + '%' : 'N/A'}</td>
+                                        <td>${s.performance_metrics?.averageResponseLength ? Math.round(s.performance_metrics.averageResponseLength) + ' chars' : 'N/A'}</td>
+                                        <td>${s.performance_metrics?.averageInferenceTime ? (s.performance_metrics.averageInferenceTime / 1000).toFixed(1) + 's' : 'N/A'}</td>
+                                        <td><span class="badge ${s.status === 'completed' ? 'success' : 'info'}">${s.status}</span></td>
+                                        <td>${new Date(s.created_at).toLocaleDateString('sv-SE')}</td>
+                                        <td><button class="btn-small" onclick="viewSimulationDetails('${s.id}')">Details</button></td>
+                                    </tr>
+                                `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="simulation-details-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; padding: 20px; overflow-y: auto;">
+                        <div style="max-width: 900px; margin: 20px auto; background: white; border-radius: 10px; padding: 30px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                                <h2>Simulation Details</h2>
+                                <button onclick="document.getElementById('simulation-details-modal').style.display='none'" style="padding: 10px 20px;">Close</button>
+                            </div>
+                            <div id="simulation-details-content"></div>
+                        </div>
+                    </div>
+                `;
+
+                document.getElementById('simulations-list').innerHTML = tableHtml;
+            } catch (error) {
+                console.error('Error loading simulations:', error);
+                document.getElementById('simulations-list').innerHTML = `<div class="error">Fel vid laddning: ${error.message}</div>`;
+            }
+        }
+
+        // Load debates
+        async function loadDebates() {
+            try {
+                const response = await fetch(`${API_BASE}/debates?limit=20`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Debates data received:', data);
+
+                if (!data.debates || data.debates.length === 0) {
+                    document.getElementById('debates-list').innerHTML = '<p>Inga debatter hittades. Kör några live-debatter för att generera träningsdata.</p>';
+                    return;
+                }
+
+                const tableHtml = `
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Fråga</th>
+                                    <th>Deltagare</th>
+                                    <th>Rundor</th>
+                                    <th>Status</th>
+                                    <th>Vinnare</th>
+                                    <th>Skapad</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.debates.map(d => `
+                                    <tr>
+                                        <td>${d.question ? d.question.substring(0, 60) + '...' : 'N/A'}</td>
+                                        <td>${d.participants?.length || 0}</td>
+                                        <td>${d.current_round || d.rounds?.length || 0}</td>
+                                        <td><span class="badge ${d.status === 'completed' ? 'success' : 'info'}">${d.status || 'unknown'}</span></td>
+                                        <td>${d.winner?.agent || d.winner || 'N/A'}</td>
+                                        <td>${d.created_at ? new Date(d.created_at).toLocaleDateString('sv-SE') : 'N/A'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+
+                document.getElementById('debates-list').innerHTML = tableHtml;
+            } catch (error) {
+                console.error('Error loading debates:', error);
+                document.getElementById('debates-list').innerHTML = `<div class="error">Fel vid laddning: ${error.message}</div>`;
+            }
+        }
+
+        // Create prompt form
+        document.getElementById('create-prompt-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const button = e.target.querySelector('button[type="submit"]');
+            button.disabled = true;
+            button.textContent = 'Skapar...';
+
+            const resultDiv = document.getElementById('create-result');
+            resultDiv.innerHTML = '<div class="loading"><div class="spinner"></div><p>Skapar prompt och kör simulering...</p></div>';
+
+            try {
+                const promptData = {
+                    promptText: document.getElementById('prompt-text').value,
+                    version: document.getElementById('prompt-version').value,
+                    topic: document.getElementById('prompt-topic').value,
+                    metadata: {
+                        author: document.getElementById('prompt-author').value || 'Unknown',
+                        description: document.getElementById('prompt-description').value || ''
+                    },
+                    runSimulation: document.getElementById('run-simulation').checked
+                };
+
+                const response = await fetch(`${API_BASE}/prompts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(promptData)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success-message">
+                            <h4>✅ Prompt skapad!</h4>
+                            <p><strong>Version:</strong> ${result.promptVersion.version}</p>
+                            <p><strong>ID:</strong> ${result.promptVersion.id}</p>
+                            ${result.simulation ? `
+                                <p><strong>Avg Score:</strong> ${result.simulation.performanceMetrics.averageScore.toFixed(3)}</p>
+                                <p><strong>Debatter:</strong> ${result.simulation.debatesUsed}</p>
+                                <p><strong>Success Rate:</strong> ${(result.simulation.performanceMetrics.successRate * 100).toFixed(1)}%</p>
+                            ` : ''}
+                        </div>
+                    `;
+                    e.target.reset();
+                } else {
+                    resultDiv.innerHTML = `<div class="error">Fel: ${result.error || result.message}</div>`;
+                }
+            } catch (error) {
+                console.error('Error creating prompt:', error);
+                resultDiv.innerHTML = `<div class="error">Fel vid skapande av prompt: ${error.message}</div>`;
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Skapa Prompt';
+            }
+        });
+
+        // Load dashboard on page load
+        loadDashboard();
+    </script>
+</body>
+</html>

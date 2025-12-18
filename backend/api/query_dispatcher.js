@@ -17,7 +17,7 @@ import { batchFactCheck, compareFactChecks } from '../services/factChecker.js';
 import { performCompleteEnhancedAnalysis } from '../utils/nlpProcessors.js';
 import { synthesizeModelResponses } from '../services/modelSynthesis.js';
 import { executeAnalysisPipeline } from '../services/analysisPipeline.js';
-import { shouldTriggerDebate } from '../services/consensusDebate.js';
+import { shouldTriggerDebate, initiateDebate } from '../services/consensusDebate.js';
 import { executeChangeDetection } from './change_detection.js';
 import { 
   isFirebaseAvailable,
@@ -1023,6 +1023,49 @@ router.post('/query', async (req, res) => {
     // Check if consensus debate should be triggered
     const debateTrigger = shouldTriggerDebate(modelSynthesis);
     console.log('🎯 Debate trigger check:', debateTrigger ? 'YES - High divergence detected' : 'NO - Consensus acceptable');
+    console.log('📊 Consensus metrics:', {
+      overallConsensus: modelSynthesis.consensus?.overallConsensus,
+      threshold: 70,
+      willTrigger: modelSynthesis.consensus?.overallConsensus < 70,
+      highSeverityCount: modelSynthesis.divergences?.severityCounts?.high || 0
+    });
+
+    // Automatically initiate debate if triggered
+    let debateInfo = null;
+    if (debateTrigger) {
+      try {
+        console.log('🎭 Auto-initiating debate due to high divergence...');
+        const agents = responses
+          .filter(r => !r.metadata?.error)
+          .map(r => r.agent);
+        
+        console.log(`🎭 Debate participants: ${agents.join(', ')}`);
+        
+        const debate = await initiateDebate(
+          firebaseDocId || 'temp-' + Date.now(),
+          question,
+          agents,
+          responses,
+          modelSynthesis
+        );
+        
+        debateInfo = {
+          debateId: debate.id,
+          participants: debate.participants,
+          status: debate.status,
+          createdAt: debate.createdAt
+        };
+        
+        console.log(`✅ Debate initiated successfully: ${debate.id}`);
+        console.log(`✅ Debate should now be in Firebase debates collection`);
+      } catch (error) {
+        console.error('❌ Failed to auto-initiate debate:', error);
+        console.error('❌ Error details:', error.message);
+        // Don't fail the request if debate initiation fails
+      }
+    } else {
+      console.log('ℹ️  No debate triggered - consensus is acceptable or insufficient divergence');
+    }
 
     // NEW: Change Detection - Analyze each response for changes
     console.log('🔍 Running change detection analysis...');
@@ -1208,6 +1251,7 @@ router.post('/query', async (req, res) => {
       factCheckComparison: factCheckComparison,
       modelSynthesis: modelSynthesis,
       debateTrigger: debateTrigger,
+      debate: debateInfo,  // NEW: Include debate info if initiated
       change_detection: significantChange || null,  // NEW: Include change detection
       firebaseDocId: firebaseDocId || null, // Return the doc ID for reference
       timestamp: new Date().toISOString(),
