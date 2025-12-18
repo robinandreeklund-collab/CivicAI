@@ -1,9 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Alert, AlertDescription } from '../components/ui/alert';
-import { ArrowLeft, TrendingUp, Trophy, BarChart3 } from 'lucide-react';
 
 /**
  * PES Evolution Results Page
@@ -53,13 +49,15 @@ const PESEvolutionResultsPage = () => {
   if (error) {
     return (
       <div className="p-8">
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-        <Button onClick={() => navigate('/pes/evolution')} className="mt-4">
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Dashboard
-        </Button>
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-800">{error}</p>
+        </div>
+        <button 
+          onClick={() => navigate('/pes/evolution')} 
+          className="mt-4 px-4 py-2 border border-gray-300 hover:bg-gray-50 rounded-lg flex items-center gap-2"
+        >
+          ← Back to Dashboard
+        </button>
       </div>
     );
   }
@@ -75,57 +73,51 @@ const PESEvolutionResultsPage = () => {
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-6">
-        <Button onClick={() => navigate('/pes/evolution')} variant="ghost" className="mb-4">
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Dashboard
-        </Button>
+        <button 
+          onClick={() => navigate('/pes/evolution')} 
+          className="mb-4 px-4 py-2 text-gray-600 hover:text-gray-900 flex items-center gap-2"
+        >
+          ← Back to Dashboard
+        </button>
         <h1 className="text-3xl font-bold mb-2">Evolution Results</h1>
         <p className="text-gray-600 font-mono text-sm">{results.evolution_id}</p>
       </div>
 
       {/* Status Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardContent className="pt-6">
+        <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
             <div className="text-2xl font-bold text-blue-600">{results.status}</div>
             <div className="text-sm text-gray-600">Status</div>
-          </CardContent>
-        </Card>
+          </div>
 
-        <Card>
-          <CardContent className="pt-6">
+        <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
             <div className="text-2xl font-bold text-green-600">
               {improvement > 0 ? '+' : ''}{improvement?.toFixed(1) || 0}%
             </div>
             <div className="text-sm text-gray-600">Improvement</div>
-          </CardContent>
-        </Card>
+          </div>
 
-        <Card>
-          <CardContent className="pt-6">
+        <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
             <div className="text-2xl font-bold">{results.debates_analyzed || 0}</div>
             <div className="text-sm text-gray-600">Debates Analyzed</div>
-          </CardContent>
-        </Card>
+          </div>
 
-        <Card>
-          <CardContent className="pt-6">
+        <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
             <div className="text-2xl font-bold">{results.variants?.length || 0}</div>
             <div className="text-sm text-gray-600">Variants Tested</div>
-          </CardContent>
-        </Card>
+          </div>
       </div>
 
       {/* Winner Card */}
       {winner && (
-        <Card className="mb-6 border-2 border-green-500">
-          <CardHeader className="bg-green-50">
+        <div className="mb-6 bg-white rounded-lg shadow-md border-2 border-green-500">
+          <div className="p-6 bg-green-50 border-b border-green-200">
             <div className="flex items-center gap-2">
-              <Trophy className="w-6 h-6 text-yellow-600" />
-              <CardTitle>Winner: {winner.version}</CardTitle>
+              <span className="text-2xl">🏆</span>
+              <h3 className="text-lg font-semibold">Winner: {winner.version}</h3>
             </div>
-          </CardHeader>
-          <CardContent className="pt-6">
+          </div>
+          <div className="p-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <div>
                 <div className="text-sm text-gray-600">Average Votes</div>
@@ -166,20 +158,19 @@ const PESEvolutionResultsPage = () => {
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* All Variants Comparison */}
       {results.variants && results.variants.length > 0 && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5" />
-              All Variants Comparison
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div className="mb-6 bg-white rounded-lg shadow-md border border-gray-200">
+          <div className="p-6 border-b border-gray-200">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              📊 All Variants Comparison
+            </h3>
+          </div>
+          <div className="p-6">
             <div className="space-y-4">
               {results.variants.map((variant, index) => {
                 const isWinner = variant.version === winner?.version;
@@ -211,20 +202,19 @@ const PESEvolutionResultsPage = () => {
                 );
               })}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Insights */}
       {results.insights && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
-              Key Insights
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div className="mb-6 bg-white rounded-lg shadow-md border border-gray-200">
+          <div className="p-6 border-b border-gray-200">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              📈 Key Insights
+            </h3>
+          </div>
+          <div className="p-6">
             <div className="space-y-4">
               {results.insights.successful_patterns && results.insights.successful_patterns.length > 0 && (
                 <div>
@@ -270,17 +260,17 @@ const PESEvolutionResultsPage = () => {
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Baseline Comparison */}
       {results.baseline && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Baseline Comparison</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div className="bg-white rounded-lg shadow-md border border-gray-200">
+          <div className="p-6 border-b border-gray-200">
+            <h3 className="text-lg font-semibold">Baseline Comparison</h3>
+          </div>
+          <div className="p-6">
             <div className="grid grid-cols-2 gap-6">
               <div>
                 <h4 className="font-semibold mb-3">Baseline ({results.baseline.version})</h4>
@@ -324,8 +314,8 @@ const PESEvolutionResultsPage = () => {
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
     </div>
   );

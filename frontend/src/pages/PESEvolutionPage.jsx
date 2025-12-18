@@ -1,9 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { Alert, AlertDescription } from '../components/ui/alert';
-import { Play, RefreshCw, CheckCircle, XCircle, Clock } from 'lucide-react';
 
 /**
  * PES Evolution Dashboard
@@ -91,13 +87,13 @@ const PESEvolutionPage = () => {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'completed':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
+        return '✅';
       case 'failed':
-        return <XCircle className="w-5 h-5 text-red-500" />;
+        return '❌';
       case 'running':
-        return <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />;
+        return '⏳';
       default:
-        return <Clock className="w-5 h-5 text-gray-500" />;
+        return '⏱️';
     }
   };
 
@@ -117,7 +113,7 @@ const PESEvolutionPage = () => {
     return (
       <div className="p-8">
         <div className="flex items-center justify-center">
-          <RefreshCw className="w-8 h-8 animate-spin text-blue-500" />
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <span className="ml-2">Loading evolutions...</span>
         </div>
       </div>
@@ -136,43 +132,41 @@ const PESEvolutionPage = () => {
 
       {/* Error Alert */}
       {error && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-800">{error}</p>
+        </div>
       )}
 
       {/* Success Alert */}
       {success && (
-        <Alert className="mb-4 bg-green-50 border-green-200">
-          <AlertDescription className="text-green-800">{success}</AlertDescription>
-        </Alert>
+        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <p className="text-green-800">{success}</p>
+        </div>
       )}
 
       {/* Actions */}
       <div className="mb-6 flex gap-4">
-        <Button
+        <button
           onClick={() => setShowStartForm(!showStartForm)}
-          className="bg-blue-600 hover:bg-blue-700"
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2"
         >
-          <Play className="w-4 h-4 mr-2" />
-          Start New Evolution Loop
-        </Button>
-        <Button
+          ▶️ Start New Evolution Loop
+        </button>
+        <button
           onClick={loadEvolutions}
-          variant="outline"
+          className="px-4 py-2 border border-gray-300 hover:bg-gray-50 rounded-lg flex items-center gap-2"
         >
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Refresh
-        </Button>
+          🔄 Refresh
+        </button>
       </div>
 
       {/* Start Evolution Form */}
       {showStartForm && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Start New Evolution Loop</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div className="mb-6 bg-white rounded-lg shadow-md border border-gray-200">
+          <div className="p-6 border-b border-gray-200">
+            <h3 className="text-lg font-semibold">Start New Evolution Loop</h3>
+          </div>
+          <div className="p-6">
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2">
@@ -245,41 +239,40 @@ const PESEvolutionPage = () => {
               </div>
 
               <div className="flex gap-2">
-                <Button
+                <button
                   onClick={startEvolution}
                   disabled={starting}
-                  className="bg-green-600 hover:bg-green-700"
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {starting ? (
                     <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                       Starting...
                     </>
                   ) : (
                     <>
-                      <Play className="w-4 h-4 mr-2" />
-                      Start Evolution
+                      ▶️ Start Evolution
                     </>
                   )}
-                </Button>
-                <Button
+                </button>
+                <button
                   onClick={() => setShowStartForm(false)}
-                  variant="outline"
+                  className="px-4 py-2 border border-gray-300 hover:bg-gray-50 rounded-lg"
                 >
                   Cancel
-                </Button>
+                </button>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Evolution List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Evolution Runs</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="bg-white rounded-lg shadow-md border border-gray-200">
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="text-lg font-semibold">Evolution Runs</h3>
+        </div>
+        <div className="p-6">
           {evolutions.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               No evolution runs yet. Start one above!
@@ -339,22 +332,20 @@ const PESEvolutionPage = () => {
 
                     <div className="flex gap-2">
                       {evolution.status === 'running' && (
-                        <Button
-                          size="sm"
-                          variant="outline"
+                        <button
+                          className="px-3 py-1 text-sm border border-gray-300 hover:bg-gray-50 rounded"
                           onClick={() => navigate(`/pes/evolution/${evolution.evolution_id}/progress`)}
                         >
                           View Progress
-                        </Button>
+                        </button>
                       )}
                       {evolution.status === 'completed' && (
-                        <Button
-                          size="sm"
-                          variant="outline"
+                        <button
+                          className="px-3 py-1 text-sm border border-gray-300 hover:bg-gray-50 rounded"
                           onClick={() => navigate(`/pes/evolution/${evolution.evolution_id}/results`)}
                         >
                           View Results
-                        </Button>
+                        </button>
                       )}
                     </div>
                   </div>
@@ -362,15 +353,15 @@ const PESEvolutionPage = () => {
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Info Card */}
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>How It Works</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="mt-6 bg-white rounded-lg shadow-md border border-gray-200">
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="text-lg font-semibold">How It Works</h3>
+        </div>
+        <div className="p-6">
           <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
             <li>System analyzes historical debate data using AI to identify success patterns</li>
             <li>Generates multiple prompt variants based on insights</li>
@@ -383,8 +374,8 @@ const PESEvolutionPage = () => {
             <strong>Note:</strong> Evolution loops typically take 30-60 minutes depending on the number of debates and variants.
             Results are saved to Firebase and can be reviewed anytime.
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 };
