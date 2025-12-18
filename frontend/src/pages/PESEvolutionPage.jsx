@@ -121,14 +121,15 @@ const PESEvolutionPage = () => {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">PES Phase 2: Evolution Dashboard</h1>
-        <p className="text-gray-600">
-          AI-driven prompt evolution system for ONESEEK
-        </p>
-      </div>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold mb-2 text-gray-900">PES Phase 2: Evolution Dashboard</h1>
+          <p className="text-gray-600">
+            AI-driven prompt evolution system for ONESEEK
+          </p>
+        </div>
 
       {/* Error Alert */}
       {error && (
@@ -154,7 +155,7 @@ const PESEvolutionPage = () => {
         </button>
         <button
           onClick={loadEvolutions}
-          className="px-4 py-2 border border-gray-300 hover:bg-gray-50 rounded-lg flex items-center gap-2"
+          className="px-4 py-2 border border-gray-300 hover:bg-gray-50 rounded-lg flex items-center gap-2 text-gray-700 bg-white"
         >
           🔄 Refresh
         </button>
@@ -164,18 +165,18 @@ const PESEvolutionPage = () => {
       {showStartForm && (
         <div className="mb-6 bg-white rounded-lg shadow-md border border-gray-200">
           <div className="p-6 border-b border-gray-200">
-            <h3 className="text-lg font-semibold">Start New Evolution Loop</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Start New Evolution Loop</h3>
           </div>
           <div className="p-6">
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-medium mb-2 text-gray-700">
                   Baseline Prompt
                 </label>
                 <textarea
                   value={config.baseline_prompt}
                   onChange={(e) => setConfig({ ...config, baseline_prompt: e.target.value })}
-                  className="w-full p-2 border rounded-md"
+                  className="w-full p-2 border rounded-md text-gray-900 bg-white"
                   rows={6}
                   placeholder="Enter the current baseline prompt..."
                 />
@@ -183,27 +184,27 @@ const PESEvolutionPage = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">
+                  <label className="block text-sm font-medium mb-2 text-gray-700">
                     Baseline Version
                   </label>
                   <input
                     type="text"
                     value={config.baseline_version}
                     onChange={(e) => setConfig({ ...config, baseline_version: e.target.value })}
-                    className="w-full p-2 border rounded-md"
+                    className="w-full p-2 border rounded-md text-gray-900 bg-white"
                     placeholder="v1.0.0"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">
+                  <label className="block text-sm font-medium mb-2 text-gray-700">
                     Number of Debates
                   </label>
                   <input
                     type="number"
                     value={config.debate_count}
                     onChange={(e) => setConfig({ ...config, debate_count: parseInt(e.target.value) })}
-                    className="w-full p-2 border rounded-md"
+                    className="w-full p-2 border rounded-md text-gray-900 bg-white"
                     min="5"
                     max="50"
                   />
@@ -212,14 +213,14 @@ const PESEvolutionPage = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">
+                  <label className="block text-sm font-medium mb-2 text-gray-700">
                     Number of Variants
                   </label>
                   <input
                     type="number"
                     value={config.variant_count}
                     onChange={(e) => setConfig({ ...config, variant_count: parseInt(e.target.value) })}
-                    className="w-full p-2 border rounded-md"
+                    className="w-full p-2 border rounded-md text-gray-900 bg-white"
                     min="2"
                     max="10"
                   />
@@ -233,7 +234,7 @@ const PESEvolutionPage = () => {
                       onChange={(e) => setConfig({ ...config, auto_iterate: e.target.checked })}
                       className="mr-2"
                     />
-                    <span className="text-sm font-medium">Auto-iterate if improved</span>
+                    <span className="text-sm font-medium text-gray-700">Auto-iterate if improved</span>
                   </label>
                 </div>
               </div>
@@ -257,7 +258,7 @@ const PESEvolutionPage = () => {
                 </button>
                 <button
                   onClick={() => setShowStartForm(false)}
-                  className="px-4 py-2 border border-gray-300 hover:bg-gray-50 rounded-lg"
+                  className="px-4 py-2 border border-gray-300 hover:bg-gray-50 rounded-lg text-gray-700 bg-white"
                 >
                   Cancel
                 </button>
@@ -270,7 +271,7 @@ const PESEvolutionPage = () => {
       {/* Evolution List */}
       <div className="bg-white rounded-lg shadow-md border border-gray-200">
         <div className="p-6 border-b border-gray-200">
-          <h3 className="text-lg font-semibold">Evolution Runs</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Evolution Runs</h3>
         </div>
         <div className="p-6">
           {evolutions.length === 0 ? (
@@ -288,7 +289,7 @@ const PESEvolutionPage = () => {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         {getStatusIcon(evolution.status)}
-                        <span className="font-mono text-sm font-semibold">
+                        <span className="font-mono text-sm font-semibold text-gray-900">
                           {evolution.evolution_id}
                         </span>
                         <span className={`text-xs px-2 py-1 rounded ${
@@ -303,19 +304,19 @@ const PESEvolutionPage = () => {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                         <div>
                           <div className="text-gray-500">Started</div>
-                          <div className="font-medium">{formatTimestamp(evolution.timestamp)}</div>
+                          <div className="font-medium text-gray-900">{formatTimestamp(evolution.timestamp)}</div>
                         </div>
                         <div>
                           <div className="text-gray-500">Duration</div>
-                          <div className="font-medium">{formatDuration(evolution.duration_seconds)}</div>
+                          <div className="font-medium text-gray-900">{formatDuration(evolution.duration_seconds)}</div>
                         </div>
                         <div>
                           <div className="text-gray-500">Debates</div>
-                          <div className="font-medium">{evolution.debates_count || 0}</div>
+                          <div className="font-medium text-gray-900">{evolution.debates_count || 0}</div>
                         </div>
                         <div>
                           <div className="text-gray-500">Winner</div>
-                          <div className="font-medium">{evolution.winner_version || 'N/A'}</div>
+                          <div className="font-medium text-gray-900">{evolution.winner_version || 'N/A'}</div>
                         </div>
                       </div>
 
@@ -333,7 +334,7 @@ const PESEvolutionPage = () => {
                     <div className="flex gap-2">
                       {evolution.status === 'running' && (
                         <button
-                          className="px-3 py-1 text-sm border border-gray-300 hover:bg-gray-50 rounded"
+                          className="px-3 py-1 text-sm border border-gray-300 hover:bg-gray-50 rounded text-gray-700 bg-white"
                           onClick={() => navigate(`/pes/evolution/${evolution.evolution_id}/progress`)}
                         >
                           View Progress
@@ -341,7 +342,7 @@ const PESEvolutionPage = () => {
                       )}
                       {evolution.status === 'completed' && (
                         <button
-                          className="px-3 py-1 text-sm border border-gray-300 hover:bg-gray-50 rounded"
+                          className="px-3 py-1 text-sm border border-gray-300 hover:bg-gray-50 rounded text-gray-700 bg-white"
                           onClick={() => navigate(`/pes/evolution/${evolution.evolution_id}/results`)}
                         >
                           View Results
@@ -359,7 +360,7 @@ const PESEvolutionPage = () => {
       {/* Info Card */}
       <div className="mt-6 bg-white rounded-lg shadow-md border border-gray-200">
         <div className="p-6 border-b border-gray-200">
-          <h3 className="text-lg font-semibold">How It Works</h3>
+          <h3 className="text-lg font-semibold text-gray-900">How It Works</h3>
         </div>
         <div className="p-6">
           <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
@@ -370,12 +371,13 @@ const PESEvolutionPage = () => {
             <li>Aggregates performance metrics and selects the best variant</li>
             <li>Provides detailed comparison and improvement analysis</li>
           </ol>
-          <div className="mt-4 p-3 bg-blue-50 rounded-md text-sm">
+          <div className="mt-4 p-3 bg-blue-50 rounded-md text-sm text-blue-900">
             <strong>Note:</strong> Evolution loops typically take 30-60 minutes depending on the number of debates and variants.
             Results are saved to Firebase and can be reviewed anytime.
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 };

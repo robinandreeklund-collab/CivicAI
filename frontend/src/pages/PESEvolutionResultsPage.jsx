@@ -70,18 +70,19 @@ const PESEvolutionResultsPage = () => {
   const improvement = results.improvement_percentage;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <button 
-          onClick={() => navigate('/pes/evolution')} 
-          className="mb-4 px-4 py-2 text-gray-600 hover:text-gray-900 flex items-center gap-2"
-        >
-          ← Back to Dashboard
-        </button>
-        <h1 className="text-3xl font-bold mb-2">Evolution Results</h1>
-        <p className="text-gray-600 font-mono text-sm">{results.evolution_id}</p>
-      </div>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <button 
+            onClick={() => navigate('/pes/evolution')} 
+            className="mb-4 px-4 py-2 text-gray-600 hover:text-gray-900 flex items-center gap-2"
+          >
+            ← Back to Dashboard
+          </button>
+          <h1 className="text-3xl font-bold mb-2 text-gray-900">Evolution Results</h1>
+          <p className="text-gray-600 font-mono text-sm">{results.evolution_id}</p>
+        </div>
 
       {/* Status Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -114,7 +115,7 @@ const PESEvolutionResultsPage = () => {
           <div className="p-6 bg-green-50 border-b border-green-200">
             <div className="flex items-center gap-2">
               <span className="text-2xl">🏆</span>
-              <h3 className="text-lg font-semibold">Winner: {winner.version}</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Winner: {winner.version}</h3>
             </div>
           </div>
           <div className="p-6">
@@ -139,7 +140,7 @@ const PESEvolutionResultsPage = () => {
               </div>
               <div>
                 <div className="text-sm text-gray-600">Debates Won</div>
-                <div className="text-2xl font-bold">
+                <div className="text-2xl font-bold text-gray-900">
                   {winner.wins || 0}/{winner.debates_simulated || 0}
                 </div>
               </div>
@@ -147,12 +148,12 @@ const PESEvolutionResultsPage = () => {
 
             {winner.votes_by_category && Object.keys(winner.votes_by_category).length > 0 && (
               <div className="mt-6">
-                <h4 className="font-semibold mb-3">Votes by Category</h4>
+                <h4 className="font-semibold mb-3 text-gray-900">Votes by Category</h4>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {Object.entries(winner.votes_by_category).map(([category, count]) => (
                     <div key={category} className="bg-gray-50 p-3 rounded-lg">
                       <div className="text-sm text-gray-600 capitalize">{category}</div>
-                      <div className="text-lg font-bold">{count}</div>
+                      <div className="text-lg font-bold text-gray-900">{count}</div>
                     </div>
                   ))}
                 </div>
@@ -166,7 +167,7 @@ const PESEvolutionResultsPage = () => {
       {results.variants && results.variants.length > 0 && (
         <div className="mb-6 bg-white rounded-lg shadow-md border border-gray-200">
           <div className="p-6 border-b border-gray-200">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
+            <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900">
               📊 All Variants Comparison
             </h3>
           </div>
@@ -184,7 +185,7 @@ const PESEvolutionResultsPage = () => {
                     <div className="flex items-start justify-between mb-3">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-semibold">{variant.version}</span>
+                          <span className="font-mono font-semibold text-gray-900">{variant.version}</span>
                           {isWinner && (
                             <span className="text-xs bg-green-500 text-white px-2 py-1 rounded">
                               WINNER
@@ -210,7 +211,7 @@ const PESEvolutionResultsPage = () => {
       {results.insights && (
         <div className="mb-6 bg-white rounded-lg shadow-md border border-gray-200">
           <div className="p-6 border-b border-gray-200">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
+            <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900">
               📈 Key Insights
             </h3>
           </div>
@@ -268,31 +269,31 @@ const PESEvolutionResultsPage = () => {
       {results.baseline && (
         <div className="bg-white rounded-lg shadow-md border border-gray-200">
           <div className="p-6 border-b border-gray-200">
-            <h3 className="text-lg font-semibold">Baseline Comparison</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Baseline Comparison</h3>
           </div>
           <div className="p-6">
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <h4 className="font-semibold mb-3">Baseline ({results.baseline.version})</h4>
-                <div className="space-y-2 text-sm">
+                <h4 className="font-semibold mb-3 text-gray-900">Baseline ({results.baseline.version})</h4>
+                <div className="space-y-2 text-sm text-gray-700">
                   <div className="flex justify-between">
                     <span>Avg Votes:</span>
-                    <span className="font-mono">{results.baseline.metrics?.avg_votes_per_debate?.toFixed(1) || 'N/A'}</span>
+                    <span className="font-mono text-gray-900">{results.baseline.metrics?.avg_votes_per_debate?.toFixed(1) || 'N/A'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Win Rate:</span>
-                    <span className="font-mono">{((results.baseline.metrics?.win_rate || 0) * 100).toFixed(1)}%</span>
+                    <span className="font-mono text-gray-900">{((results.baseline.metrics?.win_rate || 0) * 100).toFixed(1)}%</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Mentions:</span>
-                    <span className="font-mono">{results.baseline.metrics?.avg_mentions_per_debate?.toFixed(1) || 'N/A'}</span>
+                    <span className="font-mono text-gray-900">{results.baseline.metrics?.avg_mentions_per_debate?.toFixed(1) || 'N/A'}</span>
                   </div>
                 </div>
               </div>
 
               <div>
-                <h4 className="font-semibold mb-3">Winner ({winner?.version || 'N/A'})</h4>
-                <div className="space-y-2 text-sm">
+                <h4 className="font-semibold mb-3 text-gray-900">Winner ({winner?.version || 'N/A'})</h4>
+                <div className="space-y-2 text-sm text-gray-700">
                   <div className="flex justify-between">
                     <span>Avg Votes:</span>
                     <span className="font-mono font-bold text-green-600">
@@ -317,6 +318,7 @@ const PESEvolutionResultsPage = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };
