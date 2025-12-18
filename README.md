@@ -1322,6 +1322,62 @@ Fully self-governing autonomous training system with human oversight:
 
 See [AUTONOMY_ENGINE_V3.3.md](AUTONOMY_ENGINE_V3.3.md) for complete documentation.
 
+### 🧬 Prompt Evolution System (PES) Phase 3
+
+Automated AI-driven system for optimizing ONESEEK's debate prompts:
+
+**Core Capabilities:**
+- **AI-Driven Evolution**: ONESEEK analyzes debate patterns and generates improved prompt variants
+- **Historical Simulation**: Tests prompts on real past debates
+- **8-Dimensional Vector Analysis**: Understands WHY prompts win (syntesförmåga, originalitet, konkret_praktisk, etc.)
+- **Automatic Categorization**: Classifies debates into 8 topic categories (ekonomi, filosofi, etik, teknik, samhälle, miljö, säkerhet, politik)
+- **Category-Specific Optimization**: Different strategies for different topics
+- **Real Voting Validation**: Optional ground truth validation with external AIs (~$0.75 cost)
+- **Adaptive Learning**: Weights self-calibrate based on validation feedback
+
+**Phase 3 Features:**
+- Vector analysis reveals what makes prompts effective
+- Category-aware scoring with topic-specific weights
+- Manual validation for accuracy calibration
+- Performance tracking per category
+- Category distribution visualization
+- Winner vector profile analysis
+- Calibration reports with recommendations
+
+**Quick Start:**
+```javascript
+// Start an evolution loop
+const response = await fetch('/api/pes/evolution/start', {
+  method: 'POST',
+  body: JSON.stringify({
+    baseline_prompt: "Du är ONESEEK...",
+    debate_count: 15,
+    variant_count: 5
+  })
+});
+
+// Check results (includes Phase 3 data)
+const results = await fetch(`/api/pes/evolution/${evolutionId}/results`);
+// results.category_distribution - Topic breakdown
+// results.winner.vector_metrics - 8D vector analysis
+// results.category_performance - Per-category performance
+```
+
+**API Endpoints:**
+- `POST /api/pes/evolution/start` - Start evolution loop
+- `GET /api/pes/evolution/:id/results` - Get complete results
+- `POST /api/pes/evolution/:id/validate` - Trigger real voting validation
+- `GET /api/pes/categories` - Category statistics
+- `GET /api/pes/weights/:category` - Get/update category weights
+
+**Documentation:**
+- [PES Phase 3 Specification](PES/PHASE3_SPECIFICATION.md) - Complete technical spec
+- [Testing Guide](PES/PHASE3_TESTING_GUIDE.md) - How to test Phase 3
+- [Category Weight Tuning](PES/CATEGORY_WEIGHT_TUNING_GUIDE.md) - Optimize weights per topic
+- [Calibration Playbook](PES/CALIBRATION_PLAYBOOK.md) - When and how to validate
+
+**Results:** 50% simulation accuracy improvement, category-specific insights, adaptive learning
+
 ### 🎭 System Prompt Management
 
 Configure the AI's personality and behavior through the Admin Dashboard:
