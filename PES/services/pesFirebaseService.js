@@ -344,3 +344,209 @@ export async function getAllSimulations(options = {}) {
     throw error;
   }
 }
+
+// ============================================================================
+// PHASE 2: Evolution Loop Functions
+// ============================================================================
+
+/**
+ * Save an evolution loop run to Firebase
+ * @param {Object} evolution - Evolution data
+ * @returns {Promise<string>} Evolution document ID
+ */
+export async function saveEvolution(evolution) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('Firebase not initialized');
+    }
+    
+    const data = {
+      evolution_id: evolution.evolution_id,
+      timestamp: evolution.timestamp || new Date().toISOString(),
+      status: evolution.status || 'running',
+      config: evolution.config || {},
+      debates_used: evolution.debates_used || [],
+      insights: evolution.insights || {},
+      variants_tested: evolution.variants || [],
+      winner: evolution.winner || null,
+      improvement_percentage: evolution.improvement_percentage || 0,
+      all_variant_metrics: evolution.all_variant_metrics || {},
+      report: evolution.report || {},
+      duration_seconds: evolution.duration_seconds || 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    
+    const docRef = await db.collection('evolutions').doc(evolution.evolution_id).set(data);
+    
+    console.log(`[PES Phase 2] Saved evolution ${evolution.evolution_id}`);
+    return evolution.evolution_id;
+  } catch (error) {
+    console.error('[PES Phase 2] Error saving evolution:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update evolution progress
+ * @param {string} evolutionId - Evolution ID
+ * @param {Object} updates - Updates to apply
+ * @returns {Promise<void>}
+ */
+export async function updateEvolution(evolutionId, updates) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('Firebase not initialized');
+    }
+    
+    await db.collection('evolutions').doc(evolutionId).update({
+      ...updates,
+      updated_at: new Date().toISOString()
+    });
+    
+    console.log(`[PES Phase 2] Updated evolution ${evolutionId}`);
+  } catch (error) {
+    console.error('[PES Phase 2] Error updating evolution:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get evolution by ID
+ * @param {string} evolutionId - Evolution ID
+ * @returns {Promise<Object|null>} Evolution document
+ */
+export async function getEvolution(evolutionId) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('Firebase not initialized');
+    }
+    
+    const doc = await db.collection('evolutions').doc(evolutionId).get();
+    
+    if (!doc.exists) {
+      return null;
+    }
+    
+    return {
+      id: doc.id,
+      ...doc.data()
+    };
+  } catch (error) {
+    console.error('[PES Phase 2] Error fetching evolution:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get all evolutions
+ * @param {Object} options - Query options
+ * @returns {Promise<Array>} Array of evolution documents
+ */
+export async function getAllEvolutions(options = {}) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('Firebase not initialized');
+    }
+    
+    let query = db.collection('evolutions');
+    
+    // Order by creation date (newest first)
+    query = query.orderBy('created_at', 'desc');
+    
+    // Apply limit
+    if (options.limit) {
+      query = query.limit(options.limit);
+    }
+    
+    const snapshot = await query.get();
+    
+    const evolutions = [];
+    snapshot.forEach(doc => {
+      evolutions.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+    
+    console.log(`[PES Phase 2] Retrieved ${evolutions.length} evolutions`);
+    return evolutions;
+  } catch (error) {
+    console.error('[PES Phase 2] Error fetching evolutions:', error);
+    throw error;
+  }
+}
+
+/**
+ * Save simulation run details (for Phase 2)
+ * @param {Object} simulationRun - Simulation run data
+ * @returns {Promise<string>} Document ID
+ */
+export async function saveSimulationRun(simulationRun) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('Firebase not initialized');
+    }
+    
+    const data = {
+      simulation_id: simulationRun.simulation_id,
+      evolution_id: simulationRun.evolution_id,
+      debate_id: simulationRun.debate_id,
+      variant_version: simulationRun.variant_version,
+      rounds: simulationRun.rounds || [],
+      voting: simulationRun.voting || {},
+      created_at: new Date().toISOString()
+    };
+    
+    const docRef = await db.collection('simulation_runs').add(data);
+    
+    console.log(`[PES Phase 2] Saved simulation run ${docRef.id}`);
+    return docRef.id;
+  } catch (error) {
+    console.error('[PES Phase 2] Error saving simulation run:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get simulation runs for an evolution
+ * @param {string} evolutionId - Evolution ID
+ * @param {Object} options - Query options
+ * @returns {Promise<Array>} Array of simulation runs
+ */
+export async function getSimulationRunsByEvolution(evolutionId, options = {}) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('Firebase not initialized');
+    }
+    
+    let query = db.collection('simulation_runs')
+      .where('evolution_id', '==', evolutionId);
+    
+    if (options.limit) {
+      query = query.limit(options.limit);
+    }
+    
+    const snapshot = await query.get();
+    
+    const runs = [];
+    snapshot.forEach(doc => {
+      runs.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+    
+    console.log(`[PES Phase 2] Retrieved ${runs.length} simulation runs for evolution ${evolutionId}`);
+    return runs;
+  } catch (error) {
+    console.error('[PES Phase 2] Error fetching simulation runs:', error);
+    throw error;
+  }
+}

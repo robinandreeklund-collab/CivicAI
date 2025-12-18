@@ -304,4 +304,232 @@ router.post('/compare', async (req, res) => {
   }
 });
 
+// ============================================================================
+// PHASE 2: Evolution Loop Endpoints
+// ============================================================================
+
+/**
+ * POST /api/pes/evolution/start
+ * Start a new evolution loop
+ */
+router.post('/evolution/start', async (req, res) => {
+  try {
+    const { 
+      baseline_prompt, 
+      baseline_version, 
+      debate_count, 
+      variant_count,
+      auto_iterate 
+    } = req.body;
+    
+    if (!baseline_prompt) {
+      return res.status(400).json({
+        error: 'baseline_prompt is required'
+      });
+    }
+    
+    // Import evolution orchestrator
+    const { runEvolutionLoop } = await import('../../PES/core/evolution-orchestrator.js');
+    const { saveEvolution } = await import('../../PES/services/pesFirebaseService.js');
+    
+    // Start evolution loop asynchronously
+    const config = {
+      baseline_prompt,
+      baseline_version: baseline_version || 'v1.0.0',
+      debate_count: debate_count || 15,
+      variant_count: variant_count || 5,
+      auto_iterate: auto_iterate || false
+    };
+    
+    // Run in background and save to Firebase
+    runEvolutionLoop(config, async (progress) => {
+      // Save progress updates to Firebase
+      const { updateEvolution } = await import('../../PES/services/pesFirebaseService.js');
+      try {
+        await updateEvolution(progress.evolution_id, {
+          status: progress.status,
+          current_step: progress.current_step,
+          progress: progress
+        });
+      } catch (err) {
+        console.error('[PES API] Error saving progress:', err);
+      }
+    })
+      .then(async (results) => {
+        // Save completed results
+        await saveEvolution(results);
+        console.log(`[PES API] Evolution ${results.evolution_id} completed successfully`);
+      })
+      .catch(async (error) => {
+        console.error('[PES API] Evolution loop failed:', error);
+        // Save failed status
+        try {
+          const { updateEvolution } = await import('../../PES/services/pesFirebaseService.js');
+          await updateEvolution(config.evolution_id, {
+            status: 'failed',
+            error: error.message
+          });
+        } catch (err) {
+          console.error('[PES API] Error saving failed status:', err);
+        }
+      });
+    
+    // Return immediately with evolution ID
+    const evolutionId = `evo_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    
+    res.status(202).json({
+      evolution_id: evolutionId,
+      status: 'started',
+      message: 'Evolution loop started in background',
+      estimated_time_minutes: Math.ceil((config.debate_count * config.variant_count * 30) / 60),
+      progress_url: `/api/pes/evolution/${evolutionId}/progress`
+    });
+    
+  } catch (error) {
+    console.error('[PES API] Error starting evolution:', error);
+    res.status(500).json({
+      error: 'Failed to start evolution loop',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/pes/evolution/:id/progress
+ * Get real-time progress of evolution loop
+ */
+router.get('/evolution/:id/progress', async (req, res) => {
+  try {
+    const evolutionId = req.params.id;
+    
+    const { getEvolution } = await import('../../PES/services/pesFirebaseService.js');
+    const evolution = await getEvolution(evolutionId);
+    
+    if (!evolution) {
+      return res.status(404).json({
+        error: 'Evolution not found',
+        evolution_id: evolutionId
+      });
+    }
+    
+    const progress = evolution.progress || {};
+    
+    res.json({
+      evolution_id: evolutionId,
+      status: evolution.status,
+      current_step: evolution.current_step || 'Unknown',
+      progress: {
+        steps_completed: progress.steps_completed || 0,
+        total_steps: progress.total_steps || 6,
+        simulations_completed: progress.simulations_completed || 0,
+        simulations_total: progress.simulations_total || 0,
+        percentage: progress.simulation_percentage || 0
+      },
+      estimated_time_remaining_minutes: calculateRemainingTime(progress),
+      last_update: evolution.updated_at
+    });
+    
+  } catch (error) {
+    console.error('[PES API] Error getting evolution progress:', error);
+    res.status(500).json({
+      error: 'Failed to get evolution progress',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/pes/evolution/:id/results
+ * Get complete results after evolution completes
+ */
+router.get('/evolution/:id/results', async (req, res) => {
+  try {
+    const evolutionId = req.params.id;
+    
+    const { getEvolution } = await import('../../PES/services/pesFirebaseService.js');
+    const evolution = await getEvolution(evolutionId);
+    
+    if (!evolution) {
+      return res.status(404).json({
+        error: 'Evolution not found',
+        evolution_id: evolutionId
+      });
+    }
+    
+    res.json({
+      evolution_id: evolutionId,
+      status: evolution.status,
+      timestamp: evolution.timestamp,
+      duration_seconds: evolution.duration_seconds,
+      config: evolution.config,
+      baseline: {
+        version: evolution.config?.baseline_version,
+        metrics: evolution.baseline_metrics
+      },
+      variants: evolution.variants_tested || [],
+      winner: evolution.winner,
+      improvement_percentage: evolution.improvement_percentage,
+      report: evolution.report,
+      insights: evolution.insights,
+      debates_analyzed: evolution.debates_used?.length || 0
+    });
+    
+  } catch (error) {
+    console.error('[PES API] Error getting evolution results:', error);
+    res.status(500).json({
+      error: 'Failed to get evolution results',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/pes/evolutions
+ * List all evolution loops
+ */
+router.get('/evolutions', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 20;
+    
+    const { getAllEvolutions } = await import('../../PES/services/pesFirebaseService.js');
+    const evolutions = await getAllEvolutions({ limit });
+    
+    res.json({
+      evolutions: evolutions.map(e => ({
+        evolution_id: e.evolution_id,
+        status: e.status,
+        timestamp: e.timestamp,
+        duration_seconds: e.duration_seconds,
+        winner_version: e.winner?.version,
+        improvement: e.improvement_percentage,
+        debates_count: e.debates_used?.length || 0
+      })),
+      total: evolutions.length
+    });
+    
+  } catch (error) {
+    console.error('[PES API] Error listing evolutions:', error);
+    res.status(500).json({
+      error: 'Failed to list evolutions',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Calculate estimated remaining time
+ * @param {Object} progress - Progress object
+ * @returns {number} Estimated minutes remaining
+ */
+function calculateRemainingTime(progress) {
+  if (!progress.simulations_total || !progress.simulations_completed) {
+    return 0;
+  }
+  
+  const remaining = progress.simulations_total - progress.simulations_completed;
+  const avgTimePerSim = 0.5; // minutes per simulation (estimate)
+  
+  return Math.ceil(remaining * avgTimePerSim);
+}
+
 export default router;
