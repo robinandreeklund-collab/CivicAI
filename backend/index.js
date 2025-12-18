@@ -34,6 +34,7 @@ import modelsDeleteRouter from './api/models/delete.js';
 import devResetRouter from './api/admin/devReset.js';
 import memoryRouter from './api/memory.js';
 import autonomyRouter from './api/autonomy.js';
+import pesRouter from './api/pes.js';
 import { logPythonServiceStatus } from './services/pythonNLPClient.js';
 import { getCachedPythonStatus } from './services/healthCache.js';
 import { isFirebaseAvailable } from './services/firebaseService.js';
@@ -61,6 +62,9 @@ app.use('/models', express.static(path.join(__dirname, '../models'), {
     }
   }
 }));
+
+// Static file serving for PES frontend
+app.use('/pes', express.static(path.join(__dirname, '../PES/frontend')));
 
 // Routes
 app.use('/api', queryDispatcher);
@@ -93,6 +97,7 @@ app.use('/api/models', modelsDeleteRouter);
 app.use('/api/admin/dev-reset', devResetRouter);
 app.use('/api/memory', memoryRouter);
 app.use('/api/autonomy', autonomyRouter);
+app.use('/api/pes', pesRouter);
 
 // Inference Service Proxy
 // Proxies requests to the ML inference service (ml_service/server.py)
