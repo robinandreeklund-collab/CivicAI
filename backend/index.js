@@ -63,8 +63,15 @@ app.use('/models', express.static(path.join(__dirname, '../models'), {
   }
 }));
 
+// Redirect /pes to /pes/ to ensure proper static file serving
+app.get('/pes', (req, res) => {
+  res.redirect('/pes/');
+});
+
 // Static file serving for PES frontend
-app.use('/pes', express.static(path.join(__dirname, '../PES/frontend')));
+app.use('/pes/', express.static(path.join(__dirname, '../PES/frontend'), {
+  index: 'index.html'
+}));
 
 // Routes
 app.use('/api', queryDispatcher);
