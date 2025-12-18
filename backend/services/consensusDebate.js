@@ -368,9 +368,7 @@ DEBATT-SAMMANFATTNING:
   
   prompt += `\n\nINSTRUKTIONER:
 1. Rösta på det svar du tycker är bäst (du får INTE rösta på ditt eget svar)
-2. Basera ditt val på: noggrannhet, klarhet, fullständighet och användbarhet
-3. Svara ENDAST med namnet på den agent du röstar på: ${otherAgents.join(', ')}
-4. Ge en kort motivering (1-2 meningar)
+2. Ge en kort motivering (1-2 meningar)
 
 Format:
 RÖST: [agent-namn]
