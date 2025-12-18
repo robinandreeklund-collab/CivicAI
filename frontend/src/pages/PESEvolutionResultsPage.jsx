@@ -125,7 +125,7 @@ const PESEvolutionResultsPage = () => {
           </div>
 
         <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
-            <div className="text-2xl font-bold">{results.debates_analyzed || 0}</div>
+            <div className="text-2xl font-bold">{results.debates_count || results.debates_analyzed || 0}</div>
             <div className="text-sm text-gray-600">Debates Analyzed</div>
           </div>
 
@@ -202,7 +202,7 @@ const PESEvolutionResultsPage = () => {
       )}
 
       {/* All Variants Comparison */}
-      {results.variants && results.variants.length > 0 && (
+      {results.all_variant_metrics && Object.keys(results.all_variant_metrics).length > 0 && (
         <div className="mb-6 bg-white rounded-lg shadow-md border border-gray-200">
           <div className="p-6 border-b border-gray-200">
             <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900">
@@ -211,7 +211,7 @@ const PESEvolutionResultsPage = () => {
           </div>
           <div className="p-6">
             <div className="space-y-4">
-              {results.variants.map((variant, index) => {
+              {Object.values(results.all_variant_metrics).map((variant, index) => {
                 const isWinner = variant.version === winner?.version;
                 return (
                   <div
@@ -236,7 +236,7 @@ const PESEvolutionResultsPage = () => {
                             {expandedVariant === variant.version ? '▼ Hide Prompt' : '▶ View Prompt'}
                           </button>
                         </div>
-                        <p className="text-sm text-gray-600 mt-1">{variant.hypothesis}</p>
+                        <p className="text-sm text-gray-600 mt-1">{variant.hypothesis || 'Testar promptvariant'}</p>
                         
                         {expandedVariant === variant.version && variant.prompt_text && (
                           <div className="mt-3 p-3 bg-gray-50 border border-gray-300 rounded-lg">
@@ -277,7 +277,7 @@ const PESEvolutionResultsPage = () => {
                     </div>
                     
                     <div className="text-sm text-gray-600">
-                      {variant.expected_improvement || variant.hypothesis || 'Testing variant with prompt changes'}
+                      <strong>Förväntad förbättring:</strong> {variant.expected_improvement || 'Testar promptvariant med förändringar'}
                     </div>
                   </div>
                 );

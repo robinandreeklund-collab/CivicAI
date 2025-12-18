@@ -89,59 +89,63 @@ export async function generatePromptVariants(baselinePrompt, insights, count = 5
  * @returns {string} Generation prompt
  */
 function buildGenerationPrompt(baselinePrompt, insights, count) {
-  return `You are an expert prompt engineer optimizing the ONESEEK AI debate prompt based on performance data.
+  return `Du är en expert på prompt engineering som optimerar ONESEEK AI:s debatt-prompt baserat på prestandadata.
 
-CURRENT BASELINE PROMPT:
+NUVARANDE BASELINE PROMPT:
 ${baselinePrompt}
 
-PERFORMANCE INSIGHTS FROM ${insights.debates_analyzed} DEBATES:
+PRESTANDAINSIKTER FRÅN ${insights.debates_analyzed} DEBATTER:
 
-Overall Performance:
-- Average votes per debate: ${insights.overall_metrics?.avg_votes_per_debate?.toFixed(1) || 'N/A'}
-- Win rate: ${((insights.overall_metrics?.win_rate || 0) * 100).toFixed(1)}%
-- Average mentions: ${insights.overall_metrics?.avg_mentions?.toFixed(1) || 'N/A'}
+Övergripande Prestanda:
+- Genomsnittliga röster per debatt: ${insights.overall_metrics?.avg_votes_per_debate?.toFixed(1) || 'N/A'}
+- Vinstfrekvens: ${((insights.overall_metrics?.win_rate || 0) * 100).toFixed(1)}%
+- Genomsnittliga omnämnanden: ${insights.overall_metrics?.avg_mentions?.toFixed(1) || 'N/A'}
 
-Successful Patterns (what worked well):
-${insights.successful_patterns?.slice(0, 8).map((p, i) => `${i + 1}. ${p}`).join('\n') || 'None identified'}
+Framgångsrika Mönster (vad som fungerade bra):
+${insights.successful_patterns?.slice(0, 8).map((p, i) => `${i + 1}. ${p}`).join('\n') || 'Inga identifierade'}
 
-Weaknesses (areas for improvement):
-${insights.weaknesses?.slice(0, 6).map((w, i) => `${i + 1}. ${w}`).join('\n') || 'None identified'}
+Svagheter (områden för förbättring):
+${insights.weaknesses?.slice(0, 6).map((w, i) => `${i + 1}. ${w}`).join('\n') || 'Inga identifierade'}
 
-Winning Styles (approaches that got votes):
-${insights.winning_styles?.slice(0, 6).map((s, i) => `${i + 1}. ${s}`).join('\n') || 'None identified'}
+Vinnande Stilar (metoder som fick röster):
+${insights.winning_styles?.slice(0, 6).map((s, i) => `${i + 1}. ${s}`).join('\n') || 'Inga identifierade'}
 
-Strategic Recommendations:
-${insights.strategic_recommendations?.slice(0, 6).map((r, i) => `${i + 1}. ${r}`).join('\n') || 'None identified'}
+Strategiska Rekommendationer:
+${insights.strategic_recommendations?.slice(0, 6).map((r, i) => `${i + 1}. ${r}`).join('\n') || 'Inga identifierade'}
 
-YOUR TASK:
-Generate ${count} distinct prompt variations that:
-1. Apply insights from successful patterns
-2. Address identified weaknesses
-3. Test different synthesis approaches
-4. Emphasize vote-winning characteristics
-5. Maintain ONESEEK's core identity (objective, balanced, synthesizing AI)
-6. Keep changes focused and measurable
+DIN UPPGIFT:
+Generera ${count} distinkta promptvariationer som:
+1. Tillämpar insikter från framgångsrika mönster
+2. Adresserar identifierade svagheter
+3. Testar olika syntesmetoder
+4. Betonar röst-vinnande egenskaper
+5. Behåller ONESEEK:s kärnidentitet (objektiv, balanserad, syntetiserande AI)
+6. Håller förändringar fokuserade och mätbara
 
-REQUIREMENTS:
-- Each variant should test a specific hypothesis
-- Include {context} placeholders for dynamic data injection
-- Maintain professional tone and structure
-- Vary approaches across variants (don't just tweak wording)
-- Keep prompts between 200-800 words
+KRAV:
+- Varje variant ska testa en specifik hypotes
+- Inkludera {context} platshållare för dynamisk data-injektion
+- Behåll professionell ton och struktur
+- Variera metoder mellan varianter (inte bara justera formuleringar)
+- Håll prompter mellan 200-800 ord
+- **ALLA PROMPTER MÅSTE VARA 100% PÅ SVENSKA**
+- **VARJE VARIANT MÅSTE VARA FULLSTÄNDIGT PÅ SVENSKA**
 
-OUTPUT FORMAT (JSON):
+UTGÅNGSFORMAT (JSON):
 {
   "variants": [
     {
-      "prompt_text": "Complete prompt text with {context} placeholders...",
-      "hypothesis": "Clear statement of what this variant tests (e.g., 'Emphasizing data-driven synthesis increases vote count')",
-      "expected_improvement": "Predicted impact on metrics (e.g., '+20% votes, +15% mentions')",
-      "changes_summary": "Brief description of key changes from baseline",
-      "strategic_focus": ["focus area 1", "focus area 2"]
+      "prompt_text": "Komplett prompt-text på svenska med {context} platshållare...",
+      "hypothesis": "Tydlig beskrivning på svenska av vad denna variant testar (t.ex., 'Betona datadriven syntes ökar röstantal')",
+      "expected_improvement": "Förutsedd påverkan på metriker på svenska (t.ex., '+20% röster, +15% omnämnanden')",
+      "changes_summary": "Kort beskrivning på svenska av viktiga ändringar från baseline",
+      "strategic_focus": ["fokusområde 1 på svenska", "fokusområde 2 på svenska"]
     },
     ...
   ]
-}`;
+}
+
+VIKTIGT: ALLA TEXTER I ALLA FÄLT MÅSTE VARA PÅ SVENSKA!`;
 }
 
 /**
@@ -156,34 +160,34 @@ function generateFallbackVariants(baselinePrompt, insights, count) {
   
   const modifications = [
     {
-      name: 'data-emphasis',
-      hypothesis: 'Emphasizing data and evidence increases credibility',
-      modify: (prompt) => prompt + '\n\nAlways prioritize data-driven analysis and cite evidence when available.',
-      focus: ['data', 'evidence']
+      name: 'data-betoning',
+      hypothesis: 'Betona data och bevis ökar trovärdighet',
+      modify: (prompt) => prompt + '\n\nPrioritera alltid datadriven analys och citera bevis när det finns tillgängligt.',
+      focus: ['data', 'bevis']
     },
     {
-      name: 'synthesis-focus',
-      hypothesis: 'Stronger synthesis approach improves vote count',
-      modify: (prompt) => prompt.replace('synthesize', 'deeply synthesize and integrate').replace('analyze', 'thoroughly analyze and compare'),
-      focus: ['synthesis', 'integration']
+      name: 'syntes-fokus',
+      hypothesis: 'Starkare syntesmetod förbättrar röstantal',
+      modify: (prompt) => prompt.replace('syntetisera', 'djupt syntetisera och integrera').replace('analysera', 'noggrant analysera och jämföra'),
+      focus: ['syntes', 'integration']
     },
     {
-      name: 'clarity-enhancement',
-      hypothesis: 'Clearer structure and simpler language improves accessibility',
-      modify: (prompt) => prompt + '\n\nUse clear structure with bullet points. Avoid jargon. Be concise.',
-      focus: ['clarity', 'structure']
+      name: 'tydlighet-förbättring',
+      hypothesis: 'Tydligare struktur och enklare språk förbättrar tillgänglighet',
+      modify: (prompt) => prompt + '\n\nAnvänd tydlig struktur med punktlistor. Undvik jargong. Var koncis.',
+      focus: ['tydlighet', 'struktur']
     },
     {
-      name: 'meta-awareness',
-      hypothesis: 'Acknowledging different perspectives explicitly shows depth',
-      modify: (prompt) => prompt + '\n\nExplicitly acknowledge and weigh different viewpoints from other AIs.',
-      focus: ['meta-analysis', 'perspective']
+      name: 'meta-medvetenhet',
+      hypothesis: 'Erkänna olika perspektiv explicit visar djup',
+      modify: (prompt) => prompt + '\n\nErkänn och väg explicit olika synvinklar från andra AI:er.',
+      focus: ['meta-analys', 'perspektiv']
     },
     {
-      name: 'balanced-approach',
-      hypothesis: 'Neutral tone with pros/cons increases trust',
-      modify: (prompt) => prompt + '\n\nPresent balanced analysis with both advantages and limitations.',
-      focus: ['balance', 'neutrality']
+      name: 'balanserad-metod',
+      hypothesis: 'Neutral ton med för/nackdelar ökar förtroende',
+      modify: (prompt) => prompt + '\n\nPresent balanserad analys med både fördelar och begränsningar.',
+      focus: ['balans', 'neutralitet']
     }
   ];
   
@@ -195,8 +199,8 @@ function generateFallbackVariants(baselinePrompt, insights, count) {
       version: version,
       prompt_text: mod.modify(baselinePrompt),
       hypothesis: mod.hypothesis,
-      expected_improvement: 'Unknown (fallback generation)',
-      changes_summary: `Applied ${mod.name} modification`,
+      expected_improvement: `+10-15% förbättring (fallback: ${mod.name})`,
+      changes_summary: `Tillämpade ${mod.name} modifiering`,
       strategic_focus: mod.focus,
       metadata: {
         generated_at: new Date().toISOString(),
