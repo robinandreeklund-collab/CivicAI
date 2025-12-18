@@ -266,24 +266,23 @@ async function callOneseekInference(prompt, context) {
   const startTime = Date.now();
   
   try {
-    // Import the ONESEEK service
-    const { generateWithOneseek } = await import('../../backend/services/openseek.js');
+    // Use PES-specific ONESEEK service
+    const { generateWithOneseek } = await import('../services/oneseekService.js');
     
-    const result = await generateWithOneseek({
-      prompt: prompt,
+    const result = await generateWithOneseek(prompt, {
+      max_tokens: 512,
+      temperature: 0.7,
       context: {
         question: context.question,
         round: context.round_number,
         external_responses: context.external_responses
-      },
-      max_tokens: 512,
-      temperature: 0.7
+      }
     });
     
     const inferenceTime = Date.now() - startTime;
     
     return {
-      text: result.response || result.text || '',
+      text: result.response || '',
       inference_time_ms: inferenceTime,
       model: 'ONESEEK'
     };

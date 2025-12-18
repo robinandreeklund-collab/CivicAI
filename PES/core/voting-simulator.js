@@ -5,7 +5,7 @@
  * to measure performance of prompt variants
  */
 
-import { getOpenAIResponse } from '../../backend/services/openai.js';
+import { generateWithLLM } from '../services/llmService.js';
 
 /**
  * Simulate voting for a debate simulation
@@ -72,7 +72,7 @@ async function simulateSingleVote(voterName, question, rounds) {
   const votingPrompt = buildVotingPrompt(voterName, question, rounds);
   
   try {
-    const response = await getOpenAIResponse(votingPrompt, {
+    const response = await generateWithLLM(votingPrompt, {
       model: getModelForVoter(voterName),
       temperature: 0.3,
       max_tokens: 500,

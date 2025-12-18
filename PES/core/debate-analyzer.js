@@ -5,7 +5,7 @@
  * and generate insights for prompt improvement
  */
 
-import { getOpenAIResponse } from '../../backend/services/openai.js';
+import { generateWithLLM } from '../services/llmService.js';
 
 /**
  * Analyze debate patterns from historical debates
@@ -90,7 +90,7 @@ Provide structured analysis in JSON format:
 }`;
 
   try {
-    const analysisResponse = await getOpenAIResponse(analysisPrompt, {
+    const analysisResponse = await generateWithLLM(analysisPrompt, {
       model: 'gpt-4-turbo-preview',
       temperature: 0.3,
       max_tokens: 1000,
@@ -194,7 +194,7 @@ Return JSON:
 }`;
 
   try {
-    const metaAnalysis = await getOpenAIResponse(metaPrompt, {
+    const metaAnalysis = await generateWithLLM(metaPrompt, {
       model: 'gpt-4-turbo-preview',
       temperature: 0.4,
       max_tokens: 1500,

@@ -5,7 +5,7 @@
  * insights from debate analysis
  */
 
-import { getOpenAIResponse } from '../../backend/services/openai.js';
+import { generateWithLLM } from '../services/llmService.js';
 
 /**
  * Generate prompt variants based on baseline and insights
@@ -25,7 +25,7 @@ export async function generatePromptVariants(baselinePrompt, insights, count = 5
   const generationPrompt = buildGenerationPrompt(baselinePrompt, insights, count);
   
   try {
-    const response = await getOpenAIResponse(generationPrompt, {
+    const response = await generateWithLLM(generationPrompt, {
       model: 'gpt-4-turbo-preview',
       temperature: 0.7,
       max_tokens: 4000,
