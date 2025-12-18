@@ -86,6 +86,32 @@ export async function getDebateById(debateId) {
 }
 
 /**
+ * Save a debate to Firebase (called from ML service via API)
+ * @param {Object} debateData - The debate data to save
+ * @returns {Promise<void>}
+ */
+export async function saveDebate(debateData) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('Firebase not initialized');
+    }
+    
+    console.log(`[PES] Saving debate ${debateData.debate_id} to Firebase...`);
+    
+    // Use the provided debate_id as the document ID
+    const docRef = db.collection('debates').doc(debateData.debate_id);
+    
+    await docRef.set(debateData, { merge: true });
+    
+    console.log(`[PES] ✅ Debate ${debateData.debate_id} saved to Firebase`);
+  } catch (error) {
+    console.error('[PES] Error saving debate:', error);
+    throw error;
+  }
+}
+
+/**
  * Save a new prompt version
  * @param {Object} promptVersion - The prompt version data
  * @returns {Promise<string>} The created document ID

@@ -74,6 +74,43 @@ router.get('/debates', async (req, res) => {
 });
 
 /**
+ * POST /api/pes/debates
+ * Save a completed debate to Firebase (called from Python ML service)
+ */
+router.post('/debates', async (req, res) => {
+  try {
+    const debateData = req.body;
+    
+    if (!debateData || !debateData.debate_id || !debateData.question) {
+      return res.status(400).json({
+        error: 'Invalid debate data',
+        message: 'debate_id and question are required'
+      });
+    }
+    
+    console.log(`[PES API] Saving debate ${debateData.debate_id} to Firebase...`);
+    
+    // Import Firebase service dynamically to save debate
+    const { saveDebate } = await import('../../PES/services/pesFirebaseService.js');
+    await saveDebate(debateData);
+    
+    console.log(`[PES API] ✅ Debate ${debateData.debate_id} saved successfully`);
+    
+    res.status(201).json({
+      success: true,
+      debate_id: debateData.debate_id,
+      message: 'Debate saved to Firebase'
+    });
+  } catch (error) {
+    console.error('[PES API] Error saving debate:', error);
+    res.status(500).json({
+      error: 'Failed to save debate',
+      message: error.message
+    });
+  }
+});
+
+/**
  * GET /api/pes/prompts
  * Get all prompt versions
  */

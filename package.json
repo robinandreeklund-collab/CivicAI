@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "OneSeek.AI - Beslut med insyn. AI med ansvar.",
   "private": true,
+  "type": "module",
   "scripts": {
     "install:frontend": "cd frontend && npm install",
     "install:backend": "cd backend && npm install",
