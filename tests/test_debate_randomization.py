@@ -16,21 +16,36 @@ class TestDebateTurnOrderRandomization:
         # Generate turn orders for 3 rounds
         turn_orders = {}
         for round_num in range(1, 4):
-            round_turn_order = debate_agents.copy()
-            random.shuffle(round_turn_order)
+            # Round 1: Only external agents
+            # Rounds 2-3: Include ONESEEK
+            if round_num >= 2:
+                all_participants = debate_agents.copy() + ['oneseek']
+                random.shuffle(all_participants)
+                round_turn_order = all_participants
+            else:
+                round_turn_order = debate_agents.copy()
+                random.shuffle(round_turn_order)
             turn_orders[round_num] = round_turn_order
         
         # Verify we have 3 different turn orders
         assert len(turn_orders) == 3
         
-        # Verify each turn order contains all agents
-        for round_num, turn_order in turn_orders.items():
-            assert len(turn_order) == 4
-            assert set(turn_order) == set(debate_agents)
+        # Verify round 1 has 4 agents (no ONESEEK in turn order)
+        assert len(turn_orders[1]) == 4
+        assert set(turn_orders[1]) == set(debate_agents)
+        assert 'oneseek' not in turn_orders[1]
+        
+        # Verify rounds 2-3 have 5 agents (including ONESEEK)
+        for round_num in [2, 3]:
+            assert len(turn_orders[round_num]) == 5
+            assert set(turn_orders[round_num]) == set(debate_agents + ['oneseek'])
+            assert 'oneseek' in turn_orders[round_num]
     
     def test_turn_order_contains_all_agents(self):
         """Test that randomized order contains all agents exactly once"""
         debate_agents = ['gpt', 'gemini', 'deepseek', 'grok']
+        
+        # Test Round 1 (without ONESEEK)
         round_turn_order = debate_agents.copy()
         random.shuffle(round_turn_order)
         
@@ -43,6 +58,21 @@ class TestDebateTurnOrderRandomization:
         # All original agents present
         for agent in debate_agents:
             assert agent in round_turn_order
+        
+        # Test Rounds 2-3 (with ONESEEK)
+        all_participants = debate_agents.copy() + ['oneseek']
+        round_turn_order_with_oneseek = all_participants.copy()
+        random.shuffle(round_turn_order_with_oneseek)
+        
+        # All participants present
+        assert len(round_turn_order_with_oneseek) == len(all_participants)
+        
+        # No duplicates
+        assert len(set(round_turn_order_with_oneseek)) == len(all_participants)
+        
+        # All original agents + ONESEEK present
+        for agent in all_participants:
+            assert agent in round_turn_order_with_oneseek
     
     def test_multiple_rounds_likely_different(self):
         """Test that multiple rounds are likely to have different orders"""
@@ -59,6 +89,39 @@ class TestDebateTurnOrderRandomization:
         # we should have at least 2 different orders
         unique_orders = set(turn_orders)
         assert len(unique_orders) >= 2, "Turn orders should vary across rounds"
+    
+    def test_oneseek_random_position_rounds_2_3(self):
+        """Test that ONESEEK appears in random positions in rounds 2-3"""
+        debate_agents = ['gpt', 'gemini', 'deepseek', 'grok']
+        
+        # Track ONESEEK positions across multiple simulations
+        oneseek_positions = []
+        
+        for _ in range(20):
+            all_participants = debate_agents.copy() + ['oneseek']
+            random.shuffle(all_participants)
+            oneseek_pos = all_participants.index('oneseek')
+            oneseek_positions.append(oneseek_pos)
+        
+        # ONESEEK should appear in at least 2 different positions
+        unique_positions = set(oneseek_positions)
+        assert len(unique_positions) >= 2, f"ONESEEK should vary position, got positions: {unique_positions}"
+        
+        # Positions should be valid (0-4 for 5 participants)
+        for pos in oneseek_positions:
+            assert 0 <= pos <= 4, f"Invalid position {pos}"
+    
+    def test_oneseek_not_in_round_1_turn_order(self):
+        """Test that ONESEEK is not in the randomized turn order for round 1"""
+        debate_agents = ['gpt', 'gemini', 'deepseek', 'grok']
+        
+        # Simulate round 1
+        round_turn_order = debate_agents.copy()
+        random.shuffle(round_turn_order)
+        
+        # ONESEEK should not be in round 1 turn order
+        assert 'oneseek' not in round_turn_order
+        assert len(round_turn_order) == 4
 
 
 class TestPromptStructure:

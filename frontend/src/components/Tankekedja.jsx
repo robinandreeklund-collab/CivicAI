@@ -147,6 +147,8 @@ function buildTreeStructure(events) {
           agent: event.agent,
           label: `API-anrop till ${event.agent.toUpperCase()}`,
           timestamp: event.timestamp,
+          position: event.data?.position ?? event.position ?? 999,  // Use position for sorting
+          sequence: event.data?.sequence ?? event.sequence ?? 999,  // Use sequence for sorting
           tokens_in: event.tokens_in || event.tokens || 0,
           tokens_out: event.tokens_out || 0,
           duration: event.duration || null,
@@ -227,9 +229,11 @@ function buildTreeStructure(events) {
         round.oneseekSynthesis = {
           id: `synthesis-${event.round}`,
           type: 'synthesis',
-          label: 'ONESEEK huvudbidrag (slut av runda)',
+          label: 'ONESEEK huvudbidrag',
           text: event.text,
           timestamp: event.timestamp,
+          position: event.position ?? event.data?.position ?? 999,  // Use position if available
+          sequence: event.sequence ?? 999,  // Use sequence if available
           children: [
             {
               id: `thinking-${event.round}`,
@@ -307,12 +311,26 @@ function buildTreeStructure(events) {
   
   // Build round nodes
   Object.values(rounds).forEach(round => {
+    // Merge apiCalls and oneseekSynthesis, then sort by position (for turn order) or sequence (for chronological)
+    const allChildren = [
+      ...round.apiCalls,
+      ...(round.oneseekSynthesis ? [round.oneseekSynthesis] : [])
+    ];
+    
+    // Sort by position first (respects turn_order), then by sequence (chronological)
+    allChildren.sort((a, b) => {
+      const posA = a.position ?? 999;
+      const posB = b.position ?? 999;
+      if (posA !== posB) {
+        return posA - posB;
+      }
+      // If positions are equal, sort by sequence
+      return (a.sequence ?? 999) - (b.sequence ?? 999);
+    });
+    
     const roundNode = {
       ...round,
-      children: [
-        ...round.apiCalls,
-        ...(round.oneseekSynthesis ? [round.oneseekSynthesis] : [])
-      ]
+      children: allChildren
     };
     inputNode.children.push(roundNode);
   });

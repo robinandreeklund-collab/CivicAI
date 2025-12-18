@@ -10,15 +10,25 @@ import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 
 export default function DebateRoundDisplay({ round, aiData, isActive = false }) {
-  // Use arrival order from round data if available (order responses actually arrived)
-  // This is different from turnOrder (planned order) - we want chronological arrival
+  // Use turn order from round data if available (actual debate turn order from backend)
+  // This respects ONESEEK's random positioning in rounds 2-3
+  const turnOrder = aiData?.turnOrder || [];
   const arrivalOrder = aiData?.arrivalOrder || [];
   const defaultOrder = ['gpt', 'gemini', 'deepseek', 'grok', 'oneseek'];
   
-  // AI display order - use arrival order (chronological) with oneseek always at end
+  // AI display order - use turnOrder if available (respects position), otherwise arrivalOrder, otherwise default
   let aiOrder;
-  if (arrivalOrder.length > 0) {
-    // Filter out oneseek from arrival order, then add it at the end
+  if (turnOrder.length > 0) {
+    // Use the actual turn order from the backend (ONESEEK can be anywhere in rounds 2-3)
+    // If ONESEEK is not in turnOrder (Round 1), add it at the end
+    if (turnOrder.includes('oneseek')) {
+      aiOrder = turnOrder;
+    } else {
+      // Round 1: turnOrder has external agents, add ONESEEK at end
+      aiOrder = [...turnOrder, 'oneseek'];
+    }
+  } else if (arrivalOrder.length > 0) {
+    // Fallback to arrival order (chronological) with oneseek always at end for round 1
     const withoutOneseek = arrivalOrder.filter(ai => ai !== 'oneseek');
     aiOrder = [...withoutOneseek, 'oneseek'];
   } else {
