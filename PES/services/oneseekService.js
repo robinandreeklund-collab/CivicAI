@@ -29,10 +29,12 @@ export async function generateWithOneseek(prompt, options = {}) {
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     const requestBody = {
-      question: prompt,
-      max_tokens: max_tokens,
+      text: prompt,  // Use 'text' not 'question'
+      max_length: max_tokens,  // Use 'max_length' not 'max_tokens'
       temperature: temperature,
-      stream: false
+      top_p: 0.9,
+      skip_sources: true,  // Don't add external sources
+      skip_context_enrichment: true  // Don't add server-side context
     };
 
     // Add context if provided
@@ -40,7 +42,7 @@ export async function generateWithOneseek(prompt, options = {}) {
       requestBody.context = context;
     }
 
-    const response = await fetch(`${ONESEEK_URL}/generate`, {
+    const response = await fetch(`${ONESEEK_URL}/infer`, {  // Use '/infer' not '/generate'
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -57,11 +59,14 @@ export async function generateWithOneseek(prompt, options = {}) {
 
     const data = await response.json();
 
-    console.log(`[PES ONESEEK] Response received (${data.response?.length || 0} chars)`);
+    // The API returns 'response', 'text', or 'generated_text'
+    const responseText = data.response || data.text || data.generated_text || '';
+    
+    console.log(`[PES ONESEEK] Response received (${responseText.length} chars)`);
 
     return {
-      response: data.response || data.text || '',
-      model: 'ONESEEK',
+      response: responseText,
+      model: data.model || data.version || 'openseek-7b-zero',
       inference_time_ms: data.inference_time_ms || 0,
       raw: data
     };
