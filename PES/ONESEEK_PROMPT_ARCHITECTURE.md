@@ -232,17 +232,20 @@ MAIN_DEBATE_PROMPT
   {round_summaries_context}
     ← Generated summaries of completed rounds
     ← Format: "Runda 1: [summary]\nRunda 2: [summary]"
-    ← Empty in Round 1
+    ← Empty in Round 1 (no completed rounds yet)
   
   {full_previous_round}
     ← Complete responses from previous round
     ← Format: "GPT: [response]\nGemini: [response]..."
-    ← Empty in Round 1
+    ← Empty in Round 1 (no previous round exists)
   
   {chain_so_far}
-    ← Responses earlier in current round
+    ← Responses earlier in current round (from AIs who spoke before ONESEEK)
     ← Format: "GPT: [response]\nGemini: [response]..."
     ← Depends on ONESEEK's position in turn order
+    ← If position 1: Empty (speaks first)
+    ← If position 3: Contains 2 responses (GPT, Gemini)
+    ← If position 5: Contains 4 responses (GPT, Gemini, DeepSeek, Grok)
   
   {oneseek_previous_reasoning_and_insights}
     ← All REASONING_PROMPT outputs from previous rounds
@@ -269,10 +272,14 @@ REASONING_PROMPT
     ← Output from MAIN_DEBATE_PROMPT
   
   {insights_context}
-    ← All INSIGHTS_PROMPT outputs from this round
+    ← All INSIGHTS_PROMPT outputs from AIs who spoke BEFORE ONESEEK in this round
     ← Format: "- GPT: [insight]\n- Gemini: [insight]\n- DeepSeek: [insight]..."
-    ← Built up as each external AI responds
+    ← Built up progressively as each external AI responds
     ← Used to explain what influenced ONESEEK's thinking
+    ← Available based on ONESEEK's position:
+      • Position 1: Empty (no one spoke yet)
+      • Position 3: Contains insights from positions 1-2
+      • Position 5: Contains insights from all 4 external AIs
 ```
 
 ### INSIGHTS_PROMPT Data Flow
@@ -384,48 +391,69 @@ CLOSING_PROMPT
 
 ### Round 1 Example (ONESEEK goes 3rd)
 
+**Note:** Context availability depends on speaking position. ONESEEK has access to reasoning/insights from ALL AIs who spoke before their turn.
+
 ```
 1. GPT responds
-   └─> INSIGHTS_PROMPT triggered
+   └─> REASONING_PROMPT triggered
        Input: {agent_name: "GPT", agent_response: GPT's full text}
-       Output: "GPT betonade X vilket är relevant eftersom..."
+       Output: "GPT betonar ekonomisk hållbarhet genom att koppla kortsiktiga 
+               kostnader till långsiktiga vinster. Detta alignar med tidigare 
+               miljöargument och skapar brygga mellan..."  (80-120 words)
+       Storage: reasoning_chain["GPT"] = reasoning
+   
+   └─> INSIGHTS_PROMPT triggered  
+       Input: {agent_name: "GPT", agent_response: GPT's full text}
+       Output: "💡 Ekonomiska och miljömässiga mål är inte motsatser utan kan 
+               strategiskt integreras"
        Storage: knowledge_chain["GPT"] = insight
 
 2. Gemini responds
+   └─> REASONING_PROMPT triggered
+       Input: {agent_name: "Gemini", agent_response: Gemini's full text}
+       Output: "Gemini lägger till kritisk social dimension som både GPT och 
+               tidigare argument missade. Fokus på equity och access transformerar 
+               detta från rent teknisk till human-centered..."  (80-120 words)
+       Storage: reasoning_chain["Gemini"] = reasoning
+   
    └─> INSIGHTS_PROMPT triggered
        Input: {agent_name: "Gemini", agent_response: Gemini's full text}
-       Output: "Gemini la till Y vilket bygger på GPT:s X men..."
+       Output: "💡 Triple bottom line ramverk (ekonomisk, miljö, social) växer 
+               fram som syntesmöjlighet"
        Storage: knowledge_chain["Gemini"] = insight
 
 3. ONESEEK's turn
    └─> MAIN_DEBATE_PROMPT triggered
        Input: {
          round_num: 1,
-         round_summaries_context: "",  // Empty in Round 1
-         full_previous_round: "",       // Empty in Round 1
+         round_summaries_context: "",  // Empty - no completed rounds yet
+         full_previous_round: "",       // Empty - no previous round
          chain_so_far: "GPT: [full response]\nGemini: [full response]",
-         oneseek_previous_reasoning_and_insights: ""  // Empty in Round 1
+         oneseek_previous_reasoning_and_insights: ""  // Empty - first contribution
        }
-       Output: Full 350-550 word synthesis
-   
-   └─> REASONING_PROMPT triggered (after own contribution)
-       Input: {
-         answer: ONESEEK's contribution,
-         insights_context: "- GPT: [insight]\n- Gemini: [insight]"
-       }
-       Output: "Jag integrerade GPT:s X och Gemini:s Y genom att..."
-       Storage: reasoning_history[0]
+       ✅ HAS ACCESS TO:
+         - GPT's REASONING (80-120 words)
+         - GPT's INSIGHT (💡 takeaway)
+         - Gemini's REASONING (80-120 words)
+         - Gemini's INSIGHT (💡 takeaway)
+       Output: Full 350-550 word synthesis integrating available insights
 
 4. DeepSeek responds
+   └─> REASONING_PROMPT triggered
+       Output: Deep analysis of DeepSeek's contribution
+       Storage: reasoning_chain["DeepSeek"]
+   
    └─> INSIGHTS_PROMPT triggered
-       Input: {agent_name: "DeepSeek", agent_response: DeepSeek's full text}
-       Output: "DeepSeek utmanade genom att lyfta Z..."
+       Output: "💡 Kvantitativ backing stärker argumentet..."
        Storage: knowledge_chain["DeepSeek"] = insight
 
 5. Grok responds
+   └─> REASONING_PROMPT triggered
+       Output: Deep analysis of Grok's contribution
+       Storage: reasoning_chain["Grok"]
+   
    └─> INSIGHTS_PROMPT triggered
-       Input: {agent_name: "Grok", agent_response: Grok's full text}
-       Output: "Grok:s data-fokus kompletterar..."
+       Output: "💡 Grundantagande behöver revision..."
        Storage: knowledge_chain["Grok"] = insight
 
 6. Round 1 Complete
