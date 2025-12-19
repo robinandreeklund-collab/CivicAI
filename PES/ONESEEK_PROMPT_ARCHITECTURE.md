@@ -77,12 +77,12 @@ ONESEEK uses five specialized prompts for different stages of debate participati
 - Fires BEFORE INSIGHTS_PROMPT
 
 **When Used:**
-- After GPT responds → REASONING (then INSIGHTS)
+- **Round 1 (from first response):** After GPT responds → REASONING (then INSIGHTS)
 - After Gemini responds → REASONING (then INSIGHTS)
 - After DeepSeek responds → REASONING (then INSIGHTS)
 - After Grok responds → REASONING (then INSIGHTS)
-- Pattern: AI response → REASONING → INSIGHTS
-- (Repeats for each external AI in all 3 rounds)
+- **Pattern applies to ALL rounds:** AI response → REASONING → INSIGHTS
+- **REASONING exists in Round 1** - available immediately after first external AI responds
 
 **Visibility:** 
 - Shown in debate UI for full transparency
