@@ -131,10 +131,10 @@ export async function runEvolutionLoop(config, progressCallback = null) {
     
     console.log(`[Evolution Orchestrator] Completed ${allSimulations.length} simulations`);
     
-    // Step 5: Simulate voting for all simulations
-    updateProgress(progress, 'simulating_votes', 'Simulating AI voting...', progressCallback);
+    // Step 5: Simulate voting for all simulations (with historical voting patterns)
+    updateProgress(progress, 'simulating_votes', 'Simulating AI voting based on historical patterns...', progressCallback);
     
-    const votingResults = await simulateVotingForMultiple(allSimulations);
+    const votingResults = await simulateVotingForMultiple(allSimulations, debates);
     results.voting_simulations = votingResults.length;
     
     console.log(`[Evolution Orchestrator] Completed voting for ${votingResults.length} debates`);

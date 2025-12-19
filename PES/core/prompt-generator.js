@@ -135,38 +135,52 @@ ${insights.strategic_recommendations?.slice(0, 6).map((r, i) => `${i + 1}. ${r}`
 
 DIN UPPGIFT:
 Generera ${count} distinkta promptvariationer som:
-1. Tillämpar insikter från framgångsrika mönster
-2. Adresserar identifierade svagheter
-3. Testar olika syntesmetoder
-4. Betonar röst-vinnande egenskaper
+1. **UTGÅR ALLTID FRÅN BASELINE-PROMTEN OVAN** - bevara grundstrukturen
+2. Tillämpar insikter från framgångsrika mönster
+3. Adresserar identifierade svagheter
+4. Testar olika syntesmetoder
 5. Behåller ONESEEK:s kärnidentitet (objektiv, balanserad, syntetiserande AI)
 6. Håller förändringar fokuserade och mätbara
 ${categoryDistribution && categoryDistribution.length > 0 ? `7. ANPASSAR STIL TILL DOMINERANDE KATEGORI (${categoryDistribution[0].main}) enligt kategori-specifik vägledning ovan` : ''}
 
-KRAV:
-- Varje variant ska testa en specifik hypotes
+KRITISKT VIKTIGA KRAV:
+- **UTGÅ ALLTID FRÅN BASELINE-PROMPTEN** - använd den som bas, modifiera endast specifika delar
+- **GÖR INKREMENTELLA ÄNDRINGAR** - lägg till, ta bort eller ändra formuleringen, inte hela strukturen
+- **BEHÅLL GRUNDSTRUKTUREN** - om baseline har rubriker, punktlistor eller stycken, behåll den strukturen
+- **SKRIV ALDRIG OM HELA PROMPTEN** - varje variant ska vara baseline + specifika ändringar
+- Varje variant ska testa EN specifik hypotes genom en riktad ändring
 - Inkludera {context} platshållare för dynamisk data-injektion
 - Behåll professionell ton och struktur
-- Variera metoder mellan varianter (inte bara justera formuleringar)
 - Håll prompter mellan 200-800 ord
 - **ALLA PROMPTER MÅSTE VARA 100% PÅ SVENSKA**
 - **VARJE VARIANT MÅSTE VARA FULLSTÄNDIGT PÅ SVENSKA**
+
+EXEMPEL PÅ BRA ÄNDRINGAR (från baseline):
+✓ Lägga till ett stycke om datadriven analys
+✓ Ändra formulering i ett specifikt avsnitt för att betona syntes
+✓ Ta bort/ersätta en mening som inte fungerade bra
+✓ Lägga till en instruktion om struktur
+✗ INTE: Skapa en helt ny prompt från grunden
+✗ INTE: Ändra hela tonen eller strukturen radikalt
 
 UTGÅNGSFORMAT (JSON):
 {
   "variants": [
     {
-      "prompt_text": "Komplett prompt-text på svenska med {context} platshållare...",
+      "prompt_text": "BASELINE-PROMPTEN MED SPECIFIKA INKREMENTELLA ÄNDRINGAR (måste bevara grundstruktur och vara på svenska med {context} platshållare)",
       "hypothesis": "Tydlig beskrivning på svenska av vad denna variant testar (t.ex., 'Betona datadriven syntes ökar röstantal')",
       "expected_improvement": "Förutsedd påverkan på metriker på svenska (t.ex., '+20% röster, +15% omnämnanden')",
-      "changes_summary": "Kort beskrivning på svenska av viktiga ändringar från baseline",
+      "changes_summary": "EXAKT beskrivning på svenska av VAD SOM ÄNDRATS från baseline (t.ex., 'Lagt till stycke om datadrivet tänkande efter första meningen', 'Ändrat formulering i stycke 2 från X till Y', 'Borttaget sista stycket och ersatt med Z')",
       "strategic_focus": ["fokusområde 1 på svenska", "fokusområde 2 på svenska"]
     },
     ...
   ]
 }
 
-VIKTIGT: ALLA TEXTER I ALLA FÄLT MÅSTE VARA PÅ SVENSKA!`;
+VIKTIGT: 
+- ALLA TEXTER I ALLA FÄLT MÅSTE VARA PÅ SVENSKA!
+- prompt_text MÅSTE vara baseline + ändringar, INTE en helt ny prompt!
+- changes_summary MÅSTE vara exakt och specifik om VAD som ändrats!`;
 }
 
 /**
