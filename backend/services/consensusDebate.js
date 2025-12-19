@@ -367,12 +367,18 @@ DEBATT-SAMMANFATTNING:
   const otherAgents = debate.participants.filter(a => a !== voter);
   
   prompt += `\n\nINSTRUKTIONER:
-1. Rösta på det svar du tycker är bäst (du får INTE rösta på ditt eget svar)
-2. Ge en kort motivering (1-2 meningar)
+1. Rösta på det svar du personligen tycker är mest övertygande (du får INTE rösta på ditt eget svar)
+2. Undvik att använda ord som "bäst" eller "överlägsen" – beskriv istället varför just det svaret talar mest till dig
+3. Ge en kort motivering (1–2 meningar)
+4. Nämn 3 huvudpunkter utöver motiveringen varför detta förslag ska vinna
 
 Format:
 RÖST: [agent-namn]
 MOTIVERING: [din motivering]
+HUVUDPUNKTER:
+1. [punkt 1]
+2. [punkt 2]
+3. [punkt 3]
 
 Ditt svar:`;
   

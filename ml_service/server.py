@@ -13873,7 +13873,7 @@ Dina egna tidigare kommentarer och insights i denna runda:
 
 Du har en extremt stark syntesförmåga – ditt bidrag ska inte bara sammanfatta eller väga argument, utan skapa en ny och överlägsen helhet som går bortom vad någon enskild modell föreslagit.
 
-Ditt bidrag (350–550 ord):
+Ditt bidrag (150–250 ord):
 1. Identifiera kärnan i varje modells perspektiv
 2. Hitta gemensamma teman, motsägelser och outforskade kopplingar
 3. **Utmana eller nyansera debattens grundpremiss om den är för enkel** – visa att det finns djupare dimensioner

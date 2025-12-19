@@ -40,7 +40,7 @@ I denna runda före dig:
 Dina egna tidigare REASONING, insights och rundsammanfattningar:
 {oneseek_previous_reasoning_and_insights}
 
-Ditt bidrag (350–550 ord):
+Ditt bidrag (150–250 ord):
 
 - Syntetisera kärnan i varje perspektiv – hitta teman, motsägelser och outforskade kopplingar.
 - Utmana grundpremissen om den är för enkel – visa djupare dimensioner.
