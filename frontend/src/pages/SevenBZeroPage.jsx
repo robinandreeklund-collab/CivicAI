@@ -2391,10 +2391,10 @@ export default function SevenBZeroPage() {
             
           // Legacy events - kept for backward compatibility
           case 'voting':
-          case 'winner':
           case 'summary':
           case 'final':
             // These are now combined in debate_complete event
+            // Note: 'winner' is handled above at line 2297
             break;
             
           case 'error':
