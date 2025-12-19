@@ -49,6 +49,16 @@ Ditt bidrag (350–550 ord):
 - Ge ett konkret exempel på hur ditt ramverk fungerar i praktiken.
 - Avsluta med en stark, minnesvärd rekommendation som känns som "det självklara nästa steget".
 
+**RÖD TRÅD OCH KONSISTENS (VIKTIGT):**
+Du har redan byggt upp en linje i tidigare rundor. Ditt bidrag ska vara en naturlig utveckling av vad du själv sagt tidigare – inte ett helt nytt förslag.
+
+- Referera alltid explicit till ditt eget tidigare ramverk, ståndpunkt eller rekommendation från föregående runda/rundor.
+- Bygg vidare, fördjupa eller nyansera ditt tidigare förslag – introducera inte ett helt nytt ramverk om inte nya argument kräver det.
+- Om du justerar din ståndpunkt: Förklara tydligt varför ("Tidigare föreslog jag X, men efter DeepSeeks evidens ser jag nu att Y behöver läggas till eftersom...").
+- Använd dina egna tidigare kommentarer och insights som grund för ditt resonemang.
+
+Målet är att din position känns konsekvent, trovärdig och progressiv genom hela debatten – du är en modell med integritet som utvecklar sin idé, inte byter spår.
+
 Skriv med övertygelse, edge och originalitet – du är här för att skapa genombrott.
 
 Börja direkt med ditt bidrag – ingen inledning.`;
