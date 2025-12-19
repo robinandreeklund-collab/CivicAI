@@ -169,19 +169,36 @@ function DebateCompletionSection({ completion }) {
       return { isStructured: false, text: summary };
     }
     
-    // Parse structured sections
+    // Parse structured sections - split by headers
     const sections = {};
-    const sectionMatches = summary.match(/\*\*([^*]+)\*\*\s*([^*]+?)(?=\*\*|$)/gs);
     
-    if (sectionMatches) {
-      sectionMatches.forEach(match => {
-        const headerMatch = match.match(/\*\*([^*]+)\*\*/);
-        if (headerMatch) {
-          const header = headerMatch[1].trim();
-          const content = match.replace(/\*\*[^*]+\*\*/, '').trim();
-          sections[header] = content;
+    // Split by section headers while keeping the headers
+    const parts = summary.split(/(\*\*[^*]+\*\*)/g).filter(Boolean);
+    
+    let currentHeader = null;
+    let currentContent = [];
+    
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i].trim();
+      
+      // Check if this is a header
+      if (part.startsWith('**') && part.endsWith('**')) {
+        // Save previous section if exists
+        if (currentHeader && currentContent.length > 0) {
+          sections[currentHeader] = currentContent.join(' ').trim();
+          currentContent = [];
         }
-      });
+        // Start new section
+        currentHeader = part.replace(/\*\*/g, '').trim();
+      } else if (currentHeader && part) {
+        // Add content to current section
+        currentContent.push(part);
+      }
+    }
+    
+    // Save last section
+    if (currentHeader && currentContent.length > 0) {
+      sections[currentHeader] = currentContent.join(' ').trim();
     }
     
     return { isStructured: true, sections };
@@ -1906,7 +1923,13 @@ export default function SevenBZeroPage() {
         // Extract complete voting data
         event.voted_for = message.data?.voted_for || message.voted_for;
         event.motivation = message.data?.motivation || message.motivation;
-        event.huvudpunkter = message.data?.huvudpunkter || message.huvudpunkter || [];
+        // Check multiple possible locations for huvudpunkter
+        event.huvudpunkter = message.data?.huvudpunkter || 
+                            message.huvudpunkter || 
+                            message.data?.payload?.huvudpunkter ||
+                            message.full_payload?.huvudpunkter ||
+                            [];
+        console.log('[Vote Data] Extracted huvudpunkter:', event.huvudpunkter, 'from message:', message);
         event.voter = message.data?.voter || message.voter || message.agent;
         event.candidates = message.data?.candidates || message.candidates || [];
         event.voting_prompt = message.data?.prompt || message.prompt || message.data?.voting_prompt;
@@ -2275,6 +2298,7 @@ export default function SevenBZeroPage() {
           case 'vote_received':
             // Individual vote with motivation - add to debate state
             console.log(`[Debate] Vote from ${message.voter} for ${message.voted_for}`);
+            console.log('[Debate] Vote huvudpunkter:', message.huvudpunkter, 'Full message:', message);
             setDebateRounds(prev => ({
               ...prev,
               voting: {
@@ -2286,7 +2310,7 @@ export default function SevenBZeroPage() {
                     votedFor: message.voted_for,
                     message: message.message,
                     motivation: message.motivation,
-                    huvudpunkter: message.huvudpunkter || []
+                    huvudpunkter: message.huvudpunkter || message.data?.huvudpunkter || []
                   }
                 ]
               }
