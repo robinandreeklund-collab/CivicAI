@@ -10,6 +10,7 @@ import AutonomyControl from '../components/admin/AutonomyControl';
 import GoldenCheckpoint from '../components/admin/GoldenCheckpoint';
 import UserVoting from '../components/admin/UserVoting';
 import SystemPromptManagement from '../components/admin/SystemPromptManagement';
+import DebatePromptManagement from '../components/admin/DebatePromptManagement';
 import CharacterCardManagement from '../components/admin/CharacterCardManagement';
 import IntegrationsManagement from '../components/admin/IntegrationsManagement';
 import InferenceSettings from '../components/admin/InferenceSettings';
@@ -66,6 +67,7 @@ export default function AdminDashboardPage() {
     { id: 'training', label: 'Training' },
     { id: 'models', label: 'Models' },
     { id: 'prompts', label: 'System Prompts' },
+    { id: 'debate-prompts', label: '🗣️ Debate Prompts' },
     { id: 'characters', label: '📚 Character Cards' },
     { id: 'integrations', label: '🔌 Integrations' },
     { id: 'settings', label: '⚙️ Inference Settings' },
@@ -128,6 +130,7 @@ export default function AdminDashboardPage() {
           {selectedTab === 'training' && <TrainingControl />}
           {selectedTab === 'models' && <ModelManagement />}
           {selectedTab === 'prompts' && <SystemPromptManagement />}
+          {selectedTab === 'debate-prompts' && <DebatePromptManagement />}
           {selectedTab === 'characters' && <CharacterCardManagement />}
           {selectedTab === 'integrations' && <IntegrationsManagement />}
           {selectedTab === 'settings' && <InferenceSettings />}
