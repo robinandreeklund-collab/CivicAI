@@ -18,7 +18,7 @@
 
 ## Overview
 
-ONESEEK uses a **unified reasoning architecture** with three distinct prompt types that work together to create a coherent, progressive debate contribution across multiple rounds. The system emphasizes:
+ONESEEK uses a **unified reasoning architecture** with **six distinct prompt types** that work together to create a coherent, progressive debate contribution across multiple rounds. The system emphasizes:
 
 - **Transparency**: All reasoning is visible in the thought chain/tree
 - **Consistency**: Progressive building on previous reasoning and positions
@@ -28,15 +28,17 @@ ONESEEK uses a **unified reasoning architecture** with three distinct prompt typ
 ### Key Architectural Principles
 
 1. **Reasoning-First**: Internal reasoning after every external response
-2. **No Live Commentary**: COMMENT_PROMPT removed in v1.0.1
-3. **Progressive Context**: Each round builds on accumulated reasoning
-4. **Dynamic Population**: All parameters populated at runtime based on debate state
+2. **Insights Capture**: Quick reactions after each external AI response
+3. **Round Summaries**: Key learnings extracted after each round
+4. **No Live Commentary**: COMMENT_PROMPT removed in v1.0.1
+5. **Progressive Context**: Each round builds on accumulated reasoning
+6. **Dynamic Population**: All parameters populated at runtime based on debate state
 
 ---
 
 ## Prompt Types
 
-ONESEEK uses three specialized prompts for different stages of debate participation:
+ONESEEK uses six specialized prompts for different stages of debate participation:
 
 ### 1. MAIN_DEBATE_PROMPT
 
@@ -61,8 +63,8 @@ ONESEEK uses three specialized prompts for different stages of debate participat
 
 ### 2. REASONING_PROMPT
 
-**Purpose:** Internal thought process after each external AI response (80-120 words)  
-**Frequency:** After EVERY external AI response (GPT, Gemini, DeepSeek, Grok)  
+**Purpose:** Internal thought process after ONESEEK's own response (80-120 words)  
+**Frequency:** Once per round, after ONESEEK contributes  
 **Output:** Specific analysis of what was learned and how it influenced thinking
 
 **Key Features:**
@@ -73,17 +75,109 @@ ONESEEK uses three specialized prompts for different stages of debate participat
 - Builds progressively on own thinking
 
 **When Used:**
-- Immediately after GPT responds
-- Immediately after Gemini responds
-- Immediately after DeepSeek responds
-- Immediately after Grok responds
-- Before formulating ONESEEK's own contribution
+- After ONESEEK gives its MAIN_DEBATE_PROMPT response
+- Uses accumulated insights from INSIGHTS_PROMPT
+- Before next round begins
 
 **Visibility:** Stored in thought chain/tree for full transparency
 
 ---
 
-### 3. CLOSING_PROMPT
+### 3. INSIGHTS_PROMPT
+
+**Purpose:** Quick reactions after each external AI response (30-50 words)  
+**Frequency:** After EVERY external AI response (GPT, Gemini, DeepSeek, Grok)  
+**Output:** Immediate observation about what the model contributed
+
+**Key Features:**
+- Captures first impressions and key points
+- Notes connections to previous arguments
+- Identifies unique perspectives
+- Builds knowledge chain for the round
+- Feeds into insights_context for REASONING_PROMPT
+
+**When Used:**
+- Immediately after GPT responds
+- Immediately after Gemini responds  
+- Immediately after DeepSeek responds
+- Immediately after Grok responds
+- Before ONESEEK formulates its own contribution
+
+**Visibility:** Stored internally, used to populate `{insights_context}` parameter
+
+**Example Output:**
+```
+"GPT:s fokus på ekonomisk hållbarhet öppnar för diskussion om långsiktig planering. 
+Kopplingen till tidigare nämnda miljöaspekter är intressant."
+```
+
+---
+
+### 4. ROUND_SUMMARY_PROMPT
+
+**Purpose:** Extract 5 key learnings after each round completes  
+**Frequency:** Once per round, after all agents have responded  
+**Output:** Bullet list of 5 main insights (max 15 words per bullet)
+
+**Key Features:**
+- Concise summarization of round's main points
+- Max 15 words per bullet for token efficiency
+- Captures diverse perspectives
+- Used as context in future rounds
+- Feeds into `{round_summaries_context}`
+
+**When Used:**
+- After all agents (GPT, Gemini, ONESEEK, DeepSeek, Grok) have responded in a round
+- Before next round begins
+- After Round 1, Round 2, and Round 3
+
+**Visibility:** Stored and displayed in debate context
+
+**Example Output:**
+```
+- Ekonomisk hållbarhet kräver både kortsiktiga och långsiktiga strategier
+- Miljöaspekter och ekonomi inte motsatser utan kan integreras
+- Tekniska lösningar måste balanseras med sociala hänsyn
+- Konsensus om behovet av systemisk förändring, inte bara punktinsatser
+- Olika modeller betonar olika tidsperspektiv vilket berikar diskussionen
+```
+
+---
+
+### 5. VOTING_PROMPT
+
+**Purpose:** Unbiased final vote after round 3  
+**Frequency:** Once, when debate ends and voting begins  
+**Output:** Vote for best answer + 1-2 sentence motivation
+
+**Key Features:**
+- No prescribed voting criteria (authentic judgment)
+- Cannot vote for self
+- Simple format: RÖST + MOTIVERING
+- Used by PES for performance analysis
+- Generates unbiased voting data
+
+**When Used:**
+- After Round 3 completes
+- All models vote simultaneously
+- Before winner is calculated
+
+**Format:**
+```
+RÖST: [agent-namn]
+MOTIVERING: [1-2 meningar]
+```
+
+**Example Output:**
+```
+RÖST: deepseek-r1
+MOTIVERING: DeepSeek lyckades bäst integrera alla perspektiv i ett konkret ramverk 
+med tydliga implementationssteg. Förslaget känns både ambitiöst och genomförbart.
+```
+
+---
+
+### 6. CLOSING_PROMPT
 
 **Purpose:** Final debate summary and reflection (250-400 words)  
 **Frequency:** Once, after voting completes  
@@ -161,10 +255,89 @@ REASONING_PROMPT
     ← Output from MAIN_DEBATE_PROMPT
   
   {insights_context}
-    ← All previous REASONING_PROMPT outputs
-    ← Format: Chronological list
-    ← Empty for first reasoning in debate
-    ← Grows throughout debate
+    ← All INSIGHTS_PROMPT outputs from this round
+    ← Format: "- GPT: [insight]\n- Gemini: [insight]\n- DeepSeek: [insight]..."
+    ← Built up as each external AI responds
+    ← Used to explain what influenced ONESEEK's thinking
+```
+
+### INSIGHTS_PROMPT Data Flow
+
+```javascript
+INSIGHTS_PROMPT
+  ↓
+  Populated with runtime data:
+  
+  {agent_name}
+    ← Name of the external AI that just responded
+    ← One of: "GPT", "Gemini", "DeepSeek", "Grok"
+  
+  {agent_response}
+    ← The response text from that external AI
+    ← Full text of their contribution
+  
+  {clean_question}
+    ← debate.question (original user question)
+  
+  {round_num}
+    ← current_round (1, 2, or 3)
+  
+  Output stored as:
+    knowledge_chain[agent_name] = insight_text
+    ← Used to build {insights_context} for REASONING_PROMPT
+```
+
+### ROUND_SUMMARY_PROMPT Data Flow
+
+```javascript
+ROUND_SUMMARY_PROMPT
+  ↓
+  Populated with runtime data:
+  
+  {clean_question}
+    ← debate.question (original user question)
+  
+  {round_num}
+    ← just-completed round (1, 2, or 3)
+  
+  {round_responses}
+    ← All responses from the completed round
+    ← Format: "GPT: [response]\nGemini: [response]\nONESEEK: [response]..."
+    ← Limited to 250 chars per response for token management
+  
+  Output:
+    ← 5 bullet points (max 15 words each)
+    ← Stored in round_summaries array
+    ← Used to populate {round_summaries_context} in next rounds
+```
+
+### VOTING_PROMPT Data Flow
+
+```javascript
+VOTING_PROMPT
+  ↓
+  Populated with runtime data:
+  
+  {voter}
+    ← Name of the model casting the vote
+    ← One of: "GPT", "Gemini", "ONESEEK", "DeepSeek", "Grok"
+  
+  {clean_question}
+    ← debate.question (original user question)
+  
+  {debate_summary}
+    ← Final responses from all models in Round 3
+    ← Excludes the voter's own response
+    ← Format: "GPT:\n[response]\n\nGemini:\n[response]..."
+  
+  {other_agents}
+    ← List of votable candidates (all except self)
+    ← Format: ["GPT", "Gemini", "DeepSeek", "Grok"]
+  
+  Output:
+    ← RÖST: [chosen agent]
+    ← MOTIVERING: [1-2 sentences]
+    ← Stored in voting_results for winner calculation
 ```
 
 ### CLOSING_PROMPT Data Flow
@@ -199,16 +372,16 @@ CLOSING_PROMPT
 
 ```
 1. GPT responds
-   └─> REASONING_PROMPT triggered
-       Input: {answer: GPT's response, insights_context: ""}
+   └─> INSIGHTS_PROMPT triggered
+       Input: {agent_name: "GPT", agent_response: GPT's full text}
        Output: "GPT betonade X vilket är relevant eftersom..."
-       Storage: reasoning_history[0]
+       Storage: knowledge_chain["GPT"] = insight
 
 2. Gemini responds
-   └─> REASONING_PROMPT triggered
-       Input: {answer: Gemini's response, insights_context: reasoning_history[0]}
+   └─> INSIGHTS_PROMPT triggered
+       Input: {agent_name: "Gemini", agent_response: Gemini's full text}
        Output: "Gemini la till Y vilket bygger på GPT:s X men..."
-       Storage: reasoning_history[1]
+       Storage: knowledge_chain["Gemini"] = insight
 
 3. ONESEEK's turn
    └─> MAIN_DEBATE_PROMPT triggered
@@ -217,63 +390,150 @@ CLOSING_PROMPT
          round_summaries_context: "",  // Empty in Round 1
          full_previous_round: "",       // Empty in Round 1
          chain_so_far: "GPT: [full response]\nGemini: [full response]",
-         oneseek_previous_reasoning_and_insights: reasoning_history[0] + reasoning_history[1]
+         oneseek_previous_reasoning_and_insights: ""  // Empty in Round 1
        }
        Output: Full 350-550 word synthesis
    
    └─> REASONING_PROMPT triggered (after own contribution)
-       Input: {answer: ONESEEK's contribution, insights_context: reasoning_history[0..1]}
+       Input: {
+         answer: ONESEEK's contribution,
+         insights_context: "- GPT: [insight]\n- Gemini: [insight]"
+       }
        Output: "Jag integrerade GPT:s X och Gemini:s Y genom att..."
-       Storage: reasoning_history[2]
+       Storage: reasoning_history[0]
 
 4. DeepSeek responds
-   └─> REASONING_PROMPT triggered
-       Input: {answer: DeepSeek's response, insights_context: reasoning_history[0..2]}
-       Output: "DeepSeek utmanade mitt ramverk genom att..."
-       Storage: reasoning_history[3]
+   └─> INSIGHTS_PROMPT triggered
+       Input: {agent_name: "DeepSeek", agent_response: DeepSeek's full text}
+       Output: "DeepSeek utmanade genom att lyfta Z..."
+       Storage: knowledge_chain["DeepSeek"] = insight
 
 5. Grok responds
-   └─> REASONING_PROMPT triggered
-       Input: {answer: Grok's response, insights_context: reasoning_history[0..3]}
-       Output: "Grok:s data-fokus kompletterar mitt X eftersom..."
-       Storage: reasoning_history[4]
+   └─> INSIGHTS_PROMPT triggered
+       Input: {agent_name: "Grok", agent_response: Grok's full text}
+       Output: "Grok:s data-fokus kompletterar..."
+       Storage: knowledge_chain["Grok"] = insight
+
+6. Round 1 Complete
+   └─> ROUND_SUMMARY_PROMPT triggered
+       Input: {
+         round_num: 1,
+         round_responses: All 5 responses (limited to 250 chars each)
+       }
+       Output: 5 bullet points:
+         "- X är central för diskussionen
+          - Y och Z representerar olika perspektiv
+          - Konsensus om behov av systemiskt tänkande
+          - Tekniska vs sociala lösningar behöver integreras
+          - Tidsperspektiv varierar mellan modellerna"
+       Storage: round_summaries[0]
 ```
 
 ### Round 2 Example (ONESEEK goes 3rd again)
 
 ```
-6. GPT responds (Round 2)
-   └─> REASONING_PROMPT triggered
-       Input: {answer: GPT's Round 2 response, insights_context: reasoning_history[0..4]}
-       Output: "GPT utvecklar nu X vidare med Y vilket..."
-       Storage: reasoning_history[5]
+7. GPT responds (Round 2)
+   └─> INSIGHTS_PROMPT triggered
+       Output: "GPT utvecklar nu X vidare..."
+       Storage: knowledge_chain["GPT"] = new insight
 
-7. Gemini responds (Round 2)
-   └─> REASONING_PROMPT triggered
-       Input: {answer: Gemini's Round 2 response, insights_context: reasoning_history[0..5]}
-       Output: "Gemini bygger på sitt tidigare förslag genom att..."
-       Storage: reasoning_history[6]
+8. Gemini responds (Round 2)
+   └─> INSIGHTS_PROMPT triggered
+       Output: "Gemini bygger på sitt tidigare förslag..."
+       Storage: knowledge_chain["Gemini"] = new insight
 
-8. ONESEEK's turn (Round 2)
+9. ONESEEK's turn (Round 2)
    └─> MAIN_DEBATE_PROMPT triggered
        Input: {
          round_num: 2,
-         round_summaries_context: "Runda 1: Diskussion fokuserade på X vs Y...",
-         full_previous_round: "GPT: [Round 1 response]\nGemini: [Round 1 response]...",
-         chain_so_far: "GPT: [Round 2 response]\nGemini: [Round 2 response]",
-         oneseek_previous_reasoning_and_insights: reasoning_history[0..6] + round_1_summary
+         round_summaries_context: round_summaries[0] (from Round 1),
+         full_previous_round: All Round 1 responses,
+         chain_so_far: "GPT: [Round 2]\nGemini: [Round 2]",
+         oneseek_previous_reasoning_and_insights: reasoning_history[0] + round_summaries[0]
        }
        Output: **MUST reference Round 1 framework explicitly**
        Format: "Mitt ramverk från Runda 1 om X+Y kan nu..."
    
    └─> REASONING_PROMPT triggered
-       Storage: reasoning_history[7]
+       Input: {
+         answer: ONESEEK's Round 2 contribution,
+         insights_context: "- GPT: [Round 2 insight]\n- Gemini: [Round 2 insight]"
+       }
+       Storage: reasoning_history[1]
 
-... and so on
+10. DeepSeek responds (Round 2)
+    └─> INSIGHTS_PROMPT triggered
+        Storage: knowledge_chain["DeepSeek"]
+
+11. Grok responds (Round 2)
+    └─> INSIGHTS_PROMPT triggered
+        Storage: knowledge_chain["Grok"]
+
+12. Round 2 Complete
+    └─> ROUND_SUMMARY_PROMPT triggered
+        Storage: round_summaries[1]
 ```
 
-### Round 3 Example (Final synthesis)
+### Round 3 Example (Final synthesis + Voting + Closing)
 
+```
+13-17. Round 3 responses with INSIGHTS_PROMPT (same pattern)
+    
+18. ONESEEK's turn (Round 3)
+    └─> MAIN_DEBATE_PROMPT triggered
+        Input: {
+          round_num: 3,
+          round_summaries_context: round_summaries[0] + round_summaries[1],
+          full_previous_round: All Round 2 responses,
+          chain_so_far: Responses before ONESEEK in Round 3,
+          oneseek_previous_reasoning_and_insights: 
+            reasoning_history[0,1] + round_summaries[0,1]
+        }
+        Output: **Comprehensive synthesis showing evolution from Round 1→3**
+        Format: "Mitt ursprungliga ramverk om X har nu utvecklats till..."
+    
+    └─> REASONING_PROMPT triggered
+        Storage: reasoning_history[2]
+
+19. Round 3 Complete
+    └─> ROUND_SUMMARY_PROMPT triggered
+        Storage: round_summaries[2]
+
+20. Voting Phase Begins
+    └─> VOTING_PROMPT triggered for GPT
+        Input: {voter: "GPT", debate_summary: Round 3 responses (excluding GPT)}
+        Output: "RÖST: deepseek-r1\nMOTIVERING: ..."
+    
+    └─> VOTING_PROMPT triggered for Gemini
+        Input: {voter: "Gemini", debate_summary: Round 3 responses (excluding Gemini)}
+        Output: "RÖST: ONESEEK\nMOTIVERING: ..."
+    
+    └─> VOTING_PROMPT triggered for ONESEEK
+        Input: {voter: "ONESEEK", debate_summary: Round 3 responses (excluding ONESEEK)}
+        Output: "RÖST: gpt\nMOTIVERING: ..."
+    
+    └─> VOTING_PROMPT triggered for DeepSeek
+        Output: "RÖST: ONESEEK\nMOTIVERING: ..."
+    
+    └─> VOTING_PROMPT triggered for Grok
+        Output: "RÖST: deepseek-r1\nMOTIVERING: ..."
+
+21. Votes Counted
+    Winner: deepseek-r1 (2 votes)
+    Results compiled with all motivations
+
+22. Closing Phase
+    └─> CLOSING_PROMPT triggered
+        Input: {
+          winner: "deepseek-r1",
+          winner_votes: 2,
+          voting_motivations: All 5 votes with motivations
+        }
+        Output: 250-400 word closing summary
+        - Thanks all participants
+        - Explains why deepseek-r1 won
+        - Highlights other contributions
+        - Reflects on debate learnings
 ```
 11. ONESEEK's turn (Round 3)
     └─> MAIN_DEBATE_PROMPT triggered
@@ -382,19 +642,25 @@ function populateClosingPrompt(debate, votingResults) {
 
 - MAIN_DEBATE_PROMPT
 - COMMENT_PROMPT (live reactions)
-- REASONING_PROMPT (occasional)
+- REASONING_PROMPT (occasional, after own responses)
 - CLOSING_PROMPT
+
+**Note:** INSIGHTS_PROMPT, ROUND_SUMMARY_PROMPT, and VOTING_PROMPT existed but were not documented.
 
 **Issues:**
 - Fragmented thought process
 - Commentary vs reasoning confusion
 - Weak continuity between rounds
+- Incomplete documentation
 
 ### v1.0.1 (Current - Unified Reasoning)
 
 - MAIN_DEBATE_PROMPT (enhanced with red thread)
 - ~~COMMENT_PROMPT~~ (removed)
-- REASONING_PROMPT (after EVERY external response)
+- REASONING_PROMPT (after ONESEEK's own responses)
+- INSIGHTS_PROMPT (after EVERY external AI response) - **NOW DOCUMENTED**
+- ROUND_SUMMARY_PROMPT (after each round) - **NOW DOCUMENTED**
+- VOTING_PROMPT (final vote) - **NOW DOCUMENTED**
 - CLOSING_PROMPT
 
 **Improvements:**
@@ -576,6 +842,69 @@ SYSTEM_PROMPTS = {
   reasoning: "Du är ONESEEK - ge ett detaljerat, specifikt och dynamiskt resonemang om hur du byggde ditt svar...",
   closing: "Du är ONESEEK, en opartisk och reflekterande debattledare."
 }
+```
+
+---
+
+## Technical Notes: Prompt Firing Sequence
+
+### When Each Prompt Fires
+
+**During Debate Rounds (1, 2, 3):**
+
+1. **INSIGHTS_PROMPT** - Fires after EACH external AI response
+   - Frequency: 4× per round (GPT, Gemini, DeepSeek, Grok)
+   - Total across debate: 12 firings
+   - Purpose: Capture immediate reactions for reasoning context
+
+2. **MAIN_DEBATE_PROMPT** - Fires when ONESEEK's turn arrives
+   - Frequency: 1× per round
+   - Total across debate: 3 firings
+   - Purpose: Generate full 350-550 word contribution
+
+3. **REASONING_PROMPT** - Fires after ONESEEK responds
+   - Frequency: 1× per round (after own MAIN_DEBATE response)
+   - Total across debate: 3 firings
+   - Purpose: Explain thinking behind own contribution
+
+4. **ROUND_SUMMARY_PROMPT** - Fires after round completes
+   - Frequency: 1× per round (after all 5 agents respond)
+   - Total across debate: 3 firings
+   - Purpose: Extract 5 key learnings for next round's context
+
+**After Debate Ends:**
+
+5. **VOTING_PROMPT** - Fires for all models
+   - Frequency: 1× per model
+   - Total: 5 firings (all models vote)
+   - Purpose: Collect unbiased votes and motivations
+
+6. **CLOSING_PROMPT** - Fires after votes counted
+   - Frequency: 1× per debate
+   - Total: 1 firing
+   - Purpose: Final summary explaining outcome
+
+### Total Prompt Count Per Debate
+
+- INSIGHTS_PROMPT: 12 (4 per round × 3 rounds)
+- MAIN_DEBATE_PROMPT: 3 (1 per round)
+- REASONING_PROMPT: 3 (1 per round)
+- ROUND_SUMMARY_PROMPT: 3 (1 per round)
+- VOTING_PROMPT: 5 (all models)
+- CLOSING_PROMPT: 1 (final)
+
+**Grand Total: 27 prompts fired** in a complete 3-round, 5-model debate
+
+### Data Dependencies
+
+```
+INSIGHTS_PROMPT outputs → {insights_context} → REASONING_PROMPT
+                      ↓
+ROUND_SUMMARY_PROMPT → {round_summaries_context} → Next round's MAIN_DEBATE_PROMPT
+                      ↓
+REASONING_PROMPT outputs → {oneseek_previous_reasoning_and_insights} → Next round
+                      ↓
+VOTING_PROMPT outputs → {voting_motivations} → CLOSING_PROMPT
 ```
 
 ---
