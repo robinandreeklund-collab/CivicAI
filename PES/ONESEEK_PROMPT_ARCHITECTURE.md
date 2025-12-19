@@ -475,13 +475,25 @@ CLOSING_PROMPT
 
 ```
 7. GPT responds (Round 2)
+   └─> REASONING_PROMPT triggered
+       Input: {agent_name: "GPT", agent_response: GPT's Round 2 text}
+       Output: "GPT utvecklar nu X vidare med nya datapunkter. Detta stärker 
+               den ekonomiska dimensionen och kopplar till Runda 1:s argument..."  (80-120 words)
+       Storage: reasoning_chain["GPT"] = reasoning
+   
    └─> INSIGHTS_PROMPT triggered
-       Output: "GPT utvecklar nu X vidare..."
+       Output: "💡 GPT's nya data stärker ekonomisk-miljö syntes"
        Storage: knowledge_chain["GPT"] = new insight
 
 8. Gemini responds (Round 2)
+   └─> REASONING_PROMPT triggered
+       Input: {agent_name: "Gemini", agent_response: Gemini's Round 2 text}
+       Output: "Gemini bygger på sitt tidigare förslag om social dimension. 
+               Nykopplingen mellan equity och teknisk implementation är..."  (80-120 words)
+       Storage: reasoning_chain["Gemini"] = reasoning
+   
    └─> INSIGHTS_PROMPT triggered
-       Output: "Gemini bygger på sitt tidigare förslag..."
+       Output: "💡 Social-teknisk integration blir konkret"
        Storage: knowledge_chain["Gemini"] = new insight
 
 9. ONESEEK's turn (Round 2)
@@ -493,6 +505,12 @@ CLOSING_PROMPT
          chain_so_far: "GPT: [Round 2]\nGemini: [Round 2]",
          oneseek_previous_reasoning_and_insights: reasoning_history[0] + round_summaries[0]
        }
+       ✅ HAS ACCESS TO:
+         - GPT's Round 2 REASONING (80-120 words)
+         - GPT's Round 2 INSIGHT (💡 takeaway)
+         - Gemini's Round 2 REASONING (80-120 words)
+         - Gemini's Round 2 INSIGHT (💡 takeaway)
+         - ALL reasoning/insights from Round 1
        Output: **MUST reference Round 1 framework explicitly**
        Format: "Mitt ramverk från Runda 1 om X+Y kan nu..."
    
@@ -501,14 +519,25 @@ CLOSING_PROMPT
          answer: ONESEEK's Round 2 contribution,
          insights_context: "- GPT: [Round 2 insight]\n- Gemini: [Round 2 insight]"
        }
+       Output: Explanation of how ONESEEK integrated GPT + Gemini's Round 2 insights
        Storage: reasoning_history[1]
 
 10. DeepSeek responds (Round 2)
+    └─> REASONING_PROMPT triggered
+        Output: Deep analysis of DeepSeek's Round 2 contribution
+        Storage: reasoning_chain["DeepSeek"]
+    
     └─> INSIGHTS_PROMPT triggered
+        Output: "💡 Key takeaway from DeepSeek..."
         Storage: knowledge_chain["DeepSeek"]
 
 11. Grok responds (Round 2)
+    └─> REASONING_PROMPT triggered
+        Output: Deep analysis of Grok's Round 2 contribution
+        Storage: reasoning_chain["Grok"]
+    
     └─> INSIGHTS_PROMPT triggered
+        Output: "💡 Key takeaway from Grok..."
         Storage: knowledge_chain["Grok"]
 
 12. Round 2 Complete
