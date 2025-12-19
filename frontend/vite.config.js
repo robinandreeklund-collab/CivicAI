@@ -42,7 +42,12 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
       },
-      // ONESEEK Δ+ Admin API (inference settings, configuration)
+      // ONESEEK Δ+ Admin API - Debate Prompts (backend Node.js)
+      '/api/admin/debate-prompts': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      // ONESEEK Δ+ Admin API (inference settings, configuration - ml_service Python)
       '/api/admin': {
         target: 'http://localhost:5000',
         changeOrigin: true,
