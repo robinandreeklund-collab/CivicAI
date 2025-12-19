@@ -624,13 +624,21 @@ router.post('/evolution/:id/validate', async (req, res) => {
     
     // Get the first debate for validation (in production, could be smarter selection)
     const { getDebate } = await import('../../PES/services/pesFirebaseService.js');
-    const debate = await getDebate(debateIds[0]);
+    const debateId = debateIds[0];
+    const debate = await getDebate(debateId);
     
     if (!debate) {
       return res.status(404).json({
-        error: 'Debate not found for validation'
+        error: 'Debate not found for validation',
+        debate_id: debateId,
+        debug: {
+          debates_used: debateIds
+        }
       });
     }
+    
+    console.log(`[PES API] Loaded debate ${debateId} for validation`);
+    console.log(`[PES API] Debate has ${debate.rounds ? debate.rounds.length : 0} rounds`);
     
     // Prepare debate data for real voting
     const debateData = {
@@ -639,25 +647,40 @@ router.post('/evolution/:id/validate', async (req, res) => {
     };
     
     // Extract responses from debate rounds
+    // Debates have rounds with responses array containing { agent, response, timestamp }
     if (debate.rounds && debate.rounds.length > 0) {
       const lastRound = debate.rounds[debate.rounds.length - 1];
-      if (lastRound.external_responses) {
-        debateData.responses = lastRound.external_responses.map(r => ({
-          model: r.model,
-          text: r.text || r.response
+      
+      // Extract responses from the last round
+      if (lastRound.responses && Array.isArray(lastRound.responses)) {
+        debateData.responses = lastRound.responses.map(r => ({
+          model: r.agent || r.model,
+          text: r.response || r.text
         }));
       }
-      if (lastRound.oneseek_response) {
-        debateData.responses.push({
-          model: 'ONESEEK',
-          text: lastRound.oneseek_response.text || lastRound.oneseek_response.response
-        });
-      }
+    }
+    
+    // Fallback: try initial_responses if rounds are empty
+    if (debateData.responses.length === 0 && debate.initial_responses) {
+      debateData.responses = debate.initial_responses.map(r => ({
+        model: r.agent || r.model,
+        text: r.response || r.text
+      }));
     }
     
     if (debateData.responses.length === 0) {
       return res.status(400).json({
-        error: 'No responses available in debate for validation'
+        error: 'No responses available in debate for validation',
+        debug: {
+          has_rounds: !!debate.rounds,
+          rounds_count: debate.rounds ? debate.rounds.length : 0,
+          has_initial_responses: !!debate.initial_responses,
+          debate_structure: {
+            question: !!debate.question,
+            participants: debate.participants,
+            status: debate.status
+          }
+        }
       });
     }
     
