@@ -38,7 +38,7 @@ ONESEEK uses a **unified reasoning architecture** with **six distinct prompt typ
 
 ## Prompt Types
 
-ONESEEK uses six specialized prompts for different stages of debate participation:
+ONESEEK uses five specialized prompts for different stages of debate participation:
 
 ### 1. MAIN_DEBATE_PROMPT
 
@@ -63,23 +63,32 @@ ONESEEK uses six specialized prompts for different stages of debate participatio
 
 ### 2. REASONING_PROMPT
 
-**Purpose:** Internal thought process after ONESEEK's own response (80-120 words)  
-**Frequency:** Once per round, after ONESEEK contributes  
-**Output:** Specific analysis of what was learned and how it influenced thinking
+**Purpose:** Internal thought process after EVERY response - both external AI and ONESEEK's own (80-120 words)  
+**Frequency:** After EVERY agent response (GPT, Gemini, ONESEEK, DeepSeek, Grok) - approximately 15-16 times per complete debate  
+**Output:** Specific analysis of what was learned from each response
 
 **Key Features:**
+- Fires after external AI responses to build knowledge continuously
+- Fires after ONESEEK's own response to reflect on contribution
 - Names specific models and their arguments
 - References previous reasoning explicitly
 - Explains prioritization decisions
 - Identifies patterns across rounds
-- Builds progressively on own thinking
+- Builds cumulative reasoning context
 
 **When Used:**
-- After ONESEEK gives its MAIN_DEBATE_PROMPT response
-- Uses accumulated insights from INSIGHTS_PROMPT
-- Before next round begins
+- After GPT responds → REASONING
+- After Gemini responds → REASONING
+- After ONESEEK responds → REASONING
+- After DeepSeek responds → REASONING
+- After Grok responds → REASONING
+- (Pattern repeats in each of 3 rounds)
 
-**Visibility:** Stored in thought chain/tree for full transparency
+**Visibility:** 
+- Shown in debate UI for full transparency
+- Stored in ONESEEK's internal context
+- **NOT sent to external AIs** (GPT, Gemini, DeepSeek, Grok)
+- Used only by ONESEEK to build understanding
 
 ---
 
