@@ -155,6 +155,40 @@ const convertEmojis = (text) => {
 function DebateCompletionSection({ completion }) {
   const [votingExpanded, setVotingExpanded] = useState(false);
 
+  // Parse structured closing statement if it contains section headers
+  const parseClosingStatement = (summary) => {
+    if (!summary) return null;
+    
+    // Check if it has structured format with **headers**
+    const hasStructure = summary.includes('**Tack till alla deltagare**') || 
+                        summary.includes('**Debattens utveckling**') ||
+                        summary.includes('**Varför');
+    
+    if (!hasStructure) {
+      // Return plain text if no structure
+      return { isStructured: false, text: summary };
+    }
+    
+    // Parse structured sections
+    const sections = {};
+    const sectionMatches = summary.match(/\*\*([^*]+)\*\*\s*([^*]+?)(?=\*\*|$)/gs);
+    
+    if (sectionMatches) {
+      sectionMatches.forEach(match => {
+        const headerMatch = match.match(/\*\*([^*]+)\*\*/);
+        if (headerMatch) {
+          const header = headerMatch[1].trim();
+          const content = match.replace(/\*\*[^*]+\*\*/, '').trim();
+          sections[header] = content;
+        }
+      });
+    }
+    
+    return { isStructured: true, sections };
+  };
+
+  const closingData = parseClosingStatement(completion.summary);
+
   return (
     <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
       <div className="text-sm font-medium text-[#888] mb-3">✅ Debatt avslutad</div>
@@ -169,15 +203,27 @@ function DebateCompletionSection({ completion }) {
           <span className="text-[#444]">{votingExpanded ? '▼' : '▶'}</span>
         </button>
         {votingExpanded && (
-          <div className="space-y-2 mt-2">
+          <div className="space-y-3 mt-2">
             {completion.voteResults?.map((vote, idx) => (
               <div key={idx} className="text-xs">
-                <div className="text-[#888] font-medium">
+                <div className="text-[#888] font-medium mb-1">
                   {vote.voter.toUpperCase()} → {vote.voted_for.toUpperCase()}
                 </div>
                 {vote.motivation && (
                   <div className="text-[#666] mt-1 italic">
-                    {vote.motivation}
+                    "{vote.motivation}"
+                  </div>
+                )}
+                {vote.huvudpunkter && vote.huvudpunkter.length > 0 && (
+                  <div className="mt-2 pl-2 border-l-2 border-[#333]">
+                    <div className="text-[#555] text-[10px] mb-1">Huvudpunkter:</div>
+                    <ol className="list-decimal list-inside space-y-1">
+                      {vote.huvudpunkter.map((punkt, pidx) => (
+                        <li key={pidx} className="text-[#777] text-[11px]">
+                          {punkt}
+                        </li>
+                      ))}
+                    </ol>
                   </div>
                 )}
               </div>
@@ -197,12 +243,25 @@ function DebateCompletionSection({ completion }) {
         </div>
       </div>
       
-      {/* Summary */}
+      {/* Summary - Structured or Plain */}
       <div>
         <div className="text-xs text-[#666] mb-2">📋 Sammanfattning</div>
-        <div className="text-xs text-[#888] leading-relaxed">
-          {completion.summary}
-        </div>
+        {closingData?.isStructured ? (
+          <div className="space-y-3">
+            {Object.entries(closingData.sections).map(([header, content], idx) => (
+              <div key={idx}>
+                <div className="text-[#aaa] text-xs font-medium mb-1">{header}</div>
+                <div className="text-[#888] text-xs leading-relaxed pl-2">
+                  {content}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-xs text-[#888] leading-relaxed">
+            {closingData?.text || completion.summary}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2902,15 +2961,27 @@ export default function SevenBZeroPage() {
               {debateRounds.voting && debateRounds.voting.votes && debateRounds.voting.votes.length > 0 && !debateRounds.completion && (
                 <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
                   <div className="text-sm font-medium text-[#888] mb-3">🗳️ Röstning pågår...</div>
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {debateRounds.voting.votes.map((vote, idx) => (
                       <div key={idx} className="text-xs">
-                        <div className="text-[#888] font-medium">
+                        <div className="text-[#888] font-medium mb-1">
                           {vote.voter.toUpperCase()} → {vote.votedFor.toUpperCase()}
                         </div>
                         {vote.message && (
                           <div className="text-[#666] mt-1 italic">
-                            {vote.message}
+                            "{vote.message}"
+                          </div>
+                        )}
+                        {vote.huvudpunkter && vote.huvudpunkter.length > 0 && (
+                          <div className="mt-2 pl-2 border-l-2 border-[#333]">
+                            <div className="text-[#555] text-[10px] mb-1">Huvudpunkter:</div>
+                            <ol className="list-decimal list-inside space-y-1">
+                              {vote.huvudpunkter.map((punkt, pidx) => (
+                                <li key={pidx} className="text-[#777] text-[11px]">
+                                  {punkt}
+                                </li>
+                              ))}
+                            </ol>
                           </div>
                         )}
                       </div>
@@ -3029,15 +3100,27 @@ export default function SevenBZeroPage() {
                     {debateRounds.voting && debateRounds.voting.votes && debateRounds.voting.votes.length > 0 && !debateRounds.completion && (
                       <div className="bg-[#0a0a0a] rounded-lg border border-[#1a1a1a] p-4 mb-3">
                         <div className="text-sm font-medium text-[#888] mb-3">🗳️ Röstning pågår...</div>
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           {debateRounds.voting.votes.map((vote, idx) => (
                             <div key={idx} className="text-xs">
-                              <div className="text-[#888] font-medium">
+                              <div className="text-[#888] font-medium mb-1">
                                 {vote.voter.toUpperCase()} → {vote.votedFor.toUpperCase()}
                               </div>
                               {vote.message && (
                                 <div className="text-[#666] mt-1 italic">
-                                  {vote.message}
+                                  "{vote.message}"
+                                </div>
+                              )}
+                              {vote.huvudpunkter && vote.huvudpunkter.length > 0 && (
+                                <div className="mt-2 pl-2 border-l-2 border-[#333]">
+                                  <div className="text-[#555] text-[10px] mb-1">Huvudpunkter:</div>
+                                  <ol className="list-decimal list-inside space-y-1">
+                                    {vote.huvudpunkter.map((punkt, pidx) => (
+                                      <li key={pidx} className="text-[#777] text-[11px]">
+                                        {punkt}
+                                      </li>
+                                    ))}
+                                  </ol>
                                 </div>
                               )}
                             </div>
@@ -3299,8 +3382,27 @@ export default function SevenBZeroPage() {
                                 🗳️ Röstning
                               </h4>
                               {msg.debateData.voteResults.map((vote, idx) => (
-                                <div key={idx} style={{marginBottom: '8px'}}>
-                                  • <strong>{vote.voter.toUpperCase()}</strong> röstade på: <strong>{vote.voted_for.toUpperCase()}</strong>
+                                <div key={idx} style={{marginBottom: '16px', paddingBottom: '12px', borderBottom: idx < msg.debateData.voteResults.length - 1 ? '1px solid #333' : 'none'}}>
+                                  <div style={{marginBottom: '6px'}}>
+                                    • <strong>{vote.voter.toUpperCase()}</strong> röstade på: <strong>{vote.voted_for.toUpperCase()}</strong>
+                                  </div>
+                                  {vote.motivation && (
+                                    <div style={{fontSize: '13px', color: '#aaa', fontStyle: 'italic', marginLeft: '12px', marginTop: '4px'}}>
+                                      "{vote.motivation}"
+                                    </div>
+                                  )}
+                                  {vote.huvudpunkter && vote.huvudpunkter.length > 0 && (
+                                    <div style={{marginLeft: '12px', marginTop: '8px', paddingLeft: '12px', borderLeft: '2px solid #444'}}>
+                                      <div style={{fontSize: '11px', color: '#666', marginBottom: '4px'}}>Huvudpunkter:</div>
+                                      <ol style={{paddingLeft: '20px', margin: 0}}>
+                                        {vote.huvudpunkter.map((punkt, pidx) => (
+                                          <li key={pidx} style={{fontSize: '12px', color: '#888', marginBottom: '2px'}}>
+                                            {punkt}
+                                          </li>
+                                        ))}
+                                      </ol>
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -3318,17 +3420,62 @@ export default function SevenBZeroPage() {
                             </div>
                           )}
                           
-                          {/* Summary */}
-                          {msg.debateData.summary && (
-                            <div style={{marginTop: '24px'}}>
-                              <h4 style={{fontSize: '16px', fontWeight: 'bold', marginBottom: '12px'}}>
-                                📋 Sammanfattning från Debattledaren
-                              </h4>
-                              <div style={{lineHeight: '1.6'}}>
-                                {msg.debateData.summary}
+                          {/* Summary - Parse structured or plain */}
+                          {msg.debateData.summary && (() => {
+                            const summary = msg.debateData.summary;
+                            const hasStructure = summary.includes('**Tack till alla deltagare**') || 
+                                                summary.includes('**Debattens utveckling**') ||
+                                                summary.includes('**Varför');
+                            
+                            if (!hasStructure) {
+                              // Plain summary
+                              return (
+                                <div style={{marginTop: '24px'}}>
+                                  <h4 style={{fontSize: '16px', fontWeight: 'bold', marginBottom: '12px'}}>
+                                    📋 Sammanfattning från Debattledaren
+                                  </h4>
+                                  <div style={{lineHeight: '1.6'}}>
+                                    {summary}
+                                  </div>
+                                </div>
+                              );
+                            }
+                            
+                            // Structured summary - parse sections
+                            const sections = {};
+                            const sectionMatches = summary.match(/\*\*([^*]+)\*\*\s*([^*]+?)(?=\*\*|$)/gs);
+                            
+                            if (sectionMatches) {
+                              sectionMatches.forEach(match => {
+                                const headerMatch = match.match(/\*\*([^*]+)\*\*/);
+                                if (headerMatch) {
+                                  const header = headerMatch[1].trim();
+                                  const content = match.replace(/\*\*[^*]+\*\*/, '').trim();
+                                  sections[header] = content;
+                                }
+                              });
+                            }
+                            
+                            return (
+                              <div style={{marginTop: '24px'}}>
+                                <h4 style={{fontSize: '16px', fontWeight: 'bold', marginBottom: '16px'}}>
+                                  📋 Sammanfattning från Debattledaren
+                                </h4>
+                                <div style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
+                                  {Object.entries(sections).map(([header, content], idx) => (
+                                    <div key={idx} style={{paddingBottom: '12px', borderBottom: idx < Object.entries(sections).length - 1 ? '1px solid #333' : 'none'}}>
+                                      <div style={{fontSize: '14px', fontWeight: '600', color: '#aaa', marginBottom: '6px'}}>
+                                        {header}
+                                      </div>
+                                      <div style={{fontSize: '13px', lineHeight: '1.6', color: '#ccc'}}>
+                                        {content}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            );
+                          })()}
                           
                         </div>
                       ) : msg.isRoundComplete ? (
