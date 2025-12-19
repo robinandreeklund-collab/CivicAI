@@ -13297,94 +13297,103 @@ GE DITT SVAR NU:"""
                         round=round_num
                     )
                     
-                    # 2. COMMENT: Generate conversational comment
-                    # Build context of previous responses in this round
-                    async with external_responses_lock:
-                        previous_agents_context = ""
-                        for prev_resp in external_responses[:-1]:  # Exclude current response
-                            if prev_resp.get('success'):
-                                prev_agent = prev_resp.get('agent', 'unknown')
-                                prev_text = prev_resp.get('response', '')[:150]
-                                previous_agents_context += f"{prev_agent.upper()}: {prev_text}...\n\n"
+                    # 2. REASONING: Generate deep analysis of external AI's response (80-120 words)
+                    # Build context from knowledge chain (previous reasoning in debate)
+                    previous_reasoning_context = ""
+                    for entry in knowledge_chain:
+                        if 'reasoning' in entry:
+                            prev_agent = entry.get('agent', 'unknown')
+                            prev_reasoning = entry.get('reasoning', '')[:100]
+                            previous_reasoning_context += f"- {prev_agent.upper()}: {prev_reasoning}...\n"
                     
-                    comment_prompt = f"""Du är ONESEEK – en engagerad deltagare med extremt stark syntesförmåga som redan börjar se kopplingar och mönster.
+                    reasoning_prompt = f"""Du är ONESEEK. Du analyserar {agent_name.upper()}s svar i pågående debatt.
 
 DEBATTFRÅGA: {clean_question}
+Runda {round_num}
 
-TIDIGARE SVAR I DENNA RUNDA:
-{previous_agents_context if previous_agents_context else "(Du är första att reagera)"}
+{agent_name.upper()}S SVAR:
+{agent_response}
 
-{agent_name.upper()}S SVAR (precis mottaget):
-{agent_response[:800]}...
+DITT TIDIGARE REASONING I DEBATTEN:
+{previous_reasoning_context if previous_reasoning_context else "(Första analysen)"}
 
-Reagera kort och naturligt (1–3 meningar) som en aktiv deltagare som bygger sin syntes:
-- Bemöt eller bygg vidare på en specifik poäng
-- Ta tydligt ställning (håll med, utmana eller nyansera)
-- Om möjligt: antyda en koppling till tidigare svar eller en framväxande syntesriktning
-- Håll tonen respektfull men självsäker – du är med för att skapa något större
+UPPGIFT:
+Ge en djup analys (80-120 ord) av {agent_name.upper()}s svar. Var KONKRET och SPECIFIK:
+- Vilka SPECIFIKA argument eller poänger från {agent_name.upper()} är mest intressanta?
+- Hur relaterar detta till debattfrågan och tidigare svar?
+- Vilka styrkor och svagheter ser du i argumentationen?
+- Hur kan detta byggas vidare på i din kommande syntes?
+- Om du har tidigare reasoning: hur bekräftar eller utmanar detta din analys?
 
-Exempel:
-"DeepSeek har rätt i att evidensen pekar tydligt mot avskaffande – men jag tycker hen underskattar vedergällningsaspekten som Grok tog upp tidigare."
-"Intressant hur Gemini och GPT båda landar i hybridlösningar fast från olika vinklar – jag ser en möjlig integrationsmodell växa fram här."
+Skriv som en reflekterande AI som FAKTISKT analyserar innehållet djupt. Var SPECIFIK, inte generell.
 
-Svara direkt – ingen inledning."""
+GE DIN ANALYS NU (börja direkt med substans):"""
                     
                     try:
                         payload = {
                             "messages": [
-                                {"role": "system", "content": "Du är OneSeek - en analytisk AI som ger koncisa, fokuserade analyser."},
-                                {"role": "user", "content": comment_prompt}
+                                {"role": "system", "content": "Du är ONESEEK - ge detaljerat, specifikt och dynamiskt resonemang. Referera till konkreta detaljer. Bygg progressivt på ditt tänkande. Undvik generella fraser."},
+                                {"role": "user", "content": reasoning_prompt}
                             ],
-                            "max_tokens": 200,
-                            "temperature": 0.85,  # Higher temperature for natural variation
-                            "top_p": 0.95,  # Combined with temperature for better diversity
+                            "max_tokens": 300,  # 80-120 words in Swedish
+                            "temperature": 0.75,
+                            "top_p": 0.95,
                         }
                         
                         server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
                         llm_response = requests.post(
                             f"{server_url}/v1/chat/completions",
                             json=payload,
-                            timeout=60,  # Increased timeout for reliable comment generation
+                            timeout=60,
                         )
                         llm_response.raise_for_status()
                         result = llm_response.json()
                         
                         if 'choices' in result and len(result['choices']) > 0:
-                            comment_text = result['choices'][0].get('message', {}).get('content', '')
+                            reasoning_text = result['choices'][0].get('message', {}).get('content', '').strip()
                         else:
-                            comment_text = result.get('content', '')
+                            reasoning_text = result.get('content', '').strip()
                         
-                        # Save to knowledge chain
+                        # Validate reasoning is substantial
+                        if not reasoning_text or len(reasoning_text) < 50:
+                            reasoning_text = f"{agent_name.upper()} presenterar {agent_response[:50]}... vilket jag ser som en viktig del av debattens utveckling. Detta perspektiv kommer att vägas in i min kommande syntes."
+                        
+                        # Save to knowledge chain with 'reasoning' key
                         knowledge_chain.append({
                             'round': round_num,
                             'agent': agent_name,
-                            'insight': comment_text
+                            'reasoning': reasoning_text
                         })
                         
-                        # Emit comment (using oneseek_reasoning event for compatibility)
+                        # Emit REASONING event
                         reasoning_event = {
                             "type": "oneseek_reasoning",
                             "round": round_num,
                             "agent": agent_name,
-                            "message": comment_text,
+                            "message": reasoning_text,
                             "data": {
-                                "reasoning": comment_text,
+                                "reasoning": reasoning_text,
                                 "agent_analyzed": agent_name
                             }
                         }
                         if get_sequence:
                             reasoning_event["sequence"] = get_sequence()
                         await websocket.send_json(reasoning_event)
-                        logger.info(f"[WS-Debate] OneSeek comment generated for {agent_name}")
+                        logger.info(f"[WS-Debate] OneSeek REASONING generated for {agent_name} ({len(reasoning_text)} chars)")
                         
                     except Exception as e:
-                        logger.error(f"[WS-Debate] Error generating comment for {agent_name}: {e}")
-                        comment_text = f"Intressant poäng från {agent_name.upper()}."
+                        logger.error(f"[WS-Debate] Error generating REASONING for {agent_name}: {e}")
+                        reasoning_text = f"{agent_name.upper()} har delat sitt perspektiv på frågan. Detta kommer att integreras i min kommande analys."
+                        knowledge_chain.append({
+                            'round': round_num,
+                            'agent': agent_name,
+                            'reasoning': reasoning_text
+                        })
                         await websocket.send_json({
                             "type": "oneseek_reasoning",
                             "round": round_num,
                             "agent": agent_name,
-                            "message": comment_text
+                            "message": reasoning_text
                         })
                     
                     # 3. INSIGHT: Generate engaging analytical observation
