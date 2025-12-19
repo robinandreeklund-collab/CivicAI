@@ -1906,6 +1906,7 @@ export default function SevenBZeroPage() {
         // Extract complete voting data
         event.voted_for = message.data?.voted_for || message.voted_for;
         event.motivation = message.data?.motivation || message.motivation;
+        event.huvudpunkter = message.data?.huvudpunkter || message.huvudpunkter || [];
         event.voter = message.data?.voter || message.voter || message.agent;
         event.candidates = message.data?.candidates || message.candidates || [];
         event.voting_prompt = message.data?.prompt || message.prompt || message.data?.voting_prompt;
@@ -2283,7 +2284,9 @@ export default function SevenBZeroPage() {
                   {
                     voter: message.voter,
                     votedFor: message.voted_for,
-                    message: message.message
+                    message: message.message,
+                    motivation: message.motivation,
+                    huvudpunkter: message.huvudpunkter || []
                   }
                 ]
               }

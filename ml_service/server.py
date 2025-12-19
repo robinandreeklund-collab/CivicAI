@@ -14284,12 +14284,13 @@ Svara ENDAST med ett tal 0-100, inget annat."""
                                 response_text += "..."
                             all_responses_text += f"\n{resp['agent'].upper()}:\n{response_text}\n"
                 
-                voting_prompt = f"""DEBATTFRÅGA: {clean_question}
+                voting_prompt = f"""Du är {voter.upper()} och ska rösta på bästa svaret i debatten.
 
+ORIGINAL FRÅGA:
+{clean_question}
+
+DEBATT-SAMMANFATTNING:
 {all_responses_text}
-
-RÖSTNINGSUPPGIFT:
-Analysera bidragen ovan från sista rundan och rösta på den modell som var bäst.
 
 INSTRUKTIONER:
 1. Rösta på det svar du personligen tycker är mest övertygande (du får INTE rösta på ditt eget svar)
@@ -14297,17 +14298,15 @@ INSTRUKTIONER:
 3. Ge en kort motivering (1–2 meningar)
 4. Nämn 3 huvudpunkter utöver motiveringen varför detta förslag ska vinna
 
-Du kan INTE rösta på dig själv. Välj mellan: {', '.join(other_agents)}
-
-FORMAT (följ exakt):
-RÖST: [modellnamn från listan]
-MOTIVERING: [Din motivering i 1-2 meningar]
+Format:
+RÖST: [agent-namn]
+MOTIVERING: [din motivering]
 HUVUDPUNKTER:
 1. [punkt 1]
 2. [punkt 2]
 3. [punkt 3]
 
-GE DITT SVAR NU:"""
+Ditt svar:"""
                 
                 # Call appropriate API based on voter
                 try:
@@ -14420,7 +14419,9 @@ GE DITT SVAR NU:"""
                     "type": "vote_received",
                     "voter": voter,
                     "voted_for": vote_for,
-                    "message": f"{voter.upper()} röstar på {vote_for.upper()} – motivering: {motivation}"
+                    "message": f"{voter.upper()} röstar på {vote_for.upper()} – motivering: {motivation}",
+                    "motivation": motivation,
+                    "huvudpunkter": huvudpunkter if huvudpunkter else []
                 })
                 
                 logger.info(f"[WS-Debate] {voter} voted for {vote_for} with motivation")
