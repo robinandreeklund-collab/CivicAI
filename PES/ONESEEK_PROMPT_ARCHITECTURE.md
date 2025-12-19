@@ -63,26 +63,26 @@ ONESEEK uses five specialized prompts for different stages of debate participati
 
 ### 2. REASONING_PROMPT
 
-**Purpose:** Internal thought process after EVERY response - both external AI and ONESEEK's own (80-120 words)  
-**Frequency:** After EVERY agent response (GPT, Gemini, ONESEEK, DeepSeek, Grok) - approximately 15-16 times per complete debate  
-**Output:** Specific analysis of what was learned from each response
+**Purpose:** Deep analysis of each response (80-120 words) - fires FIRST after external AI responses  
+**Frequency:** After each external AI response - approximately 12 times per complete debate  
+**Output:** Detailed analysis of what the model said, how it connects, implications
 
 **Key Features:**
-- Fires after external AI responses to build knowledge continuously
-- Fires after ONESEEK's own response to reflect on contribution
+- Analyzes what was said and why it matters
+- Connects to previous arguments
+- Identifies implications and patterns
 - Names specific models and their arguments
 - References previous reasoning explicitly
-- Explains prioritization decisions
-- Identifies patterns across rounds
 - Builds cumulative reasoning context
+- Fires BEFORE INSIGHTS_PROMPT
 
 **When Used:**
-- After GPT responds → REASONING
-- After Gemini responds → REASONING
-- After ONESEEK responds → REASONING
-- After DeepSeek responds → REASONING
-- After Grok responds → REASONING
-- (Pattern repeats in each of 3 rounds)
+- After GPT responds → REASONING (then INSIGHTS)
+- After Gemini responds → REASONING (then INSIGHTS)
+- After DeepSeek responds → REASONING (then INSIGHTS)
+- After Grok responds → REASONING (then INSIGHTS)
+- Pattern: AI response → REASONING → INSIGHTS
+- (Repeats for each external AI in all 3 rounds)
 
 **Visibility:** 
 - Shown in debate UI for full transparency
@@ -94,30 +94,35 @@ ONESEEK uses five specialized prompts for different stages of debate participati
 
 ### 3. INSIGHTS_PROMPT
 
-**Purpose:** Quick reactions after each external AI response (30-50 words)  
-**Frequency:** After EVERY external AI response (GPT, Gemini, DeepSeek, Grok)  
-**Output:** Immediate observation about what the model contributed
+**Purpose:** Quick key takeaway (1-2 sentences with 💡) - fires SECOND after REASONING  
+**Frequency:** After each REASONING_PROMPT - approximately 12 times per complete debate  
+**Output:** Short, punchy observation distilling the key pattern
 
 **Key Features:**
-- Captures first impressions and key points
-- Notes connections to previous arguments
-- Identifies unique perspectives
-- Builds knowledge chain for the round
-- Feeds into insights_context for REASONING_PROMPT
+- Extracts the core insight from REASONING
+- Starts with 💡 emoji for visibility
+- 1-2 sentences maximum
+- Detects shifts, strengths, weaknesses, or unexplored connections
+- Shows how contribution affects debate direction
+- Memorable and easy to scan
+- Fires AFTER REASONING_PROMPT
 
 **When Used:**
-- Immediately after GPT responds
-- Immediately after Gemini responds  
-- Immediately after DeepSeek responds
-- Immediately after Grok responds
-- Before ONESEEK formulates its own contribution
+- After GPT responds → REASONING → INSIGHTS
+- After Gemini responds → REASONING → INSIGHTS
+- After DeepSeek responds → REASONING → INSIGHTS
+- After Grok responds → REASONING → INSIGHTS
+- Pattern: AI response → REASONING → INSIGHTS
+- (Repeats for each external AI in all 3 rounds)
 
-**Visibility:** Stored internally, used to populate `{insights_context}` parameter
+**Visibility:** 
+- Shown in debate UI with 💡 prefix
+- Stored in ONESEEK's internal context
+- **NOT sent to external AIs**
 
 **Example Output:**
 ```
-"GPT:s fokus på ekonomisk hållbarhet öppnar för diskussion om långsiktig planering. 
-Kopplingen till tidigare nämnda miljöaspekter är intressant."
+💡 Economic and environmental goals can be strategically integrated rather than treated as opposing forces.
 ```
 
 ---
