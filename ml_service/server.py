@@ -14291,26 +14291,21 @@ Svara ENDAST med ett tal 0-100, inget annat."""
 RÖSTNINGSUPPGIFT:
 Analysera bidragen ovan från sista rundan och rösta på den modell som var bäst.
 
-UTVÄRDERINGSKRITERIER (i prioritetsordning):
-1. **Syntesförmåga** - Förmågan att integrera insikter från flera perspektiv
-2. **Balanserad Argumentation** - Väger för- och nackdelar objektivt
-3. **Djup och Substans** - Ger konkreta exempel, fakta och nyanserade resonemang
-4. **Praktisk Tillämpbarhet** - Erbjuder konkreta rekommendationer eller slutsatser
-5. **Klarhet och Struktur** - Välformulerat och lätt att följa
-6. **Originalitet** - Lägger till unika perspektiv som andra missat
+INSTRUKTIONER:
+1. Rösta på det svar du personligen tycker är mest övertygande (du får INTE rösta på ditt eget svar)
+2. Undvik att använda ord som "bäst" eller "överlägsen" – beskriv istället varför just det svaret talar mest till dig
+3. Ge en kort motivering (1–2 meningar)
+4. Nämn 3 huvudpunkter utöver motiveringen varför detta förslag ska vinna
 
-REGLER:
-- Du kan INTE rösta på dig själv
-- Välj mellan: {', '.join(other_agents)}
-- Värdera särskilt högt bidrag som syntetiserar olika perspektiv till en helhet
-- Ge en motivering på 50-80 ord som förklarar:
-  1. Vilka av ovanstående kriterier modellen uppfyllde bäst
-  2. Specifika exempel från svaret som övertyagade dig
-  3. Varför detta svar var bättre än de andra
+Du kan INTE rösta på dig själv. Välj mellan: {', '.join(other_agents)}
 
 FORMAT (följ exakt):
 RÖST: [modellnamn från listan]
-MOTIVERING: [Din motivering i 50-80 ord med konkreta argument från debatten]
+MOTIVERING: [Din motivering i 1-2 meningar]
+HUVUDPUNKTER:
+1. [punkt 1]
+2. [punkt 2]
+3. [punkt 3]
 
 GE DITT SVAR NU:"""
                 
@@ -14365,16 +14360,25 @@ GE DITT SVAR NU:"""
                     import re
                     vote_for = None
                     motivation = ""
+                    huvudpunkter = []
                     
                     # Look for RÖST: line
                     rost_match = re.search(r'RÖST:\s*(\w+)', vote_response_text, re.IGNORECASE)
                     if rost_match:
                         vote_for = rost_match.group(1).lower()
                     
-                    # Look for MOTIVERING: section
-                    motiv_match = re.search(r'MOTIVERING:\s*(.+)', vote_response_text, re.IGNORECASE | re.DOTALL)
+                    # Look for MOTIVERING: section (up to HUVUDPUNKTER or end)
+                    motiv_match = re.search(r'MOTIVERING:\s*(.+?)(?=HUVUDPUNKTER:|$)', vote_response_text, re.IGNORECASE | re.DOTALL)
                     if motiv_match:
                         motivation = motiv_match.group(1).strip()
+                    
+                    # Look for HUVUDPUNKTER: section
+                    huvudpunkter_match = re.search(r'HUVUDPUNKTER:\s*([\s\S]+?)(?=\n\n|$)', vote_response_text, re.IGNORECASE)
+                    if huvudpunkter_match:
+                        punkter_text = huvudpunkter_match.group(1)
+                        # Extract numbered points
+                        punkter = re.findall(r'^\d+\.\s*(.+?)$', punkter_text, re.MULTILINE)
+                        huvudpunkter = [p.strip() for p in punkter if p.strip()]
                     
                     # Validate vote is for a valid agent (not self)
                     if vote_for not in other_agents:
@@ -14392,21 +14396,23 @@ GE DITT SVAR NU:"""
                     
                     # Final fallback
                     if not motivation:
-                        motivation = f"{vote_for.upper()} presenterade de mest övertygande argumenten genom hela debatten. Svaren var välstrukturerade och byggde på solid reasoning."
+                        motivation = f"{vote_for.upper()} presenterade de mest övertygande argumenten genom hela debatten."
                     
-                    logger.info(f"[WS-Debate] {voter} AUTHENTICALLY voted for {vote_for}")
+                    logger.info(f"[WS-Debate] {voter} voted for {vote_for} with {len(huvudpunkter)} huvudpunkter")
                 
                 except Exception as e:
                     logger.error(f"[WS-Debate] Error getting vote from {voter} API: {e}")
                     # Fallback: use first available agent
                     vote_for = other_agents[0]
                     motivation = f"Tekniskt fel vid röstning. {vote_for.upper()} valdes som förval."
+                    huvudpunkter = []
                 
                 votes[vote_for] = votes.get(vote_for, 0) + 1
                 vote_results.append({
                     'voter': voter,
                     'voted_for': vote_for,
-                    'motivation': motivation
+                    'motivation': motivation,
+                    'huvudpunkter': huvudpunkter if huvudpunkter else None
                 })
                 
                 # Echo the vote live
@@ -14442,30 +14448,39 @@ GE DITT SVAR NU:"""
         # Build voting motivations string
         voting_motivations = ""
         for vr in vote_results:
-            voting_motivations += f"{vr['voter'].upper()} röstade på {vr['voted_for'].upper()}:\n{vr.get('motivation', 'Ingen motivering angiven.')}\n\n"
+            voting_motivations += f"{vr['voter'].upper()} röstade på {vr['voted_for'].upper()}:\n{vr.get('motivation', 'Ingen motivering angiven.')}\n"
+            if vr.get('huvudpunkter'):
+                voting_motivations += "Huvudpunkter:\n"
+                for i, punkt in enumerate(vr['huvudpunkter'], 1):
+                    voting_motivations += f"{i}. {punkt}\n"
+            voting_motivations += "\n"
         
         closing_comment_prompt = f"""Du är ONESEEK – en opartisk och reflekterande debattledare som nu ska avsluta debatten på ett värdigt och insiktsfullt sätt.
 
 Debatten om "{clean_question}" är nu över.
-
 {winner.upper()} vann med {winner_votes} röster.
 
-Röstningsmotiveringar från modellerna (använd dessa för att förklara resultatet):
+Röstningsmotiveringar från modellerna (använd dessa som grund):
 {voting_motivations}
 
-Skriv ett avslutande inlägg där du:
-- Tackar alla modeller för deras engagerade och tankeväckande bidrag
-- Summerar kort debattens huvudlinjer och hur diskussionen utvecklades över rundorna
-- Förklarar objektivt varför {winner.upper()} fick flest röster – baserat på röstningsmotiveringarna och vad som framkom i debatten (t.ex. konsekvens, logik, djup, förmåga att bemöta andra)
-- Lyfter fram minst ett starkt eller värdefullt bidrag från någon av de andra modellerna
-- Avsluta med en nyanserad reflektion över frågan: vad vi lärt oss, var det finns konsensus och vad som fortfarande är öppet
+Skriv ett strukturerat avslutande inlägg (250–400 ord totalt) enligt denna exakta struktur:
 
-Längd: 250–400 ord.
+**Tack till alla deltagare**  
+Tacka alla modeller för deras bidrag och den höga kvaliteten på diskussionen.
 
-Skriv som en erfaren och respektfull debattledare som talar direkt till publiken. 
-Börja direkt med ditt avslut – ingen rubrik, ingen inledning som "Som ONESEEK..." eller "Debatten är över...".
+**Debattens utveckling**  
+Summera kort huvudlinjerna och hur argumentationen utvecklades över rundorna (2–4 meningar).
 
-Ton: Varm, saklig och auktoritativ."""
+**Varför {winner.upper()} vann**  
+Förklara objektivt varför {winner.upper()} fick flest röster – baserat på motiveringarna och framträdande styrkor (t.ex. konsekvens, djup, syntesförmåga, praktiska lösningar).
+
+**Starka bidrag från andra**  
+Lyft fram minst ett värdefullt bidrag från en eller flera modeller som inte vann.
+
+**Lärdomar och öppna frågor**  
+Avsluta med en nyanserad reflektion: vad debatten visar, var det finns konsensus och vad som fortfarande är öppet.
+
+Skriv varmt, sakligt och auktoritativt. Använd rubriker exakt som ovan (fetstil). Håll varje avsnitt koncist och fokuserat."""
         
         try:
             payload = {

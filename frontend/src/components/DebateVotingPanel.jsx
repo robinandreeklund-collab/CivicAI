@@ -134,9 +134,22 @@ export default function DebateVotingPanel({ votes, winner }) {
                 )}
               </div>
               {vote.reasoning && (
-                <p className="text-sm text-[#888] italic">
+                <p className="text-sm text-[#888] italic mb-2">
                   "{vote.reasoning}"
                 </p>
+              )}
+              {vote.huvudpunkter && vote.huvudpunkter.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <div className="text-xs text-[#666]">Huvudpunkter:</div>
+                  <ul className="space-y-1">
+                    {vote.huvudpunkter.map((punkt, i) => (
+                      <li key={i} className="text-sm text-[#888] flex items-start gap-2">
+                        <span className="text-[#666] mt-0.5">{i + 1}.</span>
+                        <span className="flex-1">{punkt}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
           ))}
