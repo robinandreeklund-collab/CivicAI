@@ -164,23 +164,35 @@ EXEMPEL PÅ BRA ÄNDRINGAR (från baseline):
 ✗ INTE: Ändra hela tonen eller strukturen radikalt
 
 UTGÅNGSFORMAT (JSON):
+Returnera JSON med följande struktur. VARJE variant måste innehålla DEN FAKTISKA, FULLSTÄNDIGA PROMPTEN i prompt_text fältet - inte beskrivningar eller placeholders.
+
 {
   "variants": [
     {
-      "prompt_text": "BASELINE-PROMPTEN MED SPECIFIKA INKREMENTELLA ÄNDRINGAR (måste bevara grundstruktur och vara på svenska med {context} platshållare)",
-      "hypothesis": "Tydlig beskrivning på svenska av vad denna variant testar (t.ex., 'Betona datadriven syntes ökar röstantal')",
-      "expected_improvement": "Förutsedd påverkan på metriker på svenska (t.ex., '+20% röster, +15% omnämnanden')",
-      "changes_summary": "EXAKT beskrivning på svenska av VAD SOM ÄNDRATS från baseline (t.ex., 'Lagt till stycke om datadrivet tänkande efter första meningen', 'Ändrat formulering i stycke 2 från X till Y', 'Borttaget sista stycket och ersatt med Z')",
-      "strategic_focus": ["fokusområde 1 på svenska", "fokusområde 2 på svenska"]
-    },
-    ...
+      "prompt_text": "[HELA BASELINE-PROMPTEN MED DINA SPECIFIKA ÄNDRINGAR APPLICERADE - skriv ut hela den modifierade prompten här, INTE en beskrivning]",
+      "hypothesis": "Betona datadriven syntes ökar röstantal",
+      "expected_improvement": "+20% röster, +15% omnämnanden",
+      "changes_summary": "Lagt till stycke om datadrivet tänkande efter första meningen. Ändrat formulering i stycke 2 från 'syntetisera' till 'djupt integrera och analysera'. Lagt till bullet-punkt om konkreta exempel.",
+      "strategic_focus": ["data-driven analys", "syntes"]
+    }
   ]
 }
 
-VIKTIGT: 
-- ALLA TEXTER I ALLA FÄLT MÅSTE VARA PÅ SVENSKA!
-- prompt_text MÅSTE vara baseline + ändringar, INTE en helt ny prompt!
-- changes_summary MÅSTE vara exakt och specifik om VAD som ändrats!`;
+KRITISKT VIKTIGT FÖR prompt_text:
+- prompt_text ska innehålla den FAKTISKA, FULLSTÄNDIGA prompten (inte "BASELINE-PROMPTEN MED..." eller andra beskrivningar)
+- Kopiera hela baseline-prompten och applicera dina ändringar direkt i texten
+- Om baseline är 50 rader, ska prompt_text också vara ~50 rader med dina ändringar
+- Behåll alla {context} platshållare från baseline
+- SKRIV ALDRIG "BASELINE-PROMPTEN MED ÄNDRINGAR" - skriv den faktiska prompten!
+
+EXEMPEL PÅ RÄTT (om baseline börjar med "Du är ONESEEK..."):
+prompt_text: "Du är ONESEEK – en avancerad deltagare med datadriven analys...\n\n[resten av prompten med ändringar applicerade]"
+
+EXEMPEL PÅ FEL:
+prompt_text: "BASELINE-PROMPTEN MED SPECIFIKA ÄNDRINGAR"  ❌
+prompt_text: "Baseline + ändring om data"  ❌
+
+ALLA TEXTER MÅSTE VARA PÅ SVENSKA!`;
 }
 
 /**
