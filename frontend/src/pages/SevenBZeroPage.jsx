@@ -1443,17 +1443,17 @@ export default function SevenBZeroPage() {
         // Clear previous thinking events for new compare analysis
         setCompareThinkingEvents([]);
         
-        // Add initial thinking event
-        const addThinkingEvent = (message, type = 'thinking') => {
+        // Add thinking events in ThinkingChain format
+        const addThinkingEvent = (step, message) => {
           const event = {
-            type,
+            step,
             message,
             timestamp: new Date().toISOString(),
           };
           setCompareThinkingEvents(prev => [...prev, event]);
         };
         
-        addThinkingEvent('Samlar in externa AI-svar...', 'compare_start');
+        addThinkingEvent('compare_start', 'Samlar in externa AI-svar från GPT, Gemini, DeepSeek och Grok');
         
         response = await fetch('/api/query', {
           method: 'POST',
@@ -1479,7 +1479,7 @@ export default function SevenBZeroPage() {
         const finalResponseTime = ((responseEndTime - responseStartTime) / 1000).toFixed(2);
         
         // Track external responses collection
-        addThinkingEvent(`Mottog ${data.externalResponses?.length || 0} externa svar`, 'external_collected');
+        addThinkingEvent('external_collected', `Mottog ${data.externalResponses?.length || 0} externa svar`);
         
         // Store external responses for display (with pipeline analysis)
         if (data.externalResponses) {
@@ -1490,18 +1490,20 @@ export default function SevenBZeroPage() {
           console.log(`[7B-Zero Compare] ${withAnalysis}/${data.externalResponses.length} responses have pipeline analysis`);
           
           if (withAnalysis > 0) {
-            addThinkingEvent(`MTA-16 analys tillgänglig för ${withAnalysis} svar`, 'mta16_available');
+            addThinkingEvent('mta16_available', `MTA-16 analys tillgänglig för ${withAnalysis} av ${data.externalResponses.length} svar`);
+          } else {
+            addThinkingEvent('mta16_unavailable', 'MTA-16 analys kunde inte genereras (pipeline-data saknas)');
           }
         }
         
         // Track Zero's analysis
-        addThinkingEvent('Zero analyserar externa svar...', 'zero_analyzing');
+        addThinkingEvent('zero_analyzing', 'Zero analyserar och jämför alla externa svar objektivt');
         
         // Extract Zero's response
         const responseText = data.zero?.response || data.response || '';
         
         if (responseText) {
-          addThinkingEvent('Analys klar', 'compare_complete');
+          addThinkingEvent('compare_complete', `Analys klar på ${finalResponseTime}s`);
           
           setMessages(prev => prev.map(msg => 
             msg.id === aiMessageId 
@@ -3983,21 +3985,21 @@ export default function SevenBZeroPage() {
             </h3>
             
             {/* MTA-16 Analysis Section */}
-            {showMTA16Analysis && (
-              <div className="mb-4">
-                <button
-                  onClick={() => setShowMTA16Analysis(prev => !prev)}
-                  className={`mb-3 px-3 py-1.5 rounded text-[10px] uppercase tracking-wider transition-all ${
-                    whiteMode 
-                      ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-                      : 'bg-blue-900/50 text-blue-300 hover:bg-blue-800/50'
-                  }`}
-                >
-                  {showMTA16Analysis ? '✓' : '○'} MTA-16 Analys
-                </button>
+            <div className="mb-4">
+              <button
+                onClick={() => setShowMTA16Analysis(prev => !prev)}
+                className={`mb-3 px-3 py-1.5 rounded text-[10px] uppercase tracking-wider transition-all ${
+                  whiteMode 
+                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
+                    : 'bg-blue-900/50 text-blue-300 hover:bg-blue-800/50'
+                }`}
+              >
+                {showMTA16Analysis ? '✓' : '○'} MTA-16 Analys
+              </button>
+              {showMTA16Analysis && (
                 <MTA16Analysis externalResponses={externalResponses} whiteMode={whiteMode} />
-              </div>
-            )}
+              )}
+            </div>
             
             {/* External Responses List */}
             <div className="space-y-4 mt-4">
@@ -4086,10 +4088,9 @@ export default function SevenBZeroPage() {
                   onClick={() => {
                     setCompareMode(prev => {
                       const newMode = !prev;
-                      // Auto-show Tankekedja when compare mode is enabled
+                      // Auto-show external responses panel when compare mode is enabled
                       if (newMode) {
-                        setShowTankekedja(true);
-                        setShowExternalResponses(true); // Also show external responses panel
+                        setShowExternalResponses(true);
                       }
                       return newMode;
                     });
@@ -4282,10 +4283,10 @@ export default function SevenBZeroPage() {
         Q = Quantum · F = Focus · W = White · T = Tankekedja
       </div>
 
-      {/* Tankekedja Sidebar - Real-time Transparency */}
-      {(debateMode || compareMode) && (
+      {/* Tankekedja Sidebar - Real-time Transparency (Debate Mode Only) */}
+      {debateMode && (
         <Tankekedja 
-          events={debateMode ? tankekedjaEvents : compareThinkingEvents} 
+          events={tankekedjaEvents} 
           isVisible={showTankekedja}
           onToggle={() => setShowTankekedja(!showTankekedja)}
         />
