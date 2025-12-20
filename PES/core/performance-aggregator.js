@@ -3,14 +3,22 @@
  * 
  * Aggregates simulation results and compares variants
  * to identify the best performing prompt
+ * 
+ * Phase 3: Enhanced with vector analysis and category-aware scoring
  */
+
+import { 
+  aggregateVectorMetrics, 
+  calculateWeightedVectorScore,
+  identifyVectorInsights 
+} from '../services/vectorAnalysisService.js';
 
 /**
  * Aggregate performance across all simulations
  * @param {Array} simulationResults - Array of simulation results with voting
  * @returns {Object} Aggregated metrics by variant
  */
-export function aggregatePerformance(simulationResults) {
+export function aggregatePerformance(simulationResults, categoryWeights = null) {
   console.log(`[Performance Aggregator] Aggregating ${simulationResults.length} simulation results...`);
   
   if (!simulationResults || simulationResults.length === 0) {
@@ -18,6 +26,9 @@ export function aggregatePerformance(simulationResults) {
   }
   
   const variantMetrics = {};
+  
+  // PHASE 3: Aggregate vector metrics
+  const vectorMetrics = aggregateVectorMetrics(simulationResults);
   
   // Group by variant and calculate metrics
   for (const result of simulationResults) {
@@ -39,7 +50,9 @@ export function aggregatePerformance(simulationResults) {
         total_mentions: 0,
         votes_by_category: {},
         performance_by_question_type: {},
-        debate_results: []
+        debate_results: [],
+        // PHASE 3: Vector metrics
+        vector_metrics: null
       };
     }
     
@@ -76,6 +89,14 @@ export function aggregatePerformance(simulationResults) {
       mentions: voting.oneseek_mentions || 0,
       total_votes_cast: voting.total_votes || 0
     });
+  }
+  
+  // PHASE 3: Attach vector metrics to each variant
+  for (const version in variantMetrics) {
+    if (vectorMetrics['ONESEEK']) {
+      variantMetrics[version].vector_metrics = vectorMetrics['ONESEEK'];
+      variantMetrics[version].vector_insights = vectorMetrics['ONESEEK'].insights;
+    }
   }
   
   // Calculate percentages and averages
@@ -168,31 +189,74 @@ export function selectWinner(variantMetrics, baselineVersion = null) {
 /**
  * Calculate composite score for a variant
  * @param {Object} variant - Variant metrics
+ * @param {Object} categoryWeights - Optional category-specific weights for vector scoring
  * @returns {number} Composite score
  */
-function calculateCompositeScore(variant) {
-  // Weighted scoring system
-  const weights = {
-    avg_votes: 0.35,        // 35% - Most important
-    win_rate: 0.35,         // 35% - Also very important
-    avg_mentions: 0.15,     // 15% - Good indicator
-    consistency: 0.15       // 15% - Stability matters
-  };
+function calculateCompositeScore(variant, categoryWeights = null) {
+  // PHASE 3: Enhanced scoring with vector analysis
+  const useVectorScoring = variant.vector_metrics && variant.vector_metrics.avg_vector;
   
-  // Normalize and score
-  const voteScore = Math.min(variant.avg_votes_per_debate / 4, 1); // Normalize to 0-1 (4 votes = max)
-  const winScore = variant.win_rate; // Already 0-1
-  const mentionScore = Math.min(variant.avg_mentions_per_debate / 5, 1); // Normalize to 0-1 (5 mentions = max)
-  const consistencyScore = variant.vote_consistency ? 
-    Math.max(0, 1 - (variant.vote_consistency / 3)) : 0.5; // Lower std dev = better
-  
-  const compositeScore = 
-    voteScore * weights.avg_votes +
-    winScore * weights.win_rate +
-    mentionScore * weights.avg_mentions +
-    consistencyScore * weights.consistency;
-  
-  return compositeScore;
+  if (useVectorScoring) {
+    // Phase 3: Vector-based composite scoring
+    const weights = {
+      vector_score: 0.40,     // 40% - Vector-based quality
+      win_rate: 0.25,         // 25% - Win rate
+      avg_votes: 0.20,        // 20% - Vote count
+      avg_mentions: 0.10,     // 10% - Mentions
+      consistency: 0.05       // 5% - Stability
+    };
+    
+    // Calculate vector score (use category weights if provided)
+    const vectorScore = categoryWeights ? 
+      calculateWeightedVectorScore(variant.vector_metrics.avg_vector, categoryWeights) :
+      calculateAverageVectorValue(variant.vector_metrics.avg_vector);
+    
+    const voteScore = Math.min(variant.avg_votes_per_debate / 4, 1);
+    const winScore = variant.win_rate;
+    const mentionScore = Math.min(variant.avg_mentions_per_debate / 5, 1);
+    const consistencyScore = variant.vector_metrics.consistency_score || 0.5;
+    
+    const compositeScore = 
+      vectorScore * weights.vector_score +
+      winScore * weights.win_rate +
+      voteScore * weights.avg_votes +
+      mentionScore * weights.avg_mentions +
+      consistencyScore * weights.consistency;
+    
+    return compositeScore;
+  } else {
+    // Phase 2: Traditional scoring (backward compatible)
+    const weights = {
+      avg_votes: 0.35,        // 35% - Most important
+      win_rate: 0.35,         // 35% - Also very important
+      avg_mentions: 0.15,     // 15% - Good indicator
+      consistency: 0.15       // 15% - Stability matters
+    };
+    
+    const voteScore = Math.min(variant.avg_votes_per_debate / 4, 1);
+    const winScore = variant.win_rate;
+    const mentionScore = Math.min(variant.avg_mentions_per_debate / 5, 1);
+    const consistencyScore = variant.vote_consistency ? 
+      Math.max(0, 1 - (variant.vote_consistency / 3)) : 0.5;
+    
+    const compositeScore = 
+      voteScore * weights.avg_votes +
+      winScore * weights.win_rate +
+      mentionScore * weights.avg_mentions +
+      consistencyScore * weights.consistency;
+    
+    return compositeScore;
+  }
+}
+
+/**
+ * Calculate average value across all dimensions in a vector
+ * @param {Object} vector - Vector object
+ * @returns {number} Average value
+ */
+function calculateAverageVectorValue(vector) {
+  const values = Object.values(vector);
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
 }
 
 /**

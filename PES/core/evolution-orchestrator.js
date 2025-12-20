@@ -10,7 +10,12 @@ import { generatePromptVariants } from './prompt-generator.js';
 import { simulateMultipleDebates } from './historical-simulator.js';
 import { simulateVotingForMultiple } from './voting-simulator.js';
 import { aggregatePerformance, selectWinner, generateComparisonReport } from './performance-aggregator.js';
-import { getDebates } from '../services/pesFirebaseService.js';
+import { getDebates, saveLearnedWeights, getLearnedWeights } from '../services/pesFirebaseService.js';
+// PHASE 3: Category classification and weight learning
+import { classifyDebatesBatch, analyzeCategoryDistribution } from './debate-classifier.js';
+import { getCategoryWeights } from '../config/category-weights.js';
+import { calculatePredictionError, createWeightHistoryEntry } from './weight-learning.js';
+import { calculateAverageVector, calculateConsistencyScore } from '../services/vectorAnalysisService.js';
 
 /**
  * Run a complete evolution loop
@@ -34,7 +39,7 @@ export async function runEvolutionLoop(config, progressCallback = null) {
     status: 'running',
     current_step: 'initialization',
     steps_completed: 0,
-    total_steps: 6,
+    total_steps: 8,  // PHASE 3: Added classification + automatic weight learning
     start_time: new Date().toISOString()
   };
   
@@ -49,16 +54,25 @@ export async function runEvolutionLoop(config, progressCallback = null) {
     updateProgress(progress, 'fetching_debates', 'Fetching historical debates...', progressCallback);
     
     const debateCount = config.debate_count || 15;
-    const debates = await fetchHistoricalDebates(debateCount);
+    let debates = await fetchHistoricalDebates(debateCount);
     
     if (debates.length === 0) {
       throw new Error('No historical debates available for analysis');
     }
     
+    // PHASE 3: Classify debates automatically
+    updateProgress(progress, 'classifying_debates', 'Classifying debates by category...', progressCallback);
+    debates = await classifyDebatesBatch(debates);
+    
+    // Analyze category distribution
+    const categoryDistribution = analyzeCategoryDistribution(debates);
+    results.category_distribution = categoryDistribution;
+    
     results.debates_used = debates.map(d => d.id || d.debate_id);
     results.debates_count = debates.length;
     
     console.log(`[Evolution Orchestrator] Fetched ${debates.length} debates`);
+    console.log(`[Evolution Orchestrator] Category distribution:`, categoryDistribution);
     
     // Step 2: Analyze debate patterns
     updateProgress(progress, 'analyzing_patterns', 'Analyzing debate patterns with AI...', progressCallback);
@@ -72,10 +86,12 @@ export async function runEvolutionLoop(config, progressCallback = null) {
     updateProgress(progress, 'generating_variants', 'Generating prompt variants...', progressCallback);
     
     const variantCount = config.variant_count || 5;
+    // PHASE 3: Pass category distribution for category-aware generation
     const variants = await generatePromptVariants(
       config.baseline_prompt,
       insights,
-      variantCount
+      variantCount,
+      categoryDistribution
     );
     
     results.variants_generated = variants.length;
@@ -115,10 +131,10 @@ export async function runEvolutionLoop(config, progressCallback = null) {
     
     console.log(`[Evolution Orchestrator] Completed ${allSimulations.length} simulations`);
     
-    // Step 5: Simulate voting for all simulations
-    updateProgress(progress, 'simulating_votes', 'Simulating AI voting...', progressCallback);
+    // Step 5: Simulate voting for all simulations (with historical voting patterns)
+    updateProgress(progress, 'simulating_votes', 'Simulating AI voting based on historical patterns...', progressCallback);
     
-    const votingResults = await simulateVotingForMultiple(allSimulations);
+    const votingResults = await simulateVotingForMultiple(allSimulations, debates);
     results.voting_simulations = votingResults.length;
     
     console.log(`[Evolution Orchestrator] Completed voting for ${votingResults.length} debates`);
@@ -126,7 +142,28 @@ export async function runEvolutionLoop(config, progressCallback = null) {
     // Step 6: Aggregate performance and select winner
     updateProgress(progress, 'analyzing_results', 'Analyzing results and selecting winner...', progressCallback);
     
-    const aggregatedMetrics = aggregatePerformance(votingResults);
+    // PHASE 3: Get category-specific weights for dominant category
+    // Try to load learned weights first, fall back to defaults
+    const dominantCategory = categoryDistribution.length > 0 ? categoryDistribution[0].main : null;
+    let categoryWeights = null;
+    
+    if (dominantCategory) {
+      try {
+        const learnedWeights = await getLearnedWeights(dominantCategory);
+        if (learnedWeights && learnedWeights.weights) {
+          categoryWeights = learnedWeights.weights;
+          console.log(`[Evolution Orchestrator] Using learned weights for ${dominantCategory} (confidence: ${(learnedWeights.confidence || 0) * 100}%)`);
+        } else {
+          categoryWeights = getCategoryWeights(dominantCategory);
+          console.log(`[Evolution Orchestrator] Using default weights for ${dominantCategory}`);
+        }
+      } catch (error) {
+        console.warn('[Evolution Orchestrator] Could not load learned weights, using defaults:', error.message);
+        categoryWeights = getCategoryWeights(dominantCategory);
+      }
+    }
+    
+    const aggregatedMetrics = aggregatePerformance(votingResults, categoryWeights);
     const winnerResult = selectWinner(aggregatedMetrics, config.baseline_version);
     
     // Add prompt_text and hypothesis from variants to aggregated metrics
@@ -143,12 +180,103 @@ export async function runEvolutionLoop(config, progressCallback = null) {
     results.improvement_percentage = winnerResult.improvement_percentage;
     results.baseline_metrics = winnerResult.baseline;
     
+    // PHASE 3: Add category-aware information
+    results.dominant_category = dominantCategory;
+    results.category_weights_used = categoryWeights;
+    
+    // Calculate performance per category
+    results.category_performance = calculateCategoryPerformance(votingResults, debates);
+    
     // Generate comparison report
     const report = generateComparisonReport(aggregatedMetrics, winnerResult);
     results.report = report;
     
     console.log(`[Evolution Orchestrator] Winner: ${winnerResult.winner?.version || 'None'}`);
     console.log(`[Evolution Orchestrator] Improvement: ${winnerResult.improvement_percentage?.toFixed(1) || 0}%`);
+    
+    // PHASE 3: Automatic Weight Learning from simulation patterns
+    updateProgress(progress, 'learning_weights', 'Learning from patterns...', progressCallback);
+    
+    if (dominantCategory && winnerResult.winner && winnerResult.winner.vector_metrics) {
+      try {
+        // Load previously learned weights for this category
+        const previousWeights = await getLearnedWeights(dominantCategory);
+        
+        // Analyze vector consistency across all votes for winner
+        const winnerVotes = votingResults
+          .filter(r => r.voting && r.voting.votes)
+          .flatMap(r => r.voting.votes.filter(v => v.voted_for === 'ONESEEK' && v.vector_analysis))
+          .map(v => v.vector_analysis);
+        
+        if (winnerVotes.length >= 3) {
+          // Calculate average vector and consistency
+          const avgVector = calculateAverageVector(winnerVotes);
+          const consistency = calculateConsistencyScore(winnerVotes);
+          
+          console.log(`[Evolution Orchestrator] Vector consistency: ${(consistency * 100).toFixed(1)}%`);
+          
+          // If consistency is high (>0.7), learn from this pattern
+          if (consistency > 0.7) {
+            const currentWeights = categoryWeights || getCategoryWeights(dominantCategory);
+            const updatedWeights = {};
+            const learningRate = 0.05; // Conservative learning rate for automatic updates
+            
+            // Adjust weights based on which dimensions consistently scored high
+            for (const dim of Object.keys(currentWeights)) {
+              const vectorValue = avgVector[dim] || 0.5;
+              const currentWeight = currentWeights[dim];
+              
+              // If dimension consistently scores high in winning prompts, slightly increase its weight
+              if (vectorValue > 0.7) {
+                updatedWeights[dim] = Math.min(1.0, currentWeight + learningRate * (vectorValue - 0.5));
+              } else if (vectorValue < 0.4) {
+                // If consistently low, slightly decrease weight
+                updatedWeights[dim] = Math.max(0.5, currentWeight - learningRate * (0.5 - vectorValue));
+              } else {
+                updatedWeights[dim] = currentWeight;
+              }
+            }
+            
+            // Create weight history entry
+            const historyEntry = createWeightHistoryEntry(
+              dominantCategory,
+              updatedWeights,
+              {
+                accuracy: consistency,
+                mean_absolute_error: 1 - consistency,
+                validation_count: (previousWeights?.validation_count || 0) + 1
+              }
+            );
+            
+            // Save learned weights to Firebase
+            await saveLearnedWeights(dominantCategory, {
+              weights: updatedWeights,
+              history: historyEntry,
+              last_updated: new Date().toISOString(),
+              evolution_id: evolutionId,
+              confidence: consistency
+            });
+            
+            console.log(`[Evolution Orchestrator] ✓ Learned weights for ${dominantCategory} (consistency: ${(consistency * 100).toFixed(1)}%)`);
+            results.weights_learned = {
+              category: dominantCategory,
+              confidence: consistency,
+              adjusted: true
+            };
+          } else {
+            console.log(`[Evolution Orchestrator] Consistency too low (${(consistency * 100).toFixed(1)}%) - keeping current weights`);
+            results.weights_learned = {
+              category: dominantCategory,
+              confidence: consistency,
+              adjusted: false
+            };
+          }
+        }
+      } catch (error) {
+        console.warn('[Evolution Orchestrator] Weight learning failed:', error.message);
+        // Don't fail the evolution if weight learning has issues
+      }
+    }
     
     // Step 7: Complete
     updateProgress(progress, 'completed', 'Evolution loop completed', progressCallback);
@@ -319,12 +447,14 @@ function getStepNumber(status) {
   const steps = {
     'initialization': 0,
     'fetching_debates': 1,
-    'analyzing_patterns': 2,
-    'generating_variants': 3,
-    'running_simulations': 4,
-    'simulating_votes': 5,
-    'analyzing_results': 6,
-    'completed': 6,
+    'classifying_debates': 2,  // PHASE 3
+    'analyzing_patterns': 3,
+    'generating_variants': 4,
+    'running_simulations': 5,
+    'simulating_votes': 6,
+    'analyzing_results': 7,
+    'learning_weights': 8,     // PHASE 3: Automatic weight learning
+    'completed': 8,
     'failed': 0
   };
   
@@ -340,6 +470,57 @@ function calculateDuration(startTime) {
   const start = new Date(startTime);
   const end = new Date();
   return Math.round((end - start) / 1000);
+}
+
+/**
+ * Calculate performance breakdown by category
+ * PHASE 3: Category-aware performance tracking
+ * @param {Array} votingResults - Voting results
+ * @param {Array} debates - Debates with classification
+ * @returns {Object} Performance per category
+ */
+function calculateCategoryPerformance(votingResults, debates) {
+  const categoryPerformance = {};
+  
+  // Match voting results with debates to get category
+  for (const result of votingResults) {
+    const debate = debates.find(d => (d.id || d.debate_id) === result.debate_id);
+    if (!debate || !debate.classification) continue;
+    
+    const categoryKey = `${debate.classification.main}-${debate.classification.sub}`;
+    
+    if (!categoryPerformance[categoryKey]) {
+      categoryPerformance[categoryKey] = {
+        category: categoryKey,
+        main: debate.classification.main,
+        sub: debate.classification.sub,
+        debates_count: 0,
+        total_votes: 0,
+        wins: 0,
+        total_mentions: 0
+      };
+    }
+    
+    const cat = categoryPerformance[categoryKey];
+    cat.debates_count++;
+    
+    if (result.voting && !result.voting.error) {
+      cat.total_votes += result.voting.oneseek_votes || 0;
+      cat.wins += result.voting.oneseek_won ? 1 : 0;
+      cat.total_mentions += result.voting.oneseek_mentions || 0;
+    }
+  }
+  
+  // Calculate averages
+  for (const cat of Object.values(categoryPerformance)) {
+    if (cat.debates_count > 0) {
+      cat.avg_votes = cat.total_votes / cat.debates_count;
+      cat.win_rate = cat.wins / cat.debates_count;
+      cat.avg_mentions = cat.total_mentions / cat.debates_count;
+    }
+  }
+  
+  return categoryPerformance;
 }
 
 /**

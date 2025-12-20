@@ -573,4 +573,324 @@ function calculateRemainingTime(progress) {
   return Math.ceil(remaining * avgTimePerSim);
 }
 
+// ============================================================================
+// PHASE 3: Advanced Features Endpoints
+// ============================================================================
+
+/**
+ * POST /api/pes/evolution/:id/validate
+ * Trigger real voting validation for an evolution
+ */
+router.post('/evolution/:id/validate', async (req, res) => {
+  try {
+    const evolutionId = req.params.id;
+    
+    // Get evolution and check if it exists
+    const { getEvolution, updateEvolution } = await import('../../PES/services/pesFirebaseService.js');
+    const evolution = await getEvolution(evolutionId);
+    
+    if (!evolution) {
+      return res.status(404).json({
+        error: 'Evolution not found',
+        evolution_id: evolutionId
+      });
+    }
+    
+    if (evolution.status !== 'completed') {
+      return res.status(400).json({
+        error: 'Evolution must be completed before validation',
+        status: evolution.status
+      });
+    }
+    
+    // Import real voting service
+    const { getRealExternalVotes, estimateValidationCost } = await import('../../PES/services/realVotingService.js');
+    const { compareSimulatedVsReal, generateCalibrationReport } = await import('../../PES/core/calibration.js');
+    const { calculateAverageVector } = await import('../../PES/services/vectorAnalysisService.js');
+    
+    // Get cost estimate
+    const costEstimate = estimateValidationCost(4);
+    
+    console.log(`[PES API] Starting real validation for evolution ${evolutionId}`);
+    console.warn(`[PES API] WARNING: This will cost approximately ${costEstimate.currency} ${costEstimate.estimated_total.toFixed(2)}`);
+    
+    // Select a representative debate from the evolution
+    const debateIds = evolution.debates_used || [];
+    if (debateIds.length === 0) {
+      return res.status(400).json({
+        error: 'No debates available for validation'
+      });
+    }
+    
+    // Get the first debate for validation (in production, could be smarter selection)
+    const { getDebate } = await import('../../PES/services/pesFirebaseService.js');
+    const debateId = debateIds[0];
+    const debate = await getDebate(debateId);
+    
+    if (!debate) {
+      return res.status(404).json({
+        error: 'Debate not found for validation',
+        debate_id: debateId,
+        debug: {
+          debates_used: debateIds
+        }
+      });
+    }
+    
+    console.log(`[PES API] Loaded debate ${debateId} for validation`);
+    console.log(`[PES API] Debate has ${debate.rounds ? debate.rounds.length : 0} rounds`);
+    
+    // Prepare debate data for real voting
+    const debateData = {
+      question: debate.question,
+      responses: []
+    };
+    
+    // Extract responses from debate rounds
+    // Debates have rounds with responses array containing { agent, response, timestamp }
+    if (debate.rounds && debate.rounds.length > 0) {
+      const lastRound = debate.rounds[debate.rounds.length - 1];
+      
+      // Extract responses from the last round
+      if (lastRound.responses && Array.isArray(lastRound.responses)) {
+        debateData.responses = lastRound.responses.map(r => ({
+          model: r.agent || r.model,
+          text: r.response || r.text
+        }));
+      }
+    }
+    
+    // Fallback: try initial_responses if rounds are empty
+    if (debateData.responses.length === 0 && debate.initial_responses) {
+      debateData.responses = debate.initial_responses.map(r => ({
+        model: r.agent || r.model,
+        text: r.response || r.text
+      }));
+    }
+    
+    if (debateData.responses.length === 0) {
+      return res.status(400).json({
+        error: 'No responses available in debate for validation',
+        debug: {
+          has_rounds: !!debate.rounds,
+          rounds_count: debate.rounds ? debate.rounds.length : 0,
+          has_initial_responses: !!debate.initial_responses,
+          debate_structure: {
+            question: !!debate.question,
+            participants: debate.participants,
+            status: debate.status
+          }
+        }
+      });
+    }
+    
+    // Call real external APIs for voting
+    const realVotes = await getRealExternalVotes(debateData);
+    
+    // Extract simulated votes from evolution
+    const simulatedVotes = evolution.winner?.votes || [];
+    
+    // Calculate average vectors
+    const realVectors = calculateAverageVector(
+      realVotes.filter(v => v.vector_analysis).map(v => v.vector_analysis)
+    );
+    const simulatedVectors = evolution.winner?.vector_metrics?.avg_vector || {};
+    
+    // Compare simulated vs real
+    const comparison = compareSimulatedVsReal(
+      simulatedVotes,
+      realVotes,
+      simulatedVectors,
+      realVectors
+    );
+    
+    // Generate calibration report
+    const calibrationReport = generateCalibrationReport(comparison, null);
+    
+    // Save validation results to evolution
+    const validation = {
+      validated_at: new Date().toISOString(),
+      debate_id: debate.debate_id || debateIds[0],
+      real_votes: realVotes,
+      real_vectors: realVectors,
+      simulated_votes: simulatedVotes,
+      simulated_vectors: simulatedVectors,
+      comparison: comparison,
+      calibration_report: calibrationReport,
+      cost_estimate: `${costEstimate.currency} ${costEstimate.estimated_total.toFixed(2)}`
+    };
+    
+    await updateEvolution(evolutionId, {
+      real_validation: validation
+    });
+    
+    console.log(`[PES API] Validation completed for evolution ${evolutionId}`);
+    
+    res.json({
+      success: true,
+      evolution_id: evolutionId,
+      validation: validation,
+      cost: costEstimate.estimated_total,
+      message: 'Real voting validation completed'
+    });
+    
+  } catch (error) {
+    console.error('[PES API] Error in validation:', error);
+    res.status(500).json({
+      error: 'Failed to run validation',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/pes/categories
+ * Get category statistics across all evolutions
+ */
+router.get('/categories', async (req, res) => {
+  try {
+    const { getAllEvolutions } = await import('../../PES/services/pesFirebaseService.js');
+    const evolutions = await getAllEvolutions({ limit: 100 });
+    
+    // Aggregate category statistics
+    const categoryStats = {};
+    let totalDebates = 0;
+    
+    for (const evolution of evolutions) {
+      if (evolution.category_distribution) {
+        for (const category of evolution.category_distribution) {
+          const key = `${category.main}-${category.sub}`;
+          
+          if (!categoryStats[key]) {
+            categoryStats[key] = {
+              category: key,
+              main: category.main,
+              sub: category.sub,
+              total_debates: 0,
+              evolutions_count: 0,
+              avg_performance: {
+                total_votes: 0,
+                total_wins: 0,
+                total_mentions: 0
+              }
+            };
+          }
+          
+          categoryStats[key].total_debates += category.count;
+          categoryStats[key].evolutions_count += 1;
+          totalDebates += category.count;
+          
+          // Add performance data if available
+          if (evolution.category_performance && evolution.category_performance[key]) {
+            const perf = evolution.category_performance[key];
+            categoryStats[key].avg_performance.total_votes += perf.total_votes || 0;
+            categoryStats[key].avg_performance.total_wins += perf.wins || 0;
+            categoryStats[key].avg_performance.total_mentions += perf.total_mentions || 0;
+          }
+        }
+      }
+    }
+    
+    // Calculate averages
+    for (const key in categoryStats) {
+      const stat = categoryStats[key];
+      if (stat.total_debates > 0) {
+        stat.percentage = ((stat.total_debates / totalDebates) * 100).toFixed(1);
+        stat.avg_performance.avg_votes = (stat.avg_performance.total_votes / stat.total_debates).toFixed(2);
+        stat.avg_performance.win_rate = (stat.avg_performance.total_wins / stat.total_debates).toFixed(2);
+        stat.avg_performance.avg_mentions = (stat.avg_performance.total_mentions / stat.total_debates).toFixed(2);
+      }
+    }
+    
+    // Sort by total debates descending
+    const sortedStats = Object.values(categoryStats).sort((a, b) => b.total_debates - a.total_debates);
+    
+    res.json({
+      categories: sortedStats,
+      total_categories: sortedStats.length,
+      total_debates: totalDebates,
+      evolutions_analyzed: evolutions.length
+    });
+    
+  } catch (error) {
+    console.error('[PES API] Error getting category stats:', error);
+    res.status(500).json({
+      error: 'Failed to get category statistics',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/pes/weights/:category
+ * Get current weights for a category
+ * 
+ * PUT /api/pes/weights/:category
+ * Update weights for a category
+ */
+router.get('/weights/:category', async (req, res) => {
+  try {
+    const category = req.params.category;
+    
+    const { getCategoryWeights } = await import('../../PES/config/category-weights.js');
+    const weights = getCategoryWeights(category);
+    
+    res.json({
+      category: category,
+      weights: weights,
+      dimensions: Object.keys(weights)
+    });
+    
+  } catch (error) {
+    console.error('[PES API] Error getting weights:', error);
+    res.status(500).json({
+      error: 'Failed to get weights',
+      message: error.message
+    });
+  }
+});
+
+router.put('/weights/:category', async (req, res) => {
+  try {
+    const category = req.params.category;
+    const { weights } = req.body;
+    
+    if (!weights || typeof weights !== 'object') {
+      return res.status(400).json({
+        error: 'Weights object is required'
+      });
+    }
+    
+    const { validateWeights, normalizeWeights } = await import('../../PES/config/category-weights.js');
+    
+    // Validate weights
+    if (!validateWeights(weights)) {
+      return res.status(400).json({
+        error: 'Invalid weights format. All dimensions must have values between 0 and 1'
+      });
+    }
+    
+    // Normalize weights
+    const normalizedWeights = normalizeWeights(weights);
+    
+    // TODO: Save to Firebase or persistent storage
+    // For now, weights are read from config file
+    // In production, you'd save to Firebase and load dynamically
+    
+    res.json({
+      success: true,
+      category: category,
+      weights: normalizedWeights,
+      message: 'Weights updated (note: currently read-only from config, restart required)'
+    });
+    
+  } catch (error) {
+    console.error('[PES API] Error updating weights:', error);
+    res.status(500).json({
+      error: 'Failed to update weights',
+      message: error.message
+    });
+  }
+});
+
 export default router;

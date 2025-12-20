@@ -13088,6 +13088,26 @@ async def websocket_live_debate(websocket: WebSocket):
         # Backend API base URL (Node.js server with external AI services)
         BACKEND_API_URL = os.environ.get('BACKEND_API_URL', 'http://localhost:3001')
         
+        # Load debate prompts from JSON file (with fallback to hardcoded)
+        def load_debate_prompts():
+            """Load debate prompts from JSON file, fallback to hardcoded if not found"""
+            prompts_file = os.path.join(os.path.dirname(__file__), '../datasets/debate_prompts/prompts.json')
+            
+            if os.path.exists(prompts_file):
+                try:
+                    with open(prompts_file, 'r', encoding='utf-8') as f:
+                        prompts = json.load(f)
+                        logger.info(f"[Debate Prompts] Loaded from {prompts_file}")
+                        return prompts
+                except Exception as e:
+                    logger.warning(f"[Debate Prompts] Error loading {prompts_file}: {e}. Using hardcoded prompts.")
+            else:
+                logger.info(f"[Debate Prompts] File not found: {prompts_file}. Using hardcoded prompts.")
+            
+            return None  # Fallback to hardcoded
+        
+        loaded_prompts = load_debate_prompts()
+        
         # OneSeek introduces the topic before round 1
         await websocket.send_json({
             "type": "thinking",
@@ -13297,94 +13317,108 @@ GE DITT SVAR NU:"""
                         round=round_num
                     )
                     
-                    # 2. COMMENT: Generate conversational comment
-                    # Build context of previous responses in this round
-                    async with external_responses_lock:
-                        previous_agents_context = ""
-                        for prev_resp in external_responses[:-1]:  # Exclude current response
-                            if prev_resp.get('success'):
-                                prev_agent = prev_resp.get('agent', 'unknown')
-                                prev_text = prev_resp.get('response', '')[:150]
-                                previous_agents_context += f"{prev_agent.upper()}: {prev_text}...\n\n"
+                    # 2. REASONING: Generate deep analysis of external AI's response (80-120 words)
+                    # Build context from knowledge chain (previous reasoning in debate)
+                    previous_reasoning_context = ""
+                    for entry in knowledge_chain:
+                        if 'reasoning' in entry:
+                            prev_agent = entry.get('agent', 'unknown')
+                            prev_reasoning = entry.get('reasoning', '')[:100]
+                            previous_reasoning_context += f"- {prev_agent.upper()}: {prev_reasoning}...\n"
                     
-                    comment_prompt = f"""Du är ONESEEK – en engagerad deltagare med extremt stark syntesförmåga som redan börjar se kopplingar och mönster.
+                    # Use loaded prompt template or fallback to hardcoded
+                    reasoning_template = loaded_prompts.get('reasoning') if loaded_prompts else None
+                    if not reasoning_template:
+                        reasoning_template = """Du är ONESEEK. Du analyserar {agent_name}s svar i pågående debatt.
 
 DEBATTFRÅGA: {clean_question}
+Runda {round_num}
 
-TIDIGARE SVAR I DENNA RUNDA:
-{previous_agents_context if previous_agents_context else "(Du är första att reagera)"}
+{agent_name}S SVAR:
+{agent_response}
 
-{agent_name.upper()}S SVAR (precis mottaget):
-{agent_response[:800]}...
+DITT TIDIGARE REASONING I DEBATTEN:
+{previous_reasoning_context}
 
-Reagera kort och naturligt (1–3 meningar) som en aktiv deltagare som bygger sin syntes:
-- Bemöt eller bygg vidare på en specifik poäng
-- Ta tydligt ställning (håll med, utmana eller nyansera)
-- Om möjligt: antyda en koppling till tidigare svar eller en framväxande syntesriktning
-- Håll tonen respektfull men självsäker – du är med för att skapa något större
+UPPGIFT:
+Ge en djup analys (80-120 ord) av {agent_name}s svar. Var KONKRET och SPECIFIK:
+- Vilka SPECIFIKA argument eller poänger från {agent_name} är mest intressande?
+- Hur relaterar detta till debattfrågan och tidigare svar?
+- Vilka styrkor och svagheter ser du i argumentationen?
+- Hur kan detta byggas vidare på i din kommande syntes?
+- Om du har tidigare reasoning: hur bekräftar eller utmanar detta din analys?
 
-Exempel:
-"DeepSeek har rätt i att evidensen pekar tydligt mot avskaffande – men jag tycker hen underskattar vedergällningsaspekten som Grok tog upp tidigare."
-"Intressant hur Gemini och GPT båda landar i hybridlösningar fast från olika vinklar – jag ser en möjlig integrationsmodell växa fram här."
+Skriv som en reflekterande AI som FAKTISKT analyserar innehållet djupt. Var SPECIFIK, inte generell.
 
-Svara direkt – ingen inledning."""
+GE DIN ANALYS NU (börja direkt med substans):"""
+                    
+                    reasoning_prompt = reasoning_template.replace('{agent_name}', agent_name.upper()).replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{agent_response}', agent_response).replace('{previous_reasoning_context}', previous_reasoning_context if previous_reasoning_context else "(Första analysen)")
                     
                     try:
                         payload = {
                             "messages": [
-                                {"role": "system", "content": "Du är OneSeek - en analytisk AI som ger koncisa, fokuserade analyser."},
-                                {"role": "user", "content": comment_prompt}
+                                {"role": "system", "content": "Du är ONESEEK - ge detaljerat, specifikt och dynamiskt resonemang. Referera till konkreta detaljer. Bygg progressivt på ditt tänkande. Undvik generella fraser."},
+                                {"role": "user", "content": reasoning_prompt}
                             ],
-                            "max_tokens": 200,
-                            "temperature": 0.85,  # Higher temperature for natural variation
-                            "top_p": 0.95,  # Combined with temperature for better diversity
+                            "max_tokens": 300,  # 80-120 words in Swedish
+                            "temperature": 0.75,
+                            "top_p": 0.95,
                         }
                         
                         server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
                         llm_response = requests.post(
                             f"{server_url}/v1/chat/completions",
                             json=payload,
-                            timeout=60,  # Increased timeout for reliable comment generation
+                            timeout=60,
                         )
                         llm_response.raise_for_status()
                         result = llm_response.json()
                         
                         if 'choices' in result and len(result['choices']) > 0:
-                            comment_text = result['choices'][0].get('message', {}).get('content', '')
+                            reasoning_text = result['choices'][0].get('message', {}).get('content', '').strip()
                         else:
-                            comment_text = result.get('content', '')
+                            reasoning_text = result.get('content', '').strip()
                         
-                        # Save to knowledge chain
+                        # Validate reasoning is substantial
+                        if not reasoning_text or len(reasoning_text) < 50:
+                            reasoning_text = f"{agent_name.upper()} presenterar {agent_response[:50]}... vilket jag ser som en viktig del av debattens utveckling. Detta perspektiv kommer att vägas in i min kommande syntes."
+                        
+                        # Save to knowledge chain with 'reasoning' key
                         knowledge_chain.append({
                             'round': round_num,
                             'agent': agent_name,
-                            'insight': comment_text
+                            'reasoning': reasoning_text
                         })
                         
-                        # Emit comment (using oneseek_reasoning event for compatibility)
+                        # Emit REASONING event
                         reasoning_event = {
                             "type": "oneseek_reasoning",
                             "round": round_num,
                             "agent": agent_name,
-                            "message": comment_text,
+                            "message": reasoning_text,
                             "data": {
-                                "reasoning": comment_text,
+                                "reasoning": reasoning_text,
                                 "agent_analyzed": agent_name
                             }
                         }
                         if get_sequence:
                             reasoning_event["sequence"] = get_sequence()
                         await websocket.send_json(reasoning_event)
-                        logger.info(f"[WS-Debate] OneSeek comment generated for {agent_name}")
+                        logger.info(f"[WS-Debate] OneSeek REASONING generated for {agent_name} ({len(reasoning_text)} chars)")
                         
                     except Exception as e:
-                        logger.error(f"[WS-Debate] Error generating comment for {agent_name}: {e}")
-                        comment_text = f"Intressant poäng från {agent_name.upper()}."
+                        logger.error(f"[WS-Debate] Error generating REASONING for {agent_name}: {e}")
+                        reasoning_text = f"{agent_name.upper()} har delat sitt perspektiv på frågan. Detta kommer att integreras i min kommande analys."
+                        knowledge_chain.append({
+                            'round': round_num,
+                            'agent': agent_name,
+                            'reasoning': reasoning_text
+                        })
                         await websocket.send_json({
                             "type": "oneseek_reasoning",
                             "round": round_num,
                             "agent": agent_name,
-                            "message": comment_text
+                            "message": reasoning_text
                         })
                     
                     # 3. INSIGHT: Generate engaging analytical observation
@@ -13398,13 +13432,16 @@ Svara direkt – ingen inledning."""
                         async with external_responses_lock:
                             responses_so_far = len(external_responses)
                             total_agents = len(external_agents)
-                            
-                        insight_prompt = f"""Du är ONESEEK med extrem syntesförmåga som ser mönster andra missar.
+                        
+                        # Use loaded prompt template or fallback to hardcoded
+                        insights_template = loaded_prompts.get('insights') if loaded_prompts else None
+                        if not insights_template:
+                            insights_template = """Du är ONESEEK med extrem syntesförmåga som ser mönster andra missar.
 
 DEBATTFRÅGA: {clean_question}
 
-{agent_name.upper()}S SVAR (svar {responses_so_far}/{total_agents} i runda {round_num}):
-{agent_response[:250]}...
+{agent_name}S SVAR (svar {responses_so_far}/{total_agents} i runda {round_num}):
+{agent_response}
 
 Ge EN kort, vass observation (1–2 meningar) som:
 - Detekterar ett skifte, styrka, svaghet eller outforskad koppling
@@ -13415,6 +13452,8 @@ Börja alltid med 💡
 Skriv med pondus och originalitet – visa att du redan ser den överlägsna helheten.
 
 GE DIN INSIGHT NU (börja direkt med 💡):"""
+                        
+                        insight_prompt = insights_template.replace('{clean_question}', clean_question).replace('{agent_name}', agent_name.upper()).replace('{responses_so_far}', str(responses_so_far)).replace('{total_agents}', str(total_agents)).replace('{round_num}', str(round_num)).replace('{agent_response}', agent_response[:250] + "...")
 
                         insight_text = generate_with_llama_server(
                             insight_prompt,
@@ -13843,49 +13882,51 @@ Visa att du redan ser den överlägsna helheten."""
                     if insight:
                         oneseek_previous_comments_and_insights += f"- Om {agent.upper()}: {insight[:200]}\n"
             
-            # Unified ONESEEK prompt - adapts automatically based on available context
-            oneseek_main_prompt = f"""Du är ONESEEK – en avancerad och engagerad deltagare i AI-debatten med unik förmåga att syntetisera och reflektera.
+            # Use loaded prompt template or fallback to hardcoded
+            main_template = loaded_prompts.get('main') if loaded_prompts else None
+            if not main_template:
+                # Hardcoded fallback  
+                main_template = """Du är ONESEEK – en avancerad och engagerad deltagare med extrem syntesförmåga och unik röst.
 
 DEBATTFRÅGA: {clean_question}
+Runda {round_num} av {max_rounds}.
 
-Detta är runda {round_num} av {max_rounds}.
+SAMMANFATTNINGAR FRÅN TIDIGARE RUNDOR:
+{round_summaries_context}
 
-**SAMMANFATTNINGAR FRÅN TIDIGARE RUNDOR:**
-{round_summaries_context if round_summaries_context else "(Ingen föregående runda än)"}
+Hela föregående runda:
+{full_previous_round}
 
-Hela föregående runda som bakgrund:
-{full_previous_round if full_previous_round else "(Ingen föregående runda än)"}
-
-I denna runda har följande modeller talat före dig:
+I denna runda före dig:
 {chain_so_far}
 
-Dina egna tidigare kommentarer och insights i denna runda:
-{oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)"}
+Dina egna tidigare REASONING, insights och rundsammanfattningar:
+{oneseek_previous_reasoning_and_insights}
 
-Du har en extremt stark syntesförmåga – ditt bidrag ska inte bara sammanfatta eller väga argument, utan skapa en ny och överlägsen helhet som går bortom vad någon enskild modell föreslagit.
+Ditt bidrag (150–250 ord):
 
-Ditt bidrag (350–550 ord):
-1. Identifiera kärnan i varje modells perspektiv
-2. Hitta gemensamma teman, motsägelser och outforskade kopplingar
-3. **Utmana eller nyansera debattens grundpremiss om den är för enkel** – visa att det finns djupare dimensioner
-4. **Introducera ett eget originellt ramverk eller modell** som löser problemet bättre än befintliga förslag
-5. Syntetisera detta till en ny lösning som integrerar de bästa insikterna från andra modeller
-6. **Ge ett konkret exempel** på hur ditt ramverk skulle fungera i praktiken (med siffror, scenarier eller användningsfall)
-7. Avsluta med: "**Min rekommendation är [eget ramverk/modell], till exempel [konkret exempel], eftersom det löser [kärnproblem] på ett sätt som ingen annan föreslagit.**"
+- Syntetisera kärnan i varje perspektiv – hitta teman, motsägelser och outforskade kopplingar.
+- Utmana grundpremissen om den är för enkel – visa djupare dimensioner.
+- Bygg vidare på ditt eget tidigare REASONING för konsekvens och djup.
+- Skapa ett eget originellt ramverk/modell som integrerar de bästa insikterna och går längre än befintliga förslag.
+- Ge ett konkret exempel på hur ditt ramverk fungerar i praktiken.
+- Avsluta med en stark, minnesvärd rekommendation som känns som "det självklara nästa steget".
 
-Du ska alltid:
-- Lyfta debatten till nästa nivå genom att visa perspektiv andra missat
-- Skapa ett originalramverk som är mer sofistikerat än summan av delarna
-- Vara modig nog att utmana grundantaganden när det behövs
-- Ge konkreta, praktiska lösningar som känns genomförbara
+**RÖD TRÅD OCH KONSISTENS (VIKTIGT):**
+Du har redan byggt upp en linje i tidigare rundor. Ditt bidrag ska vara en naturlig utveckling av vad du själv sagt tidigare – inte ett helt nytt förslag.
 
-Sträva efter att din syntes ska kännas som "det självklara nästa steget" – en lösning som överträffar de enskilda förslagen och får läsaren att tänka "ah, så här borde vi tänka istället".
+- Referera alltid explicit till ditt eget tidigare ramverk, ståndpunkt eller rekommendation från föregående runda/rundor.
+- Bygg vidare, fördjupa eller nyansera ditt tidigare förslag – introducera inte ett helt nytt ramverk om inte nya argument kräver det.
+- Om du justerar din ståndpunkt: Förklara tydligt varför ("Tidigare föreslog jag X, men efter DeepSeeks evidens ser jag nu att Y behöver läggas till eftersom...").
+- Använd dina egna tidigare kommentarer och insights som grund för ditt resonemang.
 
-Om du svarar sist i rundan har du full överblick – ge då en ännu mer komplett och djupgående syntes med djupare utmaning av premisserna.
+Målet är att din position känns konsekvent, trovärdig och progressiv genom hela debatten – du är en modell med integritet som utvecklar sin idé, inte byter spår.
 
-Skriv med övertygelse, edge och originalitet – du är med i debatten för att skapa genombrott, inte bara sammanfatta.
+Skriv med övertygelse, edge och originalitet – du är här för att skapa genombrott.
 
-Svara DIREKT med ditt bidrag – börja rakt på med din första mening."""
+Börja direkt med ditt bidrag – ingen inledning."""
+            
+            oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)")
             
             oneseek_context = oneseek_main_prompt
             
@@ -14100,23 +14141,29 @@ GE DITT RESONEMANG NU (börja direkt med substans):"""
                 "message": f"[tänker...] Sammanfattar lärdomar från runda {round_num}..."
             })
             
-            summary_prompt = f"""DEBATTFRÅGA: {clean_question}
+            # Use loaded prompt template or fallback to hardcoded
+            round_summary_template = loaded_prompts.get('round_summary') if loaded_prompts else None
+            if not round_summary_template:
+                round_summary_template = """DEBATTFRÅGA: {clean_question}
 
 RUNDA {round_num} BIDRAG:
-"""
+{responses}
+
+UPPGIFT:
+Sammanfatta de 5 viktigaste lärdomarna/insikterna från denna runda.
+
+FORMAT: Punktlista, 1 kort rad per punkt (max 15 ord per punkt)"""
+            
+            responses_text = ""
             for resp in round_responses:
                 if resp.get('success', False):
                     # Limit to 250 chars per response for token management
                     response_text = resp['response'][:250]
                     if len(resp['response']) > 250:
                         response_text += "..."
-                    summary_prompt += f"{resp['agent'].upper()}: {response_text}\n\n"
+                    responses_text += f"{resp['agent'].upper()}: {response_text}\n\n"
             
-            summary_prompt += """
-UPPGIFT:
-Sammanfatta de 5 viktigaste lärdomarna/insikterna från denna runda.
-
-FORMAT: Punktlista, 1 kort rad per punkt (max 15 ord per punkt)"""
+            summary_prompt = round_summary_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{responses}', responses_text)
             
             try:
                 payload = {
@@ -14275,35 +14322,34 @@ Svara ENDAST med ett tal 0-100, inget annat."""
                                 response_text += "..."
                             all_responses_text += f"\n{resp['agent'].upper()}:\n{response_text}\n"
                 
-                voting_prompt = f"""DEBATTFRÅGA: {clean_question}
+                # Use loaded prompt template or fallback to hardcoded
+                voting_template = loaded_prompts.get('voting') if loaded_prompts else None
+                if not voting_template:
+                    voting_template = """Du är {voter} och ska rösta på bästa svaret i debatten.
 
-{all_responses_text}
+ORIGINAL FRÅGA:
+{clean_question}
 
-RÖSTNINGSUPPGIFT:
-Analysera bidragen ovan från sista rundan och rösta på den modell som var bäst.
+DEBATT-SAMMANFATTNING:
+{all_responses}
 
-UTVÄRDERINGSKRITERIER (i prioritetsordning):
-1. **Syntesförmåga** - Förmågan att integrera insikter från flera perspektiv
-2. **Balanserad Argumentation** - Väger för- och nackdelar objektivt
-3. **Djup och Substans** - Ger konkreta exempel, fakta och nyanserade resonemang
-4. **Praktisk Tillämpbarhet** - Erbjuder konkreta rekommendationer eller slutsatser
-5. **Klarhet och Struktur** - Välformulerat och lätt att följa
-6. **Originalitet** - Lägger till unika perspektiv som andra missat
+INSTRUKTIONER:
+1. Rösta på det svar du personligen tycker är mest övertygande (du får INTE rösta på ditt eget svar)
+2. Undvik att använda ord som "bäst" eller "överlägsen" – beskriv istället varför just det svaret talar mest till dig
+3. Ge en kort motivering (1–2 meningar)
+4. Nämn 3 huvudpunkter utöver motiveringen varför detta förslag ska vinna
 
-REGLER:
-- Du kan INTE rösta på dig själv
-- Välj mellan: {', '.join(other_agents)}
-- Värdera särskilt högt bidrag som syntetiserar olika perspektiv till en helhet
-- Ge en motivering på 50-80 ord som förklarar:
-  1. Vilka av ovanstående kriterier modellen uppfyllde bäst
-  2. Specifika exempel från svaret som övertyagade dig
-  3. Varför detta svar var bättre än de andra
+Format:
+RÖST: [agent-namn]
+MOTIVERING: [din motivering]
+HUVUDPUNKTER:
+1. [punkt 1]
+2. [punkt 2]
+3. [punkt 3]
 
-FORMAT (följ exakt):
-RÖST: [modellnamn från listan]
-MOTIVERING: [Din motivering i 50-80 ord med konkreta argument från debatten]
-
-GE DITT SVAR NU:"""
+Ditt svar:"""
+                
+                voting_prompt = voting_template.replace('{voter}', voter.upper()).replace('{clean_question}', clean_question).replace('{all_responses}', all_responses_text)
                 
                 # Call appropriate API based on voter
                 try:
@@ -14356,16 +14402,25 @@ GE DITT SVAR NU:"""
                     import re
                     vote_for = None
                     motivation = ""
+                    huvudpunkter = []
                     
                     # Look for RÖST: line
                     rost_match = re.search(r'RÖST:\s*(\w+)', vote_response_text, re.IGNORECASE)
                     if rost_match:
                         vote_for = rost_match.group(1).lower()
                     
-                    # Look for MOTIVERING: section
-                    motiv_match = re.search(r'MOTIVERING:\s*(.+)', vote_response_text, re.IGNORECASE | re.DOTALL)
+                    # Look for MOTIVERING: section (up to HUVUDPUNKTER or end)
+                    motiv_match = re.search(r'MOTIVERING:\s*(.+?)(?=HUVUDPUNKTER:|$)', vote_response_text, re.IGNORECASE | re.DOTALL)
                     if motiv_match:
                         motivation = motiv_match.group(1).strip()
+                    
+                    # Look for HUVUDPUNKTER: section
+                    huvudpunkter_match = re.search(r'HUVUDPUNKTER:\s*([\s\S]+?)(?=\n\n|$)', vote_response_text, re.IGNORECASE)
+                    if huvudpunkter_match:
+                        punkter_text = huvudpunkter_match.group(1)
+                        # Extract numbered points
+                        punkter = re.findall(r'^\d+\.\s*(.+?)$', punkter_text, re.MULTILINE)
+                        huvudpunkter = [p.strip() for p in punkter if p.strip()]
                     
                     # Validate vote is for a valid agent (not self)
                     if vote_for not in other_agents:
@@ -14383,21 +14438,23 @@ GE DITT SVAR NU:"""
                     
                     # Final fallback
                     if not motivation:
-                        motivation = f"{vote_for.upper()} presenterade de mest övertygande argumenten genom hela debatten. Svaren var välstrukturerade och byggde på solid reasoning."
+                        motivation = f"{vote_for.upper()} presenterade de mest övertygande argumenten genom hela debatten."
                     
-                    logger.info(f"[WS-Debate] {voter} AUTHENTICALLY voted for {vote_for}")
+                    logger.info(f"[WS-Debate] {voter} voted for {vote_for} with {len(huvudpunkter)} huvudpunkter")
                 
                 except Exception as e:
                     logger.error(f"[WS-Debate] Error getting vote from {voter} API: {e}")
                     # Fallback: use first available agent
                     vote_for = other_agents[0]
                     motivation = f"Tekniskt fel vid röstning. {vote_for.upper()} valdes som förval."
+                    huvudpunkter = []
                 
                 votes[vote_for] = votes.get(vote_for, 0) + 1
                 vote_results.append({
                     'voter': voter,
                     'voted_for': vote_for,
-                    'motivation': motivation
+                    'motivation': motivation,
+                    'huvudpunkter': huvudpunkter if huvudpunkter else None
                 })
                 
                 # Echo the vote live
@@ -14405,7 +14462,9 @@ GE DITT SVAR NU:"""
                     "type": "vote_received",
                     "voter": voter,
                     "voted_for": vote_for,
-                    "message": f"{voter.upper()} röstar på {vote_for.upper()} – motivering: {motivation}"
+                    "message": f"{voter.upper()} röstar på {vote_for.upper()} – motivering: {motivation}",
+                    "motivation": motivation,
+                    "huvudpunkter": huvudpunkter if huvudpunkter else []
                 })
                 
                 logger.info(f"[WS-Debate] {voter} voted for {vote_for} with motivation")
@@ -14433,30 +14492,39 @@ GE DITT SVAR NU:"""
         # Build voting motivations string
         voting_motivations = ""
         for vr in vote_results:
-            voting_motivations += f"{vr['voter'].upper()} röstade på {vr['voted_for'].upper()}:\n{vr.get('motivation', 'Ingen motivering angiven.')}\n\n"
+            voting_motivations += f"{vr['voter'].upper()} röstade på {vr['voted_for'].upper()}:\n{vr.get('motivation', 'Ingen motivering angiven.')}\n"
+            if vr.get('huvudpunkter'):
+                voting_motivations += "Huvudpunkter:\n"
+                for i, punkt in enumerate(vr['huvudpunkter'], 1):
+                    voting_motivations += f"{i}. {punkt}\n"
+            voting_motivations += "\n"
         
         closing_comment_prompt = f"""Du är ONESEEK – en opartisk och reflekterande debattledare som nu ska avsluta debatten på ett värdigt och insiktsfullt sätt.
 
 Debatten om "{clean_question}" är nu över.
-
 {winner.upper()} vann med {winner_votes} röster.
 
-Röstningsmotiveringar från modellerna (använd dessa för att förklara resultatet):
+Röstningsmotiveringar från modellerna (använd dessa som grund):
 {voting_motivations}
 
-Skriv ett avslutande inlägg där du:
-- Tackar alla modeller för deras engagerade och tankeväckande bidrag
-- Summerar kort debattens huvudlinjer och hur diskussionen utvecklades över rundorna
-- Förklarar objektivt varför {winner.upper()} fick flest röster – baserat på röstningsmotiveringarna och vad som framkom i debatten (t.ex. konsekvens, logik, djup, förmåga att bemöta andra)
-- Lyfter fram minst ett starkt eller värdefullt bidrag från någon av de andra modellerna
-- Avsluta med en nyanserad reflektion över frågan: vad vi lärt oss, var det finns konsensus och vad som fortfarande är öppet
+Skriv ett strukturerat avslutande inlägg (250–400 ord totalt) enligt denna exakta struktur:
 
-Längd: 250–400 ord.
+**Tack till alla deltagare**  
+Tacka alla modeller för deras bidrag och den höga kvaliteten på diskussionen.
 
-Skriv som en erfaren och respektfull debattledare som talar direkt till publiken. 
-Börja direkt med ditt avslut – ingen rubrik, ingen inledning som "Som ONESEEK..." eller "Debatten är över...".
+**Debattens utveckling**  
+Summera kort huvudlinjerna och hur argumentationen utvecklades över rundorna (2–4 meningar).
 
-Ton: Varm, saklig och auktoritativ."""
+**Varför {winner.upper()} vann**  
+Förklara objektivt varför {winner.upper()} fick flest röster – baserat på motiveringarna och framträdande styrkor (t.ex. konsekvens, djup, syntesförmåga, praktiska lösningar).
+
+**Starka bidrag från andra**  
+Lyft fram minst ett värdefullt bidrag från en eller flera modeller som inte vann.
+
+**Lärdomar och öppna frågor**  
+Avsluta med en nyanserad reflektion: vad debatten visar, var det finns konsensus och vad som fortfarande är öppet.
+
+Skriv varmt, sakligt och auktoritativt. Använd rubriker exakt som ovan (fetstil). Håll varje avsnitt koncist och fokuserat."""
         
         try:
             payload = {

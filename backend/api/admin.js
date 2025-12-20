@@ -2698,4 +2698,266 @@ router.post('/chunked-prompts/reset', requireAdmin, async (req, res) => {
   }
 });
 
+// ==========================================
+// DEBATE PROMPT MANAGEMENT ENDPOINTS
+// ==========================================
+
+/**
+ * GET /api/admin/debate-prompts
+ * Fetch all debate prompts used in /7b-zero
+ */
+router.get('/debate-prompts', async (req, res) => {
+  try {
+    const promptsDir = path.join(process.cwd(), '..', 'datasets', 'debate_prompts');
+    const promptsFile = path.join(promptsDir, 'prompts.json');
+    
+    // Ensure directory exists
+    await fs.mkdir(promptsDir, { recursive: true });
+    
+    // Check if file exists, if not create with defaults from baseline-prompts.js
+    try {
+      await fs.access(promptsFile);
+    } catch {
+      // File doesn't exist, create with defaults
+      const defaultPrompts = {
+        main: `Du är ONESEEK – en avancerad och engagerad deltagare med extrem syntesförmåga och unik röst.
+
+DEBATTFRÅGA: {clean_question}
+Runda {round_num} av {max_rounds}.
+
+SAMMANFATTNINGAR FRÅN TIDIGARE RUNDOR:
+{round_summaries_context}
+
+Hela föregående runda:
+{full_previous_round}
+
+I denna runda före dig:
+{chain_so_far}
+
+Dina egna tidigare REASONING, insights och rundsammanfattningar:
+{oneseek_previous_reasoning_and_insights}
+
+Ditt bidrag (150–250 ord):
+
+- Syntetisera kärnan i varje perspektiv – hitta teman, motsägelser och outforskade kopplingar.
+- Utmana grundpremissen om den är för enkel – visa djupare dimensioner.
+- Bygg vidare på ditt eget tidigare REASONING för konsekvens och djup.
+- Skapa ett eget originellt ramverk/modell som integrerar de bästa insikterna och går längre än befintliga förslag.
+- Ge ett konkret exempel på hur ditt ramverk fungerar i praktiken.
+- Avsluta med en stark, minnesvärd rekommendation som känns som "det självklara nästa steget".
+
+**RÖD TRÅD OCH KONSISTENS (VIKTIGT):**
+Du har redan byggt upp en linje i tidigare rundor. Ditt bidrag ska vara en naturlig utveckling av vad du själv sagt tidigare – inte ett helt nytt förslag.
+
+- Referera alltid explicit till ditt eget tidigare ramverk, ståndpunkt eller rekommendation från föregående runda/rundor.
+- Bygg vidare, fördjupa eller nyansera ditt tidigare förslag – introducera inte ett helt nytt ramverk om inte nya argument kräver det.
+- Om du justerar din ståndpunkt: Förklara tydligt varför ("Tidigare föreslog jag X, men efter Y ser jag nu att Z behöver läggas till eftersom...").
+- Använd dina egna tidigare REASONING och insights som grund för ditt resonemang.
+
+Målet är att din position känns konsekvent, trovärdig och progressiv genom hela debatten – du är en modell med integritet som utvecklar sin idé, inte byter spår.
+
+Skriv med övertygelse, edge och originalitet – du är här för att skapa genombrott.
+Börja direkt med ditt bidrag – ingen inledning.`,
+        
+        reasoning: `Du är ONESEEK. Du analyserar {agent_name.upper()}s svar i pågående debatt.
+
+DEBATTFRÅGA: {clean_question}
+Runda {round_num}
+
+{agent_name.upper()}S SVAR:
+{agent_response}
+
+TIDIGARE REASONING (din kontext):
+{previous_reasoning_context}
+
+Ge en strukturerad REASONING (80-120 ord):
+
+**1. KÄRNBUDSKAP**
+Vad är det centrala budskapet i svaret?
+
+**2. STYRKOR & SVAGHETER**
+Vad är starkt? Vad saknas?
+
+**3. KOPPLING TILL DEBATTEN**
+Hur relaterar det till tidigare argument?
+
+**4. INSIGHTS FÖR MIN SYNTES**
+Vilka element ska jag integrera i mitt kommande svar?`,
+
+        insights: `Du är ONESEEK med extrem syntesförmåga som ser mönster andra missar.
+
+DEBATTFRÅGA: {clean_question}
+
+TIDIGARE SVAR I DENNA RUNDA:
+{previous_agents_context_insight}
+
+{agent.upper()}S SVAR (svar {responses_so_far}/{total_agents} i runda {round_num}):
+{agent_response}
+
+Ge EN kort, vass observation (1–2 meningar):
+- Detekterar skifte, styrka, svaghet, eller outforskad koppling
+- Visar hur detta bidrag påverkar debattens riktning
+- Antyder din egen kommande syntes som går bortom individuella bidrag
+- **Variera ditt språk och fokus** – undvik att upprepa samma formuleringar
+
+Börja alltid med 💡
+Visa att du redan ser den överlägsna helheten växa fram.
+
+Exempel på VARIERAD stil:
+💡 Nu börjar mönstret bli tydligt – {agent} lägger till dimensionen som saknades.
+💡 Intressant skifte: alla tre närmar sig från olika håll men pekar mot samma lösning.
+💡 {agent} utmanar premissen smart – det här öppnar för en meta-lösning ingen sagt ännu.
+
+Svara direkt – ingen inledning.`,
+
+        round_summary: `Du är ONESEEK. Sammanfatta runda {round_num} av {max_rounds} i debatten.
+
+DEBATTFRÅGA: {clean_question}
+
+ALLA SVAR I RUNDA {round_num}:
+{round_responses}
+
+TIDIGARE SAMMANFATTNINGAR:
+{previous_summaries}
+
+Ge 5 VIKTIGA LÄRDOMAR från denna runda (max 15 ord per punkt):
+
+1. [Huvudargument eller konsensus]
+2. [Nyckeldimension eller tension]
+3. [Stark insikt som stack ut]
+4. [Vad som fortfarande är outforskat]
+5. [Progression sedan föregående runda]
+
+Format:
+- Punkt 1
+- Punkt 2
+- Punkt 3
+- Punkt 4
+- Punkt 5`,
+
+        voting: `Du är {voter.upper()} och ska rösta på bästa svaret i debatten.
+
+ORIGINAL FRÅGA:
+{question}
+
+DEBATT-SAMMANFATTNING:
+{responses}
+
+INSTRUKTIONER:
+1. Rösta på det svar du personligen tycker är mest övertygande (du får INTE rösta på ditt eget svar)
+2. Undvik att använda ord som "bäst" eller "överlägsen" – beskriv istället varför just det svaret talar mest till dig
+3. Ge en kort motivering (1–2 meningar)
+4. Nämn 3 huvudpunkter utöver motiveringen varför detta förslag ska vinna
+
+Format:
+RÖST: [agent-namn]
+MOTIVERING: [din motivering]
+HUVUDPUNKTER:
+1. [punkt 1]
+2. [punkt 2]
+3. [punkt 3]
+
+Ditt svar:`,
+
+        closing: `Du är ONESEEK – en opartisk och reflekterande debattledare som nu ska avsluta debatten på ett värdigt och insiktsfullt sätt.
+
+Debatten om "{clean_question}" är nu över.
+{winner} vann med {winner_votes} röster.
+
+Röstningsmotiveringar från modellerna (använd dessa som grund):
+{voting_motivations}
+
+Skriv ett strukturerat avslutande inlägg (250–400 ord totalt) enligt denna exakta struktur:
+
+**Tack till alla deltagare**  
+Tacka alla modeller för deras bidrag och den höga kvaliteten på diskussionen.
+
+**Debattens utveckling**  
+Summera kort huvudlinjerna och hur argumentationen utvecklades över rundorna (2–4 meningar).
+
+**Varför {winner} vann**  
+Förklara objektivt varför {winner} fick flest röster – baserat på motiveringarna och framträdande styrkor (t.ex. konsekvens, djup, syntesförmåga, praktiska lösningar).
+
+**Starka bidrag från andra**  
+Lyft fram minst ett värdefullt bidrag från en eller flera modeller som inte vann.
+
+**Lärdomar och öppna frågor**  
+Avsluta med en nyanserad reflektion: vad debatten visar, var det finns konsensus och vad som fortfarande är öppet.
+
+Skriv varmt, sakligt och auktoritativt. Använd rubriker exakt som ovan (fetstil). Håll varje avsnitt koncist och fokuserat.`
+      };
+      
+      await fs.writeFile(promptsFile, JSON.stringify(defaultPrompts, null, 2), 'utf-8');
+    }
+    
+    // Read and return prompts
+    const data = await fs.readFile(promptsFile, 'utf-8');
+    const prompts = JSON.parse(data);
+    
+    res.json({ prompts });
+  } catch (error) {
+    console.error('Error fetching debate prompts:', error);
+    res.status(500).json({ error: 'Failed to fetch debate prompts', message: error.message });
+  }
+});
+
+/**
+ * PUT /api/admin/debate-prompts/:type
+ * Update a specific debate prompt
+ */
+router.put('/debate-prompts/:type', async (req, res) => {
+  try {
+    const { type } = req.params;
+    const { content } = req.body;
+    
+    const validTypes = ['main', 'reasoning', 'insights', 'round_summary', 'voting', 'closing'];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ error: 'Invalid prompt type' });
+    }
+    
+    if (!content || typeof content !== 'string') {
+      return res.status(400).json({ error: 'Content is required and must be a string' });
+    }
+    
+    const promptsDir = path.join(process.cwd(), '..', 'datasets', 'debate_prompts');
+    const promptsFile = path.join(promptsDir, 'prompts.json');
+    
+    // Ensure directory exists
+    await fs.mkdir(promptsDir, { recursive: true });
+    
+    // Read current prompts
+    let prompts = {};
+    try {
+      const data = await fs.readFile(promptsFile, 'utf-8');
+      prompts = JSON.parse(data);
+    } catch {
+      // File doesn't exist, start with empty object
+    }
+    
+    // Backup current version
+    const backupDir = path.join(promptsDir, 'backups');
+    await fs.mkdir(backupDir, { recursive: true });
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupFile = path.join(backupDir, `${type}_${timestamp}.txt`);
+    if (prompts[type]) {
+      await fs.writeFile(backupFile, prompts[type], 'utf-8');
+    }
+    
+    // Update prompt
+    prompts[type] = content;
+    
+    // Save to file
+    await fs.writeFile(promptsFile, JSON.stringify(prompts, null, 2), 'utf-8');
+    
+    res.json({ 
+      success: true, 
+      message: `${type} prompt updated successfully`,
+      backup: backupFile
+    });
+  } catch (error) {
+    console.error('Error updating debate prompt:', error);
+    res.status(500).json({ error: 'Failed to update debate prompt', message: error.message });
+  }
+});
+
 export default router;

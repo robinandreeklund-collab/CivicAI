@@ -386,6 +386,48 @@ export default function ConsensusDebateCard({
         <DebateVotingPanel votes={debate.votes} winner={debate.winner} />
       )}
 
+      {/* Closing Statement */}
+      {debate.status === 'completed' && debate.closingStatement && (
+        <div className="border-t border-[#2a2a2a] pt-6 mt-6">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 bg-[#2a2a2a] rounded-lg flex items-center justify-center text-lg">📝</div>
+            <div>
+              <div className="font-medium text-[#e7e7e7]">Avslutande Sammanfattning</div>
+              <div className="text-sm text-[#666]">ONESEEK:s strukturerade debattavslut</div>
+            </div>
+          </div>
+
+          {debate.closingStatement.sections && (
+            <div className="space-y-4 text-[#888]">
+              <div>
+                <div className="text-sm font-medium text-[#e7e7e7] mb-2">Tack till alla deltagare</div>
+                <p className="text-sm leading-relaxed">{debate.closingStatement.sections.tack}</p>
+              </div>
+
+              <div>
+                <div className="text-sm font-medium text-[#e7e7e7] mb-2">Debattens utveckling</div>
+                <p className="text-sm leading-relaxed">{debate.closingStatement.sections.utveckling}</p>
+              </div>
+
+              <div>
+                <div className="text-sm font-medium text-[#e7e7e7] mb-2">Varför {debate.winner.agent} vann</div>
+                <p className="text-sm leading-relaxed">{debate.closingStatement.sections.varforVann}</p>
+              </div>
+
+              <div>
+                <div className="text-sm font-medium text-[#e7e7e7] mb-2">Starka bidrag från andra</div>
+                <p className="text-sm leading-relaxed">{debate.closingStatement.sections.starkaBidrag}</p>
+              </div>
+
+              <div>
+                <div className="text-sm font-medium text-[#e7e7e7] mb-2">Lärdomar och öppna frågor</div>
+                <p className="text-sm leading-relaxed">{debate.closingStatement.sections.lardomar}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Winning Answer Analysis */}
       {debate.status === 'completed' && (isAnalyzing || winningAnalysis) && (
         <div className="mt-6 border-t border-[#2a2a2a] pt-6">

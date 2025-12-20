@@ -349,6 +349,155 @@ const PESEvolutionResultsPage = () => {
         </div>
       )}
 
+      {/* PHASE 3: Category Distribution Chart */}
+      {results.category_distribution && results.category_distribution.length > 0 && (
+        <div className="mb-6 bg-white rounded-lg shadow-md border border-gray-200">
+          <div className="p-6 border-b border-gray-200">
+            <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900">
+              📊 Category Distribution
+            </h3>
+            <p className="text-sm text-gray-600 mt-1">Debate topics analyzed in this evolution</p>
+          </div>
+          <div className="p-6">
+            <div className="space-y-3">
+              {results.category_distribution.map((cat, idx) => (
+                <div key={idx} className="flex items-center gap-4">
+                  <div className="w-48 text-sm font-medium text-gray-900">
+                    {cat.main} → {cat.sub}
+                  </div>
+                  <div className="flex-1">
+                    <div className="w-full bg-gray-200 rounded-full h-6 overflow-hidden">
+                      <div 
+                        className="bg-gradient-to-r from-blue-500 to-blue-600 h-6 flex items-center justify-end pr-2 text-xs text-white font-medium"
+                        style={{ width: `${cat.percentage}%` }}
+                      >
+                        {cat.percentage}%
+                      </div>
+                    </div>
+                  </div>
+                  <div className="w-16 text-sm text-gray-600 text-right">
+                    {cat.count} debates
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PHASE 3: Vector Radar Chart (Winner Analysis) */}
+      {winner && winner.vector_metrics && winner.vector_metrics.avg_vector && (
+        <div className="mb-6 bg-white rounded-lg shadow-md border border-gray-200">
+          <div className="p-6 border-b border-gray-200">
+            <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900">
+              🎯 Vector Analysis - Winner Profile
+            </h3>
+            <p className="text-sm text-gray-600 mt-1">8-dimensional analysis of what makes this prompt win</p>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {Object.entries(winner.vector_metrics.avg_vector).map(([dim, value]) => (
+                <div key={dim} className="bg-gray-50 p-4 rounded-lg">
+                  <div className="text-xs text-gray-600 mb-2 capitalize">{dim.replace(/_/g, ' ')}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-gray-200 rounded-full h-3 overflow-hidden">
+                      <div 
+                        className={`h-3 rounded-full ${
+                          value >= 0.8 ? 'bg-green-500' : 
+                          value >= 0.6 ? 'bg-blue-500' : 
+                          value >= 0.4 ? 'bg-yellow-500' : 'bg-red-500'
+                        }`}
+                        style={{ width: `${value * 100}%` }}
+                      />
+                    </div>
+                    <div className="text-sm font-bold text-gray-900 w-12 text-right">
+                      {(value * 100).toFixed(0)}%
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {winner.vector_insights && (
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {winner.vector_insights.strongest_dimensions && (
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <h4 className="font-semibold text-green-800 mb-2">💪 Strongest Dimensions</h4>
+                    <ul className="text-sm text-green-700 space-y-1">
+                      {winner.vector_insights.strongest_dimensions.map((dim, i) => (
+                        <li key={i} className="capitalize">{dim.replace(/_/g, ' ')}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {winner.vector_insights.improvement_targets && (
+                  <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                    <h4 className="font-semibold text-orange-800 mb-2">📈 Improvement Targets</h4>
+                    <ul className="text-sm text-orange-700 space-y-1">
+                      {winner.vector_insights.improvement_targets.map((dim, i) => (
+                        <li key={i} className="capitalize">{dim.replace(/_/g, ' ')}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+              <strong>Consistency Score:</strong> {((winner.vector_metrics.consistency_score || 0) * 100).toFixed(1)}% 
+              (variance: {(winner.vector_metrics.variance || 0).toFixed(3)})
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PHASE 3: Category Performance Breakdown */}
+      {results.category_performance && Object.keys(results.category_performance).length > 0 && (
+        <div className="mb-6 bg-white rounded-lg shadow-md border border-gray-200">
+          <div className="p-6 border-b border-gray-200">
+            <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900">
+              📈 Category Performance Breakdown
+            </h3>
+            <p className="text-sm text-gray-600 mt-1">Performance per topic category</p>
+          </div>
+          <div className="p-6">
+            <div className="space-y-4">
+              {Object.entries(results.category_performance).map(([category, data]) => (
+                <div key={category} className="p-4 border border-gray-200 rounded-lg">
+                  <h4 className="font-medium text-gray-900 mb-3">
+                    {data.main} → {data.sub}
+                    <span className="text-sm text-gray-500 ml-2">({data.debates_count} debates)</span>
+                  </h4>
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <div className="text-gray-600">Avg Votes</div>
+                      <div className="text-xl font-semibold text-gray-900">
+                        {data.avg_votes?.toFixed(1) || '0.0'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-gray-600">Win Rate</div>
+                      <div className="text-xl font-semibold text-gray-900">
+                        {((data.win_rate || 0) * 100).toFixed(1)}%
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-gray-600">Avg Mentions</div>
+                      <div className="text-xl font-semibold text-gray-900">
+                        {data.avg_mentions?.toFixed(1) || '0.0'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PHASE 3: Real Voting Validation */}
+      <RealVotingValidation evolutionId={evolutionId} results={results} onValidationComplete={loadResults} />
+
       {/* Baseline Comparison */}
       {results.baseline && (
         <div className="bg-white rounded-lg shadow-md border border-gray-200">
@@ -402,6 +551,150 @@ const PESEvolutionResultsPage = () => {
           </div>
         </div>
       )}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * PHASE 3: Real Voting Validation Component
+ */
+const RealVotingValidation = ({ evolutionId, results, onValidationComplete }) => {
+  const [validating, setValidating] = useState(false);
+  const [showWarning, setShowWarning] = useState(false);
+
+  const validation = results.real_validation;
+
+  const handleValidate = async () => {
+    if (!showWarning) {
+      setShowWarning(true);
+      return;
+    }
+
+    setValidating(true);
+    try {
+      const response = await fetch(`/api/pes/evolution/${evolutionId}/validate`, {
+        method: 'POST'
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        alert(`Validation completed! Cost: $${data.cost?.toFixed(2)}`);
+        onValidationComplete();
+      } else {
+        alert(`Validation failed: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Validation error:', error);
+      alert('Validation failed: ' + error.message);
+    } finally {
+      setValidating(false);
+      setShowWarning(false);
+    }
+  };
+
+  return (
+    <div className="mb-6 bg-white rounded-lg shadow-md border border-gray-200">
+      <div className="p-6 border-b border-gray-200">
+        <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900">
+          🧪 Real-World Validation
+        </h3>
+        <p className="text-sm text-gray-600 mt-1">
+          Test this winning prompt against real external AI voting to validate simulation accuracy
+        </p>
+      </div>
+      <div className="p-6">
+        {!validation ? (
+          <div>
+            <p className="text-sm text-gray-700 mb-4">
+              Validation calls real external APIs (GPT, Gemini, DeepSeek, Grok) to compare simulated vs actual votes.
+              This helps calibrate the simulation model for better accuracy.
+            </p>
+            
+            {showWarning && (
+              <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm font-semibold text-yellow-800 mb-2">⚠️ Cost Warning</p>
+                <p className="text-sm text-yellow-700">
+                  This will call 4 external AI APIs with an estimated cost of <strong>~$0.50-1.00</strong>.
+                  Are you sure you want to continue?
+                </p>
+              </div>
+            )}
+            
+            <div className="flex gap-3">
+              <button
+                onClick={handleValidate}
+                disabled={validating}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {validating ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Validating...
+                  </>
+                ) : showWarning ? (
+                  '✓ Yes, Proceed with Validation'
+                ) : (
+                  '🧪 Validate with Real Voting (~$0.75)'
+                )}
+              </button>
+              
+              {showWarning && (
+                <button
+                  onClick={() => setShowWarning(false)}
+                  className="px-4 py-2 border border-gray-300 hover:bg-gray-50 rounded-lg"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded text-sm text-green-800">
+              ✓ Validation completed on {new Date(validation.validated_at).toLocaleString()}
+            </div>
+            
+            {validation.comparison && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <div className="text-sm text-gray-600">Vote Accuracy</div>
+                    <div className="text-2xl font-bold text-gray-900">
+                      {(validation.comparison.vote_accuracy * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <div className="text-sm text-gray-600">Overall Accuracy</div>
+                    <div className="text-2xl font-bold text-gray-900">
+                      {(validation.comparison.accuracy_score * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <div className="text-sm text-gray-600">Cost</div>
+                    <div className="text-2xl font-bold text-gray-900">
+                      {validation.cost_estimate || '$0.75'}
+                    </div>
+                  </div>
+                </div>
+                
+                {validation.calibration_report && validation.calibration_report.recommendations && (
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h4 className="font-semibold text-blue-900 mb-2">Calibration Recommendations</h4>
+                    <ul className="text-sm text-blue-800 space-y-1">
+                      {validation.calibration_report.recommendations.map((rec, i) => (
+                        <li key={i}>
+                          <strong>{rec.dimension}:</strong> {rec.suggestion}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -571,3 +571,135 @@ export async function getSimulationRunsByEvolution(evolutionId, options = {}) {
     throw error;
   }
 }
+
+/**
+ * PHASE 3: Save learned weights for a category
+ * @param {string} category - Category name
+ * @param {Object} weightData - Weight data including weights, history, etc.
+ * @returns {Promise<void>}
+ */
+export async function saveLearnedWeights(category, weightData) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('Firebase not initialized');
+    }
+    
+    const docRef = db.collection('learned_weights').doc(category);
+    
+    await docRef.set({
+      category: category,
+      ...weightData,
+      updated_at: new Date().toISOString()
+    }, { merge: true });
+    
+    console.log(`[PES Phase 3] Saved learned weights for category: ${category}`);
+  } catch (error) {
+    console.error('[PES Phase 3] Error saving learned weights:', error);
+    throw error;
+  }
+}
+
+/**
+ * PHASE 3: Get learned weights for a category
+ * @param {string} category - Category name
+ * @returns {Promise<Object|null>} Learned weights or null if not found
+ */
+export async function getLearnedWeights(category) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('Firebase not initialized');
+    }
+    
+    const docRef = db.collection('learned_weights').doc(category);
+    const doc = await docRef.get();
+    
+    if (!doc.exists) {
+      return null;
+    }
+    
+    return doc.data();
+  } catch (error) {
+    console.error('[PES Phase 3] Error getting learned weights:', error);
+    // Return null instead of throwing to allow fallback to defaults
+    return null;
+  }
+}
+
+/**
+ * PHASE 3: Get all learned weights
+ * @returns {Promise<Array>} Array of all learned weights
+ */
+export async function getAllLearnedWeights() {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('Firebase not initialized');
+    }
+    
+    const snapshot = await db.collection('learned_weights').get();
+    const weights = [];
+    
+    snapshot.forEach(doc => {
+      weights.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+    
+    return weights;
+  } catch (error) {
+    console.error('[PES Phase 3] Error getting all learned weights:', error);
+    return [];
+  }
+}
+
+/**
+ * PHASE 3: Delete learned weights for a category (reset to defaults)
+ * @param {string} category - Category name
+ * @returns {Promise<void>}
+ */
+export async function deleteLearnedWeights(category) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('Firebase not initialized');
+    }
+    
+    await db.collection('learned_weights').doc(category).delete();
+    console.log(`[PES Phase 3] Deleted learned weights for category: ${category}`);
+  } catch (error) {
+    console.error('[PES Phase 3] Error deleting learned weights:', error);
+    throw error;
+  }
+}
+
+/**
+ * PHASE 3: Get a single debate by ID
+ * @param {string} debateId - Debate ID
+ * @returns {Promise<Object|null>} Debate data or null
+ */
+export async function getDebate(debateId) {
+  try {
+    const db = await getDb();
+    if (!db) {
+      throw new Error('Firebase not initialized');
+    }
+    
+    const docRef = db.collection('debates').doc(debateId);
+    const doc = await docRef.get();
+    
+    if (!doc.exists) {
+      return null;
+    }
+    
+    return {
+      id: doc.id,
+      ...doc.data()
+    };
+  } catch (error) {
+    console.error('[PES Phase 3] Error getting debate:', error);
+    return null;
+  }
+}

@@ -326,6 +326,9 @@ export async function conductDebateVoting(debateId) {
   debate.status = 'completed';
   debate.updatedAt = new Date().toISOString();
   
+  // Generate closing statement
+  debate.closingStatement = generateClosingStatement(debate);
+  
   debates.set(debateId, debate);
   
   // Log audit event
@@ -367,14 +370,18 @@ DEBATT-SAMMANFATTNING:
   const otherAgents = debate.participants.filter(a => a !== voter);
   
   prompt += `\n\nINSTRUKTIONER:
-1. Rösta på det svar du tycker är bäst (du får INTE rösta på ditt eget svar)
-2. Basera ditt val på: noggrannhet, klarhet, fullständighet och användbarhet
-3. Svara ENDAST med namnet på den agent du röstar på: ${otherAgents.join(', ')}
-4. Ge en kort motivering (1-2 meningar)
+1. Rösta på det svar du personligen tycker är mest övertygande (du får INTE rösta på ditt eget svar)
+2. Undvik att använda ord som "bäst" eller "överlägsen" – beskriv istället varför just det svaret talar mest till dig
+3. Ge en kort motivering (1–2 meningar)
+4. Nämn 3 huvudpunkter utöver motiveringen varför detta förslag ska vinna
 
 Format:
 RÖST: [agent-namn]
 MOTIVERING: [din motivering]
+HUVUDPUNKTER:
+1. [punkt 1]
+2. [punkt 2]
+3. [punkt 3]
 
 Ditt svar:`;
   
@@ -412,14 +419,31 @@ function parseVote(responseText, voter, participants) {
   }
   
   // Extract reasoning
-  const reasoningMatch = responseText.match(/MOTIVERING:\s*(.+?)(?:\n|$)/i);
+  const reasoningMatch = responseText.match(/MOTIVERING:\s*(.+?)(?:\n|HUVUDPUNKTER:|$)/is);
   const reasoning = reasoningMatch ? reasoningMatch[1].trim() : 
                    responseText.substring(0, 200);
+  
+  // Extract huvudpunkter (main points)
+  const huvudpunkter = [];
+  const huvudpunkterMatch = responseText.match(/HUVUDPUNKTER:\s*([\s\S]+?)(?:\n\n|$)/i);
+  if (huvudpunkterMatch) {
+    const punkterText = huvudpunkterMatch[1];
+    const punkter = punkterText.match(/^\d+\.\s*(.+?)$/gm);
+    if (punkter) {
+      punkter.forEach(punkt => {
+        const match = punkt.match(/^\d+\.\s*(.+)$/);
+        if (match) {
+          huvudpunkter.push(match[1].trim());
+        }
+      });
+    }
+  }
   
   return {
     voter,
     votedFor,
     reasoning,
+    huvudpunkter: huvudpunkter.length > 0 ? huvudpunkter : null,
     timestamp: new Date().toISOString(),
   };
 }
@@ -451,6 +475,38 @@ function calculateWinner(votes) {
     agent: winner,
     voteCount: maxVotes,
     voteCounts,
+  };
+}
+
+/**
+ * Generate structured closing statement
+ */
+function generateClosingStatement(debate) {
+  if (!debate.winner) {
+    return null;
+  }
+
+  const winner = debate.winner;
+  const question = debate.question;
+  const votes = debate.votes;
+  
+  // Extract voting motivations
+  const votingMotivations = votes
+    .filter(v => v.votedFor === winner.agent)
+    .map(v => `${v.voter}: ${v.reasoning}${v.huvudpunkter ? '\n  Huvudpunkter: ' + v.huvudpunkter.join(', ') : ''}`)
+    .join('\n\n');
+
+  // Simple structured closing (since we can't call LLM from Node.js easily)
+  // In a real implementation, this would call the CLOSING_PROMPT via ML service
+  return {
+    sections: {
+      tack: `Tack till alla deltagare - ${debate.participants.join(', ')} - för en engagerande och insiktsfull debatt om "${question}".`,
+      utveckling: `Debatten utvecklades över ${debate.rounds.length} rundor där varje modell bidrog med unika perspektiv och fördjupade argumentationen progressivt.`,
+      varforVann: `${winner.agent} vann med ${winner.voteCount} röster av ${votes.length}. Modellerna framhöll ${winner.agent}s förmåga att syntetisera olika perspektiv och ge konkreta, genomförbara förslag.`,
+      starkaBidrag: 'Även andra modeller bidrog med värdefulla insikter som berikade diskussionen och kompletterade vinnaren perspektiv.',
+      lardomar: 'Debatten visar värdet av multi-agent diskussion där olika AI-modeller kan utmana och komplettera varandras resonemang.'
+    },
+    votingMotivations
   };
 }
 

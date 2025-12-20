@@ -6,15 +6,18 @@
  */
 
 import { generateWithOneseek } from '../services/oneseekService.js';
+// PHASE 3: Category-aware prompt generation
+import { getCategorySpecificGuidance } from './debate-classifier.js';
 
 /**
  * Generate prompt variants based on baseline and insights
  * @param {string} baselinePrompt - Current baseline prompt
  * @param {Object} insights - Aggregated insights from debate analysis
  * @param {number} count - Number of variants to generate (default: 5)
+ * @param {Array} categoryDistribution - PHASE 3: Category distribution for category-aware generation
  * @returns {Promise<Array>} Array of prompt variants
  */
-export async function generatePromptVariants(baselinePrompt, insights, count = 5) {
+export async function generatePromptVariants(baselinePrompt, insights, count = 5, categoryDistribution = null) {
   console.log(`[Prompt Generator] Generating ${count} prompt variants...`);
   
   if (!baselinePrompt || !insights) {
@@ -22,7 +25,7 @@ export async function generatePromptVariants(baselinePrompt, insights, count = 5
   }
   
   // Build generation prompt for LLM
-  const generationPrompt = buildGenerationPrompt(baselinePrompt, insights, count);
+  const generationPrompt = buildGenerationPrompt(baselinePrompt, insights, count, categoryDistribution);
   
   try {
     // Use ONESEEK to generate variants based on insights
@@ -86,9 +89,26 @@ export async function generatePromptVariants(baselinePrompt, insights, count = 5
  * @param {string} baselinePrompt - Current baseline prompt
  * @param {Object} insights - Aggregated insights
  * @param {number} count - Number of variants
+ * @param {Array} categoryDistribution - PHASE 3: Category distribution
  * @returns {string} Generation prompt
  */
-function buildGenerationPrompt(baselinePrompt, insights, count) {
+function buildGenerationPrompt(baselinePrompt, insights, count, categoryDistribution = null) {
+  // PHASE 3: Category-aware prompt generation
+  let categorySection = '';
+  if (categoryDistribution && categoryDistribution.length > 0) {
+    const dominantCategory = categoryDistribution[0];
+    const categoryGuidance = getCategorySpecificGuidance(dominantCategory.main);
+    
+    categorySection = `
+KATEGORI-DISTRIBUTION I DENNA EVOLUTION:
+${categoryDistribution.slice(0, 3).map(c => `- ${c.main}/${c.sub}: ${c.count} debatter (${c.percentage}%)`).join('\n')}
+
+DOMINERANDE KATEGORI: ${dominantCategory.main}/${dominantCategory.sub}
+KATEGORI-SPECIFIK VÄGLEDNING FÖR ${dominantCategory.main}:
+${categoryGuidance}
+`;
+  }
+
   return `Du är en expert på prompt engineering som optimerar ONESEEK AI:s debatt-prompt baserat på prestandadata.
 
 NUVARANDE BASELINE PROMPT:
@@ -100,7 +120,7 @@ PRESTANDAINSIKTER FRÅN ${insights.debates_analyzed} DEBATTER:
 - Genomsnittliga röster per debatt: ${insights.overall_metrics?.avg_votes_per_debate?.toFixed(1) || 'N/A'}
 - Vinstfrekvens: ${((insights.overall_metrics?.win_rate || 0) * 100).toFixed(1)}%
 - Genomsnittliga omnämnanden: ${insights.overall_metrics?.avg_mentions?.toFixed(1) || 'N/A'}
-
+${categorySection}
 Framgångsrika Mönster (vad som fungerade bra):
 ${insights.successful_patterns?.slice(0, 8).map((p, i) => `${i + 1}. ${p}`).join('\n') || 'Inga identifierade'}
 
@@ -115,37 +135,64 @@ ${insights.strategic_recommendations?.slice(0, 6).map((r, i) => `${i + 1}. ${r}`
 
 DIN UPPGIFT:
 Generera ${count} distinkta promptvariationer som:
-1. Tillämpar insikter från framgångsrika mönster
-2. Adresserar identifierade svagheter
-3. Testar olika syntesmetoder
-4. Betonar röst-vinnande egenskaper
+1. **UTGÅR ALLTID FRÅN BASELINE-PROMTEN OVAN** - bevara grundstrukturen
+2. Tillämpar insikter från framgångsrika mönster
+3. Adresserar identifierade svagheter
+4. Testar olika syntesmetoder
 5. Behåller ONESEEK:s kärnidentitet (objektiv, balanserad, syntetiserande AI)
 6. Håller förändringar fokuserade och mätbara
+${categoryDistribution && categoryDistribution.length > 0 ? `7. ANPASSAR STIL TILL DOMINERANDE KATEGORI (${categoryDistribution[0].main}) enligt kategori-specifik vägledning ovan` : ''}
 
-KRAV:
-- Varje variant ska testa en specifik hypotes
+KRITISKT VIKTIGA KRAV:
+- **UTGÅ ALLTID FRÅN BASELINE-PROMPTEN** - använd den som bas, modifiera endast specifika delar
+- **GÖR INKREMENTELLA ÄNDRINGAR** - lägg till, ta bort eller ändra formuleringen, inte hela strukturen
+- **BEHÅLL GRUNDSTRUKTUREN** - om baseline har rubriker, punktlistor eller stycken, behåll den strukturen
+- **SKRIV ALDRIG OM HELA PROMPTEN** - varje variant ska vara baseline + specifika ändringar
+- Varje variant ska testa EN specifik hypotes genom en riktad ändring
 - Inkludera {context} platshållare för dynamisk data-injektion
 - Behåll professionell ton och struktur
-- Variera metoder mellan varianter (inte bara justera formuleringar)
 - Håll prompter mellan 200-800 ord
 - **ALLA PROMPTER MÅSTE VARA 100% PÅ SVENSKA**
 - **VARJE VARIANT MÅSTE VARA FULLSTÄNDIGT PÅ SVENSKA**
 
+EXEMPEL PÅ BRA ÄNDRINGAR (från baseline):
+✓ Lägga till ett stycke om datadriven analys
+✓ Ändra formulering i ett specifikt avsnitt för att betona syntes
+✓ Ta bort/ersätta en mening som inte fungerade bra
+✓ Lägga till en instruktion om struktur
+✗ INTE: Skapa en helt ny prompt från grunden
+✗ INTE: Ändra hela tonen eller strukturen radikalt
+
 UTGÅNGSFORMAT (JSON):
+Returnera JSON med följande struktur. VARJE variant måste innehålla DEN FAKTISKA, FULLSTÄNDIGA PROMPTEN i prompt_text fältet - inte beskrivningar eller placeholders.
+
 {
   "variants": [
     {
-      "prompt_text": "Komplett prompt-text på svenska med {context} platshållare...",
-      "hypothesis": "Tydlig beskrivning på svenska av vad denna variant testar (t.ex., 'Betona datadriven syntes ökar röstantal')",
-      "expected_improvement": "Förutsedd påverkan på metriker på svenska (t.ex., '+20% röster, +15% omnämnanden')",
-      "changes_summary": "Kort beskrivning på svenska av viktiga ändringar från baseline",
-      "strategic_focus": ["fokusområde 1 på svenska", "fokusområde 2 på svenska"]
-    },
-    ...
+      "prompt_text": "[HELA BASELINE-PROMPTEN MED DINA SPECIFIKA ÄNDRINGAR APPLICERADE - skriv ut hela den modifierade prompten här, INTE en beskrivning]",
+      "hypothesis": "Betona datadriven syntes ökar röstantal",
+      "expected_improvement": "+20% röster, +15% omnämnanden",
+      "changes_summary": "Lagt till stycke om datadrivet tänkande efter första meningen. Ändrat formulering i stycke 2 från 'syntetisera' till 'djupt integrera och analysera'. Lagt till bullet-punkt om konkreta exempel.",
+      "strategic_focus": ["data-driven analys", "syntes"]
+    }
   ]
 }
 
-VIKTIGT: ALLA TEXTER I ALLA FÄLT MÅSTE VARA PÅ SVENSKA!`;
+KRITISKT VIKTIGT FÖR prompt_text:
+- prompt_text ska innehålla den FAKTISKA, FULLSTÄNDIGA prompten (inte "BASELINE-PROMPTEN MED..." eller andra beskrivningar)
+- Kopiera hela baseline-prompten och applicera dina ändringar direkt i texten
+- Om baseline är 50 rader, ska prompt_text också vara ~50 rader med dina ändringar
+- Behåll alla {context} platshållare från baseline
+- SKRIV ALDRIG "BASELINE-PROMPTEN MED ÄNDRINGAR" - skriv den faktiska prompten!
+
+EXEMPEL PÅ RÄTT (om baseline börjar med "Du är ONESEEK..."):
+prompt_text: "Du är ONESEEK – en avancerad deltagare med datadriven analys...\n\n[resten av prompten med ändringar applicerade]"
+
+EXEMPEL PÅ FEL:
+prompt_text: "BASELINE-PROMPTEN MED SPECIFIKA ÄNDRINGAR"  ❌
+prompt_text: "Baseline + ändring om data"  ❌
+
+ALLA TEXTER MÅSTE VARA PÅ SVENSKA!`;
 }
 
 /**
