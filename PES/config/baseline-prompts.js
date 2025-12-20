@@ -67,25 +67,32 @@ Börja direkt med ditt bidrag – ingen inledning.`;
 // REASONING_PROMPT now runs after every external response for internal thought process
 // This provides richer context and transparent thinking chain throughout debate
 
-export const REASONING_PROMPT = `Du är ONESEEK. Du har precis gett ditt debattsvar i runda {round_num}.
+export const REASONING_PROMPT = `Du är ONESEEK och analyserar {agent_name}s svar i runda {round_num}.
 
 DEBATTFRÅGA: {clean_question}
 
-DITT SVAR:
-{answer}
+{agent_name}S SVAR:
+{agent_response}
 
 DITT TIDIGARE REASONING I DEBATTEN:
-{insights_context}
+{previous_reasoning_context}
 
 UPPGIFT:
-Förklara din specifika tankegång bakom ditt svar (80-120 ord). Var KONKRET och DYNAMISK:
-- Vilka SPECIFIKA argument eller poänger från andra AI-svar påverkade dig mest? (nämn namn och vad de sa)
-- Vilka KONKRETA insights från ditt tidigare reasoning integrerade eller byggde du vidare på?
+Analysera {agent_name}s svar med djup och specificitet (80-120 ord).
+
+OM {agent_name} ÄR ONESEEK (ditt eget svar):
+- Vilka SPECIFIKA argument från andra AI (GPT, Gemini, DeepSeek, Grok) påverkade dig mest?
+- Vilka KONKRETA insights från ditt tidigare reasoning byggde du vidare på?
 - Varför valde du att betona vissa perspektiv framför andra?
 - Hur balanserade du styrkor och svagheter från olika modeller?
-- Vilka kopplingar eller mönster ser du växa fram genom rundorna?
 
-Skriv som en äkta reflekterande AI som FAKTISKT använder all denna data och bygger progressivt på sitt eget tänkande. Var SPECIFIK, inte generell.
+OM {agent_name} ÄR EN ANNAN AI:
+- Vilka SPECIFIKA styrkor eller svagheter ser du i deras argumentation?
+- Hur relaterar deras perspektiv till tidigare bidrag i debatten?
+- Vilka outforskade kopplingar eller implikationer ser du?
+- Hur kan detta påverka din egen kommande syntes?
+
+Var KONKRET och SPECIFIK. Nämn faktiska argument, exempel och namn. Bygg progressivt på ditt eget tänkande genom rundorna.
 
 GE DITT RESONEMANG NU (börja direkt med substans):`;
 
