@@ -13373,7 +13373,7 @@ Börja direkt – ingen inledning."""
                         comments_text = generate_with_llama_server(
                             comments_prompt,
                             temperature=0.8,
-                            max_tokens=120  # 40-60 words
+                            max_tokens=200  # Increased from 120 to prevent truncation (40-60 words needs ~150-200 tokens in Swedish)
                         )
                         comments_text = comments_text.strip()
                         
@@ -13474,7 +13474,7 @@ GE DIN ANALYS NU (börja direkt med substans):"""
                                 {"role": "system", "content": "Du är ONESEEK - ge detaljerat, specifikt och dynamiskt resonemang. Referera till konkreta detaljer. Bygg progressivt på ditt tänkande. Undvik generella fraser."},
                                 {"role": "user", "content": reasoning_prompt}
                             ],
-                            "max_tokens": 300,  # 80-120 words in Swedish
+                            "max_tokens": 400,  # Increased from 300 to prevent truncation (80-120 words needs ~300-400 tokens in Swedish)
                             "temperature": 0.75,
                             "top_p": 0.95,
                         }
@@ -13584,7 +13584,7 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
                         insight_text = generate_with_llama_server(
                             insight_prompt,
                             temperature=0.85,
-                            max_tokens=80  # Increased to prevent cut-off (15-25 words ~60-80 tokens with Swedish)
+                            max_tokens=120  # Increased from 80 to prevent truncation (15-25 words needs ~80-120 tokens with Swedish)
                         )
                         insight_text = insight_text.strip()
                         
@@ -13990,7 +13990,7 @@ GE DITT RESONEMANG NU (börja direkt med substans):"""
                             {"role": "system", "content": "Du är ONESEEK - ge ett detaljerat, specifikt och dynamiskt resonemang om hur du byggde ditt svar. Referera till konkreta detaljer från andra AI-modellers svar. Undvik generella fraser."},
                             {"role": "user", "content": reasoning_prompt}
                         ],
-                        "max_tokens": 300,  # Increased for more detailed reasoning
+                        "max_tokens": 400,  # Increased from 300 to prevent truncation for detailed reasoning
                         "temperature": 0.75,  # Slightly higher for more varied expression
                     }
                     
