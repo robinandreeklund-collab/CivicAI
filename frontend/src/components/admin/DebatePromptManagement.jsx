@@ -16,10 +16,13 @@ import { useState, useEffect } from 'react';
  */
 export default function DebatePromptManagement() {
   const [prompts, setPrompts] = useState({});
+  const [temperatures, setTemperatures] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState({});
+  const [savingTemperatures, setSavingTemperatures] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState({});
+  const [temperatureSuccess, setTemperatureSuccess] = useState(false);
   
   const promptTypes = [
     {
@@ -117,6 +120,7 @@ export default function DebatePromptManagement() {
 
   useEffect(() => {
     fetchPrompts();
+    fetchTemperatures();
   }, []);
 
   const fetchPrompts = async () => {
@@ -132,6 +136,53 @@ export default function DebatePromptManagement() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTemperatures = async () => {
+    try {
+      const response = await fetch('/api/admin/debate-temperatures');
+      if (!response.ok) {
+        throw new Error('Failed to fetch temperatures');
+      }
+      const data = await response.json();
+      setTemperatures(data);
+    } catch (err) {
+      console.error('Error fetching temperatures:', err);
+      // Set defaults if fetch fails
+      setTemperatures({
+        round1: 0.7,
+        round2: 0.7,
+        final: 0.7,
+        comments: 0.8,
+        reasoning: 0.75,
+        reasoning_own: 0.75,
+        insights: 0.85
+      });
+    }
+  };
+
+  const saveTemperatures = async () => {
+    try {
+      setSavingTemperatures(true);
+      setTemperatureSuccess(false);
+      
+      const response = await fetch('/api/admin/debate-temperatures', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ temperatures })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save temperatures');
+      }
+      
+      setTemperatureSuccess(true);
+      setTimeout(() => setTemperatureSuccess(false), 3000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingTemperatures(false);
     }
   };
 
@@ -255,6 +306,154 @@ export default function DebatePromptManagement() {
             </button>
           </div>
         ))}
+      </div>
+
+      {/* Temperature Settings */}
+      <div className="border border-[#2a2a2a] bg-[#0f0f0f] rounded-lg p-6 space-y-4">
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="text-[#eee] text-lg font-mono font-semibold">
+              🌡️ Temperature Settings
+            </h3>
+            <p className="text-[#666] text-sm font-mono mt-1">
+              Control creativity/randomness for each prompt type (0.0 = deterministic, 2.0 = very creative)
+            </p>
+          </div>
+          {temperatureSuccess && (
+            <div className="text-green-400 text-sm font-mono">
+              ✓ Saved
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Round 1 Temperature */}
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-4">
+            <label className="text-[#eee] text-sm font-mono block mb-2">
+              Round 1 (Establish Position)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="2"
+              step="0.05"
+              value={temperatures.round1 || 0.7}
+              onChange={(e) => setTemperatures({...temperatures, round1: parseFloat(e.target.value)})}
+              className="w-full bg-[#0f0f0f] border border-[#2a2a2a] text-[#eee] px-3 py-2 rounded font-mono text-sm focus:border-[#4a9eff] focus:outline-none"
+            />
+            <p className="text-[#666] text-xs font-mono mt-1">Default: 0.7</p>
+          </div>
+
+          {/* Round 2 Temperature */}
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-4">
+            <label className="text-[#eee] text-sm font-mono block mb-2">
+              Round 2 (Develop & Deepen)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="2"
+              step="0.05"
+              value={temperatures.round2 || 0.7}
+              onChange={(e) => setTemperatures({...temperatures, round2: parseFloat(e.target.value)})}
+              className="w-full bg-[#0f0f0f] border border-[#2a2a2a] text-[#eee] px-3 py-2 rounded font-mono text-sm focus:border-[#4a9eff] focus:outline-none"
+            />
+            <p className="text-[#666] text-xs font-mono mt-1">Default: 0.7</p>
+          </div>
+
+          {/* Final Round Temperature */}
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-4">
+            <label className="text-[#eee] text-sm font-mono block mb-2">
+              Round 3 (Final)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="2"
+              step="0.05"
+              value={temperatures.final || 0.7}
+              onChange={(e) => setTemperatures({...temperatures, final: parseFloat(e.target.value)})}
+              className="w-full bg-[#0f0f0f] border border-[#2a2a2a] text-[#eee] px-3 py-2 rounded font-mono text-sm focus:border-[#4a9eff] focus:outline-none"
+            />
+            <p className="text-[#666] text-xs font-mono mt-1">Default: 0.7</p>
+          </div>
+
+          {/* Comments Temperature */}
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-4">
+            <label className="text-[#eee] text-sm font-mono block mb-2">
+              Comments (40-60 words)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="2"
+              step="0.05"
+              value={temperatures.comments || 0.8}
+              onChange={(e) => setTemperatures({...temperatures, comments: parseFloat(e.target.value)})}
+              className="w-full bg-[#0f0f0f] border border-[#2a2a2a] text-[#eee] px-3 py-2 rounded font-mono text-sm focus:border-[#4a9eff] focus:outline-none"
+            />
+            <p className="text-[#666] text-xs font-mono mt-1">Default: 0.8</p>
+          </div>
+
+          {/* Reasoning Temperature */}
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-4">
+            <label className="text-[#eee] text-sm font-mono block mb-2">
+              Reasoning (80-120 words)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="2"
+              step="0.05"
+              value={temperatures.reasoning || 0.75}
+              onChange={(e) => setTemperatures({...temperatures, reasoning: parseFloat(e.target.value)})}
+              className="w-full bg-[#0f0f0f] border border-[#2a2a2a] text-[#eee] px-3 py-2 rounded font-mono text-sm focus:border-[#4a9eff] focus:outline-none"
+            />
+            <p className="text-[#666] text-xs font-mono mt-1">Default: 0.75</p>
+          </div>
+
+          {/* Reasoning Own Temperature */}
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-4">
+            <label className="text-[#eee] text-sm font-mono block mb-2">
+              Reasoning (Own Answer)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="2"
+              step="0.05"
+              value={temperatures.reasoning_own || 0.75}
+              onChange={(e) => setTemperatures({...temperatures, reasoning_own: parseFloat(e.target.value)})}
+              className="w-full bg-[#0f0f0f] border border-[#2a2a2a] text-[#eee] px-3 py-2 rounded font-mono text-sm focus:border-[#4a9eff] focus:outline-none"
+            />
+            <p className="text-[#666] text-xs font-mono mt-1">Default: 0.75</p>
+          </div>
+
+          {/* Insights Temperature */}
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-4">
+            <label className="text-[#eee] text-sm font-mono block mb-2">
+              Insights (💡 one-liner)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="2"
+              step="0.05"
+              value={temperatures.insights || 0.85}
+              onChange={(e) => setTemperatures({...temperatures, insights: parseFloat(e.target.value)})}
+              className="w-full bg-[#0f0f0f] border border-[#2a2a2a] text-[#eee] px-3 py-2 rounded font-mono text-sm focus:border-[#4a9eff] focus:outline-none"
+            />
+            <p className="text-[#666] text-xs font-mono mt-1">Default: 0.85</p>
+          </div>
+        </div>
+
+        <button
+          onClick={saveTemperatures}
+          disabled={savingTemperatures}
+          className="bg-[#4a9eff] hover:bg-[#3a8eef] text-white px-6 py-2 rounded font-mono text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {savingTemperatures ? 'Saving...' : 'Save All Temperatures'}
+        </button>
       </div>
 
       {/* Info Box */}

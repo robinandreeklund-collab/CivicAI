@@ -13119,7 +13119,35 @@ async def websocket_live_debate(websocket: WebSocket):
             
             return None  # Fallback to hardcoded
         
+        def load_debate_temperatures():
+            """Load temperature settings from JSON file, fallback to defaults if not found"""
+            temp_file = os.path.join(os.path.dirname(__file__), '../datasets/debate_prompts/temperatures.json')
+            
+            default_temperatures = {
+                'round1': 0.7,
+                'round2': 0.7,
+                'final': 0.7,
+                'comments': 0.8,
+                'reasoning': 0.75,
+                'reasoning_own': 0.75,
+                'insights': 0.85
+            }
+            
+            if os.path.exists(temp_file):
+                try:
+                    with open(temp_file, 'r', encoding='utf-8') as f:
+                        temperatures = json.load(f)
+                        logger.info(f"[Debate Temperatures] Loaded from {temp_file}")
+                        return temperatures
+                except Exception as e:
+                    logger.warning(f"[Debate Temperatures] Error loading {temp_file}: {e}. Using defaults.")
+            else:
+                logger.info(f"[Debate Temperatures] File not found: {temp_file}. Using defaults.")
+            
+            return default_temperatures
+        
         loaded_prompts = load_debate_prompts()
+        loaded_temperatures = load_debate_temperatures()
         
         # OneSeek introduces the topic before round 1
         await websocket.send_json({
@@ -13372,7 +13400,7 @@ Börja direkt – ingen inledning."""
                         
                         comments_text = generate_with_llama_server(
                             comments_prompt,
-                            temperature=0.8,
+                            temperature=loaded_temperatures.get('comments', 0.8),
                             max_tokens=200  # Increased from 120 to prevent truncation (40-60 words needs ~150-200 tokens in Swedish)
                         )
                         comments_text = comments_text.strip()
@@ -13475,7 +13503,7 @@ GE DIN ANALYS NU (börja direkt med substans):"""
                                 {"role": "user", "content": reasoning_prompt}
                             ],
                             "max_tokens": 400,  # Increased from 300 to prevent truncation (80-120 words needs ~300-400 tokens in Swedish)
-                            "temperature": 0.75,
+                            "temperature": loaded_temperatures.get('reasoning', 0.75),
                             "top_p": 0.95,
                         }
                         
@@ -13583,7 +13611,7 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
 
                         insight_text = generate_with_llama_server(
                             insight_prompt,
-                            temperature=0.85,
+                            temperature=loaded_temperatures.get('insights', 0.85),
                             max_tokens=120  # Increased from 80 to prevent truncation (15-25 words needs ~80-120 tokens with Swedish)
                         )
                         insight_text = insight_text.strip()
@@ -13880,6 +13908,10 @@ Börja direkt med öppningen – ingen extra inledning."""
             
             logger.info(f"[WS-Debate] Using '{template_key}' prompt template for round {round_num}")
             
+            # Get temperature for this round's main answer
+            main_answer_temperature = loaded_temperatures.get(template_key, 0.7)
+            logger.info(f"[WS-Debate] Using temperature {main_answer_temperature} for {template_key}")
+            
             oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)")
             
             oneseek_context = oneseek_main_prompt
@@ -13895,7 +13927,7 @@ Börja direkt med öppningen – ingen extra inledning."""
                         {"role": "user", "content": oneseek_context}
                     ],
                     "max_tokens": 1400,  # Adjusted for 350-550 words (~1000-1400 tokens with Swedish)
-                    "temperature": 0.7,  # Thoughtful but with personality
+                    "temperature": main_answer_temperature,  # Configurable per round
                     "top_p": 0.95,
                 }
                 
@@ -13991,7 +14023,7 @@ GE DITT RESONEMANG NU (börja direkt med substans):"""
                             {"role": "user", "content": reasoning_prompt}
                         ],
                         "max_tokens": 400,  # Increased from 300 to prevent truncation for detailed reasoning
-                        "temperature": 0.75,  # Slightly higher for more varied expression
+                        "temperature": loaded_temperatures.get('reasoning_own', 0.75),  # Configurable temperature for OneSeek's own reasoning
                     }
                     
                     reasoning_response = requests.post(

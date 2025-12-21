@@ -3079,4 +3079,107 @@ router.put('/debate-prompts/:type', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/admin/debate-temperatures
+ * Fetch temperature settings for all debate prompt types
+ */
+router.get('/debate-temperatures', async (req, res) => {
+  try {
+    const promptsDir = path.join(process.cwd(), '..', 'datasets', 'debate_prompts');
+    const tempFile = path.join(promptsDir, 'temperatures.json');
+    
+    // Ensure directory exists
+    await fs.mkdir(promptsDir, { recursive: true });
+    
+    // Check if file exists, if not create with defaults
+    try {
+      await fs.access(tempFile);
+      const data = await fs.readFile(tempFile, 'utf-8');
+      res.json(JSON.parse(data));
+    } catch {
+      // File doesn't exist, return defaults
+      const defaultTemperatures = {
+        round1: 0.7,
+        round2: 0.7,
+        final: 0.7,
+        comments: 0.8,
+        reasoning: 0.75,
+        reasoning_own: 0.75,  // For OneSeek's own answer reasoning
+        insights: 0.85
+      };
+      
+      // Save defaults to file
+      await fs.writeFile(tempFile, JSON.stringify(defaultTemperatures, null, 2), 'utf-8');
+      res.json(defaultTemperatures);
+    }
+  } catch (error) {
+    console.error('Error fetching debate temperatures:', error);
+    res.status(500).json({ error: 'Failed to fetch debate temperatures', message: error.message });
+  }
+});
+
+/**
+ * PUT /api/admin/debate-temperatures
+ * Update temperature settings for debate prompts
+ */
+router.put('/debate-temperatures', async (req, res) => {
+  try {
+    const { temperatures } = req.body;
+    
+    if (!temperatures || typeof temperatures !== 'object') {
+      return res.status(400).json({ error: 'Temperatures object is required' });
+    }
+    
+    // Validate temperature values (should be between 0 and 2)
+    const validTypes = ['round1', 'round2', 'final', 'comments', 'reasoning', 'reasoning_own', 'insights'];
+    for (const [key, value] of Object.entries(temperatures)) {
+      if (!validTypes.includes(key)) {
+        return res.status(400).json({ error: `Invalid temperature type: ${key}` });
+      }
+      if (typeof value !== 'number' || value < 0 || value > 2) {
+        return res.status(400).json({ error: `Temperature for ${key} must be a number between 0 and 2` });
+      }
+    }
+    
+    const promptsDir = path.join(process.cwd(), '..', 'datasets', 'debate_prompts');
+    const tempFile = path.join(promptsDir, 'temperatures.json');
+    
+    // Ensure directory exists
+    await fs.mkdir(promptsDir, { recursive: true });
+    
+    // Read current temperatures
+    let currentTemperatures = {};
+    try {
+      const data = await fs.readFile(tempFile, 'utf-8');
+      currentTemperatures = JSON.parse(data);
+    } catch {
+      // File doesn't exist, start with defaults
+      currentTemperatures = {
+        round1: 0.7,
+        round2: 0.7,
+        final: 0.7,
+        comments: 0.8,
+        reasoning: 0.75,
+        reasoning_own: 0.75,
+        insights: 0.85
+      };
+    }
+    
+    // Merge with new temperatures
+    const updatedTemperatures = { ...currentTemperatures, ...temperatures };
+    
+    // Save to file
+    await fs.writeFile(tempFile, JSON.stringify(updatedTemperatures, null, 2), 'utf-8');
+    
+    res.json({ 
+      success: true, 
+      message: 'Temperature settings updated successfully',
+      temperatures: updatedTemperatures
+    });
+  } catch (error) {
+    console.error('Error updating debate temperatures:', error);
+    res.status(500).json({ error: 'Failed to update debate temperatures', message: error.message });
+  }
+});
+
 export default router;
