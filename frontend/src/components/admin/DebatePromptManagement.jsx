@@ -23,14 +23,23 @@ export default function DebatePromptManagement() {
   
   const promptTypes = [
     {
-      id: 'main',
-      name: 'MAIN_DEBATE_PROMPT',
-      description: "ONESEEK's debate contributions for rounds 1-2",
+      id: 'round1',
+      name: 'ROUND_1_PROMPT',
+      description: "ONESEEK's opening position (round 1 only)",
       wordCount: '150-250 words',
       parameters: [
-        '{clean_question}', '{round_num}', '{max_rounds}',
-        '{round_summaries_context}', '{full_previous_round}',
-        '{chain_so_far}', '{oneseek_previous_reasoning_and_insights}'
+        '{clean_question}', '{chain_so_far}'
+      ]
+    },
+    {
+      id: 'round2',
+      name: 'ROUND_2_PROMPT',
+      description: "ONESEEK's development and deepening (round 2 only)",
+      wordCount: '150-250 words',
+      parameters: [
+        '{clean_question}', '{round_summaries_context}',
+        '{full_previous_round}', '{chain_so_far}',
+        '{oneseek_previous_reasoning_and_insights}'
       ]
     },
     {
