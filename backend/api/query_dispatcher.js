@@ -506,39 +506,56 @@ async function handleZeroCompareFlow(req, res) {
       getGrokResponse(question),
     ]);
     
-    // Normalize external responses
+    // Normalize external responses with pipeline analysis
+    console.log('\n🔬 Step 2: Running MTA-16 analysis on external responses...');
     const externalResponses = [];
     
     if (gptResponse.status === 'fulfilled' && gptResponse.value.response) {
+      const responseText = gptResponse.value.response;
+      console.log('  Analyzing GPT response...');
+      const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
       externalResponses.push({
         agent: 'gpt-3.5',
-        response: gptResponse.value.response,
+        response: responseText,
         model: gptResponse.value.model,
+        pipelineAnalysis: pipelineAnalysis,
       });
     }
     if (geminiResponse.status === 'fulfilled' && geminiResponse.value.response) {
+      const responseText = geminiResponse.value.response;
+      console.log('  Analyzing Gemini response...');
+      const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
       externalResponses.push({
         agent: 'gemini',
-        response: geminiResponse.value.response,
+        response: responseText,
         model: geminiResponse.value.model,
+        pipelineAnalysis: pipelineAnalysis,
       });
     }
     if (deepseekResponse.status === 'fulfilled' && deepseekResponse.value.response) {
+      const responseText = deepseekResponse.value.response;
+      console.log('  Analyzing DeepSeek response...');
+      const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
       externalResponses.push({
         agent: 'deepseek',
-        response: deepseekResponse.value.response,
+        response: responseText,
         model: deepseekResponse.value.model,
+        pipelineAnalysis: pipelineAnalysis,
       });
     }
     if (grokResponse.status === 'fulfilled' && grokResponse.value.response) {
+      const responseText = grokResponse.value.response;
+      console.log('  Analyzing Grok response...');
+      const pipelineAnalysis = await executeAnalysisPipeline(responseText, question, { includeEnhancedNLP: false });
       externalResponses.push({
         agent: 'grok',
-        response: grokResponse.value.response,
+        response: responseText,
         model: grokResponse.value.model,
+        pipelineAnalysis: pipelineAnalysis,
       });
     }
     
-    console.log(`✅ Collected ${externalResponses.length} external responses`);
+    console.log(`✅ Collected and analyzed ${externalResponses.length} external responses`);
     
     let openSeekResult;
     let compressionMetadata = null;
@@ -570,8 +587,8 @@ async function handleZeroCompareFlow(req, res) {
     } else {
       // STANDARD MODE: Send all responses at once
       
-      // Step 2: Compress responses for prompt context
-      console.log('\n🗜️  Step 2: Compressing responses for context...');
+      // Step 3: Compress responses for prompt context
+      console.log('\n🗜️  Step 3: Compressing responses for context...');
       const compressionResult = await compressResponsesForPrompt(
         externalResponses,
         {
@@ -583,8 +600,8 @@ async function handleZeroCompareFlow(req, res) {
       compressionMetadata = compressionResult.metadata;
       console.log(`✅ Compression complete (mode: ${compressionMetadata.mode}, chars: ${compressionMetadata.totalChars})`);
       
-      // Step 3: Build prompts using Zero Compare prompt (from Admin Dashboard or custom)
-      console.log('\n📝 Step 3: Building prompts...');
+      // Step 4: Build prompts using Zero Compare prompt (from Admin Dashboard or custom)
+      console.log('\n📝 Step 4: Building prompts...');
       
       // Determine which prompt to use
       const useCustom = customSystemPrompt && customSystemPrompt.trim();
@@ -615,10 +632,10 @@ async function handleZeroCompareFlow(req, res) {
       character = promptResult.character;
       console.log(`✅ Prompt built (placeholders replaced)`);
       
-      // Step 4: Call OpenSeek with the complete prompt
+      // Step 5: Call OpenSeek with the complete prompt
       // userPrompt contains the full prompt with AI responses and analysis instructions
       // systemPrompt is a simple instruction to follow the format
-      console.log('\n🤖 Step 4: Calling OpenSeek-7B-Zero...');
+      console.log('\n🤖 Step 5: Calling OpenSeek-7B-Zero...');
       
       openSeekResult = await getOpenSeekResponse(promptResult.userPrompt, {
         profileId,
@@ -637,10 +654,10 @@ async function handleZeroCompareFlow(req, res) {
     
     console.log('✅ OpenSeek response received');
     
-    // Step 5: Optional analysis pipeline on Zero's response
+    // Step 6: Optional analysis pipeline on Zero's response
     let pipelineAnalysis = null;
     if (runPipeline && openSeekResult.response) {
-      console.log('\n🔬 Step 5: Running analysis pipeline...');
+      console.log('\n🔬 Step 6: Running analysis pipeline...');
       try {
         pipelineAnalysis = await executeAnalysisPipeline(
           openSeekResult.response,
