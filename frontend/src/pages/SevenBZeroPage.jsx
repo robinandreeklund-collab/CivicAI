@@ -2172,6 +2172,24 @@ export default function SevenBZeroPage() {
             }
             break;
             
+          case 'oneseek_comments':
+            // OneSeek's initial commentary for specific answer
+            console.log(`[Debate] OneSeek comments for ${message.agent}`);
+            
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {
+                ...(prev[message.round] || {}),
+                [message.agent]: {
+                  ...(prev[message.round]?.[message.agent] || {}),
+                  comments: message.message
+                }
+              }
+            }));
+            
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+            break;
+            
           case 'oneseek_reasoning':
             // OneSeek's focused reasoning for specific answer
             console.log(`[Debate] OneSeek reasoning for ${message.agent}`);

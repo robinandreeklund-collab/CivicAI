@@ -13001,7 +13001,8 @@ async def websocket_live_debate(websocket: WebSocket):
        b. Queue each response as it arrives
        c. OneSeek processes queue in order:
           - Echo answer (streaming ~50-80 tokens/sec)
-          - Generate focused reasoning for that answer
+          - Generate initial comments (40-60 words)
+          - Generate focused reasoning for that answer (80-120 words)
           - Emit live insight (one-liner)
        d. After all queued answers processed, OneSeek generates its own full answer
        e. Compress/summarize round learnings (10 key points)
@@ -13013,7 +13014,8 @@ async def websocket_live_debate(websocket: WebSocket):
     - round_start: Round begins
     - ai_response: External AI answer arrives (queued)
     - oneseek_echo: Token-by-token streaming of answer being analyzed
-    - oneseek_reasoning: OneSeek's analysis of specific answer
+    - oneseek_comments: OneSeek's initial commentary on specific answer
+    - oneseek_reasoning: OneSeek's deep analysis of specific answer
     - live_insight: Single-line sport-commentator update per answer
     - oneseek_own_answer: OneSeek's full answer for the round (streaming)
     - oneseek_own_reasoning: OneSeek's reasoning for its own answer
@@ -13317,7 +13319,91 @@ GE DITT SVAR NU:"""
                         round=round_num
                     )
                     
-                    # 2. REASONING: Generate deep analysis of external AI's response (80-120 words)
+                    # 2. COMMENTS: Generate initial commentary (40-60 words, 2-3 sentences)
+                    # Build context from knowledge chain (previous comments in debate)
+                    previous_comments_context = ""
+                    for entry in knowledge_chain:
+                        if 'comments' in entry:
+                            prev_agent = entry.get('agent', 'unknown')
+                            prev_comments = entry.get('comments', '')[:80]
+                            previous_comments_context += f"- {prev_agent.upper()}: {prev_comments}...\n"
+                    
+                    # Use loaded prompt template or fallback to hardcoded
+                    comments_template = loaded_prompts.get('comments') if loaded_prompts else None
+                    if not comments_template:
+                        comments_template = """Du är ONESEEK – debattledaren och synthesföraren.
+
+DEBATTFRÅGA: {clean_question}
+Runda {round_num}
+
+{agent_name}S SVAR:
+{agent_response}
+
+TIDIGARE KOMMENTARER (din kontext):
+{previous_comments_context}
+
+Ge en kort initial kommentar (40–60 ord, 2–3 meningar):
+
+- Summera kärnpunkten i {agent_name}s svar
+- Lägg till en kort reflektion eller kontextualisering
+- Visa att du följer debattens utveckling
+
+Skriv direkt och naturligt som en engagerad debattledare.
+Börja direkt – ingen inledning."""
+                    
+                    comments_prompt = comments_template.replace('{agent_name}', agent_name.upper()).replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{agent_response}', agent_response[:300]).replace('{previous_comments_context}', previous_comments_context if previous_comments_context else "(Första kommentaren)")
+                    
+                    try:
+                        comments_text = generate_with_llama_server(
+                            comments_prompt,
+                            temperature=0.8,
+                            max_tokens=120  # 40-60 words
+                        )
+                        comments_text = comments_text.strip()
+                        
+                        # Validate comments is substantial
+                        if not comments_text or len(comments_text) < 20:
+                            comments_text = f"{agent_name.upper()} ger ett intressant perspektiv på frågan. Jag ser värdefulla poänger som bidrar till debattens utveckling."
+                        
+                        # Save to knowledge chain with 'comments' key
+                        knowledge_chain.append({
+                            'round': round_num,
+                            'agent': agent_name,
+                            'comments': comments_text
+                        })
+                        
+                        # Emit COMMENTS event
+                        comments_event = {
+                            "type": "oneseek_comments",
+                            "round": round_num,
+                            "agent": agent_name,
+                            "message": comments_text,
+                            "data": {
+                                "comments": comments_text,
+                                "agent_analyzed": agent_name
+                            }
+                        }
+                        if get_sequence:
+                            comments_event["sequence"] = get_sequence()
+                        await websocket.send_json(comments_event)
+                        logger.info(f"[WS-Debate] OneSeek COMMENTS generated for {agent_name} ({len(comments_text)} chars)")
+                        
+                    except Exception as e:
+                        logger.error(f"[WS-Debate] Error generating COMMENTS for {agent_name}: {e}")
+                        comments_text = f"{agent_name.upper()} har delat sitt perspektiv på frågan."
+                        knowledge_chain.append({
+                            'round': round_num,
+                            'agent': agent_name,
+                            'comments': comments_text
+                        })
+                        await websocket.send_json({
+                            "type": "oneseek_comments",
+                            "round": round_num,
+                            "agent": agent_name,
+                            "message": comments_text
+                        })
+                    
+                    # 3. REASONING: Generate deep analysis of external AI's response (80-120 words)
                     # Build context from knowledge chain (previous reasoning in debate)
                     previous_reasoning_context = ""
                     for entry in knowledge_chain:

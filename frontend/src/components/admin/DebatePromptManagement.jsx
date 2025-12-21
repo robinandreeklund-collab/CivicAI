@@ -34,6 +34,16 @@ export default function DebatePromptManagement() {
       ]
     },
     {
+      id: 'comments',
+      name: 'COMMENTS_PROMPT',
+      description: 'Initial commentary after each external AI response',
+      wordCount: '40-60 words (2-3 sentences)',
+      parameters: [
+        '{agent_name}', '{clean_question}', '{round_num}',
+        '{agent_response}', '{previous_comments_context}'
+      ]
+    },
+    {
       id: 'reasoning',
       name: 'REASONING_PROMPT',
       description: 'Deep analysis after each external AI response',

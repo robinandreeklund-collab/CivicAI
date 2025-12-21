@@ -171,6 +171,15 @@ export default function DebateRoundDisplay({ round, aiData, isActive = false }) 
                       </div>
                     )}
 
+                    {/* COMMENTS - OneSeek's initial commentary */}
+                    {ai.comments && (
+                      <div className="mt-3 pt-2 border-t border-[#1a1a1a]">
+                        <div className="text-xs text-[#666] italic">
+                          <span className="font-medium">KOMMENTAR:</span> {ai.comments}
+                        </div>
+                      </div>
+                    )}
+
                     {/* REASONING - OneSeek's internal thought process (visible for transparency) */}
                     {ai.reasoning && (
                       <div className="mt-3 pt-2 border-t border-[#1a1a1a]">

@@ -2759,6 +2759,26 @@ Målet är att din position känns konsekvent, trovärdig och progressiv genom h
 Skriv med övertygelse, edge och originalitet – du är här för att skapa genombrott.
 Börja direkt med ditt bidrag – ingen inledning.`,
         
+        comments: `Du är ONESEEK – debattledaren och synthesföraren.
+
+DEBATTFRÅGA: {clean_question}
+Runda {round_num}
+
+{agent_name}S SVAR:
+{agent_response}
+
+TIDIGARE KOMMENTARER (din kontext):
+{previous_comments_context}
+
+Ge en kort initial kommentar (40–60 ord, 2–3 meningar):
+
+- Summera kärnpunkten i {agent_name}s svar
+- Lägg till en kort reflektion eller kontextualisering
+- Visa att du följer debattens utveckling
+
+Skriv direkt och naturligt som en engagerad debattledare.
+Börja direkt – ingen inledning.`,
+        
         reasoning: `Du är ONESEEK. Du analyserar {agent_name.upper()}s svar i pågående debatt.
 
 DEBATTFRÅGA: {clean_question}
@@ -2910,7 +2930,7 @@ router.put('/debate-prompts/:type', async (req, res) => {
     const { type } = req.params;
     const { content } = req.body;
     
-    const validTypes = ['main', 'reasoning', 'insights', 'round_summary', 'voting', 'closing'];
+    const validTypes = ['main', 'comments', 'reasoning', 'insights', 'round_summary', 'voting', 'closing'];
     if (!validTypes.includes(type)) {
       return res.status(400).json({ error: 'Invalid prompt type' });
     }
