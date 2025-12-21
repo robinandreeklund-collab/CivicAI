@@ -14077,12 +14077,13 @@ GE DITT RESONEMANG NU (börja direkt med substans):"""
                 })
             
             # Process remaining agents after ONESEEK (for rounds 2-3)
-            if round_num >= 2 and 'oneseek' in round_turn_order:
+            # Process remaining agents after ONESEEK (for all rounds now)
+            if 'oneseek' in round_turn_order:
                 oneseek_position = round_turn_order.index('oneseek')
                 remaining_agents = [a for a in round_turn_order[oneseek_position + 1:] if a != 'oneseek']
                 
                 if remaining_agents:
-                    logger.info(f"[WS-Debate] Processing {len(remaining_agents)} agents after ONESEEK: {remaining_agents}")
+                    logger.info(f"[WS-Debate] Processing {len(remaining_agents)} agents after ONESEEK in round {round_num}: {remaining_agents}")
                     
                     for agent_name in remaining_agents:
                         # Process with full echo/comment/insight flow (same as agents before ONESEEK)
