@@ -220,3 +220,6 @@ config/runtime_settings.json
 
 # Runtime generated files
 runtime/
+
+# Debug logs from debates
+ml_service/debate_debug_logs/

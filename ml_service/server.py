@@ -13053,6 +13053,13 @@ async def websocket_live_debate(websocket: WebSocket):
         
         logger.info(f"[WS-Debate] Starting live debate for: {clean_question[:60]}...")
         
+        # Initialize debug logger for this debate
+        from debate_debug_logger import DebateDebugLogger
+        import uuid
+        debate_id = str(uuid.uuid4())[:8]  # Short unique ID
+        debug_logger = DebateDebugLogger(clean_question, debate_id)
+        logger.info(f"[WS-Debate] Debug logging enabled for debate {debate_id}")
+        
         # Step 1: Load Debattledare personality directly (no automatic selection needed)
         await websocket.send_json({
             "type": "thinking",
@@ -13075,6 +13082,10 @@ async def websocket_live_debate(websocket: WebSocket):
         max_rounds = 3
         knowledge_chain = []  # Accumulated knowledge across rounds
         turn_orders = {}  # Track randomized turn order for each round
+        
+        # Log participants to debug logger
+        all_participants = debate_agents + ['oneseek']
+        debug_logger.set_participants(all_participants)
         
         await websocket.send_json({
             "type": "debate_init",
@@ -13135,6 +13146,9 @@ async def websocket_live_debate(websocket: WebSocket):
             round_turn_order = all_participants
             
             turn_orders[round_num] = round_turn_order
+            
+            # Log round start to debug logger
+            debug_logger.log_round_start(round_num, round_turn_order)
             
             await websocket.send_json({
                 "type": "round_start",
@@ -13201,6 +13215,10 @@ GE DITT SVAR NU:"""
                     if not endpoint:
                         raise Exception(f"Tjänst {agent_name} inte tillgänglig")
                     
+                    # Log the external request to debug logger
+                    position_in_round = agent_positions.get(agent_name, -1) if 'agent_positions' in locals() else -1
+                    debug_logger.log_external_request(round_num, agent_name, debate_prompt, position_in_round)
+                    
                     # CRITICAL FIX: Run synchronous requests.post in executor to avoid blocking
                     # This allows truly parallel fetching - responses arrive independently
                     loop = asyncio.get_event_loop()
@@ -13215,11 +13233,17 @@ GE DITT SVAR NU:"""
                     response.raise_for_status()
                     result = response.json()
                     
+                    response_text = result.get('response', '')
+                    success = bool(response_text)
+                    
+                    # Log the external response to debug logger
+                    debug_logger.log_external_response(round_num, agent_name, response_text, success)
+                    
                     return {
                         'agent': agent_name,
-                        'response': result.get('response', ''),
+                        'response': response_text,
                         'model': result.get('model', agent_name),
-                        'success': bool(result.get('response'))
+                        'success': success
                     }
                         
                 except Exception as e:
@@ -13342,6 +13366,10 @@ Börja direkt – ingen inledning."""
                     comments_prompt = comments_template.replace('{agent_name}', agent_name.upper()).replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{agent_response}', agent_response[:300]).replace('{previous_comments_context}', previous_comments_context if previous_comments_context else "(Första kommentaren)")
                     
                     try:
+                        # Log the comments prompt to debug logger
+                        debug_logger.log_oneseek_processing(round_num, agent_name, "comments", 
+                                                            prompt=comments_prompt)
+                        
                         comments_text = generate_with_llama_server(
                             comments_prompt,
                             temperature=0.8,
@@ -13353,12 +13381,20 @@ Börja direkt – ingen inledning."""
                         if not comments_text or len(comments_text) < 20:
                             comments_text = f"{agent_name.upper()} ger ett intressant perspektiv på frågan. Jag ser värdefulla poänger som bidrar till debattens utveckling."
                         
+                        # Log the comments output to debug logger
+                        debug_logger.log_oneseek_processing(round_num, agent_name, "comments_output", 
+                                                            output=comments_text)
+                        
                         # Save to knowledge chain with 'comments' key
                         knowledge_chain.append({
                             'round': round_num,
                             'agent': agent_name,
                             'comments': comments_text
                         })
+                        
+                        # Log to knowledge chain in debug logger
+                        debug_logger.log_knowledge_chain_entry(round_num, agent_name, 
+                                                               comments=comments_text)
                         
                         # Emit COMMENTS event
                         comments_event = {
@@ -13429,6 +13465,10 @@ GE DIN ANALYS NU (börja direkt med substans):"""
                     reasoning_prompt = reasoning_template.replace('{agent_name}', agent_name.upper()).replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{agent_response}', agent_response).replace('{previous_reasoning_context}', previous_reasoning_context if previous_reasoning_context else "(Första analysen)")
                     
                     try:
+                        # Log the reasoning prompt to debug logger
+                        debug_logger.log_oneseek_processing(round_num, agent_name, "reasoning", 
+                                                            prompt=reasoning_prompt)
+                        
                         payload = {
                             "messages": [
                                 {"role": "system", "content": "Du är ONESEEK - ge detaljerat, specifikt och dynamiskt resonemang. Referera till konkreta detaljer. Bygg progressivt på ditt tänkande. Undvik generella fraser."},
@@ -13457,12 +13497,20 @@ GE DIN ANALYS NU (börja direkt med substans):"""
                         if not reasoning_text or len(reasoning_text) < 50:
                             reasoning_text = f"{agent_name.upper()} presenterar {agent_response[:50]}... vilket jag ser som en viktig del av debattens utveckling. Detta perspektiv kommer att vägas in i min kommande syntes."
                         
+                        # Log the reasoning output to debug logger
+                        debug_logger.log_oneseek_processing(round_num, agent_name, "reasoning_output", 
+                                                            output=reasoning_text)
+                        
                         # Save to knowledge chain with 'reasoning' key
                         knowledge_chain.append({
                             'round': round_num,
                             'agent': agent_name,
                             'reasoning': reasoning_text
                         })
+                        
+                        # Log to knowledge chain in debug logger
+                        debug_logger.log_knowledge_chain_entry(round_num, agent_name, 
+                                                               reasoning=reasoning_text)
                         
                         # Emit REASONING event
                         reasoning_event = {
@@ -13529,6 +13577,10 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
                         
                         insight_prompt = insights_template.replace('{clean_question}', clean_question).replace('{agent_name}', agent_name.upper()).replace('{responses_so_far}', str(responses_so_far)).replace('{total_agents}', str(total_agents)).replace('{round_num}', str(round_num)).replace('{agent_response}', agent_response[:250] + "...")
 
+                        # Log the insight prompt to debug logger
+                        debug_logger.log_oneseek_processing(round_num, agent_name, "insights", 
+                                                            prompt=insight_prompt)
+
                         insight_text = generate_with_llama_server(
                             insight_prompt,
                             temperature=0.85,
@@ -13539,6 +13591,10 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
                         # Fallback if generation fails or doesn't start with emoji
                         if not insight_text or not insight_text.startswith('💡'):
                             insight_text = f"💡 {agent_name.upper()} har delat sitt perspektiv - {responses_so_far}/{len(external_agents)} svar mottagna"
+                        
+                        # Log the insight output to debug logger
+                        debug_logger.log_oneseek_processing(round_num, agent_name, "insights_output", 
+                                                            output=insight_text)
                         
                         insight_event = {
                             "type": "live_insight",
@@ -13714,6 +13770,9 @@ Börja direkt med ditt bidrag – ingen inledning."""
             
             oneseek_context = oneseek_main_prompt
             
+            # Log OneSeek's own answer prompt to debug logger
+            debug_logger.log_oneseek_own_answer(round_num, oneseek_context, "")
+            
             # Generate OneSeek's OWN answer with streaming
             try:
                 payload = {
@@ -13742,6 +13801,9 @@ Börja direkt med ditt bidrag – ingen inledning."""
                 
                 # New format: response goes directly into answer (no REASONING: or ANSWER: prefixes)
                 answer = oneseek_full_response.strip()
+                
+                # Log OneSeek's own answer response to debug logger
+                debug_logger.log_oneseek_own_answer(round_num, oneseek_context, answer)
                 
                 # Stream OneSeek's own answer
                 # Get ONESEEK's position in turn order for rounds 2-3
@@ -14135,6 +14197,11 @@ Ditt svar:"""
                 
                 voting_prompt = voting_template.replace('{voter}', voter.upper()).replace('{clean_question}', clean_question).replace('{all_responses}', all_responses_text)
                 
+                # Log voting prompt to debug logger
+                included_agents = [resp['agent'] for resp in last_round['responses'] 
+                                  if resp['agent'] != voter and resp.get('success', False)]
+                debug_logger.log_voting_prompt(voter, voting_prompt, included_agents)
+                
                 # Call appropriate API based on voter
                 try:
                     if voter == 'oneseek':
@@ -14225,6 +14292,9 @@ Ditt svar:"""
                         motivation = f"{vote_for.upper()} presenterade de mest övertygande argumenten genom hela debatten."
                     
                     logger.info(f"[WS-Debate] {voter} voted for {vote_for} with {len(huvudpunkter)} huvudpunkter")
+                    
+                    # Log voting response to debug logger
+                    debug_logger.log_voting_response(voter, vote_response_text, vote_for, motivation)
                 
                 except Exception as e:
                     logger.error(f"[WS-Debate] Error getting vote from {voter} API: {e}")
@@ -14259,6 +14329,9 @@ Ditt svar:"""
         # Step 4: Count votes and crown winner
         winner = max(votes.items(), key=lambda x: x[1])[0] if votes else debate_agents[0]
         winner_votes = votes.get(winner, 0)
+        
+        # Log final results to debug logger
+        debug_logger.log_final_results(winner, votes)
         
         # OneSeek announces winner with analysis
         await websocket.send_json({
@@ -14356,6 +14429,23 @@ Skriv varmt, sakligt och auktoritativt. Använd rubriker exakt som ovan (fetstil
         })
         
         logger.info("[WS-Debate] Debate complete message sent")
+        
+        # Save debug log to file
+        try:
+            debug_log_path = debug_logger.save_to_file()
+            logger.info(f"[WS-Debate] ✅ Debug log saved to: {debug_log_path}")
+            
+            # Send debug log info to client
+            await websocket.send_json({
+                "type": "debug_log_saved",
+                "message": f"Debug log sparad: {os.path.basename(debug_log_path)}",
+                "data": {
+                    "file_path": debug_log_path,
+                    "summary": debug_logger.get_summary()
+                }
+            })
+        except Exception as debug_error:
+            logger.error(f"[WS-Debate] ❌ Error saving debug log: {debug_error}")
         
         # Save debate to Firebase via Node.js backend API for PES
         try:
