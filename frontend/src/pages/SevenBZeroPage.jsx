@@ -1937,6 +1937,11 @@ export default function SevenBZeroPage() {
         event.response = message.data?.full_response || message.response || message;
         break;
         
+      case 'oneseek_comments':
+        // Extract OneSeek comments
+        event.text = message.message || message.text || message.data?.comments;
+        event.tokens = message.data?.tokens || message.tokens || 0;
+        break;
         
       case 'oneseek_reasoning':
         // Extract OneSeek commentary/reasoning
