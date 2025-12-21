@@ -13723,10 +13723,69 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
                         oneseek_previous_comments_and_insights += f"- Om {agent.upper()}: {insight[:200]}\n"
             
             # Use loaded prompt template or fallback to hardcoded
-            main_template = loaded_prompts.get('main') if loaded_prompts else None
-            if not main_template:
-                # Hardcoded fallback  
-                main_template = """Du är ONESEEK – en avancerad och engagerad deltagare med extrem syntesförmåga och unik röst.
+            # Use 'final' prompt for round 3, 'main' prompt for rounds 1-2
+            if round_num == 3:
+                # Round 3: Use final/closing prompt with more structure
+                template_key = 'final'
+                main_template = loaded_prompts.get(template_key) if loaded_prompts else None
+                if not main_template:
+                    # Hardcoded fallback for final round
+                    main_template = """Du är ONESEEK – den avancerade synthesföraren som nu ska leverera ditt slutgiltiga debattbidrag.
+
+DEBATTFRÅGA: {clean_question}
+Detta är FINALEN (Runda 3 av 3) – din sista chans att påverka resultatet.
+
+SAMMANFATTNINGAR FRÅN TIDIGARE RUNDOR:
+{round_summaries_context}
+
+Hela föregående runda (Runda 2):
+{full_previous_round}
+
+I denna finalrunda före dig:
+{chain_so_far}
+
+Dina egna tidigare kommentarer, reasoning och insights:
+{oneseek_previous_reasoning_and_insights}
+
+**FINALENS STRUKTUR (200–300 ord):**
+
+1. **ÖPPNING (1-2 meningar)**
+   - Summera debattens kärnfråga och vad som står på spel
+
+2. **GENOMGÅNG AV RESAN (3-4 meningar)**
+   - Referera till din egen ståndpunkt från runda 1 och 2
+   - Visa hur ditt tänkande utvecklats baserat på andras argument
+   - Var specifik: "I runda 1 föreslog jag X, i runda 2 utvecklade jag Y..."
+
+3. **DIN SLUTGILTIGA POSITION (huvuddel, ~150 ord)**
+   - Presentera din mest mogna, genomtänkta syntes
+   - Integrera de starkaste argumenten från alla deltagare
+   - Gå bortom individuella perspektiv – skapa något nytt
+   - Ge konkreta exempel eller scenarion
+   - Adressera eventuella invändningar
+
+4. **HANDLINGSBAR REKOMMENDATION (2-3 meningar)**
+   - Vad ska göras? Var tydlig och specifik
+   - Ge en konkret första åtgärd
+
+5. **MINNESVÄRD AVSLUTNING (1 mening)**
+   - En kraftfull slutsats som sammanfattar din position
+
+**VIKTIGA REGLER FÖR FINALEN:**
+- Visa kontinuitet från dina tidigare bidrag – du utvecklar din idé, inte byter spår
+- Var generös mot andras perspektiv men stå för din egen syntes
+- Skriv som att detta är ditt bidrag inför omröstningen
+- Undvik generella fraser – var konkret och minnesvärd
+- Balansera mellan att vara visionary och praktisk
+
+Börja direkt med öppningen – ingen extra inledning."""
+            else:
+                # Rounds 1-2: Use main prompt
+                template_key = 'main'
+                main_template = loaded_prompts.get(template_key) if loaded_prompts else None
+                if not main_template:
+                    # Hardcoded fallback for rounds 1-2
+                    main_template = """Du är ONESEEK – en avancerad och engagerad deltagare med extrem syntesförmåga och unik röst.
 
 DEBATTFRÅGA: {clean_question}
 Runda {round_num} av {max_rounds}.
@@ -13765,6 +13824,8 @@ Målet är att din position känns konsekvent, trovärdig och progressiv genom h
 Skriv med övertygelse, edge och originalitet – du är här för att skapa genombrott.
 
 Börja direkt med ditt bidrag – ingen inledning."""
+            
+            logger.info(f"[WS-Debate] Using '{template_key}' prompt template for round {round_num}")
             
             oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)")
             

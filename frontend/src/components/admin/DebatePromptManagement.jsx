@@ -25,12 +25,23 @@ export default function DebatePromptManagement() {
     {
       id: 'main',
       name: 'MAIN_DEBATE_PROMPT',
-      description: "ONESEEK's primary debate contributions",
+      description: "ONESEEK's debate contributions for rounds 1-2",
       wordCount: '150-250 words',
       parameters: [
         '{clean_question}', '{round_num}', '{max_rounds}',
         '{round_summaries_context}', '{full_previous_round}',
         '{chain_so_far}', '{oneseek_previous_reasoning_and_insights}'
+      ]
+    },
+    {
+      id: 'final',
+      name: 'FINAL_ROUND_PROMPT',
+      description: "ONESEEK's structured final answer (round 3 only)",
+      wordCount: '200-300 words',
+      parameters: [
+        '{clean_question}', '{round_summaries_context}',
+        '{full_previous_round}', '{chain_so_far}',
+        '{oneseek_previous_reasoning_and_insights}'
       ]
     },
     {
