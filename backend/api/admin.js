@@ -3085,7 +3085,8 @@ router.put('/debate-prompts/:type', async (req, res) => {
  */
 router.get('/debate-temperatures', async (req, res) => {
   try {
-    const promptsDir = path.join(process.cwd(), '..', 'datasets', 'debate_prompts');
+    // Use __dirname to get reliable path (backend/api folder)
+    const promptsDir = path.join(__dirname, '..', '..', 'datasets', 'debate_prompts');
     const tempFile = path.join(promptsDir, 'temperatures.json');
     
     // Ensure directory exists
@@ -3141,7 +3142,8 @@ router.put('/debate-temperatures', async (req, res) => {
       }
     }
     
-    const promptsDir = path.join(process.cwd(), '..', 'datasets', 'debate_prompts');
+    // Use __dirname to get reliable path (backend/api folder)
+    const promptsDir = path.join(__dirname, '..', '..', 'datasets', 'debate_prompts');
     const tempFile = path.join(promptsDir, 'temperatures.json');
     
     // Ensure directory exists

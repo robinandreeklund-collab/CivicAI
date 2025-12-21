@@ -174,13 +174,15 @@ export default function DebatePromptManagement() {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to save temperatures');
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || data.message || 'Failed to save temperatures');
       }
       
       setTemperatureSuccess(true);
       setTimeout(() => setTemperatureSuccess(false), 3000);
     } catch (err) {
       setError(err.message);
+      console.error('Error saving temperatures:', err);
     } finally {
       setSavingTemperatures(false);
     }
