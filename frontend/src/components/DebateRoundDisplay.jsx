@@ -180,8 +180,8 @@ export default function DebateRoundDisplay({ round, aiData, isActive = false }) 
                       </div>
                     )}
 
-                    {/* REASONING - OneSeek's internal thought process (visible for transparency) */}
-                    {ai.reasoning && (
+                    {/* REASONING - Only shown for OneSeek's own answer, not for external AI analysis */}
+                    {isOneSeek && ai.reasoning && (
                       <div className="mt-3 pt-2 border-t border-[#1a1a1a]">
                         <div className="text-xs text-[#555] italic">
                           <span className="font-medium">REASONING:</span> {ai.reasoning}
