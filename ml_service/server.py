@@ -13236,15 +13236,28 @@ async def websocket_live_debate(websocket: WebSocket):
             responses_in_current_round = []
             
             def build_debate_prompt_for_agent(agent_name):
-                """Build debate prompt with progressive context from current round's turn order"""
+                """Build debate prompt with progressive context from current round's turn order
+                
+                Returns:
+                    tuple: (prompt, context_breakdown) where context_breakdown contains:
+                        - debate_context: Previous round context shown
+                        - debate_context_length: Length of previous context
+                        - current_round_context: Progressive context from current round
+                        - current_round_context_length: Length of current round context
+                        - responses_seen: List of agents whose responses are included
+                        - previous_round_num: Which round's context is shown
+                        - responses_seen_count: Number of responses from current round
+                """
                 # Build current round context from agents that already responded
                 current_round_context = ""
+                responses_seen = []
                 if responses_in_current_round:
                     current_round_context = "\\n\\nAKTUELL RUNDA - TIDIGARE SVAR:\\n"
                     for resp in responses_in_current_round:
                         if resp.get('success', False):
                             # Show COMPLETE responses from current round progressive context (no truncation)
                             current_round_context += f"\\n{resp['agent'].upper()}:\\n{resp['response']}\\n"
+                            responses_seen.append(resp['agent'])
                 
                 # Create debate prompt with both previous rounds and current round progressive context
                 prompt = f"""DEBATTFRÅGA: {clean_question}
@@ -13262,7 +13275,22 @@ INSTRUKTIONER FÖR DITT SVAR:
 - Fokus: Var konkret och lösningsorienterad
 
 GE DITT SVAR NU:"""
-                return prompt
+                
+                # Build context breakdown for debug logging
+                previous_round_num = debate_rounds[-1]['round'] if debate_rounds else None
+                context_breakdown = {
+                    "debate_context": debate_context,
+                    "debate_context_length": len(debate_context),
+                    "current_round_context": current_round_context,
+                    "current_round_context_length": len(current_round_context),
+                    "responses_seen": responses_seen,
+                    "responses_seen_count": len(responses_seen),
+                    "previous_round_num": previous_round_num,
+                    "has_previous_context": bool(debate_context),
+                    "has_current_round_context": bool(responses_seen)
+                }
+                
+                return prompt, context_breakdown
             
             async def get_external_response(agent_name):
                 """Get response from external AI service with progressive context - ASYNC to avoid blocking"""
@@ -13279,11 +13307,11 @@ GE DITT SVAR NU:"""
                         raise Exception(f"Tjänst {agent_name} inte tillgänglig")
                     
                     # Build dynamic prompt with progressive context from current round
-                    agent_prompt = build_debate_prompt_for_agent(agent_name)
+                    agent_prompt, context_breakdown = build_debate_prompt_for_agent(agent_name)
                     
-                    # Log the external request to debug logger
+                    # Log the external request to debug logger with context breakdown
                     position_in_round = agent_positions.get(agent_name, -1) if 'agent_positions' in locals() else -1
-                    debug_logger.log_external_request(round_num, agent_name, agent_prompt, position_in_round)
+                    debug_logger.log_external_request(round_num, agent_name, agent_prompt, position_in_round, context_breakdown)
                     
                     # CRITICAL FIX: Run synchronous requests.post in executor to avoid blocking
                     # This allows truly parallel fetching - responses arrive independently
@@ -14343,10 +14371,29 @@ Ditt svar:"""
                 
                 voting_prompt = voting_template.replace('{voter}', voter.upper()).replace('{voter_lower}', voter.lower()).replace('{clean_question}', clean_question).replace('{all_responses}', all_responses_text).replace('{other_agents_list}', other_agents_str)
                 
-                # Log voting prompt to debug logger
+                # Log voting prompt to debug logger with context breakdown
                 included_agents = [resp['agent'] for resp in last_round['responses'] 
                                   if resp['agent'] != voter and resp.get('success', False)]
-                debug_logger.log_voting_prompt(voter, voting_prompt, included_agents)
+                
+                # Build context breakdown for voting
+                round3_responses = {}
+                response_lengths = {}
+                for resp in last_round['responses']:
+                    if resp['agent'] != voter and resp.get('success', False):
+                        round3_responses[resp['agent']] = resp['response']
+                        response_lengths[resp['agent']] = len(resp['response'])
+                
+                voting_context_breakdown = {
+                    "round3_responses": round3_responses,
+                    "response_lengths": response_lengths,
+                    "total_context_length": sum(response_lengths.values()),
+                    "responses_shown_count": len(included_agents),
+                    "voter_can_see": included_agents,
+                    "voter_cannot_see": [voter],  # Voter cannot see their own response
+                    "all_responses_text_length": len(all_responses_text)
+                }
+                
+                debug_logger.log_voting_prompt(voter, voting_prompt, included_agents, voting_context_breakdown)
                 
                 # Call appropriate API based on voter
                 try:

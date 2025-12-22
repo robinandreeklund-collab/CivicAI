@@ -64,16 +64,36 @@ class DebateDebugLogger:
         }
         self.data["rounds"].append(round_data)
     
-    def log_external_request(self, round_num: int, agent: str, prompt: str, position: int):
-        """Log a request sent to an external AI."""
+    def log_external_request(self, round_num: int, agent: str, prompt: str, position: int,
+                            context_breakdown: dict = None):
+        """Log a request sent to an external AI.
+        
+        Args:
+            round_num: Current round number
+            agent: Agent name
+            prompt: Full prompt sent
+            position: Position in turn order
+            context_breakdown: Dict with context details:
+                - debate_context: Previous round context
+                - debate_context_length: Length of previous context
+                - current_round_context: Progressive context from current round
+                - current_round_context_length: Length of progressive context
+                - responses_seen: List of agents whose responses are included
+        """
         if round_num <= len(self.data["rounds"]):
-            self.data["rounds"][round_num - 1]["external_requests"].append({
+            request_entry = {
                 "agent": agent,
                 "position": position,
                 "prompt": prompt,
                 "prompt_length": len(prompt),
                 "timestamp": datetime.now().isoformat()
-            })
+            }
+            
+            # Add context breakdown if provided
+            if context_breakdown:
+                request_entry["context_breakdown"] = context_breakdown
+            
+            self.data["rounds"][round_num - 1]["external_requests"].append(request_entry)
     
     def log_external_response(self, round_num: int, agent: str, response: str, success: bool):
         """Log a response received from an external AI."""
@@ -151,7 +171,7 @@ class DebateDebugLogger:
             }
     
     def log_voting_prompt(self, voter: str, prompt: str, 
-                         included_responses: list):
+                         included_responses: list, context_breakdown: dict = None):
         """
         Log a voting prompt sent to an agent.
         
@@ -159,14 +179,24 @@ class DebateDebugLogger:
             voter: The agent voting
             prompt: The full voting prompt
             included_responses: List of responses included in the prompt
+            context_breakdown: Dict with details about what context was included:
+                - round3_responses: Complete Round 3 responses shown
+                - response_lengths: Length of each response
+                - total_context_length: Total length of all context
         """
-        self.data["voting"]["prompts"].append({
+        vote_entry = {
             "voter": voter,
             "prompt": prompt,
             "prompt_length": len(prompt),
             "included_responses": included_responses,
             "timestamp": datetime.now().isoformat()
-        })
+        }
+        
+        # Add context breakdown if provided
+        if context_breakdown:
+            vote_entry["context_breakdown"] = context_breakdown
+        
+        self.data["voting"]["prompts"].append(vote_entry)
     
     def log_voting_response(self, voter: str, response: str, 
                            voted_for: str = None, reasoning: str = None):
