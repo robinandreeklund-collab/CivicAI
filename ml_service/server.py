@@ -13217,15 +13217,16 @@ async def websocket_live_debate(websocket: WebSocket):
                 event_sequence['counter'] += 1
                 return event_sequence['counter']
             
-            # Build context from previous rounds - COMPLETE responses
+            # Build context from ONLY the immediate previous round - COMPLETE responses
             debate_context = ""
             if debate_rounds:
-                debate_context = "\\n\\nBAKGRUND - TIDIGARE RUNDOR:\\n"
-                for prev_round in debate_rounds:
-                    debate_context += f"\\nRunda {prev_round['round']}:\\n"
-                    for resp in prev_round['responses']:
-                        # Show COMPLETE responses from previous rounds (no truncation)
-                        debate_context += f"- {resp['agent'].upper()}: {resp['response']}\\n"
+                # Only include the most recent completed round (not all previous rounds)
+                last_round = debate_rounds[-1]
+                debate_context = f"\\n\\nBAKGRUND - FÖREGÅENDE RUNDA:\\n"
+                debate_context += f"\\nRunda {last_round['round']}:\\n"
+                for resp in last_round['responses']:
+                    # Show COMPLETE responses from previous round (no truncation)
+                    debate_context += f"- {resp['agent'].upper()}: {resp['response']}\\n"
             
             # NEW ARCHITECTURE: Process agents in turn order
             # All rounds now use the same logic - process in randomized turn order
