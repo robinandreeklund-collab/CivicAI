@@ -13227,11 +13227,32 @@ async def websocket_live_debate(websocket: WebSocket):
                         # Limit context to prevent token overflow (max 150 chars per response)
                         debate_context += f"- {resp['agent'].upper()}: {resp['response'][:150]}...\\n"
             
-            # Create debate prompt for this round with improved structure
-            # Segment: Background vs Current Round (Runda-1 style)
-            debate_prompt = f"""DEBATTFRÅGA: {clean_question}
+            # NEW ARCHITECTURE: Process agents in turn order
+            # All rounds now use the same logic - process in randomized turn order
+            external_agents = [a for a in round_turn_order if a != 'oneseek']
+            
+            # Track responses in current round for progressive context
+            responses_in_current_round = []
+            
+            def build_debate_prompt_for_agent(agent_name):
+                """Build debate prompt with progressive context from current round's turn order"""
+                # Build current round context from agents that already responded
+                current_round_context = ""
+                if responses_in_current_round:
+                    current_round_context = "\\n\\nAKTUELL RUNDA - TIDIGARE SVAR:\\n"
+                    for resp in responses_in_current_round:
+                        if resp.get('success', False):
+                            # Include up to 300 chars from each previous response in same round
+                            response_snippet = resp['response'][:300]
+                            if len(resp['response']) > 300:
+                                response_snippet += "..."
+                            current_round_context += f"\\n{resp['agent'].upper()}:\\n{response_snippet}\\n"
+                
+                # Create debate prompt with both previous rounds and current round progressive context
+                prompt = f"""DEBATTFRÅGA: {clean_question}
 
 {debate_context}
+{current_round_context}
 
 AKTUELL RUNDA ({round_num}/{max_rounds}):
 Detta är en interaktiv AI-debatt där du nu ska ge ditt perspektiv.
@@ -13243,13 +13264,10 @@ INSTRUKTIONER FÖR DITT SVAR:
 - Fokus: Var konkret och lösningsorienterad
 
 GE DITT SVAR NU:"""
-            
-            # NEW ARCHITECTURE: Process agents in turn order
-            # All rounds now use the same logic - process in randomized turn order
-            external_agents = [a for a in round_turn_order if a != 'oneseek']
+                return prompt
             
             async def get_external_response(agent_name):
-                """Get response from external AI service - ASYNC to avoid blocking"""
+                """Get response from external AI service with progressive context - ASYNC to avoid blocking"""
                 try:
                     service_endpoints = {
                         'gpt': f'{BACKEND_API_URL}/api/external/openai',
@@ -13262,9 +13280,12 @@ GE DITT SVAR NU:"""
                     if not endpoint:
                         raise Exception(f"Tjänst {agent_name} inte tillgänglig")
                     
+                    # Build dynamic prompt with progressive context from current round
+                    agent_prompt = build_debate_prompt_for_agent(agent_name)
+                    
                     # Log the external request to debug logger
                     position_in_round = agent_positions.get(agent_name, -1) if 'agent_positions' in locals() else -1
-                    debug_logger.log_external_request(round_num, agent_name, debate_prompt, position_in_round)
+                    debug_logger.log_external_request(round_num, agent_name, agent_prompt, position_in_round)
                     
                     # CRITICAL FIX: Run synchronous requests.post in executor to avoid blocking
                     # This allows truly parallel fetching - responses arrive independently
@@ -13273,7 +13294,7 @@ GE DITT SVAR NU:"""
                         None,  # Use default ThreadPoolExecutor
                         lambda: requests.post(
                             endpoint,
-                            json={'question': debate_prompt},
+                            json={'question': agent_prompt},
                             timeout=30
                         )
                     )
@@ -13585,6 +13606,9 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
                     response = await get_and_process_immediately(agent_name, position=agent_positions[agent_name], get_sequence=get_next_sequence)
                     if response.get('success', False):
                         round_responses.append(response)
+                        # Add to progressive context for subsequent agents
+                        responses_in_current_round.append(response)
+                        logger.info(f"[WS-Debate] Added {agent_name}'s response to progressive context. Total in round so far: {len(responses_in_current_round)}")
             
             # If ONESEEK hasn't appeared yet in turn order, it means it comes after current position
             oneseek_position = round_turn_order.index('oneseek') if 'oneseek' in round_turn_order else -1
@@ -14053,7 +14077,9 @@ Förklara HUR du byggde ditt svar:
                     'success': True
                 }
                 round_responses.append(oneseek_resp)
-                logger.info(f"[WS-Debate] ONESEEK own answer complete for round {round_num}")
+                # Add OneSeek's response to progressive context for agents that come after
+                responses_in_current_round.append(oneseek_resp)
+                logger.info(f"[WS-Debate] ONESEEK own answer complete for round {round_num}. Added to progressive context.")
                 
             except Exception as e:
                 logger.error(f"[WS-Debate] Error generating ONESEEK own answer: {e}")
@@ -14090,7 +14116,9 @@ Förklara HUR du byggde ditt svar:
                         
                         if response.get('success', False):
                             round_responses.append(response)
-                            logger.info(f"[WS-Debate] {agent_name} responded after ONESEEK in round {round_num} at position {agent_positions[agent_name]}")
+                            # Add to progressive context for subsequent agents
+                            responses_in_current_round.append(response)
+                            logger.info(f"[WS-Debate] {agent_name} responded after ONESEEK in round {round_num} at position {agent_positions[agent_name]}. Added to progressive context.")
             
             # Generate round summary/compression (5 key learnings)
             logger.info(f"[WS-Debate] Generating round {round_num} summary...")
