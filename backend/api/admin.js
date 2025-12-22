@@ -3115,10 +3115,12 @@ router.put('/debate-prompts/:type', async (req, res) => {
  * Fetch temperature settings for all debate prompt types
  */
 router.get('/debate-temperatures', async (req, res) => {
+  console.log('[Temperature API] GET /api/admin/debate-temperatures called');
   try {
     // Use __dirname to get reliable path (backend/api folder)
     const promptsDir = path.join(__dirname, '..', '..', 'datasets', 'debate_prompts');
     const tempFile = path.join(promptsDir, 'temperatures.json');
+    console.log('[Temperature API] Looking for file at:', tempFile);
     
     // Ensure directory exists
     await fs.mkdir(promptsDir, { recursive: true });
@@ -3127,9 +3129,11 @@ router.get('/debate-temperatures', async (req, res) => {
     try {
       await fs.access(tempFile);
       const data = await fs.readFile(tempFile, 'utf-8');
+      console.log('[Temperature API] File found, returning temperatures');
       res.json(JSON.parse(data));
     } catch {
       // File doesn't exist, return defaults
+      console.log('[Temperature API] File not found, creating with defaults');
       const defaultTemperatures = {
         round1: 0.7,
         round2: 0.7,
@@ -3142,10 +3146,11 @@ router.get('/debate-temperatures', async (req, res) => {
       
       // Save defaults to file
       await fs.writeFile(tempFile, JSON.stringify(defaultTemperatures, null, 2), 'utf-8');
+      console.log('[Temperature API] Defaults saved and returned');
       res.json(defaultTemperatures);
     }
   } catch (error) {
-    console.error('Error fetching debate temperatures:', error);
+    console.error('[Temperature API] Error fetching debate temperatures:', error);
     res.status(500).json({ error: 'Failed to fetch debate temperatures', message: error.message });
   }
 });
@@ -3155,10 +3160,13 @@ router.get('/debate-temperatures', async (req, res) => {
  * Update temperature settings for debate prompts
  */
 router.put('/debate-temperatures', async (req, res) => {
+  console.log('[Temperature API] PUT /api/admin/debate-temperatures called');
+  console.log('[Temperature API] Request body:', JSON.stringify(req.body, null, 2));
   try {
     const { temperatures } = req.body;
     
     if (!temperatures || typeof temperatures !== 'object') {
+      console.log('[Temperature API] Error: Invalid request body');
       return res.status(400).json({ error: 'Temperatures object is required' });
     }
     
@@ -3166,9 +3174,11 @@ router.put('/debate-temperatures', async (req, res) => {
     const validTypes = ['round1', 'round2', 'final', 'comments', 'reasoning', 'reasoning_own', 'insights'];
     for (const [key, value] of Object.entries(temperatures)) {
       if (!validTypes.includes(key)) {
+        console.log(`[Temperature API] Error: Invalid type ${key}`);
         return res.status(400).json({ error: `Invalid temperature type: ${key}` });
       }
       if (typeof value !== 'number' || value < 0 || value > 2) {
+        console.log(`[Temperature API] Error: Invalid value for ${key}: ${value}`);
         return res.status(400).json({ error: `Temperature for ${key} must be a number between 0 and 2` });
       }
     }
@@ -3176,6 +3186,7 @@ router.put('/debate-temperatures', async (req, res) => {
     // Use __dirname to get reliable path (backend/api folder)
     const promptsDir = path.join(__dirname, '..', '..', 'datasets', 'debate_prompts');
     const tempFile = path.join(promptsDir, 'temperatures.json');
+    console.log('[Temperature API] Saving to file:', tempFile);
     
     // Ensure directory exists
     await fs.mkdir(promptsDir, { recursive: true });
@@ -3203,6 +3214,7 @@ router.put('/debate-temperatures', async (req, res) => {
     
     // Save to file
     await fs.writeFile(tempFile, JSON.stringify(updatedTemperatures, null, 2), 'utf-8');
+    console.log('[Temperature API] Successfully saved temperatures');
     
     res.json({ 
       success: true, 
@@ -3210,7 +3222,7 @@ router.put('/debate-temperatures', async (req, res) => {
       temperatures: updatedTemperatures
     });
   } catch (error) {
-    console.error('Error updating debate temperatures:', error);
+    console.error('[Temperature API] Error updating debate temperatures:', error);
     res.status(500).json({ error: 'Failed to update debate temperatures', message: error.message });
   }
 });
