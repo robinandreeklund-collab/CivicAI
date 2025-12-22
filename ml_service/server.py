@@ -14287,7 +14287,14 @@ Svara ENDAST med ett tal 0-100, inget annat."""
                 # Use loaded prompt template or fallback to hardcoded
                 voting_template = loaded_prompts.get('voting') if loaded_prompts else None
                 if not voting_template:
+                    # Build list of other agents for the prompt
+                    other_agents_str = ', '.join([a.upper() for a in other_agents])
+                    
                     voting_template = """Du är {voter} och ska rösta på bästa svaret i debatten.
+
+⚠️ VIKTIGT: Du får ABSOLUT INTE rösta på dig själv ({voter})!
+
+Tillgängliga agenter att rösta på: {other_agents_list}
 
 ORIGINAL FRÅGA:
 {clean_question}
@@ -14296,12 +14303,14 @@ DEBATT-SAMMANFATTNING:
 {all_responses}
 
 INSTRUKTIONER:
-1. Rösta på det svar du personligen tycker är mest övertygande (du får INTE rösta på ditt eget svar)
-2. Undvik att använda ord som "bäst" eller "överlägsen" – beskriv istället varför just det svaret talar mest till dig
-3. Ge en kort motivering (1–2 meningar)
-4. Nämn 3 huvudpunkter utöver motiveringen varför detta förslag ska vinna
+1. Rösta på det svar du personligen tycker är mest övertygande
+2. Du får INTE rösta på ditt eget svar ({voter})
+3. Välj endast från: {other_agents_list}
+4. Undvik att använda ord som "bäst" eller "överlägsen" – beskriv istället varför just det svaret talar mest till dig
+5. Ge en kort motivering (1–2 meningar)
+6. Nämn 3 huvudpunkter utöver motiveringen varför detta förslag ska vinna
 
-Format:
+Format (följ exakt):
 RÖST: [agent-namn]
 MOTIVERING: [din motivering]
 HUVUDPUNKTER:
@@ -14310,8 +14319,11 @@ HUVUDPUNKTER:
 3. [punkt 3]
 
 Ditt svar:"""
+                else:
+                    # If using loaded template, ensure other_agents_str is defined
+                    other_agents_str = ', '.join([a.upper() for a in other_agents])
                 
-                voting_prompt = voting_template.replace('{voter}', voter.upper()).replace('{clean_question}', clean_question).replace('{all_responses}', all_responses_text)
+                voting_prompt = voting_template.replace('{voter}', voter.upper()).replace('{clean_question}', clean_question).replace('{all_responses}', all_responses_text).replace('{other_agents_list}', other_agents_str)
                 
                 # Log voting prompt to debug logger
                 included_agents = [resp['agent'] for resp in last_round['responses'] 
@@ -14367,6 +14379,7 @@ Ditt svar:"""
                     
                     # Parse RÖST and MOTIVERING from response
                     import re
+                    import random
                     vote_for = None
                     motivation = ""
                     huvudpunkter = []
@@ -14389,10 +14402,23 @@ Ditt svar:"""
                         punkter = re.findall(r'^\d+\.\s*(.+?)$', punkter_text, re.MULTILINE)
                         huvudpunkter = [p.strip() for p in punkter if p.strip()]
                     
-                    # Validate vote is for a valid agent (not self)
-                    if vote_for not in other_agents:
-                        logger.warning(f"[WS-Debate] {voter} voted for invalid agent '{vote_for}', choosing first from list")
-                        vote_for = other_agents[0]
+                    # Validate vote with 3-stage checking
+                    vote_status = "valid"
+                    if vote_for is None:
+                        logger.warning(f"[WS-Debate] {voter} didn't provide valid RÖST format")
+                        logger.info(f"[WS-Debate] Available agents: {other_agents}")
+                        vote_for = random.choice(other_agents)
+                        vote_status = "no vote parsed - random"
+                    elif vote_for == voter:
+                        logger.warning(f"[WS-Debate] {voter} tried to self-vote (forbidden)")
+                        logger.info(f"[WS-Debate] Available agents: {other_agents}")
+                        vote_for = random.choice(other_agents)
+                        vote_status = "self-vote blocked - random"
+                    elif vote_for not in other_agents:
+                        logger.warning(f"[WS-Debate] {voter} voted for '{vote_for}' (not in this debate)")
+                        logger.info(f"[WS-Debate] Available agents: {other_agents}")
+                        vote_for = random.choice(other_agents)
+                        vote_status = "invalid agent - random"
                     
                     # Ensure motivation is not empty
                     if not motivation:
@@ -14407,7 +14433,7 @@ Ditt svar:"""
                     if not motivation:
                         motivation = f"{vote_for.upper()} presenterade de mest övertygande argumenten genom hela debatten."
                     
-                    logger.info(f"[WS-Debate] {voter} voted for {vote_for} with {len(huvudpunkter)} huvudpunkter")
+                    logger.info(f"[WS-Debate] {voter} voted for {vote_for} with {len(huvudpunkter)} huvudpunkter ({vote_status})")
                     
                     # Log voting response to debug logger
                     debug_logger.log_voting_response(voter, vote_response_text, vote_for, motivation)
