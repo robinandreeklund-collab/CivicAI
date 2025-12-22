@@ -80,10 +80,13 @@ Din insight (börja med 💡, max 25 ord):
 - `{clean_question}` - The debate question
 - `{round_num}` - Current round number (will be "1")
 - `{max_rounds}` - Total number of rounds (typically "3")
-- `{round_summaries_context}` - Summaries from previous rounds (empty in round 1)
+- `{round_summaries_previous}` - **NEW**: Summaries from completed rounds only (empty in round 1)
 - `{full_previous_round}` - Complete previous round conversation (empty in round 1)
 - `{chain_so_far}` - All responses collected so far in current round
-- `{oneseek_previous_reasoning_and_insights}` - OneSeek's previous comments and insights from this round
+- `{comments_chain_so_far}` - **NEW**: OneSeek's comments from current round
+- `{insights_chain_so_far}` - **NEW**: OneSeek's insights from current round
+- `{reasoning_chain_so_far}` - **NEW**: OneSeek's reasoning from current round (if any)
+- ~~`{oneseek_previous_reasoning_and_insights}`~~ - **DEPRECATED**: Use granular parameters above
 
 **Usage Example:**
 ```
@@ -94,8 +97,9 @@ FRÅGA: {clean_question}
 ANDRA AI-SVAR HITTILLS:
 {chain_so_far}
 
-DINA OBSERVATIONER HITTILLS:
-{oneseek_previous_reasoning_and_insights}
+DINA KOMMENTARER OCH INSIGHTS HITTILLS:
+KOMMENTARER: {comments_chain_so_far}
+INSIGHTS: {insights_chain_so_far}
 
 UPPGIFT: Etablera din position (150-250 ord). Tydlig ståndpunkt + kärnargument + exempel.
 
@@ -111,10 +115,13 @@ DITT SVAR:
 - `{clean_question}` - The debate question
 - `{round_num}` - Current round number (will be "2")
 - `{max_rounds}` - Total number of rounds (typically "3")
-- `{round_summaries_context}` - Summaries from previous rounds
+- `{round_summaries_previous}` - **NEW**: Summaries from completed round 1
 - `{full_previous_round}` - Complete previous round conversation
 - `{chain_so_far}` - All responses collected so far in current round
-- `{oneseek_previous_reasoning_and_insights}` - OneSeek's previous comments and insights from this round
+- `{comments_chain_so_far}` - **NEW**: OneSeek's comments from current round (round 2)
+- `{insights_chain_so_far}` - **NEW**: OneSeek's insights from current round (round 2)
+- `{reasoning_chain_so_far}` - **NEW**: OneSeek's reasoning from current round (if any)
+- ~~`{oneseek_previous_reasoning_and_insights}`~~ - **DEPRECATED**: Use granular parameters above
 
 **Usage Example:**
 ```
@@ -123,7 +130,7 @@ RUNDA {round_num}/{max_rounds}
 FRÅGA: {clean_question}
 
 FÖREGÅENDE RUNDA:
-{round_summaries_context}
+{round_summaries_previous}
 
 NYA SVAR DENNA RUNDA:
 {chain_so_far}
@@ -145,10 +152,13 @@ DITT SVAR:
 - `{clean_question}` - The debate question
 - `{round_num}` - Current round number (will be "3")
 - `{max_rounds}` - Total number of rounds (typically "3")
-- `{round_summaries_context}` - Summaries from all previous rounds
+- `{round_summaries_previous}` - **NEW**: Summaries from rounds 1 and 2
 - `{full_previous_round}` - Complete previous round conversation
 - `{chain_so_far}` - All responses collected so far in current round
-- `{oneseek_previous_reasoning_and_insights}` - OneSeek's previous comments and insights from this round
+- `{comments_chain_so_far}` - **NEW**: OneSeek's comments from current round (round 3)
+- `{insights_chain_so_far}` - **NEW**: OneSeek's insights from current round (round 3)
+- `{reasoning_chain_so_far}` - **NEW**: OneSeek's reasoning from current round (if any)
+- ~~`{oneseek_previous_reasoning_and_insights}`~~ - **DEPRECATED**: Use granular parameters above
 
 **Usage Example:**
 ```
@@ -157,7 +167,7 @@ FINAL RUNDA {round_num}/{max_rounds}
 FRÅGA: {clean_question}
 
 HELA DEBATTRESAN:
-{round_summaries_context}
+{round_summaries_previous}
 
 SENASTE ARGUMENTEN:
 {chain_so_far}
@@ -284,17 +294,20 @@ When a parameter has no data, it uses fallback text:
 | `{all_responses}` | String | voting | All final answers in debate |
 | `{chain_so_far}` | String | round1, round2, final | All responses in current round so far |
 | `{clean_question}` | String | ALL | Debate question without [debatt] prefix |
+| `{comments_chain_so_far}` | String | round1, round2, final | **NEW**: OneSeek's comments from current round |
 | `{full_previous_round}` | String | round1, round2, final | Complete previous round conversation |
+| `{insights_chain_so_far}` | String | round1, round2, final | **NEW**: OneSeek's insights from current round |
 | `{insights_from_round}` | String | reasoning_own | OneSeek's insights about external AIs in current round |
 | `{max_rounds}` | String | round1, round2, final | Total rounds (typically "3") |
 | `{oneseek_answer}` | String | reasoning_own | OneSeek's just-generated answer (first 500 chars) |
-| `{oneseek_previous_reasoning_and_insights}` | String | round1, round2, final | OneSeek's comments + insights this round |
+| ~~`{oneseek_previous_reasoning_and_insights}`~~ | ~~String~~ | ~~round1, round2, final~~ | **DEPRECATED**: Use `{comments_chain_so_far}` + `{insights_chain_so_far}` instead |
 | `{previous_comments_context}` | String | comments | Previous comments from this round |
+| `{reasoning_chain_so_far}` | String | round1, round2, final | **NEW**: OneSeek's reasoning from current round (if any) |
 | `{responses}` | String | round_summary | All responses in a round |
 | `{responses_in_round}` | String | reasoning_own | All external AI responses in current round formatted |
 | `{responses_so_far}` | String | insights | Number of responses received |
 | `{round_num}` | String | ALL | Current round number ("1", "2", or "3") |
-| `{round_summaries_context}` | String | round1, round2, final | Summaries of previous rounds |
+| `{round_summaries_previous}` | String | round1, round2, final | **NEW**: Summaries from completed rounds only (replaces `{round_summaries_context}`) |
 | `{total_agents}` | String | insights | Total number of participating agents |
 | `{voter}` | String | voting | Uppercase name of voting AI |
 
