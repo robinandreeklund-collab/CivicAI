@@ -14340,7 +14340,7 @@ Ditt svar:"""
                             f"{server_url}/v1/chat/completions",
                             json={
                                 "messages": [{"role": "user", "content": voting_prompt}],
-                                "max_tokens": 350,  # Increased to allow full RÖST + MOTIVERING + 3 HUVUDPUNKTER
+                                "max_tokens": 500,  # Increased to allow full RÖST + MOTIVERING + 3 HUVUDPUNKTER
                                 "temperature": 0.7,
                                 "stream": False
                             },
@@ -14368,7 +14368,10 @@ Ditt svar:"""
                             None,
                             lambda: requests.post(
                                 endpoint,
-                                json={'question': voting_prompt},
+                                json={
+                                    'question': voting_prompt,
+                                    'max_tokens': 500  # Allow full RÖST + MOTIVERING + 3 HUVUDPUNKTER
+                                },
                                 timeout=45
                             )
                         )
