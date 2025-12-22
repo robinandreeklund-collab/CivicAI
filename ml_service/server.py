@@ -13628,15 +13628,36 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
             else:
                 chain_so_far = "(Du är först i denna runda)"
             
-            # Build oneseek_previous_comments_and_insights from knowledge_chain for THIS round
-            oneseek_previous_comments_and_insights = ""
-            for insight_item in knowledge_chain:
-                if insight_item['round'] == round_num and insight_item.get('agent') != 'oneseek':
-                    # These are ONESEEK's comments on other agents in THIS round
-                    agent = insight_item.get('agent', 'unknown')
-                    insight = insight_item.get('insight', '')
-                    if insight:
-                        oneseek_previous_comments_and_insights += f"- Om {agent.upper()}: {insight[:200]}\n"
+            # Build granular knowledge chain parameters from knowledge_chain for THIS round
+            # Split into separate parameters for better prompt control
+            comments_chain_so_far = ""
+            insights_chain_so_far = ""
+            reasoning_chain_so_far = ""
+            
+            for knowledge_item in knowledge_chain:
+                if knowledge_item['round'] == round_num and knowledge_item.get('agent') != 'oneseek':
+                    agent = knowledge_item.get('agent', 'unknown')
+                    
+                    # Build comments chain
+                    if 'comments' in knowledge_item:
+                        comments_chain_so_far += f"**{agent.upper()}**: {knowledge_item['comments'][:150]}...\n\n"
+                    
+                    # Build insights chain
+                    if 'insight' in knowledge_item:
+                        insights_chain_so_far += f"💡 **{agent.upper()}**: {knowledge_item['insight']}\n"
+                    
+                    # Build reasoning chain (if any - currently not used for external AIs)
+                    if 'reasoning' in knowledge_item:
+                        reasoning_chain_so_far += f"**{agent.upper()} REASONING**: {knowledge_item['reasoning'][:200]}...\n\n"
+            
+            # Build round_summaries_previous - summaries from completed rounds only
+            round_summaries_previous = ""
+            for prev_round_num in range(1, round_num):
+                if prev_round_num in round_summaries:
+                    round_summaries_previous += f"**RUNDA {prev_round_num}**: {round_summaries[prev_round_num]}\n\n"
+            
+            # Keep old parameter for backwards compatibility but use new ones in templates
+            oneseek_previous_comments_and_insights = comments_chain_so_far + insights_chain_so_far
             
             # Use loaded prompt template or fallback to hardcoded
             # Use specific prompt for each round: round1, round2, final
@@ -13800,7 +13821,7 @@ Börja direkt med öppningen – ingen extra inledning."""
             main_answer_temperature = loaded_temperatures.get(template_key, 0.7)
             logger.info(f"[WS-Debate] Using temperature {main_answer_temperature} for {template_key}")
             
-            oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)")
+            oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)").replace('{comments_chain_so_far}', comments_chain_so_far if comments_chain_so_far else "(Inga kommentarer i denna runda än)").replace('{insights_chain_so_far}', insights_chain_so_far if insights_chain_so_far else "(Inga insights i denna runda än)").replace('{reasoning_chain_so_far}', reasoning_chain_so_far if reasoning_chain_so_far else "(Ingen reasoning i denna runda än)").replace('{round_summaries_previous}', round_summaries_previous if round_summaries_previous else "(Inga tidigare rundor än)")
             
             oneseek_context = oneseek_main_prompt
             

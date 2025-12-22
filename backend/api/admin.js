@@ -2774,8 +2774,12 @@ Hela föregående runda (Runda 1):
 I denna runda före dig:
 {chain_so_far}
 
-Dina egna tidigare kommentarer, reasoning och insights från runda 1:
-{oneseek_previous_reasoning_and_insights}
+Dina tidigare kommentarer och insights från denna runda:
+KOMMENTARER: {comments_chain_so_far}
+INSIGHTS: {insights_chain_so_far}
+
+Sammanfattningar från tidigare rundor:
+{round_summaries_previous}
 
 **UPPGIFT FÖR RUNDA 2 (150–250 ord):**
 
@@ -2822,8 +2826,12 @@ Hela föregående runda (Runda 2):
 I denna finalrunda före dig:
 {chain_so_far}
 
-Dina egna tidigare kommentarer, reasoning och insights:
-{oneseek_previous_reasoning_and_insights}
+Dina tidigare kommentarer och insights från denna runda:
+KOMMENTARER: {comments_chain_so_far}
+INSIGHTS: {insights_chain_so_far}
+
+Sammanfattningar från tidigare rundor:
+{round_summaries_previous}
 
 **FINALENS STRUKTUR (200–300 ord):**
 

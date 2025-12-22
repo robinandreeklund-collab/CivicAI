@@ -40,9 +40,9 @@ export default function DebatePromptManagement() {
       description: "ONESEEK's development and deepening (round 2 only)",
       wordCount: '150-250 words',
       parameters: [
-        '{clean_question}', '{round_summaries_context}',
+        '{clean_question}', '{round_summaries_previous}',
         '{full_previous_round}', '{chain_so_far}',
-        '{oneseek_previous_reasoning_and_insights}'
+        '{comments_chain_so_far}', '{insights_chain_so_far}', '{reasoning_chain_so_far}'
       ]
     },
     {
@@ -51,9 +51,9 @@ export default function DebatePromptManagement() {
       description: "ONESEEK's structured final answer (round 3 only)",
       wordCount: '200-300 words',
       parameters: [
-        '{clean_question}', '{round_summaries_context}',
+        '{clean_question}', '{round_summaries_previous}',
         '{full_previous_round}', '{chain_so_far}',
-        '{oneseek_previous_reasoning_and_insights}'
+        '{comments_chain_so_far}', '{insights_chain_so_far}', '{reasoning_chain_so_far}'
       ]
     },
     {
