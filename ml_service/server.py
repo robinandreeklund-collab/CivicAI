@@ -13176,14 +13176,19 @@ async def websocket_live_debate(websocket: WebSocket):
             
             # NEW CONSTRAINT: Last speaker from previous round cannot be first in next round
             # This ensures better debate flow and prevents same agent dominating transitions
-            if last_speaker_prev_round and round_num > 1:
-                # If last speaker from previous round is first, shuffle them elsewhere
-                if all_participants[0] == last_speaker_prev_round:
-                    logger.info(f"[WS-Debate] Ensuring {last_speaker_prev_round} (last in R{round_num-1}) doesn't go first in R{round_num}")
+            if round_num > 1:
+                logger.info(f"[WS-Debate] R{round_num} constraint check: last_speaker_prev_round={last_speaker_prev_round}, first_in_shuffle={all_participants[0]}")
+                if last_speaker_prev_round and all_participants[0] == last_speaker_prev_round:
+                    logger.info(f"[WS-Debate] APPLYING CONSTRAINT: {last_speaker_prev_round} (last in R{round_num-1}) won't go first in R{round_num}")
                     # Move them to a random position that's not first
                     all_participants.remove(last_speaker_prev_round)
                     new_position = random.randint(1, len(all_participants))
                     all_participants.insert(new_position, last_speaker_prev_round)
+                    logger.info(f"[WS-Debate] Moved {last_speaker_prev_round} to position {new_position}, new first: {all_participants[0]}")
+                elif last_speaker_prev_round:
+                    logger.info(f"[WS-Debate] No constraint needed - {all_participants[0]} is first (not {last_speaker_prev_round})")
+                else:
+                    logger.info(f"[WS-Debate] No constraint to apply - last_speaker_prev_round is None")
             
             round_turn_order = all_participants
             
@@ -14226,7 +14231,7 @@ Svara ENDAST med ett tal 0-100, inget annat."""
             
             # Track who spoke last in this round for next round's constraint
             last_speaker_prev_round = round_turn_order[-1]
-            logger.info(f"[WS-Debate] Last speaker in R{round_num}: {last_speaker_prev_round}")
+            logger.info(f"[WS-Debate] R{round_num} complete. Last speaker: {last_speaker_prev_round}. Turn order was: {round_turn_order}")
             
             await websocket.send_json({
                 "type": "round_end",
