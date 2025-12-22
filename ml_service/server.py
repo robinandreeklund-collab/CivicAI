@@ -14587,8 +14587,9 @@ Skriv varmt, sakligt och auktoritativt. Använd rubriker exakt som ovan (fetstil
             "data": {
                 "question": clean_question,
                 "rounds": len(debate_rounds),
-                "winner": winner,
-                "winner_votes": winner_votes,
+                "winners": winners,
+                "is_tie": is_tie,
+                "max_votes": max_votes,
                 "total_votes": len(vote_results),
                 "vote_results": vote_results,
                 "all_votes": votes,
@@ -14628,7 +14629,9 @@ Skriv varmt, sakligt och auktoritativt. Använd rubriker exakt som ovan (fetstil
                 "status": "completed",
                 "votes": votes,
                 "vote_results": vote_results,
-                "winner": winner,
+                "winners": winners,
+                "is_tie": is_tie,
+                "max_votes": max_votes,
                 "winning_analysis": summary_text,
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat()
