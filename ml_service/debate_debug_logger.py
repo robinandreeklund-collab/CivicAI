@@ -250,9 +250,9 @@ class DebateDebugLogger:
             "total_votes": len(self.data["voting"]["responses"])
         }
         
-        # Save to file with pretty printing
+        # Save to file with pretty printing (indent=4 for better readability)
         with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(self.data, f, indent=2, ensure_ascii=False)
+            json.dump(self.data, f, indent=4, ensure_ascii=False)
         
         return filepath
     
