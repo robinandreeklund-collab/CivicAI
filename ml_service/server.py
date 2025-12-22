@@ -13166,11 +13166,25 @@ async def websocket_live_debate(websocket: WebSocket):
         })
         
         # Conduct debate rounds with NEW queue-based architecture
+        last_speaker_prev_round = None  # Track who spoke last in previous round
+        
         for round_num in range(1, max_rounds + 1):
             # Generate randomized turn order for this round (random is imported at top)
             # ONESEEK is now included in random turn order for all rounds
             all_participants = debate_agents.copy() + ['oneseek']
             random.shuffle(all_participants)
+            
+            # NEW CONSTRAINT: Last speaker from previous round cannot be first in next round
+            # This ensures better debate flow and prevents same agent dominating transitions
+            if last_speaker_prev_round and round_num > 1:
+                # If last speaker from previous round is first, shuffle them elsewhere
+                if all_participants[0] == last_speaker_prev_round:
+                    logger.info(f"[WS-Debate] Ensuring {last_speaker_prev_round} (last in R{round_num-1}) doesn't go first in R{round_num}")
+                    # Move them to a random position that's not first
+                    all_participants.remove(last_speaker_prev_round)
+                    new_position = random.randint(1, len(all_participants))
+                    all_participants.insert(new_position, last_speaker_prev_round)
+            
             round_turn_order = all_participants
             
             turn_orders[round_num] = round_turn_order
@@ -14209,6 +14223,10 @@ Svara ENDAST med ett tal 0-100, inget annat."""
                 'summary': summary_text if 'summary_text' in locals() else '',
                 'consensus': consensus_pct if 'consensus_pct' in locals() else 50
             })
+            
+            # Track who spoke last in this round for next round's constraint
+            last_speaker_prev_round = round_turn_order[-1]
+            logger.info(f"[WS-Debate] Last speaker in R{round_num}: {last_speaker_prev_round}")
             
             await websocket.send_json({
                 "type": "round_end",
