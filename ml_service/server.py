@@ -13916,7 +13916,7 @@ Börja direkt med öppningen – ingen extra inledning."""
                 llm_response = requests.post(
                     f"{server_url}/v1/chat/completions",
                     json=payload,
-                    timeout=45,
+                    timeout=90,  # Increased from 45 to 90 seconds for longer context processing
                 )
                 llm_response.raise_for_status()
                 result = llm_response.json()
@@ -14038,7 +14038,7 @@ Förklara HUR du byggde ditt svar:
                     reasoning_response = requests.post(
                         f"{server_url}/v1/chat/completions",
                         json=reasoning_payload,
-                        timeout=45,  # Increased timeout for complex reasoning
+                        timeout=90,  # Increased from 45 to 90 seconds for complex reasoning with full context
                     )
                     reasoning_response.raise_for_status()
                     reasoning_result = reasoning_response.json()
@@ -14408,7 +14408,7 @@ Ditt svar:"""
                                 "temperature": 0.7,
                                 "stream": False
                             },
-                            timeout=30
+                            timeout=90  # Increased from 30 to 90 seconds for full context processing
                         )
                         vote_response.raise_for_status()
                         vote_result = vote_response.json()
