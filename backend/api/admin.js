@@ -3119,11 +3119,27 @@ router.put('/debate-prompts/:type', async (req, res) => {
 });
 
 /**
+ * TEST ENDPOINT to verify admin router is working
+ */
+router.get('/test-temperatures', (req, res) => {
+  console.log('[Temperature API TEST] Test endpoint called at', new Date().toISOString());
+  res.json({ 
+    success: true, 
+    message: 'Admin router is working!',
+    path: req.path,
+    timestamp: new Date().toISOString()
+  });
+});
+
+/**
  * GET /api/admin/debate-temperatures
  * Fetch temperature settings for all debate prompt types
  */
 router.get('/debate-temperatures', async (req, res) => {
-  console.log('[Temperature API] GET /api/admin/debate-temperatures called');
+  const timestamp = new Date().toISOString();
+  console.log(`[Temperature API] GET /api/admin/debate-temperatures called at ${timestamp}`);
+  console.log('[Temperature API] Request path:', req.path);
+  console.log('[Temperature API] Request URL:', req.url);
   try {
     // Use __dirname to get reliable path (backend/api folder)
     const promptsDir = path.join(__dirname, '..', '..', 'datasets', 'debate_prompts');
@@ -3155,11 +3171,12 @@ router.get('/debate-temperatures', async (req, res) => {
       // Save defaults to file
       await fs.writeFile(tempFile, JSON.stringify(defaultTemperatures, null, 2), 'utf-8');
       console.log('[Temperature API] Defaults saved and returned');
-      res.json(defaultTemperatures);
+      res.json({ temperatures: defaultTemperatures });
     }
   } catch (error) {
     console.error('[Temperature API] Error fetching debate temperatures:', error);
-    res.status(500).json({ error: 'Failed to fetch debate temperatures', message: error.message });
+    console.error('[Temperature API] Error stack:', error.stack);
+    res.status(500).json({ error: 'Failed to fetch debate temperatures', message: error.message, stack: error.stack });
   }
 });
 
@@ -3231,7 +3248,8 @@ router.put('/debate-temperatures', async (req, res) => {
     });
   } catch (error) {
     console.error('[Temperature API] Error updating debate temperatures:', error);
-    res.status(500).json({ error: 'Failed to update debate temperatures', message: error.message });
+    console.error('[Temperature API] Error stack:', error.stack);
+    res.status(500).json({ error: 'Failed to update debate temperatures', message: error.message, stack: error.stack });
   }
 });
 
