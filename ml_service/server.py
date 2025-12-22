@@ -14513,10 +14513,17 @@ Ditt svar:"""
                     voting_motivations += f"{i}. {punkt}\n"
             voting_motivations += "\n"
         
+        # Build result string for closing comment
+        if is_tie:
+            winners_str = " och ".join([w.upper() for w in winners])
+            result_str = f"{winners_str} delar segern med {max_votes} röster vardera"
+        else:
+            result_str = f"{winners[0].upper()} vann med {max_votes} röster"
+        
         closing_comment_prompt = f"""Du är ONESEEK – en opartisk och reflekterande debattledare som nu ska avsluta debatten på ett värdigt och insiktsfullt sätt.
 
 Debatten om "{clean_question}" är nu över.
-{winner.upper()} vann med {winner_votes} röster.
+{result_str}.
 
 Röstningsmotiveringar från modellerna (använd dessa som grund):
 {voting_motivations}
@@ -14529,11 +14536,11 @@ Tacka alla modeller för deras bidrag och den höga kvaliteten på diskussionen.
 **Debattens utveckling**  
 Summera kort huvudlinjerna och hur argumentationen utvecklades över rundorna (2–4 meningar).
 
-**Varför {winner.upper()} vann**  
-Förklara objektivt varför {winner.upper()} fick flest röster – baserat på motiveringarna och framträdande styrkor (t.ex. konsekvens, djup, syntesförmåga, praktiska lösningar).
+**Varför resultatet blev som det blev**  
+{"Förklara objektivt varför dessa agenter delade på segern" if is_tie else f"Förklara objektivt varför {winners[0].upper()} fick flest röster"} – baserat på motiveringarna och framträdande styrkor (t.ex. konsekvens, djup, syntesförmåga, praktiska lösningar).
 
-**Starka bidrag från andra**  
-Lyft fram minst ett värdefullt bidrag från en eller flera modeller som inte vann.
+**Starka bidrag från {"övriga" if is_tie else "andra"}**  
+Lyft fram minst ett värdefullt bidrag från en eller flera modeller som {"inte vann" if not is_tie else "också bidrog"}.
 
 **Lärdomar och öppna frågor**  
 Avsluta med en nyanserad reflektion: vad debatten visar, var det finns konsensus och vad som fortfarande är öppet.
@@ -14567,7 +14574,11 @@ Skriv varmt, sakligt och auktoritativt. Använd rubriker exakt som ovan (fetstil
             
         except Exception as e:
             logger.error(f"[WS-Debate] Error creating summary: {e}")
-            summary_text = f"Debatten handlade om: {clean_question}. {winner.upper()} vann med {winner_votes} röster baserat på tydlighet och substans."
+            if is_tie:
+                winners_str = " och ".join([w.upper() for w in winners])
+                summary_text = f"Debatten handlade om: {clean_question}. {winners_str} delade på segern med {max_votes} röster vardera baserat på tydlighet och substans."
+            else:
+                summary_text = f"Debatten handlade om: {clean_question}. {winners[0].upper()} vann med {max_votes} röster baserat på tydlighet och substans."
         
         # Send ONE combined final message with voting, winner, summary, completion
         await websocket.send_json({
