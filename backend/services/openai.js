@@ -67,9 +67,10 @@ För att verkligen kunna hjälpa dig rekommenderas att konsultera specialiserade
 /**
  * Get response from GPT-3.5
  * @param {string} question - User's question
+ * @param {number} maxTokens - Optional max tokens for response (default 2000)
  * @returns {Promise<{response: string, model: string}>}
  */
-export async function getOpenAIResponse(question) {
+export async function getOpenAIResponse(question, maxTokens = 2000) {
   if (!openai) {
     console.warn('⚠️  OpenAI API key not configured - using simulated response');
     return {
@@ -93,7 +94,7 @@ export async function getOpenAIResponse(question) {
         },
       ],
       temperature: 0.7,
-      max_tokens: 2000,  // Increased from 500 to support longer responses
+      max_tokens: maxTokens || 2000,  // Use provided maxTokens or default to 2000
     });
 
     return {

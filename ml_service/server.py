@@ -14381,16 +14381,28 @@ Ditt svar:"""
                         # Backend API returns {'response': '...'}
                         vote_response_text = vote_result.get('response', '').strip()
                     
+                    # Debug: Log the raw voting response for analysis
+                    logger.info(f"[WS-Debate] {voter} raw voting response (first 200 chars): {vote_response_text[:200]}")
+                    
                     # Parse RÖST and MOTIVERING from response
                     import re
                     vote_for = None
                     motivation = ""
                     huvudpunkter = []
                     
-                    # Look for RÖST: line
-                    rost_match = re.search(r'RÖST:\s*(\w+)', vote_response_text, re.IGNORECASE)
+                    # Look for RÖST: line with more flexible regex
+                    # Try multiple patterns to catch various formats
+                    rost_match = re.search(r'RÖST:\s*([a-zA-Z0-9_-]+)', vote_response_text, re.IGNORECASE)
+                    if not rost_match:
+                        # Try alternative format: "RÖST: agent" or "Röst: agent"
+                        rost_match = re.search(r'R[ÖO]ST:\s*([a-zA-Z0-9_-]+)', vote_response_text, re.IGNORECASE)
+                    if not rost_match:
+                        # Try to find agent name at start of line after any variation of "röst"
+                        rost_match = re.search(r'(?:röst|rost|vote):\s*([a-zA-Z0-9_-]+)', vote_response_text, re.IGNORECASE)
+                    
                     if rost_match:
                         vote_for = rost_match.group(1).lower()
+                        logger.info(f"[WS-Debate] {voter} parsed RÖST: {vote_for}")
                     
                     # Look for MOTIVERING: section (up to HUVUDPUNKTER or end)
                     motiv_match = re.search(r'MOTIVERING:\s*(.+?)(?=HUVUDPUNKTER:|$)', vote_response_text, re.IGNORECASE | re.DOTALL)
