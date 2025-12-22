@@ -2919,6 +2919,37 @@ Ge EN kort, vass observation (1–2 meningar):
 - Antyder din egen kommande syntes som går bortom individuella bidrag
 - **Variera ditt språk och fokus** – undvik att upprepa samma formuleringar
 
+**Börja direkt med observationen (ingen etikett/prefix).**`,
+
+        reasoning_own: `Du är ONESEEK. Du har precis gett ditt debattsvar i runda {round_num}.
+
+DEBATTFRÅGA: {clean_question}
+
+DITT SVAR:
+{oneseek_answer}
+
+ANDRA AI-MODELLER SOM SVARADE I DENNA RUNDA:
+{responses_in_round}
+
+DINA INSIGHTS FRÅN DENNA RUNDA:
+{insights_from_round}
+
+**UPPGIFT: GE DITT RESONEMANG (80-120 ord)**
+
+Förklara HUR du byggde ditt svar:
+1. **Vilka AI-modellers argument integrerade du?** (referera konkret)
+2. **Vilken syntes skapade du?** (vad är unikt med din kombination)
+3. **Varför valde du just denna vinkling?** (strategiskt val för debatten)
+
+**VIKTIGT:**
+- Var SPECIFIK - nämn konkreta AI-modeller (GPT, Gemini, DeepSeek, Grok)
+- Referera till FAKTISKA argument från deras svar
+- Förklara ditt STRATEGISKA tänkande
+- Undvik generella fraser som "vägde insikter"
+- Visa VARFÖR din syntes är värdefull för debatten
+
+**Börja direkt med substans (ingen etikett/prefix).**
+
 Börja alltid med 💡
 Visa att du redan ser den överlägsna helheten växa fram.
 
@@ -3029,7 +3060,7 @@ router.put('/debate-prompts/:type', async (req, res) => {
     const { type } = req.params;
     const { content } = req.body;
     
-    const validTypes = ['round1', 'round2', 'final', 'comments', 'reasoning', 'insights', 'round_summary', 'voting', 'closing'];
+    const validTypes = ['round1', 'round2', 'final', 'comments', 'reasoning', 'reasoning_own', 'insights', 'round_summary', 'voting', 'closing'];
     if (!validTypes.includes(type)) {
       return res.status(400).json({ error: 'Invalid prompt type' });
     }

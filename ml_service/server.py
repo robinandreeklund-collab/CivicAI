@@ -13878,32 +13878,60 @@ Börja direkt med öppningen – ingen extra inledning."""
                 # Show how OneSeek used insights from other responses to build its answer
                 reasoning = ""
                 try:
-                    # Build context from knowledge chain (comments on other AI responses)
-                    insights_context = ""
-                    for insight_item in knowledge_chain:
-                        if insight_item['round'] == round_num and insight_item.get('agent') != 'oneseek':
-                            insights_context += f"- {insight_item['agent'].upper()}: {insight_item['insight'][:150]}...\n"
+                    # Build context: responses from other AI models in this round
+                    responses_in_round = ""
+                    for chain_item in knowledge_chain:
+                        if chain_item['round'] == round_num and chain_item.get('agent') != 'oneseek' and 'response' in chain_item:
+                            responses_in_round += f"**{chain_item['agent'].upper()}**: {chain_item['response'][:200]}...\n\n"
                     
-                    reasoning_prompt = f"""Du är ONESEEK. Du har precis gett ditt debattsvar i runda {round_num}.
+                    # Build context: OneSeek's insights from this round
+                    insights_from_round = ""
+                    for insight_item in knowledge_chain:
+                        if insight_item['round'] == round_num and insight_item.get('agent') != 'oneseek' and 'insight' in insight_item:
+                            insights_from_round += f"- Om {insight_item['agent'].upper()}: {insight_item['insight']}\n"
+                    
+                    # Get reasoning_own prompt template (configurable from admin)
+                    reasoning_own_template = loaded_prompts.get('reasoning_own') if loaded_prompts else None
+                    
+                    if not reasoning_own_template:
+                        # Fallback if template not loaded
+                        reasoning_own_template = """Du är ONESEEK. Du har precis gett ditt debattsvar i runda {round_num}.
 
 DEBATTFRÅGA: {clean_question}
 
 DITT SVAR:
-{answer[:400]}...
+{oneseek_answer}
 
-DINA KOMMENTARER PÅ ANDRA AI-SVAR:
-{insights_context}
+ANDRA AI-MODELLER SOM SVARADE I DENNA RUNDA:
+{responses_in_round}
 
-UPPGIFT:
-Förklara din specifika tankegång bakom ditt svar (80-120 ord). Var KONKRET och DYNAMISK:
-- Vilka SPECIFIKA argument eller poänger från andra AI-svar påverkade dig mest? (nämn namn och vad de sa)
-- Vilka KONKRETA insights från dina kommentarer integrerade du?
-- Varför valde du att betona vissa perspektiv framför andra?
-- Hur balanserade du styrkor och svagheter från olika modeller?
+DINA INSIGHTS FRÅN DENNA RUNDA:
+{insights_from_round}
 
-Skriv som en äkta reflekterande AI som FAKTISKT använder all denna data. Var SPECIFIK, inte generell.
+**UPPGIFT: GE DITT RESONEMANG (80-120 ord)**
 
-GE DITT RESONEMANG NU (börja direkt med substans):"""
+Förklara HUR du byggde ditt svar:
+1. **Vilka AI-modellers argument integrerade du?** (referera konkret)
+2. **Vilken syntes skapade du?** (vad är unikt med din kombination)
+3. **Varför valde du just denna vinkling?** (strategiskt val för debatten)
+
+**VIKTIGT:**
+- Var SPECIFIK - nämn konkreta AI-modeller (GPT, Gemini, DeepSeek, Grok)
+- Referera till FAKTISKA argument från deras svar
+- Förklara ditt STRATEGISKA tänkande
+- Undvik generella fraser som "vägde insikter"
+- Visa VARFÖR din syntes är värdefull för debatten
+
+**Börja direkt med substans (ingen etikett/prefix).**"""
+                    
+                    # Fill in template parameters
+                    reasoning_prompt = reasoning_own_template.format(
+                        round_num=round_num,
+                        clean_question=clean_question,
+                        oneseek_answer=answer[:500],  # Include more of the answer for context
+                        responses_in_round=responses_in_round if responses_in_round else "Inga andra svar tillgängliga ännu.",
+                        insights_from_round=insights_from_round if insights_from_round else "Inga insights genererade ännu."
+                    )
                     
                     reasoning_payload = {
                         "messages": [

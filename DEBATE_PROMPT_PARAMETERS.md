@@ -177,7 +177,40 @@ DITT SLUTSVAR:
 
 ---
 
-### 6. ROUND SUMMARY PROMPT
+### 6. REASONING_OWN PROMPT (NEW)
+**Purpose:** OneSeek explains reasoning behind its own answer after generating it
+
+**Available Parameters:**
+- `{round_num}` - Current round number ("1", "2", or "3")
+- `{clean_question}` - The debate question without [debatt] prefix
+- `{oneseek_answer}` - OneSeek's just-generated answer (first 500 chars)
+- `{responses_in_round}` - All external AI responses in this round formatted with names
+- `{insights_from_round}` - OneSeek's insights about external AIs in this round
+
+**Usage Example:**
+```
+Du är ONESEEK. Förklara hur du byggde ditt svar i runda {round_num}.
+
+FRÅGA: {clean_question}
+
+DITT SVAR:
+{oneseek_answer}
+
+ANDRA AI-MODELLERS SVAR:
+{responses_in_round}
+
+DINA INSIGHTS:
+{insights_from_round}
+
+Beskriv ditt strategiska tänkande (80-120 ord):
+- Vilka AI-modeller påverkade dig?
+- Vilken syntes skapade du?
+- Varför denna vinkling?
+```
+
+---
+
+### 7. ROUND SUMMARY PROMPT
 **Purpose:** Summarize a round after all responses (internal use)
 
 **Available Parameters:**
@@ -199,8 +232,7 @@ Din sammanfattning (50-100 ord):
 
 ---
 
-### 7. VOTING PROMPT
-**Purpose:** Each AI votes for best answer (internal use)
+### 8. VOTING PROMPT
 
 **Available Parameters:**
 - `{voter}` - Name of the AI doing the voting (e.g., "GPT")
@@ -253,10 +285,13 @@ When a parameter has no data, it uses fallback text:
 | `{chain_so_far}` | String | round1, round2, final | All responses in current round so far |
 | `{clean_question}` | String | ALL | Debate question without [debatt] prefix |
 | `{full_previous_round}` | String | round1, round2, final | Complete previous round conversation |
+| `{insights_from_round}` | String | reasoning_own | OneSeek's insights about external AIs in current round |
 | `{max_rounds}` | String | round1, round2, final | Total rounds (typically "3") |
+| `{oneseek_answer}` | String | reasoning_own | OneSeek's just-generated answer (first 500 chars) |
 | `{oneseek_previous_reasoning_and_insights}` | String | round1, round2, final | OneSeek's comments + insights this round |
 | `{previous_comments_context}` | String | comments | Previous comments from this round |
 | `{responses}` | String | round_summary | All responses in a round |
+| `{responses_in_round}` | String | reasoning_own | All external AI responses in current round formatted |
 | `{responses_so_far}` | String | insights | Number of responses received |
 | `{round_num}` | String | ALL | Current round number ("1", "2", or "3") |
 | `{round_summaries_context}` | String | round1, round2, final | Summaries of previous rounds |

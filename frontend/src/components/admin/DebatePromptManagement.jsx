@@ -68,12 +68,22 @@ export default function DebatePromptManagement() {
     },
     {
       id: 'reasoning',
-      name: 'REASONING_PROMPT',
-      description: 'Deep analysis after each external AI response',
+      name: 'REASONING_PROMPT (NOT USED)',
+      description: 'Deep analysis after each external AI response - REMOVED from flow',
       wordCount: '80-120 words',
       parameters: [
         '{agent_name}', '{clean_question}', '{round_num}',
         '{agent_response}', '{previous_reasoning_context}'
+      ]
+    },
+    {
+      id: 'reasoning_own',
+      name: 'REASONING_OWN_PROMPT',
+      description: "ONESEEK's reasoning about its own answer (shown after OneSeek's answer)",
+      wordCount: '80-120 words',
+      parameters: [
+        '{round_num}', '{clean_question}', '{oneseek_answer}',
+        '{responses_in_round}', '{insights_from_round}'
       ]
     },
     {
