@@ -14305,25 +14305,26 @@ DEBATT-SAMMANFATTNING:
 INSTRUKTIONER:
 1. Rösta på det svar du personligen tycker är mest övertygande
 2. Du får INTE rösta på ditt eget svar ({voter})
-3. Välj endast från: {other_agents_list}
-4. Undvik att använda ord som "bäst" eller "överlägsen" – beskriv istället varför just det svaret talar mest till dig
-5. Ge en kort motivering (1–2 meningar)
-6. Nämn 3 huvudpunkter utöver motiveringen varför detta förslag ska vinna
+3. Du får INTE skriva {voter_lower} i RÖST-fältet
+4. Välj ENDAST från dessa agenter: {other_agents_list}
+5. Undvik att använda ord som "bäst" eller "överlägsen" – beskriv istället varför just det svaret talar mest till dig
+6. Ge en kort motivering (1–2 meningar)
+7. Nämn EXAKT 3 huvudpunkter utöver motiveringen varför detta förslag ska vinna
 
-Format (följ exakt):
-RÖST: [agent-namn]
-MOTIVERING: [din motivering]
+Format (följ EXAKT):
+RÖST: [agent-namn från listan ovan]
+MOTIVERING: [din motivering i 1-2 meningar]
 HUVUDPUNKTER:
-1. [punkt 1]
-2. [punkt 2]
-3. [punkt 3]
+1. [första punkten]
+2. [andra punkten]
+3. [tredje punkten]
 
 Ditt svar:"""
                 else:
                     # If using loaded template, ensure other_agents_str is defined
                     other_agents_str = ', '.join([a.upper() for a in other_agents])
                 
-                voting_prompt = voting_template.replace('{voter}', voter.upper()).replace('{clean_question}', clean_question).replace('{all_responses}', all_responses_text).replace('{other_agents_list}', other_agents_str)
+                voting_prompt = voting_template.replace('{voter}', voter.upper()).replace('{voter_lower}', voter.lower()).replace('{clean_question}', clean_question).replace('{all_responses}', all_responses_text).replace('{other_agents_list}', other_agents_str)
                 
                 # Log voting prompt to debug logger
                 included_agents = [resp['agent'] for resp in last_round['responses'] 
@@ -14339,7 +14340,7 @@ Ditt svar:"""
                             f"{server_url}/v1/chat/completions",
                             json={
                                 "messages": [{"role": "user", "content": voting_prompt}],
-                                "max_tokens": 200,
+                                "max_tokens": 350,  # Increased to allow full RÖST + MOTIVERING + 3 HUVUDPUNKTER
                                 "temperature": 0.7,
                                 "stream": False
                             },
