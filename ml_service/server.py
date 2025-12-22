@@ -13650,6 +13650,15 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
                     if 'reasoning' in knowledge_item:
                         reasoning_chain_so_far += f"**{agent.upper()} REASONING**: {knowledge_item['reasoning'][:200]}...\n\n"
             
+            # Build round_summaries dict from debate_rounds for easy lookup
+            round_summaries = {}
+            if debate_rounds:
+                for prev_round in debate_rounds:
+                    round_num_prev = prev_round.get('round', 0)
+                    summary = prev_round.get('summary', '')
+                    if summary:
+                        round_summaries[round_num_prev] = summary
+            
             # Build round_summaries_previous - summaries from completed rounds only
             round_summaries_previous = ""
             for prev_round_num in range(1, round_num):
