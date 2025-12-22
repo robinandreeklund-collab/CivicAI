@@ -13217,15 +13217,15 @@ async def websocket_live_debate(websocket: WebSocket):
                 event_sequence['counter'] += 1
                 return event_sequence['counter']
             
-            # Build context from previous rounds with token management
+            # Build context from previous rounds - COMPLETE responses
             debate_context = ""
             if debate_rounds:
                 debate_context = "\\n\\nBAKGRUND - TIDIGARE RUNDOR:\\n"
                 for prev_round in debate_rounds:
                     debate_context += f"\\nRunda {prev_round['round']}:\\n"
                     for resp in prev_round['responses']:
-                        # Limit context to prevent token overflow (max 150 chars per response)
-                        debate_context += f"- {resp['agent'].upper()}: {resp['response'][:150]}...\\n"
+                        # Show COMPLETE responses from previous rounds (no truncation)
+                        debate_context += f"- {resp['agent'].upper()}: {resp['response']}\\n"
             
             # NEW ARCHITECTURE: Process agents in turn order
             # All rounds now use the same logic - process in randomized turn order
@@ -13242,11 +13242,8 @@ async def websocket_live_debate(websocket: WebSocket):
                     current_round_context = "\\n\\nAKTUELL RUNDA - TIDIGARE SVAR:\\n"
                     for resp in responses_in_current_round:
                         if resp.get('success', False):
-                            # Include up to 300 chars from each previous response in same round
-                            response_snippet = resp['response'][:300]
-                            if len(resp['response']) > 300:
-                                response_snippet += "..."
-                            current_round_context += f"\\n{resp['agent'].upper()}:\\n{response_snippet}\\n"
+                            # Show COMPLETE responses from current round progressive context (no truncation)
+                            current_round_context += f"\\n{resp['agent'].upper()}:\\n{resp['response']}\\n"
                 
                 # Create debate prompt with both previous rounds and current round progressive context
                 prompt = f"""DEBATTFRÅGA: {clean_question}
@@ -13652,22 +13649,16 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
                 full_previous_round = f"RUNDA {last_round['round']} (KOMPLETT):\n\n"
                 for resp in last_round['responses']:
                     if resp.get('success', False):
-                        # Include more context from previous rounds (up to 500 chars per response)
-                        response_text = resp['response'][:500]
-                        if len(resp['response']) > 500:
-                            response_text += "..."
-                        full_previous_round += f"**{resp['agent'].upper()}**:\n{response_text}\n\n"
+                        # Show COMPLETE previous round responses (no truncation)
+                        full_previous_round += f"**{resp['agent'].upper()}**:\n{resp['response']}\n\n"
             
             # Build chain_so_far - only responses that came BEFORE ONESEEK in current round
             chain_so_far = ""
             if external_responses:
                 for ext_resp in external_responses:
                     if ext_resp.get('success', False):
-                        # Limit to 400 chars per response
-                        response_text = ext_resp['response'][:400]
-                        if len(ext_resp['response']) > 400:
-                            response_text += "..."
-                        chain_so_far += f"**{ext_resp['agent'].upper()}**: {response_text}\n\n"
+                        # Show COMPLETE chain_so_far responses (no truncation)
+                        chain_so_far += f"**{ext_resp['agent'].upper()}**: {ext_resp['response']}\n\n"
             else:
                 chain_so_far = "(Du är först i denna runda)"
             
@@ -14306,11 +14297,8 @@ Svara ENDAST med ett tal 0-100, inget annat."""
                     # Show responses in the order they appear (which matches turn_order)
                     for resp in last_round['responses']:
                         if resp['agent'] != voter and resp.get('success', False):
-                            # Include more of the response for better voting decision (up to 500 chars)
-                            response_text = resp['response'][:500]
-                            if len(resp['response']) > 500:
-                                response_text += "..."
-                            all_responses_text += f"\n{resp['agent'].upper()}:\n{response_text}\n"
+                            # Show COMPLETE Round 3 responses for accurate voting (no truncation)
+                            all_responses_text += f"\n{resp['agent'].upper()}:\n{resp['response']}\n"
                 
                 # Use loaded prompt template or fallback to hardcoded
                 voting_template = loaded_prompts.get('voting') if loaded_prompts else None
