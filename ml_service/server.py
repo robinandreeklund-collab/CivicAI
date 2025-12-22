@@ -14379,7 +14379,6 @@ Ditt svar:"""
                     
                     # Parse RÖST and MOTIVERING from response
                     import re
-                    import random
                     vote_for = None
                     motivation = ""
                     huvudpunkter = []
