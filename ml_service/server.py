@@ -14442,20 +14442,36 @@ Ditt svar:"""
             except Exception as e:
                 logger.error(f"[WS-Debate] Error in voting from {voter}: {e}")
         
-        # Step 4: Count votes and crown winner
-        winner = max(votes.items(), key=lambda x: x[1])[0] if votes else debate_agents[0]
-        winner_votes = votes.get(winner, 0)
+        # Step 4: Count votes and handle ties properly
+        if votes:
+            max_votes = max(votes.values())
+            # Find ALL agents with max votes (handles ties)
+            winners = [agent for agent, count in votes.items() if count == max_votes]
+            is_tie = len(winners) > 1
+        else:
+            # Fallback if no votes
+            winners = [debate_agents[0]]
+            max_votes = 0
+            is_tie = False
+        
+        # Build message based on tie or single winner
+        if is_tie:
+            winners_str = ", ".join([w.upper() for w in winners])
+            message = f"🏆 OAVGJORT! Vinnare: {winners_str} med {max_votes} röster vardera!"
+        else:
+            message = f"🏆 Vinnare: {winners[0].upper()} med {max_votes} röster!"
         
         # Log final results to debug logger
-        debug_logger.log_final_results(winner, votes)
+        debug_logger.log_final_results(winners, votes)
         
-        # OneSeek announces winner with analysis
+        # OneSeek announces winner(s) with analysis
         await websocket.send_json({
             "type": "winner",
-            "message": f"🏆 Vinnare: {winner.upper()} med {winner_votes} röster!",
+            "message": message,
             "data": {
-                "winner": winner,
-                "votes": winner_votes,
+                "winners": winners,  # Array of winners (1 or more)
+                "is_tie": is_tie,
+                "max_votes": max_votes,
                 "all_votes": votes,
                 "vote_results": vote_results
             }

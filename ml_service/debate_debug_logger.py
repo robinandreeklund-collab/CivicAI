@@ -186,11 +186,18 @@ class DebateDebugLogger:
         
         self.data["voting"]["responses"].append(vote_entry)
     
-    def log_final_results(self, winner: str, vote_counts: dict, 
+    def log_final_results(self, winners: list, vote_counts: dict, 
                          closing_statement: str = None):
-        """Log the final debate results."""
+        """Log the final debate results.
+        
+        Args:
+            winners: List of winner(s) - can be one or multiple in case of tie
+            vote_counts: Dictionary of vote counts for all agents
+            closing_statement: Optional closing statement from OneSeek
+        """
         self.data["final_results"] = {
-            "winner": winner,
+            "winners": winners,  # List of winners (handles ties)
+            "is_tie": len(winners) > 1,
             "vote_counts": vote_counts,
             "timestamp": datetime.now().isoformat()
         }
@@ -260,7 +267,11 @@ class DebateDebugLogger:
         summary.append(f"Votes Cast: {len(self.data['voting']['responses'])}")
         
         if self.data.get("final_results"):
-            winner = self.data["final_results"].get("winner", "Unknown")
-            summary.append(f"Winner: {winner}")
+            winners = self.data["final_results"].get("winners", ["Unknown"])
+            is_tie = self.data["final_results"].get("is_tie", False)
+            if is_tie:
+                summary.append(f"Result: TIE - Winners: {', '.join(winners)}")
+            else:
+                summary.append(f"Winner: {winners[0]}")
         
         return "\n".join(summary)
