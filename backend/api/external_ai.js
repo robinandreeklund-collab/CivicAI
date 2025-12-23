@@ -17,7 +17,7 @@ const router = express.Router();
  */
 router.post('/openai', async (req, res) => {
   try {
-    const { question } = req.body;
+    const { question, max_tokens } = req.body;
     
     if (!question || typeof question !== 'string' || question.trim() === '') {
       return res.status(400).json({
@@ -26,7 +26,7 @@ router.post('/openai', async (req, res) => {
       });
     }
     
-    const result = await getOpenAIResponse(question);
+    const result = await getOpenAIResponse(question, max_tokens);
     res.json(result);
   } catch (error) {
     console.error('Error calling OpenAI:', error);

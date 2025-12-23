@@ -15,8 +15,10 @@ Viktigt. Vi chunkar eller data dumpar aldrig!! allt ska vara i realtids känsla 
 2. **Så fort ett externt svar kommer in** (t.ex. GPT först):  
    - OneSeek ekar svaret live genom sig själv (streaming):  
      "GPT säger: [streaming av GPT:s svar ord för ord]"  
-   - När svaret är klart: OneSeek lägger till egen kommentar direkt:  
+   - När svaret är klart: OneSeek lägger till egen kommentar direkt (KOMMENTAR):  
      "Intressant poäng från GPT. Jag håller med om X, men vill tillägga att Y..."
+   - Följt av djupare analys (REASONING) som bygger vidare på kommentaren
+   - Avslutas med en snabb insikt (💡 INSIGHT) som sammanfattar kärnpunkten
 
 3. **Detta upprepas** för varje externt svar i den ordning de kommer in (Claude, Grok, Gemini).
 
@@ -75,8 +77,11 @@ Runda 1–3 (realtid)
 ├── Så fort ett externt svar kommer in:
 │   ├── OneSeek ekar svaret live genom sig själv (streaming)
 │   │   Exempel: "GPT säger: [streaming av GPT:s svar]"
-│   └── OneSeek lägger till egen kommentar direkt
-│       insikt: "Intressant poäng. Jag håller med om X, men vill tillägga Y..." (visas på frontend och används internt. (skickas ej till övriga ai modeller.))
+│   ├── OneSeek lägger till egen KOMMENTAR direkt (40-60 ord)
+│   │   "Intressant poäng. Jag håller med om X, men vill tillägga Y..."
+│   ├── Följs av djupare REASONING (80-120 ord) som analyserar svaret
+│   └── Avslutas med snabb INSIGHT (💡 one-liner) som sammanfattar
+│       (Alla tre visas på frontend och används internt, skickas ej till övriga ai modeller)
 ├── Detta upprepas för varje externt svar i den ordning de kommer
 ├── När alla externa svarat i rundan:
 │   └── OneSeek ger eget starka, personliga svar (som byggs från alla andra svaren och den insikt oneseek har fått + använder sin egen kunskap)

@@ -1937,6 +1937,11 @@ export default function SevenBZeroPage() {
         event.response = message.data?.full_response || message.response || message;
         break;
         
+      case 'oneseek_comments':
+        // Extract OneSeek comments
+        event.text = message.message || message.text || message.data?.comments;
+        event.tokens = message.data?.tokens || message.tokens || 0;
+        break;
         
       case 'oneseek_reasoning':
         // Extract OneSeek commentary/reasoning
@@ -2170,6 +2175,24 @@ export default function SevenBZeroPage() {
             if (isEchoComplete) {
               setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             }
+            break;
+            
+          case 'oneseek_comments':
+            // OneSeek's initial commentary for specific answer
+            console.log(`[Debate] OneSeek comments for ${message.agent}`);
+            
+            setDebateRounds(prev => ({
+              ...prev,
+              [message.round]: {
+                ...(prev[message.round] || {}),
+                [message.agent]: {
+                  ...(prev[message.round]?.[message.agent] || {}),
+                  comments: message.message
+                }
+              }
+            }));
+            
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
             break;
             
           case 'oneseek_reasoning':

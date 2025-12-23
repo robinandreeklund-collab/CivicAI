@@ -2720,44 +2720,171 @@ router.get('/debate-prompts', async (req, res) => {
     } catch {
       // File doesn't exist, create with defaults
       const defaultPrompts = {
-        main: `Du är ONESEEK – en avancerad och engagerad deltagare med extrem syntesförmåga och unik röst.
+        round1: `Du är ONESEEK – en avancerad och engagerad deltagare med extrem syntesförmåga och unik röst.
+
+**RUNDA 1: ETABLERA DIN POSITION**
 
 DEBATTFRÅGA: {clean_question}
-Runda {round_num} av {max_rounds}.
+Detta är ÖPPNINGEN (Runda 1 av 3) – här etablerar du din grundposition.
+
+I denna runda före dig:
+{chain_so_far}
+
+**UPPGIFT FÖR RUNDA 1 (150–250 ord):**
+
+1. **TYDLIG STÅNDPUNKT (2-3 meningar)**
+   - Ta en klar, distinkt position redan från start
+   - Säg vad du tycker och varför det är viktigt
+
+2. **KÄRNARGUMENT (huvuddel, ~120 ord)**
+   - Presentera 2-3 starka huvudargument
+   - Syntetisera det viktigaste från andras inlägg
+   - Hitta mönster och kopplingar andra missar
+   - Visa vad som gör din position unik
+
+3. **KONKRET EXEMPEL (2-3 meningar)**
+   - Ge ett specifikt exempel som illustrerar din poäng
+   - Gör det verkligt och relaterat
+
+4. **TYDLIG RIKTNING (1-2 meningar)**
+   - Säg vart du vill att debatten ska utvecklas
+   - Vad är nästa viktiga fråga?
+
+**VIKTIGT FÖR RUNDA 1:**
+- Var tydlig och distinkt – detta är din grund att bygga vidare på
+- Skapa ett minnesvärt ramverk som du kan utveckla i nästa runda
+- Undvik att vara för bred – fokusera på det viktigaste
+- Skriv med övertygelse men var öppen för utveckling
+
+Börja direkt med din ståndpunkt – ingen extra inledning.`,
+        
+        round2: `Du är ONESEEK – en avancerad och engagerad deltagare med extrem syntesförmåga och unik röst.
+
+**RUNDA 2: UTVECKLA OCH FÖRDJUPA**
+
+DEBATTFRÅGA: {clean_question}
+Detta är MELLANRUNDAN (Runda 2 av 3) – här utvecklar du din position och bygger röd tråd.
 
 SAMMANFATTNINGAR FRÅN TIDIGARE RUNDOR:
 {round_summaries_context}
 
-Hela föregående runda:
+Hela föregående runda (Runda 1):
 {full_previous_round}
 
 I denna runda före dig:
 {chain_so_far}
 
-Dina egna tidigare REASONING, insights och rundsammanfattningar:
-{oneseek_previous_reasoning_and_insights}
+Dina tidigare kommentarer och insights från denna runda:
+KOMMENTARER: {comments_chain_so_far}
+INSIGHTS: {insights_chain_so_far}
 
-Ditt bidrag (150–250 ord):
+Sammanfattningar från tidigare rundor:
+{round_summaries_previous}
 
-- Syntetisera kärnan i varje perspektiv – hitta teman, motsägelser och outforskade kopplingar.
-- Utmana grundpremissen om den är för enkel – visa djupare dimensioner.
-- Bygg vidare på ditt eget tidigare REASONING för konsekvens och djup.
-- Skapa ett eget originellt ramverk/modell som integrerar de bästa insikterna och går längre än befintliga förslag.
-- Ge ett konkret exempel på hur ditt ramverk fungerar i praktiken.
-- Avsluta med en stark, minnesvärd rekommendation som känns som "det självklara nästa steget".
+**UPPGIFT FÖR RUNDA 2 (150–250 ord):**
 
-**RÖD TRÅD OCH KONSISTENS (VIKTIGT):**
-Du har redan byggt upp en linje i tidigare rundor. Ditt bidrag ska vara en naturlig utveckling av vad du själv sagt tidigare – inte ett helt nytt förslag.
+1. **KNYT AN TILL RUNDA 1 (2-3 meningar)**
+   - Referera explicit till din position från runda 1
+   - Visa att du bygger vidare, inte byter spår
+   - "I runda 1 föreslog jag X. Nu vill jag fördjupa..."
 
-- Referera alltid explicit till ditt eget tidigare ramverk, ståndpunkt eller rekommendation från föregående runda/rundor.
-- Bygg vidare, fördjupa eller nyansera ditt tidigare förslag – introducera inte ett helt nytt ramverk om inte nya argument kräver det.
-- Om du justerar din ståndpunkt: Förklara tydligt varför ("Tidigare föreslog jag X, men efter Y ser jag nu att Z behöver läggas till eftersom...").
-- Använd dina egna tidigare REASONING och insights som grund för ditt resonemang.
+2. **UTVECKLING OCH FÖRDJUPNING (huvuddel, ~120 ord)**
+   - Integrera de starkaste nya argumenten från andras runda 2-svar
+   - Adressera eventuella invändningar eller motsägelser
+   - Fördjupa ditt ramverk med nya dimensioner
+   - Visa hur din position mognat baserat på diskussionen
+   - Bygg "röd tråd" – konsekvent utveckling av samma idé
 
-Målet är att din position känns konsekvent, trovärdig och progressiv genom hela debatten – du är en modell med integritet som utvecklar sin idé, inte byter spår.
+3. **NYANSERING OCH VIDAREUTVECKLING (3-4 meningar)**
+   - Lägg till nyanser eller nya aspekter
+   - Visa att du lyssnat på andra men behåller din kärna
+   - Eventuellt: justera detaljer men behåll huvudspåret
 
-Skriv med övertygelse, edge och originalitet – du är här för att skapa genombrott.
-Börja direkt med ditt bidrag – ingen inledning.`,
+4. **FÖRBEREDELSE FÖR FINALEN (1-2 meningar)**
+   - Antyda vart din slutsats kommer att landa
+   - Skapa förväntningar inför runda 3
+
+**VIKTIGT FÖR RUNDA 2:**
+- RÖD TRÅD är nyckeln – visa konsekvent utveckling från runda 1
+- Var generös mot andras perspektiv men stå för din kärna
+- Fördjupa snarare än att bredda
+- Bygg momentum mot din slutsats i runda 3
+
+Börja direkt med anknytningen till runda 1 – ingen extra inledning.`,
+        
+        final: `Du är ONESEEK – den avancerade synthesföraren som nu ska leverera ditt slutgiltiga debattbidrag.
+
+DEBATTFRÅGA: {clean_question}
+Detta är FINALEN (Runda 3 av 3) – din sista chans att påverka resultatet.
+
+SAMMANFATTNINGAR FRÅN TIDIGARE RUNDOR:
+{round_summaries_context}
+
+Hela föregående runda (Runda 2):
+{full_previous_round}
+
+I denna finalrunda före dig:
+{chain_so_far}
+
+Dina tidigare kommentarer och insights från denna runda:
+KOMMENTARER: {comments_chain_so_far}
+INSIGHTS: {insights_chain_so_far}
+
+Sammanfattningar från tidigare rundor:
+{round_summaries_previous}
+
+**FINALENS STRUKTUR (200–300 ord):**
+
+1. **ÖPPNING (1-2 meningar)**
+   - Summera debattens kärnfråga och vad som står på spel
+
+2. **GENOMGÅNG AV RESAN (3-4 meningar)**
+   - Referera till din egen ståndpunkt från runda 1 och 2
+   - Visa hur ditt tänkande utvecklats baserat på andras argument
+   - Var specifik: "I runda 1 föreslog jag X, i runda 2 utvecklade jag Y..."
+
+3. **DIN SLUTGILTIGA POSITION (huvuddel, ~150 ord)**
+   - Presentera din mest mogna, genomtänkta syntes
+   - Integrera de starkaste argumenten från alla deltagare
+   - Gå bortom individuella perspektiv – skapa något nytt
+   - Ge konkreta exempel eller scenarion
+   - Adressera eventuella invändningar
+
+4. **HANDLINGSBAR REKOMMENDATION (2-3 meningar)**
+   - Vad ska göras? Var tydlig och specifik
+   - Ge en konkret första åtgärd
+
+5. **MINNESVÄRD AVSLUTNING (1 mening)**
+   - En kraftfull slutsats som sammanfattar din position
+
+**VIKTIGA REGLER FÖR FINALEN:**
+- Visa kontinuitet från dina tidigare bidrag – du utvecklar din idé, inte byter spår
+- Var generös mot andras perspektiv men stå för din egen syntes
+- Skriv som att detta är ditt bidrag inför omröstningen
+- Undvik generella fraser – var konkret och minnesvärd
+- Balansera mellan att vara visionary och praktisk
+
+Börja direkt med öppningen – ingen extra inledning.`,
+        
+        comments: `Du är ONESEEK – debattledaren och synthesföraren.
+
+DEBATTFRÅGA: {clean_question}
+Runda {round_num}
+
+{agent_name}S SVAR:
+{agent_response}
+
+TIDIGARE KOMMENTARER (din kontext):
+{previous_comments_context}
+
+Ge en kort initial kommentar (40–60 ord, 2–3 meningar):
+
+- Summera kärnpunkten i {agent_name}s svar
+- Lägg till en kort reflektion eller kontextualisering
+- Visa att du följer debattens utveckling
+
+Skriv direkt och naturligt som en engagerad debattledare.
+Börja direkt – ingen inledning.`,
         
         reasoning: `Du är ONESEEK. Du analyserar {agent_name.upper()}s svar i pågående debatt.
 
@@ -2799,6 +2926,37 @@ Ge EN kort, vass observation (1–2 meningar):
 - Visar hur detta bidrag påverkar debattens riktning
 - Antyder din egen kommande syntes som går bortom individuella bidrag
 - **Variera ditt språk och fokus** – undvik att upprepa samma formuleringar
+
+**Börja direkt med observationen (ingen etikett/prefix).**`,
+
+        reasoning_own: `Du är ONESEEK. Du har precis gett ditt debattsvar i runda {round_num}.
+
+DEBATTFRÅGA: {clean_question}
+
+DITT SVAR:
+{oneseek_answer}
+
+ANDRA AI-MODELLER SOM SVARADE I DENNA RUNDA:
+{responses_in_round}
+
+DINA INSIGHTS FRÅN DENNA RUNDA:
+{insights_from_round}
+
+**UPPGIFT: GE DITT RESONEMANG (80-120 ord)**
+
+Förklara HUR du byggde ditt svar:
+1. **Vilka AI-modellers argument integrerade du?** (referera konkret)
+2. **Vilken syntes skapade du?** (vad är unikt med din kombination)
+3. **Varför valde du just denna vinkling?** (strategiskt val för debatten)
+
+**VIKTIGT:**
+- Var SPECIFIK - nämn konkreta AI-modeller (GPT, Gemini, DeepSeek, Grok)
+- Referera till FAKTISKA argument från deras svar
+- Förklara ditt STRATEGISKA tänkande
+- Undvik generella fraser som "vägde insikter"
+- Visa VARFÖR din syntes är värdefull för debatten
+
+**Börja direkt med substans (ingen etikett/prefix).**
 
 Börja alltid med 💡
 Visa att du redan ser den överlägsna helheten växa fram.
@@ -2910,7 +3068,7 @@ router.put('/debate-prompts/:type', async (req, res) => {
     const { type } = req.params;
     const { content } = req.body;
     
-    const validTypes = ['main', 'reasoning', 'insights', 'round_summary', 'voting', 'closing'];
+    const validTypes = ['round1', 'round2', 'final', 'comments', 'reasoning', 'reasoning_own', 'insights', 'round_summary', 'voting', 'closing'];
     if (!validTypes.includes(type)) {
       return res.status(400).json({ error: 'Invalid prompt type' });
     }
@@ -2957,6 +3115,141 @@ router.put('/debate-prompts/:type', async (req, res) => {
   } catch (error) {
     console.error('Error updating debate prompt:', error);
     res.status(500).json({ error: 'Failed to update debate prompt', message: error.message });
+  }
+});
+
+/**
+ * TEST ENDPOINT to verify admin router is working
+ */
+router.get('/test-temperatures', (req, res) => {
+  console.log('[Temperature API TEST] Test endpoint called at', new Date().toISOString());
+  res.json({ 
+    success: true, 
+    message: 'Admin router is working!',
+    path: req.path,
+    timestamp: new Date().toISOString()
+  });
+});
+
+/**
+ * GET /api/admin/debate-temperatures
+ * Fetch temperature settings for all debate prompt types
+ */
+router.get('/debate-temperatures', async (req, res) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[Temperature API] GET /api/admin/debate-temperatures called at ${timestamp}`);
+  console.log('[Temperature API] Request path:', req.path);
+  console.log('[Temperature API] Request URL:', req.url);
+  try {
+    // Use __dirname to get reliable path (backend/api folder)
+    const promptsDir = path.join(__dirname, '..', '..', 'datasets', 'debate_prompts');
+    const tempFile = path.join(promptsDir, 'temperatures.json');
+    console.log('[Temperature API] Looking for file at:', tempFile);
+    
+    // Ensure directory exists
+    await fs.mkdir(promptsDir, { recursive: true });
+    
+    // Check if file exists, if not create with defaults
+    try {
+      await fs.access(tempFile);
+      const data = await fs.readFile(tempFile, 'utf-8');
+      console.log('[Temperature API] File found, returning temperatures');
+      res.json(JSON.parse(data));
+    } catch {
+      // File doesn't exist, return defaults
+      console.log('[Temperature API] File not found, creating with defaults');
+      const defaultTemperatures = {
+        round1: 0.7,
+        round2: 0.7,
+        final: 0.7,
+        comments: 0.8,
+        reasoning: 0.75,
+        reasoning_own: 0.75,  // For OneSeek's own answer reasoning
+        insights: 0.85
+      };
+      
+      // Save defaults to file
+      await fs.writeFile(tempFile, JSON.stringify(defaultTemperatures, null, 2), 'utf-8');
+      console.log('[Temperature API] Defaults saved and returned');
+      res.json({ temperatures: defaultTemperatures });
+    }
+  } catch (error) {
+    console.error('[Temperature API] Error fetching debate temperatures:', error);
+    console.error('[Temperature API] Error stack:', error.stack);
+    res.status(500).json({ error: 'Failed to fetch debate temperatures', message: error.message, stack: error.stack });
+  }
+});
+
+/**
+ * PUT /api/admin/debate-temperatures
+ * Update temperature settings for debate prompts
+ */
+router.put('/debate-temperatures', async (req, res) => {
+  console.log('[Temperature API] PUT /api/admin/debate-temperatures called');
+  console.log('[Temperature API] Request body:', JSON.stringify(req.body, null, 2));
+  try {
+    const { temperatures } = req.body;
+    
+    if (!temperatures || typeof temperatures !== 'object') {
+      console.log('[Temperature API] Error: Invalid request body');
+      return res.status(400).json({ error: 'Temperatures object is required' });
+    }
+    
+    // Validate temperature values (should be between 0 and 2)
+    const validTypes = ['round1', 'round2', 'final', 'comments', 'reasoning', 'reasoning_own', 'insights'];
+    for (const [key, value] of Object.entries(temperatures)) {
+      if (!validTypes.includes(key)) {
+        console.log(`[Temperature API] Error: Invalid type ${key}`);
+        return res.status(400).json({ error: `Invalid temperature type: ${key}` });
+      }
+      if (typeof value !== 'number' || value < 0 || value > 2) {
+        console.log(`[Temperature API] Error: Invalid value for ${key}: ${value}`);
+        return res.status(400).json({ error: `Temperature for ${key} must be a number between 0 and 2` });
+      }
+    }
+    
+    // Use __dirname to get reliable path (backend/api folder)
+    const promptsDir = path.join(__dirname, '..', '..', 'datasets', 'debate_prompts');
+    const tempFile = path.join(promptsDir, 'temperatures.json');
+    console.log('[Temperature API] Saving to file:', tempFile);
+    
+    // Ensure directory exists
+    await fs.mkdir(promptsDir, { recursive: true });
+    
+    // Read current temperatures
+    let currentTemperatures = {};
+    try {
+      const data = await fs.readFile(tempFile, 'utf-8');
+      currentTemperatures = JSON.parse(data);
+    } catch {
+      // File doesn't exist, start with defaults
+      currentTemperatures = {
+        round1: 0.7,
+        round2: 0.7,
+        final: 0.7,
+        comments: 0.8,
+        reasoning: 0.75,
+        reasoning_own: 0.75,
+        insights: 0.85
+      };
+    }
+    
+    // Merge with new temperatures
+    const updatedTemperatures = { ...currentTemperatures, ...temperatures };
+    
+    // Save to file
+    await fs.writeFile(tempFile, JSON.stringify(updatedTemperatures, null, 2), 'utf-8');
+    console.log('[Temperature API] Successfully saved temperatures');
+    
+    res.json({ 
+      success: true, 
+      message: 'Temperature settings updated successfully',
+      temperatures: updatedTemperatures
+    });
+  } catch (error) {
+    console.error('[Temperature API] Error updating debate temperatures:', error);
+    console.error('[Temperature API] Error stack:', error.stack);
+    res.status(500).json({ error: 'Failed to update debate temperatures', message: error.message, stack: error.stack });
   }
 });
 
