@@ -14477,9 +14477,15 @@ Ditt svar:"""
                     huvudpunkter_match = re.search(r'HUVUDPUNKTER:\s*([\s\S]+?)(?=\n\n|$)', vote_response_text, re.IGNORECASE)
                     if huvudpunkter_match:
                         punkter_text = huvudpunkter_match.group(1)
-                        # Extract numbered points
+                        # Try numbered points first (e.g., "1. punkt", "2. punkt", "3. punkt")
                         punkter = re.findall(r'^\d+\.\s*(.+?)$', punkter_text, re.MULTILINE)
-                        huvudpunkter = [p.strip() for p in punkter if p.strip()]
+                        if not punkter:
+                            # Fallback: extract bracketed points (e.g., "[punkt]") or simple lines
+                            punkter = re.findall(r'^\[(.+?)\]$', punkter_text, re.MULTILINE)
+                        if not punkter:
+                            # Second fallback: any non-empty line
+                            punkter = [line.strip() for line in punkter_text.split('\n') if line.strip() and not line.strip().startswith('HUVUDPUNKTER')]
+                        huvudpunkter = [p.strip() for p in punkter if p.strip()][:3]  # Take max 3 points
                     
                     # Validate vote with 3-stage checking
                     vote_status = "valid"
