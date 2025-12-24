@@ -181,6 +181,34 @@ except ImportError:
         get_stavfel_dataset = None
         save_typo_pair = None
 
+# ONESEEK Δ+: Tavily Search for real-time data fetching in debates
+try:
+    from .tavily_search import (
+        extract_tavily_queries,
+        tavily_search,
+        summarize_tavily_result,
+        search_with_sources,
+        search_swedish_sources
+    )
+    TAVILY_SEARCH_AVAILABLE = True
+except ImportError:
+    try:
+        from tavily_search import (
+            extract_tavily_queries,
+            tavily_search,
+            summarize_tavily_result,
+            search_with_sources,
+            search_swedish_sources
+        )
+        TAVILY_SEARCH_AVAILABLE = True
+    except ImportError:
+        TAVILY_SEARCH_AVAILABLE = False
+        extract_tavily_queries = None
+        tavily_search = None
+        summarize_tavily_result = None
+        search_with_sources = None
+        search_swedish_sources = None
+
 try:
     from .calculate_confidence import get_confidence_calculator, calculate_confidence
     CONFIDENCE_CALC_AVAILABLE = True
@@ -2893,6 +2921,18 @@ if DEBUG_MODE:
 # Configuration
 # Rate limiting: Set high for development (1000/min), use lower in production via env var
 RATE_LIMIT_PER_MINUTE = int(os.getenv('RATE_LIMIT_PER_MINUTE', '1000'))
+
+# =============================================================================
+# DATA REASONING CONFIGURATION (for ONESEEK debates)
+# =============================================================================
+# Token limits for Data Reasoning step
+DATA_REASONING_MAX_TOKENS = 400  # 80-120 words ~300-400 tokens
+
+# Tavily search configuration
+MAX_TAVILY_SEARCHES = 3  # Maximum number of Tavily searches per round
+
+# Temperature for Data Reasoning generation
+DATA_REASONING_TEMPERATURE = 0.75  # Balance between creativity and precision
 
 # Model paths - use absolute paths relative to project root or MODELS_DIR env var
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
@@ -13718,8 +13758,8 @@ Skriv kort och strukturerat – börja direkt."""
                         {"role": "system", "content": "Du är ONESEEK - analysera databehov koncist och strukturerat. Identifiera specifika Tavily-sökningar som behövs."},
                         {"role": "user", "content": data_reasoning_prompt}
                     ],
-                    "max_tokens": 400,  # 80-120 words ~300-400 tokens
-                    "temperature": 0.75,
+                    "max_tokens": DATA_REASONING_MAX_TOKENS,
+                    "temperature": DATA_REASONING_TEMPERATURE,
                 }
                 
                 server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
@@ -13756,23 +13796,24 @@ Skriv kort och strukturerat – börja direkt."""
             # Execute Tavily searches if data needs identified
             injected_data = ""
             if data_reasoning_text and "INGEN NY DATA BEHÖVS" not in data_reasoning_text.upper():
-                try:
-                    # Import Tavily functions
-                    from tavily_search import extract_tavily_queries, tavily_search, summarize_tavily_result
-                    
-                    # Extract queries from reasoning
-                    queries = extract_tavily_queries(data_reasoning_text)
-                    
-                    if queries:
-                        logger.info(f"[WS-Debate] DATA REASONING: Found {len(queries)} Tavily queries to execute")
+                # Check if Tavily integration is available
+                if not TAVILY_SEARCH_AVAILABLE:
+                    logger.warning("[WS-Debate] Tavily search not available - skipping data fetching")
+                else:
+                    try:
+                        # Extract queries from reasoning
+                        queries = extract_tavily_queries(data_reasoning_text)
                         
-                        await websocket.send_json({
-                            "type": "thinking",
-                            "message": f"[tänker...] Hämtar realtidsdata via Tavily ({len(queries)} sökningar)..."
-                        })
-                        
-                        tavily_results = []
-                        for query in queries[:3]:  # Limit to 3 searches max
+                        if queries:
+                            logger.info(f"[WS-Debate] DATA REASONING: Found {len(queries)} Tavily queries to execute")
+                            
+                            await websocket.send_json({
+                                "type": "thinking",
+                                "message": f"[tänker...] Hämtar realtidsdata via Tavily ({len(queries)} sökningar)..."
+                            })
+                            
+                            tavily_results = []
+                            for query in queries[:MAX_TAVILY_SEARCHES]:  # Use configured limit
                             logger.info(f"[WS-Debate] Executing Tavily search: {query}")
                             
                             # Execute search with Swedish priority
@@ -13810,12 +13851,12 @@ Skriv kort och strukturerat – börja direkt."""
                                 },
                                 "sequence": get_next_sequence()
                             })
-                    else:
-                        logger.info(f"[WS-Debate] DATA REASONING: No Tavily queries extracted from reasoning")
+                        else:
+                            logger.info(f"[WS-Debate] DATA REASONING: No Tavily queries extracted from reasoning")
                         
-                except Exception as e:
-                    logger.error(f"[WS-Debate] Error executing Tavily searches: {e}")
-                    injected_data = ""
+                    except Exception as e:
+                        logger.error(f"[WS-Debate] Error executing Tavily searches: {e}")
+                        injected_data = ""
             else:
                 logger.info(f"[WS-Debate] DATA REASONING: No new data needed (ONESEEK decided sufficient context exists)")
             

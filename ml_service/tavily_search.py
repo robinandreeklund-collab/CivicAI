@@ -11,12 +11,17 @@ Author: ONESEEK Team
 """
 
 import os
+import re
 import requests
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 
 # Get API key from environment
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
+
+# Configuration constants
+MIN_QUERY_LENGTH = 10  # Minimum characters for a valid query
+MAX_SOURCES_IN_SUMMARY = 3  # Max sources to include in summary
 
 
 def tavily_search(
@@ -190,23 +195,26 @@ def extract_tavily_queries(reasoning_text: str) -> List[str]:
     Returns:
         List of extracted search queries
     """
-    import re
-    
     queries = []
     
     # Pattern 1: "Tavily-sökning: <query>" or "Tavily search: <query>"
-    # Stop at newline, period, or special markers
+    # Matches: Tavily[-\s]s[öo]kning[:\s]+ (flexible keyword)
+    # Captures: Query text until newline, period, or stop words (Detta, Sök)
+    # Lookahead: (?=[\n\.]|Detta|Sök|$) stops at these markers
     pattern1 = r'Tavily[-\s]s[öo]kning[:\s]+["\']?([^"\'\.?\n]+?(?=[\n\.]|Detta|Sök|$))'
     matches1 = re.findall(pattern1, reasoning_text, re.IGNORECASE)
     queries.extend([m.strip() for m in matches1])
     
     # Pattern 2: "Sök: <query>" or "Search: <query>"
-    # Stop at newline, period, or special markers
+    # Matches: Start of line or after punctuation, then S[öo]k[:\s]+
+    # Captures: Query text until newline, period, or stop words
     pattern2 = r'(?:^|[.\n])S[öo]k[:\s]+["\']?([^"\'\.?\n]+?(?=[\n\.]|Detta|Tavily|$))'
     matches2 = re.findall(pattern2, reasoning_text, re.IGNORECASE | re.MULTILINE)
     queries.extend([m.strip() for m in matches2])
     
     # Pattern 3: Quoted queries after keywords like "query", "fråga"
+    # Matches: "query:" or "fråga:" followed by quoted text
+    # Captures: Everything inside quotes
     pattern3 = r'(?:query|fråga)[:\s]+["\']([^"\']+)["\']'
     matches3 = re.findall(pattern3, reasoning_text, re.IGNORECASE)
     queries.extend([m.strip() for m in matches3])
@@ -224,7 +232,7 @@ def extract_tavily_queries(reasoning_text: str) -> List[str]:
     unique_queries = []
     seen = set()
     for q in cleaned_queries:
-        if q and q.lower() not in seen and len(q) > 10:  # Min 10 chars for valid query
+        if q and q.lower() not in seen and len(q) > MIN_QUERY_LENGTH:
             unique_queries.append(q)
             seen.add(q.lower())
     
@@ -255,7 +263,7 @@ def summarize_tavily_result(data: Optional[Dict[str, Any]]) -> str:
     results = data.get("results", [])
     if results:
         result += "**Källor:**\n"
-        for i, res in enumerate(results[:3], 1):
+        for i, res in enumerate(results[:MAX_SOURCES_IN_SUMMARY], 1):
             title = res.get("title", "Okänd")
             url = res.get("url", "")
             content = res.get("content", "")[:150]
