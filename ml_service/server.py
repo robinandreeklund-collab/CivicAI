@@ -14120,23 +14120,16 @@ Börja direkt med öppningen – ingen extra inledning."""
             main_answer_temperature = loaded_temperatures.get(template_key, 0.7)
             logger.info(f"[WS-Debate] Using temperature {main_answer_temperature} for {template_key}")
             
-            oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)").replace('{comments_chain_so_far}', comments_chain_so_far if comments_chain_so_far else "(Inga kommentarer i denna runda än)").replace('{insights_chain_so_far}', insights_chain_so_far if insights_chain_so_far else "(Inga insights i denna runda än)").replace('{reasoning_chain_so_far}', reasoning_chain_so_far if reasoning_chain_so_far else "(Ingen reasoning i denna runda än)").replace('{round_summaries_previous}', round_summaries_previous if round_summaries_previous else "(Inga tidigare rundor än)")
-            
-            # Inject Tavily data if available (from Data Reasoning step)
+            # Prepare Tavily data for injection (empty if no data)
+            tavily_data_formatted = ""
             if injected_data:
-                oneseek_main_prompt += injected_data
-                logger.info(f"[WS-Debate] Injected Tavily data into main prompt ({len(injected_data)} chars)")
-                
-                # Add instruction to use the data
-                oneseek_main_prompt += """
-
-**ANVÄND REALTIDSDATA:**
-- Stödja din ståndpunkt med fakta och källhänvisningar från ovan
-- Bemöta eller nyansera andras påståenden med faktadata
-- Inkludera minst en verklighetsanknytning med källreferens i ditt bidrag
-
-Om ingen data hämtades – använd befintlig kunskap eller tidigare kontext.
-"""
+                tavily_data_formatted = injected_data
+                logger.info(f"[WS-Debate] Prepared Tavily data for injection ({len(injected_data)} chars)")
+            else:
+                tavily_data_formatted = "(Ingen realtidsdata hämtad)"
+            
+            # Replace all parameters including {tavily_data}
+            oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)").replace('{comments_chain_so_far}', comments_chain_so_far if comments_chain_so_far else "(Inga kommentarer i denna runda än)").replace('{insights_chain_so_far}', insights_chain_so_far if insights_chain_so_far else "(Inga insights i denna runda än)").replace('{reasoning_chain_so_far}', reasoning_chain_so_far if reasoning_chain_so_far else "(Ingen reasoning i denna runda än)").replace('{round_summaries_previous}', round_summaries_previous if round_summaries_previous else "(Inga tidigare rundor än)").replace('{tavily_data}', tavily_data_formatted)
             
             oneseek_context = oneseek_main_prompt
             

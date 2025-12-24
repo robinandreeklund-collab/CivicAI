@@ -41,7 +41,7 @@ export default function DebatePromptManagement() {
       description: "ONESEEK's opening position (round 1 only)",
       wordCount: '150-250 words',
       parameters: [
-        '{clean_question}', '{chain_so_far}'
+        '{clean_question}', '{chain_so_far}', '{tavily_data}'
       ]
     },
     {
@@ -52,7 +52,8 @@ export default function DebatePromptManagement() {
       parameters: [
         '{clean_question}', '{round_summaries_previous}',
         '{full_previous_round}', '{chain_so_far}',
-        '{comments_chain_so_far}', '{insights_chain_so_far}', '{reasoning_chain_so_far}'
+        '{comments_chain_so_far}', '{insights_chain_so_far}', '{reasoning_chain_so_far}',
+        '{tavily_data}'
       ]
     },
     {
@@ -63,7 +64,8 @@ export default function DebatePromptManagement() {
       parameters: [
         '{clean_question}', '{round_summaries_previous}',
         '{full_previous_round}', '{chain_so_far}',
-        '{comments_chain_so_far}', '{insights_chain_so_far}', '{reasoning_chain_so_far}'
+        '{comments_chain_so_far}', '{insights_chain_so_far}', '{reasoning_chain_so_far}',
+        '{tavily_data}'
       ]
     },
     {
