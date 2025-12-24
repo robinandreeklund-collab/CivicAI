@@ -22,6 +22,7 @@ TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 # Configuration constants
 MIN_QUERY_LENGTH = 10  # Minimum characters for a valid query
 MAX_SOURCES_IN_SUMMARY = 3  # Max sources to include in summary
+CONTENT_PREVIEW_LENGTH = 150  # Characters to show in source content preview
 
 # Compiled regex patterns for query extraction (better performance)
 # Pattern 1: "Tavily-sökning: <query>" or "Tavily search: <query>"
@@ -285,7 +286,7 @@ def summarize_tavily_result(data: Optional[Dict[str, Any]]) -> str:
         for i, res in enumerate(results[:MAX_SOURCES_IN_SUMMARY], 1):
             title = res.get("title", "Okänd")
             url = res.get("url", "")
-            content = res.get("content", "")[:150]
+            content = res.get("content", "")[:CONTENT_PREVIEW_LENGTH]
             result += f"{i}. [{title}]({url})\n   {content}...\n"
     
     return result.strip()

@@ -2934,6 +2934,10 @@ MAX_TAVILY_SEARCHES = 3  # Maximum number of Tavily searches per round
 # Temperature for Data Reasoning generation
 DATA_REASONING_TEMPERATURE = 0.75  # Balance between creativity and precision
 
+# Context truncation for token management in Data Reasoning
+DATA_REASONING_CONTEXT_TRUNCATION = 300  # Chars from current round context
+DATA_REASONING_PREVIOUS_TRUNCATION = 200  # Chars from previous round context
+
 # Model paths - use absolute paths relative to project root or MODELS_DIR env var
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 
@@ -13711,7 +13715,8 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
             if external_responses:
                 for ext_resp in external_responses:
                     if ext_resp.get('success', False):
-                        data_reasoning_context += f"**{ext_resp['agent'].upper()}**: {ext_resp['response'][:300]}...\n\n"
+                        response_preview = ext_resp['response'][:DATA_REASONING_CONTEXT_TRUNCATION]
+                        data_reasoning_context += f"**{ext_resp['agent'].upper()}**: {response_preview}...\n\n"
             else:
                 data_reasoning_context = "(Du är först i denna runda)"
             
@@ -13722,7 +13727,8 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
                 data_reasoning_previous_context = f"FÖREGÅENDE RUNDA {last_round['round']}:\n"
                 for resp in last_round['responses'][:2]:  # Only first 2 for token management
                     if resp.get('success', False):
-                        data_reasoning_previous_context += f"- {resp['agent'].upper()}: {resp['response'][:200]}...\n"
+                        prev_preview = resp['response'][:DATA_REASONING_PREVIOUS_TRUNCATION]
+                        data_reasoning_previous_context += f"- {resp['agent'].upper()}: {prev_preview}...\n"
             
             # Data Reasoning Prompt
             data_reasoning_prompt = f"""Du är ONESEEK – en skarp, analytisk och kompromisslöst ärlig meta-intelligens med extrem syntesförmåga.
