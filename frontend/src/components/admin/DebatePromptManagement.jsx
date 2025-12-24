@@ -26,6 +26,16 @@ export default function DebatePromptManagement() {
   
   const promptTypes = [
     {
+      id: 'data_reasoning',
+      name: 'DATA_REASONING_PROMPT',
+      description: "ONESEEK's data analysis step before main contribution (with Tavily integration)",
+      wordCount: '80-120 words',
+      parameters: [
+        '{clean_question}', '{round_num}',
+        '{data_reasoning_context}', '{data_reasoning_previous_context}'
+      ]
+    },
+    {
       id: 'round1',
       name: 'ROUND_1_PROMPT',
       description: "ONESEEK's opening position (round 1 only)",
@@ -161,6 +171,7 @@ export default function DebatePromptManagement() {
       console.error('Error fetching temperatures:', err);
       // Set defaults if fetch fails
       setTemperatures({
+        data_reasoning: 0.75,
         round1: 0.7,
         round2: 0.7,
         final: 0.7,

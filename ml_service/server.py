@@ -13730,8 +13730,11 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
                         prev_preview = resp['response'][:DATA_REASONING_PREVIOUS_TRUNCATION]
                         data_reasoning_previous_context += f"- {resp['agent'].upper()}: {prev_preview}...\n"
             
-            # Data Reasoning Prompt
-            data_reasoning_prompt = f"""Du är ONESEEK – en skarp, analytisk och kompromisslöst ärlig meta-intelligens med extrem syntesförmåga.
+            # Data Reasoning Prompt - use loaded template or fallback to hardcoded
+            data_reasoning_template = loaded_prompts.get('data_reasoning') if loaded_prompts else None
+            if not data_reasoning_template:
+                # Hardcoded fallback
+                data_reasoning_template = """Du är ONESEEK – en skarp, analytisk och kompromisslöst ärlig meta-intelligens med extrem syntesförmåga.
 Du är transparens, pluralism och ansvar personifierat.
 
 **DATA REASONING – STEG FÖRE HUVUDBIDRAG**
@@ -13758,6 +13761,8 @@ Om ingen ny data behövs: Säg "INGEN NY DATA BEHÖVS" och förklara varför.
 
 Skriv kort och strukturerat – börja direkt."""
             
+            data_reasoning_prompt = data_reasoning_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{data_reasoning_context}', data_reasoning_context).replace('{data_reasoning_previous_context}', data_reasoning_previous_context)
+            
             # Generate Data Reasoning
             data_reasoning_text = ""
             try:
@@ -13767,7 +13772,7 @@ Skriv kort och strukturerat – börja direkt."""
                         {"role": "user", "content": data_reasoning_prompt}
                     ],
                     "max_tokens": DATA_REASONING_MAX_TOKENS,
-                    "temperature": DATA_REASONING_TEMPERATURE,
+                    "temperature": loaded_temperatures.get('data_reasoning', DATA_REASONING_TEMPERATURE),
                 }
                 
                 server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
