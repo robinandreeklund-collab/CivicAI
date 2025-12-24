@@ -13832,11 +13832,13 @@ Skriv kort och strukturerat – börja direkt."""
                                 logger.info(f"[WS-Debate] Executing Tavily search: {query}")
                                 
                                 # Execute search with Swedish priority
+                                # Use TAVILY_API_KEY from config (admin dashboard or env var)
                                 result = tavily_search(
                                     query=query,
                                     max_results=4,
                                     search_depth="advanced",
-                                    include_answer=True
+                                    include_answer=True,
+                                    api_key=TAVILY_API_KEY
                                 )
                                 
                                 if result:

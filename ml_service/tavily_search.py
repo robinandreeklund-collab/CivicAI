@@ -63,7 +63,8 @@ def tavily_search(
     search_depth: str = "advanced",
     include_answer: bool = True,
     include_domains: Optional[List[str]] = None,
-    exclude_domains: Optional[List[str]] = None
+    exclude_domains: Optional[List[str]] = None,
+    api_key: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
     """
     Utför en Tavily webbsökning med 100% svenska svar.
@@ -75,17 +76,21 @@ def tavily_search(
         include_answer: Om AI-sammanfattning ska inkluderas
         include_domains: Lista med domäner att inkludera
         exclude_domains: Lista med domäner att exkludera
+        api_key: Optional API key (if not provided, uses environment variable)
         
     Returns:
         Sökresultat eller None vid fel
     """
-    if not TAVILY_API_KEY:
+    # Use provided API key, otherwise fall back to environment variable
+    tavily_key = api_key if api_key else TAVILY_API_KEY
+    
+    if not tavily_key:
         print("[TAVILY] Warning: No API key configured")
         return None
     
     try:
         payload = {
-            "api_key": TAVILY_API_KEY,
+            "api_key": tavily_key,
             "query": query,
             "search_depth": search_depth,
             "include_answer": include_answer,
@@ -158,17 +163,18 @@ def get_tavily_answer(data: Optional[Dict[str, Any]]) -> Optional[str]:
     return data.get("answer")
 
 
-def search_with_sources(query: str) -> Dict[str, Any]:
+def search_with_sources(query: str, api_key: Optional[str] = None) -> Dict[str, Any]:
     """
     Utför sökning och returnera svar med källor.
     
     Args:
         query: Sökfrågan
+        api_key: Optional API key (if not provided, uses environment variable)
         
     Returns:
         Dict med answer, sources, och raw_data
     """
-    data = tavily_search(query)
+    data = tavily_search(query, api_key=api_key)
     
     return {
         "answer": get_tavily_answer(data),
@@ -196,12 +202,13 @@ SWEDISH_PRIORITY_DOMAINS = [
 ]
 
 
-def search_swedish_sources(query: str) -> Optional[Dict[str, Any]]:
+def search_swedish_sources(query: str, api_key: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
     Sökning med prioritet för svenska myndighetskällor.
     
     Args:
         query: Sökfrågan
+        api_key: Optional API key (if not provided, uses environment variable)
         
     Returns:
         Sökresultat med svenska källor prioriterade
@@ -209,7 +216,8 @@ def search_swedish_sources(query: str) -> Optional[Dict[str, Any]]:
     return tavily_search(
         query=query,
         include_domains=SWEDISH_PRIORITY_DOMAINS,
-        max_results=6
+        max_results=6,
+        api_key=api_key
     )
 
 
