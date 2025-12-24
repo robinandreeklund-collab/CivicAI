@@ -185,7 +185,7 @@ except ImportError:
 try:
     from .tavily_search import (
         extract_tavily_queries,
-        tavily_search,
+        tavily_search as tavily_search_advanced,
         summarize_tavily_result,
         search_with_sources,
         search_swedish_sources
@@ -195,7 +195,7 @@ except ImportError:
     try:
         from tavily_search import (
             extract_tavily_queries,
-            tavily_search,
+            tavily_search as tavily_search_advanced,
             summarize_tavily_result,
             search_with_sources,
             search_swedish_sources
@@ -204,7 +204,7 @@ except ImportError:
     except ImportError:
         TAVILY_SEARCH_AVAILABLE = False
         extract_tavily_queries = None
-        tavily_search = None
+        tavily_search_advanced = None
         summarize_tavily_result = None
         search_with_sources = None
         search_swedish_sources = None
@@ -13831,9 +13831,9 @@ Skriv kort och strukturerat – börja direkt."""
                             for query in queries[:MAX_TAVILY_SEARCHES]:  # Use configured limit
                                 logger.info(f"[WS-Debate] Executing Tavily search: {query}")
                                 
-                                # Execute search with Swedish priority
+                                # Execute search with Swedish priority using advanced function
                                 # Use TAVILY_API_KEY from config (admin dashboard or env var)
-                                result = tavily_search(
+                                result = tavily_search_advanced(
                                     query=query,
                                     max_results=4,
                                     search_depth="advanced",
