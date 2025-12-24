@@ -13654,6 +13654,175 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
                 "message": f"[tänker...] OneSeek förbereder sitt eget debattsvar för runda {round_num}..."
             })
             
+            # ===========================================================================
+            # DATA REASONING STEP - NEW: Run before main contribution
+            # ONESEEK identifies data needs and fact-checks other claims with Tavily
+            # ===========================================================================
+            
+            logger.info(f"[WS-Debate] DATA REASONING: Starting data analysis step for round {round_num}...")
+            
+            await websocket.send_json({
+                "type": "thinking",
+                "message": "[tänker...] Analyserar databehov och faktakollar påståenden..."
+            })
+            
+            # Build context for data reasoning
+            data_reasoning_context = ""
+            if external_responses:
+                for ext_resp in external_responses:
+                    if ext_resp.get('success', False):
+                        data_reasoning_context += f"**{ext_resp['agent'].upper()}**: {ext_resp['response'][:300]}...\n\n"
+            else:
+                data_reasoning_context = "(Du är först i denna runda)"
+            
+            # Add previous round context if available
+            data_reasoning_previous_context = ""
+            if debate_rounds:
+                last_round = debate_rounds[-1]
+                data_reasoning_previous_context = f"FÖREGÅENDE RUNDA {last_round['round']}:\n"
+                for resp in last_round['responses'][:2]:  # Only first 2 for token management
+                    if resp.get('success', False):
+                        data_reasoning_previous_context += f"- {resp['agent'].upper()}: {resp['response'][:200]}...\n"
+            
+            # Data Reasoning Prompt
+            data_reasoning_prompt = f"""Du är ONESEEK – en skarp, analytisk och kompromisslöst ärlig meta-intelligens med extrem syntesförmåga.
+Du är transparens, pluralism och ansvar personifierat.
+
+**DATA REASONING – STEG FÖRE HUVUDBIDRAG**
+DEBATTFRÅGA: {clean_question}
+Runda {round_num}
+
+Kontext från debatten:
+{data_reasoning_context}
+
+{data_reasoning_previous_context}
+
+**UPPGIFT (80–120 ord):**
+Analysera debatten hittills och förbered ditt huvudbidrag med överlägset faktabaserat stöd.
+
+Du ska alltid ha minst en stark verklighetsanknytning i ditt huvudbidrag:
+- Extrahera specifika data-påståenden från andra modeller (nämn modell och påstående).
+- Analysera deras korrekthet och relevans – identifiera om faktakoll behövs.
+- Identifiera vilken data du behöver för ditt eget bidrag.
+- Begär explicit Tavily-sökning – ange tydlig query (t.ex. "Tavily-sökning: Senaste SCB-statistik arbetskraftsbrist vård Sverige 2025" eller "Tavily-sökning: Faktakoll arbetskraftsbristen i vård 50% officiella källor").
+
+Om ingen ny data behövs: Säg "INGEN NY DATA BEHÖVS" och förklara varför.
+
+Skriv kort och strukturerat – börja direkt."""
+            
+            # Generate Data Reasoning
+            data_reasoning_text = ""
+            try:
+                payload = {
+                    "messages": [
+                        {"role": "system", "content": "Du är ONESEEK - analysera databehov koncist och strukturerat. Identifiera specifika Tavily-sökningar som behövs."},
+                        {"role": "user", "content": data_reasoning_prompt}
+                    ],
+                    "max_tokens": 400,  # 80-120 words ~300-400 tokens
+                    "temperature": 0.75,
+                }
+                
+                server_url = LLAMA_SERVER_URL if LLAMA_SERVER_URL else GGUF_SERVER_BASE
+                llm_response = requests.post(
+                    f"{server_url}/v1/chat/completions",
+                    json=payload,
+                    timeout=30,
+                )
+                llm_response.raise_for_status()
+                result = llm_response.json()
+                
+                if 'choices' in result and len(result['choices']) > 0:
+                    data_reasoning_text = result['choices'][0].get('message', {}).get('content', '').strip()
+                else:
+                    data_reasoning_text = result.get('content', '').strip()
+                
+                logger.info(f"[WS-Debate] DATA REASONING generated: {data_reasoning_text[:100]}...")
+                
+                # Emit data reasoning to frontend
+                await websocket.send_json({
+                    "type": "data_reasoning",
+                    "round": round_num,
+                    "message": data_reasoning_text,
+                    "data": {
+                        "reasoning": data_reasoning_text
+                    },
+                    "sequence": get_next_sequence()
+                })
+                
+            except Exception as e:
+                logger.error(f"[WS-Debate] Error generating Data Reasoning: {e}")
+                data_reasoning_text = "Analyserar tillgänglig kontext och befintlig kunskap för att bygga ett faktabaserat svar."
+            
+            # Execute Tavily searches if data needs identified
+            injected_data = ""
+            if data_reasoning_text and "INGEN NY DATA BEHÖVS" not in data_reasoning_text.upper():
+                try:
+                    # Import Tavily functions
+                    from tavily_search import extract_tavily_queries, tavily_search, summarize_tavily_result
+                    
+                    # Extract queries from reasoning
+                    queries = extract_tavily_queries(data_reasoning_text)
+                    
+                    if queries:
+                        logger.info(f"[WS-Debate] DATA REASONING: Found {len(queries)} Tavily queries to execute")
+                        
+                        await websocket.send_json({
+                            "type": "thinking",
+                            "message": f"[tänker...] Hämtar realtidsdata via Tavily ({len(queries)} sökningar)..."
+                        })
+                        
+                        tavily_results = []
+                        for query in queries[:3]:  # Limit to 3 searches max
+                            logger.info(f"[WS-Debate] Executing Tavily search: {query}")
+                            
+                            # Execute search with Swedish priority
+                            result = tavily_search(
+                                query=query,
+                                max_results=4,
+                                search_depth="advanced",
+                                include_answer=True
+                            )
+                            
+                            if result:
+                                summary = summarize_tavily_result(result)
+                                tavily_results.append({
+                                    'query': query,
+                                    'summary': summary
+                                })
+                                logger.info(f"[WS-Debate] Tavily search successful for: {query}")
+                        
+                        # Format injected data
+                        if tavily_results:
+                            injected_data = "\n\n**REALTIDSDATA FRÅN TAVILY:**\n\n"
+                            for i, res in enumerate(tavily_results, 1):
+                                injected_data += f"**Sökning {i}:** {res['query']}\n{res['summary']}\n\n"
+                            
+                            logger.info(f"[WS-Debate] DATA REASONING: Injected {len(tavily_results)} Tavily results into main prompt")
+                            
+                            # Emit Tavily data to frontend
+                            await websocket.send_json({
+                                "type": "tavily_data",
+                                "round": round_num,
+                                "message": f"✓ Hämtade {len(tavily_results)} datakällor via Tavily",
+                                "data": {
+                                    "results": tavily_results,
+                                    "count": len(tavily_results)
+                                },
+                                "sequence": get_next_sequence()
+                            })
+                    else:
+                        logger.info(f"[WS-Debate] DATA REASONING: No Tavily queries extracted from reasoning")
+                        
+                except Exception as e:
+                    logger.error(f"[WS-Debate] Error executing Tavily searches: {e}")
+                    injected_data = ""
+            else:
+                logger.info(f"[WS-Debate] DATA REASONING: No new data needed (ONESEEK decided sufficient context exists)")
+            
+            # ===========================================================================
+            # END DATA REASONING STEP
+            # ===========================================================================
+            
             # Build unified ONESEEK prompt - works for all positions
             
             # NEW: Build round_summaries_context - compressed learnings from ALL previous rounds
@@ -13894,6 +14063,22 @@ Börja direkt med öppningen – ingen extra inledning."""
             logger.info(f"[WS-Debate] Using temperature {main_answer_temperature} for {template_key}")
             
             oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)").replace('{comments_chain_so_far}', comments_chain_so_far if comments_chain_so_far else "(Inga kommentarer i denna runda än)").replace('{insights_chain_so_far}', insights_chain_so_far if insights_chain_so_far else "(Inga insights i denna runda än)").replace('{reasoning_chain_so_far}', reasoning_chain_so_far if reasoning_chain_so_far else "(Ingen reasoning i denna runda än)").replace('{round_summaries_previous}', round_summaries_previous if round_summaries_previous else "(Inga tidigare rundor än)")
+            
+            # Inject Tavily data if available (from Data Reasoning step)
+            if injected_data:
+                oneseek_main_prompt += injected_data
+                logger.info(f"[WS-Debate] Injected Tavily data into main prompt ({len(injected_data)} chars)")
+                
+                # Add instruction to use the data
+                oneseek_main_prompt += """
+
+**ANVÄND REALTIDSDATA:**
+- Stödja din ståndpunkt med fakta och källhänvisningar från ovan
+- Bemöta eller nyansera andras påståenden med faktadata
+- Inkludera minst en verklighetsanknytning med källreferens i ditt bidrag
+
+Om ingen data hämtades – använd befintlig kunskap eller tidigare kontext.
+"""
             
             oneseek_context = oneseek_main_prompt
             
