@@ -13744,7 +13744,9 @@ Du ska alltid ha minst en stark verklighetsanknytning i ditt huvudbidrag:
 - Extrahera specifika data-påståenden från andra modeller (nämn modell och påstående).
 - Analysera deras korrekthet och relevans – identifiera om faktakoll behövs.
 - Identifiera vilken data du behöver för ditt eget bidrag.
-- Begär explicit Tavily-sökning – ange tydlig query (t.ex. "Tavily-sökning: Senaste SCB-statistik arbetskraftsbrist vård Sverige 2025" eller "Tavily-sökning: Faktakoll arbetskraftsbristen i vård 50% officiella källor").
+- Begär explicit Tavily-sökning – ange tydlig query:
+  * Exempel 1: "Tavily-sökning: Senaste SCB-statistik arbetskraftsbrist vård Sverige 2025"
+  * Exempel 2: "Tavily-sökning: Faktakoll arbetskraftsbristen i vård 50% officiella källor"
 
 Om ingen ny data behövs: Säg "INGEN NY DATA BEHÖVS" och förklara varför.
 
@@ -13814,23 +13816,23 @@ Skriv kort och strukturerat – börja direkt."""
                             
                             tavily_results = []
                             for query in queries[:MAX_TAVILY_SEARCHES]:  # Use configured limit
-                            logger.info(f"[WS-Debate] Executing Tavily search: {query}")
-                            
-                            # Execute search with Swedish priority
-                            result = tavily_search(
-                                query=query,
-                                max_results=4,
-                                search_depth="advanced",
-                                include_answer=True
-                            )
-                            
-                            if result:
-                                summary = summarize_tavily_result(result)
-                                tavily_results.append({
-                                    'query': query,
-                                    'summary': summary
-                                })
-                                logger.info(f"[WS-Debate] Tavily search successful for: {query}")
+                                logger.info(f"[WS-Debate] Executing Tavily search: {query}")
+                                
+                                # Execute search with Swedish priority
+                                result = tavily_search(
+                                    query=query,
+                                    max_results=4,
+                                    search_depth="advanced",
+                                    include_answer=True
+                                )
+                                
+                                if result:
+                                    summary = summarize_tavily_result(result)
+                                    tavily_results.append({
+                                        'query': query,
+                                        'summary': summary
+                                    })
+                                    logger.info(f"[WS-Debate] Tavily search successful for: {query}")
                         
                         # Format injected data
                         if tavily_results:

@@ -23,6 +23,38 @@ TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 MIN_QUERY_LENGTH = 10  # Minimum characters for a valid query
 MAX_SOURCES_IN_SUMMARY = 3  # Max sources to include in summary
 
+# Compiled regex patterns for query extraction (better performance)
+# Pattern 1: "Tavily-sökning: <query>" or "Tavily search: <query>"
+# Matches: Tavily[-\s]s[öo]kning[:\s]+ (flexible keyword)
+# Captures: Query text until newline, period, or stop words (Detta, Sök)
+# Lookahead: (?=[\n\.]|Detta|Sök|$) stops at these markers
+PATTERN_TAVILY_SEARCH = re.compile(
+    r'Tavily[-\s]s[öo]kning[:\s]+["\']?([^"\'\.?\n]+?(?=[\n\.]|Detta|Sök|$))',
+    re.IGNORECASE
+)
+
+# Pattern 2: "Sök: <query>" or "Search: <query>"
+# Matches: Start of line or after punctuation, then S[öo]k[:\s]+
+# Captures: Query text until newline, period, or stop words
+PATTERN_SOK_QUERY = re.compile(
+    r'(?:^|[.\n])S[öo]k[:\s]+["\']?([^"\'\.?\n]+?(?=[\n\.]|Detta|Tavily|$))',
+    re.IGNORECASE | re.MULTILINE
+)
+
+# Pattern 3: Quoted queries after keywords like "query", "fråga"
+# Matches: "query:" or "fråga:" followed by quoted text
+# Captures: Everything inside quotes
+PATTERN_QUOTED_QUERY = re.compile(
+    r'(?:query|fråga)[:\s]+["\']([^"\']+)["\']',
+    re.IGNORECASE
+)
+
+# Pattern for cleaning trailing text
+PATTERN_CLEAN_TRAILING = re.compile(
+    r'\s+(Detta|För att|Sök|Tavily).*$',
+    re.IGNORECASE
+)
+
 
 def tavily_search(
     query: str,
@@ -197,33 +229,20 @@ def extract_tavily_queries(reasoning_text: str) -> List[str]:
     """
     queries = []
     
-    # Pattern 1: "Tavily-sökning: <query>" or "Tavily search: <query>"
-    # Matches: Tavily[-\s]s[öo]kning[:\s]+ (flexible keyword)
-    # Captures: Query text until newline, period, or stop words (Detta, Sök)
-    # Lookahead: (?=[\n\.]|Detta|Sök|$) stops at these markers
-    pattern1 = r'Tavily[-\s]s[öo]kning[:\s]+["\']?([^"\'\.?\n]+?(?=[\n\.]|Detta|Sök|$))'
-    matches1 = re.findall(pattern1, reasoning_text, re.IGNORECASE)
+    # Use pre-compiled patterns for better performance
+    matches1 = PATTERN_TAVILY_SEARCH.findall(reasoning_text)
     queries.extend([m.strip() for m in matches1])
     
-    # Pattern 2: "Sök: <query>" or "Search: <query>"
-    # Matches: Start of line or after punctuation, then S[öo]k[:\s]+
-    # Captures: Query text until newline, period, or stop words
-    pattern2 = r'(?:^|[.\n])S[öo]k[:\s]+["\']?([^"\'\.?\n]+?(?=[\n\.]|Detta|Tavily|$))'
-    matches2 = re.findall(pattern2, reasoning_text, re.IGNORECASE | re.MULTILINE)
+    matches2 = PATTERN_SOK_QUERY.findall(reasoning_text)
     queries.extend([m.strip() for m in matches2])
     
-    # Pattern 3: Quoted queries after keywords like "query", "fråga"
-    # Matches: "query:" or "fråga:" followed by quoted text
-    # Captures: Everything inside quotes
-    pattern3 = r'(?:query|fråga)[:\s]+["\']([^"\']+)["\']'
-    matches3 = re.findall(pattern3, reasoning_text, re.IGNORECASE)
+    matches3 = PATTERN_QUOTED_QUERY.findall(reasoning_text)
     queries.extend([m.strip() for m in matches3])
     
     # Clean up queries: remove trailing text that's not part of the query
     cleaned_queries = []
     for q in queries:
-        # Remove common trailing patterns
-        q = re.sub(r'\s+(Detta|För att|Sök|Tavily).*$', '', q, flags=re.IGNORECASE)
+        q = PATTERN_CLEAN_TRAILING.sub('', q)
         q = q.strip()
         if q:
             cleaned_queries.append(q)
