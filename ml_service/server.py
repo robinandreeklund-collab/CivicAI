@@ -13690,20 +13690,27 @@ GE DIN INSIGHT NU (börja direkt med 💡):"""
                     logger.info(f"[WS-Debate] {len(remaining_agents)} agents remain after ONESEEK: {remaining_agents}")
                     # These will be processed after ONESEEK's response
             
-            # Generate ONESEEK's own answer (this happens at different positions each round)
-            logger.info(f"[WS-Debate] OneSeek generating its own comprehensive answer for round {round_num}...")
+            # ===========================================================================
+            # NEW FLOW: RAW CONTRIBUTION → DATA REASONING → FINAL CONTRIBUTION
+            # STEP 1: Generate ONESEEK's raw contribution (not shown to user)
+            # ===========================================================================
+            
+            logger.info(f"[WS-Debate] STEP 1: OneSeek generating raw contribution for round {round_num}...")
             
             await websocket.send_json({
                 "type": "thinking",
-                "message": f"[tänker...] OneSeek förbereder sitt eget debattsvar för runda {round_num}..."
+                "message": f"[tänker...] OneSeek formulerar sitt inledande bidrag för runda {round_num}..."
             })
             
+            # Build context for raw contribution (same as before, but WITHOUT tavily_data)
+            # This will be used in STEP 1 to generate the raw contribution
+            
             # ===========================================================================
-            # DATA REASONING STEP - NEW: Run before main contribution
-            # ONESEEK identifies data needs and fact-checks other claims with Tavily
+            # DATA REASONING STEP - STEP 2: Analyze raw contribution and fetch data
+            # ONESEEK identifies data needs based on its raw contribution
             # ===========================================================================
             
-            logger.info(f"[WS-Debate] DATA REASONING: Starting data analysis step for round {round_num}...")
+            logger.info(f"[WS-Debate] STEP 2: DATA REASONING will analyze raw contribution for round {round_num}...")
             
             await websocket.send_json({
                 "type": "thinking",
