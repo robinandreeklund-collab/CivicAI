@@ -13812,6 +13812,9 @@ Skriv kort och strukturerat – börja direkt."""
                         # Extract queries from reasoning
                         queries = extract_tavily_queries(data_reasoning_text)
                         
+                        # Initialize results list outside the if block to avoid scope issues
+                        tavily_results = []
+                        
                         if queries:
                             logger.info(f"[WS-Debate] DATA REASONING: Found {len(queries)} Tavily queries to execute")
                             
@@ -13820,7 +13823,6 @@ Skriv kort och strukturerat – börja direkt."""
                                 "message": f"[tänker...] Hämtar realtidsdata via Tavily ({len(queries)} sökningar)..."
                             })
                             
-                            tavily_results = []
                             for query in queries[:MAX_TAVILY_SEARCHES]:  # Use configured limit
                                 logger.info(f"[WS-Debate] Executing Tavily search: {query}")
                                 
@@ -13840,7 +13842,7 @@ Skriv kort och strukturerat – börja direkt."""
                                     })
                                     logger.info(f"[WS-Debate] Tavily search successful for: {query}")
                         
-                        # Format injected data
+                        # Format injected data (tavily_results is now accessible here)
                         if tavily_results:
                             injected_data = "\n\n**REALTIDSDATA FRÅN TAVILY:**\n\n"
                             for i, res in enumerate(tavily_results, 1):
