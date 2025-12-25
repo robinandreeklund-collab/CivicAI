@@ -13796,7 +13796,10 @@ Skriv kort och strukturerat – börja direkt."""
                 else:
                     data_reasoning_text = result.get('content', '').strip()
                 
-                logger.info(f"[WS-Debate] DATA REASONING generated: {data_reasoning_text[:100]}...")
+                # Log full DATA REASONING output for debugging
+                logger.info(f"[WS-Debate] ========== DATA REASONING OUTPUT (FULL) ==========")
+                logger.info(f"[WS-Debate] {data_reasoning_text}")
+                logger.info(f"[WS-Debate] ====================================================")
                 
                 # Emit data reasoning to frontend
                 await websocket.send_json({
@@ -13863,6 +13866,11 @@ Skriv kort och strukturerat – börja direkt."""
                                 injected_data += f"**Sökning {i}:** {res['query']}\n{res['summary']}\n\n"
                             
                             logger.info(f"[WS-Debate] DATA REASONING: Injected {len(tavily_results)} Tavily results into main prompt")
+                            logger.info(f"[WS-Debate] ========== TAVILY DATA INJECTED (PREVIEW) ==========")
+                            # Log first 500 chars of injected data for debugging
+                            logger.info(f"[WS-Debate] {injected_data[:500]}...")
+                            logger.info(f"[WS-Debate] Total injected data length: {len(injected_data)} chars")
+                            logger.info(f"[WS-Debate] ======================================================")
                             
                             # Emit Tavily data to frontend
                             await websocket.send_json({
