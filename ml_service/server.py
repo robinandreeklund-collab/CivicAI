@@ -13905,6 +13905,7 @@ Skriv kort och strukturerat – börja direkt."""
             
             # Execute Tavily searches if data needs identified
             injected_data = ""
+            tavily_results = []  # Initialize outside if block to avoid UnboundLocalError
             if data_reasoning_text and "INGEN NY DATA BEHÖVS" not in data_reasoning_text.upper():
                 # Check if Tavily integration is available
                 if not TAVILY_SEARCH_AVAILABLE:
@@ -13913,9 +13914,6 @@ Skriv kort och strukturerat – börja direkt."""
                     try:
                         # Extract queries from reasoning
                         queries = extract_tavily_queries(data_reasoning_text)
-                        
-                        # Initialize results list outside the if block to avoid scope issues
-                        tavily_results = []
                         
                         if queries:
                             logger.info(f"[WS-Debate] DATA REASONING: Found {len(queries)} Tavily queries to execute")
