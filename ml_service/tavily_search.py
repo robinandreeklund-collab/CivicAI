@@ -25,12 +25,12 @@ MAX_SOURCES_IN_SUMMARY = 3  # Max sources to include in summary
 CONTENT_PREVIEW_LENGTH = 150  # Characters to show in source content preview
 
 # Compiled regex patterns for query extraction (better performance)
-# Pattern 1: "Tavily-sökning: <query>" or "Tavily search: <query>"
-# Matches: Tavily[-\s]s[öo]kning[:\s]+ (flexible keyword)
-# Captures: Query text until newline, period, or stop words (Detta, Sök)
-# Lookahead: (?=[\n\.]|Detta|Sök|$) stops at these markers
+# Pattern 1: "Tavily-sökning: <query>" or "Tavily search: <query>" or "**Query:** <query>"
+# Matches: Optional markdown (\*{0,2}), then Tavily-sökning/Query/query
+# Captures: Query text until newline, period, or stop words
+# Handles: **Tavily-sökning:, Tavily-sökning:, **Query:, Query:
 PATTERN_TAVILY_SEARCH = re.compile(
-    r'Tavily[-\s]s[öo]kning[:\s]+["\']?([^"\'\.?\n]+?(?=[\n\.]|Detta|Sök|$))',
+    r'\*{0,2}\s*(?:Tavily[-\s]s[öo]kning|Query|query)\s*[:\s]+["\']?([^"\'\.?\n]+?)(?:["\'])?(?=[\n\.\*]|Detta|Sök|$)',
     re.IGNORECASE
 )
 
