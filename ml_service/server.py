@@ -15464,6 +15464,180 @@ async def get_all_settings():
         ]
     }
 
+# ==========================================
+# DEBATE PROMPTS MANAGEMENT API
+# ==========================================
+
+@app.get("/api/admin/debate-prompts")
+async def get_debate_prompts():
+    """
+    Get all debate prompts from JSON file.
+    Used by Admin Dashboard > Debate Prompt Management.
+    """
+    try:
+        prompts_file = os.path.join(os.path.dirname(__file__), '../datasets/debate_prompts/prompts.json')
+        
+        if not os.path.exists(prompts_file):
+            return JSONResponse(
+                status_code=404,
+                content={"error": "Prompts file not found"}
+            )
+        
+        with open(prompts_file, 'r', encoding='utf-8') as f:
+            prompts = json.load(f)
+        
+        return {"prompts": prompts}
+    except Exception as e:
+        logger.error(f"[ADMIN] Error loading debate prompts: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+@app.put("/api/admin/debate-prompts/{prompt_type}")
+async def update_debate_prompt(prompt_type: str, request: Request):
+    """
+    Update a specific debate prompt.
+    Validates prompt type and saves to JSON file.
+    """
+    try:
+        data = await request.json()
+        content = data.get("content", "")
+        
+        if not content:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Content cannot be empty"}
+            )
+        
+        # Valid prompt types
+        valid_types = [
+            "data_reasoning", "round1", "round2", "final",
+            "comments", "reasoning", "reasoning_own", "insights",
+            "round_summary", "voting", "closing"
+        ]
+        
+        if prompt_type not in valid_types:
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"Invalid prompt type. Must be one of: {', '.join(valid_types)}"}
+            )
+        
+        prompts_file = os.path.join(os.path.dirname(__file__), '../datasets/debate_prompts/prompts.json')
+        
+        # Load existing prompts
+        if os.path.exists(prompts_file):
+            with open(prompts_file, 'r', encoding='utf-8') as f:
+                prompts = json.load(f)
+        else:
+            prompts = {}
+        
+        # Update the specific prompt
+        prompts[prompt_type] = content
+        
+        # Save back to file
+        with open(prompts_file, 'w', encoding='utf-8') as f:
+            json.dump(prompts, f, ensure_ascii=False, indent=2)
+        
+        logger.info(f"[ADMIN] Updated debate prompt: {prompt_type}")
+        
+        return {
+            "success": True,
+            "message": f"Prompt {prompt_type} updated successfully"
+        }
+    except Exception as e:
+        logger.error(f"[ADMIN] Error updating debate prompt {prompt_type}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+@app.get("/api/admin/debate-temperatures")
+async def get_debate_temperatures():
+    """
+    Get temperature settings for all debate prompts.
+    Used by Admin Dashboard > Debate Prompt Management.
+    """
+    try:
+        temp_file = os.path.join(os.path.dirname(__file__), '../datasets/debate_prompts/temperatures.json')
+        
+        # Default temperatures
+        default_temperatures = {
+            'data_reasoning': 0.75,
+            'round1': 0.7,
+            'round2': 0.7,
+            'final': 0.7,
+            'comments': 0.8,
+            'reasoning': 0.75,
+            'reasoning_own': 0.75,
+            'insights': 0.85,
+            'round_summary': 0.7,
+            'voting': 0.7,
+            'closing': 0.7
+        }
+        
+        if os.path.exists(temp_file):
+            with open(temp_file, 'r', encoding='utf-8') as f:
+                temperatures = json.load(f)
+        else:
+            temperatures = default_temperatures
+        
+        return temperatures
+    except Exception as e:
+        logger.error(f"[ADMIN] Error loading debate temperatures: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+@app.put("/api/admin/debate-temperatures")
+async def update_debate_temperatures(request: Request):
+    """
+    Update temperature settings for debate prompts.
+    Saves to JSON file.
+    """
+    try:
+        data = await request.json()
+        temperatures = data.get("temperatures", {})
+        
+        if not temperatures:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Temperatures object cannot be empty"}
+            )
+        
+        # Validate temperature values
+        for key, value in temperatures.items():
+            if not isinstance(value, (int, float)):
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": f"Temperature for {key} must be a number"}
+                )
+            if value < 0 or value > 2:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": f"Temperature for {key} must be between 0 and 2"}
+                )
+        
+        temp_file = os.path.join(os.path.dirname(__file__), '../datasets/debate_prompts/temperatures.json')
+        
+        # Save to file
+        with open(temp_file, 'w', encoding='utf-8') as f:
+            json.dump(temperatures, f, ensure_ascii=False, indent=2)
+        
+        logger.info(f"[ADMIN] Updated debate temperatures")
+        
+        return {
+            "success": True,
+            "message": "Temperatures updated successfully"
+        }
+    except Exception as e:
+        logger.error(f"[ADMIN] Error updating debate temperatures: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
 
 # =============================================================================
 # RUNTIME CONFIGURATION API - Local/RunPod Environment Switching
