@@ -28,27 +28,60 @@ export default function DebatePromptManagement() {
     {
       id: 'data_reasoning',
       name: 'DATA_REASONING_PROMPT',
-      description: "ONESEEK's data analysis step before main contribution (with Tavily integration)",
-      wordCount: '80-120 words',
+      description: "ONESEEK's data analysis step - analyzes raw contribution and identifies data needs (with Tavily integration)",
+      wordCount: '60-100 words',
       parameters: [
-        '{clean_question}', '{round_num}',
+        '{clean_question}', '{round_num}', '{raw_contribution}',
         '{data_reasoning_context}', '{data_reasoning_previous_context}'
       ]
     },
     {
-      id: 'round1',
-      name: 'ROUND_1_PROMPT',
-      description: "ONESEEK's opening position (round 1 only)",
+      id: 'round1_raw',
+      name: 'ROUND_1_RAW_PROMPT',
+      description: "ONESEEK's raw draft for round 1 (internal only, not shown to users)",
       wordCount: '150-250 words',
       parameters: [
         '{clean_question}', '{chain_so_far}', '{tavily_data}'
       ]
     },
     {
-      id: 'round2',
-      name: 'ROUND_2_PROMPT',
-      description: "ONESEEK's development and deepening (round 2 only)",
+      id: 'round1',
+      name: 'ROUND_1_FINAL_PROMPT',
+      description: "ONESEEK's final opening position for round 1 (with raw draft + Tavily data)",
+      wordCount: '150-300 words',
+      parameters: [
+        '{clean_question}', '{chain_so_far}', '{raw_contribution}', '{tavily_data}'
+      ]
+    },
+    {
+      id: 'round2_raw',
+      name: 'ROUND_2_RAW_PROMPT',
+      description: "ONESEEK's raw draft for round 2 (internal only, not shown to users)",
       wordCount: '150-250 words',
+      parameters: [
+        '{clean_question}', '{round_summaries_previous}',
+        '{full_previous_round}', '{chain_so_far}',
+        '{comments_chain_so_far}', '{insights_chain_so_far}', '{reasoning_chain_so_far}',
+        '{tavily_data}'
+      ]
+    },
+    {
+      id: 'round2',
+      name: 'ROUND_2_FINAL_PROMPT',
+      description: "ONESEEK's final development and deepening for round 2 (with raw draft + Tavily data)",
+      wordCount: '150-300 words',
+      parameters: [
+        '{clean_question}', '{round_summaries_previous}',
+        '{full_previous_round}', '{chain_so_far}',
+        '{comments_chain_so_far}', '{insights_chain_so_far}', '{reasoning_chain_so_far}',
+        '{raw_contribution}', '{tavily_data}'
+      ]
+    },
+    {
+      id: 'final_raw',
+      name: 'FINAL_RAW_PROMPT',
+      description: "ONESEEK's raw draft for final round (internal only, not shown to users)",
+      wordCount: '200-300 words',
       parameters: [
         '{clean_question}', '{round_summaries_previous}',
         '{full_previous_round}', '{chain_so_far}',
@@ -58,14 +91,14 @@ export default function DebatePromptManagement() {
     },
     {
       id: 'final',
-      name: 'FINAL_ROUND_PROMPT',
-      description: "ONESEEK's structured final answer (round 3 only)",
-      wordCount: '200-300 words',
+      name: 'FINAL_ROUND_FINAL_PROMPT',
+      description: "ONESEEK's final structured answer for round 3 (with raw draft + Tavily data)",
+      wordCount: '200-350 words',
       parameters: [
         '{clean_question}', '{round_summaries_previous}',
         '{full_previous_round}', '{chain_so_far}',
         '{comments_chain_so_far}', '{insights_chain_so_far}', '{reasoning_chain_so_far}',
-        '{tavily_data}'
+        '{raw_contribution}', '{tavily_data}'
       ]
     },
     {
@@ -174,8 +207,11 @@ export default function DebatePromptManagement() {
       // Set defaults if fetch fails
       setTemperatures({
         data_reasoning: 0.75,
+        round1_raw: 0.8,
         round1: 0.7,
+        round2_raw: 0.8,
         round2: 0.7,
+        final_raw: 0.8,
         final: 0.7,
         comments: 0.8,
         reasoning: 0.75,
@@ -352,10 +388,44 @@ export default function DebatePromptManagement() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Round 1 Temperature */}
+          {/* Data Reasoning Temperature */}
           <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-4">
             <label className="text-[#eee] text-sm font-mono block mb-2">
-              Round 1 (Establish Position)
+              Data Reasoning (60-100 words)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="2"
+              step="0.05"
+              value={temperatures.data_reasoning || 0.75}
+              onChange={(e) => setTemperatures({...temperatures, data_reasoning: parseFloat(e.target.value)})}
+              className="w-full bg-[#0f0f0f] border border-[#2a2a2a] text-[#eee] px-3 py-2 rounded font-mono text-sm focus:border-[#4a9eff] focus:outline-none"
+            />
+            <p className="text-[#666] text-xs font-mono mt-1">Default: 0.75</p>
+          </div>
+
+          {/* Round 1 Raw Temperature */}
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-4">
+            <label className="text-[#eee] text-sm font-mono block mb-2">
+              Round 1 Raw (Internal Draft)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="2"
+              step="0.05"
+              value={temperatures.round1_raw || 0.8}
+              onChange={(e) => setTemperatures({...temperatures, round1_raw: parseFloat(e.target.value)})}
+              className="w-full bg-[#0f0f0f] border border-[#2a2a2a] text-[#eee] px-3 py-2 rounded font-mono text-sm focus:border-[#4a9eff] focus:outline-none"
+            />
+            <p className="text-[#666] text-xs font-mono mt-1">Default: 0.8</p>
+          </div>
+
+          {/* Round 1 Final Temperature */}
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-4">
+            <label className="text-[#eee] text-sm font-mono block mb-2">
+              Round 1 Final (With Data)
             </label>
             <input
               type="number"
@@ -369,10 +439,27 @@ export default function DebatePromptManagement() {
             <p className="text-[#666] text-xs font-mono mt-1">Default: 0.7</p>
           </div>
 
-          {/* Round 2 Temperature */}
+          {/* Round 2 Raw Temperature */}
           <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-4">
             <label className="text-[#eee] text-sm font-mono block mb-2">
-              Round 2 (Develop & Deepen)
+              Round 2 Raw (Internal Draft)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="2"
+              step="0.05"
+              value={temperatures.round2_raw || 0.8}
+              onChange={(e) => setTemperatures({...temperatures, round2_raw: parseFloat(e.target.value)})}
+              className="w-full bg-[#0f0f0f] border border-[#2a2a2a] text-[#eee] px-3 py-2 rounded font-mono text-sm focus:border-[#4a9eff] focus:outline-none"
+            />
+            <p className="text-[#666] text-xs font-mono mt-1">Default: 0.8</p>
+          </div>
+
+          {/* Round 2 Final Temperature */}
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-4">
+            <label className="text-[#eee] text-sm font-mono block mb-2">
+              Round 2 Final (With Data)
             </label>
             <input
               type="number"
@@ -386,10 +473,27 @@ export default function DebatePromptManagement() {
             <p className="text-[#666] text-xs font-mono mt-1">Default: 0.7</p>
           </div>
 
-          {/* Final Round Temperature */}
+          {/* Final Raw Temperature */}
           <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-4">
             <label className="text-[#eee] text-sm font-mono block mb-2">
-              Round 3 (Final)
+              Round 3 Raw (Internal Draft)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="2"
+              step="0.05"
+              value={temperatures.final_raw || 0.8}
+              onChange={(e) => setTemperatures({...temperatures, final_raw: parseFloat(e.target.value)})}
+              className="w-full bg-[#0f0f0f] border border-[#2a2a2a] text-[#eee] px-3 py-2 rounded font-mono text-sm focus:border-[#4a9eff] focus:outline-none"
+            />
+            <p className="text-[#666] text-xs font-mono mt-1">Default: 0.8</p>
+          </div>
+
+          {/* Final Round Final Temperature */}
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-4">
+            <label className="text-[#eee] text-sm font-mono block mb-2">
+              Round 3 Final (With Data)
             </label>
             <input
               type="number"
