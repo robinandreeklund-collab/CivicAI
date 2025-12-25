@@ -13756,7 +13756,6 @@ Skriv ditt inledande resonemang utan att fokusera på källor eller data än. De
                         {"role": "system", "content": "Du är ONESEEK - skriv ett naturligt, kreativt utkast. Fokusera på ditt resonemang, inte källor."},
                         {"role": "user", "content": raw_prompt}
                     ],
-                    "max_tokens": 400,
                     "temperature": loaded_temperatures.get(raw_template_key, 0.8),
                 }
                 
@@ -14274,10 +14273,9 @@ Börja direkt med öppningen – ingen extra inledning."""
             try:
                 payload = {
                     "messages": [
-                        {"role": "system", "content": "Du är ONESEEK - en avancerad och engagerad deltagare i AI-debatten som håller sig till 350-550 ord per bidrag."},
+                        {"role": "system", "content": "Du är ONESEEK - en avancerad och engagerad deltagare i AI-debatten som håller dig till 350-550 ord per bidrag."},
                         {"role": "user", "content": oneseek_context}
                     ],
-                    "max_tokens": 1400,  # Adjusted for 350-550 words (~1000-1400 tokens with Swedish)
                     "temperature": main_answer_temperature,  # Configurable per round
                     "top_p": 0.95,
                 }
