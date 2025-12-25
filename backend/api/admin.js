@@ -3068,7 +3068,7 @@ router.put('/debate-prompts/:type', async (req, res) => {
     const { type } = req.params;
     const { content } = req.body;
     
-    const validTypes = ['round1', 'round2', 'final', 'comments', 'reasoning', 'reasoning_own', 'insights', 'round_summary', 'voting', 'closing'];
+    const validTypes = ['data_reasoning', 'round1_raw', 'round1', 'round2_raw', 'round2', 'final_raw', 'final', 'comments', 'reasoning', 'reasoning_own', 'insights', 'round_summary', 'voting', 'closing'];
     if (!validTypes.includes(type)) {
       return res.status(400).json({ error: 'Invalid prompt type' });
     }
@@ -3196,7 +3196,7 @@ router.put('/debate-temperatures', async (req, res) => {
     }
     
     // Validate temperature values (should be between 0 and 2)
-    const validTypes = ['round1', 'round2', 'final', 'comments', 'reasoning', 'reasoning_own', 'insights'];
+    const validTypes = ['data_reasoning', 'round1_raw', 'round1', 'round2_raw', 'round2', 'final_raw', 'final', 'comments', 'reasoning', 'reasoning_own', 'insights'];
     for (const [key, value] of Object.entries(temperatures)) {
       if (!validTypes.includes(key)) {
         console.log(`[Temperature API] Error: Invalid type ${key}`);
