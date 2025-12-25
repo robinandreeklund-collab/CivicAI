@@ -14256,9 +14256,6 @@ Börja direkt med öppningen – ingen extra inledning."""
             logger.info(f"[ONESEEK-DEBUG]   ✅ chain_so_far: {len(chain_so_far)} chars")
             logger.info(f"[ONESEEK-DEBUG]   ✅ clean_question: provided")
             logger.info(f"[ONESEEK-DEBUG] ================================================================================")
-                logger.info(f"[WS-Debate] Prepared Tavily data for injection ({len(injected_data)} chars)")
-            else:
-                tavily_data_formatted = "(Ingen realtidsdata hämtad)"
             
             # Replace all parameters including {tavily_data} AND {raw_contribution}
             oneseek_main_prompt = main_template.replace('{clean_question}', clean_question).replace('{round_num}', str(round_num)).replace('{max_rounds}', str(max_rounds)).replace('{round_summaries_context}', round_summaries_context if round_summaries_context else "(Ingen föregående runda än)").replace('{full_previous_round}', full_previous_round if full_previous_round else "(Ingen föregående runda än)").replace('{chain_so_far}', chain_so_far).replace('{oneseek_previous_reasoning_and_insights}', oneseek_previous_comments_and_insights if oneseek_previous_comments_and_insights else "(Inga tidigare kommentarer i denna runda än)").replace('{comments_chain_so_far}', comments_chain_so_far if comments_chain_so_far else "(Inga kommentarer i denna runda än)").replace('{insights_chain_so_far}', insights_chain_so_far if insights_chain_so_far else "(Inga insights i denna runda än)").replace('{reasoning_chain_so_far}', reasoning_chain_so_far if reasoning_chain_so_far else "(Ingen reasoning i denna runda än)").replace('{round_summaries_previous}', round_summaries_previous if round_summaries_previous else "(Inga tidigare rundor än)").replace('{tavily_data}', tavily_data_formatted).replace('{raw_contribution}', raw_contribution)
