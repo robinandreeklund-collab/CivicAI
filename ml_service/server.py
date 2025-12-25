@@ -13866,7 +13866,6 @@ Skriv kort och strukturerat – börja direkt."""
                         {"role": "system", "content": "Du är ONESEEK - analysera databehov koncist och strukturerat. Identifiera specifika Tavily-sökningar som behövs."},
                         {"role": "user", "content": data_reasoning_prompt}
                     ],
-                    "max_tokens": DATA_REASONING_MAX_TOKENS,
                     "temperature": loaded_temperatures.get('data_reasoning', DATA_REASONING_TEMPERATURE),
                 }
                 
