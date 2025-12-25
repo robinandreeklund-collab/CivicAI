@@ -15505,62 +15505,17 @@ async def get_debate_prompts():
 @app.put("/api/admin/debate-prompts/{prompt_type}")
 async def update_debate_prompt(prompt_type: str, request: Request):
     """
-    Update a specific debate prompt.
-    Validates prompt type and saves to JSON file.
+    Update a specific debate prompt - saves directly to JSON file.
+    Simple CRUD endpoint with no validation (accepts any prompt_type).
     """
-    # CRITICAL LOGGING - Print to both logger and stdout for visibility
-    print(f"\n{'='*80}")
-    print(f"[ADMIN-DEBUG] PUT /api/admin/debate-prompts/{prompt_type}")
-    print(f"[ADMIN-DEBUG] Received prompt_type: '{prompt_type}'")
-    print(f"[ADMIN-DEBUG] Type: {type(prompt_type).__name__}, Length: {len(prompt_type)}")
-    print(f"[ADMIN-DEBUG] Repr: {repr(prompt_type)}")
-    print(f"{'='*80}\n")
-    
-    logger.info(f"[ADMIN] *** DEBATE PROMPT UPDATE *** Received update request for prompt type: '{prompt_type}' (type: {type(prompt_type).__name__}, length: {len(prompt_type)})")
-    
     try:
         data = await request.json()
         content = data.get("content", "")
         
-        print(f"[ADMIN-DEBUG] Content length: {len(content)} chars")
+        logger.info(f"[ADMIN] Updating debate prompt: {prompt_type} ({len(content)} chars)")
         
-        if not content:
-            logger.warning(f"[ADMIN] Empty content provided for prompt type: '{prompt_type}'")
-            print(f"[ADMIN-DEBUG] ERROR: Empty content")
-            return JSONResponse(
-                status_code=400,
-                content={"error": "Content cannot be empty"}
-            )
-        
-        # Valid prompt types
-        valid_types = [
-            "data_reasoning", "round1", "round2", "final",
-            "comments", "reasoning", "reasoning_own", "insights",
-            "round_summary", "voting", "closing"
-        ]
-        
-        print(f"[ADMIN-DEBUG] Valid types: {valid_types}")
-        print(f"[ADMIN-DEBUG] Is '{prompt_type}' in valid_types? {prompt_type in valid_types}")
-        print(f"[ADMIN-DEBUG] Checking each character:")
-        for i, char in enumerate(prompt_type):
-            print(f"  [{i}]: '{char}' (ord={ord(char)})")
-        
-        logger.info(f"[ADMIN] Validating '{prompt_type}' against valid types")
-        logger.info(f"[ADMIN] Is '{prompt_type}' in valid_types? {prompt_type in valid_types}")
-        
-        if prompt_type not in valid_types:
-            logger.error(f"[ADMIN] *** INVALID PROMPT TYPE *** '{prompt_type}' - not in valid types list")
-            print(f"[ADMIN-DEBUG] *** VALIDATION FAILED ***")
-            print(f"[ADMIN-DEBUG] Returning error: Invalid prompt type")
-            return JSONResponse(
-                status_code=400,
-                content={"error": f"Invalid prompt type '{prompt_type}'. Must be one of: {', '.join(valid_types)}"}
-            )
-        
-        print(f"[ADMIN-DEBUG] *** VALIDATION PASSED *** Proceeding to save")
-        
+        # Get prompts file path
         prompts_file = os.path.join(os.path.dirname(__file__), '../datasets/debate_prompts/prompts.json')
-        print(f"[ADMIN-DEBUG] Prompts file path: {prompts_file}")
         
         # Load existing prompts
         if os.path.exists(prompts_file):
@@ -15569,16 +15524,14 @@ async def update_debate_prompt(prompt_type: str, request: Request):
         else:
             prompts = {}
         
-        # Update the specific prompt
+        # Update the specific prompt (no validation - just save it)
         prompts[prompt_type] = content
         
         # Save back to file
         with open(prompts_file, 'w', encoding='utf-8') as f:
             json.dump(prompts, f, ensure_ascii=False, indent=2)
         
-        logger.info(f"[ADMIN] Successfully updated debate prompt: {prompt_type}")
-        print(f"[ADMIN-DEBUG] *** SUCCESS *** Prompt saved successfully")
-        print(f"{'='*80}\n")
+        logger.info(f"[ADMIN] Successfully saved debate prompt: {prompt_type}")
         
         return {
             "success": True,
@@ -15586,8 +15539,6 @@ async def update_debate_prompt(prompt_type: str, request: Request):
         }
     except Exception as e:
         logger.error(f"[ADMIN] Error updating debate prompt {prompt_type}: {e}")
-        print(f"[ADMIN-DEBUG] *** EXCEPTION *** {e}")
-        print(f"{'='*80}\n")
         return JSONResponse(
             status_code=500,
             content={"error": str(e)}
