@@ -13873,7 +13873,7 @@ Skriv kort och strukturerat – börja direkt."""
                 llm_response = requests.post(
                     f"{server_url}/v1/chat/completions",
                     json=payload,
-                    timeout=30,
+                    timeout=120,  # Increased from 30s to accommodate longer generation without max_tokens
                 )
                 llm_response.raise_for_status()
                 result = llm_response.json()
